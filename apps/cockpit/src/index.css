@@ -1,0 +1,70 @@
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/silkscreen/400.css';
+@import '@fontsource/silkscreen/700.css';
+
+@import 'tailwindcss';
+
+@theme {
+  --font-pixel: 'Silkscreen', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:root {
+  --color-bg: #0a0a0a;
+  --color-surface: #1a1a1a;
+  --color-surface-hover: #252525;
+  --color-border: #333333;
+  --color-text: #e0e0e0;
+  --color-text-muted: #888888;
+  --color-accent: #39ff14;
+  --color-accent-dim: #1a7a0a;
+  --color-error: #ff3333;
+  --color-warning: #ffaa00;
+  --color-success: #39ff14;
+}
+
+.light {
+  --color-bg: #faf8f0;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0eee6;
+  --color-border: #d4d0c8;
+  --color-text: #1a1a1a;
+  --color-text-muted: #666666;
+  --color-accent: #00875a;
+  --color-accent-dim: #b3e0d0;
+  --color-error: #cc0000;
+  --color-warning: #cc8800;
+  --color-success: #00875a;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}

@@ -10,12 +10,16 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/silkscreen": "^5.2.8",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-http": "^2",
+    "@tauri-apps/plugin-sql": "^2",
     "react": "^18",
     "react-dom": "^18",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-sql": "^2",
-    "@tauri-apps/plugin-fs": "^2",
-    "@tauri-apps/plugin-http": "^2"
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@types/react": "^18",
