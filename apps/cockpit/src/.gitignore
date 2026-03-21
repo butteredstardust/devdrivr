@@ -1,0 +1,3 @@
+# Un-ignore the types/ directory — root .gitignore excludes types/ globally,
+# but this is intentional source code, not generated types.
+!types/
