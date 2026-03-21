@@ -17,6 +17,7 @@
     "core:window:allow-set-size",
     "core:window:allow-set-position",
     "sql:default",
+    "sql:allow-execute",
     "fs:default",
     "http:default"
   ]
