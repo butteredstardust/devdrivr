@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "pipeline": {
+    "next-app#build": {
+      "dependsOn": ["@t4/ui#build"],
+      "inputs": ["pages/**", "public/**"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "t4-app-docs#build": {
+      "dependsOn": ["@t4/ui#build"],
+      "inputs": ["pages/**", "public/**"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "expo-app#postinstall": {
+      "outputs": [".tamagui/**"]
+    },
+    "@t4/ui#build": {
+      "outputs": ["dist/**"]
+    },
+    "@t4/api#generate": {
+      "inputs": ["src/db/schema.ts"],
+      "outputs": ["migrations/**"]
+    },
+    "cockpit#dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "cockpit#build": {
+      "outputs": ["dist/**", "src-tauri/target/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    },
+    "//#clean": {
+      "cache": false
+    }
+  }
+}
