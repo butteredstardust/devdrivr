@@ -1,0 +1,66 @@
+name: 'Cockpit CI'
+
+on:
+  pull_request:
+    paths:
+      - 'apps/cockpit/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/cockpit/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/cockpit
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+        working-directory: .
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit & component tests
+        run: bun run test
+
+  rust-check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/cockpit/src-tauri -> target
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Cargo check
+        working-directory: apps/cockpit/src-tauri
+        run: cargo check
+
+      - name: Cargo clippy
+        working-directory: apps/cockpit/src-tauri
+        run: cargo clippy -- -D warnings
