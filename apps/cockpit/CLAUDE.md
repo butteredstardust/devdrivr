@@ -9,8 +9,12 @@ Full canonical docs live in [`documentation/`](./documentation/):
 | Doc | When to read |
 |-----|-------------|
 | [`documentation/PRODUCT_MAP.md`](./documentation/PRODUCT_MAP.md) | **Check first** — product status, all 27 tools, shortcuts |
+| [`documentation/ONBOARDING.md`](./documentation/ONBOARDING.md) | First-time setup (Rust, Bun, platform deps) |
+| [`documentation/TESTING.md`](./documentation/TESTING.md) | Test strategy, coverage map, how to add tests |
+| [`documentation/DESIGN_SYSTEM.md`](./documentation/DESIGN_SYSTEM.md) | Colour tokens, typography, components, layout patterns |
 | [`documentation/infrastructure/DIRECTORY_MAP.md`](./documentation/infrastructure/DIRECTORY_MAP.md) | Finding any file fast |
 | [`documentation/infrastructure/CODING_PATTERNS.md`](./documentation/infrastructure/CODING_PATTERNS.md) | Before writing any code |
+| [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](./documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | Why things are the way they are (ADRs) |
 | [`documentation/infrastructure/TROUBLESHOOTING.md`](./documentation/infrastructure/TROUBLESHOOTING.md) | When something breaks |
 
 ## Essentials
