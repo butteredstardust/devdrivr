@@ -92,6 +92,7 @@ export default function DiffViewer() {
   }, [worker, state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, setLastAction])
 
   // Auto-compare with debounce when both sides have content
+  // eslint-disable-next-line react-hooks/exhaustive-deps — computeDiff is intentionally omitted; all its deps are listed directly
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
@@ -105,7 +106,7 @@ export default function DiffViewer() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
+  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, computeDiff)
 

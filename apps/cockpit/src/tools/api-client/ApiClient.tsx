@@ -206,7 +206,7 @@ export default function ApiClient() {
     } finally {
       setLoading(false)
     }
-  }, [state, setLastAction])
+  }, [state.url, state.method, state.headers, state.body, state.bodyMode, setLastAction])
 
   useToolAction((action) => {
     if (action.type === 'execute') handleSend()

@@ -77,7 +77,6 @@ function computeCases(input: string): CaseResult[] {
     { id: 'kebab', label: 'kebab-case', value: lower.join('-') },
     { id: 'dot', label: 'dot.case', value: lower.join('.') },
     { id: 'path', label: 'path/case', value: lower.join('/') },
-    { id: 'constant', label: 'CONSTANT_CASE', value: lower.join('_').toUpperCase() },
   ]
 }
 

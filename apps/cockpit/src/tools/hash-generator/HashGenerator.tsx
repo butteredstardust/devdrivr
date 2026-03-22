@@ -96,6 +96,9 @@ export default function HashGenerator() {
       fn.then((result) => {
         setHashes(result)
         setIsComputing(false)
+      }).catch(() => {
+        setHashes(null)
+        setIsComputing(false)
       })
     },
     [state.hmacMode, state.hmacKey]

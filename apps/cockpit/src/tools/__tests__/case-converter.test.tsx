@@ -26,8 +26,7 @@ describe('CaseConverter', () => {
     expect(screen.getByText('HelloWorld')).toBeInTheDocument()
     expect(screen.getByText('hello_world')).toBeInTheDocument()
     expect(screen.getByText('hello-world')).toBeInTheDocument()
-    // SCREAMING_SNAKE_CASE and CONSTANT_CASE both produce HELLO_WORLD
-    expect(screen.getAllByText('HELLO_WORLD')).toHaveLength(2)
+    expect(screen.getByText('HELLO_WORLD')).toBeInTheDocument()
     expect(screen.getByText('hello.world')).toBeInTheDocument()
     expect(screen.getByText('hello/world')).toBeInTheDocument()
   })

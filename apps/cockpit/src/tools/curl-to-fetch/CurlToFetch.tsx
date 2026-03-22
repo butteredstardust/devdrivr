@@ -91,18 +91,22 @@ function parseCurl(input: string): ParsedCurl | null {
 
 // ── Code generators ────────────────────────────────────────────────
 
+function esc(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
 function toFetch(p: ParsedCurl): string {
   const opts: string[] = []
   if (p.method !== 'GET') opts.push(`  method: '${p.method}',`)
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
+    for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
   if (p.body) opts.push(`  body: ${JSON.stringify(p.body)},`)
-  if (opts.length === 0) return `const response = await fetch('${p.url}')\nconst data = await response.json()`
-  return `const response = await fetch('${p.url}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
+  if (opts.length === 0) return `const response = await fetch('${esc(p.url)}')\nconst data = await response.json()`
+  return `const response = await fetch('${esc(p.url)}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
 }
 
 function toAxios(p: ParsedCurl): string {
@@ -110,13 +114,13 @@ function toAxios(p: ParsedCurl): string {
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
+    for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
   if (p.body) opts.push(`  data: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
   const m = p.method.toLowerCase()
-  if (opts.length === 0) return `const { data } = await axios.${m}('${p.url}')`
-  return `const { data } = await axios.${m}('${p.url}', {\n${opts.join('\n')}\n})`
+  if (opts.length === 0) return `const { data } = await axios.${m}('${esc(p.url)}')`
+  return `const { data } = await axios.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n})`
 }
 
 function toKy(p: ParsedCurl): string {
@@ -124,22 +128,22 @@ function toKy(p: ParsedCurl): string {
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
+    for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
   if (p.body) opts.push(`  json: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
   const m = p.method.toLowerCase()
-  if (opts.length === 0) return `const data = await ky.${m}('${p.url}').json()`
-  return `const data = await ky.${m}('${p.url}', {\n${opts.join('\n')}\n}).json()`
+  if (opts.length === 0) return `const data = await ky.${m}('${esc(p.url)}').json()`
+  return `const data = await ky.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n}).json()`
 }
 
 function toXhr(p: ParsedCurl): string {
   const lines = [
     `const xhr = new XMLHttpRequest()`,
-    `xhr.open('${p.method}', '${p.url}')`,
+    `xhr.open('${p.method}', '${esc(p.url)}')`,
   ]
   for (const [k, v] of Object.entries(p.headers)) {
-    lines.push(`xhr.setRequestHeader('${k}', '${v}')`)
+    lines.push(`xhr.setRequestHeader('${esc(k)}', '${esc(v)}')`)
   }
   lines.push(
     `xhr.onload = () => {`,
@@ -164,15 +168,15 @@ function toNodeHttp(p: ParsedCurl): string {
     `const ${mod} = require('${mod}')`,
     ``,
     `const options = {`,
-    `  hostname: '${urlObj?.hostname ?? 'example.com'}',`,
+    `  hostname: '${esc(urlObj?.hostname ?? 'example.com')}',`,
     `  port: ${urlObj?.port ? urlObj.port : urlObj?.protocol === 'https:' ? 443 : 80},`,
-    `  path: '${urlObj?.pathname ?? '/'}${urlObj?.search ?? ''}',`,
+    `  path: '${esc((urlObj?.pathname ?? '/') + (urlObj?.search ?? ''))}',`,
     `  method: '${p.method}',`,
   ]
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0 || p.body) {
     lines.push(`  headers: {`)
-    for (const [k, v] of hdr) lines.push(`    '${k}': '${v}',`)
+    for (const [k, v] of hdr) lines.push(`    '${esc(k)}': '${esc(v)}',`)
     if (p.body) lines.push(`    'Content-Length': ${p.body.length},`)
     lines.push(`  },`)
   }
