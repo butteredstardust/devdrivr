@@ -34,7 +34,8 @@
     "fix": "manypkg fix",
     "postinstall": "bun run build",
     "clean": "git clean -xdf node_modules && rm bun.lockb",
-    "clean:workspaces": "turbo clean"
+    "clean:workspaces": "turbo clean",
+    "prepare": "husky"
   },
   "workspaces": [
     "apps/*",
@@ -56,5 +57,8 @@
   },
   "engines": {
     "node": ">=18.16.1"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }

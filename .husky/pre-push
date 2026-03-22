@@ -1,0 +1,59 @@
+#!/bin/sh
+# devdrivr pre-push: runs tsc + tests, warns on failure, never blocks
+
+WARN() { echo ""; echo "  ⚠️  WARN  $1"; }
+OK()   { echo "  ✅  $1"; }
+INFO() { echo "  →  $1"; }
+
+echo ""
+echo "  devdrivr pre-push checks (warn only)"
+echo "  ────────────────────────────────────────"
+
+# TypeScript check
+echo ""
+INFO "Running TypeScript check (apps/cockpit)..."
+TSC_OUT=$(cd apps/cockpit && npx tsc --noEmit 2>&1)
+if [ $? -ne 0 ]; then
+  WARN "TypeScript errors in apps/cockpit"
+  echo "$TSC_OUT" | head -20 | sed 's/^/       /'
+  INFO "Fix type errors before merging to main."
+else
+  OK "TypeScript check passed"
+fi
+
+# Tests
+echo ""
+INFO "Running tests (apps/cockpit)..."
+TEST_OUT=$(cd apps/cockpit && bun run test 2>&1)
+if [ $? -ne 0 ]; then
+  WARN "Tests failed in apps/cockpit"
+  echo "$TEST_OUT" | tail -20 | sed 's/^/       /'
+  INFO "Fix failing tests before merging to main."
+else
+  OK "Tests passed"
+fi
+
+# Check for unresolved merge conflict markers
+CONFLICT_FILES=$(git diff --name-only HEAD 2>/dev/null | xargs grep -l "^<<<<<<< \|^>>>>>>> \|^=======$" 2>/dev/null)
+if [ -n "$CONFLICT_FILES" ]; then
+  WARN "Unresolved merge conflict markers found"
+  echo "$CONFLICT_FILES" | sed 's/^/       /'
+fi
+
+# Warn if pushing directly to main without a PR
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+REMOTE=$(git remote get-url origin 2>/dev/null)
+while IFS= read -r line; do
+  DEST_BRANCH=$(echo "$line" | awk '{print $2}' | sed 's/refs\/heads\///')
+  if [ "$DEST_BRANCH" = "main" ] && [ "$CURRENT_BRANCH" = "main" ]; then
+    echo ""
+    INFO "Pushing directly to main. Consider using a PR for significant changes."
+  fi
+done
+
+echo ""
+echo "  ────────────────────────────────────────"
+echo "  Pre-push checks complete. Push proceeds regardless."
+echo "  Run 'git push --no-verify' to skip these checks."
+echo ""
+exit 0

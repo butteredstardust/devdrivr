@@ -1,0 +1,121 @@
+#!/bin/sh
+# devdrivr pre-commit: warns on common mistakes, never blocks
+
+WARN() { echo ""; echo "  ⚠️  WARN  $1"; }
+INFO() { echo "  →  $1"; }
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$' | grep "apps/cockpit")
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACMR)
+HAS_WARN=0
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo ""
+echo "  devdrivr pre-commit checks (warn only)"
+echo "  ────────────────────────────────────────"
+
+# 1. Direct Database.load() — must use getDb() singleton
+MATCHES=$(echo "$STAGED" | xargs grep -l "Database\.load(" 2>/dev/null | grep -v "src/lib/db\.ts")
+if [ -n "$MATCHES" ]; then
+  WARN "Direct Database.load() call outside of lib/db.ts"
+  INFO "Use getDb() from @/lib/db — it's a promise singleton that prevents connection races."
+  echo "$MATCHES" | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 2. React.StrictMode — removed intentionally from this codebase
+MATCHES=$(echo "$STAGED" | xargs grep -l "StrictMode" 2>/dev/null)
+if [ -n "$MATCHES" ]; then
+  WARN "React.StrictMode detected"
+  INFO "It was removed intentionally — causes double-mount flash in Tauri WebView."
+  echo "$MATCHES" | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 3. new WebviewWindow — floating windows removed due to IPC + listener leak issues
+MATCHES=$(echo "$STAGED" | xargs grep -l "new WebviewWindow" 2>/dev/null)
+if [ -n "$MATCHES" ]; then
+  WARN "new WebviewWindow() detected"
+  INFO "Floating windows were removed due to Tauri IPC capability issues and listener leaks."
+  INFO "Use inline panels, drawers, or modals instead."
+  echo "$MATCHES" | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 4. applyTheme called at module level (outside a function body)
+MATCHES=$(echo "$STAGED" | xargs grep -n "^applyTheme(" 2>/dev/null)
+if [ -n "$MATCHES" ]; then
+  WARN "applyTheme() at module level"
+  INFO "This causes a flash before the DB theme loads. Call it only inside async init functions."
+  echo "$MATCHES" | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 5. outerPosition/outerSize without nearby scaleFactor — physical pixel bug on Retina
+MATCHES=$(echo "$STAGED" | xargs grep -l "outerPosition\|outerSize" 2>/dev/null)
+for FILE in $MATCHES; do
+  if ! grep -q "scaleFactor" "$FILE"; then
+    WARN "outerPosition() or outerSize() without scaleFactor() in: $FILE"
+    INFO "These return physical pixels. Convert via scaleFactor() + toLogical() before saving."
+    HAS_WARN=1
+  fi
+done
+
+# 6. TypeScript any
+MATCHES=$(echo "$STAGED" | xargs grep -En "(: any\b|as any\b)" 2>/dev/null | grep -v "//.*any" | grep -v "anyOf")
+if [ -n "$MATCHES" ]; then
+  WARN "TypeScript 'any' type detected"
+  INFO "Project is in strict mode. Use proper types, unknown, or a type assertion with a comment."
+  echo "$MATCHES" | head -5 | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 7. Hardcoded hex/rgb colors in className — should use CSS token variables
+MATCHES=$(echo "$STAGED" | xargs grep -En 'className=.*"[^"]*#[0-9a-fA-F]{3,6}|className=.*rgb\(' 2>/dev/null | grep -v "var(--color")
+if [ -n "$MATCHES" ]; then
+  WARN "Hardcoded color values in className"
+  INFO "Use CSS custom property tokens: var(--color-*) defined in src/index.css"
+  echo "$MATCHES" | head -5 | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 8. npm or yarn used instead of bun
+MATCHES=$(echo "$STAGED_ALL" | xargs grep -En "npm install|npm run|yarn add|yarn install" 2>/dev/null | grep -v "README\|\.md:")
+if [ -n "$MATCHES" ]; then
+  WARN "npm/yarn usage detected"
+  INFO "This project uses Bun exclusively. Use: bun install / bun run / bun add"
+  echo "$MATCHES" | head -5 | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+# 9. New store init() without idempotent promise guard
+NEW_STORES=$(echo "$STAGED" | xargs grep -l "create<" 2>/dev/null)
+for FILE in $NEW_STORES; do
+  if grep -q "init: async" "$FILE" && ! grep -q "initPromise" "$FILE"; then
+    WARN "Store init() without idempotent promise guard in: $FILE"
+    INFO "Add: let initPromise: Promise<void> | null = null"
+    INFO "     init: async () => { if (!initPromise) { initPromise = ... } return initPromise }"
+    HAS_WARN=1
+  fi
+done
+
+# 10. console.log left in source
+MATCHES=$(echo "$STAGED" | xargs grep -En "console\.log\(" 2>/dev/null | grep -v "//.*console")
+if [ -n "$MATCHES" ]; then
+  WARN "console.log() found in staged files"
+  INFO "Remove debug logs or replace with console.warn/error for intentional output."
+  echo "$MATCHES" | head -5 | sed 's/^/       /'
+  HAS_WARN=1
+fi
+
+if [ "$HAS_WARN" -eq 1 ]; then
+  echo ""
+  echo "  ────────────────────────────────────────"
+  echo "  Warnings above are advisory — commit proceeds."
+  echo "  Run 'git commit --no-verify' to suppress this check."
+fi
+
+echo ""
+exit 0
