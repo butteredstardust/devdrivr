@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Fuse from 'fuse.js'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
@@ -23,6 +23,81 @@ const COLOR_MAP: Record<NoteColor, string> = {
   orange: 'bg-orange-500/20 border-orange-500/30',
   red: 'bg-red-500/20 border-red-500/30',
   gray: 'bg-gray-500/20 border-gray-500/30',
+}
+
+function NoteEditor({
+  note,
+  onUpdate,
+  onDone,
+}: {
+  note: { id: string; title: string; content: string; color: NoteColor }
+  onUpdate: (id: string, patch: { title?: string; content?: string; color?: NoteColor }) => void
+  onDone: () => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const autoGrow = useCallback(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${ta.scrollHeight}px`
+  }, [])
+
+  useEffect(() => {
+    autoGrow()
+  }, [note.content, autoGrow])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onDone()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onDone])
+
+  return (
+    <div ref={containerRef} className="flex min-w-0 flex-col gap-1 overflow-hidden">
+      <input
+        value={note.title}
+        onChange={(e) => onUpdate(note.id, { title: e.target.value })}
+        placeholder="Title"
+        className="w-full bg-transparent text-xs font-bold text-[var(--color-text)] outline-none"
+        autoFocus
+      />
+      <textarea
+        ref={textareaRef}
+        value={note.content}
+        onChange={(e) => {
+          onUpdate(note.id, { content: e.target.value })
+          autoGrow()
+        }}
+        onInput={autoGrow}
+        placeholder="Write something..."
+        rows={2}
+        className="w-full min-h-[3rem] max-h-[16rem] resize-none overflow-auto bg-transparent text-xs text-[var(--color-text)] outline-none"
+      />
+      <div className="flex items-center gap-1">
+        {NOTE_COLORS.map((c) => (
+          <button
+            key={c}
+            onClick={() => onUpdate(note.id, { color: c })}
+            className={`h-4 w-4 rounded-full border ${note.color === c ? 'ring-2 ring-[var(--color-accent)]' : ''}`}
+            style={{ backgroundColor: `var(--note-${c}, ${c})` }}
+            title={c}
+          />
+        ))}
+      </div>
+      <button
+        onClick={onDone}
+        className="mt-1 self-end text-xs text-[var(--color-accent)] hover:underline"
+      >
+        Done
+      </button>
+    </div>
+  )
 }
 
 export function NotesDrawer() {
@@ -66,10 +141,12 @@ export function NotesDrawer() {
     setLastAction('Note deleted', 'info')
   }, [removeNote, setLastAction])
 
-  const handleHistoryReplay = useCallback((tool: string, _input: string) => {
+  const setPendingSendTo = useUiStore((s) => s.setPendingSendTo)
+  const handleHistoryReplay = useCallback((tool: string, input: string) => {
+    if (input) setPendingSendTo(input)
     setActiveTool(tool)
-    setLastAction(`Switched to ${tool}`, 'info')
-  }, [setActiveTool, setLastAction])
+    setLastAction(`Replayed to ${tool}`, 'info')
+  }, [setActiveTool, setPendingSendTo, setLastAction])
 
   if (!drawerOpen) return null
 
@@ -107,58 +184,30 @@ export function NotesDrawer() {
                 className={`mb-2 rounded border p-2 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'}`}
               >
                 {editingId === note.id ? (
-                  <div className="flex flex-col gap-1">
-                    <input
-                      value={note.title}
-                      onChange={(e) => updateNote(note.id, { title: e.target.value })}
-                      placeholder="Title"
-                      className="bg-transparent text-xs font-bold text-[var(--color-text)] outline-none"
-                      autoFocus
-                    />
-                    <textarea
-                      value={note.content}
-                      onChange={(e) => updateNote(note.id, { content: e.target.value })}
-                      placeholder="Write something..."
-                      rows={4}
-                      className="resize-none bg-transparent text-xs text-[var(--color-text)] outline-none"
-                    />
-                    <div className="flex items-center gap-1">
-                      {NOTE_COLORS.map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => updateNote(note.id, { color: c })}
-                          className={`h-4 w-4 rounded-full border ${note.color === c ? 'ring-2 ring-[var(--color-accent)]' : ''}`}
-                          style={{ backgroundColor: `var(--note-${c}, ${c})` }}
-                          title={c}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="mt-1 self-end text-xs text-[var(--color-accent)] hover:underline"
-                    >
-                      Done
-                    </button>
-                  </div>
+                  <NoteEditor
+                    note={note}
+                    onUpdate={updateNote}
+                    onDone={() => setEditingId(null)}
+                  />
                 ) : (
-                  <div>
+                  <div
+                    className="cursor-pointer"
+                    onClick={() => setEditingId(note.id)}
+                  >
                     <div className="flex items-center justify-between">
-                      <span
-                        className="cursor-pointer text-xs font-bold text-[var(--color-text)] hover:underline"
-                        onClick={() => setEditingId(note.id)}
-                      >
+                      <span className="text-xs font-bold text-[var(--color-text)]">
                         {note.title || 'Untitled'}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => updateNote(note.id, { pinned: !note.pinned })}
+                          onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
                           className={`text-xs ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
                           title={note.pinned ? 'Unpin' : 'Pin'}
                         >
                           {note.pinned ? '★' : '☆'}
                         </button>
                         <button
-                          onClick={() => handleDelete(note.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
                           className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
                           title="Delete"
                         >
