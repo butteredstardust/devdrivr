@@ -35,7 +35,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'diff-viewer', name: 'Diff Viewer', group: 'code', icon: '±', description: 'Compare text side-by-side or inline', component: DiffViewer },
   { id: 'refactoring-toolkit', name: 'Refactoring Toolkit', group: 'code', icon: '♻', description: 'Regex code transforms with diff preview (12 transforms, JS/TS)', component: RefactoringToolkit },
   // --- Data ---
-  { id: 'json-tools', name: 'JSON Tools', group: 'data', icon: '{}', description: 'Validate, format, tree view, and table view for JSON', component: JsonTools },
+  { id: 'json-tools', name: 'JSON Tools', group: 'data', icon: '{}', description: 'Validate, format, minify, sort keys, path query, and tree view for JSON', component: JsonTools },
   { id: 'xml-tools', name: 'XML Tools', group: 'data', icon: '<>', description: 'Validate and format XML', component: XmlTools },
   { id: 'json-schema-validator', name: 'JSON Schema Validator', group: 'data', icon: '✓{', description: 'Validate JSON against a schema', component: JsonSchemaValidator },
   // --- Web ---
