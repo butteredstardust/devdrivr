@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
+import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 
 type CurlToFetchState = {
   input: string
@@ -16,6 +17,8 @@ type ParsedCurl = {
   body: string | null
 }
 
+// ── Parser ─────────────────────────────────────────────────────────
+
 function parseCurl(input: string): ParsedCurl | null {
   const trimmed = input.trim()
   if (!trimmed.startsWith('curl')) return null
@@ -25,7 +28,6 @@ function parseCurl(input: string): ParsedCurl | null {
   let body: string | null = null
   let url = ''
 
-  // Normalize multi-line curl commands
   const normalized = trimmed.replace(/\\\n\s*/g, ' ')
   const tokens: string[] = []
   let current = ''
@@ -41,7 +43,10 @@ function parseCurl(input: string): ParsedCurl | null {
     } else if (char === '"' || char === "'") {
       inQuote = char
     } else if (char === ' ') {
-      if (current) { tokens.push(current); current = '' }
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
     } else {
       current += char
     }
@@ -60,7 +65,12 @@ function parseCurl(input: string): ParsedCurl | null {
       if (colonIdx > 0) {
         headers[header.slice(0, colonIdx).trim()] = header.slice(colonIdx + 1).trim()
       }
-    } else if (token === '-d' || token === '--data' || token === '--data-raw' || token === '--data-binary') {
+    } else if (
+      token === '-d' ||
+      token === '--data' ||
+      token === '--data-raw' ||
+      token === '--data-binary'
+    ) {
       body = tokens[++i] ?? null
       if (method === 'GET') method = 'POST'
     } else if (token === '-u' || token === '--user') {
@@ -79,119 +89,200 @@ function parseCurl(input: string): ParsedCurl | null {
   return { url, method, headers, body }
 }
 
-function toFetch(parsed: ParsedCurl): string {
-  const opts: string[] = []
-  if (parsed.method !== 'GET') opts.push(`  method: '${parsed.method}',`)
+// ── Code generators ────────────────────────────────────────────────
 
-  const headerEntries = Object.entries(parsed.headers)
-  if (headerEntries.length > 0) {
+function toFetch(p: ParsedCurl): string {
+  const opts: string[] = []
+  if (p.method !== 'GET') opts.push(`  method: '${p.method}',`)
+  const hdr = Object.entries(p.headers)
+  if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of headerEntries) {
-      opts.push(`    '${k}': '${v}',`)
-    }
+    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
     opts.push('  },')
   }
-
-  if (parsed.body) {
-    opts.push(`  body: ${JSON.stringify(parsed.body)},`)
-  }
-
-  if (opts.length === 0) {
-    return `const response = await fetch('${parsed.url}')`
-  }
-
-  return `const response = await fetch('${parsed.url}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
+  if (p.body) opts.push(`  body: ${JSON.stringify(p.body)},`)
+  if (opts.length === 0) return `const response = await fetch('${p.url}')\nconst data = await response.json()`
+  return `const response = await fetch('${p.url}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
 }
 
-function toAxios(parsed: ParsedCurl): string {
+function toAxios(p: ParsedCurl): string {
   const opts: string[] = []
-  const headerEntries = Object.entries(parsed.headers)
-  if (headerEntries.length > 0) {
+  const hdr = Object.entries(p.headers)
+  if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of headerEntries) {
-      opts.push(`    '${k}': '${v}',`)
-    }
+    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
     opts.push('  },')
   }
-  if (parsed.body) {
-    opts.push(`  data: ${parsed.body.startsWith('{') ? parsed.body : JSON.stringify(parsed.body)},`)
-  }
-
-  const method = parsed.method.toLowerCase()
-  if (opts.length === 0) {
-    return `const { data } = await axios.${method}('${parsed.url}')`
-  }
-  return `const { data } = await axios.${method}('${parsed.url}', {\n${opts.join('\n')}\n})`
+  if (p.body) opts.push(`  data: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
+  const m = p.method.toLowerCase()
+  if (opts.length === 0) return `const { data } = await axios.${m}('${p.url}')`
+  return `const { data } = await axios.${m}('${p.url}', {\n${opts.join('\n')}\n})`
 }
 
-function toKy(parsed: ParsedCurl): string {
+function toKy(p: ParsedCurl): string {
   const opts: string[] = []
-  const headerEntries = Object.entries(parsed.headers)
-  if (headerEntries.length > 0) {
+  const hdr = Object.entries(p.headers)
+  if (hdr.length > 0) {
     opts.push('  headers: {')
-    for (const [k, v] of headerEntries) {
-      opts.push(`    '${k}': '${v}',`)
-    }
+    for (const [k, v] of hdr) opts.push(`    '${k}': '${v}',`)
     opts.push('  },')
   }
-  if (parsed.body) {
-    opts.push(`  json: ${parsed.body.startsWith('{') ? parsed.body : JSON.stringify(parsed.body)},`)
-  }
+  if (p.body) opts.push(`  json: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
+  const m = p.method.toLowerCase()
+  if (opts.length === 0) return `const data = await ky.${m}('${p.url}').json()`
+  return `const data = await ky.${m}('${p.url}', {\n${opts.join('\n')}\n}).json()`
+}
 
-  const method = parsed.method.toLowerCase()
-  if (opts.length === 0) {
-    return `const data = await ky.${method}('${parsed.url}').json()`
+function toXhr(p: ParsedCurl): string {
+  const lines = [
+    `const xhr = new XMLHttpRequest()`,
+    `xhr.open('${p.method}', '${p.url}')`,
+  ]
+  for (const [k, v] of Object.entries(p.headers)) {
+    lines.push(`xhr.setRequestHeader('${k}', '${v}')`)
   }
-  return `const data = await ky.${method}('${parsed.url}', {\n${opts.join('\n')}\n}).json()`
+  lines.push(
+    `xhr.onload = () => {`,
+    `  const data = JSON.parse(xhr.responseText)`,
+    `  console.log(data)`,
+    `}`
+  )
+  lines.push(p.body ? `xhr.send(${JSON.stringify(p.body)})` : `xhr.send()`)
+  return lines.join('\n')
+}
+
+function toNodeHttp(p: ParsedCurl): string {
+  const urlObj = (() => {
+    try {
+      return new URL(p.url)
+    } catch {
+      return null
+    }
+  })()
+  const mod = urlObj?.protocol === 'https:' ? 'https' : 'http'
+  const lines = [
+    `const ${mod} = require('${mod}')`,
+    ``,
+    `const options = {`,
+    `  hostname: '${urlObj?.hostname ?? 'example.com'}',`,
+    `  port: ${urlObj?.port ? urlObj.port : urlObj?.protocol === 'https:' ? 443 : 80},`,
+    `  path: '${urlObj?.pathname ?? '/'}${urlObj?.search ?? ''}',`,
+    `  method: '${p.method}',`,
+  ]
+  const hdr = Object.entries(p.headers)
+  if (hdr.length > 0 || p.body) {
+    lines.push(`  headers: {`)
+    for (const [k, v] of hdr) lines.push(`    '${k}': '${v}',`)
+    if (p.body) lines.push(`    'Content-Length': ${p.body.length},`)
+    lines.push(`  },`)
+  }
+  lines.push(`}`)
+  lines.push(``)
+  lines.push(`const req = ${mod}.request(options, (res) => {`)
+  lines.push(`  let data = ''`)
+  lines.push(`  res.on('data', (chunk) => { data += chunk })`)
+  lines.push(`  res.on('end', () => console.log(JSON.parse(data)))`)
+  lines.push(`})`)
+  if (p.body) lines.push(`req.write(${JSON.stringify(p.body)})`)
+  lines.push(`req.end()`)
+  return lines.join('\n')
 }
 
 const OUTPUT_TABS = [
   { id: 'fetch', label: 'fetch' },
   { id: 'axios', label: 'axios' },
   { id: 'ky', label: 'ky' },
+  { id: 'xhr', label: 'XHR' },
+  { id: 'node', label: 'Node.js' },
 ]
 
+const METHOD_COLORS: Record<string, string> = {
+  GET: 'var(--color-success)',
+  POST: 'var(--color-info)',
+  PUT: 'var(--color-warning)',
+  PATCH: 'var(--color-warning)',
+  DELETE: 'var(--color-error)',
+}
+
+// ── Component ──────────────────────────────────────────────────────
+
 export default function CurlToFetch() {
+  useMonacoTheme()
   const [state, updateState] = useToolState<CurlToFetchState>('curl-to-fetch', {
     input: '',
     outputTab: 'fetch',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
 
   const parsed = useMemo(() => parseCurl(state.input), [state.input])
 
   const output = useMemo(() => {
     if (!parsed) return ''
     switch (state.outputTab) {
-      case 'fetch': return toFetch(parsed)
-      case 'axios': return toAxios(parsed)
-      case 'ky': return toKy(parsed)
-      default: return toFetch(parsed)
+      case 'fetch':
+        return toFetch(parsed)
+      case 'axios':
+        return toAxios(parsed)
+      case 'ky':
+        return toKy(parsed)
+      case 'xhr':
+        return toXhr(parsed)
+      case 'node':
+        return toNodeHttp(parsed)
+      default:
+        return toFetch(parsed)
     }
   }, [parsed, state.outputTab])
 
-  // Report conversion status to status bar
-  useMemo(() => {
-    if (parsed && output) {
-      setLastAction(`Converted to ${state.outputTab}`, 'success')
-    }
-  }, [parsed, output, state.outputTab, setLastAction])
+  const headerCount = parsed ? Object.keys(parsed.headers).length : 0
 
   return (
     <div className="flex h-full flex-col">
+      {/* Parsed request summary */}
+      {parsed && (
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-1.5">
+          <span
+            className="rounded px-2 py-0.5 text-xs font-bold"
+            style={{
+              color: METHOD_COLORS[parsed.method] ?? 'var(--color-text)',
+              background: `color-mix(in srgb, ${METHOD_COLORS[parsed.method] ?? 'var(--color-text)'} 15%, transparent)`,
+            }}
+          >
+            {parsed.method}
+          </span>
+          <span className="min-w-0 truncate font-mono text-xs text-[var(--color-text)]">
+            {parsed.url}
+          </span>
+          {headerCount > 0 && (
+            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+              {headerCount} header{headerCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {parsed.body && (
+            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+              body: {parsed.body.length} chars
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+        {/* Input */}
+        <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
             cURL Command
           </div>
           <textarea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
-            placeholder={"curl 'https://api.example.com/data' \\\n  -H 'Authorization: Bearer token' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"key\": \"value\"}'"}
+            placeholder={
+              "curl 'https://api.example.com/data' \\\n  -H 'Authorization: Bearer token' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"key\": \"value\"}'"
+            }
             className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
           />
         </div>
-        <div className="flex w-1/2 flex-col">
+
+        {/* Output */}
+        <div className="flex w-3/5 flex-col">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-1">
             <TabBar
               tabs={OUTPUT_TABS}
@@ -201,13 +292,21 @@ export default function CurlToFetch() {
             <CopyButton text={output} className="mr-2" />
           </div>
           {parsed ? (
-            <pre className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs text-[var(--color-text)]">
-              {output}
-            </pre>
+            <div className="flex-1">
+              <Editor
+                language="javascript"
+                value={output}
+                options={{ ...EDITOR_OPTIONS, readOnly: true, domReadOnly: true }}
+              />
+            </div>
           ) : state.input.trim() ? (
-            <div className="p-4 text-sm text-[var(--color-error)]">Could not parse cURL command</div>
+            <div className="p-4 text-sm text-[var(--color-error)]">
+              Could not parse cURL command
+            </div>
           ) : (
-            <div className="p-4 text-sm text-[var(--color-text-muted)]">Paste a cURL command on the left</div>
+            <div className="p-4 text-sm text-[var(--color-text-muted)]">
+              Paste a cURL command on the left
+            </div>
           )}
         </div>
       </div>

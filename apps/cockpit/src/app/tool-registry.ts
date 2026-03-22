@@ -49,7 +49,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'timestamp-converter', name: 'Timestamp Converter', group: 'convert', icon: '⏱', description: 'Convert between Unix timestamps and human dates', component: TimestampConverter },
   { id: 'base64', name: 'Base64', group: 'convert', icon: 'B64', description: 'Encode/decode Base64 with URL-safe, line wrap, image preview, data URIs', component: Base64Tool },
   { id: 'url-codec', name: 'URL Encode/Decode', group: 'convert', icon: '%', description: 'URL encode and decode strings', component: UrlCodec },
-  { id: 'curl-to-fetch', name: 'cURL → Fetch', group: 'convert', icon: '→f', description: 'Convert cURL commands to fetch/axios', component: CurlToFetch },
+  { id: 'curl-to-fetch', name: 'cURL → Fetch', group: 'convert', icon: '→f', description: 'Convert cURL to fetch, axios, ky, XHR, Node.js with syntax highlighting', component: CurlToFetch },
   { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate and validate UUIDs', component: UuidGenerator },
   { id: 'hash-generator', name: 'Hash Generator', group: 'convert', icon: '##', description: 'Generate hashes and HMAC with comparison and export', component: HashGenerator },
   // --- Test ---
