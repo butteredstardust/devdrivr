@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 
 type ColorConverterState = {
   input: string
@@ -114,8 +113,6 @@ export default function ColorConverter() {
     contrastFg: '#ffffff',
     contrastBg: '#000000',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
-
   const color = useMemo(() => {
     const rgb = parseColor(state.input)
     if (!rgb) return null
@@ -140,9 +137,6 @@ export default function ColorConverter() {
       aaa: ratio >= 7,
     }
   }, [state.contrastFg, state.contrastBg])
-
-  // setLastAction is available for future use (e.g. copy actions bubble up through CopyButton)
-  void setLastAction
 
   const formats = color
     ? [

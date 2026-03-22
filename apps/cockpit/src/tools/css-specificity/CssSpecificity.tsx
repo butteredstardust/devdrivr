@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
-import { useUiStore } from '@/stores/ui.store'
 
 type CssSpecificityState = {
   input: string
@@ -42,7 +41,6 @@ export default function CssSpecificity() {
   const [state, updateState] = useToolState<CssSpecificityState>('css-specificity', {
     input: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
   const [sorted, setSorted] = useState(false)
 
   const results = useMemo(() => {
@@ -60,9 +58,6 @@ export default function CssSpecificity() {
   }, [state.input, sorted])
 
   const maxScore = useMemo(() => Math.max(...results.map((r) => r.score), 1), [results])
-
-  // suppress unused warning — setLastAction is part of the established pattern
-  void setLastAction
 
   return (
     <div className="flex h-full flex-col">

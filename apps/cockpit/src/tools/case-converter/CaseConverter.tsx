@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 
 type CaseConverterState = {
   input: string
@@ -47,12 +46,7 @@ export default function CaseConverter() {
   const [state, updateState] = useToolState<CaseConverterState>('case-converter', {
     input: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
-
   const cases = useMemo(() => computeCases(state.input), [state.input])
-
-  // setLastAction used for future extensibility (e.g. clear action)
-  void setLastAction
 
   return (
     <div className="flex h-full flex-col">

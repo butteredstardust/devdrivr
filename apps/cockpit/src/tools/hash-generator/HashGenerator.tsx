@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 import { md5 } from 'js-md5'
 
 type HashGeneratorState = {
@@ -42,12 +41,8 @@ export default function HashGenerator() {
   const [state, updateState] = useToolState<HashGeneratorState>('hash-generator', {
     input: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
   const [hashes, setHashes] = useState<Hashes | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // setLastAction used for copy feedback (bubbles through CopyButton)
-  void setLastAction
 
   useEffect(() => {
     if (!state.input) {

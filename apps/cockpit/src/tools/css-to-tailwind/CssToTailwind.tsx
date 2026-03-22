@@ -3,7 +3,6 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 
 type CssToTailwindState = {
   input: string
@@ -134,17 +133,12 @@ export default function CssToTailwind() {
   const [state, updateState] = useToolState<CssToTailwindState>('css-to-tailwind', {
     input: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
-
   const result = useMemo(() => {
     if (!state.input.trim()) return null
     return convertCssToTailwind(state.input)
   }, [state.input])
 
   const classString = result?.classes.join(' ') ?? ''
-
-  // suppress unused warning — setLastAction is part of the established pattern
-  void setLastAction
 
   return (
     <div className="flex h-full flex-col">

@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
 
 type JwtDecoderState = {
   input: string
@@ -74,11 +73,6 @@ export default function JwtDecoder() {
   const [state, updateState] = useToolState<JwtDecoderState>('jwt-decoder', {
     input: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
-
-  // setLastAction used for copy feedback (bubbles through CopyButton)
-  void setLastAction
-
   const decoded = useMemo(() => {
     if (!state.input.trim()) return null
     return decodeJwt(state.input)
