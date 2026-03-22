@@ -15,7 +15,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
     <div className="mb-1">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex w-full items-center gap-2 px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+        className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
       >
         <CaretRight
           size={10}

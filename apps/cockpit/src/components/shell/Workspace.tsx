@@ -4,6 +4,7 @@ import { getToolById } from '@/app/tool-registry'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
 import { dispatchToolAction } from '@/lib/tool-actions'
+import { Toolbox } from '@phosphor-icons/react'
 
 export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
@@ -27,8 +28,12 @@ export function Workspace() {
 
   if (!tool) {
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--color-bg)] text-[var(--color-text-muted)]">
-        No tool selected
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)] text-[var(--color-text-muted)]">
+        <Toolbox size={36} weight="light" />
+        <div className="text-center">
+          <p className="text-sm">Select a tool to get started</p>
+          <p className="mt-1 text-xs opacity-60">Use the sidebar or press ⌘K</p>
+        </div>
       </div>
     )
   }

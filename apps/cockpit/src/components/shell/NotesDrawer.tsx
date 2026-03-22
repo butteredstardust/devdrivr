@@ -5,7 +5,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
-import { PushPin, Trash, Note, ClockCounterClockwise } from '@phosphor-icons/react'
+import { PushPin, Trash, Note, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
 import type { NoteColor } from '@/types/models'
 
 const MIN_WIDTH = 200
@@ -250,7 +250,7 @@ export function NotesDrawer() {
                   />
                 ) : (
                   <div
-                    className="cursor-pointer"
+                    className="cursor-pointer rounded transition-colors duration-150 hover:bg-[var(--color-surface-hover)]/40"
                     onClick={() => setEditingId(note.id)}
                   >
                     <div className="flex items-center justify-between">
@@ -314,14 +314,17 @@ export function NotesDrawer() {
             {filteredHistory.map((entry) => (
               <div
                 key={entry.id}
-                className="mb-2 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2 hover:bg-[var(--color-surface-hover)]"
+                className="mb-2 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2 transition-colors duration-150 hover:bg-[var(--color-surface-hover)]"
                 onClick={() => handleHistoryReplay(entry.tool, entry.input)}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--color-accent)]">{entry.tool}</span>
-                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
+                    <ArrowCounterClockwise size={10} />
+                    <span className="text-[10px]">
+                      {new Date(entry.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
                   {entry.input.slice(0, 100)}{entry.input.length > 100 ? '...' : ''}

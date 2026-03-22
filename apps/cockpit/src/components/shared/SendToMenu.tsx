@@ -49,11 +49,17 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
     }
   }, [onClose])
 
+  // Clamp position so the menu never goes off-screen
+  const menuWidth = 224  // w-56
+  const menuHeight = 320
+  const adjustedLeft = Math.min(position.x, window.innerWidth - menuWidth - 8)
+  const adjustedTop = Math.min(position.y, window.innerHeight - menuHeight - 8)
+
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 w-56 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
-      style={{ left: position.x, top: position.y }}
+      className="animate-fade-in fixed z-50 w-56 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+      style={{ left: adjustedLeft, top: adjustedTop }}
     >
       <div className="border-b border-[var(--color-border)] p-2">
         <input
