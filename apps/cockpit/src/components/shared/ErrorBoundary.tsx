@@ -1,3 +1,5 @@
+// Exception to the "no class components" rule: React does not provide a
+// hooks-based error boundary API, so a class component is required here.
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 type Props = { children: ReactNode; fallbackMessage?: string }
