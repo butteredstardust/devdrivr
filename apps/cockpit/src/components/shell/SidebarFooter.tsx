@@ -22,7 +22,7 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
   if (collapsed) {
     return (
       <div className="flex shrink-0 flex-col items-center gap-1 border-t border-[var(--color-border)] py-2">
-        <button onClick={toggleNotes} className={buttonClass} title="Notes">
+        <button onClick={toggleNotes} className={buttonClass} title="Notes" aria-label="Toggle notes drawer">
           <span className="relative">
             <Notebook size={16} />
             {hasNotes && (
@@ -30,10 +30,10 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
             )}
           </span>
         </button>
-        <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings">
+        <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings" aria-label="Open settings">
           <GearSix size={16} />
         </button>
-        <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts">
+        <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts" aria-label="Open keyboard shortcuts">
           <Keyboard size={16} />
         </button>
       </div>
@@ -42,7 +42,7 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
 
   return (
     <div className="flex shrink-0 items-center gap-1 border-t border-[var(--color-border)] px-3 py-2">
-      <button onClick={toggleNotes} className={buttonClass} title="Notes">
+      <button onClick={toggleNotes} className={buttonClass} title="Notes" aria-label="Toggle notes drawer">
         <span className="relative">
           <Notebook size={16} />
           {hasNotes && (
@@ -50,10 +50,10 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
           )}
         </span>
       </button>
-      <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings">
+      <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings" aria-label="Open settings">
         <GearSix size={16} />
       </button>
-      <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts">
+      <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts" aria-label="Open keyboard shortcuts">
         <Keyboard size={16} />
       </button>
     </div>

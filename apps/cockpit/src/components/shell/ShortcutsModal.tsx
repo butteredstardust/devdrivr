@@ -81,15 +81,17 @@ export function ShortcutsModal() {
   return (
     <>
       <div
+        role="presentation"
         className="fixed inset-0 z-50 bg-black/50"
         onClick={() => setOpen(false)}
       />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
+      <div className="animate-fade-in fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
           <button
             onClick={() => setOpen(false)}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            aria-label="Close shortcuts"
+            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
             <X size={16} />
           </button>

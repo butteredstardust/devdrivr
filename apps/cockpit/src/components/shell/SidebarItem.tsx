@@ -16,6 +16,7 @@ export function SidebarItem({ id, name, icon }: SidebarItemProps) {
     <button
       onClick={() => setActiveTool(id)}
       title={name}
+      aria-label={name}
       className={`flex h-9 w-full items-center gap-2 rounded-sm px-2 text-xs transition-colors ${
         isActive
           ? 'border-l-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)] pl-1.5 text-[var(--color-accent)]'

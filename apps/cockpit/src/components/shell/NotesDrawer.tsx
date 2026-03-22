@@ -5,10 +5,24 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
+import { PushPin, Trash, Note, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
 import type { NoteColor } from '@/types/models'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 600
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
 
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
@@ -95,7 +109,7 @@ function NoteEditor({
       </div>
       <button
         onClick={onDone}
-        className="mt-1 self-end text-xs text-[var(--color-accent)] hover:underline"
+        className="mt-1 self-end rounded px-2 py-0.5 text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
       >
         Done
       </button>
@@ -223,15 +237,18 @@ export function NotesDrawer() {
             />
             <button
               onClick={handleAddNote}
-              className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
+              aria-label="New note"
+              className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
             >
               +
             </button>
           </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredNotes.length === 0 && (
-              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                {search ? 'No matching notes' : 'No notes yet — click + to create one'}
+              <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
+                <Note size={24} weight="light" />
+                <span>{search ? 'No matching notes' : 'No notes yet'}</span>
+                {!search && <span className="text-[10px] opacity-60">Click + to create one</span>}
               </div>
             )}
             {filteredNotes.map((note) => (
@@ -247,27 +264,29 @@ export function NotesDrawer() {
                   />
                 ) : (
                   <div
-                    className="cursor-pointer"
+                    className="cursor-pointer rounded transition-colors duration-150 hover:bg-[var(--color-surface-hover)]/40"
                     onClick={() => setEditingId(note.id)}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--color-text)]">
                         {note.title || 'Untitled'}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         <button
                           onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
-                          className={`text-xs ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+                          className={`rounded p-0.5 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
                           title={note.pinned ? 'Unpin' : 'Pin'}
+                          aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
                         >
-                          {note.pinned ? '★' : '☆'}
+                          <PushPin size={12} weight={note.pinned ? 'fill' : 'regular'} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
-                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
-                          title="Delete"
+                          className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
+                          title="Delete note"
+                          aria-label="Delete note"
                         >
-                          ×
+                          <Trash size={12} />
                         </button>
                       </div>
                     </div>
@@ -275,7 +294,7 @@ export function NotesDrawer() {
                       <p className="mt-1 line-clamp-3 text-xs text-[var(--color-text-muted)]">{note.content}</p>
                     )}
                     <div className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                      {new Date(note.updatedAt).toLocaleDateString()}
+                      {timeAgo(note.updatedAt)}
                     </div>
                   </div>
                 )}
@@ -291,7 +310,7 @@ export function NotesDrawer() {
             <select
               value={historyFilter}
               onChange={(e) => setHistoryFilter(e.target.value)}
-              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">All tools</option>
               {Array.from(new Set(historyEntries.map((e) => e.tool))).map((tool) => (
@@ -301,21 +320,25 @@ export function NotesDrawer() {
           </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredHistory.length === 0 && (
-              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                No history yet
+              <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
+                <ClockCounterClockwise size={24} weight="light" />
+                <span>{historyFilter ? 'No history for this tool' : 'No history yet'}</span>
               </div>
             )}
             {filteredHistory.map((entry) => (
               <div
                 key={entry.id}
-                className="mb-2 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2 hover:bg-[var(--color-surface-hover)]"
+                className="mb-2 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2 transition-colors duration-150 hover:bg-[var(--color-surface-hover)]"
                 onClick={() => handleHistoryReplay(entry.tool, entry.input)}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--color-accent)]">{entry.tool}</span>
-                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
+                    <ArrowCounterClockwise size={10} />
+                    <span className="text-[10px]">
+                      {timeAgo(entry.timestamp)}
+                    </span>
+                  </div>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
                   {entry.input.slice(0, 100)}{entry.input.length > 100 ? '...' : ''}

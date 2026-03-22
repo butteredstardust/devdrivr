@@ -21,7 +21,9 @@ export function StatusBar() {
       <div className="flex items-center gap-3">
         <span className="text-[var(--color-text-muted)]">{tool?.name ?? ''}</span>
         {lastAction && (
-          <span className={actionColor}>{lastAction.message}</span>
+          <span key={`${lastAction.message}-${lastAction.type}`} className={`animate-fade-in ${actionColor}`}>
+            {lastAction.message}
+          </span>
         )}
       </div>
       <div className="flex items-center gap-2">

@@ -13,6 +13,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const fuse = useMemo(
     () =>
@@ -36,6 +37,14 @@ export function CommandPalette() {
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [isOpen])
+
+  // Scroll keyboard-selected item into view
+  useEffect(() => {
+    const container = listRef.current
+    if (!container) return
+    const buttons = container.querySelectorAll('button')
+    buttons[selectedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -71,10 +80,11 @@ export function CommandPalette() {
   return (
     <>
       <div
+        role="presentation"
         className="fixed inset-0 z-40 bg-black/50"
         onClick={() => setOpen(false)}
       />
-      <div className="fixed left-1/2 top-[15%] z-50 w-[500px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
+      <div className="animate-fade-in fixed left-1/2 top-[15%] z-50 w-[500px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
         <div className="flex items-center border-b border-[var(--color-border)] px-3">
           <span className="mr-2 text-sm text-[var(--color-text-muted)]">&gt;</span>
           <input
@@ -89,7 +99,7 @@ export function CommandPalette() {
             className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
           />
         </div>
-        <div className="max-h-80 overflow-y-auto py-1">
+        <div ref={listRef} className="max-h-80 overflow-y-auto py-1">
           {results.map((tool, i) => (
             <button
               key={tool.id}
