@@ -16,9 +16,17 @@
     "core:window:allow-create",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-set-focus",
     "sql:default",
     "sql:allow-execute",
     "fs:default",
-    "http:default"
+    "http:default",
+    "dialog:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "core:webview:allow-create-webview-window",
+    "global-shortcut:default"
   ]
 }

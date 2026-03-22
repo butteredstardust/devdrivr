@@ -7,6 +7,7 @@ export function StatusBar() {
   const lastAction = useUiStore((s) => s.lastAction)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)
   const theme = useSettingsStore((s) => s.theme)
+  const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const tool = getToolById(activeTool)
 
   const actionColor =
@@ -25,6 +26,9 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-2">
+        {alwaysOnTop && (
+          <span className="text-[var(--color-accent)]" title="Always on top">📌</span>
+        )}
         <button
           onClick={toggleTheme}
           className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"

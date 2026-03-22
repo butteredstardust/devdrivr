@@ -5,7 +5,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
-import type { NoteColor } from '@/types/models'
+import type { Note, NoteColor } from '@/types/models'
 
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
@@ -65,6 +65,46 @@ export function NotesDrawer() {
     await removeNote(id)
     setLastAction('Note deleted', 'info')
   }, [removeNote, setLastAction])
+
+  const handlePopOut = useCallback(async (note: Note) => {
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+    const label = `note-${note.id}`
+    const existing = await WebviewWindow.getByLabel(label)
+    if (existing) {
+      await existing.setFocus()
+      return
+    }
+    const bounds = note.windowBounds
+    const noteWindow = new WebviewWindow(label, {
+      url: `/?note=${note.id}`,
+      title: note.title || 'Note',
+      width: bounds?.width ?? 320,
+      height: bounds?.height ?? 400,
+      ...(bounds ? { x: bounds.x, y: bounds.y } : {}),
+      alwaysOnTop: true,
+      decorations: true,
+      center: !bounds,
+    })
+    noteWindow.once('tauri://error', (e) => {
+      console.error('Failed to create note window:', e)
+    })
+    noteWindow.onMoved(async () => {
+      const pos = await noteWindow.outerPosition()
+      const sz = await noteWindow.outerSize()
+      await updateNote(note.id, {
+        windowBounds: { x: pos.x, y: pos.y, width: sz.width, height: sz.height },
+      })
+    })
+    noteWindow.onResized(async () => {
+      const pos = await noteWindow.outerPosition()
+      const sz = await noteWindow.outerSize()
+      await updateNote(note.id, {
+        windowBounds: { x: pos.x, y: pos.y, width: sz.width, height: sz.height },
+      })
+    })
+    await updateNote(note.id, { poppedOut: true })
+    setLastAction('Note popped out', 'info')
+  }, [updateNote, setLastAction])
 
   const handleHistoryReplay = useCallback((tool: string, _input: string) => {
     setActiveTool(tool)
@@ -156,6 +196,13 @@ export function NotesDrawer() {
                           title={note.pinned ? 'Unpin' : 'Pin'}
                         >
                           {note.pinned ? '★' : '☆'}
+                        </button>
+                        <button
+                          onClick={() => handlePopOut(note)}
+                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                          title="Pop out"
+                        >
+                          ⧉
                         </button>
                         <button
                           onClick={() => handleDelete(note.id)}
