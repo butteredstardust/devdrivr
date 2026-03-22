@@ -60,7 +60,7 @@ export function SettingsPanel() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
         ref={panelRef}
         className="animate-fade-in w-full max-w-md rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-xl"
@@ -69,7 +69,8 @@ export function SettingsPanel() {
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Settings</h2>
           <button
             onClick={() => setOpen(false)}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            aria-label="Close settings"
+            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
             <X size={16} />
           </button>
@@ -83,7 +84,7 @@ export function SettingsPanel() {
               <select
                 value={theme}
                 onChange={(e) => update('theme', e.target.value as Theme)}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               >
                 {THEME_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -102,7 +103,7 @@ export function SettingsPanel() {
               <select
                 value={editorFontSize}
                 onChange={(e) => update('editorFontSize', Number(e.target.value))}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               >
                 {FONT_SIZE_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s}px</option>
@@ -113,7 +114,7 @@ export function SettingsPanel() {
               <select
                 value={defaultIndentSize}
                 onChange={(e) => update('defaultIndentSize', Number(e.target.value))}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               >
                 {INDENT_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s} spaces</option>
@@ -124,7 +125,7 @@ export function SettingsPanel() {
               <select
                 value={editorKeybindingMode}
                 onChange={(e) => update('editorKeybindingMode', e.target.value as AppSettings['editorKeybindingMode'])}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               >
                 {KEYBINDING_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -146,14 +147,14 @@ export function SettingsPanel() {
                 onChange={(e) => update('historyRetentionPerTool', Math.max(10, Number(e.target.value)))}
                 min={10}
                 max={5000}
-                className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)]"
+                className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               />
             </SettingRow>
             <SettingRow label="Default Timezone">
               <input
                 value={defaultTimezone}
                 onChange={(e) => update('defaultTimezone', e.target.value)}
-                className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
               />
             </SettingRow>
           </div>

@@ -15,8 +15,9 @@ export function Sidebar() {
           {TOOL_GROUPS.map((group) => (
             <div
               key={group.id}
-              className="mb-2 flex h-7 w-7 items-center justify-center text-[var(--color-text-muted)]"
+              className="mb-1 flex h-7 w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
               title={group.label}
+              aria-label={group.label}
             >
               {group.icon}
             </div>

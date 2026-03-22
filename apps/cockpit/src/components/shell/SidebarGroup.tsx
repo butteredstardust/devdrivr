@@ -24,7 +24,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
         <span className="font-pixel">{group.label}</span>
       </button>
       {!collapsed && (
-        <div className="flex flex-col gap-0.5 px-1">
+        <div className="flex flex-col gap-1 px-1">
           {tools.map((tool) => (
             <SidebarItem key={tool.id} id={tool.id} name={tool.name} icon={tool.icon} />
           ))}

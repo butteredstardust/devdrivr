@@ -81,6 +81,7 @@ export function ShortcutsModal() {
   return (
     <>
       <div
+        role="presentation"
         className="fixed inset-0 z-50 bg-black/50"
         onClick={() => setOpen(false)}
       />
@@ -89,7 +90,8 @@ export function ShortcutsModal() {
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
           <button
             onClick={() => setOpen(false)}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            aria-label="Close shortcuts"
+            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
             <X size={16} />
           </button>
