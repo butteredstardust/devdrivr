@@ -18,12 +18,12 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-200 ${
           checked ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span
-          className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform ${
+          className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[14px]' : 'translate-x-0'
           }`}
         />

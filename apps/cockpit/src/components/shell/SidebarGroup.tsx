@@ -19,7 +19,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
       >
         <CaretRight
           size={10}
-          className={`shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          className={`shrink-0 transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         />
         <span className="font-pixel">{group.label}</span>
       </button>

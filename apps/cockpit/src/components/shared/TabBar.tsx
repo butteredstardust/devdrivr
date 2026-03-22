@@ -19,10 +19,10 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`px-4 py-2 text-xs ${
+          className={`px-4 py-2 text-xs transition-all duration-150 ${
             activeTab === tab.id
-              ? 'border-b-2 border-[var(--color-accent)] font-bold text-[var(--color-accent)]'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              ? 'border-b-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30 font-bold text-[var(--color-accent)]'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
           }`}
         >
           {tab.label}

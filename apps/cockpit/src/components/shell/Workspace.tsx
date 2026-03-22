@@ -51,8 +51,9 @@ export function Workspace() {
         <ErrorBoundary ref={errorBoundaryRef}>
           <Suspense
             fallback={
-              <div className="flex h-full items-center justify-center bg-[var(--color-bg)] text-[var(--color-text-muted)]">
-                Loading...
+              <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)]">
+                <div className="animate-spin h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
+                <span className="text-xs text-[var(--color-text-muted)]">Loading…</span>
               </div>
             }
           >
