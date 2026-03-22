@@ -31,6 +31,9 @@ type UiStore = {
   toggleSettingsPanel: () => void
   setPendingSendTo: (content: string | null) => void
   consumePendingSendTo: () => string | null
+  shortcutsModalOpen: boolean
+  setShortcutsModalOpen: (open: boolean) => void
+  toggleShortcutsModal: () => void
 }
 
 export const useUiStore = create<UiStore>()((set, get) => ({
@@ -40,6 +43,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   toasts: [],
   settingsPanelOpen: false,
   pendingSendTo: null,
+  shortcutsModalOpen: false,
 
   setActiveTool: (toolId) => {
     set({ activeTool: toolId })
@@ -69,4 +73,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     if (content !== null) set({ pendingSendTo: null })
     return content
   },
+
+  setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
+  toggleShortcutsModal: () => set((s) => ({ shortcutsModalOpen: !s.shortcutsModalOpen })),
 }))

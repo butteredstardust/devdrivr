@@ -7,6 +7,7 @@ import { CommandPalette } from '@/components/shell/CommandPalette'
 import { ToastContainer } from '@/components/shared/Toast'
 import { SendToMenu, SendToContext } from '@/components/shared/SendToMenu'
 import { SettingsPanel } from '@/components/shell/SettingsPanel'
+import { ShortcutsModal } from '@/components/shell/ShortcutsModal'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 
 export function App() {
@@ -34,6 +35,7 @@ export function App() {
         <CommandPalette />
         <ToastContainer />
         <SettingsPanel />
+        <ShortcutsModal />
       </div>
       {sendTo && <SendToMenu content={sendTo.content} position={sendTo.position} onClose={closeSendTo} />}
     </SendToContext.Provider>

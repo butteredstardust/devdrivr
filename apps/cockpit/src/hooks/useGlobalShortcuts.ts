@@ -17,6 +17,7 @@ export function useGlobalShortcuts(): void {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const notesDrawerOpen = useSettingsStore((s) => s.notesDrawerOpen)
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
+  const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
 
   const comboK = useMemo(() => ({ key: 'k', mod: true } as const), [])
@@ -34,6 +35,7 @@ export function useGlobalShortcuts(): void {
   const comboShiftP = useMemo(() => ({ key: 'p', mod: true, shift: true } as const), [])
   const comboO = useMemo(() => ({ key: 'o', mod: true } as const), [])
   const comboS = useMemo(() => ({ key: 's', mod: true } as const), [])
+  const comboSlash = useMemo(() => ({ key: '/', mod: true } as const), [])
 
   const toggleSidebar = useCallback(
     () => update('sidebarCollapsed', !sidebarCollapsed),
@@ -97,4 +99,5 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
   useKeyboardShortcut(comboO, openFile)
   useKeyboardShortcut(comboS, saveFile)
+  useKeyboardShortcut(comboSlash, toggleShortcutsModal)
 }
