@@ -123,8 +123,8 @@ export default function SnippetsManager() {
           </button>
         </div>
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
-          <button onClick={handleExport} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Export</button>
-          <button onClick={handleImport} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Import</button>
+          <button onClick={handleExport} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Export</button>
+          <button onClick={handleImport} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Import</button>
         </div>
         <div className="flex-1 overflow-auto">
           {filtered.map((snippet) => (

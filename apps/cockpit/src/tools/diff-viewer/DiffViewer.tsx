@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
@@ -34,19 +34,28 @@ export default function DiffViewer() {
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [diffHtml, setDiffHtml] = useState<string>('')
+  const [isComparing, setIsComparing] = useState(false)
+  const comparingRef = useRef(false)
 
   const computeDiff = useCallback(async () => {
-    if (!worker) return
-    const patch = await worker.computeDiff(state.left, state.right, {
-      ignoreWhitespace: state.ignoreWhitespace,
-      jsonMode: state.jsonMode,
-    })
-    const rendered = diff2htmlRender(patch, {
-      outputFormat: state.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
-      drawFileList: false,
-    })
-    setDiffHtml(rendered)
-    setLastAction('Diff computed', 'success')
+    if (!worker || comparingRef.current) return
+    comparingRef.current = true
+    setIsComparing(true)
+    try {
+      const patch = await worker.computeDiff(state.left, state.right, {
+        ignoreWhitespace: state.ignoreWhitespace,
+        jsonMode: state.jsonMode,
+      })
+      const rendered = diff2htmlRender(patch, {
+        outputFormat: state.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
+        drawFileList: false,
+      })
+      setDiffHtml(rendered)
+      setLastAction('Diff computed', 'success')
+    } finally {
+      comparingRef.current = false
+      setIsComparing(false)
+    }
   }, [worker, state, setLastAction])
 
   return (
@@ -54,16 +63,17 @@ export default function DiffViewer() {
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <button
           onClick={computeDiff}
-          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
+          disabled={isComparing}
+          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Compare
+          {isComparing ? 'Comparing…' : 'Compare'}
         </button>
         {diffHtml && (
           <button
             onClick={() => setDiffHtml('')}
             className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
           >
-            Edit
+            ← Editors
           </button>
         )}
         <select
