@@ -128,7 +128,12 @@ export default function TimestampConverter() {
                 className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
               >
                 <div>
-                  <div className="text-xs text-[var(--color-text-muted)]">{f.label}</div>
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                    {f.label}
+                    {f.label === 'Relative' && (
+                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]" title="Updates every 10 seconds" />
+                    )}
+                  </div>
                   <div className="font-mono text-sm text-[var(--color-text)]">{f.value}</div>
                 </div>
                 <CopyButton text={f.value} className="ml-2 shrink-0" />

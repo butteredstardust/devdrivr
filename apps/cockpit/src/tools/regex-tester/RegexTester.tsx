@@ -121,6 +121,13 @@ export default function RegexTester() {
   )
 
   const FLAG_OPTIONS = ['g', 'i', 'm', 's', 'u'] as const
+  const FLAG_TITLES: Record<string, string> = {
+    g: 'Global — find all matches',
+    i: 'Case insensitive',
+    m: 'Multiline — ^ and $ match line boundaries',
+    s: 'Dotall — . matches newline',
+    u: 'Unicode mode',
+  }
 
   const toggleFlag = useCallback((flag: string) => {
     const newFlags = state.flags.includes(flag)
@@ -155,6 +162,7 @@ export default function RegexTester() {
               <button
                 key={flag}
                 onClick={() => toggleFlag(flag)}
+                title={FLAG_TITLES[flag]}
                 className={`h-6 w-6 rounded text-xs font-bold ${
                   state.flags.includes(flag)
                     ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
