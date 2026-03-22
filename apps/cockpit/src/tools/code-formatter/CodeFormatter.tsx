@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
@@ -40,9 +40,13 @@ export default function CodeFormatter() {
   )
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
+  const [isFormatting, setIsFormatting] = useState(false)
+  const formattingRef = useRef(false)
 
   const handleFormat = useCallback(async () => {
-    if (!formatter || !state.input.trim()) return
+    if (!formatter || !state.input.trim() || formattingRef.current) return
+    formattingRef.current = true
+    setIsFormatting(true)
     try {
       const result = await formatter.format(state.input, {
         language: state.language,
@@ -58,6 +62,9 @@ export default function CodeFormatter() {
       const msg = (e as Error).message
       setError(msg)
       setLastAction('Format error', 'error')
+    } finally {
+      formattingRef.current = false
+      setIsFormatting(false)
     }
   }, [formatter, state, updateState, setLastAction])
 
@@ -76,10 +83,12 @@ export default function CodeFormatter() {
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <button
           onClick={handleFormat}
-          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
+          disabled={isFormatting || !state.input.trim()}
+          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Format
+          {isFormatting ? 'Formatting…' : 'Format'}
         </button>
+        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
         <select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value })}
