@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**devdrivr** is the **T4 Stack** — a Turborepo monorepo for building universal TypeScript apps (iOS, Android, Web, Desktop) from a single codebase. It targets Cloudflare's edge platform (Workers + D1) for low-cost, AI-friendly infrastructure.
+**devdrivr** is a Turborepo monorepo. Active development is focused on `apps/cockpit` — a local-first, keyboard-driven developer utility workspace built with Tauri 2 + React 19.
 
-The `developer_cockpit_prd.md` describes a planned local-first, keyboard-driven developer utility workspace (sub-50ms latency, command palette, snippet manager, code formatter, diff tools).
+> For cockpit-specific guidance see `apps/cockpit/CLAUDE.md`.
+
+The broader monorepo is the **T4 Stack** for building universal TypeScript apps (iOS, Android, Web, Desktop) targeting Cloudflare's edge platform.
 
 ## Package Manager & Build System
 
