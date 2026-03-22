@@ -5,6 +5,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
+import { PushPin, Trash, Note, ClockCounterClockwise } from '@phosphor-icons/react'
 import type { NoteColor } from '@/types/models'
 
 const MIN_WIDTH = 200
@@ -230,8 +231,10 @@ export function NotesDrawer() {
           </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredNotes.length === 0 && (
-              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                {search ? 'No matching notes' : 'No notes yet — click + to create one'}
+              <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
+                <Note size={24} weight="light" />
+                <span>{search ? 'No matching notes' : 'No notes yet'}</span>
+                {!search && <span className="text-[10px] opacity-60">Click + to create one</span>}
               </div>
             )}
             {filteredNotes.map((note) => (
@@ -254,20 +257,22 @@ export function NotesDrawer() {
                       <span className="text-xs font-bold text-[var(--color-text)]">
                         {note.title || 'Untitled'}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         <button
                           onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
-                          className={`text-xs ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+                          className={`rounded p-0.5 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
                           title={note.pinned ? 'Unpin' : 'Pin'}
+                          aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
                         >
-                          {note.pinned ? '★' : '☆'}
+                          <PushPin size={12} weight={note.pinned ? 'fill' : 'regular'} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
-                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
-                          title="Delete"
+                          className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
+                          title="Delete note"
+                          aria-label="Delete note"
                         >
-                          ×
+                          <Trash size={12} />
                         </button>
                       </div>
                     </div>
@@ -291,7 +296,7 @@ export function NotesDrawer() {
             <select
               value={historyFilter}
               onChange={(e) => setHistoryFilter(e.target.value)}
-              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">All tools</option>
               {Array.from(new Set(historyEntries.map((e) => e.tool))).map((tool) => (
@@ -301,8 +306,9 @@ export function NotesDrawer() {
           </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredHistory.length === 0 && (
-              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                No history yet
+              <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
+                <ClockCounterClockwise size={24} weight="light" />
+                <span>{historyFilter ? 'No history for this tool' : 'No history yet'}</span>
               </div>
             )}
             {filteredHistory.map((entry) => (

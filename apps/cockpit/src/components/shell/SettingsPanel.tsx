@@ -63,7 +63,7 @@ export function SettingsPanel() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
         ref={panelRef}
-        className="w-full max-w-md rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-xl"
+        className="animate-fade-in w-full max-w-md rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Settings</h2>

@@ -84,7 +84,7 @@ export function ShortcutsModal() {
         className="fixed inset-0 z-50 bg-black/50"
         onClick={() => setOpen(false)}
       />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
+      <div className="animate-fade-in fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
           <button
