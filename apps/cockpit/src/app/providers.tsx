@@ -13,8 +13,12 @@ export function Providers({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+    const cleanups: Array<() => void> = []
+
     async function bootstrap() {
       await init()
+      if (cancelled) return
       await useNotesStore.getState().init()
       await useSnippetsStore.getState().init()
       await useHistoryStore.getState().init()
@@ -24,6 +28,8 @@ export function Providers({ children }: { children: ReactNode }) {
       if (lastTool) {
         useUiStore.getState().setActiveTool(lastTool)
       }
+
+      if (cancelled) return
 
       // Window state restore — use logical coordinates to avoid physical/logical mismatch on Retina
       const win = getCurrentWindow()
@@ -38,27 +44,36 @@ export function Providers({ children }: { children: ReactNode }) {
         await win.setAlwaysOnTop(true)
       }
 
-      // Save bounds on move/resize (debounced 1s) — convert to logical to match restore
+      if (cancelled) return
+
+      // Save bounds on move/resize (debounced 2s) — convert to logical to match restore
       let saveTimer: ReturnType<typeof setTimeout> | undefined
-      async function persistBounds() {
+      function persistBounds() {
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
-          const factor = await win.scaleFactor()
-          const pos = await win.outerPosition()
-          const sz = await win.outerSize()
-          const logicalPos = pos.toLogical(factor)
-          const logicalSz = sz.toLogical(factor)
-          await setSetting('windowBounds', { x: logicalPos.x, y: logicalPos.y, width: logicalSz.width, height: logicalSz.height })
-        }, 1000)
+          try {
+            const factor = await win.scaleFactor()
+            const pos = await win.outerPosition()
+            const sz = await win.outerSize()
+            const logicalPos = pos.toLogical(factor)
+            const logicalSz = sz.toLogical(factor)
+            await setSetting('windowBounds', { x: logicalPos.x, y: logicalPos.y, width: logicalSz.width, height: logicalSz.height })
+          } catch {
+            // Window may have been destroyed
+          }
+        }, 2000)
       }
-      win.onMoved(persistBounds)
-      win.onResized(persistBounds)
+      const unlistenMoved = await win.onMoved(persistBounds)
+      const unlistenResized = await win.onResized(persistBounds)
+      cleanups.push(unlistenMoved, unlistenResized, () => clearTimeout(saveTimer))
 
       // Register global quick-capture hotkey
       try {
-        const { register } = await import('@tauri-apps/plugin-global-shortcut')
-        // CommandOrControl is Tauri's standard accelerator — maps to Cmd on macOS, Ctrl on Windows
-        await register('CommandOrControl+Shift+Space', async () => {
+        const { register, unregister } = await import('@tauri-apps/plugin-global-shortcut')
+        const shortcut = 'CommandOrControl+Shift+Space'
+        // Unregister first in case StrictMode re-runs the effect
+        try { await unregister(shortcut) } catch { /* not registered */ }
+        await register(shortcut, async () => {
           const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
           const label = 'quick-capture'
           const existing = await WebviewWindow.getByLabel(label)
@@ -77,6 +92,7 @@ export function Providers({ children }: { children: ReactNode }) {
             resizable: true,
           })
         })
+        cleanups.push(() => { unregister(shortcut).catch(() => {}) })
       } catch (err) {
         console.warn('Failed to register global shortcut:', err)
       }
@@ -86,6 +102,11 @@ export function Providers({ children }: { children: ReactNode }) {
       console.error('Failed to initialize:', err)
       setError(String(err))
     })
+
+    return () => {
+      cancelled = true
+      cleanups.forEach((fn) => fn())
+    }
   }, [init])
 
   if (error) {
