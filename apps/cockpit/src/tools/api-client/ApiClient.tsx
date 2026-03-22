@@ -6,7 +6,7 @@ import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useToolAction } from '@/hooks/useToolAction'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 
@@ -95,7 +95,9 @@ export default function ApiClient() {
     }
   }, [state, setLastAction])
 
-  useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
+  useToolAction((action) => {
+    if (action.type === 'execute') handleSend()
+  })
 
   const addHeader = useCallback(() => {
     updateState({ headers: [...state.headers, { key: '', value: '', enabled: true }] })
