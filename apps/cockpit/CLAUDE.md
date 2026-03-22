@@ -2,6 +2,17 @@
 
 Guidance for Claude Code working in `apps/cockpit`.
 
+## Documentation
+
+Full canonical docs live in [`documentation/`](./documentation/):
+
+| Doc | When to read |
+|-----|-------------|
+| [`documentation/PRODUCT_MAP.md`](./documentation/PRODUCT_MAP.md) | **Check first** — product status, all 27 tools, shortcuts |
+| [`documentation/infrastructure/DIRECTORY_MAP.md`](./documentation/infrastructure/DIRECTORY_MAP.md) | Finding any file fast |
+| [`documentation/infrastructure/CODING_PATTERNS.md`](./documentation/infrastructure/CODING_PATTERNS.md) | Before writing any code |
+| [`documentation/infrastructure/TROUBLESHOOTING.md`](./documentation/infrastructure/TROUBLESHOOTING.md) | When something breaks |
+
 ## Essentials
 
 - **Package manager:** Bun only. Never use npm or yarn.
