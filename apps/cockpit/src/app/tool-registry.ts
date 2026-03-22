@@ -53,7 +53,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate and validate UUIDs', component: UuidGenerator },
   { id: 'hash-generator', name: 'Hash Generator', group: 'convert', icon: '##', description: 'Generate MD5, SHA-1, SHA-256, SHA-512 hashes', component: HashGenerator },
   // --- Test ---
-  { id: 'regex-tester', name: 'Regex Tester', group: 'test', icon: '.*', description: 'Test regular expressions with match highlighting', component: RegexTester },
+  { id: 'regex-tester', name: 'Regex Tester', group: 'test', icon: '.*', description: 'Test and replace with match highlighting, groups, and export', component: RegexTester },
   { id: 'jwt-decoder', name: 'JWT Decoder', group: 'test', icon: 'JWT', description: 'Decode and inspect JWT tokens', component: JwtDecoder },
   // --- Network ---
   { id: 'api-client', name: 'API Client', group: 'network', icon: '↗', description: 'HTTP client with params editor, body modes, and response inspector', component: ApiClient },
