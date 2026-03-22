@@ -8,11 +8,11 @@ export function Sidebar() {
 
   if (sidebarCollapsed) {
     return (
-      <aside className="flex w-10 shrink-0 flex-col items-center border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2">
+      <aside className="flex w-10 shrink-0 flex-col items-center border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2 shadow-[2px_0_8px_-2px_var(--color-shadow)]">
         {TOOL_GROUPS.map((group) => (
           <div
             key={group.id}
-            className="mb-2 flex h-7 w-7 items-center justify-center font-pixel text-[10px] text-[var(--color-text-muted)]"
+            className="mb-2 flex h-7 w-7 items-center justify-center text-[var(--color-text-muted)]"
             title={group.label}
           >
             {group.icon}
@@ -23,14 +23,16 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2">
-      <div className="mb-3 px-3">
-        <h1 className="font-pixel text-sm text-[var(--color-accent)]">devdrivr</h1>
+    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_0_8px_-2px_var(--color-shadow)]">
+      <div className="px-3 py-3">
+        <h1 className="font-pixel text-base font-bold text-[var(--color-accent)]">devdrivr</h1>
       </div>
-      {TOOL_GROUPS.map((group) => {
-        const tools = TOOLS.filter((t) => t.group === group.id)
-        return <SidebarGroup key={group.id} group={group} tools={tools} />
-      })}
+      <div className="flex-1 overflow-y-auto py-1">
+        {TOOL_GROUPS.map((group) => {
+          const tools = TOOLS.filter((t) => t.group === group.id)
+          return <SidebarGroup key={group.id} group={group} tools={tools} />
+        })}
+      </div>
     </aside>
   )
 }
