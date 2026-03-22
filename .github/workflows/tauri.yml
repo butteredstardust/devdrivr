@@ -1,82 +1,73 @@
-name: 'Tauri build'
+name: 'Build & Release Cockpit'
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - 'packages/tauri/**'
-      - 'packages/ui/**'
-      - 'packages/app/**'
+      - 'apps/cockpit/**'
 
-env:
-  NEXT_PUBLIC_SUPABASE_URL: ${{secrets.NEXT_PUBLIC_SUPABASE_URL}}
-  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  publish-tauri:
+  build:
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest, ubuntu-20.04, windows-latest
-        platform: [windows-latest]
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            args: ''
+          - platform: ubuntu-22.04
+            args: ''
+
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Cargo cache rotation keys
-        id: rust-cache-rotation
-        shell: bash
-        run: |
-          echo "YEAR_MONTH=$(/bin/date -u "+%Y%m")" >> $GITHUB_OUTPUT
-
-      - name: Cargo Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ./apps/tauri/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ steps.rust-cache-rotation.outputs.YEAR_MONTH }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ steps.rust-cache-rotation.outputs.YEAR_MONTH }}-
+      - uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/cockpit/src-tauri -> target
 
       - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-20.04'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Bun setup
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Bun install
+      - name: Install dependencies
         run: bun install
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install it.'
+          tagName: cockpit-v__VERSION__
+          releaseName: 'devdrivr Cockpit v__VERSION__'
+          releaseBody: 'Download the installer for your platform from the assets below.'
           releaseDraft: true
           prerelease: false
-          projectPath: ./apps/tauri/
-          distPath: ./apps/tauri/out/
-          tauriScript: bun
-          # You can change the following flags to include release and/or debug builds
-          includeDebug: true
-          includeRelease: false
+          projectPath: ./apps/cockpit/
+          tauriScript: bunx tauri
+          args: ${{ matrix.args }}
