@@ -7,7 +7,11 @@ import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 type Base64State = {
   input: string
   mode: 'encode' | 'decode'
+  urlSafe: boolean
+  lineWrap: boolean
 }
+
+// ── Helpers ────────────────────────────────────────────────────────
 
 function isValidBase64(str: string): boolean {
   if (!str.trim()) return false
@@ -18,10 +22,50 @@ function isValidBase64(str: string): boolean {
   }
 }
 
+function toUrlSafe(b64: string): string {
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function fromUrlSafe(b64: string): string {
+  let s = b64.replace(/-/g, '+').replace(/_/g, '/')
+  const pad = s.length % 4
+  if (pad) s += '='.repeat(4 - pad)
+  return s
+}
+
+function wrapLines(str: string, width: number): string {
+  const lines: string[] = []
+  for (let i = 0; i < str.length; i += width) {
+    lines.push(str.slice(i, i + width))
+  }
+  return lines.join('\n')
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function detectImageMime(b64: string): string | null {
+  // Check first few bytes of decoded data via the base64 prefix
+  const clean = b64.replace(/\s/g, '')
+  if (clean.startsWith('/9j/')) return 'image/jpeg'
+  if (clean.startsWith('iVBOR')) return 'image/png'
+  if (clean.startsWith('R0lGOD')) return 'image/gif'
+  if (clean.startsWith('UklGR')) return 'image/webp'
+  if (clean.startsWith('PHN2Zy')) return 'image/svg+xml'
+  return null
+}
+
+// ── Component ──────────────────────────────────────────────────────
+
 export default function Base64Tool() {
   const [state, updateState] = useToolState<Base64State>('base64', {
     input: '',
     mode: 'encode',
+    urlSafe: false,
+    lineWrap: false,
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
@@ -29,19 +73,65 @@ export default function Base64Tool() {
     if (!state.input.trim()) return { text: '', error: null }
     try {
       if (state.mode === 'encode') {
-        return { text: btoa(unescape(encodeURIComponent(state.input))), error: null }
+        let encoded = btoa(unescape(encodeURIComponent(state.input)))
+        if (state.urlSafe) encoded = toUrlSafe(encoded)
+        if (state.lineWrap) encoded = wrapLines(encoded, 76)
+        return { text: encoded, error: null }
       } else {
-        return { text: decodeURIComponent(escape(atob(state.input.replace(/\s/g, '')))), error: null }
+        let toDecode = state.input.replace(/\s/g, '')
+        // Strip data URI prefix for decoding
+        const dataUriMatch = toDecode.match(/^data:[^;]*;base64,(.*)$/)
+        if (dataUriMatch) toDecode = dataUriMatch[1]!
+        if (state.urlSafe) toDecode = fromUrlSafe(toDecode)
+        return { text: decodeURIComponent(escape(atob(toDecode))), error: null }
       }
     } catch (e) {
       return { text: '', error: (e as Error).message }
     }
-  }, [state.input, state.mode])
+  }, [state.input, state.mode, state.urlSafe, state.lineWrap])
 
   const autoDetect = useMemo(() => {
     if (!state.input.trim()) return null
     return isValidBase64(state.input.replace(/\s/g, ''))
   }, [state.input])
+
+  // Size stats
+  const inputBytes = useMemo(
+    () => new TextEncoder().encode(state.input).length,
+    [state.input]
+  )
+  const outputBytes = useMemo(
+    () => (output.text ? new TextEncoder().encode(output.text).length : 0),
+    [output.text]
+  )
+  const ratio = useMemo(() => {
+    if (!inputBytes || !outputBytes) return null
+    if (state.mode === 'encode') return (outputBytes / inputBytes).toFixed(2)
+    return (inputBytes / outputBytes).toFixed(2)
+  }, [inputBytes, outputBytes, state.mode])
+
+  // Image preview (decode mode only)
+  const imagePreview = useMemo(() => {
+    if (state.mode !== 'decode' || !state.input.trim()) return null
+    const clean = state.input.replace(/\s/g, '')
+
+    // Check for data URI with image mime
+    const dataUriMatch = clean.match(/^data:(image\/[^;]+);base64,(.*)$/)
+    if (dataUriMatch) return clean // Already a full data URI
+
+    // Check raw base64 for image signatures
+    const mime = detectImageMime(clean)
+    if (mime) return `data:${mime};base64,${clean}`
+
+    return null
+  }, [state.mode, state.input])
+
+  // Data URI builder (encode mode)
+  const dataUri = useMemo(() => {
+    if (state.mode !== 'encode' || !output.text) return null
+    const raw = output.text.replace(/\n/g, '')
+    return `data:text/plain;base64,${raw}`
+  }, [state.mode, output.text])
 
   const handleSwap = useCallback(() => {
     if (output.text) {
@@ -59,6 +149,7 @@ export default function Base64Tool() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Toolbar */}
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <button
           onClick={handleToggle}
@@ -71,14 +162,49 @@ export default function Base64Tool() {
           disabled={!output.text}
           className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
         >
-          Swap ⇄
+          ⇄ Swap
         </button>
-        {autoDetect !== null && (
-          <span className={`text-xs ${autoDetect ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]'}`}>
-            {autoDetect ? '✓ Input looks like Base64' : ''}
-          </span>
+        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+
+        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+          <input
+            type="checkbox"
+            checked={state.urlSafe}
+            onChange={(e) => updateState({ urlSafe: e.target.checked })}
+            className="accent-[var(--color-accent)]"
+          />
+          URL-safe
+        </label>
+        {state.mode === 'encode' && (
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.lineWrap}
+              onChange={(e) => updateState({ lineWrap: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            Wrap 76
+          </label>
         )}
+
+        {autoDetect && (
+          <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
+        )}
+
+        {/* Stats */}
+        <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
+          {state.input.trim() && (
+            <>
+              <span>{formatSize(inputBytes)}</span>
+              <span>→</span>
+              <span>{formatSize(outputBytes)}</span>
+              {ratio && <span>({ratio}×)</span>}
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Panels */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
@@ -87,7 +213,11 @@ export default function Base64Tool() {
           <textarea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
-            placeholder={state.mode === 'encode' ? 'Enter text to encode...' : 'Enter Base64 to decode...'}
+            placeholder={
+              state.mode === 'encode'
+                ? 'Enter text to encode...'
+                : 'Enter Base64 to decode (data URIs supported)...'
+            }
             className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
           />
         </div>
@@ -96,14 +226,32 @@ export default function Base64Tool() {
             <span className="text-xs text-[var(--color-text-muted)]">
               Output ({state.mode === 'encode' ? 'Base64' : 'Text'})
             </span>
-            <CopyButton text={output.text} />
+            <div className="flex items-center gap-1">
+              {dataUri && state.mode === 'encode' && (
+                <CopyButton text={dataUri} label="Copy data URI" />
+              )}
+              <CopyButton text={output.text} />
+            </div>
           </div>
           {output.error ? (
             <div className="p-4 text-sm text-[var(--color-error)]">{output.error}</div>
           ) : (
-            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-sm text-[var(--color-text)]">
-              {output.text}
-            </pre>
+            <div className="flex flex-1 flex-col overflow-auto">
+              <pre className="flex-1 whitespace-pre-wrap break-all p-4 font-mono text-sm text-[var(--color-text)]">
+                {output.text}
+              </pre>
+              {/* Image preview */}
+              {imagePreview && (
+                <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                  <div className="mb-2 text-xs text-[var(--color-text-muted)]">Image Preview</div>
+                  <img
+                    src={imagePreview}
+                    alt="Decoded preview"
+                    className="max-h-48 rounded border border-[var(--color-border)]"
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
