@@ -47,7 +47,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'case-converter', name: 'Case Converter', group: 'convert', icon: 'Aa', description: 'Convert text between cases (camel, snake, kebab, etc)', component: CaseConverter },
   { id: 'color-converter', name: 'Color Converter', group: 'convert', icon: '🎨', description: 'Convert between hex, rgb, hsl, oklch', component: ColorConverter },
   { id: 'timestamp-converter', name: 'Timestamp Converter', group: 'convert', icon: '⏱', description: 'Convert between Unix timestamps and human dates', component: TimestampConverter },
-  { id: 'base64', name: 'Base64', group: 'convert', icon: 'B64', description: 'Encode and decode Base64', component: Base64Tool },
+  { id: 'base64', name: 'Base64', group: 'convert', icon: 'B64', description: 'Encode/decode Base64 with URL-safe, line wrap, image preview, data URIs', component: Base64Tool },
   { id: 'url-codec', name: 'URL Encode/Decode', group: 'convert', icon: '%', description: 'URL encode and decode strings', component: UrlCodec },
   { id: 'curl-to-fetch', name: 'cURL → Fetch', group: 'convert', icon: '→f', description: 'Convert cURL commands to fetch/axios', component: CurlToFetch },
   { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate and validate UUIDs', component: UuidGenerator },
