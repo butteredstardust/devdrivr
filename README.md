@@ -2,6 +2,8 @@
 
 A local-first, keyboard-driven developer utility workspace. 28 tools in a single desktop app — no browser, no cloud, no latency.
 
+![devdrivr cockpit](screenshots/devdriver.png)
+
 ## Apps
 
 | App | Description |

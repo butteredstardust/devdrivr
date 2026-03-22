@@ -4,8 +4,8 @@
 WARN() { echo ""; echo "  ⚠️  WARN  $1"; }
 INFO() { echo "  →  $1"; }
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$' | grep "apps/cockpit")
-STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACMR)
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$' | grep "apps/cockpit" || true)
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACMR || true)
 HAS_WARN=0
 
 if [ -z "$STAGED" ]; then
@@ -17,7 +17,7 @@ echo "  devdrivr pre-commit checks (warn only)"
 echo "  ────────────────────────────────────────"
 
 # 1. Direct Database.load() — must use getDb() singleton
-MATCHES=$(echo "$STAGED" | xargs grep -l "Database\.load(" 2>/dev/null | grep -v "src/lib/db\.ts")
+MATCHES=$(echo "$STAGED" | xargs grep -l "Database\.load(" 2>/dev/null | grep -v "src/lib/db\.ts" || true)
 if [ -n "$MATCHES" ]; then
   WARN "Direct Database.load() call outside of lib/db.ts"
   INFO "Use getDb() from @/lib/db — it's a promise singleton that prevents connection races."
@@ -26,7 +26,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 2. React.StrictMode — removed intentionally from this codebase
-MATCHES=$(echo "$STAGED" | xargs grep -l "StrictMode" 2>/dev/null)
+MATCHES=$(echo "$STAGED" | xargs grep -l "StrictMode" 2>/dev/null || true)
 if [ -n "$MATCHES" ]; then
   WARN "React.StrictMode detected"
   INFO "It was removed intentionally — causes double-mount flash in Tauri WebView."
@@ -35,7 +35,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 3. new WebviewWindow — floating windows removed due to IPC + listener leak issues
-MATCHES=$(echo "$STAGED" | xargs grep -l "new WebviewWindow" 2>/dev/null)
+MATCHES=$(echo "$STAGED" | xargs grep -l "new WebviewWindow" 2>/dev/null || true)
 if [ -n "$MATCHES" ]; then
   WARN "new WebviewWindow() detected"
   INFO "Floating windows were removed due to Tauri IPC capability issues and listener leaks."
@@ -45,7 +45,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 4. applyTheme called at module level (outside a function body)
-MATCHES=$(echo "$STAGED" | xargs grep -n "^applyTheme(" 2>/dev/null)
+MATCHES=$(echo "$STAGED" | xargs grep -n "^applyTheme(" 2>/dev/null || true)
 if [ -n "$MATCHES" ]; then
   WARN "applyTheme() at module level"
   INFO "This causes a flash before the DB theme loads. Call it only inside async init functions."
@@ -54,7 +54,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 5. outerPosition/outerSize without nearby scaleFactor — physical pixel bug on Retina
-MATCHES=$(echo "$STAGED" | xargs grep -l "outerPosition\|outerSize" 2>/dev/null)
+MATCHES=$(echo "$STAGED" | xargs grep -l "outerPosition\|outerSize" 2>/dev/null || true)
 for FILE in $MATCHES; do
   if ! grep -q "scaleFactor" "$FILE"; then
     WARN "outerPosition() or outerSize() without scaleFactor() in: $FILE"
@@ -64,7 +64,7 @@ for FILE in $MATCHES; do
 done
 
 # 6. TypeScript any
-MATCHES=$(echo "$STAGED" | xargs grep -En "(: any\b|as any\b)" 2>/dev/null | grep -v "//.*any" | grep -v "anyOf")
+MATCHES=$(echo "$STAGED" | xargs grep -En "(: any\b|as any\b)" 2>/dev/null | grep -v "//.*any" | grep -v "anyOf" || true)
 if [ -n "$MATCHES" ]; then
   WARN "TypeScript 'any' type detected"
   INFO "Project is in strict mode. Use proper types, unknown, or a type assertion with a comment."
@@ -73,7 +73,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 7. Hardcoded hex/rgb colors in className — should use CSS token variables
-MATCHES=$(echo "$STAGED" | xargs grep -En 'className=.*"[^"]*#[0-9a-fA-F]{3,6}|className=.*rgb\(' 2>/dev/null | grep -v "var(--color")
+MATCHES=$(echo "$STAGED" | xargs grep -En 'className=.*"[^"]*#[0-9a-fA-F]{3,6}|className=.*rgb\(' 2>/dev/null | grep -v "var(--color" || true)
 if [ -n "$MATCHES" ]; then
   WARN "Hardcoded color values in className"
   INFO "Use CSS custom property tokens: var(--color-*) defined in src/index.css"
@@ -82,7 +82,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 8. npm or yarn used instead of bun
-MATCHES=$(echo "$STAGED_ALL" | xargs grep -En "npm install|npm run|yarn add|yarn install" 2>/dev/null | grep -v "README\|\.md:")
+MATCHES=$(echo "$STAGED_ALL" | xargs grep -En "npm install|npm run|yarn add|yarn install" 2>/dev/null | grep -v "README\|\.md:" || true)
 if [ -n "$MATCHES" ]; then
   WARN "npm/yarn usage detected"
   INFO "This project uses Bun exclusively. Use: bun install / bun run / bun add"
@@ -91,7 +91,7 @@ if [ -n "$MATCHES" ]; then
 fi
 
 # 9. New store init() without idempotent promise guard
-NEW_STORES=$(echo "$STAGED" | xargs grep -l "create<" 2>/dev/null)
+NEW_STORES=$(echo "$STAGED" | xargs grep -l "create<" 2>/dev/null || true)
 for FILE in $NEW_STORES; do
   if grep -q "init: async" "$FILE" && ! grep -q "initPromise" "$FILE"; then
     WARN "Store init() without idempotent promise guard in: $FILE"
@@ -102,7 +102,7 @@ for FILE in $NEW_STORES; do
 done
 
 # 10. console.log left in source
-MATCHES=$(echo "$STAGED" | xargs grep -En "console\.log\(" 2>/dev/null | grep -v "//.*console")
+MATCHES=$(echo "$STAGED" | xargs grep -En "console\.log\(" 2>/dev/null | grep -v "//.*console" || true)
 if [ -n "$MATCHES" ]; then
   WARN "console.log() found in staged files"
   INFO "Remove debug logs or replace with console.warn/error for intentional output."

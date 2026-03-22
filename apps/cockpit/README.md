@@ -2,6 +2,8 @@
 
 A local-first, keyboard-driven developer utility workspace. 28 tools in a single Tauri desktop app — no browser, no cloud, no latency.
 
+![devdrivr cockpit](../../screenshots/devdriver.png)
+
 ## Features
 
 ### Tools (28 total across 7 groups)
