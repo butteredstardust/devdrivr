@@ -16,6 +16,7 @@ export function matchesCombo(event: KeyboardEvent, combo: KeyCombo): boolean {
   if (combo.shift && !event.shiftKey) return false
   if (!combo.shift && event.shiftKey) return false
   if (combo.alt && !event.altKey) return false
+  if (!combo.alt && event.altKey) return false
 
   return event.key.toLowerCase() === combo.key.toLowerCase()
 }

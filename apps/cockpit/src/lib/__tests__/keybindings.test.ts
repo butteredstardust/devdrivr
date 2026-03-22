@@ -33,9 +33,19 @@ describe('matchesCombo', () => {
     expect(matchesCombo(event, { key: 'n', mod: true, shift: true })).toBe(true)
   })
 
-  it('rejects extra modifiers', () => {
+  it('rejects extra shift modifier', () => {
     const event = makeEvent({ key: 'k', metaKey: true, shiftKey: true })
     expect(matchesCombo(event, { key: 'k', mod: true })).toBe(false)
+  })
+
+  it('rejects extra alt modifier', () => {
+    const event = makeEvent({ key: 'k', metaKey: true, altKey: true })
+    expect(matchesCombo(event, { key: 'k', mod: true })).toBe(false)
+  })
+
+  it('matches mod+alt+key when alt specified', () => {
+    const event = makeEvent({ key: 'k', metaKey: true, altKey: true })
+    expect(matchesCombo(event, { key: 'k', mod: true, alt: true })).toBe(true)
   })
 })
 
