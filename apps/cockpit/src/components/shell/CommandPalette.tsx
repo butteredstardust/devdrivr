@@ -80,6 +80,7 @@ export function CommandPalette() {
   return (
     <>
       <div
+        role="presentation"
         className="fixed inset-0 z-40 bg-black/50"
         onClick={() => setOpen(false)}
       />

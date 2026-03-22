@@ -11,6 +11,19 @@ import type { NoteColor } from '@/types/models'
 const MIN_WIDTH = 200
 const MAX_WIDTH = 600
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
   { id: 'history', label: 'History' },
@@ -96,7 +109,7 @@ function NoteEditor({
       </div>
       <button
         onClick={onDone}
-        className="mt-1 self-end text-xs text-[var(--color-accent)] hover:underline"
+        className="mt-1 self-end rounded px-2 py-0.5 text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
       >
         Done
       </button>
@@ -224,7 +237,8 @@ export function NotesDrawer() {
             />
             <button
               onClick={handleAddNote}
-              className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
+              aria-label="New note"
+              className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
             >
               +
             </button>
@@ -280,7 +294,7 @@ export function NotesDrawer() {
                       <p className="mt-1 line-clamp-3 text-xs text-[var(--color-text-muted)]">{note.content}</p>
                     )}
                     <div className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                      {new Date(note.updatedAt).toLocaleDateString()}
+                      {timeAgo(note.updatedAt)}
                     </div>
                   </div>
                 )}
@@ -322,7 +336,7 @@ export function NotesDrawer() {
                   <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
                     <ArrowCounterClockwise size={10} />
                     <span className="text-[10px]">
-                      {new Date(entry.timestamp).toLocaleTimeString()}
+                      {timeAgo(entry.timestamp)}
                     </span>
                   </div>
                 </div>
