@@ -12,10 +12,14 @@ export function CopyButton({ text, label = 'Copy', className = '' }: CopyButtonP
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setLastAction('Copied to clipboard', 'success')
-    setTimeout(() => setCopied(false), 1500)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setLastAction('Copied to clipboard', 'success')
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setLastAction('Failed to copy to clipboard', 'error')
+    }
   }
 
   return (
