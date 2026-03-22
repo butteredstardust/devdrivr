@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { setSetting } from '@/lib/db'
 
 type LastAction = {
   message: string
@@ -40,7 +41,10 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   settingsPanelOpen: false,
   pendingSendTo: null,
 
-  setActiveTool: (toolId) => set({ activeTool: toolId }),
+  setActiveTool: (toolId) => {
+    set({ activeTool: toolId })
+    setSetting('activeTool', toolId).catch(() => {})
+  },
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setLastAction: (message, type = 'info') =>

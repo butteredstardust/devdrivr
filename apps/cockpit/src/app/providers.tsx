@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
+import { useUiStore } from '@/stores/ui.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getSetting, setSetting } from '@/lib/db'
 
@@ -18,13 +19,19 @@ export function Providers({ children }: { children: ReactNode }) {
       await useSnippetsStore.getState().init()
       await useHistoryStore.getState().init()
 
+      // Restore last active tool
+      const lastTool = await getSetting<string | null>('activeTool', null)
+      if (lastTool) {
+        useUiStore.getState().setActiveTool(lastTool)
+      }
+
       // Window state restore
       const win = getCurrentWindow()
       const bounds = await getSetting<{ x: number; y: number; width: number; height: number } | null>('windowBounds', null)
       if (bounds) {
-        const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
-        await win.setPosition(new LogicalPosition(bounds.x, bounds.y))
-        await win.setSize(new LogicalSize(bounds.width, bounds.height))
+        const { PhysicalPosition, PhysicalSize } = await import('@tauri-apps/api/dpi')
+        await win.setPosition(new PhysicalPosition(bounds.x, bounds.y))
+        await win.setSize(new PhysicalSize(bounds.width, bounds.height))
       }
       const settings = useSettingsStore.getState()
       if (settings.alwaysOnTop) {
