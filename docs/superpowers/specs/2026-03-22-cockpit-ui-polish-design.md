@@ -48,14 +48,28 @@ The goal is to keep the pixel font personality while adding modern depth, proper
 
 ### Type Change
 
-`ToolDefinition.icon` and `ToolGroupMeta.icon` change from `string` to `ReactNode` so groups and tools can use Phosphor components directly.
+`ToolGroupMeta.icon` changes from `string` to `ReactNode` to use Phosphor components for the 7 group icons.
+
+`ToolDefinition.icon` changes to `string | ReactNode` as a transitional union type. The 28 per-tool icons remain as strings for now — they'll be migrated to Phosphor incrementally in future work. `SidebarItem` should render the icon differently based on type: if `ReactNode`, render directly; if `string`, wrap in the existing `<span>` with font-pixel styling.
 
 ### Depth Cues
 
 - **Sidebar:** `shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_rgba(0,0,0,0.3)]` — subtle right shadow
-- **Command palette:** `shadow-lg` + slight border glow
+- **Command palette:** `shadow-lg` + slight border glow, use `bg-[var(--color-surface-raised)]` (not `--color-surface`)
+- **Settings panel:** use `bg-[var(--color-surface-raised)]` for the modal container (not `--color-surface`)
 - **Active sidebar item:** Left accent border (2px solid accent) instead of just background change
 - **New CSS variable:** `--color-shadow: rgba(0,0,0,0.4)` (dark), `rgba(0,0,0,0.1)` (light)
+
+### SidebarItem Icon Rendering
+
+When `icon` is a `ReactNode` (Phosphor component), render it directly with `size={14}` — no wrapping `<span>`. When `icon` is a `string`, keep the existing `<span className="w-5 shrink-0 text-center font-pixel text-[10px]">` wrapper.
+
+### SidebarGroup Caret
+
+Replace the `▶` Unicode character with:
+```tsx
+<CaretRight size={10} className={`transition-transform ${collapsed ? '' : 'rotate-90'}`} />
+```
 
 ### Files
 
@@ -97,9 +111,13 @@ Add surface layering (3 tiers) and distinct functional state colors.
 --color-surface-raised: #ffffff;     /* NEW */
 --color-surface-hover: #ece9e0;      /* was #f0eee6 */
 --color-info: #2563eb;               /* NEW */
+--color-warning: #d97706;            /* was #cc8800 — warmer amber */
+--color-error: #dc2626;              /* was #cc0000 — matches dark palette */
 --color-success: #16a34a;            /* distinct from accent */
 --color-shadow: rgba(0,0,0,0.1);     /* NEW */
 ```
+
+**Note on dark `--color-surface` (#141414):** This is close to `--color-bg` (#0a0a0a). During implementation, test at 50% display brightness to verify the layers remain distinguishable. If too subtle, bump to `#181818`.
 
 **Key change:** `--color-success` is no longer identical to `--color-accent`. Neon green stays for branding/navigation; natural green for "operation succeeded."
 
@@ -251,7 +269,7 @@ Theme toggle removed from StatusBar (already in Settings panel). StatusBar simpl
 
 **`<kbd>` styling:** `bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-1.5 py-0.5 text-[11px] font-mono`
 
-**Platform detection:** Uses `navigator.platform` or `navigator.userAgentData?.platform` to show `⌘` on macOS, `Ctrl` on Windows/Linux.
+**Platform detection:** Uses `navigator.platform.includes('Mac')` to show `⌘` on macOS, `Ctrl` on Windows/Linux. This is deprecated but universally supported in WebKit (Tauri's macOS webview) and Chromium. Avoids adding `@tauri-apps/plugin-os` as a dependency for a single check.
 
 ### State
 
@@ -260,10 +278,10 @@ Theme toggle removed from StatusBar (already in Settings panel). StatusBar simpl
 ### Files
 
 - Create: `components/shell/ShortcutsModal.tsx`
-- Modify: `components/shell/Sidebar.tsx` (add footer bar)
+- Modify: `components/shell/Sidebar.tsx` (add footer bar; restructure layout so tool groups are in a `flex-1 overflow-y-auto` scrollable region while the footer is `shrink-0` outside it)
 - Modify: `components/shell/StatusBar.tsx` (remove theme toggle)
 - Modify: `stores/ui.store.ts` (add shortcutsModalOpen)
-- Modify: `hooks/useGlobalShortcuts.ts` (add Cmd+/ binding)
+- Modify: `hooks/useGlobalShortcuts.ts` (add `const comboSlash = useMemo(() => ({ key: '/', mod: true } as const), [])` and `useKeyboardShortcut(comboSlash, toggleShortcutsModal)`)
 - Modify: `app/App.tsx` (render ShortcutsModal)
 
 ---
