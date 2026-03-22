@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { md5 } from 'js-md5'
@@ -42,21 +42,32 @@ export default function HashGenerator() {
     input: '',
   })
   const [hashes, setHashes] = useState<Hashes | null>(null)
+  const [isComputing, setIsComputing] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const runCompute = useCallback((input: string) => {
+    setIsComputing(true)
+    computeHashes(input).then((result) => {
+      setHashes(result)
+      setIsComputing(false)
+    })
+  }, [])
 
   useEffect(() => {
     if (!state.input) {
       setHashes(null)
+      setIsComputing(false)
       return
     }
+    setIsComputing(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      computeHashes(state.input).then(setHashes)
+      runCompute(state.input)
     }, 200)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.input])
+  }, [state.input, runCompute])
 
   const hashList = hashes
     ? [
@@ -80,6 +91,9 @@ export default function HashGenerator() {
         />
       </div>
       <div className="flex-1 overflow-auto p-4">
+        {isComputing && state.input && (
+          <div className="mb-3 text-xs text-[var(--color-text-muted)]">Computing…</div>
+        )}
         {hashList.length > 0 ? (
           <div className="flex flex-col gap-3">
             {hashList.map((h) => (

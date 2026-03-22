@@ -147,7 +147,7 @@ export default function ColorConverter() {
     : []
 
   return (
-    <div className="flex h-full flex-col gap-6 overflow-auto p-4">
+    <div className="flex h-full flex-col gap-4 overflow-auto p-4">
       <section>
         <h2 className="mb-2 font-pixel text-sm text-[var(--color-text)]">Color Input</h2>
         <div className="flex items-center gap-3">
@@ -157,12 +157,13 @@ export default function ColorConverter() {
             placeholder="#39ff14, rgb(255,0,0), hsl(120,100%,50%), red"
             className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
           />
-          {color && (
-            <div
-              className="h-10 w-10 shrink-0 rounded border border-[var(--color-border)]"
-              style={{ backgroundColor: color.hex }}
-            />
-          )}
+          <input
+            type="color"
+            value={color?.hex ?? '#000000'}
+            onChange={(e) => updateState({ input: e.target.value })}
+            title="Pick a color"
+            className="h-10 w-10 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
+          />
         </div>
       </section>
 

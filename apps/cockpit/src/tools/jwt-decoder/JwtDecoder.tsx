@@ -105,30 +105,30 @@ export default function JwtDecoder() {
 
             <section>
               <div className="mb-1 flex items-center justify-between">
-                <h3 className="font-pixel text-xs text-blue-400">Header</h3>
+                <h3 className="font-pixel text-xs text-[var(--color-info)]">Header</h3>
                 <CopyButton text={JSON.stringify(decoded.header, null, 2)} />
               </div>
-              <pre className="rounded border border-blue-400/30 bg-blue-400/5 p-3 font-mono text-xs text-[var(--color-text)]">
+              <pre className="rounded border border-[var(--color-info)] bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
                 {JSON.stringify(decoded.header, null, 2)}
               </pre>
             </section>
 
             <section>
               <div className="mb-1 flex items-center justify-between">
-                <h3 className="font-pixel text-xs text-green-400">Payload</h3>
+                <h3 className="font-pixel text-xs text-[var(--color-success)]">Payload</h3>
                 <CopyButton text={JSON.stringify(decoded.payload, null, 2)} />
               </div>
-              <pre className="rounded border border-green-400/30 bg-green-400/5 p-3 font-mono text-xs text-[var(--color-text)]">
+              <pre className="rounded border border-[var(--color-success)] bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
                 {JSON.stringify(decoded.payload, null, 2)}
               </pre>
             </section>
 
             <section>
               <div className="mb-1 flex items-center justify-between">
-                <h3 className="font-pixel text-xs text-red-400">Signature</h3>
+                <h3 className="font-pixel text-xs text-[var(--color-error)]">Signature</h3>
                 <CopyButton text={decoded.signature} />
               </div>
-              <pre className="rounded border border-red-400/30 bg-red-400/5 p-3 font-mono text-xs text-[var(--color-text)] break-all">
+              <pre className="rounded border border-[var(--color-error)] bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)] break-all">
                 {decoded.signature}
               </pre>
             </section>

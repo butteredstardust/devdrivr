@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -22,6 +22,8 @@ export default function SnippetsManager() {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fuse = useMemo(
     () => new Fuse(snippets, { keys: ['title', 'content', 'tags'], threshold: 0.4 }),
@@ -50,6 +52,19 @@ export default function SnippetsManager() {
     setSelectedId(null)
     setLastAction('Snippet deleted', 'info')
   }, [selectedId, removeSnippet, setLastAction])
+
+  const handleDeleteClick = useCallback(() => {
+    if (!selectedId) return
+    if (confirmDeleteId === selectedId) {
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+      setConfirmDeleteId(null)
+      handleDelete().catch(() => {})
+    } else {
+      setConfirmDeleteId(selectedId)
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+      confirmTimeoutRef.current = setTimeout(() => setConfirmDeleteId(null), 2500)
+    }
+  }, [selectedId, confirmDeleteId, handleDelete])
 
   const handleAddTag = useCallback(() => {
     if (!selected || !tagInput.trim()) return
@@ -108,8 +123,8 @@ export default function SnippetsManager() {
           </button>
         </div>
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
-          <button onClick={handleExport} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Export</button>
-          <button onClick={handleImport} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Import</button>
+          <button onClick={handleExport} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Export</button>
+          <button onClick={handleImport} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Import</button>
         </div>
         <div className="flex-1 overflow-auto">
           {filtered.map((snippet) => (
@@ -158,10 +173,14 @@ export default function SnippetsManager() {
             </select>
             <CopyButton text={selected.content} />
             <button
-              onClick={handleDelete}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+              onClick={handleDeleteClick}
+              className={`text-xs transition-colors ${
+                confirmDeleteId === selectedId
+                  ? 'font-bold text-[var(--color-error)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
+              }`}
             >
-              Delete
+              {confirmDeleteId === selectedId ? 'Confirm?' : 'Delete'}
             </button>
           </div>
           <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1">

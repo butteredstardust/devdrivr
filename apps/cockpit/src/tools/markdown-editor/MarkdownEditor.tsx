@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
@@ -90,6 +90,15 @@ export default function MarkdownEditor() {
     })
   }, [html])
 
+  const stats = useMemo(() => {
+    const text = state.content.trim()
+    if (!text) return null
+    const words = text.split(/\s+/).filter(Boolean).length
+    const chars = state.content.length
+    const lines = state.content.split('\n').length
+    return { words, chars, lines }
+  }, [state.content])
+
   const handleExportHtml = useCallback(() => {
     const fullHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Export</title>
@@ -110,7 +119,12 @@ export default function MarkdownEditor() {
           activeTab={state.mode}
           onTabChange={(id) => updateState({ mode: id })}
         />
-        <div className="ml-auto flex items-center gap-2 py-2">
+        <div className="ml-auto flex items-center gap-3 py-2">
+          {stats && (
+            <span className="text-[10px] text-[var(--color-text-muted)]" title={`${stats.lines} lines`}>
+              {stats.words}w · {stats.chars}c
+            </span>
+          )}
           <button
             onClick={handleExportHtml}
             className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
