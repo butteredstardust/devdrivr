@@ -3,6 +3,8 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { AppSettings, Theme } from '@/types/models'
+import { X } from '@phosphor-icons/react'
+import { Toggle } from '@/components/shared/Toggle'
 
 const INDENT_OPTIONS = [2, 4] as const
 const FONT_SIZE_OPTIONS = [12, 13, 14, 15, 16, 18, 20] as const
@@ -61,15 +63,15 @@ export function SettingsPanel() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
         ref={panelRef}
-        className="w-full max-w-md rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl"
+        className="w-full max-w-md rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 className="font-pixel text-sm text-[var(--color-accent)]">Settings</h2>
           <button
             onClick={() => setOpen(false)}
-            className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           >
-            ×
+            <X size={16} />
           </button>
         </div>
 
@@ -89,12 +91,7 @@ export function SettingsPanel() {
               </select>
             </SettingRow>
             <SettingRow label="Always on Top">
-              <input
-                type="checkbox"
-                checked={alwaysOnTop}
-                onChange={(e) => handleAlwaysOnTop(e.target.checked)}
-                className="accent-[var(--color-accent)]"
-              />
+              <Toggle checked={alwaysOnTop} onChange={handleAlwaysOnTop} />
             </SettingRow>
           </div>
 
@@ -135,12 +132,7 @@ export function SettingsPanel() {
               </select>
             </SettingRow>
             <SettingRow label="Format on Paste">
-              <input
-                type="checkbox"
-                checked={formatOnPaste}
-                onChange={(e) => update('formatOnPaste', e.target.checked)}
-                className="accent-[var(--color-accent)]"
-              />
+              <Toggle checked={formatOnPaste} onChange={(v) => update('formatOnPaste', v)} />
             </SettingRow>
           </div>
 

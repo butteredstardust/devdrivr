@@ -45,7 +45,7 @@ export function Workspace() {
         </div>
       )}
       <div className="flex h-10 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4">
-        <span className="font-pixel text-xs text-[var(--color-accent)]">{tool.name}</span>
+        <span className="font-pixel text-sm text-[var(--color-accent)]">{tool.name}</span>
       </div>
       <div className="flex-1 overflow-auto bg-[var(--color-bg)]">
         <ErrorBoundary ref={errorBoundaryRef}>

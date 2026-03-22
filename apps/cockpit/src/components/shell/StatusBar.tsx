@@ -1,12 +1,11 @@
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getToolById } from '@/app/tool-registry'
+import { PushPin } from '@phosphor-icons/react'
 
 export function StatusBar() {
   const activeTool = useUiStore((s) => s.activeTool)
   const lastAction = useUiStore((s) => s.lastAction)
-  const toggleTheme = useSettingsStore((s) => s.toggleTheme)
-  const theme = useSettingsStore((s) => s.theme)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const tool = getToolById(activeTool)
 
@@ -27,15 +26,8 @@ export function StatusBar() {
       </div>
       <div className="flex items-center gap-2">
         {alwaysOnTop && (
-          <span className="text-[var(--color-accent)]" title="Always on top">📌</span>
+          <PushPin size={12} weight="fill" className="text-[var(--color-accent)]" />
         )}
-        <button
-          onClick={toggleTheme}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          title={`Theme: ${theme}`}
-        >
-          {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '⚙️'}
-        </button>
       </div>
     </div>
   )
