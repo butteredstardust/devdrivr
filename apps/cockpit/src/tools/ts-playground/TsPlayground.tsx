@@ -6,6 +6,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
+import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 
 type TsPlaygroundState = {
   input: string
@@ -42,10 +43,8 @@ export default function TsPlayground() {
   })
 
   const worker = useWorker<TypeScriptWorker>(
-    () =>
-      new Worker(new URL('../../workers/typescript.worker.ts', import.meta.url), {
-        type: 'module',
-      })
+    () => new TypeScriptWorkerFactory(),
+    ['transpile']
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)

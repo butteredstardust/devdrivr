@@ -1,4 +1,4 @@
-import { expose } from 'comlink'
+import { handleRpc } from './rpc'
 import ts from 'typescript'
 
 type TranspileOptions = {
@@ -69,4 +69,4 @@ const api = {
 
 export type TypeScriptWorker = typeof api
 
-expose(api)
+handleRpc(api)

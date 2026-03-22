@@ -7,6 +7,7 @@ import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import type { XmlWorker } from '@/workers/xml.worker'
+import XmlWorkerFactory from '@/workers/xml.worker?worker'
 
 type XmlToolsState = {
   input: string
@@ -31,7 +32,8 @@ export default function XmlTools() {
   })
 
   const worker = useWorker<XmlWorker>(
-    () => new Worker(new URL('../../workers/xml.worker.ts', import.meta.url), { type: 'module' })
+    () => new XmlWorkerFactory(),
+    ['validate', 'format', 'queryXPath']
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)

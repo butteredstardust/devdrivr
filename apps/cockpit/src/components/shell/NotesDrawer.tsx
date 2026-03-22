@@ -7,6 +7,9 @@ import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
 import type { NoteColor } from '@/types/models'
 
+const MIN_WIDTH = 200
+const MAX_WIDTH = 600
+
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
   { id: 'history', label: 'History' },
@@ -102,6 +105,50 @@ function NoteEditor({
 
 export function NotesDrawer() {
   const drawerOpen = useSettingsStore((s) => s.notesDrawerOpen)
+  const savedWidth = useSettingsStore((s) => s.notesDrawerWidth)
+  const updateSetting = useSettingsStore((s) => s.update)
+  const [width, setWidth] = useState(savedWidth)
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Sync local width if the saved value changes (e.g. on init)
+  useEffect(() => {
+    setWidth(savedWidth)
+  }, [savedWidth])
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragState.current = { startX: e.clientX, startWidth: width }
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragState.current) return
+      const delta = dragState.current.startX - ev.clientX
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
+      setWidth(next)
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      if (!dragState.current) return
+      const delta = dragState.current.startX - ev.clientX
+      const final = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
+      dragState.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      // Debounce the DB write
+      clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => {
+        void updateSetting('notesDrawerWidth', final)
+      }, 500)
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [width, updateSetting])
+
   const notes = useNotesStore((s) => s.notes)
   const addNote = useNotesStore((s) => s.add)
   const updateNote = useNotesStore((s) => s.update)
@@ -151,7 +198,16 @@ export function NotesDrawer() {
   if (!drawerOpen) return null
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)]">
+    <aside
+      className="relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)]"
+      style={{ width }}
+    >
+      {/* Drag handle — sits on the left edge */}
+      <div
+        onMouseDown={handleDragStart}
+        className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 transition-colors"
+        title="Drag to resize"
+      />
       <div className="border-b border-[var(--color-border)]">
         <TabBar tabs={DRAWER_TABS} activeTab={activeTab} onTabChange={setActiveTab} />
       </div>

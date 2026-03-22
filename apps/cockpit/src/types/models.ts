@@ -5,6 +5,7 @@ export type AppSettings = {
   alwaysOnTop: boolean
   sidebarCollapsed: boolean
   notesDrawerOpen: boolean
+  notesDrawerWidth: number
   defaultIndentSize: number
   defaultTimezone: string
   editorFontSize: number
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   alwaysOnTop: false,
   sidebarCollapsed: false,
   notesDrawerOpen: false,
+  notesDrawerWidth: 288,
   defaultIndentSize: 2,
   defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   editorFontSize: 14,

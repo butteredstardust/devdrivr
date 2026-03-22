@@ -7,6 +7,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import type { FormatterWorker } from '@/workers/formatter.worker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
 const LANGUAGES = [
   'javascript', 'typescript', 'json', 'css', 'scss', 'less',
@@ -34,9 +35,9 @@ export default function CodeFormatter() {
   })
 
   const formatter = useWorker<FormatterWorker>(
-    () => new Worker(new URL('../../workers/formatter.worker.ts', import.meta.url), { type: 'module' })
+    () => new FormatterWorkerFactory(),
+    ['format', 'detectLanguage', 'getSupportedLanguages']
   )
-
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
 

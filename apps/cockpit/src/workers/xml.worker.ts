@@ -1,4 +1,4 @@
-import { expose } from 'comlink'
+import { handleRpc } from './rpc'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 
 type XmlResult = {
@@ -119,4 +119,4 @@ function evaluateSimpleXPath(doc: any, expression: string): any[] {
 
 export type XmlWorker = typeof api
 
-expose(api)
+handleRpc(api)

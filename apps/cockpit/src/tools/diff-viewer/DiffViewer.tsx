@@ -7,6 +7,7 @@ import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useUiStore } from '@/stores/ui.store'
 import type { DiffWorker } from '@/workers/diff.worker'
+import DiffWorkerFactory from '@/workers/diff.worker?worker'
 
 type DiffViewerState = {
   left: string
@@ -27,7 +28,8 @@ export default function DiffViewer() {
   })
 
   const worker = useWorker<DiffWorker>(
-    () => new Worker(new URL('../../workers/diff.worker.ts', import.meta.url), { type: 'module' })
+    () => new DiffWorkerFactory(),
+    ['computeDiff']
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
