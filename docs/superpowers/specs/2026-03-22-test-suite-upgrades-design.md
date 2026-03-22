@@ -21,6 +21,7 @@ The cockpit app has 27 tools and 52 tests across 8 files. Only 2 tools have any 
 Mock `@monaco-editor/react` globally:
 - `Editor` renders a `<textarea>` with `data-testid="monaco-editor"` that calls `onChange` with the value. Respects `value`, `onChange`, `language` props.
 - `DiffEditor` renders two read-only `<textarea>`s with `data-testid="monaco-diff-original"` and `data-testid="monaco-diff-modified"`.
+- `loader` — mock `loader.init()` to resolve with `{ editor: { defineTheme: vi.fn(), setTheme: vi.fn() } }`. Required because `useMonacoTheme()` (used by 11 tools) calls `loader.init()` at render time.
 
 ### 2. Worker Mocks (test-setup.ts)
 
@@ -31,6 +32,7 @@ Mock `@monaco-editor/react` globally:
 
 - `mermaid` — mock `render()` to return `{ svg: '<svg>mock</svg>' }`
 - `diff2html` — mock `html()` to return `<div>mock diff</div>`
+- `htmlhint` — mock dynamic `import('htmlhint')` to return `{ HTMLHint: { verify: vi.fn(() => []) } }`. Required because `HtmlValidator` uses a dynamic import at runtime.
 
 ### 4. Shared Test Helper (src/tools/__tests__/test-utils.ts)
 
@@ -42,7 +44,7 @@ function renderTool(Component: React.ComponentType): ReturnType<typeof render>
 - Renders the component
 - Returns the render result
 
-## Test Files (24 new files)
+## Test Files (25 new files)
 
 Each file: `src/tools/__tests__/<tool-id>.test.tsx`
 
@@ -106,12 +108,13 @@ Each file: `src/tools/__tests__/<tool-id>.test.tsx`
 - **Mermaid Editor** — `mermaid.render()` returns stub SVG
 - **Snippets Manager** — seed snippets store with test data
 - **Markdown Editor** — test tab switching and container presence, not markdown rendering
-- **Worker-dependent tools** (CSS/HTML validators, CSS Specificity, CSS → Tailwind, Diff Viewer, Code Formatter, TS Playground, XML Tools) — `useWorker` mock returns proxy that resolves with empty/default values
+- **Worker-dependent tools** (Diff Viewer, Code Formatter, TS Playground, XML Tools) — `useWorker` mock returns proxy that resolves with empty/default values
+- **Main-thread validation tools** — CSS Validator uses `css-tree` directly (no mock needed, runs in jsdom). HTML Validator uses dynamic `import('htmlhint')` (mocked globally). CSS Specificity and CSS → Tailwind are pure synchronous computation (no mocks needed). JSON Schema Validator uses `ajv` + `ajv-formats` synchronously (no mock needed, runs in jsdom).
 
 ## Expected Outcome
 
-- **24 new test files**, ~30-60 lines each
-- **~120-150 new tests**, bringing total from 52 to ~170-200
+- **25 new test files**, ~30-60 lines each
+- **~125-150 new tests**, bringing total from 52 to ~175-200
 - **All tests complete in <5 seconds** (jsdom + mocks)
 - **Zero new dependencies**
 
