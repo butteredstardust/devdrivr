@@ -56,7 +56,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'regex-tester', name: 'Regex Tester', group: 'test', icon: '.*', description: 'Test regular expressions with match highlighting', component: RegexTester },
   { id: 'jwt-decoder', name: 'JWT Decoder', group: 'test', icon: 'JWT', description: 'Decode and inspect JWT tokens', component: JwtDecoder },
   // --- Network ---
-  { id: 'api-client', name: 'API Client', group: 'network', icon: '↗', description: 'Send HTTP requests and view responses', component: ApiClient },
+  { id: 'api-client', name: 'API Client', group: 'network', icon: '↗', description: 'HTTP client with params editor, body modes, and response inspector', component: ApiClient },
   { id: 'docs-browser', name: 'Docs Browser', group: 'network', icon: '📖', description: 'Browse devdocs.io documentation', component: DocsBrowser },
   // --- Write ---
   { id: 'markdown-editor', name: 'Markdown Editor', group: 'write', icon: 'MD', description: 'Edit and preview markdown with Mermaid support', component: MarkdownEditor },
