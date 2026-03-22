@@ -8,6 +8,7 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
   onDropRef.current = onDrop
 
   useEffect(() => {
+    let cancelled = false
     let unlisten: (() => void) | undefined
 
     getCurrentWebviewWindow()
@@ -30,9 +31,19 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
           }
         }
       })
-      .then((fn) => { unlisten = fn })
+      .then((fn) => {
+        if (cancelled) {
+          // Effect already cleaned up (StrictMode) — immediately unlisten
+          fn()
+        } else {
+          unlisten = fn
+        }
+      })
 
-    return () => { unlisten?.() }
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
   }, [])
 
   return { isDragging }

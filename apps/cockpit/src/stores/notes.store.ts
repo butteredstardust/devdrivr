@@ -12,13 +12,20 @@ type NotesStore = {
   remove: (id: string) => Promise<void>
 }
 
+let initPromise: Promise<void> | null = null
+
 export const useNotesStore = create<NotesStore>()((set, get) => ({
   notes: [],
   initialized: false,
 
   init: async () => {
-    const notes = await loadNotes()
-    set({ notes, initialized: true })
+    if (!initPromise) {
+      initPromise = (async () => {
+        const notes = await loadNotes()
+        set({ notes, initialized: true })
+      })()
+    }
+    return initPromise
   },
 
   add: async (title = '', content = '', color: NoteColor = 'yellow') => {

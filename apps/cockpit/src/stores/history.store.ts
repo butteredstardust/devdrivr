@@ -12,13 +12,20 @@ type HistoryStore = {
   reload: () => Promise<void>
 }
 
+let initPromise: Promise<void> | null = null
+
 export const useHistoryStore = create<HistoryStore>()((set) => ({
   entries: [],
   initialized: false,
 
   init: async () => {
-    const entries = await loadHistory(undefined, 200)
-    set({ entries, initialized: true })
+    if (!initPromise) {
+      initPromise = (async () => {
+        const entries = await loadHistory(undefined, 200)
+        set({ entries, initialized: true })
+      })()
+    }
+    return initPromise
   },
 
   add: async (tool, input, output, subTab) => {

@@ -9,6 +9,16 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Synchronous theme restore to prevent flash — runs before any CSS paint.
+      // The settings store writes this cache on every theme change.
+      try {
+        var cached = localStorage.getItem('theme-cache');
+        if (cached === 'light' || cached === 'dark') {
+          document.documentElement.className = cached;
+        }
+      } catch (e) {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

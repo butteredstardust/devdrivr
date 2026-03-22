@@ -28,7 +28,6 @@ function getCategories(mod: string): ShortcutCategory[] {
       label: 'Notes',
       shortcuts: [
         { keys: [mod, 'Shift', 'N'], action: 'Toggle notes drawer' },
-        { keys: [mod, 'Shift', 'Space'], action: 'Quick capture (global)' },
       ],
     },
     {

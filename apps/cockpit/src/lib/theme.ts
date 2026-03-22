@@ -12,4 +12,6 @@ export function applyTheme(theme: Theme): void {
   const html = document.documentElement
   html.classList.remove('dark', 'light')
   html.classList.add(effective)
+  // Cache for synchronous restore on next load (see index.html inline script)
+  try { localStorage.setItem('theme-cache', effective) } catch { /* quota/sandbox */ }
 }

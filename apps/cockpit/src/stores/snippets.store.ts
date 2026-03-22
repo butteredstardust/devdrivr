@@ -12,13 +12,20 @@ type SnippetsStore = {
   remove: (id: string) => Promise<void>
 }
 
+let initPromise: Promise<void> | null = null
+
 export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   snippets: [],
   initialized: false,
 
   init: async () => {
-    const snippets = await loadSnippets()
-    set({ snippets, initialized: true })
+    if (!initPromise) {
+      initPromise = (async () => {
+        const snippets = await loadSnippets()
+        set({ snippets, initialized: true })
+      })()
+    }
+    return initPromise
   },
 
   add: async (title, content, language, tags = []) => {

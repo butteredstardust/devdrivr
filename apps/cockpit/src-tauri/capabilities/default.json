@@ -26,7 +26,7 @@
     "dialog:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-    "core:webview:allow-create-webview-window",
-    "global-shortcut:default"
+    "core:window:allow-scale-factor",
+    "core:window:allow-inner-position"
   ]
 }

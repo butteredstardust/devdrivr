@@ -10,15 +10,24 @@ type SettingsStore = AppSettings & {
   toggleTheme: () => Promise<void>
 }
 
+// Promise guard prevents concurrent init() calls (StrictMode double-mount)
+// from triggering duplicate applyTheme() repaints.
+let initPromise: Promise<void> | null = null
+
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   ...DEFAULT_SETTINGS,
   initialized: false,
 
   init: async () => {
-    const saved = await getSetting<Partial<AppSettings>>('appSettings', {})
-    const merged = { ...DEFAULT_SETTINGS, ...saved }
-    set({ ...merged, initialized: true })
-    applyTheme(merged.theme)
+    if (!initPromise) {
+      initPromise = (async () => {
+        const saved = await getSetting<Partial<AppSettings>>('appSettings', {})
+        const merged = { ...DEFAULT_SETTINGS, ...saved }
+        set({ ...merged, initialized: true })
+        applyTheme(merged.theme)
+      })()
+    }
+    return initPromise
   },
 
   update: async (key, value) => {

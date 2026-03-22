@@ -1,15 +1,18 @@
 import Database from '@tauri-apps/plugin-sql'
 import type { Note, NoteColor, Snippet, HistoryEntry } from '@/types/models'
 
-let db: Database | null = null
+// Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
+// (e.g., StrictMode double-mount or parallel store inits).
+let dbPromise: Promise<Database> | null = null
 
-export async function getDb(): Promise<Database> {
-  if (!db) {
-    db = await Database.load('sqlite:cockpit.db')
-    // WAL mode for concurrent reads — must be set at connection time, not in migrations
-    await db.execute('PRAGMA journal_mode=WAL')
+export function getDb(): Promise<Database> {
+  if (!dbPromise) {
+    dbPromise = Database.load('sqlite:cockpit.db').then(async (conn) => {
+      await conn.execute('PRAGMA journal_mode=WAL')
+      return conn
+    })
   }
-  return db
+  return dbPromise
 }
 
 // --- Settings ---
