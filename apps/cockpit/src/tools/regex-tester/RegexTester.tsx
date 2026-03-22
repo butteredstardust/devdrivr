@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
@@ -74,13 +74,30 @@ function findMatches(pattern: string, flags: string, text: string): { matches: M
   }
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function highlightMatches(text: string, pattern: string, flags: string): string {
   if (!pattern || !text) return ''
   try {
     const re = new RegExp(pattern, flags.includes('g') ? flags : flags + 'g')
-    return text.replace(re, (match) => `<mark class="bg-[var(--color-accent)]/30 text-[var(--color-accent)] rounded px-0.5">${match}</mark>`)
+    // Split text by matches, escape each segment, then wrap matches in <mark>
+    const parts: string[] = []
+    let lastIndex = 0
+    let m: RegExpExecArray | null
+    let guard = 0
+    while ((m = re.exec(text)) !== null && guard < 1000) {
+      guard++
+      parts.push(escapeHtml(text.slice(lastIndex, m.index)))
+      parts.push(`<mark class="bg-[var(--color-accent)]/30 text-[var(--color-accent)] rounded px-0.5">${escapeHtml(m[0])}</mark>`)
+      lastIndex = m.index + m[0].length
+      if (m[0] === '') re.lastIndex++ // prevent infinite loop on zero-width match
+    }
+    parts.push(escapeHtml(text.slice(lastIndex)))
+    return parts.join('')
   } catch {
-    return text
+    return escapeHtml(text)
   }
 }
 
@@ -113,7 +130,7 @@ export default function RegexTester() {
   }, [state.flags, updateState])
 
   // Report match count to status bar
-  useMemo(() => {
+  useEffect(() => {
     if (result.error) {
       setLastAction(result.error, 'error')
     } else if (result.matches.length > 0) {
