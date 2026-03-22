@@ -25,27 +25,30 @@ export function Providers({ children }: { children: ReactNode }) {
         useUiStore.getState().setActiveTool(lastTool)
       }
 
-      // Window state restore
+      // Window state restore — use logical coordinates to avoid physical/logical mismatch on Retina
       const win = getCurrentWindow()
       const bounds = await getSetting<{ x: number; y: number; width: number; height: number } | null>('windowBounds', null)
-      if (bounds) {
-        const { PhysicalPosition, PhysicalSize } = await import('@tauri-apps/api/dpi')
-        await win.setPosition(new PhysicalPosition(bounds.x, bounds.y))
-        await win.setSize(new PhysicalSize(bounds.width, bounds.height))
+      if (bounds && bounds.width >= 800 && bounds.width <= 4000 && bounds.height >= 500 && bounds.height <= 3000) {
+        const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
+        await win.setPosition(new LogicalPosition(bounds.x, bounds.y))
+        await win.setSize(new LogicalSize(bounds.width, bounds.height))
       }
       const settings = useSettingsStore.getState()
       if (settings.alwaysOnTop) {
         await win.setAlwaysOnTop(true)
       }
 
-      // Save bounds on move/resize (debounced 1s)
+      // Save bounds on move/resize (debounced 1s) — convert to logical to match restore
       let saveTimer: ReturnType<typeof setTimeout> | undefined
       async function persistBounds() {
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
+          const factor = await win.scaleFactor()
           const pos = await win.outerPosition()
           const sz = await win.outerSize()
-          await setSetting('windowBounds', { x: pos.x, y: pos.y, width: sz.width, height: sz.height })
+          const logicalPos = pos.toLogical(factor)
+          const logicalSz = sz.toLogical(factor)
+          await setSetting('windowBounds', { x: logicalPos.x, y: logicalPos.y, width: logicalSz.width, height: logicalSz.height })
         }, 1000)
       }
       win.onMoved(persistBounds)

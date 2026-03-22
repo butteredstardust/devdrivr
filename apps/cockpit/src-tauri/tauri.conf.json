@@ -18,7 +18,8 @@
         "minWidth": 800,
         "minHeight": 500,
         "decorations": true,
-        "center": true
+        "center": true,
+        "backgroundColor": [10, 10, 10, 255]
       }
     ],
     "security": {
