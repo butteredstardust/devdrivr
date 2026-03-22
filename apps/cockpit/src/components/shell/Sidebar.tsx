@@ -1,6 +1,7 @@
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
+import { Chameleon } from '@/components/shared/Chameleon'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarFooter } from './SidebarFooter'
 
@@ -29,6 +30,7 @@ export function Sidebar() {
   return (
     <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
       <div className="px-3 py-3">
+        <Chameleon />
         <h1 className="font-pixel text-base font-bold text-[var(--color-accent)]">devdrivr</h1>
       </div>
       <div className="flex-1 overflow-y-auto py-1">
