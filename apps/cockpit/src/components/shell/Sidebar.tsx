@@ -9,7 +9,7 @@ export function Sidebar() {
 
   if (sidebarCollapsed) {
     return (
-      <aside className="flex w-10 shrink-0 flex-col items-center border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2 shadow-[2px_0_8px_-2px_var(--color-shadow)]">
+      <aside className="flex w-10 shrink-0 flex-col items-center border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2 shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
         <div className="flex flex-1 flex-col items-center">
           {TOOL_GROUPS.map((group) => (
             <div
@@ -27,7 +27,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[2px_0_8px_-2px_var(--color-shadow)]">
+    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
       <div className="px-3 py-3">
         <h1 className="font-pixel text-base font-bold text-[var(--color-accent)]">devdrivr</h1>
       </div>
