@@ -15,6 +15,7 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/silkscreen": "^5.2.8",
     "@monaco-editor/react": "^4.7.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@prettier/plugin-xml": "^3.4.1",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",

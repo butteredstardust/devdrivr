@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 
 type SidebarItemProps = {
   id: string
   name: string
-  icon: string
+  icon: ReactNode
 }
 
 export function SidebarItem({ id, name, icon }: SidebarItemProps) {

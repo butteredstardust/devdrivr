@@ -1,4 +1,4 @@
-import { TOOL_GROUPS } from '@/types/tools'
+import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { SidebarGroup } from './SidebarGroup'
