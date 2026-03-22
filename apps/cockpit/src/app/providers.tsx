@@ -26,9 +26,15 @@ export function Providers({ children }: { children: ReactNode }) {
         geometryRestored.current = true
         try {
           const bounds = await getSetting<{ x: number; y: number; width: number; height: number } | null>('windowBounds', null)
-          if (bounds && bounds.width >= 800 && bounds.width <= 4000 && bounds.height >= 500 && bounds.height <= 3000) {
+          const sizeValid = bounds && bounds.width >= 800 && bounds.width <= 4000 && bounds.height >= 500 && bounds.height <= 3000
+          // Clamp position so the window isn't restored entirely off-screen
+          // (e.g. after disconnecting an external monitor)
+          const posValid = bounds && bounds.x > -200 && bounds.y > -200 && bounds.x < 4000 && bounds.y < 3000
+          if (sizeValid) {
             const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
-            await win.setPosition(new LogicalPosition(bounds.x, bounds.y))
+            if (posValid) {
+              await win.setPosition(new LogicalPosition(bounds.x, bounds.y))
+            }
             await win.setSize(new LogicalSize(bounds.width, bounds.height))
           }
         } catch (err) {
