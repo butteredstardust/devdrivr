@@ -1,6 +1,3 @@
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useCallback } from 'react'
-
 type Tab = {
   id: string
   label: string
@@ -13,17 +10,8 @@ type TabBarProps = {
 }
 
 export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
-  const switchTab = useCallback(
-    (index: number) => {
-      const tab = tabs[index]
-      if (tab) onTabChange(tab.id)
-    },
-    [tabs, onTabChange]
-  )
-
-  useKeyboardShortcut({ key: '1', mod: true }, () => switchTab(0))
-  useKeyboardShortcut({ key: '2', mod: true }, () => switchTab(1))
-  useKeyboardShortcut({ key: '3', mod: true }, () => switchTab(2))
+  // Tab switching via Cmd+1/2/3 is handled globally in useGlobalShortcuts
+  // via the 'switch-tab' tool action — no duplicate registration here.
 
   return (
     <div className="flex border-b border-[var(--color-border)]">
