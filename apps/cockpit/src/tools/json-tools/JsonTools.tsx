@@ -7,6 +7,7 @@ import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import type { FormatterWorker } from '@/workers/formatter.worker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
 type JsonToolsState = {
   input: string
@@ -27,9 +28,9 @@ export default function JsonTools() {
   })
 
   const formatter = useWorker<FormatterWorker>(
-    () => new Worker(new URL('../../workers/formatter.worker.ts', import.meta.url), { type: 'module' })
+    () => new FormatterWorkerFactory(),
+    ['format', 'detectLanguage', 'getSupportedLanguages']
   )
-
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
 

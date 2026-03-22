@@ -1,4 +1,4 @@
-import { expose } from 'comlink'
+import { handleRpc } from './rpc'
 import * as prettier from 'prettier/standalone'
 import prettierPluginBabel from 'prettier/plugins/babel'
 import prettierPluginEstree from 'prettier/plugins/estree'
@@ -7,10 +7,12 @@ import prettierPluginMarkdown from 'prettier/plugins/markdown'
 import prettierPluginTypescript from 'prettier/plugins/typescript'
 import prettierPluginYaml from 'prettier/plugins/yaml'
 import prettierPluginXml from '@prettier/plugin-xml'
-import prettierPluginSql from 'prettier-plugin-sql'
+// prettier-plugin-sql depends on node-sql-parser (CJS/UMD) which crashes module workers in WebKit.
+// SQL is handled separately via sql-formatter (ESM-native).
+import { format as formatSql } from 'sql-formatter'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ALL_PLUGINS: any[] = [
+const PRETTIER_PLUGINS: any[] = [
   prettierPluginBabel,
   prettierPluginEstree,
   prettierPluginHtml,
@@ -18,7 +20,6 @@ const ALL_PLUGINS: any[] = [
   prettierPluginTypescript,
   prettierPluginYaml,
   prettierPluginXml,
-  prettierPluginSql,
 ]
 
 type FormatOptions = {
@@ -41,12 +42,19 @@ const LANGUAGE_TO_PARSER: Record<string, string> = {
   markdown: 'markdown',
   yaml: 'yaml',
   xml: 'xml',
-  sql: 'sql',
   graphql: 'graphql',
 }
 
 const api = {
   async format(code: string, options: FormatOptions): Promise<string> {
+    // SQL is handled by sql-formatter (ESM-native) instead of prettier-plugin-sql
+    if (options.language === 'sql') {
+      return formatSql(code, {
+        tabWidth: options.tabWidth ?? 2,
+        useTabs: options.useTabs ?? false,
+      })
+    }
+
     const parser = LANGUAGE_TO_PARSER[options.language]
     if (!parser) {
       throw new Error(`Unsupported language: ${options.language}`)
@@ -54,7 +62,7 @@ const api = {
 
     return prettier.format(code, {
       parser,
-      plugins: ALL_PLUGINS,
+      plugins: PRETTIER_PLUGINS,
       tabWidth: options.tabWidth ?? 2,
       useTabs: options.useTabs ?? false,
       singleQuote: options.singleQuote ?? true,
@@ -84,10 +92,10 @@ const api = {
   },
 
   getSupportedLanguages(): string[] {
-    return Object.keys(LANGUAGE_TO_PARSER)
+    return [...Object.keys(LANGUAGE_TO_PARSER), 'sql']
   },
 }
 
 export type FormatterWorker = typeof api
 
-expose(api)
+handleRpc(api)

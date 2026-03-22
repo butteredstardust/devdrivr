@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clean": "rm -rf node_modules dist src-tauri/target"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.2.8",

@@ -1,4 +1,4 @@
-import { expose } from 'comlink'
+import { handleRpc } from './rpc'
 import { createTwoFilesPatch } from 'diff'
 
 type DiffOptions = {
@@ -28,4 +28,4 @@ const api = {
 
 export type DiffWorker = typeof api
 
-expose(api)
+handleRpc(api)

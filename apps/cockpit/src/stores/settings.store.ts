@@ -38,6 +38,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       alwaysOnTop: state.alwaysOnTop,
       sidebarCollapsed: state.sidebarCollapsed,
       notesDrawerOpen: state.notesDrawerOpen,
+      notesDrawerWidth: state.notesDrawerWidth,
       defaultIndentSize: state.defaultIndentSize,
       defaultTimezone: state.defaultTimezone,
       editorFontSize: state.editorFontSize,
