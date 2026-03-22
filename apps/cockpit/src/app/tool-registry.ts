@@ -51,10 +51,10 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'url-codec', name: 'URL Encode/Decode', group: 'convert', icon: '%', description: 'URL encode and decode strings', component: UrlCodec },
   { id: 'curl-to-fetch', name: 'cURL → Fetch', group: 'convert', icon: '→f', description: 'Convert cURL commands to fetch/axios', component: CurlToFetch },
   { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate and validate UUIDs', component: UuidGenerator },
-  { id: 'hash-generator', name: 'Hash Generator', group: 'convert', icon: '##', description: 'Generate MD5, SHA-1, SHA-256, SHA-512 hashes', component: HashGenerator },
+  { id: 'hash-generator', name: 'Hash Generator', group: 'convert', icon: '##', description: 'Generate hashes and HMAC with comparison and export', component: HashGenerator },
   // --- Test ---
   { id: 'regex-tester', name: 'Regex Tester', group: 'test', icon: '.*', description: 'Test and replace with match highlighting, groups, and export', component: RegexTester },
-  { id: 'jwt-decoder', name: 'JWT Decoder', group: 'test', icon: 'JWT', description: 'Decode and inspect JWT tokens', component: JwtDecoder },
+  { id: 'jwt-decoder', name: 'JWT Decoder', group: 'test', icon: 'JWT', description: 'Decode JWTs with claim annotations, live expiry, and color-coded parts', component: JwtDecoder },
   // --- Network ---
   { id: 'api-client', name: 'API Client', group: 'network', icon: '↗', description: 'HTTP client with params editor, body modes, and response inspector', component: ApiClient },
   { id: 'docs-browser', name: 'Docs Browser', group: 'network', icon: '📖', description: 'Browse devdocs.io documentation', component: DocsBrowser },
