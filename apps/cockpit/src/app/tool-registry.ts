@@ -33,7 +33,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'code-formatter', name: 'Code Formatter', group: 'code', icon: '⌨', description: 'Format and beautify code (JS, TS, CSS, HTML, SQL, Python)', component: CodeFormatter },
   { id: 'ts-playground', name: 'TypeScript Playground', group: 'code', icon: 'TS', description: 'Transpile TypeScript to JavaScript', component: TsPlayground },
   { id: 'diff-viewer', name: 'Diff Viewer', group: 'code', icon: '±', description: 'Compare text side-by-side or inline', component: DiffViewer },
-  { id: 'refactoring-toolkit', name: 'Refactoring Toolkit', group: 'code', icon: '♻', description: 'AST-based code transforms (var to let, then to await)', component: RefactoringToolkit },
+  { id: 'refactoring-toolkit', name: 'Refactoring Toolkit', group: 'code', icon: '♻', description: 'Regex code transforms with diff preview (12 transforms, JS/TS)', component: RefactoringToolkit },
   // --- Data ---
   { id: 'json-tools', name: 'JSON Tools', group: 'data', icon: '{}', description: 'Validate, format, tree view, and table view for JSON', component: JsonTools },
   { id: 'xml-tools', name: 'XML Tools', group: 'data', icon: '<>', description: 'Validate and format XML', component: XmlTools },
