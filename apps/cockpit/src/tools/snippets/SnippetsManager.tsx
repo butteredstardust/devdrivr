@@ -41,15 +41,25 @@ const LANGUAGES = [
 const LANG_EXTENSIONS: Record<string, string> = {
   javascript: 'js',
   typescript: 'ts',
-  python: 'py',
+  json: 'json',
+  css: 'css',
+  html: 'html',
   markdown: 'md',
+  sql: 'sql',
+  python: 'py',
   bash: 'sh',
+  go: 'go',
   rust: 'rs',
   ruby: 'rb',
-  csharp: 'cs',
-  cpp: 'cpp',
+  php: 'php',
+  java: 'java',
   c: 'c',
+  cpp: 'cpp',
+  csharp: 'cs',
+  swift: 'swift',
+  kotlin: 'kt',
   yaml: 'yml',
+  toml: 'toml',
   dockerfile: 'dockerfile',
   graphql: 'gql',
   text: 'txt',
@@ -110,6 +120,8 @@ export default function SnippetsManager() {
   const [sortMode, setSortMode] = useState<SortMode>('updated')
   const [filterTag, setFilterTag] = useState<string | null>(null)
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Clear confirm timer on unmount
   useEffect(() => {
@@ -118,10 +130,36 @@ export default function SnippetsManager() {
     }
   }, [])
 
+  // ─── Handlers (defined early for shortcuts) ───────────────────────
+
+  const handleNew = useCallback(async () => {
+    const snippet = await addSnippet('Untitled', '', 'javascript')
+    setSelectedId(snippet.id)
+    setLastAction('Snippet created', 'success')
+    setTimeout(() => titleInputRef.current?.focus(), 50)
+  }, [addSnippet, setLastAction])
+
+  // ─── Shortcuts ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault()
+        handleNew()
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleNew])
+
   // ─── Fuse search ─────────────────────────────────────────────────
 
   const fuse = useMemo(
-    () => new Fuse(snippets, { keys: ['title', 'content', 'tags'], threshold: 0.4 }),
+    () => new Fuse(snippets, { keys: ['title', 'content', 'tags'], threshold: 0.3 }),
     [snippets]
   )
 
@@ -185,12 +223,6 @@ export default function SnippetsManager() {
 
   // ─── Handlers ────────────────────────────────────────────────────
 
-  const handleNew = useCallback(async () => {
-    const snippet = await addSnippet('Untitled', '', 'javascript')
-    setSelectedId(snippet.id)
-    setLastAction('Snippet created', 'success')
-  }, [addSnippet, setLastAction])
-
   const handleDuplicate = useCallback(async () => {
     if (!selected) return
     const snippet = await addSnippet(
@@ -235,6 +267,10 @@ export default function SnippetsManager() {
   const handleAddTag = useCallback(async () => {
     if (!selected || !tagInput.trim()) return
     const tag = tagInput.trim()
+    if (tag === FAVORITE_TAG) {
+      setTagInput('')
+      return
+    }
     if (selected.tags.includes(tag)) {
       setTagInput('')
       return
@@ -305,21 +341,26 @@ export default function SnippetsManager() {
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full">
-      {/* ─── Sidebar ──────────────────────────────────────────── */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div className="grid h-full grid-cols-[16rem_1fr_13rem] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
+      {/* ─── Pane 1: Selection ────────────────────────────────── */}
+      <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+          [ 01-SELECT ]
+        </div>
+
         {/* Search + New */}
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
           <input
+            ref={searchInputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search snippets..."
+            placeholder="Search... (⌘F)"
             className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
           />
           <button
             onClick={handleNew}
-            className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-            title="New snippet"
+            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--color-accent)] font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
+            title="New snippet (⌘N)"
           >
             +
           </button>
@@ -340,17 +381,17 @@ export default function SnippetsManager() {
               {opt.label}
             </button>
           ))}
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1.5">
             <button
               onClick={handleExport}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className="rounded-sm bg-[var(--color-surface-hover)] px-1 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               title="Export all to clipboard"
             >
               Export
             </button>
             <button
               onClick={handleImport}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className="rounded-sm bg-[var(--color-surface-hover)] px-1 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               title="Import from clipboard"
             >
               Import
@@ -446,109 +487,144 @@ export default function SnippetsManager() {
         </div>
       </div>
 
-      {/* ─── Editor ───────────────────────────────────────────── */}
-      {selected ? (
-        <div className="flex flex-1 flex-col">
-          {/* Title + controls */}
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-            <button
-              onClick={handleToggleFavorite}
-              className={`text-sm transition-opacity ${isFavorite(selected.tags) ? 'opacity-100' : 'opacity-30 hover:opacity-60'}`}
-              title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
-            >
-              ⭐
-            </button>
-            <input
-              value={selected.title}
-              onChange={(e) => updateSnippet(selected.id, { title: e.target.value })}
-              placeholder="Snippet title"
-              className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
-            />
-            <select
-              value={selected.language}
-              onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
-              className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-            {editorStats && (
-              <span className="text-[10px] text-[var(--color-text-muted)]">
-                {editorStats.lines}L · {editorStats.chars}c
-              </span>
-            )}
-            <CopyButton text={selected.content} />
-            <button
-              onClick={handleDownload}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              title="Download as file"
-            >
-              ↓
-            </button>
-            <button
-              onClick={handleDuplicate}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              title="Duplicate snippet"
-            >
-              ⧉
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className={`text-xs transition-colors ${
-                confirmDeleteId === selectedId
-                  ? 'font-bold text-[var(--color-error)]'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
-              }`}
-            >
-              {confirmDeleteId === selectedId ? 'Confirm?' : 'Delete'}
-            </button>
-          </div>
-
-          {/* Tags */}
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1">
-            {visibleTags(selected.tags).map((tag) => (
-              <span
-                key={tag}
-                className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]"
+      {/* ─── Pane 2: Editor ───────────────────────────────────── */}
+      <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+          [ 02-EDIT: {selected ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'js'}` : '---'} ]
+        </div>
+        {selected ? (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Title + controls */}
+            <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+              <button
+                onClick={handleToggleFavorite}
+                className={`text-sm transition-opacity ${isFavorite(selected.tags) ? 'opacity-100' : 'opacity-30 hover:opacity-60'}`}
+                title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
               >
-                {tag}
-                <button
-                  onClick={() => handleRemoveTag(tag)}
-                  className="hover:text-[var(--color-error)]"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddTag()
-              }}
-              placeholder="Add tag..."
-              className="bg-transparent text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
-            />
-          </div>
+                ⭐
+              </button>
+              <input
+                ref={titleInputRef}
+                value={selected.title}
+                onChange={(e) => updateSnippet(selected.id, { title: e.target.value })}
+                placeholder="Snippet title"
+                className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
+              />
+              <select
+                value={selected.language}
+                onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
+                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+              {editorStats && (
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {editorStats.lines}L · {editorStats.chars}c
+                </span>
+              )}
+              <CopyButton text={selected.content} />
+              <button
+                onClick={handleDownload}
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                title="Download as file"
+              >
+                ↓
+              </button>
+              <button
+                onClick={handleDuplicate}
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                title="Duplicate snippet"
+              >
+                ⧉
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className={`text-xs transition-colors ${
+                  confirmDeleteId === selectedId
+                    ? 'font-bold text-[var(--color-error)]'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
+                }`}
+              >
+                {confirmDeleteId === selectedId ? 'Confirm?' : 'Delete'}
+              </button>
+            </div>
 
-          {/* Monaco editor */}
-          <div className="flex-1">
-            <Editor
-              language={selected.language}
-              value={selected.content}
-              onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
-              options={EDITOR_OPTIONS}
-            />
+            {/* Tags */}
+            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1">
+              {visibleTags(selected.tags).map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]"
+                >
+                  {tag}
+                  <button
+                    onClick={() => handleRemoveTag(tag)}
+                    className="hover:text-[var(--color-error)]"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddTag()
+                }}
+                placeholder="Add tag..."
+                className="bg-transparent text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+              />
+            </div>
+
+            {/* Monaco editor */}
+            <div className="flex-1">
+              <Editor
+                language={selected.language}
+                value={selected.content}
+                onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
+                options={EDITOR_OPTIONS}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
+            Select a snippet or create a new one
+          </div>
+        )}
+      </div>
+
+      {/* ─── Pane 3: Meta ─────────────────────────────────────── */}
+      <div className="flex flex-col overflow-hidden bg-[var(--color-surface)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+          [ 03-META ]
+        </div>
+        <div className="flex-1 p-4">
+          <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            Properties
+          </div>
+          <div className="mt-4 space-y-4">
+            <div className="text-xs italic text-[var(--color-text-muted)]">
+              Stats and tags will be moved here in Task 2 & 3.
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-          Select a snippet or create a new one
+      </div>
+
+      {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
+      <div className="col-span-3 flex items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4">
+        <div className="font-pixel text-[10px] text-[var(--color-text-muted)]">
+          [ COMMAND BAR ]
         </div>
-      )}
+        <div className="ml-auto flex items-center gap-4">
+          <div className="font-pixel text-[10px] text-[var(--color-text-muted)]">
+            {snippets.length} SNIPPETS
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

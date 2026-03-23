@@ -14,6 +14,7 @@ type SnippetsStore = {
 }
 
 let initPromise: Promise<void> | null = null
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   snippets: [],
@@ -50,18 +51,39 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     const idx = snippets.findIndex((s) => s.id === id)
     if (idx < 0) return
     const updated = { ...snippets[idx]!, ...patch, updatedAt: Date.now() }
-    await saveSnippet(updated)
+
+    // 1. Update state immediately (optimistic)
     set((s) => ({
       snippets: s.snippets.map((sn) => (sn.id === id ? updated : sn)),
     }))
+
+    // 2. Debounce DB save
+    if (saveTimers.has(id)) {
+      clearTimeout(saveTimers.get(id))
+    }
+
+    const timer = setTimeout(async () => {
+      saveTimers.delete(id)
+      await saveSnippet(updated)
+    }, 500)
+
+    saveTimers.set(id, timer)
   },
 
   remove: async (id) => {
+    if (saveTimers.has(id)) {
+      clearTimeout(saveTimers.get(id))
+      saveTimers.delete(id)
+    }
     await deleteSnippet(id)
     set((s) => ({ snippets: s.snippets.filter((sn) => sn.id !== id) }))
   },
 
   clearAll: async () => {
+    for (const timer of saveTimers.values()) {
+      clearTimeout(timer)
+    }
+    saveTimers.clear()
     await clearAllSnippets()
     set({ snippets: [] })
   },

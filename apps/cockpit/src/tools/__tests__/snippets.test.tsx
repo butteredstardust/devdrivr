@@ -7,7 +7,7 @@ import SnippetsManager from '../snippets/SnippetsManager'
 describe('SnippetsManager', () => {
   it('renders search input and new button', () => {
     renderTool(SnippetsManager)
-    expect(screen.getByPlaceholderText(/search snippets/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
     expect(screen.getByText('+')).toBeInTheDocument()
   })
 
