@@ -17,7 +17,7 @@
 | Action | File | Purpose |
 |--------|------|---------|
 | Modify | `src/test-setup.ts` | Add Monaco, worker, mermaid, diff2html, htmlhint mocks |
-| Create | `src/tools/__tests__/test-utils.ts` | Shared `renderTool()` helper |
+| Create | `src/tools/__tests__/test-utils.tsx` | Shared `renderTool()` helper |
 | Create | `src/tools/__tests__/uuid-generator.test.tsx` | UUID Generator smoke tests |
 | Create | `src/tools/__tests__/color-converter.test.tsx` | Color Converter smoke tests |
 | Create | `src/tools/__tests__/timestamp-converter.test.tsx` | Timestamp Converter smoke tests |
@@ -120,10 +120,13 @@ vi.mock('diff2html', () => ({
   html: vi.fn().mockReturnValue('<div data-testid="diff-output">mock diff</div>'),
 }))
 
-// Mock htmlhint for HtmlValidator
+// Mock htmlhint for HtmlValidator (dynamic import — vi.mock hoists and intercepts)
 vi.mock('htmlhint', () => ({
   HTMLHint: { verify: vi.fn(() => []) },
 }))
+
+// Mock diff2html CSS import (bare CSS import from node_modules)
+vi.mock('diff2html/bundles/css/diff2html.min.css', () => ({}))
 ```
 
 - [ ] **Step 4: Run existing tests to verify mocks don't break anything**
@@ -143,14 +146,18 @@ git commit -m "test: add Monaco, worker, and library mocks to test-setup"
 ## Task 2: Test Infrastructure — Shared Helper
 
 **Files:**
-- Create: `apps/cockpit/src/tools/__tests__/test-utils.ts`
+- Create: `apps/cockpit/src/tools/__tests__/test-utils.tsx`
 
-- [ ] **Step 1: Create test-utils.ts**
+- [ ] **Step 1: Create test-utils.tsx**
 
-```typescript
-import { render } from '@testing-library/react'
+```tsx
+import { render, cleanup } from '@testing-library/react'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { afterEach } from 'vitest'
 import type { ComponentType } from 'react'
+
+// Match existing test convention: cleanup between tests
+afterEach(cleanup)
 
 export function renderTool(Component: ComponentType) {
   useToolStateCache.setState({ cache: new Map() })
@@ -161,7 +168,7 @@ export function renderTool(Component: ComponentType) {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add apps/cockpit/src/tools/__tests__/test-utils.ts
+git add apps/cockpit/src/tools/__tests__/test-utils.tsx
 git commit -m "test: add shared renderTool helper"
 ```
 
@@ -420,7 +427,7 @@ git commit -m "test: add smoke tests for 6 convert tools"
 
 ---
 
-## Task 4: Text-Based Tools (no Monaco, no workers)
+## Task 4: Text-Based Tools (JWT, Regex, CSS Specificity, cURL)
 
 **Files:**
 - Create: `apps/cockpit/src/tools/__tests__/jwt-decoder.test.tsx`
