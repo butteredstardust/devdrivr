@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -111,6 +111,13 @@ export default function SnippetsManager() {
   const [filterTag, setFilterTag] = useState<string | null>(null)
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Clear confirm timer on unmount
+  useEffect(() => {
+    return () => {
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+    }
+  }, [])
+
   // ─── Fuse search ─────────────────────────────────────────────────
 
   const fuse = useMemo(
@@ -216,30 +223,30 @@ export default function SnippetsManager() {
     }
   }, [selectedId, confirmDeleteId, handleDelete])
 
-  const handleToggleFavorite = useCallback(() => {
+  const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
     if (isFavorite(selected.tags)) {
-      updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== FAVORITE_TAG) })
+      await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== FAVORITE_TAG) })
     } else {
-      updateSnippet(selected.id, { tags: [...selected.tags, FAVORITE_TAG] })
+      await updateSnippet(selected.id, { tags: [...selected.tags, FAVORITE_TAG] })
     }
   }, [selected, updateSnippet])
 
-  const handleAddTag = useCallback(() => {
+  const handleAddTag = useCallback(async () => {
     if (!selected || !tagInput.trim()) return
     const tag = tagInput.trim()
     if (selected.tags.includes(tag)) {
       setTagInput('')
       return
     }
-    updateSnippet(selected.id, { tags: [...selected.tags, tag] })
+    await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
     setTagInput('')
   }, [selected, tagInput, updateSnippet])
 
   const handleRemoveTag = useCallback(
-    (tag: string) => {
+    async (tag: string) => {
       if (!selected) return
-      updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== tag) })
+      await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== tag) })
     },
     [selected, updateSnippet]
   )
@@ -253,7 +260,12 @@ export default function SnippetsManager() {
   const handleImport = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText()
-      const imported = JSON.parse(text) as Array<Record<string, unknown>>
+      const parsed: unknown = JSON.parse(text)
+      if (!Array.isArray(parsed)) {
+        setLastAction('Import failed — paste valid JSON array', 'error')
+        return
+      }
+      const imported = parsed as Array<Record<string, unknown>>
       let count = 0
       for (const item of imported) {
         if (typeof item['title'] === 'string' && typeof item['content'] === 'string') {

@@ -56,7 +56,7 @@ function buildActions(modSymbol: string): PaletteItem[] {
       kind: 'action',
       name: 'Toggle Notes',
       description: 'Open or close the notes drawer',
-      icon: '📝',
+      icon: '¶',
       shortcut: `${modSymbol}⇧N`,
     },
     {
@@ -80,7 +80,7 @@ function buildActions(modSymbol: string): PaletteItem[] {
       kind: 'action',
       name: 'Toggle Always on Top',
       description: 'Pin or unpin the window above others',
-      icon: '📌',
+      icon: '⊤',
       shortcut: `${modSymbol}⇧P`,
     },
     {
@@ -88,7 +88,7 @@ function buildActions(modSymbol: string): PaletteItem[] {
       kind: 'action',
       name: 'Open File',
       description: 'Open a file and send to the active tool',
-      icon: '📂',
+      icon: '↗',
       shortcut: `${modSymbol}O`,
     },
     {
@@ -96,7 +96,7 @@ function buildActions(modSymbol: string): PaletteItem[] {
       kind: 'action',
       name: 'Save Output',
       description: 'Save the active tool output to a file',
-      icon: '💾',
+      icon: '↓',
       shortcut: `${modSymbol}S`,
     },
     {
@@ -119,11 +119,13 @@ function buildActions(modSymbol: string): PaletteItem[] {
 }
 
 // ─── Recent tools (session-scoped, not persisted) ────────────────────
+// Module-level backing store so recents survive palette close/open cycles.
+// The component copies this into useState on mount for reactivity.
 
-let recentToolIds: string[] = []
+let recentBacking: string[] = []
 
-function trackRecent(toolId: string) {
-  recentToolIds = [toolId, ...recentToolIds.filter((id) => id !== toolId)].slice(0, MAX_RECENT)
+function pushRecent(toolId: string) {
+  recentBacking = [toolId, ...recentBacking.filter((id) => id !== toolId)].slice(0, MAX_RECENT)
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -145,8 +147,14 @@ export function CommandPalette() {
 
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [recentToolIds, setRecentToolIds] = useState<string[]>(recentBacking)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+
+  const trackRecent = useCallback((toolId: string) => {
+    pushRecent(toolId)
+    setRecentToolIds([...recentBacking])
+  }, [])
 
   // ─── Palette items ─────────────────────────────────────────────
 
@@ -329,6 +337,7 @@ export function CommandPalette() {
       alwaysOnTop,
       addToast,
       activeTool,
+      trackRecent,
     ]
   )
 
@@ -338,6 +347,7 @@ export function CommandPalette() {
     if (isOpen) {
       setQuery('')
       setSelectedIndex(0)
+      setRecentToolIds([...recentBacking]) // sync in case tools were used while palette was closed
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [isOpen])
@@ -345,7 +355,7 @@ export function CommandPalette() {
   // Track tool usage from outside the palette
   useEffect(() => {
     if (activeTool) trackRecent(activeTool)
-  }, [activeTool])
+  }, [activeTool, trackRecent])
 
   // Scroll keyboard-selected item into view
   useEffect(() => {

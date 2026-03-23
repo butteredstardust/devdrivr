@@ -13,6 +13,7 @@ import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import rehypeHighlight from 'rehype-highlight'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -230,12 +231,25 @@ const FORMATTING_ACTIONS = [
 
 // ─── Processor ───────────────────────────────────────────────────────
 
+// Allow class attributes for syntax highlighting, plus GFM task list checkboxes
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.['code'] ?? []), 'className'],
+    span: [...(defaultSchema.attributes?.['span'] ?? []), 'className'],
+    input: [...(defaultSchema.attributes?.['input'] ?? []), 'type', 'checked', 'disabled'],
+  },
+  tagNames: [...(defaultSchema.tagNames ?? []), 'input'],
+}
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(remarkRehype, { allowDangerousHtml: false })
+  .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeHighlight, { detect: true })
-  .use(rehypeStringify, { allowDangerousHtml: true })
+  .use(rehypeStringify)
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
