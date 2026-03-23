@@ -24,6 +24,6 @@ describe('JsonSchemaValidator', () => {
 
   it('shows template buttons', () => {
     renderTool(JsonSchemaValidator)
-    expect(screen.getByText('basic')).toBeInTheDocument()
+    expect(screen.getByText('Basic')).toBeInTheDocument()
   })
 })

@@ -36,21 +36,21 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'refactoring-toolkit', name: 'Refactoring Toolkit', group: 'code', icon: '♻', description: 'Regex code transforms with diff preview (12 transforms, JS/TS)', component: RefactoringToolkit },
   // --- Data ---
   { id: 'json-tools', name: 'JSON Tools', group: 'data', icon: '{}', description: 'Validate, format, minify, sort keys, path query, and tree view for JSON', component: JsonTools },
-  { id: 'xml-tools', name: 'XML Tools', group: 'data', icon: '<>', description: 'Validate and format XML', component: XmlTools },
-  { id: 'json-schema-validator', name: 'JSON Schema Validator', group: 'data', icon: '✓{', description: 'Validate JSON against a schema', component: JsonSchemaValidator },
+  { id: 'xml-tools', name: 'XML Tools', group: 'data', icon: '<>', description: 'Validate, format, minify XML with tree view, JSON conversion, XPath, and stats', component: XmlTools },
+  { id: 'json-schema-validator', name: 'JSON Schema Validator', group: 'data', icon: '✓{', description: 'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode', component: JsonSchemaValidator },
   // --- Web ---
   { id: 'css-validator', name: 'CSS Validator', group: 'web', icon: '#', description: 'Validate CSS syntax', component: CssValidator },
-  { id: 'html-validator', name: 'HTML Validator', group: 'web', icon: '<h>', description: 'Validate HTML structure and accessibility', component: HtmlValidator },
-  { id: 'css-specificity', name: 'CSS Specificity', group: 'web', icon: '!#', description: 'Calculate CSS selector specificity', component: CssSpecificity },
+  { id: 'html-validator', name: 'HTML Validator', group: 'web', icon: '<h>', description: 'Validate HTML with live preview, configurable rules, heading outline, and starter templates', component: HtmlValidator },
+  { id: 'css-specificity', name: 'CSS Specificity', group: 'web', icon: '!#', description: 'Calculate specificity with segmented bars, component breakdown, winner detection, and !important', component: CssSpecificity },
   { id: 'css-to-tailwind', name: 'CSS → Tailwind', group: 'web', icon: '→T', description: 'Convert CSS rules to Tailwind classes', component: CssToTailwind },
   // --- Convert ---
   { id: 'case-converter', name: 'Case Converter', group: 'convert', icon: 'Aa', description: 'Convert between 12 cases with detection, word splitting, and chaining', component: CaseConverter },
-  { id: 'color-converter', name: 'Color Converter', group: 'convert', icon: '🎨', description: 'Convert between hex, rgb, hsl, oklch', component: ColorConverter },
+  { id: 'color-converter', name: 'Color Converter', group: 'convert', icon: '🎨', description: 'Convert hex/rgb/hsl/hsb/oklch with 148 named colors, shade scale, harmony, and history', component: ColorConverter },
   { id: 'timestamp-converter', name: 'Timestamp Converter', group: 'convert', icon: '⏱', description: 'Timestamps with presets, date picker, timezone, day/week info', component: TimestampConverter },
   { id: 'base64', name: 'Base64', group: 'convert', icon: 'B64', description: 'Encode/decode Base64 with URL-safe, line wrap, image preview, data URIs', component: Base64Tool },
   { id: 'url-codec', name: 'URL Encode/Decode', group: 'convert', icon: '%', description: 'URL encode/decode with swap, double-encode detection, color-coded parts', component: UrlCodec },
   { id: 'curl-to-fetch', name: 'cURL → Fetch', group: 'convert', icon: '→f', description: 'Convert cURL to fetch, axios, ky, XHR, Node.js with syntax highlighting', component: CurlToFetch },
-  { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate and validate UUIDs', component: UuidGenerator },
+  { id: 'uuid-generator', name: 'UUID Generator', group: 'convert', icon: '#!', description: 'Generate v1/v4/v7 UUIDs with universal validation, parsing, and bulk export', component: UuidGenerator },
   { id: 'hash-generator', name: 'Hash Generator', group: 'convert', icon: '##', description: 'Generate hashes and HMAC with comparison and export', component: HashGenerator },
   // --- Test ---
   { id: 'regex-tester', name: 'Regex Tester', group: 'test', icon: '.*', description: 'Test and replace with match highlighting, groups, and export', component: RegexTester },
