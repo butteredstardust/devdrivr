@@ -3,7 +3,7 @@ import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
-import { Chameleon } from '@/components/shared/Chameleon'
+import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
@@ -52,15 +52,17 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
-      <div className="flex items-center justify-between px-3 py-3">
-        <div>
-          <Chameleon />
-          <h1 className="font-pixel text-base font-bold text-[var(--color-accent)]">devdrivr</h1>
+    <aside className="flex w-[218px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
+      <div className="flex items-center justify-between px-2 py-3">
+        <div className="flex items-center gap-1 overflow-hidden">
+          <Mascot className="shrink-0" />
+          <h1 className="font-pixel text-sm font-bold text-[var(--color-accent)] tracking-tight">
+            [devdrivr]
+          </h1>
         </div>
         <button
           onClick={toggleCollapsed}
-          className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           title="Collapse sidebar"
           aria-label="Collapse sidebar"
         >

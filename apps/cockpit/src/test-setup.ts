@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
+import React from 'react'
 
 // Mock window.matchMedia for theme utilities (used by useMonacoTheme etc.)
 Object.defineProperty(window, 'matchMedia', {
@@ -68,12 +69,13 @@ vi.mock('@/lib/db', () => ({
   deleteSnippet: vi.fn().mockResolvedValue(undefined),
   loadHistory: vi.fn().mockResolvedValue([]),
   addHistoryEntry: vi.fn().mockResolvedValue(undefined),
-  clearHistory: vi.fn().mockResolvedValue(undefined),
+  clearAllNotes: vi.fn().mockResolvedValue(undefined),
+  clearAllSnippets: vi.fn().mockResolvedValue(undefined),
+  clearAllHistory: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock Monaco Editor — renders as textarea for testing
 vi.mock('@monaco-editor/react', () => {
-  const React = require('react')
   return {
     default: React.forwardRef(function MockEditor(
       props: { value?: string; onChange?: (v: string) => void; language?: string; options?: Record<string, unknown> },
@@ -87,7 +89,6 @@ vi.mock('@monaco-editor/react', () => {
       })
     }),
     DiffEditor: function MockDiffEditor(props: { original?: string; modified?: string }) {
-      const React = require('react')
       return React.createElement('div', { 'data-testid': 'monaco-diff' },
         React.createElement('textarea', { 'data-testid': 'monaco-diff-original', value: props.original ?? '', readOnly: true }),
         React.createElement('textarea', { 'data-testid': 'monaco-diff-modified', value: props.modified ?? '', readOnly: true })

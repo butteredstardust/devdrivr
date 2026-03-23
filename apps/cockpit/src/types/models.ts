@@ -1,3 +1,5 @@
+import { NOTE_COLORS } from '@/lib/schemas'
+
 export type Theme = 'dark' | 'light' | 'system'
 
 export type AppSettings = {
@@ -44,7 +46,7 @@ export type Snippet = {
   updatedAt: number
 }
 
-export type NoteColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple' | 'orange' | 'red' | 'gray'
+export type NoteColor = (typeof NOTE_COLORS)[number]
 
 export type Note = {
   id: string

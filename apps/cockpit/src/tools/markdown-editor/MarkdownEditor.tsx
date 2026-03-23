@@ -297,6 +297,13 @@ export default function MarkdownEditor() {
     editorRef.current = editor
   }, [])
 
+  // Dispose editor model on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      editorRef.current?.getModel()?.dispose()
+    }
+  }, [])
+
   // ─── Markdown → HTML (debounced 300ms) ───────────────────────────
 
   useEffect(() => {

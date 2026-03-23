@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Note, NoteColor } from '@/types/models'
 import { loadNotes, saveNote, deleteNote, clearAllNotes } from '@/lib/db'
+import { useUiStore } from '@/stores/ui.store'
 
 type NotesStore = {
   notes: Note[]
@@ -41,7 +42,13 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       createdAt: now,
       updatedAt: now,
     }
-    await saveNote(note)
+    try {
+      await saveNote(note)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save note: ' + msg, 'error')
+      throw err
+    }
     set((s) => ({ notes: [note, ...s.notes] }))
     return note
   },
@@ -51,14 +58,26 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     const idx = notes.findIndex((n) => n.id === id)
     if (idx < 0) return
     const updated = { ...notes[idx]!, ...patch, updatedAt: Date.now() }
-    await saveNote(updated)
+    try {
+      await saveNote(updated)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save note: ' + msg, 'error')
+      throw err
+    }
     set((s) => ({
       notes: s.notes.map((n) => (n.id === id ? updated : n)),
     }))
   },
 
   remove: async (id) => {
-    await deleteNote(id)
+    try {
+      await deleteNote(id)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to delete note: ' + msg, 'error')
+      throw err
+    }
     set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }))
   },
 
