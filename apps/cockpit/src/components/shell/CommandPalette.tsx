@@ -21,6 +21,10 @@ type PaletteItem = {
   group?: string
 }
 
+type SectionItem =
+  | { type: 'header'; label: string }
+  | { type: 'item'; item: PaletteItem; flatIndex: number }
+
 // ─── Constants ───────────────────────────────────────────────────────
 
 const MAX_RECENT = 5
@@ -163,16 +167,13 @@ export function CommandPalette() {
 
   const allItems = useMemo(() => [...toolItems, ...actions], [toolItems, actions])
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(allItems, {
-        keys: ['name', 'description'],
-        threshold: 0.4,
-        includeScore: true,
-        includeMatches: true,
-      }),
-    [allItems]
+  const fuseOpts = useMemo(
+    () => ({ keys: ['name', 'description'] as string[], threshold: 0.4, includeScore: true, includeMatches: true }),
+    []
   )
+
+  const fuse = useMemo(() => new Fuse(allItems, fuseOpts), [allItems, fuseOpts])
+  const actionFuse = useMemo(() => new Fuse(actions, fuseOpts), [actions, fuseOpts])
 
   // ─── Results ───────────────────────────────────────────────────
 
@@ -196,24 +197,12 @@ export function CommandPalette() {
       return [...recent, ...remaining]
     }
 
-    // Fuzzy search
-    const fuseForSource = isActionMode
-      ? new Fuse(actions, {
-          keys: ['name', 'description'],
-          threshold: 0.4,
-          includeScore: true,
-          includeMatches: true,
-        })
-      : fuse
-
-    return fuseForSource.search(searchQuery).map((r) => r.item)
-  }, [searchQuery, isActionMode, toolItems, actions, allItems, fuse, activeTool])
+    // Fuzzy search (action mode uses dedicated Fuse, normal mode searches everything)
+    const fuseInstance = isActionMode ? actionFuse : fuse
+    return fuseInstance.search(searchQuery).map((r) => r.item)
+  }, [searchQuery, isActionMode, toolItems, actions, fuse, actionFuse, activeTool])
 
   // ─── Section headers for default view ──────────────────────────
-
-  type SectionItem =
-    | { type: 'header'; label: string }
-    | { type: 'item'; item: PaletteItem; flatIndex: number }
 
   const sections = useMemo((): SectionItem[] => {
     if (searchQuery || isActionMode) {

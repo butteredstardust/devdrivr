@@ -379,10 +379,12 @@ export default function MarkdownEditor() {
       const text = selectedText || placeholder
 
       let insertText: string
+      let extraOffset = 0
       if (lineStart && !selectedText) {
         // Line-start formatting (headings, lists, quotes): ensure we start on a new line
         const lineContent = model.getLineContent(selection.startLineNumber)
         const needsNewline = lineContent.trim().length > 0 && selection.startColumn > 1
+        if (needsNewline) extraOffset = 1
         insertText = (needsNewline ? '\n' : '') + prefix + text + suffix
       } else {
         insertText = prefix + text + suffix
@@ -394,12 +396,9 @@ export default function MarkdownEditor() {
 
       // Select the placeholder if no text was selected
       if (!selectedText && placeholder) {
-        const startPos = model.getPositionAt(
-          model.getOffsetAt(selection.getStartPosition()) + prefix.length
-        )
-        const endPos = model.getPositionAt(
-          model.getOffsetAt(selection.getStartPosition()) + prefix.length + placeholder.length
-        )
+        const baseOffset = model.getOffsetAt(selection.getStartPosition()) + extraOffset
+        const startPos = model.getPositionAt(baseOffset + prefix.length)
+        const endPos = model.getPositionAt(baseOffset + prefix.length + placeholder.length)
         editor.setSelection({
           startLineNumber: startPos.lineNumber,
           startColumn: startPos.column,
@@ -418,16 +417,13 @@ export default function MarkdownEditor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return
-      const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key === 'b') {
+      // Note: ⌘K is reserved for the global Command Palette — do not intercept here
+      if (e.key === 'b') {
         e.preventDefault()
         insertFormatting('**', '**', 'bold text')
-      } else if (mod && e.key === 'i') {
+      } else if (e.key === 'i') {
         e.preventDefault()
         insertFormatting('_', '_', 'italic text')
-      } else if (mod && e.key === 'k') {
-        e.preventDefault()
-        insertFormatting('[', '](url)', 'link text')
       }
     }
     window.addEventListener('keydown', handler)
