@@ -54,7 +54,7 @@ export function Providers({ children }: { children: ReactNode }) {
       // Restore last active tool
       const lastTool = await getSetting<string | null>('activeTool', null)
       if (lastTool) {
-        useUiStore.getState().setActiveTool(lastTool)
+        useUiStore.getState().restoreActiveTool(lastTool)
       }
 
       if (cancelled) return

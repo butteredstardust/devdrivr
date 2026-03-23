@@ -59,9 +59,9 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'api-client', name: 'API Client', group: 'network', icon: '↗', description: 'HTTP client with params editor, body modes, and response inspector', component: ApiClient },
   { id: 'docs-browser', name: 'Docs Browser', group: 'network', icon: '📖', description: 'Browse devdocs.io documentation', component: DocsBrowser },
   // --- Write ---
-  { id: 'markdown-editor', name: 'Markdown Editor', group: 'write', icon: 'MD', description: 'Edit and preview markdown with Mermaid support', component: MarkdownEditor },
+  { id: 'markdown-editor', name: 'Markdown Editor', group: 'write', icon: 'MD', description: 'Edit markdown with toolbar, templates, TOC, reading time, and download export', component: MarkdownEditor },
   { id: 'mermaid-editor', name: 'Mermaid Editor', group: 'write', icon: '◇', description: 'Edit and preview Mermaid diagrams', component: MermaidEditor },
-  { id: 'snippets', name: 'Snippets', group: 'write', icon: '✂', description: 'Manage code snippets with tags and search', component: SnippetsManager },
+  { id: 'snippets', name: 'Snippets', group: 'write', icon: '✂', description: 'Manage snippets with favorites, tag filters, sort, duplicate, and download', component: SnippetsManager },
 ]
 
 export function getToolById(id: string): ToolDefinition | undefined {

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Snippet } from '@/types/models'
-import { loadSnippets, saveSnippet, deleteSnippet } from '@/lib/db'
+import { loadSnippets, saveSnippet, deleteSnippet, clearAllSnippets } from '@/lib/db'
 
 type SnippetsStore = {
   snippets: Snippet[]
@@ -10,6 +10,7 @@ type SnippetsStore = {
   add: (title: string, content: string, language: string, tags?: string[]) => Promise<Snippet>
   update: (id: string, patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags'>>) => Promise<void>
   remove: (id: string) => Promise<void>
+  clearAll: () => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -58,5 +59,10 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   remove: async (id) => {
     await deleteSnippet(id)
     set((s) => ({ snippets: s.snippets.filter((sn) => sn.id !== id) }))
+  },
+
+  clearAll: async () => {
+    await clearAllSnippets()
+    set({ snippets: [] })
   },
 }))

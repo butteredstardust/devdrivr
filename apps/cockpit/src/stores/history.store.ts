@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { HistoryEntry } from '@/types/models'
-import { loadHistory, addHistoryEntry, pruneHistory } from '@/lib/db'
+import { loadHistory, addHistoryEntry, pruneHistory, clearAllHistory } from '@/lib/db'
 
 type HistoryStore = {
   entries: HistoryEntry[]
@@ -10,6 +10,7 @@ type HistoryStore = {
   add: (tool: string, input: string, output: string, subTab?: string) => Promise<void>
   loadForTool: (tool: string) => Promise<HistoryEntry[]>
   reload: () => Promise<void>
+  clearAll: () => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -52,5 +53,10 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
   reload: async () => {
     const entries = await loadHistory(undefined, 200)
     set({ entries })
+  },
+
+  clearAll: async () => {
+    await clearAllHistory()
+    set({ entries: [] })
   },
 }))

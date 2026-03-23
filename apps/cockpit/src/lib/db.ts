@@ -217,3 +217,20 @@ export async function pruneHistory(tool: string, keepCount: number): Promise<voi
     [tool, keepCount]
   )
 }
+
+// --- Bulk clear ---
+
+export async function clearAllNotes(): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM notes')
+}
+
+export async function clearAllSnippets(): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM snippets')
+}
+
+export async function clearAllHistory(): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM history')
+}
