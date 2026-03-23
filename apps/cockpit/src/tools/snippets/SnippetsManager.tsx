@@ -108,6 +108,7 @@ function isFavorite(tags: string[]): boolean {
 export default function SnippetsManager() {
   useMonacoTheme()
   const snippets = useSnippetsStore((s) => s.snippets)
+  const saving = useSnippetsStore((s) => s.saving)
   const addSnippet = useSnippetsStore((s) => s.add)
   const updateSnippet = useSnippetsStore((s) => s.update)
   const removeSnippet = useSnippetsStore((s) => s.remove)
@@ -138,23 +139,6 @@ export default function SnippetsManager() {
     setLastAction('Snippet created', 'success')
     setTimeout(() => titleInputRef.current?.focus(), 50)
   }, [addSnippet, setLastAction])
-
-  // ─── Shortcuts ───────────────────────────────────────────────────
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault()
-        handleNew()
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault()
-        searchInputRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNew])
 
   // ─── Fuse search ─────────────────────────────────────────────────
 
@@ -218,7 +202,8 @@ export default function SnippetsManager() {
     if (!selected) return null
     const lines = selected.content.split('\n').length
     const chars = selected.content.length
-    return { lines, chars }
+    const bytes = new TextEncoder().encode(selected.content).length
+    return { lines, chars, bytes }
   }, [selected])
 
   // ─── Handlers ────────────────────────────────────────────────────
@@ -338,6 +323,46 @@ export default function SnippetsManager() {
     setLastAction(`Downloaded ${filename}`, 'success')
   }, [selected, setLastAction])
 
+  // ─── Shortcuts ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ⌘N: New
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault()
+        handleNew()
+      }
+      // ⌘F: Search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+      // F-Keys
+      if (e.key === 'F5') {
+        e.preventDefault()
+        handleNew()
+      }
+      if (e.key === 'F6') {
+        e.preventDefault()
+        handleDuplicate()
+      }
+      if (e.key === 'F8') {
+        e.preventDefault()
+        handleDeleteClick()
+      }
+      if (e.key === 'F9') {
+        e.preventDefault()
+        handleExport()
+      }
+      if (e.key === 'F10') {
+        e.preventDefault()
+        handleImport()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleNew, handleDuplicate, handleDeleteClick, handleExport, handleImport])
+
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
@@ -348,7 +373,7 @@ export default function SnippetsManager() {
           [ 01-SELECT ]
         </div>
 
-        {/* Search + New */}
+        {/* Search */}
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
           <input
             ref={searchInputRef}
@@ -357,16 +382,9 @@ export default function SnippetsManager() {
             placeholder="Search... (⌘F)"
             className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
           />
-          <button
-            onClick={handleNew}
-            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--color-accent)] font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-            title="New snippet (⌘N)"
-          >
-            +
-          </button>
         </div>
 
-        {/* Sort + Export/Import */}
+        {/* Sort */}
         <div className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-1">
           {SORT_OPTIONS.map((opt) => (
             <button
@@ -381,22 +399,6 @@ export default function SnippetsManager() {
               {opt.label}
             </button>
           ))}
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              onClick={handleExport}
-              className="rounded-sm bg-[var(--color-surface-hover)] px-1 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              title="Export all to clipboard"
-            >
-              Export
-            </button>
-            <button
-              onClick={handleImport}
-              className="rounded-sm bg-[var(--color-surface-hover)] px-1 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              title="Import from clipboard"
-            >
-              Import
-            </button>
-          </div>
         </div>
 
         {/* Tag filter chips */}
@@ -504,7 +506,7 @@ export default function SnippetsManager() {
       {/* ─── Pane 2: Editor ───────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
         <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
-          [ 02-EDIT: {selected ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'js'}` : '---'} ]
+          [ 02-EDIT: {selected ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}` : '---'} ]
         </div>
         {selected ? (
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -524,22 +526,6 @@ export default function SnippetsManager() {
                 placeholder="Snippet title"
                 className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
               />
-              <select
-                value={selected.language}
-                onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              {editorStats && (
-                <span className="text-[10px] text-[var(--color-text-muted)]">
-                  {editorStats.lines}L · {editorStats.chars}c
-                </span>
-              )}
               <CopyButton text={selected.content} />
               <button
                 onClick={handleDownload}
@@ -548,50 +534,6 @@ export default function SnippetsManager() {
               >
                 ↓
               </button>
-              <button
-                onClick={handleDuplicate}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                title="Duplicate snippet"
-              >
-                ⧉
-              </button>
-              <button
-                onClick={handleDeleteClick}
-                className={`text-xs transition-colors ${
-                  confirmDeleteId === selectedId
-                    ? 'font-bold text-[var(--color-error)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
-                }`}
-              >
-                {confirmDeleteId === selectedId ? 'Confirm?' : 'Delete'}
-              </button>
-            </div>
-
-            {/* Tags */}
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1">
-              {visibleTags(selected.tags).map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]"
-                >
-                  {tag}
-                  <button
-                    onClick={() => handleRemoveTag(tag)}
-                    className="hover:text-[var(--color-error)]"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddTag()
-                }}
-                placeholder="Add tag..."
-                className="bg-transparent text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
-              />
             </div>
 
             {/* Monaco editor */}
@@ -600,7 +542,12 @@ export default function SnippetsManager() {
                 language={selected.language}
                 value={selected.content}
                 onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
-                options={EDITOR_OPTIONS}
+                options={{
+                  ...EDITOR_OPTIONS,
+                  minimap: { enabled: false },
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                }}
               />
             </div>
           </div>
@@ -612,29 +559,114 @@ export default function SnippetsManager() {
       </div>
 
       {/* ─── Pane 3: Meta ─────────────────────────────────────── */}
-      <div className="flex flex-col overflow-hidden bg-[var(--color-surface)]">
+      <div className="flex w-52 flex-col overflow-hidden bg-[var(--color-surface)]">
         <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
           [ 03-META ]
         </div>
-        <div className="flex-1 p-4">
-          <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
-            Properties
-          </div>
-          <div className="mt-4 space-y-4">
-            <div className="text-xs italic text-[var(--color-text-muted)]">
-              Stats and tags will be moved here in Task 2 & 3.
+        {selected ? (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* Language */}
+              <div>
+                <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                  Language
+                </div>
+                <select
+                  value={selected.language}
+                  onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
+                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                  Tags
+                </div>
+                <div className="space-y-1">
+                  {visibleTags(selected.tags).map((tag) => (
+                    <div
+                      key={tag}
+                      className="flex items-center justify-between gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
+                    >
+                      <span className="truncate">{tag}</span>
+                      <button
+                        onClick={() => handleRemoveTag(tag)}
+                        className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                      >
+                        [X]
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTag()
+                  }}
+                  placeholder="+ Add tag..."
+                  className="mt-2 w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
+                />
+              </div>
             </div>
+
+            {/* Stats Block */}
+            {editorStats && (
+              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-pixel text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
+                L:{editorStats.lines} C:{editorStats.chars} B:{editorStats.bytes}
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 p-4 text-center text-xs text-[var(--color-text-muted)] italic">
+            No snippet selected
+          </div>
+        )}
       </div>
 
       {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
-      <div className="col-span-3 flex items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4">
-        <div className="font-pixel text-[10px] text-[var(--color-text-muted)]">
-          [ COMMAND BAR ]
+      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-pixel text-[10px]">
+        <div className="flex items-center gap-4">
+          <button onClick={handleNew} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+            [F5: NEW]
+          </button>
+          <button
+            onClick={handleDuplicate}
+            disabled={!selected}
+            className={`text-[var(--color-text-muted)] ${selected ? 'hover:text-[var(--color-accent)]' : 'opacity-30 cursor-not-allowed'}`}
+          >
+            [F6: DUP]
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            disabled={!selected}
+            className={`transition-colors ${
+              selectedId && confirmDeleteId === selectedId
+                ? 'font-bold text-[var(--color-error)]'
+                : `text-[var(--color-text-muted)] ${selected ? 'hover:text-[var(--color-error)]' : 'opacity-30 cursor-not-allowed'}`
+            }`}
+          >
+            {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
+          </button>
+          <button onClick={handleExport} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+            [F9: EXP]
+          </button>
+          <button onClick={handleImport} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+            [F10: IMP]
+          </button>
         </div>
+
         <div className="ml-auto flex items-center gap-4">
-          <div className="font-pixel text-[10px] text-[var(--color-text-muted)]">
+          {saving && <span className="text-[var(--color-accent)] animate-pulse">[SAVING...]</span>}
+          {selected && isFavorite(selected.tags) && <span className="text-[var(--color-accent)]">[FAV]</span>}
+          <div className="text-[var(--color-text-muted)] uppercase">
             {snippets.length} SNIPPETS
           </div>
         </div>

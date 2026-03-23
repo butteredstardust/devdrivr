@@ -8,7 +8,7 @@ describe('SnippetsManager', () => {
   it('renders search input and new button', () => {
     renderTool(SnippetsManager)
     expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
-    expect(screen.getByText('+')).toBeInTheDocument()
+    expect(screen.getByText('[F5: NEW]')).toBeInTheDocument()
   })
 
   it('shows empty state when no snippets', () => {
@@ -68,9 +68,41 @@ describe('SnippetsManager', () => {
     expect(item1).toHaveClass('text-[var(--color-bg)]')
   })
 
+  it('shows the correct editor header with title and extension', () => {
+    useSnippetsStore.setState({
+      snippets: [
+        { id: '1', title: 'db_init', content: 'SELECT 1;', language: 'sql', tags: [], createdAt: Date.now(), updatedAt: Date.now() },
+      ],
+      initialized: true,
+    })
+    renderTool(SnippetsManager)
+    
+    // Select the snippet
+    const item = screen.getByText('db_init').closest('button')
+    fireEvent.click(item!)
+    
+    expect(screen.getByText(/\[ 02-EDIT: db_init.sql \]/)).toBeInTheDocument()
+  })
+
+  it('falls back to txt for unknown languages in the header', () => {
+    useSnippetsStore.setState({
+      snippets: [
+        { id: '1', title: 'test', content: '...', language: 'unknown', tags: [], createdAt: Date.now(), updatedAt: Date.now() },
+      ],
+      initialized: true,
+    })
+    renderTool(SnippetsManager)
+    
+    // Select the snippet
+    const item = screen.getByText('test').closest('button')
+    fireEvent.click(item!)
+    
+    expect(screen.getByText(/\[ 02-EDIT: test.txt \]/)).toBeInTheDocument()
+  })
+
   it('renders export and import buttons', () => {
     renderTool(SnippetsManager)
-    expect(screen.getByText('Export')).toBeInTheDocument()
-    expect(screen.getByText('Import')).toBeInTheDocument()
+    expect(screen.getByText('[F9: EXP]')).toBeInTheDocument()
+    expect(screen.getByText('[F10: IMP]')).toBeInTheDocument()
   })
 })

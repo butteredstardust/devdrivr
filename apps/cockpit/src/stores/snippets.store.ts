@@ -6,6 +6,7 @@ import { loadSnippets, saveSnippet, deleteSnippet, clearAllSnippets } from '@/li
 type SnippetsStore = {
   snippets: Snippet[]
   initialized: boolean
+  saving: boolean
   init: () => Promise<void>
   add: (title: string, content: string, language: string, tags?: string[]) => Promise<Snippet>
   update: (id: string, patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags'>>) => Promise<void>
@@ -19,6 +20,7 @@ const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   snippets: [],
   initialized: false,
+  saving: false,
 
   init: async () => {
     if (!initPromise) {
@@ -41,8 +43,9 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       createdAt: now,
       updatedAt: now,
     }
+    set({ saving: true })
     await saveSnippet(snippet)
-    set((s) => ({ snippets: [snippet, ...s.snippets] }))
+    set((s) => ({ snippets: [snippet, ...s.snippets], saving: false }))
     return snippet
   },
 
@@ -55,6 +58,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     // 1. Update state immediately (optimistic)
     set((s) => ({
       snippets: s.snippets.map((sn) => (sn.id === id ? updated : sn)),
+      saving: true,
     }))
 
     // 2. Debounce DB save
@@ -65,6 +69,10 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     const timer = setTimeout(async () => {
       saveTimers.delete(id)
       await saveSnippet(updated)
+      // Only set saving to false if no other timers are pending
+      if (saveTimers.size === 0) {
+        set({ saving: false })
+      }
     }, 500)
 
     saveTimers.set(id, timer)
@@ -75,8 +83,12 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       clearTimeout(saveTimers.get(id))
       saveTimers.delete(id)
     }
+    set({ saving: true })
     await deleteSnippet(id)
-    set((s) => ({ snippets: s.snippets.filter((sn) => sn.id !== id) }))
+    set((s) => ({
+      snippets: s.snippets.filter((sn) => sn.id !== id),
+      saving: saveTimers.size > 0,
+    }))
   },
 
   clearAll: async () => {
@@ -84,7 +96,8 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       clearTimeout(timer)
     }
     saveTimers.clear()
+    set({ saving: true })
     await clearAllSnippets()
-    set({ snippets: [] })
+    set({ snippets: [], saving: false })
   },
 }))
