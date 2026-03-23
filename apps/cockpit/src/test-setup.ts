@@ -55,3 +55,67 @@ vi.mock('@/lib/db', () => ({
   addHistoryEntry: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
 }))
+
+// Mock Monaco Editor — renders as textarea for testing
+vi.mock('@monaco-editor/react', () => {
+  const React = require('react')
+  return {
+    default: React.forwardRef(function MockEditor(
+      props: { value?: string; onChange?: (v: string) => void; language?: string; options?: Record<string, unknown> },
+      _ref: unknown
+    ) {
+      return React.createElement('textarea', {
+        'data-testid': 'monaco-editor',
+        'data-language': props.language,
+        value: props.value ?? '',
+        onChange: (e: { target: { value: string } }) => props.onChange?.(e.target.value),
+      })
+    }),
+    DiffEditor: function MockDiffEditor(props: { original?: string; modified?: string }) {
+      const React = require('react')
+      return React.createElement('div', { 'data-testid': 'monaco-diff' },
+        React.createElement('textarea', { 'data-testid': 'monaco-diff-original', value: props.original ?? '', readOnly: true }),
+        React.createElement('textarea', { 'data-testid': 'monaco-diff-modified', value: props.modified ?? '', readOnly: true })
+      )
+    },
+    loader: {
+      init: vi.fn().mockResolvedValue({
+        editor: { defineTheme: vi.fn(), setTheme: vi.fn() },
+      }),
+    },
+  }
+})
+
+// Mock Vite ?worker imports — return no-op constructor
+vi.mock('@/workers/diff.worker?worker', () => ({ default: vi.fn() }))
+vi.mock('@/workers/formatter.worker?worker', () => ({ default: vi.fn() }))
+vi.mock('@/workers/typescript.worker?worker', () => ({ default: vi.fn() }))
+vi.mock('@/workers/xml.worker?worker', () => ({ default: vi.fn() }))
+
+// Mock useWorker hook — return proxy where any method resolves with empty string
+vi.mock('@/hooks/useWorker', () => ({
+  useWorker: () =>
+    new Proxy({}, { get: () => vi.fn().mockResolvedValue('') }),
+}))
+
+// Mock mermaid for MermaidEditor and MarkdownEditor
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn().mockResolvedValue({ svg: '<svg data-testid="mermaid-svg">mock</svg>' }),
+    parse: vi.fn().mockResolvedValue(true),
+  },
+}))
+
+// Mock diff2html for DiffViewer
+vi.mock('diff2html', () => ({
+  html: vi.fn().mockReturnValue('<div data-testid="diff-output">mock diff</div>'),
+}))
+
+// Mock htmlhint for HtmlValidator (dynamic import — vi.mock hoists and intercepts)
+vi.mock('htmlhint', () => ({
+  HTMLHint: { verify: vi.fn(() => []) },
+}))
+
+// Mock diff2html CSS import (bare CSS import from node_modules)
+vi.mock('diff2html/bundles/css/diff2html.min.css', () => ({}))
