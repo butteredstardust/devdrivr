@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Note, NoteColor } from '@/types/models'
-import { loadNotes, saveNote, deleteNote } from '@/lib/db'
+import { loadNotes, saveNote, deleteNote, clearAllNotes } from '@/lib/db'
 
 type NotesStore = {
   notes: Note[]
@@ -10,6 +10,7 @@ type NotesStore = {
   add: (title?: string, content?: string, color?: NoteColor) => Promise<Note>
   update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'poppedOut' | 'windowBounds'>>) => Promise<void>
   remove: (id: string) => Promise<void>
+  clearAll: () => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -59,5 +60,10 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
   remove: async (id) => {
     await deleteNote(id)
     set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }))
+  },
+
+  clearAll: async () => {
+    await clearAllNotes()
+    set({ notes: [] })
   },
 }))
