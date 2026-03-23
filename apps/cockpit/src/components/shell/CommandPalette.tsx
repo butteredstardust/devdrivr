@@ -254,6 +254,11 @@ export function CommandPalette() {
     [sections]
   )
 
+  // Clamp selectedIndex when result count shrinks (e.g. mid-keystroke)
+  useEffect(() => {
+    setSelectedIndex((i) => Math.min(i, Math.max(0, flatCount - 1)))
+  }, [flatCount])
+
   // ─── Action execution ──────────────────────────────────────────
 
   const executeItem = useCallback(
@@ -286,7 +291,7 @@ export function CommandPalette() {
         case 'action:pin': {
           const win = getCurrentWindow()
           const next = !alwaysOnTop
-          win.setAlwaysOnTop(next)
+          win.setAlwaysOnTop(next).catch(() => {})
           settingsUpdate('alwaysOnTop', next).catch(() => {})
           break
         }
@@ -307,6 +312,7 @@ export function CommandPalette() {
           break
         case 'action:next-tool': {
           const idx = TOOLS.findIndex((t) => t.id === activeTool)
+          if (idx === -1) break
           const next = TOOLS[(idx + 1) % TOOLS.length]
           if (next) {
             trackRecent(next.id)
@@ -316,6 +322,7 @@ export function CommandPalette() {
         }
         case 'action:prev-tool': {
           const idx = TOOLS.findIndex((t) => t.id === activeTool)
+          if (idx === -1) break
           const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
           if (prev) {
             trackRecent(prev.id)

@@ -612,7 +612,7 @@ img{max-width:100%}</style>
         {/* Editor */}
         {showEditor && (
           <div
-            className={`${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+            className={`h-full ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
           >
             <Editor
               language="markdown"
