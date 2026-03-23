@@ -432,29 +432,39 @@ export default function SnippetsManager() {
             <button
               key={snippet.id}
               onClick={() => setSelectedId(snippet.id)}
-              className={`flex w-full flex-col border-b border-[var(--color-border)] px-3 py-2 text-left ${
+              className={`flex w-full flex-col border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
                 selectedId === snippet.id
-                  ? 'bg-[var(--color-accent-dim)]'
+                  ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                   : 'hover:bg-[var(--color-surface-hover)]'
               }`}
             >
               <div className="flex items-center gap-1">
                 {isFavorite(snippet.tags) && (
                   <span className="text-[10px]" title="Favorite">
-                    ⭐
+                    [*]
                   </span>
                 )}
-                <span className="flex-1 truncate text-xs font-bold text-[var(--color-text)]">
+                <span
+                  className={`flex-1 truncate text-xs font-bold ${selectedId === snippet.id ? 'text-[var(--color-bg)]' : 'text-[var(--color-text)]'}`}
+                >
                   {snippet.title || 'Untitled'}
                 </span>
-                <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                <span
+                  className={`shrink-0 text-[10px] ${selectedId === snippet.id ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                >
                   {relativeTime(snippet.updatedAt)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[var(--color-accent)]">{snippet.language}</span>
+                <span
+                  className={`text-[10px] font-bold ${selectedId === snippet.id ? 'text-[var(--color-bg)]' : 'text-[var(--color-accent)]'}`}
+                >
+                  [{ (LANG_EXTENSIONS[snippet.language] || snippet.language).toUpperCase() }]
+                </span>
                 {snippet.content && (
-                  <span className="truncate text-[10px] text-[var(--color-text-muted)]">
+                  <span
+                    className={`truncate text-[10px] ${selectedId === snippet.id ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                  >
                     {contentPreview(snippet.content)}
                   </span>
                 )}
@@ -464,7 +474,11 @@ export default function SnippetsManager() {
                   {visibleTags(snippet.tags).map((tag) => (
                     <span
                       key={tag}
-                      className="rounded bg-[var(--color-accent-dim)] px-1 text-[10px] text-[var(--color-accent)]"
+                      className={`rounded px-1 text-[10px] ${
+                        selectedId === snippet.id
+                          ? 'bg-[var(--color-bg)]/20 text-[var(--color-bg)]'
+                          : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                      }`}
                     >
                       {tag}
                     </span>
