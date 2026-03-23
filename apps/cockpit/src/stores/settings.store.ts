@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
 import { getSetting, setSetting } from '@/lib/db'
 import { applyTheme } from '@/lib/theme'
+import { useUiStore } from '@/stores/ui.store'
 
 type SettingsStore = AppSettings & {
   initialized: boolean
@@ -31,7 +32,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   },
 
   update: async (key, value) => {
+    const previousValue = get()[key]
     set({ [key]: value } as Partial<SettingsStore>)
+    if (key === 'theme') {
+      applyTheme(value as AppSettings['theme'])
+    }
     const state = get()
     const settings: AppSettings = {
       theme: state.theme,
@@ -46,9 +51,16 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       historyRetentionPerTool: state.historyRetentionPerTool,
       formatOnPaste: state.formatOnPaste,
     }
-    await setSetting('appSettings', settings)
-    if (key === 'theme') {
-      applyTheme(value as AppSettings['theme'])
+    try {
+      await setSetting('appSettings', settings)
+    } catch (err) {
+      // Revert optimistic update
+      set({ [key]: previousValue } as Partial<SettingsStore>)
+      if (key === 'theme') {
+        applyTheme(previousValue as AppSettings['theme'])
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save setting: ' + msg, 'error')
     }
   },
 

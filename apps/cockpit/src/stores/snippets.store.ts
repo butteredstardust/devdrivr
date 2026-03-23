@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Snippet } from '@/types/models'
 import { loadSnippets, saveSnippet, deleteSnippet, clearAllSnippets } from '@/lib/db'
+import { useUiStore } from '@/stores/ui.store'
 
 type SnippetsStore = {
   snippets: Snippet[]
@@ -44,7 +45,14 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       updatedAt: now,
     }
     set({ saving: true })
-    await saveSnippet(snippet)
+    try {
+      await saveSnippet(snippet)
+    } catch (err) {
+      set({ saving: false })
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save snippet: ' + msg, 'error')
+      throw err
+    }
     set((s) => ({ snippets: [snippet, ...s.snippets], saving: false }))
     return snippet
   },
@@ -53,7 +61,8 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     const snippets = get().snippets
     const idx = snippets.findIndex((s) => s.id === id)
     if (idx < 0) return
-    const updated = { ...snippets[idx]!, ...patch, updatedAt: Date.now() }
+    const oldSnippet = snippets[idx]!
+    const updated = { ...oldSnippet, ...patch, updatedAt: Date.now() }
 
     // 1. Update state immediately (optimistic)
     set((s) => ({
@@ -68,7 +77,16 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
 
     const timer = setTimeout(async () => {
       saveTimers.delete(id)
-      await saveSnippet(updated)
+      try {
+        await saveSnippet(updated)
+      } catch (err) {
+        // Revert optimistic update
+        set((s) => ({
+          snippets: s.snippets.map((sn) => (sn.id === id ? oldSnippet : sn)),
+        }))
+        const msg = err instanceof Error ? err.message : String(err)
+        useUiStore.getState().addToast('Failed to save snippet: ' + msg, 'error')
+      }
       // Only set saving to false if no other timers are pending
       if (saveTimers.size === 0) {
         set({ saving: false })
@@ -84,7 +102,14 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       saveTimers.delete(id)
     }
     set({ saving: true })
-    await deleteSnippet(id)
+    try {
+      await deleteSnippet(id)
+    } catch (err) {
+      set({ saving: saveTimers.size > 0 })
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to delete snippet: ' + msg, 'error')
+      throw err
+    }
     set((s) => ({
       snippets: s.snippets.filter((sn) => sn.id !== id),
       saving: saveTimers.size > 0,

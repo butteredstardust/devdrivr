@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { HistoryEntry } from '@/types/models'
 import { loadHistory, addHistoryEntry, pruneHistory, clearAllHistory } from '@/lib/db'
+import { useUiStore } from '@/stores/ui.store'
 
 type HistoryStore = {
   entries: HistoryEntry[]
@@ -40,9 +41,15 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
     if (subTab != null) {
       entry.subTab = subTab
     }
-    await addHistoryEntry(entry)
-    // Prune to keep max 500 per tool
-    await pruneHistory(tool, 500)
+    try {
+      await addHistoryEntry(entry)
+      // Prune to keep max 500 per tool
+      await pruneHistory(tool, 500)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save history: ' + msg, 'error')
+    }
+    // Always update local state — history is ephemeral
     set((s) => ({ entries: [entry, ...s.entries].slice(0, 200) }))
   },
 
