@@ -59,17 +59,27 @@ const GRID = [
 ]
 
 // Build rect list once at module load
-const RECTS: { x: number; y: number; fill: string }[] = []
+type Group = 'body' | 'tail' | 'eye'
+const RECTS: { x: number; y: number; fill: string; group: Group }[] = []
 for (let y = 0; y < GRID.length; y++) {
   const row = GRID[y]!
   for (let x = 0; x < row.length; x++) {
     const cell = row[x]!
     const fill = COLORS[cell]
-    if (fill) RECTS.push({ x, y, fill })
+    if (fill) {
+      let group: Group = 'body'
+      if (cell === 9 || cell === 10) {
+        group = 'eye'
+      } else if (cell >= 1 && cell <= 4 && x >= 16) {
+        group = 'tail'
+      }
+      RECTS.push({ x, y, fill, group })
+    }
   }
 }
 
 export function Chameleon({ className }: { className?: string }) {
+  const groups: Group[] = ['body', 'tail', 'eye']
   return (
     <svg
       width={60}
@@ -79,8 +89,29 @@ export function Chameleon({ className }: { className?: string }) {
       className={className}
       aria-label="devdrivr chameleon mascot"
     >
-      {RECTS.map(({ x, y, fill }) => (
-        <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={fill} />
+      <style>{`
+        @keyframes chameleon-blink {
+          0%, 94%, 100% { fill: inherit; }
+          95%, 99% { fill: var(--color-mascot-green-highlight, #39ff14); }
+        }
+        @keyframes chameleon-breathing {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(0.5px); }
+        }
+        .chameleon-eye rect {
+          animation: chameleon-blink 4s infinite;
+        }
+        .chameleon-body, .chameleon-tail {
+          animation: chameleon-breathing 10s ease-in-out infinite;
+          transform-origin: center bottom;
+        }
+      `}</style>
+      {groups.map((group) => (
+        <g key={group} className={`chameleon-${group}`}>
+          {RECTS.filter((r) => r.group === group).map(({ x, y, fill }) => (
+            <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={fill} />
+          ))}
+        </g>
       ))}
     </svg>
   )
