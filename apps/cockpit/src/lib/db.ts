@@ -1,5 +1,6 @@
 import Database from '@tauri-apps/plugin-sql'
-import type { Note, NoteColor, Snippet, HistoryEntry } from '@/types/models'
+import type { Note, Snippet, HistoryEntry } from '@/types/models'
+import { noteRowSchema, snippetRowSchema, historyRowSchema } from '@/lib/schemas'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
 // (e.g., StrictMode double-mount or parallel store inits).
@@ -24,7 +25,12 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
     [key]
   )
   if (rows.length === 0) return fallback
-  return JSON.parse(rows[0]!.value) as T
+  try {
+    return JSON.parse(rows[0]!.value) as T
+  } catch (err) {
+    console.warn(`[db] getSetting: failed to parse value for key "${key}", using fallback`, err)
+    return fallback
+  }
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<void> {
@@ -44,7 +50,12 @@ export async function loadToolState(toolId: string): Promise<Record<string, unkn
     [toolId]
   )
   if (rows.length === 0) return null
-  return JSON.parse(rows[0]!.state) as Record<string, unknown>
+  try {
+    return JSON.parse(rows[0]!.state) as Record<string, unknown>
+  } catch (err) {
+    console.warn(`[db] loadToolState: failed to parse state for tool "${toolId}"`, err)
+    return null
+  }
 }
 
 export async function saveToolState(toolId: string, state: Record<string, unknown>): Promise<void> {
@@ -72,27 +83,19 @@ type NoteRow = {
   updated_at: number
 }
 
-function rowToNote(row: NoteRow): Note {
-  const note: Note = {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    color: row.color as NoteColor,
-    pinned: row.pinned === 1,
-    poppedOut: row.popped_out === 1,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+function rowToNote(row: NoteRow): Note | null {
+  const result = noteRowSchema.safeParse(row)
+  if (!result.success) {
+    console.warn('[db] rowToNote: invalid row, skipping', result.error.issues)
+    return null
   }
-  if (row.window_x != null && row.window_y != null && row.window_width != null && row.window_height != null) {
-    note.windowBounds = { x: row.window_x, y: row.window_y, width: row.window_width, height: row.window_height }
-  }
-  return note
+  return result.data
 }
 
 export async function loadNotes(): Promise<Note[]> {
   const conn = await getDb()
   const rows = await conn.select<NoteRow[]>('SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC')
-  return rows.map(rowToNote)
+  return rows.map(rowToNote).filter((n): n is Note => n !== null)
 }
 
 export async function saveNote(note: Note): Promise<void> {
@@ -128,22 +131,19 @@ type SnippetRow = {
   updated_at: number
 }
 
-function rowToSnippet(row: SnippetRow): Snippet {
-  return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    language: row.language,
-    tags: JSON.parse(row.tags) as string[],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+function rowToSnippet(row: SnippetRow): Snippet | null {
+  const result = snippetRowSchema.safeParse(row)
+  if (!result.success) {
+    console.warn('[db] rowToSnippet: invalid row, skipping', result.error.issues)
+    return null
   }
+  return result.data
 }
 
 export async function loadSnippets(): Promise<Snippet[]> {
   const conn = await getDb()
   const rows = await conn.select<SnippetRow[]>('SELECT * FROM snippets ORDER BY updated_at DESC')
-  return rows.map(rowToSnippet)
+  return rows.map(rowToSnippet).filter((s): s is Snippet => s !== null)
 }
 
 export async function saveSnippet(snippet: Snippet): Promise<void> {
@@ -172,18 +172,13 @@ type HistoryRow = {
   timestamp: number
 }
 
-function rowToHistory(row: HistoryRow): HistoryEntry {
-  const entry: HistoryEntry = {
-    id: row.id,
-    tool: row.tool,
-    input: row.input,
-    output: row.output,
-    timestamp: row.timestamp,
+function rowToHistory(row: HistoryRow): HistoryEntry | null {
+  const result = historyRowSchema.safeParse(row)
+  if (!result.success) {
+    console.warn('[db] rowToHistory: invalid row, skipping', result.error.issues)
+    return null
   }
-  if (row.sub_tab != null) {
-    entry.subTab = row.sub_tab
-  }
-  return entry
+  return result.data
 }
 
 export async function loadHistory(tool?: string, limit: number = 100): Promise<HistoryEntry[]> {
@@ -192,12 +187,12 @@ export async function loadHistory(tool?: string, limit: number = 100): Promise<H
     return (await conn.select<HistoryRow[]>(
       'SELECT * FROM history WHERE tool = $1 ORDER BY timestamp DESC LIMIT $2',
       [tool, limit]
-    )).map(rowToHistory)
+    )).map(rowToHistory).filter((e): e is HistoryEntry => e !== null)
   }
   return (await conn.select<HistoryRow[]>(
     'SELECT * FROM history ORDER BY timestamp DESC LIMIT $1',
     [limit]
-  )).map(rowToHistory)
+  )).map(rowToHistory).filter((e): e is HistoryEntry => e !== null)
 }
 
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
