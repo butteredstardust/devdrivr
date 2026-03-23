@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { setSetting } from '@/lib/db'
 
+const MAX_RECENT = 5
+
 type LastAction = {
   message: string
   type: 'success' | 'error' | 'info'
@@ -20,8 +22,11 @@ type UiStore = {
   toasts: ToastItem[]
   settingsPanelOpen: boolean
   pendingSendTo: string | null
+  recentToolIds: string[]
 
   setActiveTool: (toolId: string) => void
+  restoreActiveTool: (toolId: string) => void
+  trackRecent: (toolId: string) => void
   setCommandPaletteOpen: (open: boolean) => void
   toggleCommandPalette: () => void
   setLastAction: (message: string, type?: LastAction['type']) => void
@@ -44,10 +49,26 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   settingsPanelOpen: false,
   pendingSendTo: null,
   shortcutsModalOpen: false,
+  recentToolIds: [],
 
   setActiveTool: (toolId) => {
     set({ activeTool: toolId })
+    get().trackRecent(toolId)
     setSetting('activeTool', toolId).catch(() => {})
+  },
+
+  // Restore without polluting recents (used during app bootstrap)
+  restoreActiveTool: (toolId) => {
+    set({ activeTool: toolId })
+  },
+
+  trackRecent: (toolId) => {
+    set((s) => ({
+      recentToolIds: [toolId, ...s.recentToolIds.filter((id) => id !== toolId)].slice(
+        0,
+        MAX_RECENT
+      ),
+    }))
   },
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),

@@ -22,6 +22,9 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
           className={`shrink-0 transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         />
         <span className="font-pixel">{group.label}</span>
+        <span className="ml-auto font-mono text-[10px] font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
+          {tools.length}
+        </span>
       </button>
       {!collapsed && (
         <div className="flex flex-col gap-1 px-1">

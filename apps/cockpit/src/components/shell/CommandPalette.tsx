@@ -27,8 +27,6 @@ type SectionItem =
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-const MAX_RECENT = 5
-
 const GROUP_LABELS: Record<string, string> = Object.fromEntries(
   TOOL_GROUPS.map((g) => [g.id, g.label])
 )
@@ -118,16 +116,6 @@ function buildActions(modSymbol: string): PaletteItem[] {
   ]
 }
 
-// ─── Recent tools (session-scoped, not persisted) ────────────────────
-// Module-level backing store so recents survive palette close/open cycles.
-// The component copies this into useState on mount for reactivity.
-
-let recentBacking: string[] = []
-
-function pushRecent(toolId: string) {
-  recentBacking = [toolId, ...recentBacking.filter((id) => id !== toolId)].slice(0, MAX_RECENT)
-}
-
 // ─── Component ───────────────────────────────────────────────────────
 
 export function CommandPalette() {
@@ -136,6 +124,7 @@ export function CommandPalette() {
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const activeTool = useUiStore((s) => s.activeTool)
   const addToast = useUiStore((s) => s.addToast)
+  const recentToolIds = useUiStore((s) => s.recentToolIds)
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)
@@ -147,14 +136,8 @@ export function CommandPalette() {
 
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [recentToolIds, setRecentToolIds] = useState<string[]>(recentBacking)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-
-  const trackRecent = useCallback((toolId: string) => {
-    pushRecent(toolId)
-    setRecentToolIds([...recentBacking])
-  }, [])
 
   // ─── Palette items ─────────────────────────────────────────────
 
@@ -208,7 +191,7 @@ export function CommandPalette() {
     // Fuzzy search (action mode uses dedicated Fuse, normal mode searches everything)
     const fuseInstance = isActionMode ? actionFuse : fuse
     return fuseInstance.search(searchQuery).map((r) => r.item)
-  }, [searchQuery, isActionMode, toolItems, actions, fuse, actionFuse, activeTool])
+  }, [searchQuery, isActionMode, toolItems, actions, fuse, actionFuse, activeTool, recentToolIds])
 
   // ─── Section headers for default view ──────────────────────────
 
@@ -247,7 +230,7 @@ export function CommandPalette() {
     }
 
     return out
-  }, [results, searchQuery, isActionMode, activeTool])
+  }, [results, searchQuery, isActionMode, activeTool, recentToolIds])
 
   const flatCount = useMemo(
     () => sections.filter((s) => s.type === 'item').length,
@@ -264,7 +247,6 @@ export function CommandPalette() {
   const executeItem = useCallback(
     (item: PaletteItem) => {
       if (item.kind === 'tool') {
-        trackRecent(item.id)
         setActiveTool(item.id)
         setOpen(false)
         return
@@ -314,20 +296,14 @@ export function CommandPalette() {
           const idx = TOOLS.findIndex((t) => t.id === activeTool)
           if (idx === -1) break
           const next = TOOLS[(idx + 1) % TOOLS.length]
-          if (next) {
-            trackRecent(next.id)
-            setActiveTool(next.id)
-          }
+          if (next) setActiveTool(next.id)
           break
         }
         case 'action:prev-tool': {
           const idx = TOOLS.findIndex((t) => t.id === activeTool)
           if (idx === -1) break
           const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
-          if (prev) {
-            trackRecent(prev.id)
-            setActiveTool(prev.id)
-          }
+          if (prev) setActiveTool(prev.id)
           break
         }
       }
@@ -344,7 +320,6 @@ export function CommandPalette() {
       alwaysOnTop,
       addToast,
       activeTool,
-      trackRecent,
     ]
   )
 
@@ -354,15 +329,9 @@ export function CommandPalette() {
     if (isOpen) {
       setQuery('')
       setSelectedIndex(0)
-      setRecentToolIds([...recentBacking]) // sync in case tools were used while palette was closed
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [isOpen])
-
-  // Track tool usage from outside the palette
-  useEffect(() => {
-    if (activeTool) trackRecent(activeTool)
-  }, [activeTool, trackRecent])
 
   // Scroll keyboard-selected item into view
   useEffect(() => {
