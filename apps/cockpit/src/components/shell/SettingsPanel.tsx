@@ -343,6 +343,9 @@ function DataTab() {
       // String fields
       if (typeof obj['defaultTimezone'] === 'string')
         await su('defaultTimezone', obj['defaultTimezone'])
+      // Apply alwaysOnTop to the live Tauri window
+      const finalOnTop = useSettingsStore.getState().alwaysOnTop
+      getCurrentWindow().setAlwaysOnTop(finalOnTop).catch(() => {})
       addToast('Settings imported', 'success')
     } catch {
       addToast('Failed to import settings', 'error')

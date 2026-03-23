@@ -30,6 +30,7 @@ type UiStore = {
   setCommandPaletteOpen: (open: boolean) => void
   toggleCommandPalette: () => void
   setLastAction: (message: string, type?: LastAction['type']) => void
+  clearLastAction: () => void
   addToast: (message: string, type?: ToastItem['type']) => void
   removeToast: (id: string) => void
   setSettingsPanelOpen: (open: boolean) => void
@@ -74,6 +75,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setLastAction: (message, type = 'info') =>
     set({ lastAction: { message, type, timestamp: Date.now() } }),
+  clearLastAction: () => set({ lastAction: null }),
 
   addToast: (message, type = 'info') => {
     const id = crypto.randomUUID()

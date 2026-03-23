@@ -41,7 +41,7 @@ function ClockDisplay() {
 export function StatusBar() {
   const activeTool = useUiStore((s) => s.activeTool)
   const lastAction = useUiStore((s) => s.lastAction)
-  const setLastAction = useUiStore((s) => s.setLastAction)
+  const clearLastAction = useUiStore((s) => s.clearLastAction)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const theme = useSettingsStore((s) => s.theme)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
@@ -52,7 +52,7 @@ export function StatusBar() {
 
   // Clear stale last action when switching tools
   useEffect(() => {
-    if (lastAction) setLastAction('')
+    if (lastAction) clearLastAction()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on tool change
   }, [activeTool])
 

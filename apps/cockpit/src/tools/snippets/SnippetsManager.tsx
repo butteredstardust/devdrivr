@@ -251,10 +251,14 @@ export default function SnippetsManager() {
     [selected, updateSnippet]
   )
 
-  const handleExport = useCallback(() => {
-    const data = JSON.stringify(snippets, null, 2)
-    navigator.clipboard.writeText(data)
-    setLastAction(`Exported ${snippets.length} snippets to clipboard`, 'success')
+  const handleExport = useCallback(async () => {
+    try {
+      const data = JSON.stringify(snippets, null, 2)
+      await navigator.clipboard.writeText(data)
+      setLastAction(`Exported ${snippets.length} snippets to clipboard`, 'success')
+    } catch {
+      setLastAction('Export failed — clipboard unavailable', 'error')
+    }
   }, [snippets, setLastAction])
 
   const handleImport = useCallback(async () => {
