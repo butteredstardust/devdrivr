@@ -22,6 +22,7 @@ describe('Chameleon', () => {
     expect(container.querySelector('.chameleon-body')).toBeInTheDocument()
     expect(container.querySelector('.chameleon-tail')).toBeInTheDocument()
     expect(container.querySelector('.chameleon-eye')).toBeInTheDocument()
+    expect(container.querySelector('.chameleon-branch')).toBeInTheDocument()
   })
 
   it('each group contains rects', () => {
@@ -29,6 +30,7 @@ describe('Chameleon', () => {
     expect(container.querySelector('.chameleon-body rect')).toBeInTheDocument()
     expect(container.querySelector('.chameleon-tail rect')).toBeInTheDocument()
     expect(container.querySelector('.chameleon-eye rect')).toBeInTheDocument()
+    expect(container.querySelector('.chameleon-branch rect')).toBeInTheDocument()
   })
 
   it('contains passive animation keyframes and class applications', () => {

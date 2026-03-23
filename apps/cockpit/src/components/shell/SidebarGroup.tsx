@@ -21,7 +21,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
           size={10}
           className={`shrink-0 transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         />
-        <span className="font-pixel">{group.label}</span>
+        <span className="font-pixel text-[10px] tracking-normal">[{group.label}]</span>
         <span className="ml-auto font-mono text-[10px] font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
           {tools.length}
         </span>

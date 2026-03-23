@@ -59,7 +59,7 @@ const GRID = [
 ]
 
 // Build rect list once at module load
-type Group = 'body' | 'tail' | 'eye'
+type Group = 'body' | 'tail' | 'eye' | 'branch'
 const RECTS: { x: number; y: number; fill: string; group: Group }[] = []
 for (let y = 0; y < GRID.length; y++) {
   const row = GRID[y]!
@@ -68,8 +68,10 @@ for (let y = 0; y < GRID.length; y++) {
     const fill = COLORS[cell]
     if (fill) {
       let group: Group = 'body'
-      if (cell === 9 || cell === 10) {
+      if (cell >= 9 && cell <= 10) {
         group = 'eye'
+      } else if (cell >= 5 && cell <= 8) {
+        group = 'branch'
       } else if (cell >= 1 && cell <= 4 && x >= 16) {
         group = 'tail'
       }
@@ -78,8 +80,14 @@ for (let y = 0; y < GRID.length; y++) {
   }
 }
 
+const GROUPED_RECTS = {
+  branch: RECTS.filter((r) => r.group === 'branch'),
+  body: RECTS.filter((r) => r.group === 'body'),
+  tail: RECTS.filter((r) => r.group === 'tail'),
+  eye: RECTS.filter((r) => r.group === 'eye'),
+}
+
 export function Chameleon({ className }: { className?: string }) {
-  const groups: Group[] = ['body', 'tail', 'eye']
   return (
     <svg
       width={60}
@@ -91,8 +99,8 @@ export function Chameleon({ className }: { className?: string }) {
     >
       <style>{`
         @keyframes chameleon-blink {
-          0%, 94%, 100% { fill: inherit; }
-          95%, 99% { fill: var(--color-mascot-green-highlight, #39ff14); }
+          0%, 94%, 100% { }
+          95%, 99% { fill: var(--color-mascot-green-highlight, #39ff14) !important; }
         }
         @keyframes chameleon-breathing {
           0%, 100% { transform: translateY(0); }
@@ -102,13 +110,13 @@ export function Chameleon({ className }: { className?: string }) {
           animation: chameleon-blink 4s infinite;
         }
         .chameleon-body, .chameleon-tail {
-          animation: chameleon-breathing 10s ease-in-out infinite;
+          animation: chameleon-breathing 8s ease-in-out infinite;
           transform-origin: center bottom;
         }
       `}</style>
-      {groups.map((group) => (
+      {Object.entries(GROUPED_RECTS).map(([group, rects]) => (
         <g key={group} className={`chameleon-${group}`}>
-          {RECTS.filter((r) => r.group === group).map(({ x, y, fill }) => (
+          {rects.map(({ x, y, fill }) => (
             <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={fill} />
           ))}
         </g>
