@@ -1,0 +1,13 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- macOS Squircle Background -->
+  <rect x="0" y="0" width="1024" height="1024" rx="225" ry="225" fill="#181818" />
+  
+  <!-- Centered Mascot #39ff14 -->
+  <g transform="translate(154, 154) scale(7.16)">
+    <path d="M50 15 L85 85 L15 85 Z" fill="none" stroke="#39ff14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M50 15 L60 35 L30 75 L15 85" fill="none" stroke="#39ff14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M85 85 L75 65 L40 65 L50 15" fill="none" stroke="#39ff14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M15 85 L25 65 L70 65 L85 85" fill="none" stroke="#39ff14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <polygon points="50,15 85,85 15,85" fill="#39ff14" opacity="0.1" />
+  </g>
+</svg>
