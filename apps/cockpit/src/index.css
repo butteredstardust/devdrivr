@@ -51,10 +51,17 @@
   --color-accent-dim: rgba(0, 212, 255, 0.2);
   --color-info: #7B61FF;
   --color-warning: #f59e0b;
-  --color-error: #ef4444;
   --color-success: #22c55e;
   --color-shadow: rgba(0,0,0,0.5);
   --font-mono: 'JetBrains Mono', monospace;
+  --note-yellow: #f59e0b;
+  --note-green: #10b981;
+  --note-blue: #3b82f6;
+  --note-pink: #ec4899;
+  --note-purple: #8b5cf6;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #6b7280;
 }
 
 .warm-terminal {
@@ -69,10 +76,17 @@
   --color-accent-dim: rgba(255, 209, 102, 0.2);
   --color-info: #118AB2;
   --color-warning: #f59e0b;
-  --color-error: #FF6B6B;
   --color-success: #06D6A0;
   --color-shadow: rgba(0,0,0,0.4);
   --font-mono: 'Fira Code', monospace;
+  --note-yellow: #FFD166;
+  --note-green: #06D6A0;
+  --note-blue: #118AB2;
+  --note-pink: #EF476F;
+  --note-purple: #FF6B6B;
+  --note-orange: #F78C6B;
+  --note-red: #FF6B6B;
+  --note-gray: #45475A;
 }
 
 .neon-brutalist {
@@ -87,10 +101,17 @@
   --color-accent-dim: rgba(255, 190, 11, 0.2);
   --color-info: #3A86FF;
   --color-warning: #f59e0b;
-  --color-error: #FF006E;
   --color-success: #8338EC;
   --color-shadow: rgba(255,0,110,0.2);
   --font-mono: 'Source Code Pro', monospace;
+  --note-yellow: #FFBE0B;
+  --note-green: #3A86FF;
+  --note-blue: #8338EC;
+  --note-pink: #FF006E;
+  --note-purple: #8338EC;
+  --note-orange: #FB5607;
+  --note-red: #FF006E;
+  --note-gray: #444444;
 }
 
 .earth-code {
@@ -105,10 +126,17 @@
   --color-accent-dim: rgba(253, 203, 110, 0.2);
   --color-info: #0984E3;
   --color-warning: #f59e0b;
-  --color-error: #E17055;
   --color-success: #00B894;
   --color-shadow: rgba(0,0,0,0.3);
   --font-mono: 'Fira Code', monospace;
+  --note-yellow: #FDCB6E;
+  --note-green: #00B894;
+  --note-blue: #0984E3;
+  --note-pink: #E84393;
+  --note-purple: #6C5CE7;
+  --note-orange: #E17055;
+  --note-red: #D63031;
+  --note-gray: #636E72;
 }
 
 .cyber-luxe {
@@ -124,9 +152,16 @@
   --color-info: #533483;
   --color-warning: #f59e0b;
   --color-error: #E94560;
-  --color-success: #22c55e;
   --color-shadow: rgba(0,0,0,0.6);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --note-yellow: #D4AF37;
+  --note-green: #22c55e;
+  --note-blue: #533483;
+  --note-pink: #E94560;
+  --note-purple: #7B61FF;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #35355A;
 }
 
 .soft-focus {
@@ -145,6 +180,14 @@
   --color-success: #16a34a;
   --color-shadow: rgba(0,0,0,0.05);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --note-yellow: #f59e0b;
+  --note-green: #16a34a;
+  --note-blue: #6C5CE7;
+  --note-pink: #FD79A8;
+  --note-purple: #A29BFE;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #CED4DA;
 }
 
 *, *::before, *::after {
