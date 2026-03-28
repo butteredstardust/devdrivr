@@ -104,5 +104,5 @@ export function useScrollSync(
       if (cooldownRef.current) clearTimeout(cooldownRef.current)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [enabled, editorRef, previewRef])
+  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 }

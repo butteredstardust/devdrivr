@@ -598,7 +598,6 @@ img{max-width:100%}</style>
               html={html}
               showToc={state.showToc}
               toc={toc}
-              onTocClick={() => {}}
             />
           </div>
         )}

@@ -53,11 +53,26 @@ export function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function isWithinContainer(
+  position: { x: number; y: number },
+  container: HTMLDivElement
+): boolean {
+  const rect = container.getBoundingClientRect()
+  return (
+    position.x >= rect.left &&
+    position.x <= rect.right &&
+    position.y >= rect.top &&
+    position.y <= rect.bottom
+  )
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────
 
 export function useImageDrop(
   editorRef: RefObject<EditorInstance | null>,
-  _containerRef: RefObject<HTMLDivElement | null>
+  containerRef: RefObject<HTMLDivElement | null>
 ): { isDraggingImage: boolean } {
   const [isDraggingImage, setIsDraggingImage] = useState(false)
   const editorRefLocal = useRef(editorRef)
@@ -70,11 +85,22 @@ export function useImageDrop(
     getCurrentWebviewWindow()
       .onDragDropEvent(async (event) => {
         if (event.payload.type === 'over') {
-          setIsDraggingImage(true)
+          const container = containerRef.current
+          if (container && 'position' in event.payload) {
+            const pos = event.payload.position as { x: number; y: number }
+            setIsDraggingImage(isWithinContainer(pos, container))
+          } else {
+            setIsDraggingImage(true)
+          }
         } else if (event.payload.type === 'leave') {
           setIsDraggingImage(false)
         } else if (event.payload.type === 'drop') {
           setIsDraggingImage(false)
+          const container = containerRef.current
+          if (container && 'position' in event.payload) {
+            const pos = event.payload.position as { x: number; y: number }
+            if (!isWithinContainer(pos, container)) return
+          }
           const paths = event.payload.paths
           if (paths.length === 0) return
 

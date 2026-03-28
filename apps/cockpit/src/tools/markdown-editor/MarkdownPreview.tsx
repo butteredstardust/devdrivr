@@ -12,7 +12,6 @@ type MarkdownPreviewProps = {
   html: string
   showToc: boolean
   toc: TocEntry[]
-  onTocClick: (id: string) => void
 }
 
 // ─── Preview Styles (extracted + polished) ──────────────────────────
@@ -89,7 +88,7 @@ const PREVIEW_STYLES = [
 // ─── Component ──────────────────────────────────────────────────────
 
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
-  function MarkdownPreview({ html, showToc, toc, onTocClick }, ref) {
+  function MarkdownPreview({ html, showToc, toc }, ref) {
     const innerRef = useRef<HTMLDivElement>(null)
     const theme = useSettingsStore((s) => s.theme)
 
@@ -150,10 +149,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
             {toc.map((entry, i) => (
               <button
                 key={`${entry.id}-${i}`}
-                onClick={() => {
-                  scrollToHeading(entry.id)
-                  onTocClick(entry.id)
-                }}
+                onClick={() => scrollToHeading(entry.id)}
                 className="block w-full truncate text-left text-[11px] leading-relaxed text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
                 style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
                 title={entry.text}
