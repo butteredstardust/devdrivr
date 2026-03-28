@@ -73,3 +73,41 @@ export type HistoryEntry = {
   output: string
   timestamp: number
 }
+
+// --- API Client ---
+
+export type ApiEnvironment = {
+  id: string
+  name: string
+  variables: Record<string, string>
+  createdAt: number
+  updatedAt: number
+}
+
+export type ApiCollection = {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type ApiHeader = { key: string; value: string; enabled: boolean }
+
+export type ApiRequestAuth =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string }
+  | { type: 'basic'; username: string; password: string }
+
+export type ApiRequest = {
+  id: string
+  collectionId: string | null
+  name: string
+  method: string
+  url: string
+  headers: ApiHeader[]
+  body: string
+  bodyMode: string
+  auth: ApiRequestAuth
+  createdAt: number
+  updatedAt: number
+}

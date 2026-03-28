@@ -1,0 +1,179 @@
+import { useState } from 'react'
+import { useApiStore } from '@/stores/api.store'
+
+type Props = {
+  onClose: () => void
+}
+
+export function EnvironmentModal({ onClose }: Props) {
+  const environments = useApiStore((s) => s.environments)
+  const createEnvironment = useApiStore((s) => s.createEnvironment)
+  const updateEnvironment = useApiStore((s) => s.updateEnvironment)
+  const deleteEnvironment = useApiStore((s) => s.deleteEnvironment)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    environments.length > 0 ? environments[0]!.id : null
+  )
+
+  const activeEnv = environments.find((e) => e.id === selectedId) || null
+
+  const handleAdd = async () => {
+    const env = await createEnvironment('New Environment', {})
+    setSelectedId(env.id)
+  }
+
+  const handleRename = (name: string) => {
+    if (!activeEnv) return
+    updateEnvironment({ ...activeEnv, name })
+  }
+
+  const handleUpdateVar = (key: string, newKey: string, newValue: string) => {
+    if (!activeEnv) return
+    const variables = { ...activeEnv.variables }
+    if (key !== newKey) {
+      delete variables[key]
+    }
+    variables[newKey] = newValue
+    updateEnvironment({ ...activeEnv, variables })
+  }
+
+  const handleDeleteVar = (key: string) => {
+    if (!activeEnv) return
+    const variables = { ...activeEnv.variables }
+    delete variables[key]
+    updateEnvironment({ ...activeEnv, variables })
+  }
+
+  const handleAddVar = () => {
+    if (!activeEnv) return
+    const variables = { ...activeEnv.variables }
+    let base = 'newVar'
+    let counter = 1
+    while (variables[base]) {
+      base = `newVar${counter++}`
+    }
+    variables[base] = ''
+    updateEnvironment({ ...activeEnv, variables })
+  }
+
+  const handleDeleteEnv = () => {
+    if (!activeEnv) return
+    deleteEnvironment(activeEnv.id)
+    setSelectedId(null)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex h-[80vh] w-[800px] max-w-[90vw] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+          <h2 className="font-pixel text-lg text-[var(--color-text)]">Manage Environments</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+            ✕
+          </button>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar: Env List */}
+          <div className="w-1/3 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] flex overflow-hidden">
+            <div className="p-2">
+              <button
+                onClick={handleAdd}
+                className="w-full mb-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+              >
+                + Create Environment
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto w-full">
+              {environments.map((env) => (
+                <button
+                  key={env.id}
+                  onClick={() => setSelectedId(env.id)}
+                  className={`block w-full px-3 py-2 text-left text-sm ${
+                    env.id === selectedId
+                      ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
+                      : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+                  }`}
+                >
+                  {env.name}
+                </button>
+              ))}
+              {environments.length === 0 && (
+                <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
+                  No environments yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel: Editor */}
+          <div className="flex-1 flex flex-col w-full overflow-hidden bg-[var(--color-bg)]">
+            {activeEnv ? (
+              <>
+                <div className="flex items-center gap-3 border-b border-[var(--color-border)] p-4">
+                  <input
+                    value={activeEnv.name}
+                    onChange={(e) => handleRename(e.target.value)}
+                    className="flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-lg font-bold text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                    placeholder="Environment Name"
+                  />
+                  <button
+                    onClick={handleDeleteEnv}
+                    className="rounded text-xs text-[var(--color-error)] hover:underline"
+                  >
+                    Delete Environment
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-bold text-sm text-[var(--color-text)]">Variables</span>
+                    <button
+                      onClick={handleAddVar}
+                      className="text-xs text-[var(--color-accent)] hover:underline"
+                    >
+                      + Add Variable
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(activeEnv.variables).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <input
+                          value={key}
+                          onChange={(e) => handleUpdateVar(key, e.target.value, value)}
+                          placeholder="Variable name"
+                          className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        />
+                        <span className="text-[var(--color-text-muted)]">=</span>
+                        <input
+                          value={value}
+                          onChange={(e) => handleUpdateVar(key, key, e.target.value)}
+                          placeholder="Value"
+                          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        />
+                        <button
+                          onClick={() => handleDeleteVar(key)}
+                          className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {Object.keys(activeEnv.variables).length === 0 && (
+                      <div className="text-center text-xs text-[var(--color-text-muted)] py-4">
+                        No variables defined. Add one (e.g., baseUrl, token).
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-muted)]">
+                Select or create an environment
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

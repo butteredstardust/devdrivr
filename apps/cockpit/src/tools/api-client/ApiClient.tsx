@@ -8,19 +8,29 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useApiStore } from '@/stores/api.store'
+import { EnvironmentModal } from './components/EnvironmentModal'
+import { AuthTab } from './components/AuthTab'
+import { CollectionsSidebar } from './components/CollectionsSidebar'
+import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 
-type Header = { key: string; value: string; enabled: boolean }
 type Param = { key: string; value: string }
 
 type ApiClientState = {
-  method: string
-  url: string
-  headers: Header[]
-  body: string
-  bodyMode: string
+  activeRequestId: string | null
+  // We keep a working draft independent of the saved request
+  draft: {
+    name: string
+    method: string
+    url: string
+    headers: ApiHeader[]
+    body: string
+    bodyMode: string
+    auth: ApiRequestAuth
+  }
 }
 
 type ResponseData = {
@@ -35,6 +45,7 @@ type ResponseData = {
 const REQUEST_TABS = [
   { id: 'params', label: 'Params' },
   { id: 'headers', label: 'Headers' },
+  { id: 'auth', label: 'Auth' },
   { id: 'body', label: 'Body' },
 ]
 
@@ -95,19 +106,52 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function interpolate(text: string, vars: Record<string, string>): string {
+  if (!text) return text
+  return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+    return vars[key.trim()] ?? match
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function ApiClient() {
   useMonacoTheme()
+  const init = useApiStore((s) => s.init)
+  const environments = useApiStore((s) => s.environments)
+  const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)
+  const setActiveEnvironmentId = useApiStore((s) => s.setActiveEnvironmentId)
+  const collections = useApiStore((s) => s.collections)
+  const createRequest = useApiStore((s) => s.createRequest)
+  const updateRequest = useApiStore((s) => s.updateRequest)  
+  useEffect(() => {
+    init()
+  }, [init])
+
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
-    method: 'GET',
-    url: '',
-    headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
-    body: '',
-    bodyMode: 'json',
+    activeRequestId: null,
+    draft: {
+      name: 'Untitled Request',
+      method: 'GET',
+      url: '',
+      headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+      body: '',
+      bodyMode: 'json',
+      auth: { type: 'none' },
+    },
   })
+
+  // Destructure draft for convenience
+  const { method, url, headers, body, bodyMode, auth, name } = state.draft
+
+  const updateDraft = useCallback(
+    (patch: Partial<ApiClientState['draft']>) => {
+      updateState({ draft: { ...state.draft, ...patch } })
+    },
+    [state.draft, updateState]
+  )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [response, setResponse] = useState<ResponseData | null>(null)
@@ -115,30 +159,33 @@ export default function ApiClient() {
   const [error, setError] = useState<string | null>(null)
   const [requestTab, setRequestTab] = useState('params')
   const [responseTab, setResponseTab] = useState('body')
+  const [showEnvModal, setShowEnvModal] = useState(false)
+
+  const activeEnv = environments.find(e => e.id === activeEnvironmentId)
+  const envVars = activeEnv?.variables ?? {}
 
   // ---------------------------------------------------------------------------
-  // Query params — derived from URL, synced back on edit
+  // Query params
   // ---------------------------------------------------------------------------
 
-  const [params, setParams] = useState<Param[]>(() => parseQueryParams(state.url))
-  const urlRef = useRef(state.url)
+  const [params, setParams] = useState<Param[]>(() => parseQueryParams(url))
+  const urlRef = useRef(url)
 
-  // Sync URL → params when the URL bar is typed in
   useEffect(() => {
-    if (state.url !== urlRef.current) {
-      urlRef.current = state.url
-      setParams(parseQueryParams(state.url))
+    if (url !== urlRef.current) {
+      urlRef.current = url
+      setParams(parseQueryParams(url))
     }
-  }, [state.url])
+  }, [url])
 
   const commitParams = useCallback(
     (newParams: Param[]) => {
       setParams(newParams)
-      const newUrl = buildUrlWithParams(state.url, newParams.filter((p) => p.key.trim()))
+      const newUrl = buildUrlWithParams(url, newParams.filter((p) => p.key.trim()))
       urlRef.current = newUrl
-      updateState({ url: newUrl })
+      updateDraft({ url: newUrl })
     },
-    [state.url, updateState]
+    [url, updateDraft]
   )
 
   const addParam = useCallback(() => {
@@ -165,8 +212,9 @@ export default function ApiClient() {
   // ---------------------------------------------------------------------------
 
   const handleSend = useCallback(async () => {
-    if (!state.url.trim()) {
-      setLastAction('Enter a URL', 'error')
+    const interpolatedUrl = interpolate(url, envVars)
+    if (!interpolatedUrl.trim()) {
+      setLastAction('Enter a URL (or ensure {{variable}} is populated)', 'error')
       return
     }
 
@@ -175,29 +223,42 @@ export default function ApiClient() {
     const start = performance.now()
 
     try {
-      const headers: Record<string, string> = {}
-      for (const h of state.headers) {
+      const fetchHeaders: Record<string, string> = {}
+      
+      // Interpolate user headers
+      for (const h of headers) {
         if (h.enabled && h.key.trim()) {
-          headers[h.key] = h.value
+          fetchHeaders[interpolate(h.key, envVars)] = interpolate(h.value, envVars)
         }
       }
 
-      const opts: RequestInit = { method: state.method, headers }
-      if (BODY_METHODS.has(state.method) && state.bodyMode !== 'none' && state.body.trim()) {
-        opts.body = state.body
+      // Add auth headers
+      if (auth.type === 'bearer') {
+        const token = interpolate(auth.token, envVars)
+        fetchHeaders['Authorization'] = `Bearer ${token}`
+      } else if (auth.type === 'basic') {
+        const u = interpolate(auth.username, envVars)
+        const p = interpolate(auth.password, envVars)
+        fetchHeaders['Authorization'] = `Basic ${btoa(`${u}:${p}`)}`
       }
 
-      const res = await tauriFetch(state.url, opts)
+      const opts: RequestInit = { method, headers: fetchHeaders }
+      
+      if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
+        opts.body = interpolate(body, envVars)
+      }
+
+      const res = await tauriFetch(interpolatedUrl, opts)
       const time = Math.round(performance.now() - start)
-      const body = await res.text()
-      const size = new Blob([body]).size
+      const resBody = await res.text()
+      const size = new Blob([resBody]).size
 
       const resHeaders: Record<string, string> = {}
       res.headers.forEach((value, key) => {
         resHeaders[key] = value
       })
 
-      setResponse({ status: res.status, statusText: res.statusText, headers: resHeaders, body, time, size })
+      setResponse({ status: res.status, statusText: res.statusText, headers: resHeaders, body: resBody, time, size })
       setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
     } catch (e) {
       const msg = (e as Error).message
@@ -206,7 +267,7 @@ export default function ApiClient() {
     } finally {
       setLoading(false)
     }
-  }, [state.url, state.method, state.headers, state.body, state.bodyMode, setLastAction])
+  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction])
 
   useToolAction((action) => {
     if (action.type === 'execute') handleSend()
@@ -215,26 +276,95 @@ export default function ApiClient() {
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
 
   // ---------------------------------------------------------------------------
+  // Save Request logic
+  // ---------------------------------------------------------------------------
+
+  const handleSave = async () => {
+    if (state.activeRequestId) {
+      // Update existing
+      await updateRequest({
+        ...state.draft,
+        id: state.activeRequestId,
+        collectionId: collections.find(c => c.name === 'Default')?.id ?? null, // Simplification: we might want a real collection picker
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      setLastAction('Request updated', 'success')
+    } else {
+      handleSaveAs()
+    }
+  }
+
+  const handleSaveAs = async () => {
+    const reqName = prompt('Enter request name:', name)
+    if (!reqName) return
+
+    // Simplistic collection picker (in a real app we'd use a modal dropdown)
+    const activeCollections = collections.map(c => c.name).join(', ')
+    const colName = collections.length > 0 
+      ? prompt(`Collection name (Existing: ${activeCollections}):`, collections[0]?.name)
+      : prompt('Collection name:')
+    
+    let collectionId = null
+    if (colName) {
+      const existing = collections.find(c => c.name.toLowerCase() === colName.toLowerCase())
+      collectionId = existing?.id
+      // Note: If they typed a non-existent name, we probably should create the collection here,
+      // but to keep it simple we either require an exact match or throw it into unassigned.
+      if (!existing) {
+        // Auto create? (could be complex without the store method available here with await)
+        // Ignoring auto-create for brevity in prompt
+      }
+    }
+
+    const newReq = await createRequest({
+      ...state.draft,
+      name: reqName,
+      collectionId: collectionId ?? null
+    })
+    
+    updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
+    setLastAction('Request saved', 'success')
+  }
+
+  const handleSelectLoadedRequest = (req: ApiRequest) => {
+    updateState({
+      activeRequestId: req.id,
+      draft: {
+        name: req.name,
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body: req.body,
+        bodyMode: req.bodyMode,
+        auth: req.auth,
+      }
+    })
+    setResponse(null)
+    setError(null)
+  }
+
+  // ---------------------------------------------------------------------------
   // Header management
   // ---------------------------------------------------------------------------
 
   const addHeader = useCallback(() => {
-    updateState({ headers: [...state.headers, { key: '', value: '', enabled: true }] })
-  }, [state.headers, updateState])
+    updateDraft({ headers: [...headers, { key: '', value: '', enabled: true }] })
+  }, [headers, updateDraft])
 
   const updateHeader = useCallback(
-    (index: number, patch: Partial<Header>) => {
-      const headers = state.headers.map((h, i) => (i === index ? { ...h, ...patch } : h))
-      updateState({ headers })
+    (index: number, patch: Partial<ApiHeader>) => {
+      const newHeaders = headers.map((h, i) => (i === index ? { ...h, ...patch } : h))
+      updateDraft({ headers: newHeaders })
     },
-    [state.headers, updateState]
+    [headers, updateDraft]
   )
 
   const removeHeader = useCallback(
     (index: number) => {
-      updateState({ headers: state.headers.filter((_, i) => i !== index) })
+      updateDraft({ headers: headers.filter((_, i) => i !== index) })
     },
-    [state.headers, updateState]
+    [headers, updateDraft]
   )
 
   // ---------------------------------------------------------------------------
@@ -262,84 +392,184 @@ export default function ApiClient() {
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const showBody = BODY_METHODS.has(state.method) && state.bodyMode !== 'none'
-  const bodyEditorLang = state.bodyMode === 'json' ? 'json' : 'plaintext'
-  const activeHeaderCount = state.headers.filter((h) => h.enabled && h.key.trim()).length
+  const showBody = BODY_METHODS.has(method) && bodyMode !== 'none'
+  const bodyEditorLang = bodyMode === 'json' ? 'json' : 'plaintext'
+  const activeHeaderCount = headers.filter((h) => h.enabled && h.key.trim()).length
 
   return (
-    <div className="flex h-full flex-col">
-      {/* URL bar */}
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <select
-          value={state.method}
-          onChange={(e) => updateState({ method: e.target.value })}
-          className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none"
-        >
-          {METHODS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-        <input
-          value={state.url}
-          onChange={(e) => updateState({ url: e.target.value })}
-          placeholder="https://api.example.com/endpoint"
-          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSend()
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading}
-          className="rounded border border-[var(--color-accent)] px-4 py-1.5 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {loading ? 'Sending…' : 'Send'}
-        </button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-      </div>
+    <div className="flex h-full flex-row overflow-hidden">
+      <CollectionsSidebar
+        activeRequestId={state.activeRequestId}
+        onSelect={handleSelectLoadedRequest}
+      />
+      
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Top Header Row for Env / Save */}
+        <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
+          <div className="flex-1 font-bold text-sm text-[var(--color-text)]">
+            {name}
+          </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* ── Request panel ─────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-          <TabBar tabs={REQUEST_TABS} activeTab={requestTab} onTabChange={setRequestTab} />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
+            <select
+              value={activeEnvironmentId || ''}
+              onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
+              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+            >
+              <option value="">No Environment</option>
+              {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <button
+              onClick={() => setShowEnvModal(true)}
+              className="text-xs text-[var(--color-accent)] hover:underline"
+            >
+              Edit
+            </button>
+          </div>
 
-          {/* Params tab */}
-          {requestTab === 'params' && (
-            <div className="flex-1 overflow-auto p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-pixel text-xs text-[var(--color-text-muted)]">
-                  Query Parameters
-                  {params.length > 0 && (
-                    <span className="ml-1 text-[var(--color-text)]">({params.length})</span>
-                  )}
-                </span>
-                <button
-                  onClick={addParam}
-                  className="text-xs text-[var(--color-accent)] hover:underline"
-                >
-                  + Add
-                </button>
+          <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+            <button
+              onClick={handleSave}
+              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleSaveAs}
+              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
+            >
+              Save As
+            </button>
+          </div>
+        </div>
+
+        {/* URL bar */}
+        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+          <select
+            value={method}
+            onChange={(e) => updateDraft({ method: e.target.value })}
+            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none"
+          >
+            {METHODS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <input
+            value={url}
+            onChange={(e) => updateDraft({ url: e.target.value })}
+            placeholder="{{baseUrl}}/endpoint"
+            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSend()
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={loading}
+            className="rounded border border-[var(--color-accent)] px-4 py-1.5 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* ── Request panel ─────────────────────────────────── */}
+          <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+            <TabBar tabs={REQUEST_TABS} activeTab={requestTab} onTabChange={setRequestTab} />
+
+            {/* Params tab */}
+            {requestTab === 'params' && (
+              <div className="flex-1 overflow-auto p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-pixel text-xs text-[var(--color-text-muted)]">
+                    Query Parameters
+                    {params.length > 0 && (
+                      <span className="ml-1 text-[var(--color-text)]">({params.length})</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={addParam}
+                    className="text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {params.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {params.map((p, i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <input
+                          value={p.key}
+                          onChange={(e) => updateParam(i, { key: e.target.value })}
+                          placeholder="Key"
+                          className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        />
+                        <input
+                          value={p.value}
+                          onChange={(e) => updateParam(i, { value: e.target.value })}
+                          placeholder="Value"
+                          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        />
+                        <button
+                          onClick={() => removeParam(i)}
+                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-[var(--color-text-muted)]">
+                    No query parameters. Add them here or include them in the URL.
+                  </div>
+                )}
               </div>
-              {params.length > 0 ? (
+            )}
+
+            {/* Headers tab */}
+            {requestTab === 'headers' && (
+              <div className="flex-1 overflow-auto p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-pixel text-xs text-[var(--color-text-muted)]">
+                    Headers
+                    {activeHeaderCount > 0 && (
+                      <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={addHeader}
+                    className="text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    + Add
+                  </button>
+                </div>
                 <div className="flex flex-col gap-1">
-                  {params.map((p, i) => (
+                  {headers.map((h, i) => (
                     <div key={i} className="flex items-center gap-1">
                       <input
-                        value={p.key}
-                        onChange={(e) => updateParam(i, { key: e.target.value })}
-                        placeholder="Key"
+                        type="checkbox"
+                        checked={h.enabled}
+                        onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
+                        className="accent-[var(--color-accent)]"
+                      />
+                      <input
+                        value={h.key}
+                        onChange={(e) => updateHeader(i, { key: e.target.value })}
+                        placeholder="Header name"
                         className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
                       />
                       <input
-                        value={p.value}
-                        onChange={(e) => updateParam(i, { value: e.target.value })}
-                        placeholder="Value"
+                        value={h.value}
+                        onChange={(e) => updateHeader(i, { value: e.target.value })}
+                        placeholder="Value (or {{env_var}})"
                         className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
                       />
                       <button
-                        onClick={() => removeParam(i)}
+                        onClick={() => removeHeader(i)}
                         className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
                       >
                         ×
@@ -347,174 +577,127 @@ export default function ApiClient() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-xs text-[var(--color-text-muted)]">
-                  No query parameters. Add them here or include them in the URL.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Headers tab */}
-          {requestTab === 'headers' && (
-            <div className="flex-1 overflow-auto p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-pixel text-xs text-[var(--color-text-muted)]">
-                  Headers
-                  {activeHeaderCount > 0 && (
-                    <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
-                  )}
-                </span>
-                <button
-                  onClick={addHeader}
-                  className="text-xs text-[var(--color-accent)] hover:underline"
-                >
-                  + Add
-                </button>
               </div>
-              <div className="flex flex-col gap-1">
-                {state.headers.map((h, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={h.enabled}
-                      onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
-                      className="accent-[var(--color-accent)]"
-                    />
-                    <input
-                      value={h.key}
-                      onChange={(e) => updateHeader(i, { key: e.target.value })}
-                      placeholder="Header name"
-                      className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
-                    />
-                    <input
-                      value={h.value}
-                      onChange={(e) => updateHeader(i, { value: e.target.value })}
-                      placeholder="Value"
-                      className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
-                    />
+            )}
+
+            {/* Auth tab */}
+            {requestTab === 'auth' && (
+              <AuthTab auth={auth} onChange={(a) => updateDraft({ auth: a })} />
+            )}
+
+            {/* Body tab */}
+            {requestTab === 'body' && (
+              <div className="flex flex-1 flex-col">
+                <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
+                  {BODY_MODES.map((mode) => (
                     <button
-                      onClick={() => removeHeader(i)}
-                      className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                      key={mode.id}
+                      onClick={() => updateDraft({ bodyMode: mode.id })}
+                      className={`text-xs ${
+                        bodyMode === mode.id
+                          ? 'font-bold text-[var(--color-accent)]'
+                          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
                     >
-                      ×
+                      {mode.label}
                     </button>
+                  ))}
+                  {!BODY_METHODS.has(method) && (
+                    <span className="ml-2 text-[10px] text-[var(--color-text-muted)]">
+                      Body not available for {method}
+                    </span>
+                  )}
+                </div>
+                {showBody ? (
+                  <div className="flex-1">
+                    <Editor
+                      language={bodyEditorLang}
+                      value={body}
+                      onChange={(v) => updateDraft({ body: v ?? '' })}
+                      options={EDITOR_OPTIONS}
+                    />
                   </div>
-                ))}
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-xs text-[var(--color-text-muted)]">
+                    {bodyMode === 'none'
+                      ? 'Body is disabled'
+                      : `${method} requests do not include a body`}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Body tab */}
-          {requestTab === 'body' && (
-            <div className="flex flex-1 flex-col">
-              <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
-                {BODY_MODES.map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => updateState({ bodyMode: mode.id })}
-                    className={`text-xs ${
-                      state.bodyMode === mode.id
-                        ? 'font-bold text-[var(--color-accent)]'
-                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+          {/* ── Response panel ────────────────────────────────── */}
+          <div className="flex w-1/2 flex-col">
+            {error && (
+              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+                {error}
+              </div>
+            )}
+            {response && (
+              <>
+                <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-3 py-1">
+                  <span
+                    className={`font-mono text-sm font-bold ${
+                      response.status < 400
+                        ? 'text-[var(--color-success)]'
+                        : 'text-[var(--color-error)]'
                     }`}
                   >
-                    {mode.label}
-                  </button>
-                ))}
-                {!BODY_METHODS.has(state.method) && (
-                  <span className="ml-2 text-[10px] text-[var(--color-text-muted)]">
-                    Body not available for {state.method}
+                    {response.status} {response.statusText}
                   </span>
-                )}
-              </div>
-              {showBody ? (
-                <div className="flex-1">
-                  <Editor
-                    language={bodyEditorLang}
-                    value={state.body}
-                    onChange={(v) => updateState({ body: v ?? '' })}
-                    options={EDITOR_OPTIONS}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-1 items-center justify-center text-xs text-[var(--color-text-muted)]">
-                  {state.bodyMode === 'none'
-                    ? 'Body is disabled'
-                    : `${state.method} requests do not include a body`}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Response panel ────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col">
-          {error && (
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
-              {error}
-            </div>
-          )}
-          {response && (
-            <>
-              <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-3 py-1">
-                <span
-                  className={`font-mono text-sm font-bold ${
-                    response.status < 400
-                      ? 'text-[var(--color-success)]'
-                      : 'text-[var(--color-error)]'
-                  }`}
-                >
-                  {response.status} {response.statusText}
-                </span>
-                <span className="text-xs text-[var(--color-text-muted)]">{response.time}ms</span>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {formatSize(response.size)}
-                </span>
-                <div className="ml-auto">
-                  <CopyButton text={prettyBody} />
-                </div>
-              </div>
-              <TabBar
-                tabs={RESPONSE_TABS}
-                activeTab={responseTab}
-                onTabChange={setResponseTab}
-              />
-              <div className="flex-1 overflow-auto">
-                {responseTab === 'body' ? (
-                  <Editor
-                    language={responseLanguage}
-                    value={prettyBody}
-                    options={{ ...EDITOR_OPTIONS, readOnly: true }}
-                  />
-                ) : (
-                  <div className="p-3">
-                    {Object.entries(response.headers).map(([key, value]) => (
-                      <div key={key} className="mb-1 flex items-start gap-1 text-xs">
-                        <span className="shrink-0 font-bold text-[var(--color-accent)]">
-                          {key}
-                        </span>
-                        <span className="text-[var(--color-text-muted)]">: </span>
-                        <span className="break-all text-[var(--color-text)]">{value}</span>
-                      </div>
-                    ))}
+                  <span className="text-xs text-[var(--color-text-muted)]">{response.time}ms</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {formatSize(response.size)}
+                  </span>
+                  <div className="ml-auto">
+                    <CopyButton text={prettyBody} />
                   </div>
-                )}
+                </div>
+                <TabBar
+                  tabs={RESPONSE_TABS}
+                  activeTab={responseTab}
+                  onTabChange={setResponseTab}
+                />
+                <div className="flex-1 overflow-auto">
+                  {responseTab === 'body' ? (
+                    <Editor
+                      language={responseLanguage}
+                      value={prettyBody}
+                      options={{ ...EDITOR_OPTIONS, readOnly: true }}
+                    />
+                  ) : (
+                    <div className="p-3">
+                      {Object.entries(response.headers).map(([key, value]) => (
+                        <div key={key} className="mb-1 flex items-start gap-1 text-xs">
+                          <span className="shrink-0 font-bold text-[var(--color-accent)]">
+                            {key}
+                          </span>
+                          <span className="text-[var(--color-text-muted)]">: </span>
+                          <span className="break-all text-[var(--color-text)]">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {!response && !error && !loading && (
+              <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
+                Send a request to see the response
               </div>
-            </>
-          )}
-          {!response && !error && !loading && (
-            <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-              Send a request to see the response
-            </div>
-          )}
-          {loading && (
-            <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-              Sending request…
-            </div>
-          )}
+            )}
+            {loading && (
+              <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
+                Sending request…
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {showEnvModal && <EnvironmentModal onClose={() => setShowEnvModal(false)} />}
     </div>
   )
 }

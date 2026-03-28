@@ -110,3 +110,85 @@ export const historyRowSchema = z
     }
     return entry
   })
+
+// --- API Client Schemas ---
+
+export const apiEnvironmentRowSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    variables: z.string(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): import('@/types/models').ApiEnvironment => {
+    return {
+      id: row.id,
+      name: row.name,
+      variables: (() => {
+        try {
+          return JSON.parse(row.variables)
+        } catch {
+          return {}
+        }
+      })(),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  })
+
+export const apiCollectionRowSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): import('@/types/models').ApiCollection => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+
+export const apiRequestRowSchema = z
+  .object({
+    id: z.string(),
+    collection_id: z.string().nullable(),
+    name: z.string(),
+    method: z.string(),
+    url: z.string(),
+    headers: z.string(),
+    body: z.string(),
+    body_mode: z.string(),
+    auth: z.string(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): import('@/types/models').ApiRequest => {
+    return {
+      id: row.id,
+      collectionId: row.collection_id,
+      name: row.name,
+      method: row.method,
+      url: row.url,
+      headers: (() => {
+        try {
+          return JSON.parse(row.headers)
+        } catch {
+          return []
+        }
+      })(),
+      body: row.body,
+      bodyMode: row.body_mode,
+      auth: (() => {
+        try {
+          return JSON.parse(row.auth)
+        } catch {
+          return { type: 'none' }
+        }
+      })(),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  })

@@ -6,7 +6,7 @@ import ApiClient from '../api-client/ApiClient'
 describe('ApiClient', () => {
   it('renders URL input', () => {
     renderTool(ApiClient)
-    expect(screen.getByPlaceholderText(/api\.example\.com/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)).toBeInTheDocument()
   })
 
   it('renders method selector', () => {
