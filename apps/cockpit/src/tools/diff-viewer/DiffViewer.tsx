@@ -152,7 +152,7 @@ export default function DiffViewer() {
         <select
           value={state.mode}
           onChange={(e) => updateState({ mode: e.target.value as DiffViewerState['mode'] })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           <option value="side-by-side">Side by Side</option>
           <option value="inline">Inline</option>
@@ -161,7 +161,7 @@ export default function DiffViewer() {
         <select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           {LANGUAGES.map((l) => (
             <option key={l.id} value={l.id}>

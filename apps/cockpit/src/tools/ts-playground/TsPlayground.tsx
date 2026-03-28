@@ -97,7 +97,7 @@ export default function TsPlayground() {
           <select
             value={state.target}
             onChange={(e) => updateState({ target: e.target.value })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
+            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           >
             <option value="ES5">ES5</option>
             <option value="ES2015">ES2015</option>
@@ -110,7 +110,7 @@ export default function TsPlayground() {
           <select
             value={state.module}
             onChange={(e) => updateState({ module: e.target.value })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
+            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           >
             <option value="ESNext">ESNext</option>
             <option value="CommonJS">CommonJS</option>

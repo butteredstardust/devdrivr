@@ -316,7 +316,7 @@ export default function XmlTools() {
                 <select
                   value={state.indent}
                   onChange={(e) => updateState({ indent: Number(e.target.value) })}
-                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
+                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
                 >
                   <option value={2}>2</option>
                   <option value={4}>4</option>

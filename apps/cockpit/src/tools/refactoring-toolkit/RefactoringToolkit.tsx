@@ -276,7 +276,7 @@ export default function RefactoringToolkit() {
         <select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value, selectedTransforms: [] })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           {LANGUAGES.map((l) => (
             <option key={l.id} value={l.id}>

@@ -148,7 +148,7 @@ export default function UrlCodec() {
           onChange={(e) =>
             updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
           }
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           <option value="component">Component</option>
           <option value="full">Full URL</option>

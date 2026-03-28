@@ -92,7 +92,7 @@ export default function CodeFormatter() {
         <select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           {LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>{lang}</option>
@@ -110,7 +110,7 @@ export default function CodeFormatter() {
           <select
             value={state.tabWidth}
             onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
+            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           >
             <option value={2}>2</option>
             <option value={4}>4</option>
