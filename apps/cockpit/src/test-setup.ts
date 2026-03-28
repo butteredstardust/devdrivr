@@ -52,6 +52,13 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
+  readFile: vi.fn(),
+}))
+
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: () => ({
+    onDragDropEvent: vi.fn().mockResolvedValue(() => {}),
+  }),
 }))
 
 // Mock db module so store/hook tests don't hit real SQLite
