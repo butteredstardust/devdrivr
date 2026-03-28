@@ -8,7 +8,19 @@ pub fn run() {
             description: "create initial tables",
             sql: include_str!("../migrations/001_initial.sql"),
             kind: MigrationKind::Up,
-        }
+        },
+        Migration {
+            version: 2,
+            description: "add api client tables",
+            sql: include_str!("../migrations/002_api_client.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "add note tags column",
+            sql: include_str!("../migrations/003_notes_tags.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
