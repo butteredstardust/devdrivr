@@ -5,6 +5,9 @@ import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { MarkdownPreview } from './MarkdownPreview'
+import { useScrollSync } from './hooks/useScrollSync'
+import { useImageDrop } from './hooks/useImageDrop'
 
 // Markdown pipeline imports
 import { unified } from 'unified'
@@ -21,6 +24,7 @@ type MarkdownEditorState = {
   content: string
   mode: string
   showToc: boolean
+  scrollSync: boolean
 }
 
 type TocEntry = {
@@ -112,7 +116,7 @@ Develop your argument here. Use examples:
 
 \`\`\`typescript
 function greet(name: string): string {
-  return \`Hello, \${name}!\`
+  return \\\`Hello, \\\${name}!\\\`
 }
 \`\`\`
 
@@ -231,7 +235,6 @@ const FORMATTING_ACTIONS = [
 
 // ─── Processor ───────────────────────────────────────────────────────
 
-// Allow class attributes for syntax highlighting, plus GFM task list checkboxes
 const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
@@ -282,6 +285,7 @@ export default function MarkdownEditor() {
     content: '',
     mode: 'split',
     showToc: false,
+    scrollSync: true,
   })
 
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -289,7 +293,16 @@ export default function MarkdownEditor() {
   const previewRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorRef = useRef<EditorInstance | null>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+
+  // ─── Hooks ────────────────────────────────────────────────────────
+
+  const showEditor = state.mode === 'split' || state.mode === 'edit'
+  const showPreview = state.mode === 'split' || state.mode === 'preview'
+
+  useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
+  const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
 
   // ─── Editor mount ────────────────────────────────────────────────
 
@@ -297,7 +310,6 @@ export default function MarkdownEditor() {
     editorRef.current = editor
   }, [])
 
-  // Dispose editor model on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       editorRef.current?.getModel()?.dispose()
@@ -326,31 +338,6 @@ export default function MarkdownEditor() {
     }
   }, [state.content])
 
-  // ─── Mermaid diagrams ────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!html || !previewRef.current) return
-    const mermaidBlocks = previewRef.current.querySelectorAll('code.language-mermaid')
-    if (mermaidBlocks.length === 0) return
-
-    import('mermaid').then(({ default: mermaid }) => {
-      mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-      mermaidBlocks.forEach(async (block, i) => {
-        const parent = block.parentElement
-        if (!parent) return
-        try {
-          const { svg } = await mermaid.render(`mermaid-${i}`, block.textContent ?? '')
-          const wrapper = document.createElement('div')
-          wrapper.className = 'mermaid-diagram'
-          wrapper.innerHTML = svg
-          parent.replaceWith(wrapper)
-        } catch {
-          // Leave as code block on error
-        }
-      })
-    })
-  }, [html])
-
   // ─── Stats ───────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
@@ -366,25 +353,6 @@ export default function MarkdownEditor() {
   // ─── TOC ─────────────────────────────────────────────────────────
 
   const toc = useMemo(() => extractToc(html), [html])
-
-  const scrollToHeading = useCallback(
-    (id: string) => {
-      if (!previewRef.current) return
-      // Find the heading in the preview by matching text content
-      const headings = previewRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6')
-      for (const h of headings) {
-        const hId = (h.textContent ?? '')
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, '')
-          .replace(/\s+/g, '-')
-        if (hId === id) {
-          h.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          break
-        }
-      }
-    },
-    []
-  )
 
   // ─── Formatting insertion ────────────────────────────────────────
 
@@ -402,7 +370,6 @@ export default function MarkdownEditor() {
       let insertText: string
       let extraOffset = 0
       if (lineStart && !selectedText) {
-        // Line-start formatting (headings, lists, quotes): ensure we start on a new line
         const lineContent = model.getLineContent(selection.startLineNumber)
         const needsNewline = lineContent.trim().length > 0 && selection.startColumn > 1
         if (needsNewline) extraOffset = 1
@@ -415,7 +382,6 @@ export default function MarkdownEditor() {
         { range: selection, text: insertText, forceMoveMarkers: true },
       ])
 
-      // Select the placeholder if no text was selected
       if (!selectedText && placeholder) {
         const baseOffset = model.getOffsetAt(selection.getStartPosition()) + extraOffset
         const startPos = model.getPositionAt(baseOffset + prefix.length)
@@ -438,7 +404,6 @@ export default function MarkdownEditor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return
-      // Note: ⌘K is reserved for the global Command Palette — do not intercept here
       if (e.key === 'b') {
         e.preventDefault()
         insertFormatting('**', '**', 'bold text')
@@ -499,11 +464,6 @@ img{max-width:100%}</style>
     [updateState, setLastAction]
   )
 
-  // ─── Layout flags ────────────────────────────────────────────────
-
-  const showEditor = state.mode === 'split' || state.mode === 'edit'
-  const showPreview = state.mode === 'split' || state.mode === 'preview'
-
   return (
     <div className="flex h-full flex-col">
       {/* ─── Header ─────────────────────────────────────────────── */}
@@ -521,6 +481,16 @@ img{max-width:100%}</style>
             >
               {stats.words}w · {stats.chars}c · {stats.readTime}
             </span>
+          )}
+          {/* Scroll sync toggle (only visible in split mode) */}
+          {state.mode === 'split' && (
+            <button
+              onClick={() => updateState({ scrollSync: !state.scrollSync })}
+              className={`text-xs transition-colors ${state.scrollSync ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+              title={state.scrollSync ? 'Scroll sync on' : 'Scroll sync off'}
+            >
+              Sync
+            </button>
           )}
           {toc.length > 0 && (
             <button
@@ -596,30 +566,11 @@ img{max-width:100%}</style>
 
       {/* ─── Body ───────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* TOC Sidebar */}
-        {state.showToc && showPreview && toc.length > 0 && (
-          <div className="w-48 shrink-0 overflow-auto border-r border-[var(--color-border)] p-3">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Contents
-            </div>
-            {toc.map((entry, i) => (
-              <button
-                key={`${entry.id}-${i}`}
-                onClick={() => scrollToHeading(entry.id)}
-                className="block w-full truncate text-left text-[11px] leading-relaxed text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-                style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
-                title={entry.text}
-              >
-                {entry.text}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Editor */}
         {showEditor && (
           <div
-            className={`h-full ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+            ref={editorContainerRef}
+            className={`relative h-full ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
           >
             <Editor
               language="markdown"
@@ -628,25 +579,26 @@ img{max-width:100%}</style>
               onMount={handleEditorMount}
               options={EDITOR_OPTIONS}
             />
+            {/* Image drop overlay */}
+            {isDraggingImage && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-surface)]/80 backdrop-blur-sm">
+                <div className="rounded-lg border-2 border-dashed border-[var(--color-accent)] px-6 py-4 text-sm text-[var(--color-accent)]">
+                  Drop image to embed
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Preview */}
         {showPreview && (
-          <div
-            ref={previewRef}
-            className={`${showEditor ? 'w-1/2' : 'w-full'} overflow-auto p-6`}
-          >
-            {html ? (
-              <div
-                className="prose prose-invert max-w-none text-sm leading-relaxed text-[var(--color-text)] [&_a]:text-[var(--color-accent)] [&_code]:rounded [&_code]:bg-[var(--color-surface)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_h1]:font-pixel [&_h1]:text-[var(--color-accent)] [&_h2]:font-pixel [&_h2]:text-[var(--color-accent)] [&_h3]:font-pixel [&_hr]:border-[var(--color-border)] [&_pre]:rounded [&_pre]:border [&_pre]:border-[var(--color-border)] [&_pre]:bg-[var(--color-surface)] [&_pre]:p-4 [&_table]:border-collapse [&_td]:border [&_td]:border-[var(--color-border)] [&_td]:px-3 [&_td]:py-1.5 [&_th]:border [&_th]:border-[var(--color-border)] [&_th]:bg-[var(--color-surface)] [&_th]:px-3 [&_th]:py-1.5 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-accent)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[var(--color-text-muted)] [&_img]:max-w-full [&_img]:rounded [&_li]:marker:text-[var(--color-accent)] [&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-[var(--color-accent)]"
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            ) : (
-              <div className="text-sm text-[var(--color-text-muted)]">
-                Start typing markdown in the editor...
-              </div>
-            )}
+          <div className={showEditor ? 'w-1/2' : 'w-full'}>
+            <MarkdownPreview
+              ref={previewRef}
+              html={html}
+              showToc={state.showToc}
+              toc={toc}
+            />
           </div>
         )}
       </div>
