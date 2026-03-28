@@ -44,7 +44,8 @@ export function useMonacoTheme() {
         themesRegistered = true
       }
       const effective = getEffectiveTheme(theme)
-      monaco.editor.setTheme(effective === 'dark' ? 'cockpit-dark' : 'cockpit-light')
+      const isLight = effective === 'soft-focus'
+      monaco.editor.setTheme(isLight ? 'cockpit-light' : 'cockpit-dark')
     })
   }, [theme])
 }

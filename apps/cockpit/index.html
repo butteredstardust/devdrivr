@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="midnight">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
@@ -14,7 +14,7 @@
       // The settings store writes this cache on every theme change.
       try {
         var cached = localStorage.getItem('theme-cache');
-        if (cached === 'light' || cached === 'dark') {
+        if (['midnight', 'warm-terminal', 'neon-brutalist', 'earth-code', 'cyber-luxe', 'soft-focus'].includes(cached)) {
           document.documentElement.className = cached;
         }
       } catch (e) {}

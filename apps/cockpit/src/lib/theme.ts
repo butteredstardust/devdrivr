@@ -1,17 +1,27 @@
-export type Theme = 'dark' | 'light' | 'system'
+import type { Theme } from '@/types/models'
 
-export function getEffectiveTheme(theme: Theme): 'dark' | 'light' {
+export type EffectiveTheme = Exclude<Theme, 'system'>
+
+export const ALL_THEMES: EffectiveTheme[] = [
+  'midnight',
+  'warm-terminal',
+  'neon-brutalist',
+  'earth-code',
+  'cyber-luxe',
+  'soft-focus',
+]
+
+export function getEffectiveTheme(theme: Theme): EffectiveTheme {
   if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'soft-focus'
   }
-  return theme
+  return theme as EffectiveTheme
 }
 
 export function applyTheme(theme: Theme): void {
   const effective = getEffectiveTheme(theme)
   const html = document.documentElement
-  html.classList.remove('dark', 'light')
+  html.classList.remove(...ALL_THEMES)
   html.classList.add(effective)
-  // Cache for synchronous restore on next load (see index.html inline script)
-  try { localStorage.setItem('theme-cache', effective) } catch { /* quota/sandbox */ }
+  try { localStorage.setItem('theme-cache', effective) } catch { }
 }

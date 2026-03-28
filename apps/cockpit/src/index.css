@@ -2,6 +2,14 @@
 @import '@fontsource/jetbrains-mono/500.css';
 @import '@fontsource/jetbrains-mono/600.css';
 @import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/fira-code/400.css';
+@import '@fontsource/fira-code/500.css';
+@import '@fontsource/fira-code/600.css';
+@import '@fontsource/fira-code/700.css';
+@import '@fontsource/source-code-pro/400.css';
+@import '@fontsource/source-code-pro/500.css';
+@import '@fontsource/source-code-pro/600.css';
+@import '@fontsource/source-code-pro/700.css';
 @import '@fontsource/silkscreen/400.css';
 @import '@fontsource/silkscreen/700.css';
 
@@ -9,41 +17,134 @@
 
 @theme {
   --font-pixel: 'Silkscreen', monospace;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', monospace;
 }
 
 :root {
-  --color-bg: #0a0a0a;
-  --color-surface: #181818;
-  --color-surface-raised: #1e1e1e;
-  --color-surface-hover: #282828;
-  --color-border: #333333;
-  --color-text: #e0e0e0;
-  --color-text-muted: #888888;
-  --color-accent: #39ff14;
-  --color-accent-dim: #1a7a0a;
-  --color-info: #3b82f6;
-  --color-error: #ef4444;
+  /* Default fallback (Midnight Interface) */
+  --color-bg: #0A0F1C;
+  --color-surface: #1A1F3A;
+  --color-surface-raised: #2B3058;
+  --color-surface-hover: #2B3058;
+  --color-border: #3A3F6A;
+  --color-text: #F0F0F0;
+  --color-text-muted: rgba(240, 240, 240, 0.6);
+  --color-accent: #00D4FF;
+  --color-accent-dim: rgba(0, 212, 255, 0.2);
+  --color-info: #7B61FF;
   --color-warning: #f59e0b;
+  --color-error: #ef4444;
   --color-success: #22c55e;
-  --color-shadow: rgba(0,0,0,0.4);
+  --color-shadow: rgba(0,0,0,0.5);
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-.light {
-  --color-bg: #faf8f0;
-  --color-surface: #f5f3eb;
-  --color-surface-raised: #ffffff;
-  --color-surface-hover: #ece9e0;
-  --color-border: #d4d0c8;
-  --color-text: #1a1a1a;
-  --color-text-muted: #666666;
-  --color-accent: #00875a;
-  --color-accent-dim: #b3e0d0;
-  --color-info: #2563eb;
-  --color-error: #dc2626;
+.midnight {
+  --color-bg: #0A0F1C;
+  --color-surface: #1A1F3A;
+  --color-surface-raised: #2B3058;
+  --color-surface-hover: #2B3058;
+  --color-border: #3A3F6A;
+  --color-text: #F0F0F0;
+  --color-text-muted: rgba(240, 240, 240, 0.6);
+  --color-accent: #00D4FF;
+  --color-accent-dim: rgba(0, 212, 255, 0.2);
+  --color-info: #7B61FF;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-success: #22c55e;
+  --color-shadow: rgba(0,0,0,0.5);
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+.warm-terminal {
+  --color-bg: #1E1E2E;
+  --color-surface: #262638;
+  --color-surface-raised: #313244;
+  --color-surface-hover: #313244;
+  --color-border: #45475A;
+  --color-text: #FAF3E0;
+  --color-text-muted: rgba(250, 243, 224, 0.6);
+  --color-accent: #FFD166;
+  --color-accent-dim: rgba(255, 209, 102, 0.2);
+  --color-info: #118AB2;
+  --color-warning: #f59e0b;
+  --color-error: #FF6B6B;
+  --color-success: #06D6A0;
+  --color-shadow: rgba(0,0,0,0.4);
+  --font-mono: 'Fira Code', monospace;
+}
+
+.neon-brutalist {
+  --color-bg: #000000;
+  --color-surface: #111111;
+  --color-surface-raised: #222222;
+  --color-surface-hover: #333333;
+  --color-border: #444444;
+  --color-text: #FFFFFF;
+  --color-text-muted: rgba(255, 255, 255, 0.6);
+  --color-accent: #FFBE0B;
+  --color-accent-dim: rgba(255, 190, 11, 0.2);
+  --color-info: #3A86FF;
+  --color-warning: #f59e0b;
+  --color-error: #FF006E;
+  --color-success: #8338EC;
+  --color-shadow: rgba(255,0,110,0.2);
+  --font-mono: 'Source Code Pro', monospace;
+}
+
+.earth-code {
+  --color-bg: #2D3436;
+  --color-surface: #3B4244;
+  --color-surface-raised: #4A5153;
+  --color-surface-hover: #4A5153;
+  --color-border: #636E72;
+  --color-text: #DFE6E9;
+  --color-text-muted: rgba(223, 230, 233, 0.6);
+  --color-accent: #FDCB6E;
+  --color-accent-dim: rgba(253, 203, 110, 0.2);
+  --color-info: #0984E3;
+  --color-warning: #f59e0b;
+  --color-error: #E17055;
+  --color-success: #00B894;
+  --color-shadow: rgba(0,0,0,0.3);
+  --font-mono: 'Fira Code', monospace;
+}
+
+.cyber-luxe {
+  --color-bg: #0D0D0D;
+  --color-surface: #1A1A2E;
+  --color-surface-raised: #252542;
+  --color-surface-hover: #252542;
+  --color-border: #35355A;
+  --color-text: #F5E6B8;
+  --color-text-muted: rgba(245, 230, 184, 0.6);
+  --color-accent: #D4AF37;
+  --color-accent-dim: rgba(212, 175, 55, 0.2);
+  --color-info: #533483;
+  --color-warning: #f59e0b;
+  --color-error: #E94560;
+  --color-success: #22c55e;
+  --color-shadow: rgba(0,0,0,0.6);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.soft-focus {
+  --color-bg: #F8F9FA;
+  --color-surface: #E9ECEF;
+  --color-surface-raised: #DEE2E6;
+  --color-surface-hover: #DEE2E6;
+  --color-border: #CED4DA;
+  --color-text: #2D3436;
+  --color-text-muted: rgba(45, 52, 54, 0.6);
+  --color-accent: #6C5CE7;
+  --color-accent-dim: rgba(108, 92, 231, 0.2);
+  --color-info: #A29BFE;
   --color-warning: #d97706;
+  --color-error: #FD79A8;
   --color-success: #16a34a;
-  --color-shadow: rgba(0,0,0,0.1);
+  --color-shadow: rgba(0,0,0,0.05);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 *, *::before, *::after {

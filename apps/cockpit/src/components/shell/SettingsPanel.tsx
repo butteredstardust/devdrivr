@@ -37,9 +37,13 @@ const INDENT_OPTIONS = [2, 4] as const
 const FONT_SIZE_OPTIONS = [12, 13, 14, 15, 16, 18, 20] as const
 
 const THEME_OPTIONS: { value: Theme; label: string }[] = [
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
   { value: 'system', label: 'System' },
+  { value: 'midnight', label: 'Midnight Interface' },
+  { value: 'warm-terminal', label: 'Warm Terminal' },
+  { value: 'neon-brutalist', label: 'Neon Brutalist' },
+  { value: 'earth-code', label: 'Earth & Code' },
+  { value: 'cyber-luxe', label: 'Cyber Luxe' },
+  { value: 'soft-focus', label: 'Soft Focus' },
 ]
 
 const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: string }[] = [
@@ -297,7 +301,15 @@ function DataTab() {
   }, [addToast])
 
   const handleImportSettings = useCallback(async () => {
-    const validThemes = new Set<Theme>(['dark', 'light', 'system'])
+    const validThemes = new Set<Theme>([
+      'system',
+      'midnight',
+      'warm-terminal',
+      'neon-brutalist',
+      'earth-code',
+      'cyber-luxe',
+      'soft-focus',
+    ])
     const validKeybindings = new Set<AppSettings['editorKeybindingMode']>([
       'standard',
       'vim',

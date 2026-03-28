@@ -72,6 +72,15 @@ vi.mock('@/lib/db', () => ({
   clearAllNotes: vi.fn().mockResolvedValue(undefined),
   clearAllSnippets: vi.fn().mockResolvedValue(undefined),
   clearAllHistory: vi.fn().mockResolvedValue(undefined),
+  loadApiEnvironments: vi.fn().mockResolvedValue([]),
+  saveApiEnvironment: vi.fn().mockResolvedValue(undefined),
+  deleteApiEnvironment: vi.fn().mockResolvedValue(undefined),
+  loadApiCollections: vi.fn().mockResolvedValue([]),
+  saveApiCollection: vi.fn().mockResolvedValue(undefined),
+  deleteApiCollection: vi.fn().mockResolvedValue(undefined),
+  loadApiRequests: vi.fn().mockResolvedValue([]),
+  saveApiRequest: vi.fn().mockResolvedValue(undefined),
+  deleteApiRequest: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock Monaco Editor — renders as textarea for testing

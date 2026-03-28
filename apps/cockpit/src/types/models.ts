@@ -1,6 +1,6 @@
 import { NOTE_COLORS } from '@/lib/schemas'
 
-export type Theme = 'dark' | 'light' | 'system'
+export type Theme = 'system' | 'midnight' | 'warm-terminal' | 'neon-brutalist' | 'earth-code' | 'cyber-luxe' | 'soft-focus'
 
 export type AppSettings = {
   theme: Theme
