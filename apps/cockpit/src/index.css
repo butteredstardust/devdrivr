@@ -199,3 +199,45 @@ html, body, #root {
 .animate-spin {
   animation: spin 700ms linear infinite;
 }
+/* Markdown & Syntax Highlighting */
+.prose {
+  line-height: 1.5;
+}
+.prose :where(code):not(:where([class~="not-prose"] *)) {
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+}
+.prose :where(pre):not(:where([class~="not-prose"] *)) {
+  background-color: #1e1e1e;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  border: 1px solid var(--color-border);
+}
+.prose :where(pre code):not(:where([class~="not-prose"] *)) {
+  background-color: transparent;
+  padding: 0;
+}
+.prose :where(p):not(:where([class~="not-prose"] *)) {
+  margin: 0.4rem 0;
+}
+.prose :where(ul, ol):not(:where([class~="not-prose"] *)) {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+/* hljs colors (Atom One Dark inspired) */
+.hljs-comment, .hljs-quote { color: #5c6370; font-style: italic; }
+.hljs-doctag, .hljs-keyword, .hljs-formula { color: #c678dd; }
+.hljs-section, .hljs-name, .hljs-selector-tag, .hljs-deletion, .hljs-subst { color: #e06c75; }
+.hljs-literal { color: #56b6c2; }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute, .hljs-meta-string { color: #98c379; }
+.hljs-built_in, .hljs-class .hljs-title { color: #e6c07b; }
+.hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-type, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-number { color: #d19a66; }
+.hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta, .hljs-selector-id, .hljs-title { color: #61afef; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+.hljs-link { text-decoration: underline; }

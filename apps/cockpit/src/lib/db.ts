@@ -81,6 +81,7 @@ type NoteRow = {
   window_height: number | null
   created_at: number
   updated_at: number
+  tags: string
 }
 
 function rowToNote(row: NoteRow): Note | null {
@@ -101,15 +102,15 @@ export async function loadNotes(): Promise<Note[]> {
 export async function saveNote(note: Note): Promise<void> {
   const conn = await getDb()
   await conn.execute(
-    `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12`,
+    `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13`,
     [
       note.id, note.title, note.content, note.color,
       note.pinned ? 1 : 0, note.poppedOut ? 1 : 0,
       note.windowBounds?.x ?? null, note.windowBounds?.y ?? null,
       note.windowBounds?.width ?? null, note.windowBounds?.height ?? null,
-      note.createdAt, note.updatedAt,
+      note.createdAt, note.updatedAt, JSON.stringify(note.tags || []),
     ]
   )
 }

@@ -30,6 +30,7 @@ export const noteRowSchema = z
     window_height: z.number().nullable(),
     created_at: z.number(),
     updated_at: z.number(),
+    tags: z.string().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -41,6 +42,15 @@ export const noteRowSchema = z
       poppedOut: row.popped_out === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      tags: (() => {
+        if (!row.tags) return []
+        try {
+          const parsed = JSON.parse(row.tags)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      })(),
     }
     if (
       row.window_x != null &&
