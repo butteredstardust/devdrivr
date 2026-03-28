@@ -5,8 +5,9 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
-import { PushPin, Trash, Note, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
-import type { NoteColor } from '@/types/models'
+import { PushPin, Trash, Note, ClockCounterClockwise, ArrowCounterClockwise, Copy, PaperPlaneTilt, Tag, X } from '@phosphor-icons/react'
+import type { NoteColor, Note as NoteType } from '@/types/models'
+import { processMarkdown } from '@/lib/markdown'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 600
@@ -32,14 +33,29 @@ const DRAWER_TABS = [
 const NOTE_COLORS: NoteColor[] = ['yellow', 'green', 'blue', 'pink', 'purple', 'orange', 'red', 'gray']
 
 const COLOR_MAP: Record<NoteColor, string> = {
-  yellow: 'bg-yellow-500/20 border-yellow-500/30',
-  green: 'bg-green-500/20 border-green-500/30',
-  blue: 'bg-blue-500/20 border-blue-500/30',
-  pink: 'bg-pink-500/20 border-pink-500/30',
-  purple: 'bg-purple-500/20 border-purple-500/30',
-  orange: 'bg-orange-500/20 border-orange-500/30',
-  red: 'bg-red-500/20 border-red-500/30',
-  gray: 'bg-gray-500/20 border-gray-500/30',
+  yellow: 'bg-yellow-500/10 border-yellow-500/20',
+  green: 'bg-green-500/10 border-green-500/20',
+  blue: 'bg-blue-500/10 border-blue-500/20',
+  pink: 'bg-pink-500/10 border-pink-500/20',
+  purple: 'bg-purple-500/10 border-purple-500/20',
+  orange: 'bg-orange-500/10 border-orange-500/20',
+  red: 'bg-red-500/10 border-red-500/20',
+  gray: 'bg-gray-500/10 border-gray-500/20',
+}
+
+function MarkdownRenderer({ content }: { content: string }) {
+  const [html, setHtml] = useState('')
+
+  useEffect(() => {
+    processMarkdown(content).then(setHtml)
+  }, [content])
+
+  return (
+    <div 
+      className="prose prose-invert prose-xs max-w-none overflow-hidden text-xs text-[var(--color-text)]"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
 }
 
 function NoteEditor({
@@ -47,12 +63,25 @@ function NoteEditor({
   onUpdate,
   onDone,
 }: {
-  note: { id: string; title: string; content: string; color: NoteColor }
-  onUpdate: (id: string, patch: { title?: string; content?: string; color?: NoteColor }) => void
+  note: NoteType
+  onUpdate: (id: string, patch: Partial<NoteType>) => void
   onDone: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [tagInput, setTagInput] = useState('')
+
+  const handleAddTag = useCallback(() => {
+    const tag = tagInput.trim().toLowerCase()
+    if (tag && !note.tags.includes(tag)) {
+      onUpdate(note.id, { tags: [...note.tags, tag] })
+    }
+    setTagInput('')
+  }, [tagInput, note.id, note.tags, onUpdate])
+
+  const handleRemoveTag = useCallback((tag: string) => {
+    onUpdate(note.id, { tags: note.tags.filter((t) => t !== tag) })
+  }, [note.id, note.tags, onUpdate])
 
   const autoGrow = useCallback(() => {
     const ta = textareaRef.current
@@ -92,27 +121,51 @@ function NoteEditor({
           autoGrow()
         }}
         onInput={autoGrow}
-        placeholder="Write something..."
+        placeholder="Write something (Markdown supported)..."
         rows={2}
-        className="w-full min-h-[3rem] max-h-[16rem] resize-none overflow-auto bg-transparent text-xs text-[var(--color-text)] outline-none"
+        className="w-full min-h-[4rem] max-h-[20rem] resize-none overflow-auto bg-transparent text-xs text-[var(--color-text)] outline-none"
       />
-      <div className="flex items-center gap-1">
-        {NOTE_COLORS.map((c) => (
-          <button
-            key={c}
-            onClick={() => onUpdate(note.id, { color: c })}
-            className={`h-4 w-4 rounded-full border ${note.color === c ? 'ring-2 ring-[var(--color-accent)]' : ''}`}
-            style={{ backgroundColor: `var(--note-${c}, ${c})` }}
-            title={c}
-          />
+      
+      {/* Tag Editor */}
+      <div className="mt-1 flex flex-wrap gap-1">
+        {note.tags.map(tag => (
+          <span key={tag} className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">
+            {tag}
+            <button onClick={() => handleRemoveTag(tag)} className="hover:text-[var(--color-text)]">
+              <X size={10} />
+            </button>
+          </span>
         ))}
+        <div className="flex items-center gap-1">
+          <input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+            placeholder="add tag..."
+            className="w-16 bg-transparent text-[10px] text-[var(--color-text-muted)] outline-none"
+          />
+        </div>
       </div>
-      <button
-        onClick={onDone}
-        className="mt-1 self-end rounded px-2 py-0.5 text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
-      >
-        Done
-      </button>
+
+      <div className="mt-2 flex items-center justify-between border-t border-[var(--color-border)]/20 pt-2">
+        <div className="flex items-center gap-1">
+          {NOTE_COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => onUpdate(note.id, { color: c })}
+              className={`h-3 w-3 rounded-full border ${note.color === c ? 'ring-2 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}
+              style={{ backgroundColor: `var(--note-${c}, ${c === 'gray' ? '#666' : c})` }}
+              title={c}
+            />
+          ))}
+        </div>
+        <button
+          onClick={onDone}
+          className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
+        >
+          Done
+        </button>
+      </div>
     </div>
   )
 }
@@ -177,7 +230,7 @@ export function NotesDrawer() {
   const [historyFilter, setHistoryFilter] = useState('')
 
   const fuse = useMemo(
-    () => new Fuse(notes, { keys: ['title', 'content'], threshold: 0.4 }),
+    () => new Fuse(notes, { keys: ['title', 'content', 'tags'], threshold: 0.3 }),
     [notes]
   )
 
@@ -254,50 +307,90 @@ export function NotesDrawer() {
             {filteredNotes.map((note) => (
               <div
                 key={note.id}
-                className={`mb-2 rounded border p-2 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'}`}
+                className={`mb-3 rounded-lg border shadow-sm transition-all duration-200 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'} ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
               >
-                {editingId === note.id ? (
-                  <NoteEditor
-                    note={note}
-                    onUpdate={updateNote}
-                    onDone={() => setEditingId(null)}
-                  />
-                ) : (
-                  <div
-                    className="cursor-pointer rounded transition-colors duration-150 hover:bg-[var(--color-surface-hover)]/40"
-                    onClick={() => setEditingId(note.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[var(--color-text)]">
-                        {note.title || 'Untitled'}
-                      </span>
-                      <div className="flex items-center gap-0.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
-                          className={`rounded p-0.5 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
-                          title={note.pinned ? 'Unpin' : 'Pin'}
-                          aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-                        >
-                          <PushPin size={12} weight={note.pinned ? 'fill' : 'regular'} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
-                          className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
-                          title="Delete note"
-                          aria-label="Delete note"
-                        >
-                          <Trash size={12} />
-                        </button>
+                <div className="p-3">
+                  {editingId === note.id ? (
+                    <NoteEditor
+                      note={note}
+                      onUpdate={updateNote}
+                      onDone={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <div
+                      className="group cursor-pointer"
+                      onClick={() => setEditingId(note.id)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-bold text-[var(--color-text)]">
+                          {note.title || 'Untitled'}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              navigator.clipboard.writeText(note.content);
+                              setLastAction('Copied to clipboard', 'info');
+                            }}
+                            className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                            title="Copy content"
+                          >
+                            <Copy size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              setPendingSendTo(note.content);
+                              setLastAction('Ready to send to tool', 'info');
+                            }}
+                            className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                            title="Use as input"
+                          >
+                            <PaperPlaneTilt size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
+                            className={`rounded p-1 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+                            title={note.pinned ? 'Unpin' : 'Pin'}
+                          >
+                            <PushPin size={12} weight={note.pinned ? 'fill' : 'regular'} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
+                            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
+                            title="Delete note"
+                          >
+                            <Trash size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {note.content && (
+                        <div className="mt-2 line-clamp-6">
+                          <MarkdownRenderer content={note.content} />
+                        </div>
+                      )}
+
+                      {note.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {note.tags.map(tag => (
+                            <span key={tag} className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)]">
+                              <Tag size={8} />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--color-text-muted)]">
+                        <span>{timeAgo(note.updatedAt)}</span>
+                        {note.content.length > 0 && (
+                          <span>{note.content.split(/\s+/).length} words</span>
+                        )}
                       </div>
                     </div>
-                    {note.content && (
-                      <p className="mt-1 line-clamp-3 text-xs text-[var(--color-text-muted)]">{note.content}</p>
-                    )}
-                    <div className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                      {timeAgo(note.updatedAt)}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>

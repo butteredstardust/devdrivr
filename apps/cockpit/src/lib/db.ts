@@ -1,6 +1,6 @@
 import Database from '@tauri-apps/plugin-sql'
-import type { Note, Snippet, HistoryEntry } from '@/types/models'
-import { noteRowSchema, snippetRowSchema, historyRowSchema } from '@/lib/schemas'
+import type { Note, Snippet, HistoryEntry, ApiEnvironment, ApiCollection, ApiRequest } from '@/types/models'
+import { noteRowSchema, snippetRowSchema, historyRowSchema, apiEnvironmentRowSchema, apiCollectionRowSchema, apiRequestRowSchema } from '@/lib/schemas'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
 // (e.g., StrictMode double-mount or parallel store inits).
@@ -81,6 +81,7 @@ type NoteRow = {
   window_height: number | null
   created_at: number
   updated_at: number
+  tags: string
 }
 
 function rowToNote(row: NoteRow): Note | null {
@@ -101,15 +102,15 @@ export async function loadNotes(): Promise<Note[]> {
 export async function saveNote(note: Note): Promise<void> {
   const conn = await getDb()
   await conn.execute(
-    `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12`,
+    `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13`,
     [
       note.id, note.title, note.content, note.color,
       note.pinned ? 1 : 0, note.poppedOut ? 1 : 0,
       note.windowBounds?.x ?? null, note.windowBounds?.y ?? null,
       note.windowBounds?.width ?? null, note.windowBounds?.height ?? null,
-      note.createdAt, note.updatedAt,
+      note.createdAt, note.updatedAt, JSON.stringify(note.tags || []),
     ]
   )
 }
@@ -228,4 +229,94 @@ export async function clearAllSnippets(): Promise<void> {
 export async function clearAllHistory(): Promise<void> {
   const conn = await getDb()
   await conn.execute('DELETE FROM history')
+}
+
+// --- API Client ---
+
+export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
+  const conn = await getDb()
+  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_environments ORDER BY updated_at DESC')
+  return rows.map((r) => {
+    const res = apiEnvironmentRowSchema.safeParse(r)
+    if (!res.success) {
+      console.warn('[db] loadApiEnvironments: invalid row', res.error.issues)
+      return null
+    }
+    return res.data
+  }).filter((x): x is ApiEnvironment => x !== null)
+}
+
+export async function saveApiEnvironment(env: ApiEnvironment): Promise<void> {
+  const conn = await getDb()
+  await conn.execute(
+    `INSERT INTO api_environments (id, name, variables, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT(id) DO UPDATE SET name=$2, variables=$3, updated_at=$5`,
+    [env.id, env.name, JSON.stringify(env.variables), env.createdAt, env.updatedAt]
+  )
+}
+
+export async function deleteApiEnvironment(id: string): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM api_environments WHERE id = $1', [id])
+}
+
+export async function loadApiCollections(): Promise<ApiCollection[]> {
+  const conn = await getDb()
+  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_collections ORDER BY name ASC')
+  return rows.map((r) => {
+    const res = apiCollectionRowSchema.safeParse(r)
+    if (!res.success) {
+      console.warn('[db] loadApiCollections: invalid row', res.error.issues)
+      return null
+    }
+    return res.data
+  }).filter((x): x is ApiCollection => x !== null)
+}
+
+export async function saveApiCollection(col: ApiCollection): Promise<void> {
+  const conn = await getDb()
+  await conn.execute(
+    `INSERT INTO api_collections (id, name, created_at, updated_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
+    [col.id, col.name, col.createdAt, col.updatedAt]
+  )
+}
+
+export async function deleteApiCollection(id: string): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM api_collections WHERE id = $1', [id])
+}
+
+export async function loadApiRequests(): Promise<ApiRequest[]> {
+  const conn = await getDb()
+  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_requests ORDER BY name ASC')
+  return rows.map((r) => {
+    const res = apiRequestRowSchema.safeParse(r)
+    if (!res.success) {
+      console.warn('[db] loadApiRequests: invalid row', res.error.issues)
+      return null
+    }
+    return res.data
+  }).filter((x): x is ApiRequest => x !== null)
+}
+
+export async function saveApiRequest(req: ApiRequest): Promise<void> {
+  const conn = await getDb()
+  await conn.execute(
+    `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
+    [
+      req.id, req.collectionId, req.name, req.method, req.url,
+      JSON.stringify(req.headers), req.body, req.bodyMode, JSON.stringify(req.auth),
+      req.createdAt, req.updatedAt
+    ]
+  )
+}
+
+export async function deleteApiRequest(id: string): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM api_requests WHERE id = $1', [id])
 }

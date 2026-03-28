@@ -13,7 +13,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  bump:
+    name: 'Auto-increment Version'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Auto-increment version
+        id: bump
+        run: |
+          node apps/cockpit/scripts/bump-version.mjs
+
+      - name: Commit version bump
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/cockpit/package.json apps/cockpit/src-tauri/tauri.conf.json
+          git commit -m "chore(release): bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
   build:
+    name: 'Build'
+    needs: bump
     permissions:
       contents: write
     strategy:
@@ -33,6 +64,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main # Ensure we pick up the bump-version commit
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -66,8 +99,9 @@ jobs:
           tagName: cockpit-v__VERSION__
           releaseName: 'devdrivr Cockpit v__VERSION__'
           releaseBody: 'Download the installer for your platform from the assets below.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           projectPath: ./apps/cockpit/
           tauriScript: bunx tauri
           args: ${{ matrix.args }}
+

@@ -13,8 +13,10 @@
     "clean": "rm -rf node_modules dist src-tauri/target"
   },
   "dependencies": {
+    "@fontsource/fira-code": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/silkscreen": "^5.2.8",
+    "@fontsource/source-code-pro": "^5.2.7",
     "@monaco-editor/react": "^4.7.0",
     "@phosphor-icons/react": "^2.1.10",
     "@prettier/plugin-xml": "^3.4.1",

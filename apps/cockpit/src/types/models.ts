@@ -1,6 +1,6 @@
 import { NOTE_COLORS } from '@/lib/schemas'
 
-export type Theme = 'dark' | 'light' | 'system'
+export type Theme = 'system' | 'midnight' | 'warm-terminal' | 'neon-brutalist' | 'earth-code' | 'cyber-luxe' | 'soft-focus'
 
 export type AppSettings = {
   theme: Theme
@@ -11,6 +11,7 @@ export type AppSettings = {
   defaultIndentSize: number
   defaultTimezone: string
   editorFontSize: number
+  editorTheme: 'cockpit-dark' | 'cockpit-light' | 'match-app'
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
   historyRetentionPerTool: number
   formatOnPaste: boolean
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultIndentSize: 2,
   defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   editorFontSize: 14,
+  editorTheme: 'cockpit-dark',
   editorKeybindingMode: 'standard',
   historyRetentionPerTool: 500,
   formatOnPaste: false,
@@ -63,6 +65,7 @@ export type Note = {
   }
   createdAt: number
   updatedAt: number
+  tags: string[]
 }
 
 export type HistoryEntry = {
@@ -72,4 +75,42 @@ export type HistoryEntry = {
   input: string
   output: string
   timestamp: number
+}
+
+// --- API Client ---
+
+export type ApiEnvironment = {
+  id: string
+  name: string
+  variables: Record<string, string>
+  createdAt: number
+  updatedAt: number
+}
+
+export type ApiCollection = {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type ApiHeader = { key: string; value: string; enabled: boolean }
+
+export type ApiRequestAuth =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string }
+  | { type: 'basic'; username: string; password: string }
+
+export type ApiRequest = {
+  id: string
+  collectionId: string | null
+  name: string
+  method: string
+  url: string
+  headers: ApiHeader[]
+  body: string
+  bodyMode: string
+  auth: ApiRequestAuth
+  createdAt: number
+  updatedAt: number
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
+import { type AppSettings, DEFAULT_SETTINGS, type Theme } from '@/types/models'
 import { getSetting, setSetting } from '@/lib/db'
 import { applyTheme } from '@/lib/theme'
 import { useUiStore } from '@/stores/ui.store'
@@ -47,6 +47,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       defaultIndentSize: state.defaultIndentSize,
       defaultTimezone: state.defaultTimezone,
       editorFontSize: state.editorFontSize,
+      editorTheme: state.editorTheme,
       editorKeybindingMode: state.editorKeybindingMode,
       historyRetentionPerTool: state.historyRetentionPerTool,
       formatOnPaste: state.formatOnPaste,
@@ -66,7 +67,17 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   toggleTheme: async () => {
     const current = get().theme
-    const next = current === 'dark' ? 'light' : current === 'light' ? 'system' : 'dark'
-    await get().update('theme', next)
+    const ALL: Theme[] = [
+      'system',
+      'midnight',
+      'warm-terminal',
+      'neon-brutalist',
+      'earth-code',
+      'cyber-luxe',
+      'soft-focus',
+    ]
+    const idx = ALL.indexOf(current)
+    const nextIdx = idx === -1 || idx === ALL.length - 1 ? 0 : idx + 1
+    await get().update('theme', ALL[nextIdx]!)
   },
 }))

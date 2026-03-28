@@ -2,6 +2,14 @@
 @import '@fontsource/jetbrains-mono/500.css';
 @import '@fontsource/jetbrains-mono/600.css';
 @import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/fira-code/400.css';
+@import '@fontsource/fira-code/500.css';
+@import '@fontsource/fira-code/600.css';
+@import '@fontsource/fira-code/700.css';
+@import '@fontsource/source-code-pro/400.css';
+@import '@fontsource/source-code-pro/500.css';
+@import '@fontsource/source-code-pro/600.css';
+@import '@fontsource/source-code-pro/700.css';
 @import '@fontsource/silkscreen/400.css';
 @import '@fontsource/silkscreen/700.css';
 
@@ -9,41 +17,177 @@
 
 @theme {
   --font-pixel: 'Silkscreen', monospace;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', monospace;
 }
 
 :root {
-  --color-bg: #0a0a0a;
-  --color-surface: #181818;
-  --color-surface-raised: #1e1e1e;
-  --color-surface-hover: #282828;
-  --color-border: #333333;
-  --color-text: #e0e0e0;
-  --color-text-muted: #888888;
-  --color-accent: #39ff14;
-  --color-accent-dim: #1a7a0a;
-  --color-info: #3b82f6;
-  --color-error: #ef4444;
+  /* Default fallback (Midnight Interface) */
+  --color-bg: #0A0F1C;
+  --color-surface: #1A1F3A;
+  --color-surface-raised: #2B3058;
+  --color-surface-hover: #2B3058;
+  --color-border: #3A3F6A;
+  --color-text: #F0F0F0;
+  --color-text-muted: rgba(240, 240, 240, 0.6);
+  --color-accent: #00D4FF;
+  --color-accent-dim: rgba(0, 212, 255, 0.2);
+  --color-info: #7B61FF;
   --color-warning: #f59e0b;
+  --color-error: #ef4444;
   --color-success: #22c55e;
-  --color-shadow: rgba(0,0,0,0.4);
+  --color-shadow: rgba(0,0,0,0.5);
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-.light {
-  --color-bg: #faf8f0;
-  --color-surface: #f5f3eb;
-  --color-surface-raised: #ffffff;
-  --color-surface-hover: #ece9e0;
-  --color-border: #d4d0c8;
-  --color-text: #1a1a1a;
-  --color-text-muted: #666666;
-  --color-accent: #00875a;
-  --color-accent-dim: #b3e0d0;
-  --color-info: #2563eb;
-  --color-error: #dc2626;
+.midnight {
+  --color-bg: #0A0F1C;
+  --color-surface: #1A1F3A;
+  --color-surface-raised: #2B3058;
+  --color-surface-hover: #2B3058;
+  --color-border: #3A3F6A;
+  --color-text: #F0F0F0;
+  --color-text-muted: rgba(240, 240, 240, 0.6);
+  --color-accent: #00D4FF;
+  --color-accent-dim: rgba(0, 212, 255, 0.2);
+  --color-info: #7B61FF;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+  --color-shadow: rgba(0,0,0,0.5);
+  --font-mono: 'JetBrains Mono', monospace;
+  --note-yellow: #f59e0b;
+  --note-green: #10b981;
+  --note-blue: #3b82f6;
+  --note-pink: #ec4899;
+  --note-purple: #8b5cf6;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #6b7280;
+}
+
+.warm-terminal {
+  --color-bg: #1E1E2E;
+  --color-surface: #262638;
+  --color-surface-raised: #313244;
+  --color-surface-hover: #313244;
+  --color-border: #45475A;
+  --color-text: #FAF3E0;
+  --color-text-muted: rgba(250, 243, 224, 0.6);
+  --color-accent: #FFD166;
+  --color-accent-dim: rgba(255, 209, 102, 0.2);
+  --color-info: #118AB2;
+  --color-warning: #f59e0b;
+  --color-success: #06D6A0;
+  --color-shadow: rgba(0,0,0,0.4);
+  --font-mono: 'Fira Code', monospace;
+  --note-yellow: #FFD166;
+  --note-green: #06D6A0;
+  --note-blue: #118AB2;
+  --note-pink: #EF476F;
+  --note-purple: #FF6B6B;
+  --note-orange: #F78C6B;
+  --note-red: #FF6B6B;
+  --note-gray: #45475A;
+}
+
+.neon-brutalist {
+  --color-bg: #000000;
+  --color-surface: #111111;
+  --color-surface-raised: #222222;
+  --color-surface-hover: #333333;
+  --color-border: #444444;
+  --color-text: #FFFFFF;
+  --color-text-muted: rgba(255, 255, 255, 0.6);
+  --color-accent: #FFBE0B;
+  --color-accent-dim: rgba(255, 190, 11, 0.2);
+  --color-info: #3A86FF;
+  --color-warning: #f59e0b;
+  --color-success: #8338EC;
+  --color-shadow: rgba(255,0,110,0.2);
+  --font-mono: 'Source Code Pro', monospace;
+  --note-yellow: #FFBE0B;
+  --note-green: #3A86FF;
+  --note-blue: #8338EC;
+  --note-pink: #FF006E;
+  --note-purple: #8338EC;
+  --note-orange: #FB5607;
+  --note-red: #FF006E;
+  --note-gray: #444444;
+}
+
+.earth-code {
+  --color-bg: #2D3436;
+  --color-surface: #3B4244;
+  --color-surface-raised: #4A5153;
+  --color-surface-hover: #4A5153;
+  --color-border: #636E72;
+  --color-text: #DFE6E9;
+  --color-text-muted: rgba(223, 230, 233, 0.6);
+  --color-accent: #FDCB6E;
+  --color-accent-dim: rgba(253, 203, 110, 0.2);
+  --color-info: #0984E3;
+  --color-warning: #f59e0b;
+  --color-success: #00B894;
+  --color-shadow: rgba(0,0,0,0.3);
+  --font-mono: 'Fira Code', monospace;
+  --note-yellow: #FDCB6E;
+  --note-green: #00B894;
+  --note-blue: #0984E3;
+  --note-pink: #E84393;
+  --note-purple: #6C5CE7;
+  --note-orange: #E17055;
+  --note-red: #D63031;
+  --note-gray: #636E72;
+}
+
+.cyber-luxe {
+  --color-bg: #0D0D0D;
+  --color-surface: #1A1A2E;
+  --color-surface-raised: #252542;
+  --color-surface-hover: #252542;
+  --color-border: #35355A;
+  --color-text: #F5E6B8;
+  --color-text-muted: rgba(245, 230, 184, 0.6);
+  --color-accent: #D4AF37;
+  --color-accent-dim: rgba(212, 175, 55, 0.2);
+  --color-info: #533483;
+  --color-warning: #f59e0b;
+  --color-error: #E94560;
+  --color-shadow: rgba(0,0,0,0.6);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --note-yellow: #D4AF37;
+  --note-green: #22c55e;
+  --note-blue: #533483;
+  --note-pink: #E94560;
+  --note-purple: #7B61FF;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #35355A;
+}
+
+.soft-focus {
+  --color-bg: #F8F9FA;
+  --color-surface: #E9ECEF;
+  --color-surface-raised: #DEE2E6;
+  --color-surface-hover: #DEE2E6;
+  --color-border: #CED4DA;
+  --color-text: #2D3436;
+  --color-text-muted: rgba(45, 52, 54, 0.6);
+  --color-accent: #6C5CE7;
+  --color-accent-dim: rgba(108, 92, 231, 0.2);
+  --color-info: #A29BFE;
   --color-warning: #d97706;
+  --color-error: #FD79A8;
   --color-success: #16a34a;
-  --color-shadow: rgba(0,0,0,0.1);
+  --color-shadow: rgba(0,0,0,0.05);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --note-yellow: #f59e0b;
+  --note-green: #16a34a;
+  --note-blue: #6C5CE7;
+  --note-pink: #FD79A8;
+  --note-purple: #A29BFE;
+  --note-orange: #f97316;
+  --note-red: #ef4444;
+  --note-gray: #CED4DA;
 }
 
 *, *::before, *::after {
@@ -98,3 +242,45 @@ html, body, #root {
 .animate-spin {
   animation: spin 700ms linear infinite;
 }
+/* Markdown & Syntax Highlighting */
+.prose {
+  line-height: 1.5;
+}
+.prose :where(code):not(:where([class~="not-prose"] *)) {
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+}
+.prose :where(pre):not(:where([class~="not-prose"] *)) {
+  background-color: #1e1e1e;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  border: 1px solid var(--color-border);
+}
+.prose :where(pre code):not(:where([class~="not-prose"] *)) {
+  background-color: transparent;
+  padding: 0;
+}
+.prose :where(p):not(:where([class~="not-prose"] *)) {
+  margin: 0.4rem 0;
+}
+.prose :where(ul, ol):not(:where([class~="not-prose"] *)) {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+/* hljs colors (Atom One Dark inspired) */
+.hljs-comment, .hljs-quote { color: #5c6370; font-style: italic; }
+.hljs-doctag, .hljs-keyword, .hljs-formula { color: #c678dd; }
+.hljs-section, .hljs-name, .hljs-selector-tag, .hljs-deletion, .hljs-subst { color: #e06c75; }
+.hljs-literal { color: #56b6c2; }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute, .hljs-meta-string { color: #98c379; }
+.hljs-built_in, .hljs-class .hljs-title { color: #e6c07b; }
+.hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-type, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-number { color: #d19a66; }
+.hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta, .hljs-selector-id, .hljs-title { color: #61afef; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+.hljs-link { text-decoration: underline; }
