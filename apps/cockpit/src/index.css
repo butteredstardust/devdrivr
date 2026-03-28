@@ -253,7 +253,7 @@ html, body, #root {
   font-family: var(--font-mono);
 }
 .prose :where(pre):not(:where([class~="not-prose"] *)) {
-  background-color: #1e1e1e;
+  background-color: var(--color-surface);
   padding: 0.75rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -284,3 +284,15 @@ html, body, #root {
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: bold; }
 .hljs-link { text-decoration: underline; }
+
+/* hljs overrides for soft-focus (light theme) — GitHub Light palette */
+.soft-focus .hljs-keyword { color: #d73a49; }
+.soft-focus .hljs-string { color: #032f62; }
+.soft-focus .hljs-number { color: #005cc5; }
+.soft-focus .hljs-comment { color: #6a737d; }
+.soft-focus .hljs-function { color: #6f42c1; }
+.soft-focus .hljs-tag { color: #22863a; }
+.soft-focus .hljs-attr { color: #005cc5; }
+.soft-focus .hljs-built_in { color: #e36209; }
+.soft-focus .hljs-type { color: #d73a49; }
+.soft-focus .hljs-meta { color: #6a737d; }

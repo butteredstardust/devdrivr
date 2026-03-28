@@ -172,7 +172,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect }: Props) {
 function getMethodColor(method: string) {
   switch (method) {
     case 'GET': return 'text-[var(--color-success)]'
-    case 'POST': return 'text-[#f59e0b]'
+    case 'POST': return 'text-[var(--color-warning)]'
     case 'PUT': return 'text-[#3b82f6]'
     case 'PATCH': return 'text-[#8b5cf6]'
     case 'DELETE': return 'text-[var(--color-error)]'

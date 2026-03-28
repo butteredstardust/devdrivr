@@ -23,7 +23,7 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span
-          className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-[var(--color-surface-raised)] shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[14px]' : 'translate-x-0'
           }`}
         />
