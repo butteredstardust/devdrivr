@@ -11,6 +11,7 @@ export type AppSettings = {
   defaultIndentSize: number
   defaultTimezone: string
   editorFontSize: number
+  editorTheme: 'cockpit-dark' | 'cockpit-light' | 'match-app'
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
   historyRetentionPerTool: number
   formatOnPaste: boolean
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultIndentSize: 2,
   defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   editorFontSize: 14,
+  editorTheme: 'cockpit-dark',
   editorKeybindingMode: 'standard',
   historyRetentionPerTool: 500,
   formatOnPaste: false,

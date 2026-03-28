@@ -52,6 +52,12 @@ const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: s
   { value: 'emacs', label: 'Emacs' },
 ]
 
+const EDITOR_THEME_OPTIONS: { value: AppSettings['editorTheme']; label: string }[] = [
+  { value: 'cockpit-dark', label: 'Dark (default)' },
+  { value: 'cockpit-light', label: 'Light' },
+  { value: 'match-app', label: 'Match App Theme' },
+]
+
 const POPULAR_TIMEZONES = [
   'UTC',
   'America/New_York',
@@ -223,6 +229,7 @@ function EditorTab() {
   const update = useSettingsStore((s) => s.update)
   const editorFontSize = useSettingsStore((s) => s.editorFontSize)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
+  const editorTheme = useSettingsStore((s) => s.editorTheme)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
 
@@ -240,6 +247,15 @@ function EditorTab() {
           value={defaultIndentSize}
           onChange={(v) => update('defaultIndentSize', Number(v)).catch(() => {})}
           options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
+        />
+      </SettingRow>
+      <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
+        <SelectInput
+          value={editorTheme}
+          onChange={(v) =>
+            update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
+          }
+          options={EDITOR_THEME_OPTIONS}
         />
       </SettingRow>
       <SettingRow label="Keybinding Mode" hint="Keyboard shortcuts style">
@@ -288,6 +304,7 @@ function DataTab() {
         defaultIndentSize: state.defaultIndentSize,
         defaultTimezone: state.defaultTimezone,
         editorFontSize: state.editorFontSize,
+        editorTheme: state.editorTheme,
         editorKeybindingMode: state.editorKeybindingMode,
         historyRetentionPerTool: state.historyRetentionPerTool,
         formatOnPaste: state.formatOnPaste,
@@ -336,6 +353,11 @@ function DataTab() {
           'editorKeybindingMode',
           obj['editorKeybindingMode'] as AppSettings['editorKeybindingMode']
         )
+      if (
+        typeof obj['editorTheme'] === 'string' &&
+        ['cockpit-dark', 'cockpit-light', 'match-app'].includes(obj['editorTheme'])
+      )
+        await su('editorTheme', obj['editorTheme'] as AppSettings['editorTheme'])
       // Boolean fields
       if (typeof obj['alwaysOnTop'] === 'boolean') await su('alwaysOnTop', obj['alwaysOnTop'])
       if (typeof obj['formatOnPaste'] === 'boolean') await su('formatOnPaste', obj['formatOnPaste'])

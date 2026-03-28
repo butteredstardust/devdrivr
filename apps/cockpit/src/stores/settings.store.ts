@@ -47,6 +47,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       defaultIndentSize: state.defaultIndentSize,
       defaultTimezone: state.defaultTimezone,
       editorFontSize: state.editorFontSize,
+      editorTheme: state.editorTheme,
       editorKeybindingMode: state.editorKeybindingMode,
       historyRetentionPerTool: state.historyRetentionPerTool,
       formatOnPaste: state.formatOnPaste,

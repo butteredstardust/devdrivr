@@ -35,6 +35,7 @@ let themesRegistered = false
 
 export function useMonacoTheme() {
   const theme = useSettingsStore((s) => s.theme)
+  const editorTheme = useSettingsStore((s) => s.editorTheme)
 
   useEffect(() => {
     loader.init().then((monaco) => {
@@ -43,11 +44,21 @@ export function useMonacoTheme() {
         monaco.editor.defineTheme('cockpit-light', LIGHT_THEME)
         themesRegistered = true
       }
-      const effective = getEffectiveTheme(theme)
-      const isLight = effective === 'soft-focus'
-      monaco.editor.setTheme(isLight ? 'cockpit-light' : 'cockpit-dark')
+
+      let monacoTheme: string
+      if (editorTheme === 'cockpit-dark') {
+        monacoTheme = 'cockpit-dark'
+      } else if (editorTheme === 'cockpit-light') {
+        monacoTheme = 'cockpit-light'
+      } else {
+        // 'match-app': derive from the active app palette
+        const effective = getEffectiveTheme(theme)
+        monacoTheme = effective === 'soft-focus' ? 'cockpit-light' : 'cockpit-dark'
+      }
+
+      monaco.editor.setTheme(monacoTheme)
     })
-  }, [theme])
+  }, [theme, editorTheme])
 }
 
 /** Standard Monaco editor options shared across all tools */
