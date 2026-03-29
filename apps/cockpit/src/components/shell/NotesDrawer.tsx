@@ -52,7 +52,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
   return (
     <div 
-      className="prose prose-invert prose-xs max-w-none overflow-hidden text-xs text-[var(--color-text)]"
+      className="prose prose-xs max-w-none overflow-hidden text-xs text-[var(--color-text)]"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
