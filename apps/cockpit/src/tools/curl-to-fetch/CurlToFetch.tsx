@@ -211,7 +211,7 @@ const METHOD_COLORS: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────
 
 export default function CurlToFetch() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<CurlToFetchState>('curl-to-fetch', {
     input: '',
     outputTab: 'fetch',
@@ -298,6 +298,7 @@ export default function CurlToFetch() {
           {parsed ? (
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="javascript"
                 value={output}
                 options={{ ...EDITOR_OPTIONS, readOnly: true, domReadOnly: true }}

@@ -127,7 +127,7 @@ function interpolate(text: string, vars: Record<string, string>): string {
 // ---------------------------------------------------------------------------
 
 export default function ApiClient() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const init = useApiStore((s) => s.init)
   const environments = useApiStore((s) => s.environments)
   const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)
@@ -690,6 +690,7 @@ export default function ApiClient() {
                 {showBody ? (
                   <div className="flex-1">
                     <Editor
+                      theme={monacoTheme}
                       language={bodyEditorLang}
                       value={body}
                       onChange={(v) => updateDraft({ body: v ?? '' })}
@@ -742,6 +743,7 @@ export default function ApiClient() {
                 <div className="flex-1 overflow-auto">
                   {responseTab === 'body' ? (
                     <Editor
+                      theme={monacoTheme}
                       language={responseLanguage}
                       value={prettyBody}
                       options={{ ...EDITOR_OPTIONS, readOnly: true }}

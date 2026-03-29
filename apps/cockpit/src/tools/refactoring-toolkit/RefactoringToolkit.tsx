@@ -168,7 +168,7 @@ type RefactoringState = {
 }
 
 export default function RefactoringToolkit() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
     input: '',
     selectedTransforms: [],
@@ -362,6 +362,7 @@ export default function RefactoringToolkit() {
             />
           ) : (
             <Editor
+              theme={monacoTheme}
               language={state.language}
               value={state.input}
               onChange={(v) => updateState({ input: v ?? '' })}

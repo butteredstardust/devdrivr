@@ -166,7 +166,7 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 // ── Main Component ───────────────────────────────────────────────────
 
 export default function XmlTools() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<XmlToolsState>('xml-tools', {
     input: '',
     activeTab: 'lint',
@@ -331,6 +331,7 @@ export default function XmlTools() {
             )}
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="xml"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
@@ -379,6 +380,7 @@ export default function XmlTools() {
             <div className="flex-1 overflow-auto">
               {jsonOutput ? (
                 <Editor
+                  theme={monacoTheme}
                   language="json"
                   value={jsonOutput}
                   options={{ ...EDITOR_OPTIONS, readOnly: true }}

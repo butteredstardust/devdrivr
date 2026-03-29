@@ -106,7 +106,7 @@ function isFavorite(tags: string[]): boolean {
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function SnippetsManager() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const snippets = useSnippetsStore((s) => s.snippets)
   const saving = useSnippetsStore((s) => s.saving)
   const addSnippet = useSnippetsStore((s) => s.add)
@@ -539,6 +539,7 @@ export default function SnippetsManager() {
             {/* Monaco editor */}
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language={selected.language}
                 value={selected.content}
                 onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}

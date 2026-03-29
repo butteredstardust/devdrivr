@@ -57,7 +57,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 export default function MermaidEditor() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: TEMPLATES['flowchart'] ?? '',
   })
@@ -164,6 +164,7 @@ export default function MermaidEditor() {
       <div className="flex flex-1 overflow-hidden">
         <div className="w-1/2 border-r border-[var(--color-border)]">
           <Editor
+            theme={monacoTheme}
             value={state.content}
             onChange={(v) => updateState({ content: v ?? '' })}
             options={EDITOR_OPTIONS}

@@ -34,7 +34,7 @@ console.log(greeting)
 `
 
 export default function TsPlayground() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<TsPlaygroundState>('ts-playground', {
     input: EXAMPLE,
     target: 'ESNext',
@@ -143,6 +143,7 @@ export default function TsPlayground() {
       <div className="flex flex-1 overflow-hidden">
         <div className="w-1/2 border-r border-[var(--color-border)]">
           <Editor
+            theme={monacoTheme}
             language="typescript"
             value={state.input}
             onChange={(v) => updateState({ input: v ?? '' })}
@@ -151,6 +152,7 @@ export default function TsPlayground() {
         </div>
         <div className="w-1/2">
           <Editor
+            theme={monacoTheme}
             language="javascript"
             value={output}
             options={{ ...EDITOR_OPTIONS, readOnly: true }}

@@ -24,7 +24,7 @@ type CodeFormatterState = {
 }
 
 export default function CodeFormatter() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
     language: 'javascript',
@@ -145,6 +145,7 @@ export default function CodeFormatter() {
       )}
       <div className="flex-1">
         <Editor
+          theme={monacoTheme}
           language={state.language}
           value={state.input}
           onChange={(v) => updateState({ input: v ?? '' })}

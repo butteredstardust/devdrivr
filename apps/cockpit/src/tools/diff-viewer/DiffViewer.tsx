@@ -47,7 +47,7 @@ function parseDiffStats(patch: string): DiffStats {
 }
 
 export default function DiffViewer() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<DiffViewerState>('diff-viewer', {
     left: '',
     right: '',
@@ -219,6 +219,7 @@ export default function DiffViewer() {
             </div>
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language={state.language}
                 value={state.left}
                 onChange={(v) => updateState({ left: v ?? '' })}
@@ -232,6 +233,7 @@ export default function DiffViewer() {
             </div>
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language={state.language}
                 value={state.right}
                 onChange={(v) => updateState({ right: v ?? '' })}

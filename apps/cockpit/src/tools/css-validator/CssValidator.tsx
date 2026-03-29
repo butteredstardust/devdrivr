@@ -38,7 +38,7 @@ function validateCss(css: string): CssError[] {
 }
 
 export default function CssValidator() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<CssValidatorState>('css-validator', {
     input: '',
   })
@@ -90,6 +90,7 @@ export default function CssValidator() {
       )}
       <div className="flex-1">
         <Editor
+          theme={monacoTheme}
           language="css"
           value={state.input}
           onChange={(v) => updateState({ input: v ?? '' })}

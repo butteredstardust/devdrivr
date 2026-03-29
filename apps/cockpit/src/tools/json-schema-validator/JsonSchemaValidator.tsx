@@ -196,7 +196,7 @@ function inferSchema(data: unknown): object {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function JsonSchemaValidator() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<JsonSchemaState>('json-schema-validator', {
     data: '',
     schema: JSON.stringify(TEMPLATES['basic']!.schema, null, 2),
@@ -383,6 +383,7 @@ export default function JsonSchemaValidator() {
           </div>
           <div className="flex-1">
             <Editor
+              theme={monacoTheme}
               language="json"
               value={state.data}
               onChange={(v) => updateState({ data: v ?? '' })}
@@ -397,6 +398,7 @@ export default function JsonSchemaValidator() {
           </div>
           <div className="flex-1">
             <Editor
+              theme={monacoTheme}
               language="json"
               value={state.schema}
               onChange={(v) => updateState({ schema: v ?? '' })}

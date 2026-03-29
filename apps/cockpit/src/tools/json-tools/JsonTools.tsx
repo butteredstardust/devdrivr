@@ -81,7 +81,7 @@ function queryJsonPath(data: unknown, path: string): unknown {
 // ---------------------------------------------------------------------------
 
 export default function JsonTools() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<JsonToolsState>('json-tools', {
     input: '',
     activeTab: 'lint',
@@ -248,6 +248,7 @@ export default function JsonTools() {
             {/* Editor */}
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="json"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
