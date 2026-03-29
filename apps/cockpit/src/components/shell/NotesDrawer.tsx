@@ -5,7 +5,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
-import { PushPin, Trash, Note, ClockCounterClockwise, ArrowCounterClockwise, Copy, PaperPlaneTilt, Tag, X } from '@phosphor-icons/react'
+import { PushPinIcon, TrashIcon, NoteIcon, ClockCounterClockwiseIcon, ArrowCounterClockwiseIcon, CopyIcon, PaperPlaneTiltIcon, TagIcon, XIcon } from '@phosphor-icons/react'
 import type { NoteColor, Note as NoteType } from '@/types/models'
 import { processMarkdown } from '@/lib/markdown'
 
@@ -132,7 +132,7 @@ function NoteEditor({
           <span key={tag} className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">
             {tag}
             <button onClick={() => handleRemoveTag(tag)} className="hover:text-[var(--color-text)]">
-              <X size={10} />
+              <XIcon size={10} />
             </button>
           </span>
         ))}
@@ -299,7 +299,7 @@ export function NotesDrawer() {
           <div className="flex-1 overflow-auto p-2">
             {filteredNotes.length === 0 && (
               <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
-                <Note size={24} weight="light" />
+                <NoteIcon size={24} weight="light" />
                 <span>{search ? 'No matching notes' : 'No notes yet'}</span>
                 {!search && <span className="text-[10px] opacity-60">Click + to create one</span>}
               </div>
@@ -335,7 +335,7 @@ export function NotesDrawer() {
                             className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Copy content"
                           >
-                            <Copy size={12} />
+                            <CopyIcon size={12} />
                           </button>
                           <button
                             onClick={(e) => { 
@@ -346,21 +346,21 @@ export function NotesDrawer() {
                             className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Use as input"
                           >
-                            <PaperPlaneTilt size={12} />
+                            <PaperPlaneTiltIcon size={12} />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
                             className={`rounded p-1 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
                             title={note.pinned ? 'Unpin' : 'Pin'}
                           >
-                            <PushPin size={12} weight={note.pinned ? 'fill' : 'regular'} />
+                            <PushPinIcon size={12} weight={note.pinned ? 'fill' : 'regular'} />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
                             className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
                             title="Delete note"
                           >
-                            <Trash size={12} />
+                            <TrashIcon size={12} />
                           </button>
                         </div>
                       </div>
@@ -375,7 +375,7 @@ export function NotesDrawer() {
                         <div className="mt-2 flex flex-wrap gap-1">
                           {note.tags.map(tag => (
                             <span key={tag} className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)]">
-                              <Tag size={8} />
+                              <TagIcon size={8} />
                               {tag}
                             </span>
                           ))}
@@ -414,7 +414,7 @@ export function NotesDrawer() {
           <div className="flex-1 overflow-auto p-2">
             {filteredHistory.length === 0 && (
               <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
-                <ClockCounterClockwise size={24} weight="light" />
+                <ClockCounterClockwiseIcon size={24} weight="light" />
                 <span>{historyFilter ? 'No history for this tool' : 'No history yet'}</span>
               </div>
             )}
@@ -427,7 +427,7 @@ export function NotesDrawer() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--color-accent)]">{entry.tool}</span>
                   <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
-                    <ArrowCounterClockwise size={10} />
+                    <ArrowCounterClockwiseIcon size={10} />
                     <span className="text-[10px]">
                       {timeAgo(entry.timestamp)}
                     </span>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 import { usePlatform } from '@/hooks/usePlatform'
-import { X } from '@phosphor-icons/react'
+import { XIcon } from '@phosphor-icons/react'
 
 type ShortcutEntry = {
   keys: string[]
@@ -93,7 +93,7 @@ export function ShortcutsModal() {
             aria-label="Close shortcuts"
             className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
-            <X size={16} />
+            <XIcon size={16} />
           </button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-4 py-3">

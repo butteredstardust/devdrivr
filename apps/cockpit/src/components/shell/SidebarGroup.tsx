@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
-import { CaretRight } from '@phosphor-icons/react'
+import { CaretRightIcon } from '@phosphor-icons/react'
 import { SidebarItem } from './SidebarItem'
 
 type SidebarGroupProps = {
@@ -17,7 +17,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
         onClick={() => setCollapsed(!collapsed)}
         className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
       >
-        <CaretRight
+        <CaretRightIcon
           size={10}
           className={`shrink-0 transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         />

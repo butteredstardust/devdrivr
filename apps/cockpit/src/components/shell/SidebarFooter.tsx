@@ -1,4 +1,4 @@
-import { Notebook, GearSix, Keyboard } from '@phosphor-icons/react'
+import { NotebookIcon, GearSixIcon, KeyboardIcon } from '@phosphor-icons/react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useNotesStore } from '@/stores/notes.store'
@@ -24,17 +24,17 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
       <div className="flex shrink-0 flex-col items-center gap-1 border-t border-[var(--color-border)] py-2">
         <button onClick={toggleNotes} className={buttonClass} title="Notes" aria-label="Toggle notes drawer">
           <span className="relative">
-            <Notebook size={16} />
+            <NotebookIcon size={16} />
             {hasNotes && (
               <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
             )}
           </span>
         </button>
         <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings" aria-label="Open settings">
-          <GearSix size={16} />
+          <GearSixIcon size={16} />
         </button>
         <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts" aria-label="Open keyboard shortcuts">
-          <Keyboard size={16} />
+          <KeyboardIcon size={16} />
         </button>
       </div>
     )
@@ -44,17 +44,17 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
     <div className="flex shrink-0 items-center gap-1 border-t border-[var(--color-border)] px-3 py-2">
       <button onClick={toggleNotes} className={buttonClass} title="Notes" aria-label="Toggle notes drawer">
         <span className="relative">
-          <Notebook size={16} />
+          <NotebookIcon size={16} />
           {hasNotes && (
             <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
           )}
         </span>
       </button>
       <button onClick={toggleSettingsPanel} className={buttonClass} title="Settings" aria-label="Open settings">
-        <GearSix size={16} />
+        <GearSixIcon size={16} />
       </button>
       <button onClick={toggleShortcutsModal} className={buttonClass} title="Keyboard Shortcuts" aria-label="Open keyboard shortcuts">
-        <Keyboard size={16} />
+        <KeyboardIcon size={16} />
       </button>
     </div>
   )

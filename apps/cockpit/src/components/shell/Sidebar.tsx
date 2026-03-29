@@ -8,7 +8,7 @@ import { SidebarGroup } from './SidebarGroup'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -34,7 +34,7 @@ export function Sidebar() {
             title="Expand sidebar"
             aria-label="Expand sidebar"
           >
-            <CaretRight size={12} />
+            <CaretRightIcon size={12} />
           </button>
           <div className="flex flex-1 flex-col items-center gap-0.5">
             {TOOL_GROUPS.map((group) => {
@@ -66,7 +66,7 @@ export function Sidebar() {
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >
-              <CaretLeft size={12} />
+              <CaretLeftIcon size={12} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto py-1">

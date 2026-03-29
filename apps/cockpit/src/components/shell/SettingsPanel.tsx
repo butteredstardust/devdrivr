@@ -8,18 +8,18 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { DEFAULT_SETTINGS, type AppSettings, type Theme } from '@/types/models'
 import { TOOLS } from '@/app/tool-registry'
 import {
-  X,
-  GearSix,
-  Code,
-  Database,
-  ArrowCounterClockwise,
-  Export,
-  DownloadSimple,
-  UploadSimple,
-  Trash,
-  Warning,
-  CheckCircle,
-  Info,
+  XIcon,
+  GearSixIcon,
+  CodeIcon,
+  DatabaseIcon,
+  ArrowCounterClockwiseIcon,
+  ExportIcon,
+  DownloadSimpleIcon,
+  UploadSimpleIcon,
+  TrashIcon,
+  WarningIcon,
+  CheckCircleIcon,
+  InfoIcon,
 } from '@phosphor-icons/react'
 import { Toggle } from '@/components/shared/Toggle'
 
@@ -28,9 +28,9 @@ import { Toggle } from '@/components/shared/Toggle'
 type TabId = 'general' | 'editor' | 'data'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'general', label: 'General', icon: <GearSix size={14} /> },
-  { id: 'editor', label: 'Editor', icon: <Code size={14} /> },
-  { id: 'data', label: 'Data', icon: <Database size={14} /> },
+  { id: 'general', label: 'General', icon: <GearSixIcon size={14} /> },
+  { id: 'editor', label: 'Editor', icon: <CodeIcon size={14} /> },
+  { id: 'data', label: 'Data', icon: <DatabaseIcon size={14} /> },
 ]
 
 const INDENT_OPTIONS = [2, 4] as const
@@ -166,7 +166,7 @@ function DangerButton({
         disabled
         className="flex items-center gap-1.5 rounded border border-[var(--color-success)] px-2.5 py-1.5 text-xs text-[var(--color-success)]"
       >
-        <CheckCircle size={12} />
+        <CheckCircleIcon size={12} />
         Done
       </button>
     )
@@ -181,7 +181,7 @@ function DangerButton({
           : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)]'
       }`}
     >
-      {confirming ? <Warning size={12} /> : icon}
+      {confirming ? <WarningIcon size={12} /> : icon}
       {confirming ? confirmLabel : label}
     </button>
   )
@@ -435,7 +435,7 @@ function DataTab() {
       {/* Storage Stats */}
       <div>
         <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <Info size={10} />
+          <InfoIcon size={10} />
           Storage
         </h4>
         <div className="grid grid-cols-3 gap-2">
@@ -448,7 +448,7 @@ function DataTab() {
       {/* Data Management */}
       <div>
         <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <Trash size={10} />
+          <TrashIcon size={10} />
           Clear Data
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -456,19 +456,19 @@ function DataTab() {
             label={`Clear Notes (${noteCount})`}
             confirmLabel="Confirm clear?"
             onConfirm={clearNotes}
-            icon={<Trash size={12} />}
+            icon={<TrashIcon size={12} />}
           />
           <DangerButton
             label={`Clear Snippets (${snippetCount})`}
             confirmLabel="Confirm clear?"
             onConfirm={clearSnippets}
-            icon={<Trash size={12} />}
+            icon={<TrashIcon size={12} />}
           />
           <DangerButton
             label={`Clear History (${historyCount})`}
             confirmLabel="Confirm clear?"
             onConfirm={clearHistory}
-            icon={<Trash size={12} />}
+            icon={<TrashIcon size={12} />}
           />
         </div>
       </div>
@@ -476,7 +476,7 @@ function DataTab() {
       {/* Export / Import / Reset */}
       <div>
         <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <Export size={10} />
+          <ExportIcon size={10} />
           Settings Transfer
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -484,21 +484,21 @@ function DataTab() {
             onClick={handleExportSettings}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
-            <DownloadSimple size={12} />
+            <DownloadSimpleIcon size={12} />
             Export to Clipboard
           </button>
           <button
             onClick={handleImportSettings}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
-            <UploadSimple size={12} />
+            <UploadSimpleIcon size={12} />
             Import from Clipboard
           </button>
           <DangerButton
             label="Reset to Defaults"
             confirmLabel="Confirm reset?"
             onConfirm={handleResetDefaults}
-            icon={<ArrowCounterClockwise size={12} />}
+            icon={<ArrowCounterClockwiseIcon size={12} />}
           />
         </div>
       </div>
@@ -554,7 +554,7 @@ export function SettingsPanel() {
             aria-label="Close settings"
             className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
-            <X size={16} />
+            <XIcon size={16} />
           </button>
         </div>
 
