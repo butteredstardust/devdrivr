@@ -173,8 +173,8 @@ function getMethodColor(method: string) {
   switch (method) {
     case 'GET': return 'text-[var(--color-success)]'
     case 'POST': return 'text-[var(--color-warning)]'
-    case 'PUT': return 'text-[#3b82f6]'
-    case 'PATCH': return 'text-[#8b5cf6]'
+    case 'PUT': return 'text-[var(--color-info)]'
+    case 'PATCH': return 'text-[var(--color-accent)]'
     case 'DELETE': return 'text-[var(--color-error)]'
     default: return 'text-[var(--color-text-muted)]'
   }

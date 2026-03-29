@@ -415,7 +415,7 @@ export default function ApiClient() {
             <select
               value={activeEnvironmentId || ''}
               onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
-              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
+              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">No Environment</option>
               {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -449,7 +449,7 @@ export default function ApiClient() {
           <select
             value={method}
             onChange={(e) => updateDraft({ method: e.target.value })}
-            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none"
+            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>

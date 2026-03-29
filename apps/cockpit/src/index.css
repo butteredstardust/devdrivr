@@ -302,3 +302,12 @@ html, body, #root {
 .soft-focus .hljs-built_in { color: #e36209; }
 .soft-focus .hljs-type { color: #d73a49; }
 .soft-focus .hljs-meta { color: #6a737d; }
+.soft-focus .hljs-quote { color: #6a737d; }
+.soft-focus .hljs-doctag, .soft-focus .hljs-formula { color: #d73a49; }
+.soft-focus .hljs-section, .soft-focus .hljs-name, .soft-focus .hljs-selector-tag, .soft-focus .hljs-deletion, .soft-focus .hljs-subst { color: #cb2431; }
+.soft-focus .hljs-literal { color: #005cc5; }
+.soft-focus .hljs-addition, .soft-focus .hljs-attribute, .soft-focus .hljs-meta-string, .soft-focus .hljs-regexp { color: #22863a; }
+.soft-focus .hljs-variable, .soft-focus .hljs-template-variable, .soft-focus .hljs-selector-class, .soft-focus .hljs-selector-attr, .soft-focus .hljs-selector-pseudo { color: #e36209; }
+.soft-focus .hljs-symbol, .soft-focus .hljs-bullet, .soft-focus .hljs-link, .soft-focus .hljs-selector-id, .soft-focus .hljs-title { color: #005cc5; }
+.soft-focus .hljs-emphasis { font-style: italic; }
+.soft-focus .hljs-strong { font-weight: bold; }
