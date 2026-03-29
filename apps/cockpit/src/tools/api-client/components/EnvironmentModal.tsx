@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useApiStore } from '@/stores/api.store'
+import { Button } from '@/components/shared/Button'
+import { Input } from '@/components/shared/Input'
 
 type Props = {
   onClose: () => void
@@ -75,12 +77,14 @@ export function EnvironmentModal({ onClose }: Props) {
           {/* Left Sidebar: Env List */}
           <div className="w-1/3 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] flex overflow-hidden">
             <div className="p-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleAdd}
-                className="w-full mb-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                className="w-full mb-2"
               >
                 + Create Environment
-              </button>
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto w-full">
               {environments.map((env) => (
@@ -137,18 +141,20 @@ export function EnvironmentModal({ onClose }: Props) {
                   <div className="flex flex-col gap-2">
                     {Object.entries(activeEnv.variables).map(([key, value]) => (
                       <div key={key} className="flex items-center gap-2">
-                        <input
+                        <Input
                           value={key}
                           onChange={(e) => handleUpdateVar(key, e.target.value, value)}
                           placeholder="Variable name"
-                          className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          size="md"
+                          className="w-1/3 font-mono"
                         />
                         <span className="text-[var(--color-text-muted)]">=</span>
-                        <input
+                        <Input
                           value={value}
                           onChange={(e) => handleUpdateVar(key, key, e.target.value)}
                           placeholder="Value"
-                          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm font-mono text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          size="md"
+                          className="flex-1 font-mono"
                         />
                         <button
                           onClick={() => handleDeleteVar(key)}

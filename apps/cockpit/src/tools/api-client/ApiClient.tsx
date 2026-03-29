@@ -5,6 +5,8 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
+import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -474,14 +476,13 @@ export default function ApiClient() {
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
-            <select
+            <Select
               value={activeEnvironmentId || ''}
               onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
-              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">No Environment</option>
               {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            </Select>
             <button
               onClick={() => setShowEnvModal(true)}
               className="text-xs text-[var(--color-accent)] hover:underline"
@@ -491,35 +492,31 @@ export default function ApiClient() {
           </div>
 
           <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-            <button
-              onClick={handleSave}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
-            >
+            <Button variant="secondary" size="sm" onClick={handleSave}>
               Save
-            </button>
-            <button
-              onClick={handleSaveAs}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleSaveAs}>
               Save As
-            </button>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleImport}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
               title="Import requests from clipboard (JSON)"
             >
               Import
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleExport}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
               title="Export all requests to clipboard (JSON)"
             >
               Export
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -536,22 +533,24 @@ export default function ApiClient() {
               </option>
             ))}
           </select>
-          <input
+          <Input
             value={url}
             onChange={(e) => updateDraft({ url: e.target.value })}
             placeholder="{{baseUrl}}/endpoint"
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="flex-1"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSend()
             }}
           />
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSend}
             disabled={loading}
-            className="rounded border border-[var(--color-accent)] px-4 py-1.5 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? 'Sending…' : 'Send'}
-          </button>
+          </Button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -580,17 +579,17 @@ export default function ApiClient() {
                   <div className="flex flex-col gap-1">
                     {params.map((p, i) => (
                       <div key={i} className="flex items-center gap-1">
-                        <input
+                        <Input
                           value={p.key}
                           onChange={(e) => updateParam(i, { key: e.target.value })}
                           placeholder="Key"
-                          className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          className="w-1/3"
                         />
-                        <input
+                        <Input
                           value={p.value}
                           onChange={(e) => updateParam(i, { value: e.target.value })}
                           placeholder="Value"
-                          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          className="flex-1"
                         />
                         <button
                           onClick={() => removeParam(i)}
@@ -635,17 +634,17 @@ export default function ApiClient() {
                         onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
                         className="accent-[var(--color-accent)]"
                       />
-                      <input
+                      <Input
                         value={h.key}
                         onChange={(e) => updateHeader(i, { key: e.target.value })}
                         placeholder="Header name"
-                        className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        className="w-1/3"
                       />
-                      <input
+                      <Input
                         value={h.value}
                         onChange={(e) => updateHeader(i, { value: e.target.value })}
                         placeholder="Value (or {{env_var}})"
-                        className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        className="flex-1"
                       />
                       <button
                         onClick={() => removeHeader(i)}

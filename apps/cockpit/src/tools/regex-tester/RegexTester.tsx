@@ -3,6 +3,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { TabBar } from '@/components/shared/TabBar'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
 
 type RegexTesterState = {
   pattern: string
@@ -340,18 +341,12 @@ export default function RegexTester() {
           )}
           {mode === 'match' && matchCount > 0 && (
             <div className="ml-auto flex items-center gap-1 pr-3">
-              <button
-                onClick={() => exportMatches('lines')}
-                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-              >
+              <Button variant="secondary" size="sm" onClick={() => exportMatches('lines')}>
                 Copy lines
-              </button>
-              <button
-                onClick={() => exportMatches('json')}
-                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => exportMatches('json')}>
                 Copy JSON
-              </button>
+              </Button>
             </div>
           )}
         </div>

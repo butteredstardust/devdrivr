@@ -6,6 +6,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -320,20 +321,22 @@ export default function JsonSchemaValidator() {
           </button>
         ))}
         <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={generateSchema}
-          className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-info)] hover:bg-[var(--color-surface-hover)]"
           title="Infer a schema from the current JSON data"
         >
           Infer Schema
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={generateSample}
-          className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-info)] hover:bg-[var(--color-surface-hover)]"
           title="Generate sample data from the current schema"
         >
           Generate Sample
-        </button>
+        </Button>
         <button
           onClick={() => updateState({ strict: !state.strict })}
           className={`rounded border px-2 py-0.5 text-[10px] ${

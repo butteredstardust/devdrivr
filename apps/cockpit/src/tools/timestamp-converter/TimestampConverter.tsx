@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Input } from '@/components/shared/Input'
 
 type TimestampState = {
   input: string
@@ -163,13 +166,14 @@ export default function TimestampConverter() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
         {PRESETS.map((p) => (
-          <button
+          <Button
             key={p.label}
+            variant="secondary"
+            size="sm"
             onClick={() => handlePreset(p)}
-            className="rounded border border-[var(--color-border)] px-2 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
             {p.label}
-          </button>
+          </Button>
         ))}
         <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
           {getTimezoneLabel()} ({getUtcOffset(new Date())})
@@ -178,18 +182,18 @@ export default function TimestampConverter() {
 
       {/* Input area */}
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
-        <input
+        <Input
           value={state.input}
           onChange={(e) => updateState({ input: e.target.value })}
           placeholder="Unix timestamp, ISO 8601, or any date string..."
-          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+          size="md"
+          className="flex-1 font-mono"
         />
-        <input
+        <Input
           type="datetime-local"
           step="1"
           value={dateTimeValue}
           onChange={(e) => handleDateTimeChange(e.target.value)}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         />
       </div>
 
@@ -223,9 +227,7 @@ export default function TimestampConverter() {
             ))}
           </div>
         ) : state.input.trim() ? (
-          <div className="text-sm text-[var(--color-error)]">
-            Could not parse input as a date or timestamp
-          </div>
+          <Alert variant="error">Could not parse input as a date or timestamp</Alert>
         ) : (
           <div className="text-sm text-[var(--color-text-muted)]">
             Enter a timestamp or date string above, or use a preset

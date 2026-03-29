@@ -4,6 +4,7 @@ import Fuse from 'fuse.js'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -375,12 +376,12 @@ export default function SnippetsManager() {
 
         {/* Search */}
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-          <input
+          <Input
             ref={searchInputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search... (⌘F)"
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            className="flex-1"
           />
         </div>
 
@@ -572,17 +573,17 @@ export default function SnippetsManager() {
                 <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Language
                 </div>
-                <select
+                <Select
                   value={selected.language}
                   onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
-                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                  className="w-full"
                 >
                   {LANGUAGES.map((l) => (
                     <option key={l} value={l}>
                       {l}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Tags */}
