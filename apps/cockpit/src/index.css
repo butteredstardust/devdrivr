@@ -204,6 +204,12 @@ html, body, #root {
   font-family: var(--font-mono);
 }
 
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-bg);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
