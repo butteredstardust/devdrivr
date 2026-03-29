@@ -262,12 +262,10 @@ export function NotesDrawer() {
     setLastAction(`Replayed to ${tool}`, 'info')
   }, [setActiveTool, setPendingSendTo, setLastAction])
 
-  if (!drawerOpen) return null
-
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)]"
-      style={{ width }}
+      className={`relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-200 ease-in-out ${drawerOpen ? 'opacity-100' : 'pointer-events-none w-0 overflow-hidden opacity-0 border-l-0'}`}
+      style={drawerOpen ? { width } : undefined}
     >
       {/* Drag handle — sits on the left edge */}
       <div

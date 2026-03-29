@@ -16,6 +16,116 @@ type CssError = {
   column: number
 }
 
+const SAMPLES: { label: string; css: string }[] = [
+  {
+    label: 'Flexbox Layout',
+    css: `.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 100vh;
+}
+
+.container > .item {
+  flex: 1 1 auto;
+  padding: 1rem 2rem;
+}`,
+  },
+  {
+    label: 'CSS Grid',
+    css: `.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-rows: auto 1fr auto;
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+.grid-item {
+  border-radius: 8px;
+  background: #f9fafb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}`,
+  },
+  {
+    label: 'Animation',
+    css: `@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animated {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+.animated:hover {
+  transform: scale(1.02);
+  transition: transform 0.15s ease;
+}`,
+  },
+  {
+    label: 'Media Queries',
+    css: `.responsive {
+  font-size: 1rem;
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .responsive {
+    font-size: 0.875rem;
+    padding: 0.75rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .responsive {
+    background: #1a1a2e;
+    color: #e0e0e0;
+  }
+}`,
+  },
+  {
+    label: 'Custom Properties',
+    css: `:root {
+  --color-primary: #6366f1;
+  --color-surface: #f8fafc;
+  --radius: 0.5rem;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+}
+
+.card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}`,
+  },
+]
+
 function validateCss(css: string): CssError[] {
   const errors: CssError[] = []
   try {
@@ -75,7 +185,16 @@ export default function CssValidator() {
         {errors.length > 0 && (
           <span className="text-xs text-[var(--color-error)]">✗ {errors.length} error(s)</span>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          {SAMPLES.map((s) => (
+            <button
+              key={s.label}
+              onClick={() => updateState({ input: s.css })}
+              className="rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            >
+              {s.label}
+            </button>
+          ))}
           <CopyButton text={state.input} />
         </div>
       </div>

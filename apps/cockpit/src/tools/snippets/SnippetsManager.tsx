@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -102,6 +102,70 @@ function visibleTags(tags: string[]): string[] {
 
 function isFavorite(tags: string[]): boolean {
   return tags.includes(FAVORITE_TAG)
+}
+
+// ─── Tag Filter Bar ──────────────────────────────────────────────────
+
+const TAG_BAR_COLLAPSED_HEIGHT = 28 // ~1 row of chips
+
+function TagFilterBar({
+  tags,
+  filterTag,
+  onFilterTag,
+}: {
+  tags: string[]
+  filterTag: string | null
+  onFilterTag: (tag: string | null) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [overflows, setOverflows] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    setOverflows(el.scrollHeight > TAG_BAR_COLLAPSED_HEIGHT + 4)
+  }, [tags])
+
+  return (
+    <div className="border-b border-[var(--color-border)] px-3 py-1.5">
+      <div
+        ref={containerRef}
+        className="flex flex-wrap gap-1 overflow-hidden transition-[max-height] duration-150"
+        style={{ maxHeight: expanded || !overflows ? 'none' : TAG_BAR_COLLAPSED_HEIGHT }}
+      >
+        {filterTag && (
+          <button
+            onClick={() => onFilterTag(null)}
+            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-[10px] text-[var(--color-error)]"
+          >
+            ✕ Clear
+          </button>
+        )}
+        {tags.map((tag) => (
+          <button
+            key={tag}
+            onClick={() => onFilterTag(filterTag === tag ? null : tag)}
+            className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+              filterTag === tag
+                ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
+            }`}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+      {overflows && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+        >
+          {expanded ? '▲ Show less' : `▼ ${tags.length} tags…`}
+        </button>
+      )}
+    </div>
+  )
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -404,29 +468,11 @@ export default function SnippetsManager() {
 
         {/* Tag filter chips */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
-            {filterTag && (
-              <button
-                onClick={() => setFilterTag(null)}
-                className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-[10px] text-[var(--color-error)]"
-              >
-                ✕ Clear
-              </button>
-            )}
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => setFilterTag(filterTag === tag ? null : tag)}
-                className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
-                  filterTag === tag
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
+          <TagFilterBar
+            tags={allTags}
+            filterTag={filterTag}
+            onFilterTag={setFilterTag}
+          />
         )}
 
         {/* Snippet list */}
