@@ -4,6 +4,8 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Select } from '@/components/shared/Input'
 
 type TransformCategory = 'modernize' | 'safety' | 'cleanup'
 type SafetyLevel = 'safe' | 'caution' | 'destructive'
@@ -168,7 +170,7 @@ type RefactoringState = {
 }
 
 export default function RefactoringToolkit() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
     input: '',
     selectedTransforms: [],
@@ -266,24 +268,24 @@ export default function RefactoringToolkit() {
           <span className="text-xs text-[var(--color-text-muted)]">No changes to apply</span>
         )}
         {selectedCount > 0 && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => updateState({ selectedTransforms: [] })}
-            className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
           >
             Clear
-          </button>
+          </Button>
         )}
-        <select
+        <Select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value, selectedTransforms: [] })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
         >
           {LANGUAGES.map((l) => (
             <option key={l.id} value={l.id}>
               {l.label}
             </option>
           ))}
-        </select>
+        </Select>
         {selectedCount > 0 && (
           <span className="text-xs text-[var(--color-text-muted)]">
             {selectedCount} transform{selectedCount !== 1 ? 's' : ''}
@@ -362,6 +364,7 @@ export default function RefactoringToolkit() {
             />
           ) : (
             <Editor
+              theme={monacoTheme}
               language={state.language}
               value={state.input}
               onChange={(v) => updateState({ input: v ?? '' })}

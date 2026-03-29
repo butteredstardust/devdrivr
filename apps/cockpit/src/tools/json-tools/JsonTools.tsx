@@ -5,6 +5,9 @@ import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
+import { Alert } from '@/components/shared/Alert'
+import { Input } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -81,7 +84,7 @@ function queryJsonPath(data: unknown, path: string): unknown {
 // ---------------------------------------------------------------------------
 
 export default function JsonTools() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<JsonToolsState>('json-tools', {
     input: '',
     activeTab: 'lint',
@@ -179,27 +182,30 @@ export default function JsonTools() {
           <div className="flex h-full flex-col">
             {/* Toolbar */}
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleFormat}
                 disabled={isFormatting}
-                className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isFormatting ? 'Formatting…' : 'Format'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleMinify}
                 disabled={!parsed.ok}
-                className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Minify
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleSortKeys}
                 disabled={!parsed.ok}
-                className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Sort Keys
-              </button>
+              </Button>
               <CopyButton text={state.input} />
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && (
@@ -220,11 +226,11 @@ export default function JsonTools() {
             {/* Query bar */}
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
               <span className="text-[10px] text-[var(--color-text-muted)]">Path</span>
-              <input
+              <Input
                 value={state.query}
                 onChange={(e) => updateState({ query: e.target.value })}
                 placeholder="$.users[0].name"
-                className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-0.5 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                className="flex-1 font-mono"
               />
               {queryResult.hasResult && queryResult.value && (
                 <CopyButton text={queryResult.value} />
@@ -240,14 +246,15 @@ export default function JsonTools() {
 
             {/* Format error */}
             {error && (
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+              <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
                 {error}
-              </div>
+              </Alert>
             )}
 
             {/* Editor */}
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="json"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
@@ -261,24 +268,26 @@ export default function JsonTools() {
         {state.activeTab === 'tree' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setTreeExpanded(true)
                   setTreeKey((k) => k + 1)
                 }}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 Expand All
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setTreeExpanded(false)
                   setTreeKey((k) => k + 1)
                 }}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 Collapse All
-              </button>
+              </Button>
               {stats && (
                 <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
                   {stats.keys} keys · depth {stats.depth}

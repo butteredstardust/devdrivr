@@ -1,8 +1,11 @@
 import { useCallback, useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { Button } from '@/components/shared/Button'
+import { Select } from '@/components/shared/Input'
 
 type UrlCodecState = {
   input: string
@@ -129,30 +132,27 @@ export default function UrlCodec() {
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <button
-          onClick={handleToggle}
-          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-        >
+        <Button variant="primary" size="sm" onClick={handleToggle}>
           {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleSwap}
           disabled={!output.text}
-          className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
         >
           ⇄ Swap
-        </button>
+        </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-        <select
+        <Select
           value={state.encodeMode}
           onChange={(e) =>
             updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
           }
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
         >
           <option value="component">Component</option>
           <option value="full">Full URL</option>
-        </select>
+        </Select>
 
         {/* Status badges */}
         <div className="ml-auto flex items-center gap-2">
@@ -194,7 +194,7 @@ export default function UrlCodec() {
             <CopyButton text={output.text} />
           </div>
           {output.error ? (
-            <div className="p-4 text-sm text-[var(--color-error)]">{output.error}</div>
+            <Alert variant="error" className="m-4">{output.error}</Alert>
           ) : (
             <pre className="flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-sm text-[var(--color-text)]">
               {output.text}

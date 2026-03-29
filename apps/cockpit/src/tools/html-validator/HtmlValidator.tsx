@@ -203,7 +203,7 @@ const STARTERS: Record<string, { label: string; html: string }> = {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function HtmlValidator() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<HtmlValidatorState>('html-validator', {
     input: '',
     viewMode: 'split',
@@ -418,6 +418,7 @@ export default function HtmlValidator() {
           <div className={`flex flex-col ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}>
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="html"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}

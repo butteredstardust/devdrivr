@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ClockCounterClockwise } from '@phosphor-icons/react'
+import { ClockCounterClockwiseIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
 import { SidebarItem } from './SidebarItem'
@@ -23,7 +23,7 @@ export function SidebarRecent() {
   return (
     <div className="mb-1">
       <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
-        <ClockCounterClockwise size={10} className="shrink-0" />
+        <ClockCounterClockwiseIcon size={10} className="shrink-0" />
         <span className="font-pixel text-[10px] font-bold uppercase tracking-normal">[Recent]</span>
       </div>
       <div className="flex flex-col gap-1 px-1">

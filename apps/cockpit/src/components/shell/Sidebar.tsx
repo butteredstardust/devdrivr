@@ -8,7 +8,7 @@ import { SidebarGroup } from './SidebarGroup'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -22,16 +22,22 @@ export function Sidebar() {
 
   const toggleCollapsed = () => update('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
 
-  if (sidebarCollapsed) {
-    return (
-      <aside className="flex w-10 shrink-0 flex-col items-center border-r border-[var(--color-border)] bg-[var(--color-surface)] py-2 shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
+  return (
+    <aside
+      className={`relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)] transition-[width] duration-200 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
+    >
+      {/* Collapsed layout */}
+      <div
+        className={`absolute inset-0 flex flex-col items-center py-2 transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      >
         <button
           onClick={toggleCollapsed}
           className="mb-2 flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           title="Expand sidebar"
           aria-label="Expand sidebar"
+          tabIndex={sidebarCollapsed ? 0 : -1}
         >
-          <CaretRight size={12} />
+          <CaretRightIcon size={12} />
         </button>
         <div className="flex flex-1 flex-col items-center gap-0.5">
           {TOOL_GROUPS.map((group) => {
@@ -47,36 +53,38 @@ export function Sidebar() {
           })}
         </div>
         <SidebarFooter collapsed />
-      </aside>
-    )
-  }
+      </div>
 
-  return (
-    <aside className="flex w-[218px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)]">
-      <div className="flex items-center justify-between px-2 py-3">
-        <div className="flex items-center gap-1 overflow-hidden">
-          <Mascot className="shrink-0" />
-          <h1 className="font-pixel text-sm font-bold text-[var(--color-accent)] tracking-tight">
-            [devdrivr]
-          </h1>
+      {/* Expanded layout */}
+      <div
+        className={`flex h-full flex-col transition-opacity duration-200 ${sidebarCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+      >
+        <div className="flex items-center justify-between px-2 py-3">
+          <div className="flex items-center gap-1 overflow-hidden">
+            <Mascot className="shrink-0" />
+            <h1 className="font-pixel text-sm font-bold text-[var(--color-accent)] tracking-tight">
+              [devdrivr]
+            </h1>
+          </div>
+          <button
+            onClick={toggleCollapsed}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            tabIndex={sidebarCollapsed ? -1 : 0}
+          >
+            <CaretLeftIcon size={12} />
+          </button>
         </div>
-        <button
-          onClick={toggleCollapsed}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-          title="Collapse sidebar"
-          aria-label="Collapse sidebar"
-        >
-          <CaretLeft size={12} />
-        </button>
+        <div className="flex-1 overflow-y-auto py-1">
+          <SidebarRecent />
+          {TOOL_GROUPS.map((group) => {
+            const tools = TOOLS.filter((t) => t.group === group.id)
+            return <SidebarGroup key={group.id} group={group} tools={tools} />
+          })}
+        </div>
+        <SidebarFooter collapsed={false} />
       </div>
-      <div className="flex-1 overflow-y-auto py-1">
-        <SidebarRecent />
-        {TOOL_GROUPS.map((group) => {
-          const tools = TOOLS.filter((t) => t.group === group.id)
-          return <SidebarGroup key={group.id} group={group} tools={tools} />
-        })}
-      </div>
-      <SidebarFooter collapsed={false} />
     </aside>
   )
 }

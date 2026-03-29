@@ -129,7 +129,7 @@ function convertCssToTailwind(css: string): ConversionResult {
 }
 
 export default function CssToTailwind() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<CssToTailwindState>('css-to-tailwind', {
     input: '',
   })
@@ -147,6 +147,7 @@ export default function CssToTailwind() {
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">CSS Input</div>
           <div className="flex-1">
             <Editor
+              theme={monacoTheme}
               language="css"
               value={state.input}
               onChange={(v) => updateState({ input: v ?? '' })}

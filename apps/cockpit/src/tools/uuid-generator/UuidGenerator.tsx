@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Input, Select } from '@/components/shared/Input'
 
 // ── UUID Generation ──────────────────────────────────────────────────
 
@@ -201,23 +203,19 @@ export default function UuidGenerator() {
       <section className="flex flex-col gap-3">
         <h2 className="font-pixel text-sm text-[var(--color-text)]">Generate</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <select
+          <Select
             value={state.version}
             onChange={(e) => updateState({ version: e.target.value as UuidVersion })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           >
             {(Object.keys(VERSION_LABELS) as UuidVersion[]).map((v) => (
               <option key={v} value={v}>
                 {VERSION_LABELS[v]}
               </option>
             ))}
-          </select>
-          <button
-            onClick={generate}
-            className="rounded border border-[var(--color-accent)] px-4 py-2 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-          >
+          </Select>
+          <Button variant="primary" size="md" onClick={generate}>
             Generate UUID
-          </button>
+          </Button>
           {state.lastGenerated && (
             <div className="flex items-center gap-2">
               <code className="rounded bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
@@ -254,29 +252,26 @@ export default function UuidGenerator() {
       <section className="flex flex-col gap-3">
         <h2 className="font-pixel text-sm text-[var(--color-text)]">Bulk Generate</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <input
+          <Input
             type="number"
             min={1}
             max={100}
             value={state.bulkCount}
             onChange={(e) => updateState({ bulkCount: parseInt(e.target.value) || 1 })}
-            className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="w-20"
           />
-          <select
+          <Select
             value={state.bulkFormat}
             onChange={(e) => updateState({ bulkFormat: e.target.value as BulkFormat })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           >
             <option value="lines">One per line</option>
             <option value="json">JSON array</option>
             <option value="csv">CSV</option>
-          </select>
-          <button
-            onClick={generateBulk}
-            className="rounded border border-[var(--color-accent)] px-4 py-2 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-          >
+          </Select>
+          <Button variant="primary" size="md" onClick={generateBulk}>
             Generate
-          </button>
+          </Button>
           {bulkUuids.length > 0 && <CopyButton text={bulkOutput} label="Copy All" />}
         </div>
         {bulkOutput && (
@@ -289,12 +284,13 @@ export default function UuidGenerator() {
       {/* ── Validate & Parse ─────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <h2 className="font-pixel text-sm text-[var(--color-text)]">Validate & Parse</h2>
-        <input
+        <Input
           type="text"
           value={state.validateInput}
           onChange={(e) => updateState({ validateInput: e.target.value })}
           placeholder="Paste a UUID to validate and parse..."
-          className="w-full max-w-xl rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+          size="md"
+          className="w-full max-w-xl font-mono"
         />
         {parsed && (
           <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">

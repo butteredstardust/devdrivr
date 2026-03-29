@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { getToolById } from '@/app/tool-registry'
 import { usePlatform } from '@/hooks/usePlatform'
-import { PushPin, Command, Clock } from '@phosphor-icons/react'
+import { PushPinIcon, CommandIcon, ClockIcon } from '@phosphor-icons/react'
 
 // ─── Isolated clock component (re-renders only itself every minute) ──
 
@@ -30,7 +30,7 @@ function ClockDisplay() {
   const clock = useClock()
   return (
     <span className="flex items-center gap-1 tabular-nums" title="Current time">
-      <Clock size={10} aria-hidden="true" />
+      <ClockIcon size={10} aria-hidden="true" />
       {clock}
     </span>
   )
@@ -103,12 +103,12 @@ export function StatusBar() {
           className="flex items-center gap-1 text-[var(--color-text-muted)] opacity-60"
           title="Command Palette"
         >
-          <Command size={10} aria-hidden="true" />
+          <CommandIcon size={10} aria-hidden="true" />
           <span>{modSymbol}K</span>
         </span>
         {alwaysOnTop && (
           <span title="Pinned">
-            <PushPin size={12} weight="fill" className="text-[var(--color-accent)]" aria-hidden="true" />
+            <PushPinIcon size={12} weight="fill" className="text-[var(--color-accent)]" aria-hidden="true" />
           </span>
         )}
         <ClockDisplay />

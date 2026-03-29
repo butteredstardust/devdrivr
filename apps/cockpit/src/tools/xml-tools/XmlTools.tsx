@@ -5,7 +5,10 @@ import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Input, Select } from '@/components/shared/Input'
 import type { XmlWorker } from '@/workers/xml.worker'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
 
@@ -166,7 +169,7 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 // ── Main Component ───────────────────────────────────────────────────
 
 export default function XmlTools() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<XmlToolsState>('xml-tools', {
     input: '',
     activeTab: 'lint',
@@ -293,44 +296,35 @@ export default function XmlTools() {
         {state.activeTab === 'lint' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <button
-                onClick={handleFormat}
-                className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-              >
+              <Button variant="primary" size="sm" onClick={handleFormat}>
                 Format
-              </button>
-              <button
-                onClick={handleMinify}
-                className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleMinify}>
                 Minify
-              </button>
-              <button
-                onClick={handleValidate}
-                className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleValidate}>
                 Validate
-              </button>
+              </Button>
               <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
                 Indent
-                <select
+                <Select
                   value={state.indent}
                   onChange={(e) => updateState({ indent: Number(e.target.value) })}
-                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
                 >
                   <option value={2}>2</option>
                   <option value={4}>4</option>
-                </select>
+                </Select>
               </label>
               <CopyButton text={state.input} />
             </div>
             {error && (
-              <div className="max-h-24 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+              <Alert variant="error" className="max-h-24 overflow-auto border-b border-[var(--color-border)] rounded-none px-4 py-2">
                 <pre className="whitespace-pre-wrap">{error}</pre>
-              </div>
+              </Alert>
             )}
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language="xml"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
@@ -363,22 +357,20 @@ export default function XmlTools() {
         {state.activeTab === 'json' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <button
-                onClick={handleToJson}
-                className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-              >
+              <Button variant="primary" size="sm" onClick={handleToJson}>
                 Convert
-              </button>
+              </Button>
               {jsonOutput && <CopyButton text={jsonOutput} label="Copy JSON" />}
             </div>
             {jsonError && (
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+              <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
                 {jsonError}
-              </div>
+              </Alert>
             )}
             <div className="flex-1 overflow-auto">
               {jsonOutput ? (
                 <Editor
+                  theme={monacoTheme}
                   language="json"
                   value={jsonOutput}
                   options={{ ...EDITOR_OPTIONS, readOnly: true }}
@@ -396,21 +388,18 @@ export default function XmlTools() {
         {state.activeTab === 'xpath' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <input
+              <Input
                 value={state.xpathQuery}
                 onChange={(e) => updateState({ xpathQuery: e.target.value })}
                 placeholder="Enter XPath expression (e.g. /root/child)"
-                className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                className="flex-1"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleXPath()
                 }}
               />
-              <button
-                onClick={handleXPath}
-                className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]"
-              >
+              <Button variant="primary" size="sm" onClick={handleXPath}>
                 Query
-              </button>
+              </Button>
             </div>
             <div className="flex-1 overflow-auto p-4">
               {xpathResults.length > 0 ? (

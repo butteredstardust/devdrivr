@@ -3,7 +3,9 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
 
 type MermaidEditorState = {
   content: string
@@ -57,7 +59,7 @@ const TEMPLATES: Record<string, string> = {
 }
 
 export default function MermaidEditor() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: TEMPLATES['flowchart'] ?? '',
   })
@@ -138,32 +140,35 @@ export default function MermaidEditor() {
           </button>
         ))}
         <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleExportSvg}
-          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           disabled={!svgHtml}
         >
           Copy SVG
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleExportPng}
-          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           disabled={!svgHtml}
         >
           Copy PNG
-        </button>
+        </Button>
         <div className="ml-auto">
           <CopyButton text={state.content} label="Copy Source" />
         </div>
       </div>
       {error && (
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+        <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
           {error}
-        </div>
+        </Alert>
       )}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-1/2 border-r border-[var(--color-border)]">
           <Editor
+            theme={monacoTheme}
             value={state.content}
             onChange={(v) => updateState({ content: v ?? '' })}
             options={EDITOR_OPTIONS}

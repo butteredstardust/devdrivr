@@ -204,6 +204,12 @@ html, body, #root {
   font-family: var(--font-mono);
 }
 
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-bg);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -253,7 +259,7 @@ html, body, #root {
   font-family: var(--font-mono);
 }
 .prose :where(pre):not(:where([class~="not-prose"] *)) {
-  background-color: #1e1e1e;
+  background-color: var(--color-surface);
   padding: 0.75rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -284,3 +290,24 @@ html, body, #root {
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: bold; }
 .hljs-link { text-decoration: underline; }
+
+/* hljs overrides for soft-focus (light theme) — GitHub Light palette */
+.soft-focus .hljs-keyword { color: #d73a49; }
+.soft-focus .hljs-string { color: #032f62; }
+.soft-focus .hljs-number { color: #005cc5; }
+.soft-focus .hljs-comment { color: #6a737d; }
+.soft-focus .hljs-function { color: #6f42c1; }
+.soft-focus .hljs-tag { color: #22863a; }
+.soft-focus .hljs-attr { color: #005cc5; }
+.soft-focus .hljs-built_in { color: #e36209; }
+.soft-focus .hljs-type { color: #d73a49; }
+.soft-focus .hljs-meta { color: #6a737d; }
+.soft-focus .hljs-quote { color: #6a737d; }
+.soft-focus .hljs-doctag, .soft-focus .hljs-formula { color: #d73a49; }
+.soft-focus .hljs-section, .soft-focus .hljs-name, .soft-focus .hljs-selector-tag, .soft-focus .hljs-deletion, .soft-focus .hljs-subst { color: #cb2431; }
+.soft-focus .hljs-literal { color: #005cc5; }
+.soft-focus .hljs-addition, .soft-focus .hljs-attribute, .soft-focus .hljs-meta-string, .soft-focus .hljs-regexp { color: #22863a; }
+.soft-focus .hljs-variable, .soft-focus .hljs-template-variable, .soft-focus .hljs-selector-class, .soft-focus .hljs-selector-attr, .soft-focus .hljs-selector-pseudo { color: #e36209; }
+.soft-focus .hljs-symbol, .soft-focus .hljs-bullet, .soft-focus .hljs-link, .soft-focus .hljs-selector-id, .soft-focus .hljs-title { color: #005cc5; }
+.soft-focus .hljs-emphasis { font-style: italic; }
+.soft-focus .hljs-strong { font-weight: bold; }

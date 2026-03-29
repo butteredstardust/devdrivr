@@ -17,7 +17,7 @@ type MarkdownPreviewProps = {
 // ─── Preview Styles (extracted + polished) ──────────────────────────
 
 const proseBase = [
-  'prose prose-invert max-w-none',
+  'prose max-w-none',
   'text-sm leading-relaxed',
   'text-[var(--color-text)]',
 ].join(' ')

@@ -4,8 +4,11 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { Button } from '@/components/shared/Button'
+import { Select } from '@/components/shared/Input'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
@@ -24,7 +27,7 @@ type CodeFormatterState = {
 }
 
 export default function CodeFormatter() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
     language: 'javascript',
@@ -81,40 +84,40 @@ export default function CodeFormatter() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={handleFormat}
           disabled={isFormatting || !state.input.trim()}
-          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isFormatting ? 'Formatting…' : 'Format'}
-        </button>
+        </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-        <select
+        <Select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
         >
           {LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>{lang}</option>
           ))}
-        </select>
-        <button
+        </Select>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleAutoDetect}
-          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           Auto-detect
-        </button>
+        </Button>
         <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           Indent
-          <select
+          <Select
             value={state.tabWidth}
             onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
           >
             <option value={2}>2</option>
             <option value={4}>4</option>
-          </select>
+          </Select>
         </label>
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           <input
@@ -139,12 +142,13 @@ export default function CodeFormatter() {
         </div>
       </div>
       {error && (
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+        <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
           {error}
-        </div>
+        </Alert>
       )}
       <div className="flex-1">
         <Editor
+          theme={monacoTheme}
           language={state.language}
           value={state.input}
           onChange={(v) => updateState({ input: v ?? '' })}

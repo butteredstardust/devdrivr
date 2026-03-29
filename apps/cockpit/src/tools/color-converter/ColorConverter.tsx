@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Input } from '@/components/shared/Input'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -315,10 +317,11 @@ function ContrastInputs({
       <div className="flex-1">
         <label className="mb-1 block text-xs text-[var(--color-text-muted)]">Foreground</label>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={contrastFg}
             onChange={(e) => onFgChange(e.target.value)}
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="flex-1"
           />
           <input
             type="color"
@@ -328,20 +331,23 @@ function ContrastInputs({
           />
         </div>
       </div>
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onSwap}
-        className="mb-1 rounded border border-[var(--color-border)] px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
+        className="mb-1"
         title="Swap foreground and background"
       >
         ⇄
-      </button>
+      </Button>
       <div className="flex-1">
         <label className="mb-1 block text-xs text-[var(--color-text-muted)]">Background</label>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={contrastBg}
             onChange={(e) => onBgChange(e.target.value)}
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="flex-1"
           />
           <input
             type="color"
@@ -434,11 +440,12 @@ export default function ColorConverter() {
       <section>
         <h2 className="mb-2 font-pixel text-sm text-[var(--color-text)]">Color Input</h2>
         <div className="flex items-center gap-3">
-          <input
+          <Input
             value={state.input}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="#39ff14, rgb(255,0,0), hsl(120,100%,50%), oklch(87% 0.35 145), red"
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="flex-1"
           />
           <input
             type="color"
@@ -552,12 +559,13 @@ export default function ColorConverter() {
                       <span className="text-xs text-[var(--color-text-muted)]">{h.label}</span>
                       <span className="ml-2 font-mono text-sm text-[var(--color-text)]">{h.hex}</span>
                     </div>
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => updateState({ input: h.hex })}
-                      className="rounded border border-[var(--color-border)] px-2 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
                     >
                       Use
-                    </button>
+                    </Button>
                     <CopyButton text={h.hex} />
                   </div>
                 ))}

@@ -2,6 +2,7 @@ import { useMemo, useCallback } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
 
 type CaseConverterState = {
   input: string
@@ -153,13 +154,14 @@ export default function CaseConverter() {
                   </div>
                   <div className="ml-2 flex shrink-0 gap-1">
                     {!isCurrent && (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleUseAsInput(c.value, c.label)}
                         title="Use as input"
-                        className="rounded border border-[var(--color-border)] px-2 py-1 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
                       >
                         ↑ Use
-                      </button>
+                      </Button>
                     )}
                     <CopyButton text={c.value} />
                   </div>

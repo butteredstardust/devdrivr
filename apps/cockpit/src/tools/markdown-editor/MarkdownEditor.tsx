@@ -280,7 +280,7 @@ function readingTime(words: number): string {
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function MarkdownEditor() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
     content: '',
     mode: 'split',
@@ -573,6 +573,7 @@ img{max-width:100%}</style>
             className={`relative h-full ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
           >
             <Editor
+              theme={monacoTheme}
               language="markdown"
               value={state.content}
               onChange={(v) => updateState({ content: v ?? '' })}

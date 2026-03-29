@@ -5,6 +5,8 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
+import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -16,6 +18,15 @@ import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
+
+function isValidAuth(val: unknown): val is ApiRequestAuth {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  if (obj['type'] === 'none') return true
+  if (obj['type'] === 'bearer' && typeof obj['token'] === 'string') return true
+  if (obj['type'] === 'basic' && typeof obj['username'] === 'string' && typeof obj['password'] === 'string') return true
+  return false
+}
 
 type Param = { key: string; value: string }
 
@@ -118,12 +129,13 @@ function interpolate(text: string, vars: Record<string, string>): string {
 // ---------------------------------------------------------------------------
 
 export default function ApiClient() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const init = useApiStore((s) => s.init)
   const environments = useApiStore((s) => s.environments)
   const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)
   const setActiveEnvironmentId = useApiStore((s) => s.setActiveEnvironmentId)
   const collections = useApiStore((s) => s.collections)
+  const requests = useApiStore((s) => s.requests)
   const createRequest = useApiStore((s) => s.createRequest)
   const updateRequest = useApiStore((s) => s.updateRequest)  
   useEffect(() => {
@@ -327,6 +339,58 @@ export default function ApiClient() {
     setLastAction('Request saved', 'success')
   }
 
+  // ---------------------------------------------------------------------------
+  // Import / Export
+  // ---------------------------------------------------------------------------
+
+  const handleExport = useCallback(async () => {
+    try {
+      const exportData = requests.map((r) => ({
+        name: r.name,
+        method: r.method,
+        url: r.url,
+        headers: r.headers,
+        body: r.body,
+        bodyMode: r.bodyMode,
+        auth: r.auth,
+        collectionId: r.collectionId,
+      }))
+      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
+      setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
+    } catch {
+      setLastAction('Export failed — clipboard unavailable', 'error')
+    }
+  }, [requests, setLastAction])
+
+  const handleImport = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const parsed: unknown = JSON.parse(text)
+      if (!Array.isArray(parsed)) {
+        setLastAction('Import failed — paste a valid JSON array', 'error')
+        return
+      }
+      let count = 0
+      for (const item of parsed as Array<Record<string, unknown>>) {
+        if (typeof item['name'] !== 'string' || typeof item['url'] !== 'string') continue
+        await createRequest({
+          name: item['name'],
+          method: typeof item['method'] === 'string' ? item['method'] : 'GET',
+          url: item['url'],
+          headers: Array.isArray(item['headers']) ? (item['headers'] as ApiHeader[]) : [],
+          body: typeof item['body'] === 'string' ? item['body'] : '',
+          bodyMode: typeof item['bodyMode'] === 'string' ? item['bodyMode'] : 'none',
+          auth: isValidAuth(item['auth']) ? item['auth'] : { type: 'none' },
+          collectionId: typeof item['collectionId'] === 'string' ? item['collectionId'] : null,
+        })
+        count++
+      }
+      setLastAction(count > 0 ? `Imported ${count} requests` : 'No valid requests found', count > 0 ? 'success' : 'error')
+    } catch {
+      setLastAction('Import failed — paste a valid JSON array', 'error')
+    }
+  }, [createRequest, setLastAction])
+
   const handleSelectLoadedRequest = (req: ApiRequest) => {
     updateState({
       activeRequestId: req.id,
@@ -412,14 +476,13 @@ export default function ApiClient() {
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
-            <select
+            <Select
               value={activeEnvironmentId || ''}
               onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
-              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
             >
               <option value="">No Environment</option>
               {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            </Select>
             <button
               onClick={() => setShowEnvModal(true)}
               className="text-xs text-[var(--color-accent)] hover:underline"
@@ -429,18 +492,31 @@ export default function ApiClient() {
           </div>
 
           <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-            <button
-              onClick={handleSave}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
-            >
+            <Button variant="secondary" size="sm" onClick={handleSave}>
               Save
-            </button>
-            <button
-              onClick={handleSaveAs}
-              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleSaveAs}>
               Save As
-            </button>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleImport}
+              title="Import requests from clipboard (JSON)"
+            >
+              Import
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              title="Export all requests to clipboard (JSON)"
+            >
+              Export
+            </Button>
           </div>
         </div>
 
@@ -449,7 +525,7 @@ export default function ApiClient() {
           <select
             value={method}
             onChange={(e) => updateDraft({ method: e.target.value })}
-            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none"
+            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
@@ -457,22 +533,24 @@ export default function ApiClient() {
               </option>
             ))}
           </select>
-          <input
+          <Input
             value={url}
             onChange={(e) => updateDraft({ url: e.target.value })}
             placeholder="{{baseUrl}}/endpoint"
-            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="flex-1"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSend()
             }}
           />
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSend}
             disabled={loading}
-            className="rounded border border-[var(--color-accent)] px-4 py-1.5 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? 'Sending…' : 'Send'}
-          </button>
+          </Button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -501,17 +579,17 @@ export default function ApiClient() {
                   <div className="flex flex-col gap-1">
                     {params.map((p, i) => (
                       <div key={i} className="flex items-center gap-1">
-                        <input
+                        <Input
                           value={p.key}
                           onChange={(e) => updateParam(i, { key: e.target.value })}
                           placeholder="Key"
-                          className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          className="w-1/3"
                         />
-                        <input
+                        <Input
                           value={p.value}
                           onChange={(e) => updateParam(i, { value: e.target.value })}
                           placeholder="Value"
-                          className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                          className="flex-1"
                         />
                         <button
                           onClick={() => removeParam(i)}
@@ -556,17 +634,17 @@ export default function ApiClient() {
                         onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
                         className="accent-[var(--color-accent)]"
                       />
-                      <input
+                      <Input
                         value={h.key}
                         onChange={(e) => updateHeader(i, { key: e.target.value })}
                         placeholder="Header name"
-                        className="w-1/3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        className="w-1/3"
                       />
-                      <input
+                      <Input
                         value={h.value}
                         onChange={(e) => updateHeader(i, { value: e.target.value })}
                         placeholder="Value (or {{env_var}})"
-                        className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 py-0.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                        className="flex-1"
                       />
                       <button
                         onClick={() => removeHeader(i)}
@@ -611,6 +689,7 @@ export default function ApiClient() {
                 {showBody ? (
                   <div className="flex-1">
                     <Editor
+                      theme={monacoTheme}
                       language={bodyEditorLang}
                       value={body}
                       onChange={(v) => updateDraft({ body: v ?? '' })}
@@ -663,6 +742,7 @@ export default function ApiClient() {
                 <div className="flex-1 overflow-auto">
                   {responseTab === 'body' ? (
                     <Editor
+                      theme={monacoTheme}
                       language={responseLanguage}
                       value={prettyBody}
                       options={{ ...EDITOR_OPTIONS, readOnly: true }}

@@ -8,6 +8,8 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { Select } from '@/components/shared/Input'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
 
@@ -47,7 +49,7 @@ function parseDiffStats(patch: string): DiffStats {
 }
 
 export default function DiffViewer() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<DiffViewerState>('diff-viewer', {
     left: '',
     right: '',
@@ -120,55 +122,56 @@ export default function DiffViewer() {
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => void computeDiff()}
           disabled={isComparing}
-          className="rounded border border-[var(--color-accent)] px-3 py-1 font-pixel text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isComparing ? 'Comparing…' : 'Compare'}
-        </button>
+        </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
 
         {diffHtml && !identical && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               setDiffHtml('')
               setRawPatch('')
             }}
-            className="rounded border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
           >
             ← Editors
-          </button>
+          </Button>
         )}
 
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleSwap}
           title="Swap left and right"
-          className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
         >
           ⇄ Swap
-        </button>
+        </Button>
 
-        <select
+        <Select
           value={state.mode}
           onChange={(e) => updateState({ mode: e.target.value as DiffViewerState['mode'] })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
         >
           <option value="side-by-side">Side by Side</option>
           <option value="inline">Inline</option>
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={state.language}
           onChange={(e) => updateState({ language: e.target.value })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none"
         >
           {LANGUAGES.map((l) => (
             <option key={l.id} value={l.id}>
               {l.label}
             </option>
           ))}
-        </select>
+        </Select>
 
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           <input
@@ -219,6 +222,7 @@ export default function DiffViewer() {
             </div>
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language={state.language}
                 value={state.left}
                 onChange={(v) => updateState({ left: v ?? '' })}
@@ -232,6 +236,7 @@ export default function DiffViewer() {
             </div>
             <div className="flex-1">
               <Editor
+                theme={monacoTheme}
                 language={state.language}
                 value={state.right}
                 onChange={(v) => updateState({ right: v ?? '' })}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -194,13 +195,14 @@ export default function CssSpecificity() {
         )}
         <div className="ml-auto flex items-center gap-2">
           {EXAMPLES.map((ex) => (
-            <button
+            <Button
               key={ex.label}
+              variant="secondary"
+              size="sm"
               onClick={() => updateState({ input: ex.selectors })}
-              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
             >
               {ex.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

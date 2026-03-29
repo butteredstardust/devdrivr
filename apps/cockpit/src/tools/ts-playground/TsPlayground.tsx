@@ -4,6 +4,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
@@ -34,7 +35,7 @@ console.log(greeting)
 `
 
 export default function TsPlayground() {
-  useMonacoTheme()
+  const monacoTheme = useMonacoTheme()
   const [state, updateState] = useToolState<TsPlaygroundState>('ts-playground', {
     input: EXAMPLE,
     target: 'ESNext',
@@ -94,28 +95,26 @@ export default function TsPlayground() {
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           Target
-          <select
+          <Select
             value={state.target}
             onChange={(e) => updateState({ target: e.target.value })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
           >
             <option value="ES5">ES5</option>
             <option value="ES2015">ES2015</option>
             <option value="ES2020">ES2020</option>
             <option value="ESNext">ESNext</option>
-          </select>
+          </Select>
         </label>
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           Module
-          <select
+          <Select
             value={state.module}
             onChange={(e) => updateState({ module: e.target.value })}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text)] outline-none"
           >
             <option value="ESNext">ESNext</option>
             <option value="CommonJS">CommonJS</option>
             <option value="None">None</option>
-          </select>
+          </Select>
         </label>
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           <input
@@ -143,6 +142,7 @@ export default function TsPlayground() {
       <div className="flex flex-1 overflow-hidden">
         <div className="w-1/2 border-r border-[var(--color-border)]">
           <Editor
+            theme={monacoTheme}
             language="typescript"
             value={state.input}
             onChange={(v) => updateState({ input: v ?? '' })}
@@ -151,6 +151,7 @@ export default function TsPlayground() {
         </div>
         <div className="w-1/2">
           <Editor
+            theme={monacoTheme}
             language="javascript"
             value={output}
             options={{ ...EDITOR_OPTIONS, readOnly: true }}
