@@ -307,7 +307,7 @@ export function NotesDrawer() {
             {filteredNotes.map((note) => (
               <div
                 key={note.id}
-                className={`mb-3 rounded-lg border shadow-sm transition-all duration-200 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'} ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
+                className={`mb-3 rounded-lg border shadow-sm transition-colors duration-150 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'} ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
               >
                 <div className="p-3">
                   {editingId === note.id ? (
