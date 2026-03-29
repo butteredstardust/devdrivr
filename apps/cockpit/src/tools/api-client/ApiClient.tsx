@@ -17,6 +17,15 @@ import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 
+function isValidAuth(val: unknown): val is ApiRequestAuth {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  if (obj['type'] === 'none') return true
+  if (obj['type'] === 'bearer' && typeof obj['token'] === 'string') return true
+  if (obj['type'] === 'basic' && typeof obj['username'] === 'string' && typeof obj['password'] === 'string') return true
+  return false
+}
+
 type Param = { key: string; value: string }
 
 type ApiClientState = {
@@ -124,6 +133,7 @@ export default function ApiClient() {
   const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)
   const setActiveEnvironmentId = useApiStore((s) => s.setActiveEnvironmentId)
   const collections = useApiStore((s) => s.collections)
+  const requests = useApiStore((s) => s.requests)
   const createRequest = useApiStore((s) => s.createRequest)
   const updateRequest = useApiStore((s) => s.updateRequest)  
   useEffect(() => {
@@ -327,6 +337,58 @@ export default function ApiClient() {
     setLastAction('Request saved', 'success')
   }
 
+  // ---------------------------------------------------------------------------
+  // Import / Export
+  // ---------------------------------------------------------------------------
+
+  const handleExport = useCallback(async () => {
+    try {
+      const exportData = requests.map((r) => ({
+        name: r.name,
+        method: r.method,
+        url: r.url,
+        headers: r.headers,
+        body: r.body,
+        bodyMode: r.bodyMode,
+        auth: r.auth,
+        collectionId: r.collectionId,
+      }))
+      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
+      setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
+    } catch {
+      setLastAction('Export failed — clipboard unavailable', 'error')
+    }
+  }, [requests, setLastAction])
+
+  const handleImport = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const parsed: unknown = JSON.parse(text)
+      if (!Array.isArray(parsed)) {
+        setLastAction('Import failed — paste a valid JSON array', 'error')
+        return
+      }
+      let count = 0
+      for (const item of parsed as Array<Record<string, unknown>>) {
+        if (typeof item['name'] !== 'string' || typeof item['url'] !== 'string') continue
+        await createRequest({
+          name: item['name'],
+          method: typeof item['method'] === 'string' ? item['method'] : 'GET',
+          url: item['url'],
+          headers: Array.isArray(item['headers']) ? (item['headers'] as ApiHeader[]) : [],
+          body: typeof item['body'] === 'string' ? item['body'] : '',
+          bodyMode: typeof item['bodyMode'] === 'string' ? item['bodyMode'] : 'none',
+          auth: isValidAuth(item['auth']) ? item['auth'] : { type: 'none' },
+          collectionId: typeof item['collectionId'] === 'string' ? item['collectionId'] : null,
+        })
+        count++
+      }
+      setLastAction(count > 0 ? `Imported ${count} requests` : 'No valid requests found', count > 0 ? 'success' : 'error')
+    } catch {
+      setLastAction('Import failed — paste a valid JSON array', 'error')
+    }
+  }, [createRequest, setLastAction])
+
   const handleSelectLoadedRequest = (req: ApiRequest) => {
     updateState({
       activeRequestId: req.id,
@@ -440,6 +502,23 @@ export default function ApiClient() {
               className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
             >
               Save As
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+            <button
+              onClick={handleImport}
+              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
+              title="Import requests from clipboard (JSON)"
+            >
+              Import
+            </button>
+            <button
+              onClick={handleExport}
+              className="rounded text-xs bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border)] text-[var(--color-text)]"
+              title="Export all requests to clipboard (JSON)"
+            >
+              Export
             </button>
           </div>
         </div>
