@@ -18,7 +18,7 @@ describe('RefactoringToolkit', () => {
 
   it('renders transform checkboxes', () => {
     renderTool(RefactoringToolkit)
-    expect(screen.getByText('var \u2192 const')).toBeInTheDocument()
+    expect(screen.getByText('var \u2192 const/let')).toBeInTheDocument()
     expect(screen.getByText('Arrow functions')).toBeInTheDocument()
     expect(screen.getByText('== \u2192 ===')).toBeInTheDocument()
   })

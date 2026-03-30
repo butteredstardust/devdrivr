@@ -6,162 +6,17 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
-
-type TransformCategory = 'modernize' | 'safety' | 'cleanup'
-type SafetyLevel = 'safe' | 'caution' | 'destructive'
-
-type Transform = {
-  id: string
-  name: string
-  description: string
-  category: TransformCategory
-  safety: SafetyLevel
-  languages: string[]
-  apply: (code: string) => string
-}
-
-const CATEGORIES: { id: TransformCategory; label: string }[] = [
-  { id: 'modernize', label: 'Modernize' },
-  { id: 'safety', label: 'Type Safety' },
-  { id: 'cleanup', label: 'Cleanup' },
-]
-
-const SAFETY_COLORS: Record<SafetyLevel, string> = {
-  safe: 'var(--color-success)',
-  caution: 'var(--color-warning)',
-  destructive: 'var(--color-error)',
-}
-
-const SAFETY_LABELS: Record<SafetyLevel, string> = {
-  safe: 'Safe — no semantic changes',
-  caution: 'Caution — verify behaviour after applying',
-  destructive: 'Destructive — removes code',
-}
-
-const LANGUAGES = [
-  { id: 'javascript', label: 'JavaScript' },
-  { id: 'typescript', label: 'TypeScript' },
-]
-
-const TRANSFORMS: Transform[] = [
-  // ── Modernize ──────────────────────────────────────────────
-  {
-    id: 'var-to-const',
-    name: 'var → const',
-    description: 'Convert var declarations to const',
-    category: 'modernize',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => code.replace(/\bvar\s+/g, 'const '),
-  },
-  {
-    id: 'arrow-functions',
-    name: 'Arrow functions',
-    description: 'Convert function expressions to arrow functions',
-    category: 'modernize',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => code.replace(/function\s*\(([^)]*)\)\s*\{/g, '($1) => {'),
-  },
-  {
-    id: 'template-literals',
-    name: 'Template literals',
-    description: 'Convert string concatenation to template literals',
-    category: 'modernize',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) =>
-      code.replace(
-        /(['"])([^'"]*)\1\s*\+\s*(\w+)\s*\+\s*(['"])([^'"]*)\4/g,
-        '`$2${$3}$5`'
-      ),
-  },
-  {
-    id: 'optional-chaining',
-    name: 'Optional chaining',
-    description: 'Convert a && a.b patterns to a?.b',
-    category: 'modernize',
-    safety: 'caution',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => code.replace(/(\w+)\s*&&\s*\1\.(\w+)/g, '$1?.$2'),
-  },
-  {
-    id: 'require-to-import',
-    name: 'require → import',
-    description: 'Convert CommonJS require() to ES module import',
-    category: 'modernize',
-    safety: 'caution',
-    languages: ['javascript', 'typescript'],
-    apply: (code) =>
-      code.replace(
-        /(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g,
-        "import $1 from '$2'"
-      ),
-  },
-  {
-    id: 'spread-operator',
-    name: 'Object.assign → spread',
-    description: 'Convert Object.assign({}, x) to { ...x }',
-    category: 'modernize',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) =>
-      code.replace(/Object\.assign\(\s*\{\s*\}\s*,\s*(\w+)\s*\)/g, '{ ...$1 }'),
-  },
-  // ── Type Safety ────────────────────────────────────────────
-  {
-    id: 'strict-equality',
-    name: '== → ===',
-    description: 'Convert loose equality to strict equality',
-    category: 'safety',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => {
-      let result = code.replace(/([^!=])={2}(?!=)/g, '$1===')
-      result = result.replace(/!=(?!=)/g, '!==')
-      return result
-    },
-  },
-  {
-    id: 'nullish-coalescing',
-    name: '|| → ?? (nullish)',
-    description: 'Convert || to ?? when RHS is a literal default',
-    category: 'safety',
-    safety: 'caution',
-    languages: ['javascript', 'typescript'],
-    apply: (code) =>
-      code.replace(/(\w+)\s*\|\|\s*(['"`]|\d|true|false|\[|\{)/g, '$1 ?? $2'),
-  },
-  // ── Cleanup ────────────────────────────────────────────────
-  {
-    id: 'remove-console',
-    name: 'Remove console.*',
-    description: 'Remove console.log/debug/warn/info/error statements',
-    category: 'cleanup',
-    safety: 'destructive',
-    languages: ['javascript', 'typescript'],
-    apply: (code) =>
-      code.replace(/^\s*console\.(log|debug|warn|info|error)\(.*?\);?\s*$/gm, ''),
-  },
-  {
-    id: 'remove-debugger',
-    name: 'Remove debugger',
-    description: 'Remove debugger statements',
-    category: 'cleanup',
-    safety: 'destructive',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => code.replace(/^\s*debugger;?\s*$/gm, ''),
-  },
-  {
-    id: 'trailing-commas',
-    name: 'Add trailing commas',
-    description: 'Add trailing commas to multi-line arrays and objects',
-    category: 'cleanup',
-    safety: 'safe',
-    languages: ['javascript', 'typescript'],
-    apply: (code) => code.replace(/([^\s,])\n(\s*[}\]])/g, '$1,\n$2'),
-  },
-]
+import { useWorker } from '@/hooks/useWorker'
+import type { RefactoringWorker } from '@/workers/refactoring.worker'
+import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
+import {
+  TRANSFORMS,
+  CATEGORIES,
+  SAFETY_COLORS,
+  SAFETY_LABELS,
+  LANGUAGES,
+  type TransformCategory,
+} from './transforms'
 
 type RefactoringState = {
   input: string
@@ -177,6 +32,11 @@ export default function RefactoringToolkit() {
     language: 'javascript',
   })
 
+  const worker = useWorker<RefactoringWorker>(
+    () => new RefactoringWorkerFactory(),
+    ['applyTransforms']
+  )
+
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [preview, setPreview] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -190,22 +50,21 @@ export default function RefactoringToolkit() {
   // Auto-preview: debounce 300ms when input or selected transforms change
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!state.input.trim() || state.selectedTransforms.length === 0) {
+    if (!state.input.trim() || state.selectedTransforms.length === 0 || !worker) {
       setPreview(null)
       return
     }
     debounceRef.current = setTimeout(() => {
-      let result = state.input
-      for (const id of state.selectedTransforms) {
-        const transform = availableTransforms.find((t) => t.id === id)
-        if (transform) result = transform.apply(result)
-      }
-      setPreview(result)
+      const parser = state.language === 'typescript' ? 'tsx' : 'babel'
+      worker
+        .applyTransforms(state.input, state.selectedTransforms, parser)
+        .then((result) => setPreview(result))
+        .catch((err: Error) => setLastAction(err.message, 'error'))
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.input, state.selectedTransforms, availableTransforms])
+  }, [state.input, state.selectedTransforms, state.language, worker, setLastAction])
 
   const handleApply = useCallback(() => {
     if (preview === null || preview === state.input) return

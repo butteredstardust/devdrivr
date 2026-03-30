@@ -64,14 +64,15 @@
     "@testing-library/react": "^16.3.2",
     "@types/css-tree": "^2.3.10",
     "@types/diff": "^7.0.2",
-    "@types/jscodeshift": "^0.12.0",
     "@types/js-md5": "^0.7.2",
+    "@types/jscodeshift": "^0.12.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.6.0",
     "jsdom": "^29.0.1",
     "typescript": "^5.9",
     "vite": "^7.0.4",
+    "vite-plugin-node-stdlib-browser": "^0.2.1",
     "vitest": "^4.1.0"
   }
 }
