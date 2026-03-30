@@ -346,4 +346,85 @@ export const TRANSFORMS: Transform[] = [
         })
     },
   },
+  {
+    id: 'promise-to-async',
+    name: 'Promise.then → async/await',
+    description: 'Convert .then(fn).catch(fn) chains to async/await with try/catch',
+    category: 'modernize',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.CallExpression, {
+          callee: {
+            type: 'MemberExpression',
+            property: { type: 'Identifier', name: 'catch' },
+          },
+        })
+        .filter((path) => {
+          const callee = path.node.callee as unknown as {
+            type: string
+            object: { type: string; callee: { type: string; property: { type: string; name: string } } }
+          }
+          if (callee.type !== 'MemberExpression') return false
+          const thenCall = callee.object
+          return (
+            thenCall.type === 'CallExpression' &&
+            thenCall.callee.type === 'MemberExpression' &&
+            thenCall.callee.property.type === 'Identifier' &&
+            thenCall.callee.property.name === 'then'
+          )
+        })
+        .forEach((path) => {
+          const catchCallee = path.node.callee as unknown as { object: unknown }
+          const thenCall = catchCallee.object as unknown as {
+            callee: { object: unknown }
+            arguments: unknown[]
+          }
+          const originalExpr = (thenCall.callee as { object: unknown }).object
+          const thenFn = thenCall.arguments[0]
+          const catchFn = path.node.arguments[0]
+
+          if (!thenFn || !catchFn) return
+
+          const resultId = j.identifier('_result')
+          const errorId = j.identifier('_error')
+
+          const tryCatch = j.tryStatement(
+            j.blockStatement([
+              j.variableDeclaration('const', [
+                j.variableDeclarator(
+                  resultId,
+                  j.awaitExpression(
+                    originalExpr as Parameters<typeof j.awaitExpression>[0]
+                  )
+                ),
+              ]),
+              j.expressionStatement(
+                j.callExpression(
+                  thenFn as Parameters<typeof j.callExpression>[0],
+                  [resultId]
+                )
+              ),
+            ]),
+            j.catchClause(
+              errorId,
+              null,
+              j.blockStatement([
+                j.expressionStatement(
+                  j.callExpression(
+                    catchFn as Parameters<typeof j.callExpression>[0],
+                    [errorId]
+                  )
+                ),
+              ])
+            )
+          )
+
+          const asyncFn = j.arrowFunctionExpression([], j.blockStatement([tryCatch]))
+          asyncFn.async = true
+          j(path).replaceWith(j.callExpression(asyncFn, []))
+        })
+    },
+  },
 ]

@@ -149,6 +149,22 @@ describe('trailing-commas', () => {
   })
 })
 
+describe('promise-to-async', () => {
+  it('converts .then(fn).catch(fn) to an async IIFE with try/catch', () => {
+    const input = `fetchData().then(result => process(result)).catch(err => handleError(err))`
+    const output = applyTransform('promise-to-async', input)
+    expect(output).toContain('async')
+    expect(output).toContain('await')
+    expect(output).toContain('try')
+    expect(output).toContain('catch')
+  })
+  it('is a no-op when no .then().catch() pattern exists', () => {
+    const input = 'const x = 1'
+    const output = applyTransform('promise-to-async', input)
+    expect(output).not.toContain('async')
+  })
+})
+
 describe('var-to-const', () => {
   it('converts unreassigned var to const', () => {
     expect(applyTransform('var-to-const', 'var x = 1')).toBe('const x = 1;')
