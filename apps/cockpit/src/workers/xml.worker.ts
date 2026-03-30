@@ -28,13 +28,17 @@ type JsonResult = {
 const api = {
   validate(xml: string): XmlResult {
     try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(xml, 'text/xml')
-      const parseError = (doc as any).querySelector('parsererror')
-      if (parseError) {
-        return { valid: false, errors: [parseError.textContent ?? 'Parse error'] }
-      }
-      return { valid: true, errors: [] }
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        errorHandler: {
+          warning: (msg: string) => errors.push(`Warning: ${msg}`),
+          error: (msg: string) => errors.push(`Error: ${msg}`),
+          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
+        },
+      } as any)
+      parser.parseFromString(xml, 'text/xml')
+      return { valid: errors.length === 0, errors }
     } catch (e) {
       return { valid: false, errors: [(e as Error).message] }
     }
@@ -42,11 +46,18 @@ const api = {
 
   format(xml: string, indent: number = 2): XmlResult {
     try {
-      const parser = new DOMParser()
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        errorHandler: {
+          warning: (msg: string) => errors.push(`Warning: ${msg}`),
+          error: (msg: string) => errors.push(`Error: ${msg}`),
+          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
+        },
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
-      const parseError = (doc as any).querySelector('parsererror')
-      if (parseError) {
-        return { valid: false, errors: [parseError.textContent ?? 'Parse error'] }
+      if (errors.length > 0) {
+        return { valid: false, errors }
       }
 
       // Simple indentation-based formatting
@@ -61,11 +72,18 @@ const api = {
 
   minify(xml: string): XmlResult {
     try {
-      const parser = new DOMParser()
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        errorHandler: {
+          warning: (msg: string) => errors.push(`Warning: ${msg}`),
+          error: (msg: string) => errors.push(`Error: ${msg}`),
+          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
+        },
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
-      const parseError = (doc as any).querySelector('parsererror')
-      if (parseError) {
-        return { valid: false, errors: [parseError.textContent ?? 'Parse error'] }
+      if (errors.length > 0) {
+        return { valid: false, errors }
       }
       const serializer = new XMLSerializer()
       const raw = serializer.serializeToString(doc)
@@ -79,11 +97,18 @@ const api = {
 
   toJson(xml: string): JsonResult {
     try {
-      const parser = new DOMParser()
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        errorHandler: {
+          warning: (msg: string) => errors.push(`Warning: ${msg}`),
+          error: (msg: string) => errors.push(`Error: ${msg}`),
+          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
+        },
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
-      const parseError = (doc as any).querySelector('parsererror')
-      if (parseError) {
-        return { valid: false, error: parseError.textContent ?? 'Parse error' }
+      if (errors.length > 0) {
+        return { valid: false, error: errors.join('\n') }
       }
       const json = nodeToJson(doc.documentElement)
       return { valid: true, json: JSON.stringify(json, null, 2) }
@@ -94,10 +119,17 @@ const api = {
 
   stats(xml: string): XmlStats {
     try {
-      const parser = new DOMParser()
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        errorHandler: {
+          warning: (msg: string) => errors.push(`Warning: ${msg}`),
+          error: (msg: string) => errors.push(`Error: ${msg}`),
+          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
+        },
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
-      const parseError = (doc as any).querySelector('parsererror')
-      if (parseError) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
+      if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
       return collectStats(doc.documentElement)
     } catch {
       return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
