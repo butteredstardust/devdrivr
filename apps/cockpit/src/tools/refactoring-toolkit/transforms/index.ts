@@ -41,4 +41,66 @@ export const TRANSFORMS: Transform[] = [
       })
     },
   },
+  {
+    id: 'arrow-functions',
+    name: 'Arrow functions',
+    description: 'Convert anonymous function expressions to arrow functions',
+    category: 'modernize',
+    safety: 'safe',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.FunctionExpression)
+        .filter((path) => {
+          if (path.node.id) return false // skip named function expressions
+          const parent = path.parent.node
+          return (
+            parent.type !== 'Property' &&
+            parent.type !== 'MethodDefinition' &&
+            parent.type !== 'ObjectMethod' &&
+            parent.type !== 'ClassMethod'
+          )
+        })
+        .forEach((path) => {
+          j(path).replaceWith(
+            j.arrowFunctionExpression(path.node.params, path.node.body, false)
+          )
+        })
+    },
+  },
+  {
+    id: 'template-literals',
+    name: 'Template literals',
+    description: "Convert 'string' + identifier concatenation to template literals",
+    category: 'modernize',
+    safety: 'safe',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.BinaryExpression, { operator: '+' })
+        .filter((path) => {
+          const { left, right } = path.node
+          const isString =
+            left.type === 'StringLiteral' ||
+            (left.type === 'Literal' && typeof (left as { value: unknown }).value === 'string')
+          return isString && (right.type === 'Identifier' || right.type === 'MemberExpression')
+        })
+        .forEach((path) => {
+          const { left, right } = path.node
+          const strValue =
+            left.type === 'StringLiteral'
+              ? (left as { value: string }).value
+              : String((left as { value: unknown }).value)
+          j(path).replaceWith(
+            j.templateLiteral(
+              [
+                j.templateElement({ cooked: strValue, raw: strValue }, false),
+                j.templateElement({ cooked: '', raw: '' }, true),
+              ],
+              [right]
+            )
+          )
+        })
+    },
+  },
 ]
