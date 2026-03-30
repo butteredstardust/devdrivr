@@ -13,6 +13,29 @@ export type Transform = {
   apply: (root: Collection, j: JSCodeshift) => void
 }
 
+export const CATEGORIES: { id: TransformCategory; label: string }[] = [
+  { id: 'modernize', label: 'Modernize' },
+  { id: 'safety', label: 'Type Safety' },
+  { id: 'cleanup', label: 'Cleanup' },
+]
+
+export const SAFETY_COLORS: Record<SafetyLevel, string> = {
+  safe: 'var(--color-success)',
+  caution: 'var(--color-warning)',
+  destructive: 'var(--color-error)',
+}
+
+export const SAFETY_LABELS: Record<SafetyLevel, string> = {
+  safe: 'Safe — no semantic changes',
+  caution: 'Caution — verify behaviour after applying',
+  destructive: 'Destructive — removes code',
+}
+
+export const LANGUAGES = [
+  { id: 'javascript', label: 'JavaScript' },
+  { id: 'typescript', label: 'TypeScript' },
+]
+
 // Duck-typed helpers to avoid j.X namespace collisions inside function bodies
 type Named = { name: string }
 type Valued = { value: unknown }
