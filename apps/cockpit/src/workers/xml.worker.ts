@@ -12,13 +12,6 @@ type XPathResult = {
   count: number
 }
 
-function makeErrorHandler(errors: string[]) {
-  return (level: 'warning' | 'error' | 'fatalError', msg: string) => {
-    const prefix = level === 'warning' ? 'Warning' : level === 'error' ? 'Error' : 'Fatal'
-    errors.push(`${prefix}: ${msg}`)
-  }
-}
-
 type XmlStats = {
   elements: number
   attributes: number
@@ -34,45 +27,69 @@ type JsonResult = {
 
 const api = {
   validate(xml: string): XmlResult {
-    const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
-    parser.parseFromString(xml, 'text/xml')
-    return { valid: errors.length === 0, errors }
+    try {
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
+      } as any)
+      parser.parseFromString(xml, 'text/xml')
+      return { valid: errors.length === 0, errors }
+    } catch (e) {
+      return { valid: false, errors: [(e as Error).message] }
+    }
   },
 
   format(xml: string, indent: number = 2): XmlResult {
-    const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) {
-      return { valid: false, errors }
-    }
+    try {
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
+      } as any)
+      const doc = parser.parseFromString(xml, 'text/xml')
+      if (errors.length > 0) {
+        return { valid: false, errors }
+      }
 
-    // Simple indentation-based formatting
-    const serializer = new XMLSerializer()
-    const raw = serializer.serializeToString(doc)
-    const formatted = formatXmlString(raw, indent)
-    return { valid: true, errors: [], formatted }
+      // Simple indentation-based formatting
+      const serializer = new XMLSerializer()
+      const raw = serializer.serializeToString(doc)
+      const formatted = formatXmlString(raw, indent)
+      return { valid: true, errors: [], formatted }
+    } catch (e) {
+      return { valid: false, errors: [(e as Error).message] }
+    }
   },
 
   minify(xml: string): XmlResult {
-    const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) {
-      return { valid: false, errors }
+    try {
+      const errors: string[] = []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
+      } as any)
+      const doc = parser.parseFromString(xml, 'text/xml')
+      if (errors.length > 0) {
+        return { valid: false, errors }
+      }
+      const serializer = new XMLSerializer()
+      const raw = serializer.serializeToString(doc)
+      // Strip whitespace between tags
+      const minified = raw.replace(/>\s+</g, '><').trim()
+      return { valid: true, errors: [], formatted: minified }
+    } catch (e) {
+      return { valid: false, errors: [(e as Error).message] }
     }
-    const serializer = new XMLSerializer()
-    const raw = serializer.serializeToString(doc)
-    // Strip whitespace between tags
-    const minified = raw.replace(/>\s+</g, '><').trim()
-    return { valid: true, errors: [], formatted: minified }
   },
 
   toJson(xml: string): JsonResult {
     try {
       const errors: string[] = []
-      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
         return { valid: false, error: errors.join('\n') }
@@ -87,7 +104,10 @@ const api = {
   stats(xml: string): XmlStats {
     try {
       const errors: string[] = []
-      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
+      } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
       return collectStats(doc.documentElement)
