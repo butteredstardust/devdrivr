@@ -35,14 +35,16 @@ type JsonResult = {
 const api = {
   validate(xml: string): XmlResult {
     const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) } as any)
     parser.parseFromString(xml, 'text/xml')
     return { valid: errors.length === 0, errors }
   },
 
   format(xml: string, indent: number = 2): XmlResult {
     const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) } as any)
     const doc = parser.parseFromString(xml, 'text/xml')
     if (errors.length > 0) {
       return { valid: false, errors }
@@ -57,7 +59,8 @@ const api = {
 
   minify(xml: string): XmlResult {
     const errors: string[] = []
-    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) } as any)
     const doc = parser.parseFromString(xml, 'text/xml')
     if (errors.length > 0) {
       return { valid: false, errors }
@@ -72,7 +75,8 @@ const api = {
   toJson(xml: string): JsonResult {
     try {
       const errors: string[] = []
-      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
         return { valid: false, error: errors.join('\n') }
@@ -87,7 +91,8 @@ const api = {
   stats(xml: string): XmlStats {
     try {
       const errors: string[] = []
-      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser = new DOMParser({ errorHandler: makeErrorHandler(errors) } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
       return collectStats(doc.documentElement)
