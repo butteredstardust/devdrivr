@@ -13,6 +13,17 @@ export type Transform = {
   apply: (root: Collection, j: JSCodeshift) => void
 }
 
+// Duck-typed helpers to avoid j.X namespace collisions inside function bodies
+type Named = { name: string }
+type Valued = { value: unknown }
+type WithProperties = { properties: unknown[] }
+type Declarator = VariableDeclarator_
+type VariableDeclarator_ = {
+  type: 'VariableDeclarator'
+  id: { type: string; name?: string }
+  init: { type: string; callee: unknown; arguments: unknown[] } | null | undefined
+}
+
 export const TRANSFORMS: Transform[] = [
   // ── Modernize ──────────────────────────────────────────────
   {
@@ -25,14 +36,17 @@ export const TRANSFORMS: Transform[] = [
     apply: (root, j) => {
       root.find(j.VariableDeclaration, { kind: 'var' }).forEach((path) => {
         const names = path.node.declarations
-          .map((d) => (d.id.type === 'Identifier' ? d.id.name : null))
+          .map((d) => {
+            const decl = d as unknown as { id: { type: string; name?: string } }
+            return decl.id.type === 'Identifier' && decl.id.name ? decl.id.name : null
+          })
           .filter((n): n is string => n !== null)
 
         const isReassigned = names.some((name) => {
           let found = false
           root.find(j.AssignmentExpression).forEach((assignPath) => {
-            const left = assignPath.node.left
-            if (left.type === 'Identifier' && left.name === name) found = true
+            const left = assignPath.node.left as unknown as Named
+            if (assignPath.node.left.type === 'Identifier' && left.name === name) found = true
           })
           return found
         })
@@ -82,15 +96,12 @@ export const TRANSFORMS: Transform[] = [
           const { left, right } = path.node
           const isString =
             left.type === 'StringLiteral' ||
-            (left.type === 'Literal' && typeof (left as { value: unknown }).value === 'string')
+            (left.type === 'Literal' && typeof (left as unknown as Valued).value === 'string')
           return isString && (right.type === 'Identifier' || right.type === 'MemberExpression')
         })
         .forEach((path) => {
           const { left, right } = path.node
-          const strValue =
-            left.type === 'StringLiteral'
-              ? (left as { value: string }).value
-              : String((left as { value: unknown }).value)
+          const strValue = String((left as unknown as Valued).value)
           j(path).replaceWith(
             j.templateLiteral(
               [
@@ -99,6 +110,116 @@ export const TRANSFORMS: Transform[] = [
               ],
               [right]
             )
+          )
+        })
+    },
+  },
+  {
+    id: 'optional-chaining',
+    name: 'Optional chaining',
+    description: 'Convert a && a.b patterns to a?.b',
+    category: 'modernize',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.LogicalExpression, { operator: '&&' })
+        .filter((path) => {
+          const { left, right } = path.node
+          return (
+            left.type === 'Identifier' &&
+            right.type === 'MemberExpression' &&
+            right.object.type === 'Identifier' &&
+            (right.object as unknown as Named).name === (left as unknown as Named).name
+          )
+        })
+        .forEach((path) => {
+          const right = path.node.right
+          if (right.type !== 'MemberExpression') return
+          j(path).replaceWith(
+            j.optionalMemberExpression(right.object, right.property, false, true)
+          )
+        })
+    },
+  },
+  {
+    id: 'require-to-import',
+    name: 'require → import',
+    description: 'Convert CommonJS require() to ES module import',
+    category: 'modernize',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.VariableDeclaration)
+        .filter((path) => {
+          const { declarations } = path.node
+          if (declarations.length !== 1) return false
+          const d = declarations[0] as unknown as Declarator
+          if (d.type !== 'VariableDeclarator') return false
+          const init = d.init
+          if (!init || init.type !== 'CallExpression') return false
+          const callee = init.callee as unknown as Named
+          const args = init.arguments as unknown[]
+          return (
+            (init.callee as { type: string }).type === 'Identifier' &&
+            callee.name === 'require' &&
+            args.length === 1 &&
+            (['StringLiteral', 'Literal'].includes((args[0] as { type: string }).type)) &&
+            d.id.type === 'Identifier'
+          )
+        })
+        .forEach((path) => {
+          const d = path.node.declarations[0] as unknown as Declarator
+          if (!d || d.type !== 'VariableDeclarator' || !d.init) return
+          const args = d.init.arguments as Array<{ type: string } & Valued>
+          const sourceValue = args[0]?.value
+          if (typeof sourceValue !== 'string') return
+          const name = (d.id as Named).name
+          if (!name) return
+          j(path).replaceWith(
+            j.importDeclaration(
+              [j.importDefaultSpecifier(j.identifier(name))],
+              j.literal(sourceValue)
+            )
+          )
+        })
+    },
+  },
+  {
+    id: 'spread-operator',
+    name: 'Object.assign → spread',
+    description: 'Convert Object.assign({}, x) to { ...x }',
+    category: 'modernize',
+    safety: 'safe',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.CallExpression)
+        .filter((path) => {
+          const { callee, arguments: args } = path.node
+          if (callee.type !== 'MemberExpression') return false
+          const obj = callee.object as unknown as Named
+          const prop = callee.property as unknown as Named
+          return (
+            callee.object.type === 'Identifier' &&
+            obj.name === 'Object' &&
+            callee.property.type === 'Identifier' &&
+            prop.name === 'assign' &&
+            args.length === 2 &&
+            args[0] !== undefined &&
+            args[0] !== null &&
+            args[0].type === 'ObjectExpression' &&
+            (args[0] as unknown as WithProperties).properties.length === 0
+          )
+        })
+        .forEach((path) => {
+          const source = path.node.arguments[1]
+          if (!source || source.type === 'SpreadElement') return
+          j(path).replaceWith(
+            j.objectExpression([
+              j.spreadElement(source as Parameters<typeof j.spreadElement>[0]),
+            ])
           )
         })
     },
