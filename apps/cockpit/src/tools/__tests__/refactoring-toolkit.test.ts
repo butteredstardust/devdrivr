@@ -110,6 +110,45 @@ describe('nullish-coalescing', () => {
   })
 })
 
+describe('remove-console', () => {
+  it('removes console.log statements', () => {
+    const input = 'console.log("debug")\nconst x = 1'
+    const output = applyTransform('remove-console', input)
+    expect(output).not.toContain('console.log')
+    expect(output).toContain('const x = 1')
+  })
+  it('removes console.warn and console.error', () => {
+    const input = 'console.warn("warn")\nconsole.error("err")'
+    const output = applyTransform('remove-console', input)
+    expect(output.trim()).toBe('')
+  })
+  it('is a no-op when no console calls exist', () => {
+    const input = 'const x = 1'
+    expect(applyTransform('remove-console', input)).toContain('const x = 1')
+  })
+})
+
+describe('remove-debugger', () => {
+  it('removes debugger statements', () => {
+    const input = 'function foo() { debugger; return 1 }'
+    const output = applyTransform('remove-debugger', input)
+    expect(output).not.toContain('debugger')
+    expect(output).toContain('return 1')
+  })
+  it('is a no-op when no debugger statements exist', () => {
+    const input = 'const x = 1'
+    expect(applyTransform('remove-debugger', input)).toContain('const x = 1')
+  })
+})
+
+describe('trailing-commas', () => {
+  it('adds trailing commas to the last array element', () => {
+    const input = 'const a = [\n  1,\n  2\n]'
+    const output = applyTransform('trailing-commas', input)
+    expect(output).toMatch(/2,?\s*\n/)
+  })
+})
+
 describe('var-to-const', () => {
   it('converts unreassigned var to const', () => {
     expect(applyTransform('var-to-const', 'var x = 1')).toBe('const x = 1;')

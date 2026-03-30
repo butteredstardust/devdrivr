@@ -272,4 +272,78 @@ export const TRANSFORMS: Transform[] = [
         })
     },
   },
+  // ── Cleanup ────────────────────────────────────────────────
+  {
+    id: 'remove-console',
+    name: 'Remove console.*',
+    description: 'Remove console.log/debug/warn/info/error statements',
+    category: 'cleanup',
+    safety: 'destructive',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.ExpressionStatement)
+        .filter((path) => {
+          const { expression } = path.node
+          return (
+            expression.type === 'CallExpression' &&
+            expression.callee.type === 'MemberExpression' &&
+            expression.callee.object.type === 'Identifier' &&
+            (expression.callee.object as unknown as Named).name === 'console'
+          )
+        })
+        .remove()
+    },
+  },
+  {
+    id: 'remove-debugger',
+    name: 'Remove debugger',
+    description: 'Remove debugger statements',
+    category: 'cleanup',
+    safety: 'destructive',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root.find(j.DebuggerStatement).remove()
+    },
+  },
+  {
+    id: 'trailing-commas',
+    name: 'Add trailing commas',
+    description: 'Add trailing commas to multi-line arrays and objects',
+    category: 'cleanup',
+    safety: 'safe',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      // Force recast to reprint multi-line arrays and objects so the worker's
+      // toSource({ trailingComma: true }) option takes effect on them.
+      root
+        .find(j.ArrayExpression)
+        .filter((path) => {
+          const { loc } = path.node
+          return (
+            path.node.elements.length > 0 &&
+            loc !== null &&
+            loc !== undefined &&
+            loc.start.line !== loc.end.line
+          )
+        })
+        .forEach((path) => {
+          path.node.elements = [...path.node.elements]
+        })
+      root
+        .find(j.ObjectExpression)
+        .filter((path) => {
+          const { loc } = path.node
+          return (
+            path.node.properties.length > 0 &&
+            loc !== null &&
+            loc !== undefined &&
+            loc.start.line !== loc.end.line
+          )
+        })
+        .forEach((path) => {
+          path.node.properties = [...path.node.properties]
+        })
+    },
+  },
 ]
