@@ -31,11 +31,7 @@ const api = {
       const errors: string[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parser = new DOMParser({
-        errorHandler: {
-          warning: (msg: string) => errors.push(`Warning: ${msg}`),
-          error: (msg: string) => errors.push(`Error: ${msg}`),
-          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
-        },
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
       } as any)
       parser.parseFromString(xml, 'text/xml')
       return { valid: errors.length === 0, errors }
@@ -49,11 +45,7 @@ const api = {
       const errors: string[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parser = new DOMParser({
-        errorHandler: {
-          warning: (msg: string) => errors.push(`Warning: ${msg}`),
-          error: (msg: string) => errors.push(`Error: ${msg}`),
-          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
-        },
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
       } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
@@ -75,11 +67,7 @@ const api = {
       const errors: string[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parser = new DOMParser({
-        errorHandler: {
-          warning: (msg: string) => errors.push(`Warning: ${msg}`),
-          error: (msg: string) => errors.push(`Error: ${msg}`),
-          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
-        },
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
       } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
@@ -100,11 +88,7 @@ const api = {
       const errors: string[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parser = new DOMParser({
-        errorHandler: {
-          warning: (msg: string) => errors.push(`Warning: ${msg}`),
-          error: (msg: string) => errors.push(`Error: ${msg}`),
-          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
-        },
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
       } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
@@ -122,11 +106,7 @@ const api = {
       const errors: string[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parser = new DOMParser({
-        errorHandler: {
-          warning: (msg: string) => errors.push(`Warning: ${msg}`),
-          error: (msg: string) => errors.push(`Error: ${msg}`),
-          fatalError: (msg: string) => errors.push(`Fatal: ${msg}`),
-        },
+        onerror: (error: any) => errors.push(error.message ?? String(error)),
       } as any)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
