@@ -224,4 +224,52 @@ export const TRANSFORMS: Transform[] = [
         })
     },
   },
+  // ── Type Safety ────────────────────────────────────────────
+  {
+    id: 'strict-equality',
+    name: '== → ===',
+    description: 'Convert loose equality to strict equality',
+    category: 'safety',
+    safety: 'safe',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.BinaryExpression, { operator: '==' })
+        .forEach((path) => {
+          path.node.operator = '==='
+        })
+      root
+        .find(j.BinaryExpression, { operator: '!=' })
+        .forEach((path) => {
+          path.node.operator = '!=='
+        })
+    },
+  },
+  {
+    id: 'nullish-coalescing',
+    name: '|| → ?? (nullish)',
+    description: 'Convert || to ?? when the right-hand side is a literal default',
+    category: 'safety',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.LogicalExpression, { operator: '||' })
+        .filter((path) => {
+          const { right } = path.node
+          return [
+            'StringLiteral',
+            'Literal',
+            'NumericLiteral',
+            'BooleanLiteral',
+            'NullLiteral',
+            'ArrayExpression',
+            'ObjectExpression',
+          ].includes(right.type)
+        })
+        .forEach((path) => {
+          path.node.operator = '??'
+        })
+    },
+  },
 ]

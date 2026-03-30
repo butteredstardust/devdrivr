@@ -83,6 +83,33 @@ describe('spread-operator', () => {
   })
 })
 
+describe('strict-equality', () => {
+  it('converts == to ===', () => {
+    expect(applyTransform('strict-equality', 'x == y')).toContain('===')
+  })
+  it('converts != to !==', () => {
+    expect(applyTransform('strict-equality', 'x != y')).toContain('!==')
+  })
+  it('does not touch already-strict equality', () => {
+    const input = 'x === y'
+    expect(applyTransform('strict-equality', input)).toContain('===')
+    expect(applyTransform('strict-equality', input)).not.toContain('====')
+  })
+})
+
+describe('nullish-coalescing', () => {
+  it('converts || with string literal RHS to ??', () => {
+    expect(applyTransform('nullish-coalescing', "name || 'default'")).toContain('??')
+  })
+  it('converts || with numeric literal RHS to ??', () => {
+    expect(applyTransform('nullish-coalescing', 'count || 0')).toContain('??')
+  })
+  it('does not convert || where RHS is a variable', () => {
+    const input = 'a || b'
+    expect(applyTransform('nullish-coalescing', input)).toContain('||')
+  })
+})
+
 describe('var-to-const', () => {
   it('converts unreassigned var to const', () => {
     expect(applyTransform('var-to-const', 'var x = 1')).toBe('const x = 1;')
