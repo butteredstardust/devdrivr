@@ -33,6 +33,10 @@ jobs:
         run: bun install
         working-directory: .
 
+      - name: Security audit
+        run: bun audit
+        working-directory: .
+
       - name: Type check
         run: npx tsc --noEmit
 
