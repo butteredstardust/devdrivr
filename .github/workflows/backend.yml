@@ -30,6 +30,9 @@ jobs:
       - name: 'Bun install'
         run: bun install
 
+      - name: Security audit
+        run: bun audit
+
       - name: Migrate database
         run: cd packages/api && bun run migrate
         env:
