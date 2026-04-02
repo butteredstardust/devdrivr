@@ -403,7 +403,7 @@ export function CommandPalette() {
             }}
             onKeyDown={onKeyDown}
             placeholder={`Search tools... (${modSymbol}K)  •  Type > for actions`}
-            className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+            className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus-visible:outline-none"
           />
           {isActionMode && (
             <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">
