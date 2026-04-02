@@ -34,9 +34,8 @@ jobs:
         working-directory: .
 
       - name: Security audit
-        run: bun audit
+        run: bun audit --audit-level=critical
         working-directory: .
-        continue-on-error: true
 
       - name: Type check
         run: npx tsc --noEmit
