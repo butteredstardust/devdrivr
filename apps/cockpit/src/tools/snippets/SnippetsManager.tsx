@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import { useSnippetsStore } from '@/stores/snippets.store'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
@@ -172,6 +172,7 @@ function TagFilterBar({
 
 export default function SnippetsManager() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const snippets = useSnippetsStore((s) => s.snippets)
   const saving = useSnippetsStore((s) => s.saving)
   const addSnippet = useSnippetsStore((s) => s.add)
@@ -590,8 +591,7 @@ export default function SnippetsManager() {
                 language={selected.language}
                 value={selected.content}
                 onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
-                options={{
-                  ...EDITOR_OPTIONS,
+                options={{ ...monacoOptions,
                   minimap: { enabled: false },
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,

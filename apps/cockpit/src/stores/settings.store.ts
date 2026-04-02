@@ -46,6 +46,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       notesDrawerWidth: state.notesDrawerWidth,
       defaultIndentSize: state.defaultIndentSize,
       defaultTimezone: state.defaultTimezone,
+      editorFont: state.editorFont,
       editorFontSize: state.editorFontSize,
       editorTheme: state.editorTheme,
       editorKeybindingMode: state.editorKeybindingMode,

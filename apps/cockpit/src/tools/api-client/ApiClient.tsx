@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
@@ -130,6 +130,7 @@ function interpolate(text: string, vars: Record<string, string>): string {
 
 export default function ApiClient() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const init = useApiStore((s) => s.init)
   const environments = useApiStore((s) => s.environments)
   const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)
@@ -693,7 +694,7 @@ export default function ApiClient() {
                       language={bodyEditorLang}
                       value={body}
                       onChange={(v) => updateDraft({ body: v ?? '' })}
-                      options={EDITOR_OPTIONS}
+                      options={monacoOptions}
                     />
                   </div>
                 ) : (
@@ -745,7 +746,7 @@ export default function ApiClient() {
                       theme={monacoTheme}
                       language={responseLanguage}
                       value={prettyBody}
-                      options={{ ...EDITOR_OPTIONS, readOnly: true }}
+                      options={{ ...monacoOptions, readOnly: true }}
                     />
                   ) : (
                     <div className="p-3">

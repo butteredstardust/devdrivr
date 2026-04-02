@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
@@ -204,6 +204,7 @@ function inferSchema(data: unknown): object {
 
 export default function JsonSchemaValidator() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<JsonSchemaState>('json-schema-validator', {
     data: '',
     schema: JSON.stringify(TEMPLATES['basic']!.schema, null, 2),
@@ -424,7 +425,7 @@ export default function JsonSchemaValidator() {
               language="json"
               value={state.data}
               onChange={(v) => updateState({ data: v ?? '' })}
-              options={EDITOR_OPTIONS}
+              options={monacoOptions}
             />
           </div>
         </div>
@@ -451,7 +452,7 @@ export default function JsonSchemaValidator() {
               language="json"
               value={state.schema}
               onChange={(v) => updateState({ schema: v ?? '' })}
-              options={EDITOR_OPTIONS}
+              options={monacoOptions}
             />
           </div>
         </div>

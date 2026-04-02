@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -204,6 +204,7 @@ const STARTERS: Record<string, { label: string; html: string }> = {
 
 export default function HtmlValidator() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<HtmlValidatorState>('html-validator', {
     input: '',
     viewMode: 'split',
@@ -422,7 +423,7 @@ export default function HtmlValidator() {
                 language="html"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
-                options={EDITOR_OPTIONS}
+                options={monacoOptions}
               />
             </div>
           </div>

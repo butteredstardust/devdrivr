@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { DiffEditor } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
@@ -26,6 +26,7 @@ type RefactoringState = {
 
 export default function RefactoringToolkit() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
     input: '',
     selectedTransforms: [],
@@ -214,8 +215,7 @@ export default function RefactoringToolkit() {
               original={state.input}
               modified={preview}
               language={state.language}
-              options={{
-                ...EDITOR_OPTIONS,
+              options={{ ...monacoOptions,
                 readOnly: true,
                 renderSideBySide: true,
                 enableSplitViewResizing: true,
@@ -227,7 +227,7 @@ export default function RefactoringToolkit() {
               language={state.language}
               value={state.input}
               onChange={(v) => updateState({ input: v ?? '' })}
-              options={EDITOR_OPTIONS}
+              options={monacoOptions}
             />
           )}
         </div>

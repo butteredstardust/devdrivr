@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "t4-app-monorepo",
@@ -32,8 +33,9 @@
     },
     "apps/cockpit": {
       "name": "cockpit",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "dependencies": {
+        "@fontsource/cascadia-code": "^5.2.3",
         "@fontsource/fira-code": "^5.2.7",
         "@fontsource/jetbrains-mono": "^5.2.8",
         "@fontsource/silkscreen": "^5.2.8",
@@ -776,6 +778,8 @@
     "@floating-ui/react-native": ["@floating-ui/react-native@0.10.9", "", { "dependencies": { "@floating-ui/core": "^1.0.0" }, "peerDependencies": { "react": ">=16.8.0", "react-native": ">=0.64.0" } }, "sha512-8lLF/hrfCLPSeMljMbFi/cxVjtFTZyg1XHFiuZtXirbBiEfTvCgD0a1YUo2fpG4wa9Fa8Nz4HSq4TmdV+JuxwQ=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
+
+    "@fontsource/cascadia-code": ["@fontsource/cascadia-code@5.2.3", "", {}, "sha512-jnKfdZ+0UL25XUqYV7iq9gDlaUMWXxZNA7KnYzO4v8De6jBJmTkLHxDXs+1iZwl/8w7eKlDrTJWcyalOHdE2eg=="],
 
     "@fontsource/fira-code": ["@fontsource/fira-code@5.2.7", "", {}, "sha512-tnB9NNund9TwIym8/7DMJe573nlPEQb+fKUV5GL8TBYXjIhDvL0D7mgmNVNQUPhXp+R7RylQeiBdkA4EbOHPGQ=="],
 

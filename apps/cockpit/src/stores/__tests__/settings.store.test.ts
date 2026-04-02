@@ -90,6 +90,7 @@ describe('settings store updates', () => {
       defaultIndentSize: DEFAULT_SETTINGS.defaultIndentSize,
       defaultTimezone: DEFAULT_SETTINGS.defaultTimezone,
       editorFontSize: 18,
+      editorFont: DEFAULT_SETTINGS.editorFont,
       editorTheme: DEFAULT_SETTINGS.editorTheme,
       editorKeybindingMode: DEFAULT_SETTINGS.editorKeybindingMode,
       historyRetentionPerTool: DEFAULT_SETTINGS.historyRetentionPerTool,

@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -50,6 +50,7 @@ function parseDiffStats(patch: string): DiffStats {
 
 export default function DiffViewer() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<DiffViewerState>('diff-viewer', {
     left: '',
     right: '',
@@ -226,7 +227,7 @@ export default function DiffViewer() {
                 language={state.language}
                 value={state.left}
                 onChange={(v) => updateState({ left: v ?? '' })}
-                options={{ ...EDITOR_OPTIONS, wordWrap: 'off' }}
+                options={{ ...monacoOptions, wordWrap: 'off' }}
               />
             </div>
           </div>
@@ -240,7 +241,7 @@ export default function DiffViewer() {
                 language={state.language}
                 value={state.right}
                 onChange={(v) => updateState({ right: v ?? '' })}
-                options={{ ...EDITOR_OPTIONS, wordWrap: 'off' }}
+                options={{ ...monacoOptions, wordWrap: 'off' }}
               />
             </div>
           </div>

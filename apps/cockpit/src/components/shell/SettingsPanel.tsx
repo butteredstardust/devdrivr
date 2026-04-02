@@ -35,6 +35,12 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 const INDENT_OPTIONS = [2, 4] as const
 const FONT_SIZE_OPTIONS = [12, 13, 14, 15, 16, 18, 20] as const
+const FONT_FAMILY_OPTIONS: AppSettings['editorFont'][] = [
+  'JetBrains Mono',
+  'Fira Code',
+  'Cascadia Code',
+  'Source Code Pro',
+]
 
 const THEME_OPTIONS: { value: Theme; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -227,6 +233,7 @@ function GeneralTab() {
 
 function EditorTab() {
   const update = useSettingsStore((s) => s.update)
+  const editorFont = useSettingsStore((s) => s.editorFont)
   const editorFontSize = useSettingsStore((s) => s.editorFontSize)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
   const editorTheme = useSettingsStore((s) => s.editorTheme)
@@ -235,6 +242,13 @@ function EditorTab() {
 
   return (
     <div className="space-y-1">
+      <SettingRow label="Font Family" hint="Monaco editor font family">
+        <SelectInput
+          value={editorFont}
+          onChange={(v) => update('editorFont', v as AppSettings['editorFont']).catch(() => {})}
+          options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
+        />
+      </SettingRow>
       <SettingRow label="Font Size" hint="Monaco editor font size">
         <SelectInput
           value={editorFontSize}
@@ -303,6 +317,7 @@ function DataTab() {
         notesDrawerWidth: state.notesDrawerWidth,
         defaultIndentSize: state.defaultIndentSize,
         defaultTimezone: state.defaultTimezone,
+        editorFont: state.editorFont,
         editorFontSize: state.editorFontSize,
         editorTheme: state.editorTheme,
         editorKeybindingMode: state.editorKeybindingMode,
@@ -375,6 +390,9 @@ function DataTab() {
       if (typeof obj['notesDrawerWidth'] === 'number')
         await su('notesDrawerWidth', obj['notesDrawerWidth'])
       // String fields
+      const validFonts = new Set<AppSettings['editorFont']>(['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro'])
+      if (typeof obj['editorFont'] === 'string' && validFonts.has(obj['editorFont'] as AppSettings['editorFont']))
+        await su('editorFont', obj['editorFont'] as AppSettings['editorFont'])
       if (typeof obj['defaultTimezone'] === 'string')
         await su('defaultTimezone', obj['defaultTimezone'])
       // Apply alwaysOnTop to the live Tauri window

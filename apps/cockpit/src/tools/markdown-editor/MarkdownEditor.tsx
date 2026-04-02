@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
@@ -281,6 +281,7 @@ function readingTime(words: number): string {
 
 export default function MarkdownEditor() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
     content: '',
     mode: 'split',
@@ -578,7 +579,7 @@ img{max-width:100%}</style>
               value={state.content}
               onChange={(v) => updateState({ content: v ?? '' })}
               onMount={handleEditorMount}
-              options={EDITOR_OPTIONS}
+              options={monacoOptions}
             />
             {/* Image drop overlay */}
             {isDraggingImage && (

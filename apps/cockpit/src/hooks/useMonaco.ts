@@ -41,10 +41,14 @@ function resolveMonacoTheme(theme: Theme, editorTheme: string): string {
   return effective === 'soft-focus' ? 'cockpit-light' : 'cockpit-dark'
 }
 
-export function useMonacoTheme(): string {
+export function useMonacoSettings() {
   const theme = useSettingsStore((s) => s.theme)
   const editorTheme = useSettingsStore((s) => s.editorTheme)
-  const resolved = resolveMonacoTheme(theme, editorTheme)
+  const editorFontSize = useSettingsStore((s) => s.editorFontSize)
+  const editorFont = useSettingsStore((s) => s.editorFont)
+  const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
+  const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
+  const resolvedTheme = resolveMonacoTheme(theme, editorTheme)
 
   useEffect(() => {
     loader.init().then((monaco) => {
@@ -53,22 +57,45 @@ export function useMonacoTheme(): string {
         monaco.editor.defineTheme('cockpit-light', LIGHT_THEME)
         themesRegistered = true
       }
-      monaco.editor.setTheme(resolved)
+      monaco.editor.setTheme(resolvedTheme)
     })
-  }, [resolved])
+  }, [resolvedTheme])
 
-  return resolved
+  return {
+    theme: resolvedTheme,
+    fontSize: editorFontSize,
+    fontFamily: editorFont,
+    tabSize: defaultIndentSize,
+    formatOnPaste,
+  }
 }
 
-/** Standard Monaco editor options shared across all tools */
+export function useMonacoTheme(): string {
+  const { theme } = useMonacoSettings()
+  return theme
+}
+
+export function useMonacoOptions(overrides: Record<string, unknown> = {}) {
+  const settings = useMonacoSettings()
+
+  return {
+    ...EDITOR_OPTIONS,
+    fontSize: settings.fontSize,
+    fontFamily: settings.fontFamily,
+    tabSize: settings.tabSize,
+    formatOnPaste: settings.formatOnPaste,
+    ...overrides,
+  }
+}
+
+/**
+ * Base Monaco editor options shared across all tools.
+ */
 export const EDITOR_OPTIONS = {
-  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-  fontSize: 13,
   lineHeight: 20,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   automaticLayout: true,
-  tabSize: 2,
   wordWrap: 'on' as const,
   padding: { top: 12, bottom: 12 },
 } as const

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import * as cssTree from 'css-tree'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -149,6 +149,7 @@ function validateCss(css: string): CssError[] {
 
 export default function CssValidator() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CssValidatorState>('css-validator', {
     input: '',
   })
@@ -213,7 +214,7 @@ export default function CssValidator() {
           language="css"
           value={state.input}
           onChange={(v) => updateState({ input: v ?? '' })}
-          options={EDITOR_OPTIONS}
+          options={monacoOptions}
         />
       </div>
     </div>
