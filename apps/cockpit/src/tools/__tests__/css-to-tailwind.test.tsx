@@ -17,6 +17,16 @@ describe('CssToTailwind', () => {
     expect(screen.getByText('flex')).toBeInTheDocument()
   })
 
+  it('converts new properties correctly', () => {
+    renderTool(CssToTailwind)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: 'text-transform: uppercase;\nobject-fit: cover;\nmargin-inline: 1rem;\npadding-block: 2rem;' } })
+    expect(screen.getByText('uppercase')).toBeInTheDocument()
+    expect(screen.getByText('object-cover')).toBeInTheDocument()
+    expect(screen.getByText('mx-[1rem]')).toBeInTheDocument()
+    expect(screen.getByText('py-[2rem]')).toBeInTheDocument()
+  })
+
   it('shows empty state when no input', () => {
     renderTool(CssToTailwind)
     expect(screen.getByText('Enter CSS on the left to convert')).toBeInTheDocument()
