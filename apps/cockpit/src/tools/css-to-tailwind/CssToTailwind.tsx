@@ -36,6 +36,20 @@ const PROPERTY_MAP: Record<string, Record<string, string>> = {
   'box-sizing': { 'border-box': 'box-border', 'content-box': 'box-content' },
   visibility: { hidden: 'invisible', visible: 'visible' },
   'list-style-type': { none: 'list-none', disc: 'list-disc', decimal: 'list-decimal' },
+  'text-transform': { uppercase: 'uppercase', lowercase: 'lowercase', capitalize: 'capitalize', none: 'normal-case' },
+  'text-overflow': { ellipsis: 'truncate', clip: 'overflow-hidden' },
+  'vertical-align': { top: 'align-top', middle: 'align-middle', bottom: 'align-bottom', baseline: 'align-baseline', 'text-top': 'align-text-top', 'text-bottom': 'align-text-bottom' },
+  'object-fit': { contain: 'object-contain', cover: 'object-cover', fill: 'object-fill', none: 'object-none', 'scale-down': 'object-scale-down' },
+  float: { left: 'float-left', right: 'float-right', none: 'float-none' },
+  clear: { left: 'clear-left', right: 'clear-right', both: 'clear-both', none: 'clear-none' },
+  'border-style': { solid: 'border-solid', dashed: 'border-dashed', dotted: 'border-dotted', double: 'border-double', none: 'border-none', hidden: 'border-hidden' },
+  resize: { none: 'resize-none', both: 'resize', horizontal: 'resize-x', vertical: 'resize-y' },
+  appearance: { none: 'appearance-none', auto: 'appearance-auto' },
+  'align-self': { auto: 'self-auto', 'flex-start': 'self-start', 'flex-end': 'self-end', center: 'self-center', stretch: 'self-stretch', baseline: 'self-baseline' },
+  'align-content': { center: 'content-center', 'flex-start': 'content-start', 'flex-end': 'content-end', 'space-between': 'content-between', 'space-around': 'content-around', 'space-evenly': 'content-evenly', stretch: 'content-stretch' },
+  'place-items': { center: 'place-items-center', start: 'place-items-start', end: 'place-items-end', stretch: 'place-items-stretch' },
+  'flex-grow': { '0': 'grow-0', '1': 'grow' },
+  'flex-shrink': { '0': 'shrink-0', '1': 'shrink' },
 }
 
 // Size-based properties with arbitrary value support
@@ -67,7 +81,9 @@ function convertSizeProperty(prop: string, value: string): string | null {
 function convertSpacingProperty(prop: string, value: string): string | null {
   const prefix: Record<string, string> = {
     margin: 'm', 'margin-top': 'mt', 'margin-right': 'mr', 'margin-bottom': 'mb', 'margin-left': 'ml',
+    'margin-inline': 'mx', 'margin-block': 'my',
     padding: 'p', 'padding-top': 'pt', 'padding-right': 'pr', 'padding-bottom': 'pb', 'padding-left': 'pl',
+    'padding-inline': 'px', 'padding-block': 'py',
   }
   const p = prefix[prop]
   if (!p) return null
