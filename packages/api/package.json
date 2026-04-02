@@ -23,7 +23,7 @@
     "drizzle-orm": "^0.28.6",
     "drizzle-valibot": "^0.1.1",
     "hono": "^3.9.0",
-    "miniflare": "3.20231025.0",
+    "miniflare": "3.20250718.3",
     "superjson": "^1.13.1",
     "valibot": "^0.19.0"
   },
