@@ -34,7 +34,7 @@ jobs:
         working-directory: .
 
       - name: Security audit
-        run: bun audit
+        run: bun audit --audit-level=critical
         working-directory: .
 
       - name: Type check
