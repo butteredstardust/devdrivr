@@ -14,6 +14,7 @@ type JsonSchemaState = {
   data: string
   schema: string
   strict: boolean
+  schemaUrl?: string
 }
 
 type ValidationError = {
@@ -94,7 +95,12 @@ const TEMPLATES: Record<string, { label: string; schema: object; sample: object 
       type: 'object',
       properties: {
         status: { enum: ['active', 'inactive', 'pending'] },
-        priority: { oneOf: [{ type: 'integer', minimum: 1, maximum: 5 }, { type: 'string', enum: ['low', 'medium', 'high'] }] },
+        priority: {
+          oneOf: [
+            { type: 'integer', minimum: 1, maximum: 5 },
+            { type: 'string', enum: ['low', 'medium', 'high'] },
+          ],
+        },
       },
       required: ['status'],
     },
@@ -202,10 +208,12 @@ export default function JsonSchemaValidator() {
     data: '',
     schema: JSON.stringify(TEMPLATES['basic']!.schema, null, 2),
     strict: false,
+    schemaUrl: '',
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [valid, setValid] = useState<boolean | null>(null)
+  const [loadingUrl, setLoadingUrl] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ajvRef = useRef<Ajv | null>(null)
   const ajvStrictRef = useRef(state.strict)
@@ -306,6 +314,32 @@ export default function JsonSchemaValidator() {
     }
   }, [state.schema, updateState, setLastAction])
 
+  const loadSchemaFromUrl = useCallback(async () => {
+    if (!state.schemaUrl) return
+    setLoadingUrl(true)
+    try {
+      const res = await fetch(state.schemaUrl)
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`)
+      }
+      const text = await res.text()
+      try {
+        const parsed = JSON.parse(text)
+        updateState({
+          schema: JSON.stringify(parsed, null, 2),
+          schemaUrl: state.schemaUrl,
+        })
+        setLastAction('Loaded schema from URL', 'success')
+      } catch (e) {
+        throw new Error('Invalid JSON')
+      }
+    } catch (e) {
+      setLastAction(`Error loading schema: ${(e as Error).message}`, 'error')
+    } finally {
+      setLoadingUrl(false)
+    }
+  }, [state.schemaUrl, updateState, setLastAction])
+
   return (
     <div className="flex h-full flex-col">
       {/* Toolbar */}
@@ -397,7 +431,19 @@ export default function JsonSchemaValidator() {
         <div className="flex w-1/2 flex-col">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
             <span className="text-xs text-[var(--color-text-muted)]">JSON Schema</span>
-            <CopyButton text={state.schema} />
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                placeholder="https://..."
+                value={state.schemaUrl ?? ''}
+                onChange={(e) => updateState({ schemaUrl: e.target.value })}
+                className="border border-[var(--color-border)] bg-transparent text-xs px-2 py-0.5 rounded w-48 text-[var(--color-text)] outline-none"
+              />
+              <Button variant="secondary" size="sm" onClick={loadSchemaFromUrl} disabled={loadingUrl}>
+                {loadingUrl ? 'Loading…' : 'Load'}
+              </Button>
+              <CopyButton text={state.schema} />
+            </div>
           </div>
           <div className="flex-1">
             <Editor
