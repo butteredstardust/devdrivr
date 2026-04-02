@@ -9,11 +9,16 @@ echo ""
 echo "  devdrivr pre-push checks (warn only)"
 echo "  ────────────────────────────────────────"
 
+# Resolve root node_modules/.bin as an absolute path *before* any cd.
+# Husky adds it as a relative path, which breaks after `cd apps/cockpit`.
+ROOT_BIN="$(pwd)/node_modules/.bin"
+
 # TypeScript check
 echo ""
 INFO "Running TypeScript check (apps/cockpit)..."
-TSC_OUT=$(cd apps/cockpit && npx tsc --noEmit 2>&1)
-if [ $? -ne 0 ]; then
+TSC_OUT=""
+TSC_OUT=$(cd apps/cockpit && PATH="$ROOT_BIN:$PATH" npx tsc --noEmit 2>&1) || TSC_RC=$?
+if [ "${TSC_RC:-0}" -ne 0 ]; then
   WARN "TypeScript errors in apps/cockpit"
   echo "$TSC_OUT" | head -20 | sed 's/^/       /'
   INFO "Fix type errors before merging to main."
@@ -24,8 +29,9 @@ fi
 # Tests
 echo ""
 INFO "Running tests (apps/cockpit)..."
-TEST_OUT=$(cd apps/cockpit && bun run test 2>&1)
-if [ $? -ne 0 ]; then
+TEST_OUT=""
+TEST_OUT=$(cd apps/cockpit && "$ROOT_BIN/vitest" run 2>&1) || TEST_RC=$?
+if [ "${TEST_RC:-0}" -ne 0 ]; then
   WARN "Tests failed in apps/cockpit"
   echo "$TEST_OUT" | tail -20 | sed 's/^/       /'
   INFO "Fix failing tests before merging to main."
@@ -34,7 +40,7 @@ else
 fi
 
 # Check for unresolved merge conflict markers
-CONFLICT_FILES=$(git diff --name-only HEAD 2>/dev/null | xargs grep -l "^<<<<<<< \|^>>>>>>> \|^=======$" 2>/dev/null)
+CONFLICT_FILES=$(git diff --name-only HEAD 2>/dev/null | xargs grep -l "^<<<<<<< \|^>>>>>>> \|^=======$" 2>/dev/null) || true
 if [ -n "$CONFLICT_FILES" ]; then
   WARN "Unresolved merge conflict markers found"
   echo "$CONFLICT_FILES" | sed 's/^/       /'
@@ -42,7 +48,6 @@ fi
 
 # Warn if pushing directly to main without a PR
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-REMOTE=$(git remote get-url origin 2>/dev/null)
 while IFS= read -r line; do
   DEST_BRANCH=$(echo "$line" | awk '{print $2}' | sed 's/refs\/heads\///')
   if [ "$DEST_BRANCH" = "main" ] && [ "$CURRENT_BRANCH" = "main" ]; then
