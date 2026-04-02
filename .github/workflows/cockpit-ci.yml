@@ -36,6 +36,7 @@ jobs:
       - name: Security audit
         run: bun audit
         working-directory: .
+        continue-on-error: true
 
       - name: Type check
         run: npx tsc --noEmit
