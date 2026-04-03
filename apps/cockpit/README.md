@@ -2,7 +2,7 @@
 
 A local-first, keyboard-driven developer utility workspace. 27 tools in a single Tauri desktop app — no browser, no cloud, no latency.
 
-![devdrivr cockpit](../../screenshots/devdriver.png)
+![devdrivr cockpit](../../screenshots/devdrivr.png)
 
 ## Features
 
@@ -82,7 +82,7 @@ bun run tauri build
 
 ## Project Structure
 
-```
+```text
 apps/cockpit/
 ├── src/
 │   ├── app/
