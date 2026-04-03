@@ -23,7 +23,7 @@ bun install              # install/restore dependencies
 bun run tauri dev        # start dev server (Vite + Tauri hot-reload)
 bun run clean            # delete node_modules, dist, src-tauri/target
 npx tsc --noEmit         # type-check — MUST pass before submitting
-bun run test             # run 34 Vitest tests — MUST all pass
+bun run test             # run Vitest tests — MUST all pass
 bun run tauri build      # production build
 ```
 
@@ -94,7 +94,8 @@ style={{ color: '#39ff14' }}
 ```
 
 Available tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--color-border`,
-`--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`
+`--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`,
+`--color-warning`, `--color-success`, `--color-info`, `--color-shadow`
 
 ### 4. Web Workers: `?worker` imports only
 ```typescript
@@ -207,7 +208,7 @@ export default function MyTool() {
 // Step 2: Register in src/app/tool-registry.ts
 {
   id: 'my-tool',
-  label: 'My Tool',
+  name: 'My Tool',
   group: 'convert',   // code | data | web | convert | test | network | write
   component: React.lazy(() => import('@/tools/my-tool/MyTool')),
   keywords: ['keyword'],
@@ -281,11 +282,14 @@ if (typeof data === 'object' && data !== null) { ... }
 ## SQLite Schema Quick Reference
 
 ```sql
-settings    (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
-tool_state  (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
-notes       (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at)
-snippets    (id, title, content, language, tags TEXT, created_at, updated_at)  -- tags = JSON array
-history     (id, tool, sub_tab, input, output, timestamp)
+settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
+tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
+notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags)
+snippets         (id, title, content, language, tags TEXT, created_at, updated_at)  -- tags = JSON array
+history          (id, tool, sub_tab, input, output, timestamp)
+api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002
+api_collections  (id, name, description, created_at, updated_at)        -- API Client — migration 002
+api_requests     (id, collection_id, name, method, url, headers, body, created_at, updated_at)  -- API Client — migration 002
 ```
 
 WAL mode is set at connection time in `getDb()` — not in migrations.
@@ -310,7 +314,7 @@ Full canonical docs live in [`documentation/`](./documentation/):
 Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
-- [ ] `bun run test` — 34/34 passing
+- [ ] `bun run test` — 252/252 passing
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`

@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 27 tools covering formatting, con
 | SQLite persistence | ✅ Stable | Tool state, notes, snippets, history, settings |
 | Window geometry restore | ✅ Stable | Position + size persisted, DPI-aware, off-screen clamped |
 | Windows cross-build | 🔲 Planned | GitHub Actions CI/CD planned |
-| Unit tests | ✅ 34 tests | Platform, theme, keybindings, registry, notes store |
+| Unit tests | ✅ 252 tests | Platform, theme, keybindings, registry, notes store |
 
 ---
 
@@ -44,6 +44,7 @@ Think of it as a developer's Swiss Army knife: 27 tools covering formatting, con
 |------|----|-------------|
 | JSON Tools | `json-tools` | Validate, format, tree view, table view |
 | XML Tools | `xml-tools` | Validate, format XML; XPath queries |
+| YAML Tools | `yaml-tools` | Validate, format, sort keys, tree view, and convert YAML ↔ JSON |
 | JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV) |
 
 ### Web Group
@@ -95,9 +96,12 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 |-------|---------|
 | `settings` | All app preferences (theme, window bounds, active tool, etc.) |
 | `tool_state` | Per-tool UI state (restores between sessions) |
-| `notes` | Sticky notes with colors, pin state, size |
+| `notes` | Sticky notes with colors, pin state, size, and tags (added migration 003) |
 | `snippets` | Code snippets with tags |
 | `history` | Tool execution history (input/output pairs) |
+| `api_environments` | API Client saved environments (base URL, headers) |
+| `api_collections` | API Client request collections |
+| `api_requests` | Saved API requests with method, URL, headers, body |
 
 ---
 

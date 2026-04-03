@@ -27,7 +27,7 @@ Tests use **Vitest 4** with **jsdom** for DOM simulation and **@testing-library/
 
 ---
 
-## Current Coverage — 34 Tests Across 7 Suites
+## Current Coverage — 252 Tests Across 42 Suites
 
 ### `src/lib/__tests__/theme.test.ts` (4 tests)
 
@@ -122,6 +122,29 @@ Tests pure utility functions exported from the RegexTester tool.
 | `highlightMatches` — no match returns escaped input | Miss case |
 | `highlightMatches` — global flag required | Regex flag enforcement |
 | `highlightMatches` — invalid regex returns escaped input | Graceful error |
+
+---
+
+### `src/tools/yaml-tools/__tests__/YamlTools.test.ts` (14 tests)
+
+Tests pure utility functions exported from the YAML Tools tool.
+
+| Test | What it verifies |
+|------|-----------------|
+| `parseYaml` — valid YAML string | Successful parse |
+| `parseYaml` — invalid YAML returns error | Error handling |
+| `stringifyYaml` — object to YAML string | Serialisation |
+| `stringifyYaml` — handles nested objects | Nested structure |
+| `yamlToJson` — converts YAML to JSON string | YAML→JSON conversion |
+| `yamlToJson` — invalid YAML returns error | Error handling |
+| `jsonToYaml` — converts JSON string to YAML | JSON→YAML conversion |
+| `jsonToYaml` — invalid JSON returns error | Error handling |
+| `sortKeysDeep` — sorts top-level keys | Alphabetic sort |
+| `sortKeysDeep` — sorts nested keys recursively | Deep sort |
+| `sortKeysDeep` — preserves array order | Array handling |
+| `sortKeysDeep` — handles null values | Null safety |
+| `sortKeysDeep` — handles empty objects | Edge case |
+| Full round-trip YAML→JSON→YAML | Data integrity |
 
 ---
 
@@ -271,4 +294,4 @@ Tests run automatically on every push and PR via GitHub Actions (`.github/workfl
 3. Runs `npx tsc --noEmit` (type check)
 4. Runs `bun run test` (must exit 0)
 
-A PR cannot be merged if tests fail. The 34 tests **must all pass** before submitting any change.
+A PR cannot be merged if tests fail. All 252 tests **must all pass** before submitting any change.
