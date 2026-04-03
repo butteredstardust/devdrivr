@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
-import { CheckCircle, XCircle } from '@phosphor-icons/react'
+import { CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
@@ -165,13 +165,13 @@ export default function YamlTools() {
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && parsed.data !== null && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
-                  <CheckCircle size={12} weight="fill" />
+                  <CheckCircleIcon size={12} weight="fill" />
                   Valid
                 </span>
               )}
               {!parsed.ok && (
                 <span className="flex items-center gap-1 truncate text-xs text-[var(--color-error)]">
-                  <XCircle size={12} weight="fill" />
+                  <XCircleIcon size={12} weight="fill" />
                   {parsed.error}
                 </span>
               )}
