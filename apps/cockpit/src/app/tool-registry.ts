@@ -5,6 +5,7 @@ const UuidGenerator = lazy(() => import('@/tools/uuid-generator/UuidGenerator'))
 const JsonTools = lazy(() => import('@/tools/json-tools/JsonTools'))
 const CodeFormatter = lazy(() => import('@/tools/code-formatter/CodeFormatter'))
 const XmlTools = lazy(() => import('@/tools/xml-tools/XmlTools'))
+const YamlTools = lazy(() => import('@/tools/yaml-tools/YamlTools'))
 const DiffViewer = lazy(() => import('@/tools/diff-viewer/DiffViewer'))
 const MarkdownEditor = lazy(() => import('@/tools/markdown-editor/MarkdownEditor'))
 const MermaidEditor = lazy(() => import('@/tools/mermaid-editor/MermaidEditor'))
@@ -37,6 +38,7 @@ export const TOOLS: ToolDefinition[] = [
   // --- Data ---
   { id: 'json-tools', name: 'JSON Tools', group: 'data', icon: '{}', description: 'Validate, format, minify, sort keys, path query, and tree view for JSON', component: JsonTools },
   { id: 'xml-tools', name: 'XML Tools', group: 'data', icon: '<>', description: 'Validate, format, minify XML with tree view, JSON conversion, XPath, and stats', component: XmlTools },
+  { id: 'yaml-tools', name: 'YAML Tools', group: 'data', icon: 'YML', description: 'Validate, format, sort keys, tree view, and convert YAML ↔ JSON', component: YamlTools },
   { id: 'json-schema-validator', name: 'JSON Schema Validator', group: 'data', icon: '✓{', description: 'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode', component: JsonSchemaValidator },
   // --- Web ---
   { id: 'css-validator', name: 'CSS Validator', group: 'web', icon: '#', description: 'Validate CSS syntax', component: CssValidator },
