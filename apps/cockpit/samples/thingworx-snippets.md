@@ -342,62 +342,62 @@ Copy the JSON array below and paste into the Snippets Manager import (F10).
 
 ## Snippet List
 
-| # | Title | Tags |
-|---|-------|------|
-| 1 | Create InfoTable from DataShape | infotable, create |
-| 2 | Create InfoTable with Fields | infotable, create |
-| 3 | Add Row to InfoTable | infotable, row |
-| 4 | Add Multiple Rows to InfoTable | infotable, row, loop |
-| 5 | Get InfoTable Row Count | infotable, query |
-| 6 | Get Field Value from Row | infotable, row, query |
-| 7 | Find Row in InfoTable | infotable, query, search |
-| 8 | Filter InfoTable with Query | infotable, query, filter |
-| 9 | Sort InfoTable | infotable, sort |
-| 10 | Delete Rows from InfoTable | infotable, delete |
-| 11 | Aggregate InfoTable | infotable, aggregate |
-| 12 | Get Thing Property Value | thing, property |
-| 13 | Set Thing Property Value | thing, property |
-| 14 | Execute Thing Service | thing, service |
-| 15 | Query Named Property History | thing, history, valuestream |
-| 16 | Add PropertyValueStream Entry | thing, valuestream, history |
-| 17 | Query Property History with Date Range | thing, history, query, date |
-| 18 | Get All Property Definitions | thing, property, metadata |
-| 19 | Logger Debug/Info/Error | logging, debug |
-| 20 | Try-Catch Error Handling | error, try-catch |
-| 21 | Iterate DataShape Fields | datashape, metadata |
-| 22 | Create DataShape Programmatically | datashape, create, metadata |
-| 23 | Clone InfoTable | infotable, clone |
-| 24 | Merge InfoTables | infotable, merge |
-| 25 | JSON to InfoTable Conversion | infotable, json, conversion |
-| 26 | Get Thing Template Name | thing, metadata, template |
-| 27 | Query Things by Template | thing, template, query |
-| 28 | Iterate All Things of Type | thing, template, iterate |
-| 29 | Get All Thing Properties as InfoTable | thing, property, infotable |
-| 30 | Validate Required Parameters | validation, utility |
-| 31 | Emit/Trigger Event | thing, event |
-| 32 | Get Current User | security, user |
-| 33 | Check User Permission | security, permission |
-| 34 | Get User Organizations | security, user, organization |
-| 35 | Search Things by Tag | thing, tag, search |
-| 36 | Add Model Tag to Thing | thing, tag |
-| 37 | Remove Model Tag from Thing | thing, tag |
-| 38 | Create Thing Programmatically | thing, create, entity |
-| 39 | Get Location Property | thing, property, location |
-| 40 | Set Location Property | thing, property, location |
-| 41 | Calculate Distance Between Locations | location, calculation, utility |
-| 42 | Get Alert Definitions | alert, thing, metadata |
-| 43 | Acknowledge Alert | alert, thing |
-| 44 | Get Stream Entries | stream, query |
-| 45 | Add Stream Entry | stream, create |
-| 46 | Delete Stream Entries | stream, delete |
-| 47 | Read File from Repository | file, repository |
-| 48 | Save File to Repository | file, repository |
-| 49 | Delete File from Repository | file, repository, delete |
-| 50 | List Files in Repository | file, repository |
-| 51 | InfoTable to CSV String | infotable, csv, conversion |
-| 52 | Get Config Table | thing, config |
-| 53 | Get/Set Persistent Property | thing, property, persistent |
-| 54 | Remote Thing Connection Status | thing, remote, connection |
+| #   | Title                                  | Tags                           |
+| --- | -------------------------------------- | ------------------------------ |
+| 1   | Create InfoTable from DataShape        | infotable, create              |
+| 2   | Create InfoTable with Fields           | infotable, create              |
+| 3   | Add Row to InfoTable                   | infotable, row                 |
+| 4   | Add Multiple Rows to InfoTable         | infotable, row, loop           |
+| 5   | Get InfoTable Row Count                | infotable, query               |
+| 6   | Get Field Value from Row               | infotable, row, query          |
+| 7   | Find Row in InfoTable                  | infotable, query, search       |
+| 8   | Filter InfoTable with Query            | infotable, query, filter       |
+| 9   | Sort InfoTable                         | infotable, sort                |
+| 10  | Delete Rows from InfoTable             | infotable, delete              |
+| 11  | Aggregate InfoTable                    | infotable, aggregate           |
+| 12  | Get Thing Property Value               | thing, property                |
+| 13  | Set Thing Property Value               | thing, property                |
+| 14  | Execute Thing Service                  | thing, service                 |
+| 15  | Query Named Property History           | thing, history, valuestream    |
+| 16  | Add PropertyValueStream Entry          | thing, valuestream, history    |
+| 17  | Query Property History with Date Range | thing, history, query, date    |
+| 18  | Get All Property Definitions           | thing, property, metadata      |
+| 19  | Logger Debug/Info/Error                | logging, debug                 |
+| 20  | Try-Catch Error Handling               | error, try-catch               |
+| 21  | Iterate DataShape Fields               | datashape, metadata            |
+| 22  | Create DataShape Programmatically      | datashape, create, metadata    |
+| 23  | Clone InfoTable                        | infotable, clone               |
+| 24  | Merge InfoTables                       | infotable, merge               |
+| 25  | JSON to InfoTable Conversion           | infotable, json, conversion    |
+| 26  | Get Thing Template Name                | thing, metadata, template      |
+| 27  | Query Things by Template               | thing, template, query         |
+| 28  | Iterate All Things of Type             | thing, template, iterate       |
+| 29  | Get All Thing Properties as InfoTable  | thing, property, infotable     |
+| 30  | Validate Required Parameters           | validation, utility            |
+| 31  | Emit/Trigger Event                     | thing, event                   |
+| 32  | Get Current User                       | security, user                 |
+| 33  | Check User Permission                  | security, permission           |
+| 34  | Get User Organizations                 | security, user, organization   |
+| 35  | Search Things by Tag                   | thing, tag, search             |
+| 36  | Add Model Tag to Thing                 | thing, tag                     |
+| 37  | Remove Model Tag from Thing            | thing, tag                     |
+| 38  | Create Thing Programmatically          | thing, create, entity          |
+| 39  | Get Location Property                  | thing, property, location      |
+| 40  | Set Location Property                  | thing, property, location      |
+| 41  | Calculate Distance Between Locations   | location, calculation, utility |
+| 42  | Get Alert Definitions                  | alert, thing, metadata         |
+| 43  | Acknowledge Alert                      | alert, thing                   |
+| 44  | Get Stream Entries                     | stream, query                  |
+| 45  | Add Stream Entry                       | stream, create                 |
+| 46  | Delete Stream Entries                  | stream, delete                 |
+| 47  | Read File from Repository              | file, repository               |
+| 48  | Save File to Repository                | file, repository               |
+| 49  | Delete File from Repository            | file, repository, delete       |
+| 50  | List Files in Repository               | file, repository               |
+| 51  | InfoTable to CSV String                | infotable, csv, conversion     |
+| 52  | Get Config Table                       | thing, config                  |
+| 53  | Get/Set Persistent Property            | thing, property, persistent    |
+| 54  | Remote Thing Connection Status         | thing, remote, connection      |
 
 ## ThingWorx Rhino Compatibility Notes
 

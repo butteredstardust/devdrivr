@@ -8,14 +8,14 @@ describe('SnippetsManager Meta Pane', () => {
   const setup = () => {
     useSnippetsStore.setState({
       snippets: [
-        { 
-          id: '1', 
-          title: 'Test Snippet', 
-          content: 'line1\nline2', 
-          language: 'javascript', 
-          tags: ['tag1', 'tag2'], 
-          createdAt: Date.now(), 
-          updatedAt: Date.now() 
+        {
+          id: '1',
+          title: 'Test Snippet',
+          content: 'line1\nline2',
+          language: 'javascript',
+          tags: ['tag1', 'tag2'],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         },
       ],
       initialized: true,
@@ -29,7 +29,7 @@ describe('SnippetsManager Meta Pane', () => {
     setup()
     const metaPane = screen.getByText('[ 03-META ]').parentElement?.parentElement
     expect(metaPane).toBeInTheDocument()
-    
+
     // Check if language selector is in Meta pane
     const langSelector = screen.getByDisplayValue('javascript')
     expect(metaPane?.contains(langSelector)).toBe(true)
@@ -38,7 +38,7 @@ describe('SnippetsManager Meta Pane', () => {
   it('renders tags in vertical list in Meta pane', () => {
     setup()
     const metaPane = screen.getByText('[ 03-META ]').closest('div')?.parentElement
-    
+
     // In Meta pane, tags are in a specific list
     const tagsContainer = screen.getByText('Tags').nextElementSibling
     expect(tagsContainer).toHaveTextContent('tag1')
@@ -55,7 +55,7 @@ describe('SnippetsManager Meta Pane', () => {
       throw new Error('Remove button not found')
     }
     fireEvent.click(removeButtons[0])
-    
+
     // tag1 should be gone from the tags container
     expect(tagsContainer).not.toHaveTextContent('tag1')
   })
@@ -64,21 +64,29 @@ describe('SnippetsManager Meta Pane', () => {
     setup()
     // content is 'line1\nline2' -> 2 lines, 11 chars
     // bytes should be same as chars for ASCII
-    expect(screen.getByText((content) => content.includes('L:2') && content.includes('C:11') && content.includes('B:11'))).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        (content) => content.includes('L:2') && content.includes('C:11') && content.includes('B:11')
+      )
+    ).toBeInTheDocument()
   })
 
   it('updates stats when content changes', async () => {
     setup()
-    
+
     // Try updating content via store but wrap in act
     const { act } = await import('react')
     await act(async () => {
       useSnippetsStore.setState((state) => ({
-        snippets: state.snippets.map(s => s.id === '1' ? { ...s, content: 'new content' } : s)
+        snippets: state.snippets.map((s) => (s.id === '1' ? { ...s, content: 'new content' } : s)),
       }))
     })
-    
+
     // 'new content' -> 1 line, 11 chars
-    expect(screen.getByText((content) => content.includes('L:1') && content.includes('C:11') && content.includes('B:11'))).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        (content) => content.includes('L:1') && content.includes('C:11') && content.includes('B:11')
+      )
+    ).toBeInTheDocument()
   })
 })

@@ -95,7 +95,10 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
   if (node.type === 'comment') {
     return (
-      <div style={{ paddingLeft: indent }} className="py-0.5 text-xs text-[var(--color-text-muted)]">
+      <div
+        style={{ paddingLeft: indent }}
+        className="py-0.5 text-xs text-[var(--color-text-muted)]"
+      >
         &lt;!-- {node.value} --&gt;
       </div>
     )
@@ -111,7 +114,10 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
   if (node.type === 'pi') {
     return (
-      <div style={{ paddingLeft: indent }} className="py-0.5 text-xs text-[var(--color-text-muted)]">
+      <div
+        style={{ paddingLeft: indent }}
+        className="py-0.5 text-xs text-[var(--color-text-muted)]"
+      >
         &lt;?{node.name} {node.value}?&gt;
       </div>
     )
@@ -141,23 +147,14 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
             <span className="text-[var(--color-warning)]">&quot;{v}&quot;</span>
           </span>
         ))}
-        <span className="text-[var(--color-accent)]">
-          {hasChildren ? '>' : ' />'}
-        </span>
-        {!hasChildren && (
-          <span className="ml-1 text-[var(--color-text-muted)]">(empty)</span>
-        )}
+        <span className="text-[var(--color-accent)]">{hasChildren ? '>' : ' />'}</span>
+        {!hasChildren && <span className="ml-1 text-[var(--color-text-muted)]">(empty)</span>}
       </div>
       {expanded &&
         hasChildren &&
-        node.children.map((child, i) => (
-          <TreeNodeRow key={i} node={child} depth={depth + 1} />
-        ))}
+        node.children.map((child, i) => <TreeNodeRow key={i} node={child} depth={depth + 1} />)}
       {expanded && hasChildren && (
-        <div
-          style={{ paddingLeft: indent }}
-          className="py-0.5 text-xs text-[var(--color-accent)]"
-        >
+        <div style={{ paddingLeft: indent }} className="py-0.5 text-xs text-[var(--color-accent)]">
           <span className="w-3 inline-block" />
           &lt;/{node.name}&gt;
         </div>
@@ -188,7 +185,12 @@ export default function XmlTools() {
   const [xpathResults, setXpathResults] = useState<string[]>([])
   const [jsonOutput, setJsonOutput] = useState<string>('')
   const [jsonError, setJsonError] = useState<string | null>(null)
-  const [stats, setStats] = useState<{ elements: number; attributes: number; textNodes: number; depth: number } | null>(null)
+  const [stats, setStats] = useState<{
+    elements: number
+    attributes: number
+    textNodes: number
+    depth: number
+  } | null>(null)
 
   // Debounced stats computation
   const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -200,9 +202,12 @@ export default function XmlTools() {
     if (statsTimer.current) clearTimeout(statsTimer.current)
     let cancelled = false
     statsTimer.current = setTimeout(() => {
-      worker.stats(state.input).then((s) => {
-        if (!cancelled) setStats(s)
-      }).catch(() => {})
+      worker
+        .stats(state.input)
+        .then((s) => {
+          if (!cancelled) setStats(s)
+        })
+        .catch(() => {})
     }, 500)
     return () => {
       cancelled = true
@@ -319,7 +324,10 @@ export default function XmlTools() {
               <CopyButton text={state.input} />
             </div>
             {error && (
-              <Alert variant="error" className="max-h-24 overflow-auto border-b border-[var(--color-border)] rounded-none px-4 py-2">
+              <Alert
+                variant="error"
+                className="max-h-24 overflow-auto border-b border-[var(--color-border)] rounded-none px-4 py-2"
+              >
                 <pre className="whitespace-pre-wrap">{error}</pre>
               </Alert>
             )}
@@ -364,7 +372,10 @@ export default function XmlTools() {
               {jsonOutput && <CopyButton text={jsonOutput} label="Copy JSON" />}
             </div>
             {jsonError && (
-              <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
+              <Alert
+                variant="error"
+                className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+              >
                 {jsonError}
               </Alert>
             )}
@@ -409,14 +420,14 @@ export default function XmlTools() {
                     {xpathResults.length} match(es)
                   </div>
                   {xpathResults.map((r, i) => (
-                    <div
-                      key={i}
-                      className="group flex items-start gap-2"
-                    >
+                    <div key={i} className="group flex items-start gap-2">
                       <pre className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
                         {r}
                       </pre>
-                      <CopyButton text={r} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <CopyButton
+                        text={r}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
                     </div>
                   ))}
                 </div>

@@ -141,20 +141,10 @@ export default function MermaidEditor() {
           </button>
         ))}
         <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleExportSvg}
-          disabled={!svgHtml}
-        >
+        <Button variant="ghost" size="sm" onClick={handleExportSvg} disabled={!svgHtml}>
           Copy SVG
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleExportPng}
-          disabled={!svgHtml}
-        >
+        <Button variant="ghost" size="sm" onClick={handleExportPng} disabled={!svgHtml}>
           Copy PNG
         </Button>
         <div className="ml-auto">
@@ -162,7 +152,10 @@ export default function MermaidEditor() {
         </div>
       </div>
       {error && (
-        <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
+        <Alert
+          variant="error"
+          className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+        >
           {error}
         </Alert>
       )}

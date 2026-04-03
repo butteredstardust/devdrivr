@@ -64,12 +64,19 @@ export function StatusBar() {
         : 'text-[var(--color-text-muted)]'
 
   const themeLabel =
-    theme === 'midnight' ? 'Midnight' :
-    theme === 'warm-terminal' ? 'Warm' :
-    theme === 'neon-brutalist' ? 'Neon' :
-    theme === 'earth-code' ? 'Earth' :
-    theme === 'cyber-luxe' ? 'Cyber' :
-    theme === 'soft-focus' ? 'Soft' : 'System'
+    theme === 'midnight'
+      ? 'Midnight'
+      : theme === 'warm-terminal'
+        ? 'Warm'
+        : theme === 'neon-brutalist'
+          ? 'Neon'
+          : theme === 'earth-code'
+            ? 'Earth'
+            : theme === 'cyber-luxe'
+              ? 'Cyber'
+              : theme === 'soft-focus'
+                ? 'Soft'
+                : 'System'
 
   return (
     <div className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[11px]">
@@ -108,7 +115,12 @@ export function StatusBar() {
         </span>
         {alwaysOnTop && (
           <span title="Pinned">
-            <PushPinIcon size={12} weight="fill" className="text-[var(--color-accent)]" aria-hidden="true" />
+            <PushPinIcon
+              size={12}
+              weight="fill"
+              className="text-[var(--color-accent)]"
+              aria-hidden="true"
+            />
           </span>
         )}
         <ClockDisplay />

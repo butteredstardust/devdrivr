@@ -55,10 +55,7 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function isWithinContainer(
-  position: { x: number; y: number },
-  container: HTMLDivElement
-): boolean {
+function isWithinContainer(position: { x: number; y: number }, container: HTMLDivElement): boolean {
   const rect = container.getBoundingClientRect()
   return (
     position.x >= rect.left &&

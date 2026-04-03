@@ -23,11 +23,13 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
           if (paths.length > 0) {
             const filePath = paths[0]!
             const filename = filePath.split('/').pop() ?? filePath.split('\\').pop() ?? filePath
-            readTextFile(filePath).then((content) => {
-              onDropRef.current(content, filename)
-            }).catch((err) => {
-              console.error('Failed to read dropped file:', err)
-            })
+            readTextFile(filePath)
+              .then((content) => {
+                onDropRef.current(content, filename)
+              })
+              .catch((err) => {
+                console.error('Failed to read dropped file:', err)
+              })
           }
         }
       })

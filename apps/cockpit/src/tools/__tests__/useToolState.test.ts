@@ -11,7 +11,10 @@ vi.mock('@/lib/db', () => ({
 const cacheStore: Record<string, unknown> = {}
 vi.mock('@/stores/tool-state.store', () => ({
   useToolStateCache: (
-    selector: (s: { get: (id: string) => unknown; set: (id: string, v: unknown) => void }) => unknown
+    selector: (s: {
+      get: (id: string) => unknown
+      set: (id: string, v: unknown) => void
+    }) => unknown
   ) =>
     selector({
       get: (id) => cacheStore[id],
@@ -60,7 +63,11 @@ describe('useToolState', () => {
 
   it('loads from SQLite on cold start (cache miss), merges with defaultState', async () => {
     let resolveDb: (val: any) => void = () => {}
-    vi.mocked(loadToolState).mockReturnValue(new Promise((resolve) => { resolveDb = resolve }))
+    vi.mocked(loadToolState).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDb = resolve
+      })
+    )
 
     const { result } = renderHook(() =>
       useToolState<{ value: string; extra?: string }>(TOOL_ID, {
@@ -164,7 +171,11 @@ describe('useToolState', () => {
   it('on unmount, saveToolState is called immediately (bypasses debounce)', async () => {
     vi.useFakeTimers()
     let resolveDb: (val: any) => void = () => {}
-    vi.mocked(loadToolState).mockReturnValue(new Promise((resolve) => { resolveDb = resolve }))
+    vi.mocked(loadToolState).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDb = resolve
+      })
+    )
 
     const { result, unmount } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
 
@@ -195,7 +206,11 @@ describe('useToolState', () => {
 
   it('cancelled load: if component unmounts before SQLite load resolves, state is not updated', async () => {
     let resolveDb: (val: any) => void = () => {}
-    vi.mocked(loadToolState).mockReturnValue(new Promise((resolve) => { resolveDb = resolve }))
+    vi.mocked(loadToolState).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDb = resolve
+      })
+    )
 
     const { result, unmount } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
 

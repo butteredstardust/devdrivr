@@ -166,30 +166,30 @@ Copy the JSON array below and paste into the Snippets Manager import (F10).
 
 ## Snippet List
 
-| # | Title | Tags |
-|---|-------|------|
-| 1 | Deep Clone Object | utility, object |
-| 2 | Debounce Function | utility, performance |
-| 3 | Throttle Function | utility, performance |
-| 4 | Sleep / Delay | async, utility |
-| 5 | Generate UUID | utility, id |
-| 6 | Flatten Array | array, utility |
-| 7 | Unique Array | array, utility |
-| 8 | Group Array by Key | array, utility |
-| 9 | Pick Object Keys | object, utility |
-| 10 | Omit Object Keys | object, utility |
-| 11 | Is Empty Check | utility, validation |
-| 12 | Format Currency | formatting, i18n |
-| 13 | Format Number | formatting |
-| 14 | Parse Query String | url, utility |
-| 15 | Build Query String | url, utility |
-| 16 | Random Number Range | math, utility |
-| 17 | Shuffle Array | array, random |
-| 18 | Chunk Array | array, utility |
-| 19 | Retry Async Function | async, error-handling |
-| 20 | Memoize Function | performance, caching |
-| 21 | TryParse JSON Safe | json, error-handling |
-| 22 | Capitalize String | string, formatting |
-| 23 | Truncate String | string, formatting |
-| 24 | Get Nested Object Value | object, utility |
-| 25 | Copy to Clipboard | browser, clipboard |
+| #   | Title                   | Tags                  |
+| --- | ----------------------- | --------------------- |
+| 1   | Deep Clone Object       | utility, object       |
+| 2   | Debounce Function       | utility, performance  |
+| 3   | Throttle Function       | utility, performance  |
+| 4   | Sleep / Delay           | async, utility        |
+| 5   | Generate UUID           | utility, id           |
+| 6   | Flatten Array           | array, utility        |
+| 7   | Unique Array            | array, utility        |
+| 8   | Group Array by Key      | array, utility        |
+| 9   | Pick Object Keys        | object, utility       |
+| 10  | Omit Object Keys        | object, utility       |
+| 11  | Is Empty Check          | utility, validation   |
+| 12  | Format Currency         | formatting, i18n      |
+| 13  | Format Number           | formatting            |
+| 14  | Parse Query String      | url, utility          |
+| 15  | Build Query String      | url, utility          |
+| 16  | Random Number Range     | math, utility         |
+| 17  | Shuffle Array           | array, random         |
+| 18  | Chunk Array             | array, utility        |
+| 19  | Retry Async Function    | async, error-handling |
+| 20  | Memoize Function        | performance, caching  |
+| 21  | TryParse JSON Safe      | json, error-handling  |
+| 22  | Capitalize String       | string, formatting    |
+| 23  | Truncate String         | string, formatting    |
+| 24  | Get Nested Object Value | object, utility       |
+| 25  | Copy to Clipboard       | browser, clipboard    |

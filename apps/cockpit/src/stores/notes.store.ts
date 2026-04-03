@@ -9,7 +9,12 @@ type NotesStore = {
   initialized: boolean
   init: () => Promise<void>
   add: (title?: string, content?: string, color?: NoteColor) => Promise<Note>
-  update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'poppedOut' | 'windowBounds' | 'tags'>>) => Promise<void>
+  update: (
+    id: string,
+    patch: Partial<
+      Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'poppedOut' | 'windowBounds' | 'tags'>
+    >
+  ) => Promise<void>
   remove: (id: string) => Promise<void>
   clearAll: () => Promise<void>
 }

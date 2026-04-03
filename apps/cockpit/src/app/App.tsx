@@ -13,7 +13,10 @@ import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 export function App() {
   useGlobalShortcuts()
 
-  const [sendTo, setSendTo] = useState<{ content: string; position: { x: number; y: number } } | null>(null)
+  const [sendTo, setSendTo] = useState<{
+    content: string
+    position: { x: number; y: number }
+  } | null>(null)
 
   const showSendTo = useCallback((content: string, position: { x: number; y: number }) => {
     setSendTo({ content, position })
@@ -37,7 +40,9 @@ export function App() {
         <SettingsPanel />
         <ShortcutsModal />
       </div>
-      {sendTo && <SendToMenu content={sendTo.content} position={sendTo.position} onClose={closeSendTo} />}
+      {sendTo && (
+        <SendToMenu content={sendTo.content} position={sendTo.position} onClose={closeSendTo} />
+      )}
     </SendToContext.Provider>
   )
 }

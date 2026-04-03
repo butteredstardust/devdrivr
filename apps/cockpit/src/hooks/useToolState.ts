@@ -44,10 +44,12 @@ export function useToolState<T extends Record<string, unknown>>(
       }
       loadedRef.current = true
     })
-    return () => { cancelled = true }
-  // Intentionally exclude `defaultState` from deps — it's only needed for the initial
-  // merge on mount. Including it would cause re-fetches on every render since callers
-  // pass inline object literals.
+    return () => {
+      cancelled = true
+    }
+    // Intentionally exclude `defaultState` from deps — it's only needed for the initial
+    // merge on mount. Including it would cause re-fetches on every render since callers
+    // pass inline object literals.
   }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced save to SQLite (cache is updated synchronously)

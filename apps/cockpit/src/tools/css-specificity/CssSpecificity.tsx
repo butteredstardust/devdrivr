@@ -26,7 +26,12 @@ type SpecResult = {
 
 // ── Specificity Computation ──────────────────────────────────────────
 
-function computeSpecificity(selector: string): { a: number; b: number; c: number; parts: SpecPart[] } {
+function computeSpecificity(selector: string): {
+  a: number
+  b: number
+  c: number
+  parts: SpecPart[]
+} {
   let a = 0
   let b = 0
   let c = 0
@@ -38,7 +43,10 @@ function computeSpecificity(selector: string): { a: number; b: number; c: number
     a += innerSpec.a
     b += innerSpec.b
     c += innerSpec.c
-    parts.push({ text: `:not(${inner})`, type: innerSpec.a > 0 ? 'id' : innerSpec.b > 0 ? 'class' : 'element' })
+    parts.push({
+      text: `:not(${inner})`,
+      type: innerSpec.a > 0 ? 'id' : innerSpec.b > 0 ? 'class' : 'element',
+    })
     return ''
   })
 
@@ -97,7 +105,10 @@ const EXAMPLES = [
   { label: 'Basic', selectors: 'h1\np\ndiv' },
   { label: 'Classes', selectors: '.card\n.card .title\n.card .title:hover' },
   { label: 'IDs', selectors: '#main\n#main .content p\n#nav ul li.active' },
-  { label: 'Complex', selectors: 'div > p:first-child\n.sidebar a:hover::before\n#app [data-role="admin"]' },
+  {
+    label: 'Complex',
+    selectors: 'div > p:first-child\n.sidebar a:hover::before\n#app [data-role="admin"]',
+  },
   { label: 'Battle', selectors: '.a .b .c\n#x\ndiv div div div div' },
 ]
 
@@ -158,7 +169,8 @@ export default function CssSpecificity() {
   const exportText = useMemo(() => {
     if (results.length === 0) return ''
     const lines = results.map(
-      (r) => `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})  score=${r.score}${r.hasImportant ? ' !important' : ''}`
+      (r) =>
+        `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})  score=${r.score}${r.hasImportant ? ' !important' : ''}`
     )
     return lines.join('\n')
   }, [results])
@@ -189,7 +201,9 @@ export default function CssSpecificity() {
         </button>
         {results.length > 0 && (
           <>
-            <span className="text-xs text-[var(--color-text-muted)]">{results.length} selector(s)</span>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {results.length} selector(s)
+            </span>
             <CopyButton text={exportText} label="Export" />
           </>
         )}
@@ -212,7 +226,9 @@ export default function CssSpecificity() {
         {Object.values(TYPE_COLORS).map((tc) => (
           <div key={tc.label} className="flex items-center gap-1">
             <div className="h-2 w-4 rounded" style={{ backgroundColor: tc.bar }} />
-            <span className="text-[10px]" style={{ color: tc.text }}>{tc.label}</span>
+            <span className="text-[10px]" style={{ color: tc.text }}>
+              {tc.label}
+            </span>
           </div>
         ))}
       </div>
@@ -227,7 +243,9 @@ export default function CssSpecificity() {
           <textarea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
-            placeholder={'#main .content p\n.sidebar a:hover\ndiv > p:first-child\n#nav ul li.active'}
+            placeholder={
+              '#main .content p\n.sidebar a:hover\ndiv > p:first-child\n#nav ul li.active'
+            }
             className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
           />
         </div>
@@ -300,7 +318,9 @@ export default function CssSpecificity() {
                           />
                         )}
                       </div>
-                      <span className="w-8 text-right text-xs text-[var(--color-text-muted)]">{r.score}</span>
+                      <span className="w-8 text-right text-xs text-[var(--color-text-muted)]">
+                        {r.score}
+                      </span>
                     </div>
 
                     {/* Breakdown */}

@@ -47,9 +47,7 @@ const api = {
 
     const diagnostics = (result.diagnostics ?? []).map((d) => {
       const pos =
-        d.file && d.start !== undefined
-          ? d.file.getLineAndCharacterOfPosition(d.start)
-          : undefined
+        d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : undefined
       const entry: { message: string; line?: number; column?: number } = {
         message: ts.flattenDiagnosticMessageText(d.messageText, '\n'),
       }

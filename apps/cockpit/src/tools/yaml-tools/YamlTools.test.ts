@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  parseYaml,
-  stringifyYaml,
-  yamlToJson,
-  jsonToYaml,
-  sortKeysDeep,
-} from './yaml-helpers'
+import { parseYaml, stringifyYaml, yamlToJson, jsonToYaml, sortKeysDeep } from './yaml-helpers'
 
 describe('parseYaml', () => {
   it('parses a simple mapping', () => {

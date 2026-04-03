@@ -93,7 +93,15 @@ const POPULAR_TIMEZONES = [
 
 // ─── Shared Components ──────────────────────────────────────────────
 
-function SettingRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function SettingRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
   return (
     <div className="flex items-center justify-between py-2">
       <div className="flex flex-col">
@@ -203,7 +211,9 @@ function GeneralTab() {
 
   const handleAlwaysOnTop = useCallback(
     (checked: boolean) => {
-      getCurrentWindow().setAlwaysOnTop(checked).catch(() => {})
+      getCurrentWindow()
+        .setAlwaysOnTop(checked)
+        .catch(() => {})
       update('alwaysOnTop', checked).catch(() => {})
     },
     [update]
@@ -266,9 +276,7 @@ function EditorTab() {
       <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
         <SelectInput
           value={editorTheme}
-          onChange={(v) =>
-            update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
-          }
+          onChange={(v) => update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})}
           options={EDITOR_THEME_OPTIONS}
         />
       </SettingRow>
@@ -390,14 +398,24 @@ function DataTab() {
       if (typeof obj['notesDrawerWidth'] === 'number')
         await su('notesDrawerWidth', obj['notesDrawerWidth'])
       // String fields
-      const validFonts = new Set<AppSettings['editorFont']>(['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro'])
-      if (typeof obj['editorFont'] === 'string' && validFonts.has(obj['editorFont'] as AppSettings['editorFont']))
+      const validFonts = new Set<AppSettings['editorFont']>([
+        'JetBrains Mono',
+        'Fira Code',
+        'Cascadia Code',
+        'Source Code Pro',
+      ])
+      if (
+        typeof obj['editorFont'] === 'string' &&
+        validFonts.has(obj['editorFont'] as AppSettings['editorFont'])
+      )
         await su('editorFont', obj['editorFont'] as AppSettings['editorFont'])
       if (typeof obj['defaultTimezone'] === 'string')
         await su('defaultTimezone', obj['defaultTimezone'])
       // Apply alwaysOnTop to the live Tauri window
       const finalOnTop = useSettingsStore.getState().alwaysOnTop
-      getCurrentWindow().setAlwaysOnTop(finalOnTop).catch(() => {})
+      getCurrentWindow()
+        .setAlwaysOnTop(finalOnTop)
+        .catch(() => {})
       addToast('Settings imported', 'success')
     } catch {
       addToast('Failed to import settings', 'error')
@@ -410,7 +428,9 @@ function DataTab() {
     for (const key of keys) {
       await settingsUpdate(key, DEFAULT_SETTINGS[key])
     }
-    getCurrentWindow().setAlwaysOnTop(false).catch(() => {})
+    getCurrentWindow()
+      .setAlwaysOnTop(false)
+      .catch(() => {})
     addToast('Settings reset to defaults', 'success')
   }, [addToast])
 
@@ -432,9 +452,10 @@ function DataTab() {
             type="number"
             value={historyRetentionPerTool}
             onChange={(e) =>
-              update('historyRetentionPerTool', Math.min(5000, Math.max(10, Number(e.target.value)))).catch(
-                () => {}
-              )
+              update(
+                'historyRetentionPerTool',
+                Math.min(5000, Math.max(10, Number(e.target.value)))
+              ).catch(() => {})
             }
             min={10}
             max={5000}

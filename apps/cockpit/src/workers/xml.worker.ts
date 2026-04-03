@@ -207,7 +207,10 @@ function nodeToJson(node: any): any {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function collectStats(node: any, depth = 0): { elements: number; attributes: number; textNodes: number; depth: number } {
+function collectStats(
+  node: any,
+  depth = 0
+): { elements: number; attributes: number; textNodes: number; depth: number } {
   let elements = 0
   let attributes = 0
   let textNodes = 0

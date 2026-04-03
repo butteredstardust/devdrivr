@@ -5,7 +5,24 @@ export async function openFileDialog(): Promise<{ content: string; filename: str
   const path = await open({
     multiple: false,
     filters: [
-      { name: 'Text', extensions: ['txt', 'json', 'xml', 'html', 'css', 'js', 'ts', 'md', 'yaml', 'yml', 'sql', 'csv', 'svg'] },
+      {
+        name: 'Text',
+        extensions: [
+          'txt',
+          'json',
+          'xml',
+          'html',
+          'css',
+          'js',
+          'ts',
+          'md',
+          'yaml',
+          'yml',
+          'sql',
+          'csv',
+          'svg',
+        ],
+      },
       { name: 'All', extensions: ['*'] },
     ],
   })

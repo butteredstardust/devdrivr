@@ -14,7 +14,6 @@ export const NOTE_COLORS = [
 
 const noteColorSchema = z.enum(NOTE_COLORS)
 
-
 /** Validates a raw NoteRow from SQLite and transforms it into a Note. */
 export const noteRowSchema = z
   .object({
@@ -79,23 +78,25 @@ export const snippetRowSchema = z
     created_at: z.number(),
     updated_at: z.number(),
   })
-  .transform((row): Snippet => ({
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    language: row.language,
-    tags: (() => {
-      try {
-        const parsed = JSON.parse(row.tags)
-        const result = z.array(z.string()).safeParse(parsed)
-        return result.success ? result.data : []
-      } catch {
-        return []
-      }
-    })(),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
+  .transform(
+    (row): Snippet => ({
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      language: row.language,
+      tags: (() => {
+        try {
+          const parsed = JSON.parse(row.tags)
+          const result = z.array(z.string()).safeParse(parsed)
+          return result.success ? result.data : []
+        } catch {
+          return []
+        }
+      })(),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })
+  )
 
 /** Validates a raw HistoryRow from SQLite and transforms it into a HistoryEntry. */
 export const historyRowSchema = z

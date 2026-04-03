@@ -206,13 +206,41 @@ const FORMATTING_ACTIONS = [
   { label: '~~', title: 'Strikethrough', prefix: '~~', suffix: '~~', placeholder: 'strikethrough' },
   { label: '`', title: 'Inline Code', prefix: '`', suffix: '`', placeholder: 'code' },
   { label: 'H1', title: 'Heading 1', prefix: '# ', suffix: '', placeholder: 'Heading', line: true },
-  { label: 'H2', title: 'Heading 2', prefix: '## ', suffix: '', placeholder: 'Heading', line: true },
-  { label: 'H3', title: 'Heading 3', prefix: '### ', suffix: '', placeholder: 'Heading', line: true },
-  { label: '—', title: 'Horizontal Rule', prefix: '\n---\n', suffix: '', placeholder: '', line: true },
+  {
+    label: 'H2',
+    title: 'Heading 2',
+    prefix: '## ',
+    suffix: '',
+    placeholder: 'Heading',
+    line: true,
+  },
+  {
+    label: 'H3',
+    title: 'Heading 3',
+    prefix: '### ',
+    suffix: '',
+    placeholder: 'Heading',
+    line: true,
+  },
+  {
+    label: '—',
+    title: 'Horizontal Rule',
+    prefix: '\n---\n',
+    suffix: '',
+    placeholder: '',
+    line: true,
+  },
   { label: '🔗', title: 'Link', prefix: '[', suffix: '](url)', placeholder: 'link text' },
   { label: '📷', title: 'Image', prefix: '![', suffix: '](url)', placeholder: 'alt text' },
   { label: '•', title: 'Bullet List', prefix: '- ', suffix: '', placeholder: 'item', line: true },
-  { label: '1.', title: 'Numbered List', prefix: '1. ', suffix: '', placeholder: 'item', line: true },
+  {
+    label: '1.',
+    title: 'Numbered List',
+    prefix: '1. ',
+    suffix: '',
+    placeholder: 'item',
+    line: true,
+  },
   { label: '☐', title: 'Task List', prefix: '- [ ] ', suffix: '', placeholder: 'task', line: true },
   { label: '>', title: 'Blockquote', prefix: '> ', suffix: '', placeholder: 'quote', line: true },
   {
@@ -595,12 +623,7 @@ img{max-width:100%}</style>
         {/* Preview */}
         {showPreview && (
           <div className={showEditor ? 'w-1/2' : 'w-full'}>
-            <MarkdownPreview
-              ref={previewRef}
-              html={html}
-              showToc={state.showToc}
-              toc={toc}
-            />
+            <MarkdownPreview ref={previewRef} html={html} showToc={state.showToc} toc={toc} />
           </div>
         )}
       </div>

@@ -126,7 +126,8 @@ export default function JsonTools() {
     if (!parsed.ok || !state.query.trim()) return { hasResult: false as const }
     try {
       const result = queryJsonPath(parsed.data, state.query)
-      if (result === undefined) return { hasResult: true as const, value: 'undefined', display: 'No match' }
+      if (result === undefined)
+        return { hasResult: true as const, value: 'undefined', display: 'No match' }
       const display = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result)
       return { hasResult: true as const, value: display, display }
     } catch {
@@ -183,39 +184,20 @@ export default function JsonTools() {
           <div className="flex h-full flex-col">
             {/* Toolbar */}
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleFormat}
-                disabled={isFormatting}
-              >
+              <Button variant="primary" size="sm" onClick={handleFormat} disabled={isFormatting}>
                 {isFormatting ? 'Formatting…' : 'Format'}
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleMinify}
-                disabled={!parsed.ok}
-              >
+              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
                 Minify
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSortKeys}
-                disabled={!parsed.ok}
-              >
+              <Button variant="secondary" size="sm" onClick={handleSortKeys} disabled={!parsed.ok}>
                 Sort Keys
               </Button>
               <CopyButton text={state.input} />
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-              {parsed.ok && (
-                <span className="text-xs text-[var(--color-success)]">✓ Valid</span>
-              )}
+              {parsed.ok && <span className="text-xs text-[var(--color-success)]">✓ Valid</span>}
               {parsed.error && (
-                <span className="truncate text-xs text-[var(--color-error)]">
-                  ✗ {parsed.error}
-                </span>
+                <span className="truncate text-xs text-[var(--color-error)]">✗ {parsed.error}</span>
               )}
               {stats && (
                 <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
@@ -247,7 +229,10 @@ export default function JsonTools() {
 
             {/* Format error */}
             {error && (
-              <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
+              <Alert
+                variant="error"
+                className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+              >
                 {error}
               </Alert>
             )}
@@ -451,11 +436,7 @@ function JsonTree({
             <div key={key} className="ml-4">
               <span className="text-[var(--color-accent)]">&quot;{key}&quot;</span>
               <span className="text-[var(--color-text-muted)]">: </span>
-              <JsonTree
-                data={value}
-                path={`${path}.${key}`}
-                defaultExpanded={defaultExpanded}
-              />
+              <JsonTree data={value} path={`${path}.${key}`} defaultExpanded={defaultExpanded} />
             </div>
           ))}
       </div>

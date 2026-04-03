@@ -37,15 +37,32 @@ async function getPlugin(name: string): Promise<unknown> {
   if (pluginCache.has(name)) return pluginCache.get(name)!
   let plugin: unknown
   switch (name) {
-    case 'babel':    plugin = (await import('prettier/plugins/babel')).default; break
-    case 'estree':   plugin = (await import('prettier/plugins/estree')).default; break
-    case 'typescript': plugin = (await import('prettier/plugins/typescript')).default; break
-    case 'html':     plugin = (await import('prettier/plugins/html')).default; break
-    case 'markdown': plugin = (await import('prettier/plugins/markdown')).default; break
-    case 'yaml':     plugin = (await import('prettier/plugins/yaml')).default; break
-    case 'xml':      plugin = (await import('@prettier/plugin-xml')).default; break
-    case 'graphql':  plugin = (await import('prettier/plugins/babel')).default; break
-    default: throw new Error(`Unknown plugin: ${name}`)
+    case 'babel':
+      plugin = (await import('prettier/plugins/babel')).default
+      break
+    case 'estree':
+      plugin = (await import('prettier/plugins/estree')).default
+      break
+    case 'typescript':
+      plugin = (await import('prettier/plugins/typescript')).default
+      break
+    case 'html':
+      plugin = (await import('prettier/plugins/html')).default
+      break
+    case 'markdown':
+      plugin = (await import('prettier/plugins/markdown')).default
+      break
+    case 'yaml':
+      plugin = (await import('prettier/plugins/yaml')).default
+      break
+    case 'xml':
+      plugin = (await import('@prettier/plugin-xml')).default
+      break
+    case 'graphql':
+      plugin = (await import('prettier/plugins/babel')).default
+      break
+    default:
+      throw new Error(`Unknown plugin: ${name}`)
   }
   pluginCache.set(name, plugin)
   return plugin
@@ -53,17 +70,17 @@ async function getPlugin(name: string): Promise<unknown> {
 
 // Which plugins each parser needs
 const PARSER_PLUGINS: Record<string, string[]> = {
-  babel:      ['babel', 'estree'],
+  babel: ['babel', 'estree'],
   typescript: ['typescript', 'estree'],
-  json:       ['babel', 'estree'],
-  css:        ['babel'],        // prettier uses its internal css parser — only estree needed
-  scss:       ['babel'],
-  less:       ['babel'],
-  html:       ['html'],
-  markdown:   ['markdown'],
-  yaml:       ['yaml'],
-  xml:        ['xml'],
-  graphql:    ['babel'],
+  json: ['babel', 'estree'],
+  css: ['babel'], // prettier uses its internal css parser — only estree needed
+  scss: ['babel'],
+  less: ['babel'],
+  html: ['html'],
+  markdown: ['markdown'],
+  yaml: ['yaml'],
+  xml: ['xml'],
+  graphql: ['babel'],
 }
 
 export function useFormatter() {

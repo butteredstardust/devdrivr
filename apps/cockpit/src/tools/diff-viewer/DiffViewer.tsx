@@ -92,7 +92,15 @@ export default function DiffViewer() {
       comparingRef.current = false
       setIsComparing(false)
     }
-  }, [worker, state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, setLastAction])
+  }, [
+    worker,
+    state.left,
+    state.right,
+    state.ignoreWhitespace,
+    state.jsonMode,
+    state.mode,
+    setLastAction,
+  ])
 
   // Auto-compare with debounce when both sides have content
   // eslint-disable-next-line react-hooks/exhaustive-deps — computeDiff is intentionally omitted; all its deps are listed directly
@@ -146,12 +154,7 @@ export default function DiffViewer() {
           </Button>
         )}
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleSwap}
-          title="Swap left and right"
-        >
+        <Button variant="secondary" size="sm" onClick={handleSwap} title="Swap left and right">
           ⇄ Swap
         </Button>
 
@@ -163,10 +166,7 @@ export default function DiffViewer() {
           <option value="inline">Inline</option>
         </Select>
 
-        <Select
-          value={state.language}
-          onChange={(e) => updateState({ language: e.target.value })}
-        >
+        <Select value={state.language} onChange={(e) => updateState({ language: e.target.value })}>
           {LANGUAGES.map((l) => (
             <option key={l.id} value={l.id}>
               {l.label}
@@ -202,9 +202,7 @@ export default function DiffViewer() {
               <span className="text-[var(--color-error)]">−{stats.deletions}</span>
             </span>
           )}
-          {identical && (
-            <span className="text-xs text-[var(--color-success)]">Identical</span>
-          )}
+          {identical && <span className="text-xs text-[var(--color-success)]">Identical</span>}
           {rawPatch && <CopyButton text={rawPatch} label="Copy patch" />}
         </div>
       </div>

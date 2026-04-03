@@ -98,10 +98,7 @@ export default function Base64Tool() {
   }, [state.input])
 
   // Size stats
-  const inputBytes = useMemo(
-    () => new TextEncoder().encode(state.input).length,
-    [state.input]
-  )
+  const inputBytes = useMemo(() => new TextEncoder().encode(state.input).length, [state.input])
   const outputBytes = useMemo(
     () => (output.text ? new TextEncoder().encode(output.text).length : 0),
     [output.text]
@@ -156,12 +153,7 @@ export default function Base64Tool() {
         <Button variant="primary" size="sm" onClick={handleToggle}>
           {state.mode === 'encode' ? 'Encode →' : '← Decode'}
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleSwap}
-          disabled={!output.text}
-        >
+        <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
           ⇄ Swap
         </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
@@ -187,9 +179,7 @@ export default function Base64Tool() {
           </label>
         )}
 
-        {autoDetect && (
-          <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
-        )}
+        {autoDetect && <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>}
 
         {/* Stats */}
         <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
@@ -234,7 +224,9 @@ export default function Base64Tool() {
             </div>
           </div>
           {output.error ? (
-            <Alert variant="error" className="m-4">{output.error}</Alert>
+            <Alert variant="error" className="m-4">
+              {output.error}
+            </Alert>
           ) : (
             <div className="flex flex-1 flex-col overflow-auto">
               <pre className="flex-1 whitespace-pre-wrap break-all p-4 font-mono text-sm text-[var(--color-text)]">

@@ -424,11 +424,7 @@ function YamlTree({
             <div key={key} className="ml-4">
               <span className="text-[var(--color-accent)]">{key}</span>
               <span className="text-[var(--color-text-muted)]">: </span>
-              <YamlTree
-                data={value}
-                path={`${path}.${key}`}
-                defaultExpanded={defaultExpanded}
-              />
+              <YamlTree data={value} path={`${path}.${key}`} defaultExpanded={defaultExpanded} />
             </div>
           ))}
       </div>

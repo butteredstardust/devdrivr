@@ -68,7 +68,10 @@ export function EnvironmentModal({ onClose }: Props) {
       <div className="flex h-[80vh] w-[800px] max-w-[90vw] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 className="font-pixel text-lg text-[var(--color-text)]">Manage Environments</h2>
-          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+          <button
+            onClick={onClose}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
             ✕
           </button>
         </div>
@@ -77,12 +80,7 @@ export function EnvironmentModal({ onClose }: Props) {
           {/* Left Sidebar: Env List */}
           <div className="w-1/3 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] flex overflow-hidden">
             <div className="p-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleAdd}
-                className="w-full mb-2"
-              >
+              <Button variant="secondary" size="sm" onClick={handleAdd} className="w-full mb-2">
                 + Create Environment
               </Button>
             </div>

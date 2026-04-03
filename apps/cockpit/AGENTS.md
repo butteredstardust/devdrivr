@@ -7,6 +7,7 @@ Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working i
 ## What This Project Is
 
 **devdrivr cockpit** is a local-first, keyboard-driven developer utility desktop app.
+
 - **Runtime**: Tauri 2 (Rust backend + WKWebView frontend)
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
@@ -60,6 +61,7 @@ src-tauri/tauri.conf.json         ← window size, bundle config, app identifier
 ## Non-Negotiable Rules
 
 ### 1. Package manager: Bun only
+
 ```bash
 # ✅
 bun install
@@ -72,6 +74,7 @@ yarn add
 ```
 
 ### 2. DB access: always `getDb()`, never `Database.load()`
+
 ```typescript
 // ✅
 import { getDb } from '@/lib/db'
@@ -84,6 +87,7 @@ const db = await Database.load('sqlite:cockpit.db')
 ```
 
 ### 3. Colors: CSS variables only, never hardcode
+
 ```typescript
 // ✅
 className="bg-[var(--color-surface)] text-[var(--color-text)] border-[var(--color-border)]"
@@ -98,6 +102,7 @@ Available tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--c
 `--color-warning`, `--color-success`, `--color-info`, `--color-shadow`
 
 ### 4. Web Workers: `?worker` imports only
+
 ```typescript
 // ✅ Vite bundles as blob URL — works in Tauri's WKWebView
 import MyWorkerFactory from '@/workers/my.worker?worker'
@@ -108,6 +113,7 @@ new Worker(new URL('./my.worker.ts', import.meta.url), { type: 'module' })
 ```
 
 ### 5. Workers: use `handleRpc`, not Comlink's `expose`
+
 ```typescript
 // ✅ Workers must end with this
 import { handleRpc } from './rpc'
@@ -119,6 +125,7 @@ expose(api)
 ```
 
 ### 6. Zustand: selector functions always
+
 ```typescript
 // ✅ Only re-renders when 'theme' changes
 const theme = useSettingsStore((s) => s.theme)
@@ -129,6 +136,7 @@ const store = useSettingsStore()
 ```
 
 ### 7. Store init: idempotent promise guard required
+
 ```typescript
 // Every new store init() MUST have this pattern
 let initPromise: Promise<void> | null = null
@@ -146,13 +154,16 @@ init: async () => {
 ```
 
 ### 8. Never add `React.StrictMode`
+
 Intentionally removed. Causes double-mount flash in Tauri's WebView. Don't add it back.
 
 ### 9. Never create new Tauri windows
+
 `new WebviewWindow(...)` was removed. IPC capability scoping + listener leak issues.
 Use drawers, panels, or modals within the existing window instead.
 
 ### 10. DPI conversion for window APIs
+
 ```typescript
 // ✅ Always convert physical → logical before saving
 const factor = await win.scaleFactor()
@@ -165,6 +176,7 @@ await win.setPosition(pos)
 ```
 
 ### 11. `applyTheme()` only inside async init functions
+
 ```typescript
 // ✅
 init: async () => {
@@ -173,10 +185,11 @@ init: async () => {
 }
 
 // ❌ Causes flash before DB theme is loaded
-applyTheme('system')  // at module level
+applyTheme('system') // at module level
 ```
 
 ### 12. Icons: Phosphor only
+
 ```typescript
 // ✅
 import { ArrowRight, Clipboard } from '@phosphor-icons/react'
@@ -244,7 +257,7 @@ import { handleRpc } from './rpc'
 const api = {
   async process(input: string): Promise<string> {
     return input.toUpperCase()
-  }
+  },
 }
 
 export type MyWorker = typeof api

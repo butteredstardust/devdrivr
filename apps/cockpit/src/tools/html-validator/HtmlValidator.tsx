@@ -35,21 +35,66 @@ type RuleConfig = {
 }
 
 const ALL_RULES: RuleConfig[] = [
-  { id: 'tagname-lowercase', label: 'Tag names lowercase', category: 'structure', defaultValue: true },
+  {
+    id: 'tagname-lowercase',
+    label: 'Tag names lowercase',
+    category: 'structure',
+    defaultValue: true,
+  },
   { id: 'tag-pair', label: 'Tag pairs must match', category: 'structure', defaultValue: true },
-  { id: 'spec-char-escape', label: 'Special chars escaped', category: 'structure', defaultValue: true },
-  { id: 'attr-lowercase', label: 'Attribute names lowercase', category: 'attributes', defaultValue: true },
-  { id: 'attr-value-double-quotes', label: 'Double quotes for values', category: 'attributes', defaultValue: true },
-  { id: 'attr-no-duplication', label: 'No duplicate attributes', category: 'attributes', defaultValue: true },
-  { id: 'attr-unsafe-chars', label: 'No unsafe chars in attrs', category: 'attributes', defaultValue: true },
+  {
+    id: 'spec-char-escape',
+    label: 'Special chars escaped',
+    category: 'structure',
+    defaultValue: true,
+  },
+  {
+    id: 'attr-lowercase',
+    label: 'Attribute names lowercase',
+    category: 'attributes',
+    defaultValue: true,
+  },
+  {
+    id: 'attr-value-double-quotes',
+    label: 'Double quotes for values',
+    category: 'attributes',
+    defaultValue: true,
+  },
+  {
+    id: 'attr-no-duplication',
+    label: 'No duplicate attributes',
+    category: 'attributes',
+    defaultValue: true,
+  },
+  {
+    id: 'attr-unsafe-chars',
+    label: 'No unsafe chars in attrs',
+    category: 'attributes',
+    defaultValue: true,
+  },
   { id: 'id-unique', label: 'IDs must be unique', category: 'attributes', defaultValue: true },
-  { id: 'id-class-value', label: 'ID/class naming: dash-case', category: 'attributes', defaultValue: 'dash' },
+  {
+    id: 'id-class-value',
+    label: 'ID/class naming: dash-case',
+    category: 'attributes',
+    defaultValue: 'dash',
+  },
   { id: 'src-not-empty', label: 'src not empty', category: 'attributes', defaultValue: true },
-  { id: 'title-require', label: 'Title tag required', category: 'accessibility', defaultValue: true },
+  {
+    id: 'title-require',
+    label: 'Title tag required',
+    category: 'accessibility',
+    defaultValue: true,
+  },
   { id: 'alt-require', label: 'Alt text on images', category: 'accessibility', defaultValue: true },
   { id: 'doctype-first', label: 'Doctype required', category: 'structure', defaultValue: false },
   { id: 'tag-self-close', label: 'Self-closing tags', category: 'style', defaultValue: false },
-  { id: 'head-script-disabled', label: 'No scripts in head', category: 'style', defaultValue: false },
+  {
+    id: 'head-script-disabled',
+    label: 'No scripts in head',
+    category: 'style',
+    defaultValue: false,
+  },
 ]
 
 const RULE_CATEGORIES = ['structure', 'attributes', 'accessibility', 'style'] as const
@@ -92,7 +137,21 @@ function computeStats(html: string): HtmlStats {
   let depth = 0
   let maxDepth = 0
   const tagPattern = /<\/?([a-zA-Z][\w-]*)[^>]*\/?>/g
-  const selfClosing = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'])
+  const selfClosing = new Set([
+    'br',
+    'hr',
+    'img',
+    'input',
+    'meta',
+    'link',
+    'area',
+    'base',
+    'col',
+    'embed',
+    'source',
+    'track',
+    'wbr',
+  ])
   let match: RegExpExecArray | null
   while ((match = tagPattern.exec(html)) !== null) {
     const full = match[0]!
@@ -230,7 +289,10 @@ export default function HtmlValidator() {
       if (errs.length === 0) {
         setLastAction('Valid HTML', 'success')
       } else {
-        setLastAction(`${errorCount} error(s), ${warnCount} warning(s)`, errorCount > 0 ? 'error' : 'info')
+        setLastAction(
+          `${errorCount} error(s), ${warnCount} warning(s)`,
+          errorCount > 0 ? 'error' : 'info'
+        )
       }
     }, 300)
     return () => {
@@ -337,12 +399,20 @@ export default function HtmlValidator() {
           <span>{stats.tags} tags</span>
           <span>depth {stats.depth}</span>
           {stats.inlineStyles > 0 && (
-            <span className="text-[var(--color-warning)]">{stats.inlineStyles} inline style{stats.inlineStyles !== 1 ? 's' : ''}</span>
+            <span className="text-[var(--color-warning)]">
+              {stats.inlineStyles} inline style{stats.inlineStyles !== 1 ? 's' : ''}
+            </span>
           )}
           {stats.inlineScripts > 0 && (
-            <span className="text-[var(--color-warning)]">{stats.inlineScripts} script{stats.inlineScripts !== 1 ? 's' : ''}</span>
+            <span className="text-[var(--color-warning)]">
+              {stats.inlineScripts} script{stats.inlineScripts !== 1 ? 's' : ''}
+            </span>
           )}
-          {stats.headings.length > 0 && <span>{stats.headings.length} heading{stats.headings.length !== 1 ? 's' : ''}</span>}
+          {stats.headings.length > 0 && (
+            <span>
+              {stats.headings.length} heading{stats.headings.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       )}
 
@@ -352,18 +422,29 @@ export default function HtmlValidator() {
           <div className="grid grid-cols-2 gap-x-8 gap-y-1">
             {RULE_CATEGORIES.map((cat) => (
               <div key={cat}>
-                <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">{cat}</div>
+                <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
+                  {cat}
+                </div>
                 {ALL_RULES.filter((r) => r.category === cat).map((rule) => {
                   const disabled = state.disabledRules.includes(rule.id)
                   return (
-                    <label key={rule.id} className="flex cursor-pointer items-center gap-1.5 py-0.5 text-xs">
+                    <label
+                      key={rule.id}
+                      className="flex cursor-pointer items-center gap-1.5 py-0.5 text-xs"
+                    >
                       <input
                         type="checkbox"
                         checked={!disabled}
                         onChange={() => toggleRule(rule.id)}
                         className="accent-[var(--color-accent)]"
                       />
-                      <span className={disabled ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text)]'}>
+                      <span
+                        className={
+                          disabled
+                            ? 'text-[var(--color-text-muted)] line-through'
+                            : 'text-[var(--color-text)]'
+                        }
+                      >
                         {rule.label}
                       </span>
                     </label>
@@ -416,7 +497,9 @@ export default function HtmlValidator() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {showEditor && (
-          <div className={`flex flex-col ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}>
+          <div
+            className={`flex flex-col ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+          >
             <div className="flex-1">
               <Editor
                 theme={monacoTheme}

@@ -37,9 +37,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
     setFlyoutStyle({
       position: 'fixed',
       left: rect.right + 4,
-      ...(flipUp
-        ? { bottom: window.innerHeight - rect.bottom }
-        : { top: rect.top }),
+      ...(flipUp ? { bottom: window.innerHeight - rect.bottom } : { top: rect.top }),
       zIndex: 9999,
     })
   }, [flyoutOpen, tools.length])

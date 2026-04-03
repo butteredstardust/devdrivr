@@ -469,11 +469,7 @@ export default function SnippetsManager() {
 
         {/* Tag filter chips */}
         {allTags.length > 0 && (
-          <TagFilterBar
-            tags={allTags}
-            filterTag={filterTag}
-            onFilterTag={setFilterTag}
-          />
+          <TagFilterBar tags={allTags} filterTag={filterTag} onFilterTag={setFilterTag} />
         )}
 
         {/* Snippet list */}
@@ -509,7 +505,7 @@ export default function SnippetsManager() {
                 <span
                   className={`text-[10px] font-bold ${selectedId === snippet.id ? 'text-[var(--color-bg)]' : 'text-[var(--color-accent)]'}`}
                 >
-                  [{ (LANG_EXTENSIONS[snippet.language] || snippet.language).toUpperCase() }]
+                  [{(LANG_EXTENSIONS[snippet.language] || snippet.language).toUpperCase()}]
                 </span>
                 {snippet.content && (
                   <span
@@ -554,7 +550,11 @@ export default function SnippetsManager() {
       {/* ─── Pane 2: Editor ───────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
         <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
-          [ 02-EDIT: {selected ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}` : '---'} ]
+          [ 02-EDIT:{' '}
+          {selected
+            ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}`
+            : '---'}{' '}
+          ]
         </div>
         {selected ? (
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -591,7 +591,8 @@ export default function SnippetsManager() {
                 language={selected.language}
                 value={selected.content}
                 onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
-                options={{ ...monacoOptions,
+                options={{
+                  ...monacoOptions,
                   minimap: { enabled: false },
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
@@ -682,7 +683,10 @@ export default function SnippetsManager() {
       {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
       <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-pixel text-[10px]">
         <div className="flex items-center gap-4">
-          <button onClick={handleNew} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+          <button
+            onClick={handleNew}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          >
             [F5: NEW]
           </button>
           <button
@@ -703,20 +707,26 @@ export default function SnippetsManager() {
           >
             {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
           </button>
-          <button onClick={handleExport} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+          <button
+            onClick={handleExport}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          >
             [F9: EXP]
           </button>
-          <button onClick={handleImport} className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+          <button
+            onClick={handleImport}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          >
             [F10: IMP]
           </button>
         </div>
 
         <div className="ml-auto flex items-center gap-4">
           {saving && <span className="text-[var(--color-accent)] animate-pulse">[SAVING...]</span>}
-          {selected && isFavorite(selected.tags) && <span className="text-[var(--color-accent)]">[FAV]</span>}
-          <div className="text-[var(--color-text-muted)] uppercase">
-            {snippets.length} SNIPPETS
-          </div>
+          {selected && isFavorite(selected.tags) && (
+            <span className="text-[var(--color-accent)]">[FAV]</span>
+          )}
+          <div className="text-[var(--color-text-muted)] uppercase">{snippets.length} SNIPPETS</div>
         </div>
       </div>
     </div>

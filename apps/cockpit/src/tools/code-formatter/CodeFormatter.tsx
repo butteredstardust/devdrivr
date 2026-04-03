@@ -13,8 +13,18 @@ import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
 const LANGUAGES = [
-  'javascript', 'typescript', 'json', 'css', 'scss', 'less',
-  'html', 'markdown', 'yaml', 'xml', 'sql', 'graphql',
+  'javascript',
+  'typescript',
+  'json',
+  'css',
+  'scss',
+  'less',
+  'html',
+  'markdown',
+  'yaml',
+  'xml',
+  'sql',
+  'graphql',
 ]
 
 type CodeFormatterState = {
@@ -94,19 +104,14 @@ export default function CodeFormatter() {
           {isFormatting ? 'Formatting…' : 'Format'}
         </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-        <Select
-          value={state.language}
-          onChange={(e) => updateState({ language: e.target.value })}
-        >
+        <Select value={state.language} onChange={(e) => updateState({ language: e.target.value })}>
           {LANGUAGES.map((lang) => (
-            <option key={lang} value={lang}>{lang}</option>
+            <option key={lang} value={lang}>
+              {lang}
+            </option>
           ))}
         </Select>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleAutoDetect}
-        >
+        <Button variant="ghost" size="sm" onClick={handleAutoDetect}>
           Auto-detect
         </Button>
         <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
@@ -143,7 +148,10 @@ export default function CodeFormatter() {
         </div>
       </div>
       {error && (
-        <Alert variant="error" className="border-b border-[var(--color-border)] rounded-none px-4 py-2">
+        <Alert
+          variant="error"
+          className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+        >
           {error}
         </Alert>
       )}

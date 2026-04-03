@@ -57,16 +57,12 @@ function computeCases(input: string): CaseResult[] {
     {
       id: 'sentence',
       label: 'Sentence case',
-      value: lower
-        .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-        .join(' '),
+      value: lower.map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' '),
     },
     {
       id: 'camel',
       label: 'camelCase',
-      value: lower
-        .map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-        .join(''),
+      value: lower.map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(''),
     },
     {
       id: 'pascal',

@@ -13,7 +13,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect }: Props) {
   const createCollection = useApiStore((s) => s.createCollection)
   const deleteCollection = useApiStore((s) => s.deleteCollection)
   const deleteRequest = useApiStore((s) => s.deleteRequest)
-  
+
   const [expandedCols, setExpandedCols] = useState<Set<string>>(new Set())
 
   const toggleCol = (id: string) => {
@@ -58,10 +58,8 @@ export function CollectionsSidebar({ activeRequestId, onSelect }: Props) {
           const isExpanded = expandedCols.has(col.id)
           return (
             <div key={col.id} className="mb-2">
-              <div
-                className="group flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-[var(--color-surface-hover)]"
-              >
-                <div 
+              <div className="group flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-[var(--color-surface-hover)]">
+                <div
                   className="flex flex-1 items-center gap-2 overflow-hidden"
                   onClick={() => toggleCol(col.id)}
                 >
@@ -163,7 +161,6 @@ export function CollectionsSidebar({ activeRequestId, onSelect }: Props) {
             </div>
           </div>
         )}
-
       </div>
     </div>
   )
@@ -171,11 +168,17 @@ export function CollectionsSidebar({ activeRequestId, onSelect }: Props) {
 
 function getMethodColor(method: string) {
   switch (method) {
-    case 'GET': return 'text-[var(--color-success)]'
-    case 'POST': return 'text-[var(--color-warning)]'
-    case 'PUT': return 'text-[var(--color-info)]'
-    case 'PATCH': return 'text-[var(--color-accent)]'
-    case 'DELETE': return 'text-[var(--color-error)]'
-    default: return 'text-[var(--color-text-muted)]'
+    case 'GET':
+      return 'text-[var(--color-success)]'
+    case 'POST':
+      return 'text-[var(--color-warning)]'
+    case 'PUT':
+      return 'text-[var(--color-info)]'
+    case 'PATCH':
+      return 'text-[var(--color-accent)]'
+    case 'DELETE':
+      return 'text-[var(--color-error)]'
+    default:
+      return 'text-[var(--color-text-muted)]'
   }
 }

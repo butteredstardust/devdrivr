@@ -11,11 +11,31 @@ export async function processMarkdown(content: string): Promise<string> {
     .use(remarkRehype)
     .use(rehypeHighlight)
     .use(rehypeSanitize, {
-      tagNames: ['span', 'pre', 'code', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'blockquote', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr'],
+      tagNames: [
+        'span',
+        'pre',
+        'code',
+        'p',
+        'ul',
+        'ol',
+        'li',
+        'strong',
+        'em',
+        'blockquote',
+        'a',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'br',
+        'hr',
+      ],
       attributes: {
         '*': ['className', 'class'],
-        'a': ['href', 'target', 'rel'],
-      }
+        a: ['href', 'target', 'rel'],
+      },
     })
     .use(rehypeStringify)
     .process(content)

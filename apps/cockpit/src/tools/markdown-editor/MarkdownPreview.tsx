@@ -16,11 +16,9 @@ type MarkdownPreviewProps = {
 
 // ─── Preview Styles (extracted + polished) ──────────────────────────
 
-const proseBase = [
-  'prose max-w-none',
-  'text-sm leading-relaxed',
-  'text-[var(--color-text)]',
-].join(' ')
+const proseBase = ['prose max-w-none', 'text-sm leading-relaxed', 'text-[var(--color-text)]'].join(
+  ' '
+)
 
 const proseHeadings = [
   '[&_h1]:font-pixel [&_h1]:text-xl [&_h1]:text-[var(--color-accent)] [&_h1]:mb-4 [&_h1]:mt-6',
@@ -67,10 +65,7 @@ const proseImages = [
   '[&_img]:shadow-sm [&_img]:my-4',
 ].join(' ')
 
-const proseSpacing = [
-  '[&_p]:my-3',
-  '[&_hr]:border-[var(--color-border)] [&_hr]:my-6',
-].join(' ')
+const proseSpacing = ['[&_p]:my-3', '[&_hr]:border-[var(--color-border)] [&_hr]:my-6'].join(' ')
 
 const PREVIEW_STYLES = [
   proseBase,
@@ -110,7 +105,10 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           const parent = block.parentElement
           if (!parent) return
           try {
-            const { svg } = await mermaid.render(`mermaid-${Date.now()}-${i}`, block.textContent ?? '')
+            const { svg } = await mermaid.render(
+              `mermaid-${Date.now()}-${i}`,
+              block.textContent ?? ''
+            )
             const wrapper = document.createElement('div')
             wrapper.className = 'mermaid-diagram'
             wrapper.innerHTML = svg
@@ -161,15 +159,9 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         )}
 
         {/* Preview Content */}
-        <div
-          ref={innerRef}
-          className="flex-1 overflow-auto p-6"
-        >
+        <div ref={innerRef} className="flex-1 overflow-auto p-6">
           {html ? (
-            <div
-              className={PREVIEW_STYLES}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+            <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={{ __html: html }} />
           ) : (
             <div className="text-sm text-[var(--color-text-muted)]">
               Start typing markdown in the editor...

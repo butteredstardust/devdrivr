@@ -23,5 +23,7 @@ export function applyTheme(theme: Theme): void {
   const html = document.documentElement
   html.classList.remove(...ALL_THEMES)
   html.classList.add(effective)
-  try { localStorage.setItem('theme-cache', effective) } catch { }
+  try {
+    localStorage.setItem('theme-cache', effective)
+  } catch {}
 }
