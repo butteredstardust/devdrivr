@@ -19,9 +19,9 @@ describe('parseYaml', () => {
     expect(result.error).toBeTruthy()
   })
 
-  it('returns ok with null data for empty string', () => {
+  it('returns error for empty string', () => {
     const result = parseYaml('')
-    expect(result).toEqual({ ok: true, data: null, error: null })
+    expect(result).toEqual({ ok: false, data: null, error: 'Input is empty' })
   })
 
   it('parses a sequence (array)', () => {
@@ -52,6 +52,10 @@ describe('yamlToJson', () => {
 
   it('throws on invalid YAML', () => {
     expect(() => yamlToJson('key: [unclosed')).toThrow()
+  })
+
+  it('throws on empty input', () => {
+    expect(() => yamlToJson('')).toThrow()
   })
 })
 

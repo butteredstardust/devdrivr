@@ -5,12 +5,12 @@ export type ParseResult =
   | { ok: false; data: null; error: string }
 
 export function parseYaml(input: string): ParseResult {
-  if (!input.trim()) return { ok: true, data: null, error: null }
+  if (!input.trim()) return { ok: false, data: null, error: 'Input is empty' }
   try {
     const data = yaml.load(input)
     return { ok: true, data, error: null }
   } catch (e) {
-    return { ok: false, data: null, error: (e as Error).message }
+    return { ok: false, data: null, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
