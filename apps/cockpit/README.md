@@ -1,17 +1,17 @@
 # devdrivr cockpit
 
-A local-first, keyboard-driven developer utility workspace. 28 tools in a single Tauri desktop app — no browser, no cloud, no latency.
+A local-first, keyboard-driven developer utility workspace. 27 tools in a single Tauri desktop app — no browser, no cloud, no latency.
 
 ![devdrivr cockpit](../../screenshots/devdriver.png)
 
 ## Features
 
-### Tools (28 total across 7 groups)
+### Tools (27 total across 7 groups)
 
 | Group | Tools |
 |-------|-------|
 | **Code** | Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit |
-| **Data** | JSON Tools, XML Tools, JSON Schema Validator |
+| **Data** | JSON Tools, XML Tools, YAML Tools, JSON Schema Validator |
 | **Web** | CSS Validator, HTML Validator, CSS Specificity, CSS → Tailwind |
 | **Convert** | Case Converter, Color Converter, Timestamp Converter, Base64, URL Encode/Decode, cURL → Fetch, UUID Generator, Hash Generator |
 | **Test** | Regex Tester, JWT Decoder |
@@ -76,7 +76,7 @@ apps/cockpit/
 │   ├── app/
 │   │   ├── App.tsx               # Root layout (Sidebar + Workspace + Drawer + overlays)
 │   │   ├── providers.tsx         # Bootstrap: stores, window geometry, theme
-│   │   ├── tool-registry.ts      # All 28 tools (lazy imports + metadata)
+│   │   ├── tool-registry.ts      # All 27 tools (lazy imports + metadata)
 │   │   └── tool-groups.tsx       # Sidebar group definitions with Phosphor icons
 │   ├── components/
 │   │   ├── shell/                # Layout chrome (Sidebar, Workspace, StatusBar, etc.)

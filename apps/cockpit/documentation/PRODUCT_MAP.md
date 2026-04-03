@@ -8,7 +8,7 @@
 
 A **local-first, keyboard-driven developer utility workspace** built as a native desktop app (Tauri 2 + React 19). It runs entirely on your machine — no cloud, no accounts, no network required (except the API Client tool). All state is persisted to a local SQLite database.
 
-Think of it as a developer's Swiss Army knife: 28 tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
+Think of it as a developer's Swiss Army knife: 27 tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
 
 ---
 
@@ -17,7 +17,7 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | Area | Status | Notes |
 |------|--------|-------|
 | Core shell | ✅ Stable | Sidebar, notes drawer, command palette, status bar |
-| All 28 tools | ✅ Functional | See tool inventory below |
+| All 27 tools | ✅ Functional | See tool inventory below |
 | Worker-based tools | ✅ Fixed | Custom RPC replaces Comlink (WebKit Proxy bug) |
 | Notes drawer resize | ✅ Done | Drag handle, persisted width |
 | Settings panel | ✅ Stable | Theme, font size, keybindings, history retention |
@@ -25,11 +25,11 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | SQLite persistence | ✅ Stable | Tool state, notes, snippets, history, settings |
 | Window geometry restore | ✅ Stable | Position + size persisted, DPI-aware, off-screen clamped |
 | Windows cross-build | 🔲 Planned | GitHub Actions CI/CD planned |
-| Unit tests | ✅ 34 tests | Platform, theme, keybindings, registry, notes store |
+| Unit tests | ✅ 252 tests | Platform, theme, keybindings, registry, notes store |
 
 ---
 
-## Tool Inventory (28 Tools)
+## Tool Inventory (27 Tools)
 
 ### Code Group
 | Tool | ID | What It Does |
@@ -96,9 +96,12 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 |-------|---------|
 | `settings` | All app preferences (theme, window bounds, active tool, etc.) |
 | `tool_state` | Per-tool UI state (restores between sessions) |
-| `notes` | Sticky notes with colors, pin state, size |
+| `notes` | Sticky notes with colors, pin state, size, and tags (added migration 003) |
 | `snippets` | Code snippets with tags |
 | `history` | Tool execution history (input/output pairs) |
+| `api_environments` | API Client saved environments (base URL, headers) |
+| `api_collections` | API Client request collections |
+| `api_requests` | Saved API requests with method, URL, headers, body |
 
 ---
 
