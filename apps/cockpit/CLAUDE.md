@@ -72,7 +72,7 @@ Capabilities live in `src-tauri/capabilities/default.json` scoped to `"windows":
 | `src/stores/settings.store.ts` | Theme, sidebar, editor preferences |
 | `src/hooks/useGlobalShortcuts.ts` | All keyboard shortcuts |
 | `src-tauri/capabilities/default.json` | IPC permissions |
-| `src-tauri/migrations/001_initial.sql` | DB schema |
+| `src-tauri/migrations/` | DB schema across 3 migrations (001 initial, 002 API client, 003 notes tags) |
 
 ## What NOT to Do
 

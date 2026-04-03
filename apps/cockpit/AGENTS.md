@@ -94,7 +94,8 @@ style={{ color: '#39ff14' }}
 ```
 
 Available tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--color-border`,
-`--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`
+`--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`,
+`--color-warning`, `--color-success`, `--color-info`, `--color-shadow`
 
 ### 4. Web Workers: `?worker` imports only
 ```typescript

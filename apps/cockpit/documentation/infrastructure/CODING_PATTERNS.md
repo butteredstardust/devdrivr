@@ -212,6 +212,10 @@ style={{ borderColor: '#39ff14' }}
 --color-accent       Brand green (neon in dark, teal in light)
 --color-accent-dim   Accent with low opacity (hover backgrounds)
 --color-error        Error red
+--color-warning      Warning amber
+--color-success      Success green
+--color-info         Informational purple/blue
+--color-shadow       Box shadow base color (rgba)
 ```
 
 ### Applying theme programmatically

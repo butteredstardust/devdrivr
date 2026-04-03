@@ -317,7 +317,7 @@ new MyWorkerFactory()
 
 ### Pre-commit hook failing
 
-The hook is **advisory-only** (warns, never blocks). If it exits non-zero due to a shell script bug, use:
+The hook **will block the commit** if any check exits non-zero. Fix the reported violation and try again. If a check fails spuriously (e.g. a shell script bug unrelated to your code), you may bypass with:
 ```bash
 git commit --no-verify -m "your message"
 ```
