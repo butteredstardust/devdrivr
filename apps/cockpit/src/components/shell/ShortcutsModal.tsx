@@ -26,9 +26,7 @@ function getCategories(mod: string): ShortcutCategory[] {
     },
     {
       label: 'Notes',
-      shortcuts: [
-        { keys: [mod, 'Shift', 'N'], action: 'Toggle notes drawer' },
-      ],
+      shortcuts: [{ keys: [mod, 'Shift', 'N'], action: 'Toggle notes drawer' }],
     },
     {
       label: 'Editor',
@@ -104,10 +102,7 @@ export function ShortcutsModal() {
               </h3>
               <div className="flex flex-col gap-1">
                 {cat.shortcuts.map((s) => (
-                  <div
-                    key={s.action}
-                    className="flex items-center justify-between py-1.5"
-                  >
+                  <div key={s.action} className="flex items-center justify-between py-1.5">
                     <span className="text-xs text-[var(--color-text)]">{s.action}</span>
                     <div className="flex items-center gap-1">
                       {s.keys.map((k, i) => (

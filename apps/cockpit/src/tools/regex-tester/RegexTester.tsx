@@ -399,7 +399,9 @@ export default function RegexTester() {
             <div className="mb-2 flex items-center gap-2 font-pixel text-xs text-[var(--color-text-muted)]">
               <span>
                 {matchCount} match{matchCount !== 1 ? 'es' : ''}
-                {hasGroups ? ` · ${result.matches.reduce((n, m) => n + m.groups.length, 0)} groups` : ''}
+                {hasGroups
+                  ? ` · ${result.matches.reduce((n, m) => n + m.groups.length, 0)} groups`
+                  : ''}
               </span>
             </div>
             {result.matches.map((m, i) => (

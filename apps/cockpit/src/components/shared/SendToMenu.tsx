@@ -16,9 +16,7 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [filter, setFilter] = useState('')
 
-  const tools = TOOLS.filter(
-    (t) => !filter || t.name.toLowerCase().includes(filter.toLowerCase())
-  )
+  const tools = TOOLS.filter((t) => !filter || t.name.toLowerCase().includes(filter.toLowerCase()))
 
   const setPendingSendTo = useUiStore((s) => s.setPendingSendTo)
 
@@ -50,7 +48,7 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
   }, [onClose])
 
   // Clamp position so the menu never goes off-screen
-  const menuWidth = 224  // w-56
+  const menuWidth = 224 // w-56
   const menuHeight = 320
   const adjustedLeft = Math.min(position.x, window.innerWidth - menuWidth - 8)
   const adjustedTop = Math.min(position.y, window.innerHeight - menuHeight - 8)
@@ -77,7 +75,9 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
             onClick={() => handleSelect(tool.id, tool.name)}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
           >
-            <span className="w-5 text-center font-pixel text-[10px] text-[var(--color-text-muted)]">{tool.icon}</span>
+            <span className="w-5 text-center font-pixel text-[10px] text-[var(--color-text-muted)]">
+              {tool.icon}
+            </span>
             {tool.name}
           </button>
         ))}

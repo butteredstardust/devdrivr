@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest'
 import jscodeshift from 'jscodeshift'
 import { TRANSFORMS } from '@/tools/refactoring-toolkit/transforms'
 
-function applyTransform(
-  id: string,
-  code: string,
-  parser: 'babel' | 'tsx' = 'babel'
-): string {
+function applyTransform(id: string, code: string, parser: 'babel' | 'tsx' = 'babel'): string {
   const j = jscodeshift.withParser(parser)
   const root = j(code)
   const transform = TRANSFORMS.find((t) => t.id === id)

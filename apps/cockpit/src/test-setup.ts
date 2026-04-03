@@ -10,7 +10,9 @@ class MockWorker {
   terminate() {}
   addEventListener() {}
   removeEventListener() {}
-  dispatchEvent(): boolean { return false }
+  dispatchEvent(): boolean {
+    return false
+  }
 }
 
 Object.defineProperty(globalThis, 'Worker', { writable: true, value: MockWorker })

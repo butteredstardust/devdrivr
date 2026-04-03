@@ -99,9 +99,7 @@ export const TRANSFORMS: Transform[] = [
           )
         })
         .forEach((path) => {
-          j(path).replaceWith(
-            j.arrowFunctionExpression(path.node.params, path.node.body, false)
-          )
+          j(path).replaceWith(j.arrowFunctionExpression(path.node.params, path.node.body, false))
         })
     },
   },
@@ -159,9 +157,7 @@ export const TRANSFORMS: Transform[] = [
         .forEach((path) => {
           const right = path.node.right
           if (right.type !== 'MemberExpression') return
-          j(path).replaceWith(
-            j.optionalMemberExpression(right.object, right.property, false, true)
-          )
+          j(path).replaceWith(j.optionalMemberExpression(right.object, right.property, false, true))
         })
     },
   },
@@ -188,7 +184,7 @@ export const TRANSFORMS: Transform[] = [
             (init.callee as { type: string }).type === 'Identifier' &&
             callee.name === 'require' &&
             args.length === 1 &&
-            (['StringLiteral', 'Literal'].includes((args[0] as { type: string }).type)) &&
+            ['StringLiteral', 'Literal'].includes((args[0] as { type: string }).type) &&
             d.id.type === 'Identifier'
           )
         })
@@ -240,9 +236,7 @@ export const TRANSFORMS: Transform[] = [
           const source = path.node.arguments[1]
           if (!source || source.type === 'SpreadElement') return
           j(path).replaceWith(
-            j.objectExpression([
-              j.spreadElement(source as Parameters<typeof j.spreadElement>[0]),
-            ])
+            j.objectExpression([j.spreadElement(source as Parameters<typeof j.spreadElement>[0])])
           )
         })
     },
@@ -256,16 +250,12 @@ export const TRANSFORMS: Transform[] = [
     safety: 'safe',
     languages: ['javascript', 'typescript'],
     apply: (root, j) => {
-      root
-        .find(j.BinaryExpression, { operator: '==' })
-        .forEach((path) => {
-          path.node.operator = '==='
-        })
-      root
-        .find(j.BinaryExpression, { operator: '!=' })
-        .forEach((path) => {
-          path.node.operator = '!=='
-        })
+      root.find(j.BinaryExpression, { operator: '==' }).forEach((path) => {
+        path.node.operator = '==='
+      })
+      root.find(j.BinaryExpression, { operator: '!=' }).forEach((path) => {
+        path.node.operator = '!=='
+      })
     },
   },
   {
@@ -387,7 +377,10 @@ export const TRANSFORMS: Transform[] = [
         .filter((path) => {
           const callee = path.node.callee as unknown as {
             type: string
-            object: { type: string; callee: { type: string; property: { type: string; name: string } } }
+            object: {
+              type: string
+              callee: { type: string; property: { type: string; name: string } }
+            }
           }
           if (callee.type !== 'MemberExpression') return false
           const thenCall = callee.object
@@ -418,16 +411,11 @@ export const TRANSFORMS: Transform[] = [
               j.variableDeclaration('const', [
                 j.variableDeclarator(
                   resultId,
-                  j.awaitExpression(
-                    originalExpr as Parameters<typeof j.awaitExpression>[0]
-                  )
+                  j.awaitExpression(originalExpr as Parameters<typeof j.awaitExpression>[0])
                 ),
               ]),
               j.expressionStatement(
-                j.callExpression(
-                  thenFn as Parameters<typeof j.callExpression>[0],
-                  [resultId]
-                )
+                j.callExpression(thenFn as Parameters<typeof j.callExpression>[0], [resultId])
               ),
             ]),
             j.catchClause(
@@ -435,10 +423,7 @@ export const TRANSFORMS: Transform[] = [
               null,
               j.blockStatement([
                 j.expressionStatement(
-                  j.callExpression(
-                    catchFn as Parameters<typeof j.callExpression>[0],
-                    [errorId]
-                  )
+                  j.callExpression(catchFn as Parameters<typeof j.callExpression>[0], [errorId])
                 ),
               ])
             )

@@ -28,29 +28,37 @@ describe('SnippetsManager Command Bar', () => {
     act(() => {
       useSnippetsStore.setState({
         snippets: [
-          { id: '1', title: 'Fav Snippet', content: '...', language: 'javascript', tags: ['⭐'], createdAt: Date.now(), updatedAt: Date.now() },
+          {
+            id: '1',
+            title: 'Fav Snippet',
+            content: '...',
+            language: 'javascript',
+            tags: ['⭐'],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
         ],
         initialized: true,
       })
     })
     renderTool(SnippetsManager)
-    
+
     // Select the snippet
     const item = screen.getByText('Fav Snippet').closest('button')
     fireEvent.click(item!)
-    
+
     expect(screen.getByText('[FAV]')).toBeInTheDocument()
   })
 
   it('shows [SAVING...] indicator when saving is true', () => {
     renderTool(SnippetsManager)
-    
+
     act(() => {
       useSnippetsStore.setState({ saving: true })
     })
-    
+
     expect(screen.getByText('[SAVING...]')).toBeInTheDocument()
-    
+
     act(() => {
       useSnippetsStore.setState({ saving: false })
     })
@@ -61,20 +69,28 @@ describe('SnippetsManager Command Bar', () => {
     act(() => {
       useSnippetsStore.setState({
         snippets: [
-          { id: '1', title: 'Delete Me', content: '...', language: 'javascript', tags: [], createdAt: Date.now(), updatedAt: Date.now() },
+          {
+            id: '1',
+            title: 'Delete Me',
+            content: '...',
+            language: 'javascript',
+            tags: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
         ],
         initialized: true,
       })
     })
     renderTool(SnippetsManager)
-    
+
     // Select the snippet
     const item = screen.getByText('Delete Me').closest('button')
     fireEvent.click(item!)
-    
+
     const deleteBtn = screen.getByText('[F8: DEL]')
     fireEvent.click(deleteBtn)
-    
+
     expect(screen.getByText('[CONFIRM?]')).toBeInTheDocument()
   })
 })

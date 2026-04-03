@@ -159,7 +159,12 @@ export function CommandPalette() {
   const allItems = useMemo(() => [...toolItems, ...actions], [toolItems, actions])
 
   const fuseOpts = useMemo(
-    () => ({ keys: ['name', 'description'] as string[], threshold: 0.4, includeScore: true, includeMatches: true }),
+    () => ({
+      keys: ['name', 'description'] as string[],
+      threshold: 0.4,
+      includeScore: true,
+      includeMatches: true,
+    }),
     []
   )
 
@@ -205,9 +210,7 @@ export function CommandPalette() {
     let flatIdx = 0
 
     // Recent section
-    const recentItems = results.filter(
-      (r) => recentToolIds.includes(r.id) && r.id !== activeTool
-    )
+    const recentItems = results.filter((r) => recentToolIds.includes(r.id) && r.id !== activeTool)
     if (recentItems.length > 0) {
       out.push({ type: 'header', label: 'Recent' })
       for (const item of recentItems) {
@@ -232,10 +235,7 @@ export function CommandPalette() {
     return out
   }, [results, searchQuery, isActionMode, activeTool, recentToolIds])
 
-  const flatCount = useMemo(
-    () => sections.filter((s) => s.type === 'item').length,
-    [sections]
-  )
+  const flatCount = useMemo(() => sections.filter((s) => s.type === 'item').length, [sections])
 
   // Clamp selectedIndex when result count shrinks (e.g. mid-keystroke)
   useEffect(() => {
@@ -278,16 +278,18 @@ export function CommandPalette() {
           break
         }
         case 'action:open-file':
-          openFileDialog().then((result) => {
-            if (result) {
-              dispatchToolAction({
-                type: 'open-file',
-                content: result.content,
-                filename: result.filename,
-              })
-              addToast(`Opened ${result.filename}`, 'success')
-            }
-          }).catch(() => {})
+          openFileDialog()
+            .then((result) => {
+              if (result) {
+                dispatchToolAction({
+                  type: 'open-file',
+                  content: result.content,
+                  filename: result.filename,
+                })
+                addToast(`Opened ${result.filename}`, 'success')
+              }
+            })
+            .catch(() => {})
           break
         case 'action:save-file':
           dispatchToolAction({ type: 'save-file' })
@@ -442,9 +444,7 @@ export function CommandPalette() {
                 onClick={() => executeItem(item)}
                 onMouseEnter={() => setSelectedIndex(flatIndex)}
               >
-                <span className="w-6 shrink-0 text-center font-pixel text-[10px]">
-                  {item.icon}
-                </span>
+                <span className="w-6 shrink-0 text-center font-pixel text-[10px]">{item.icon}</span>
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{item.name}</span>

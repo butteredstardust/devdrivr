@@ -32,6 +32,7 @@ bun --version   # should print 1.x or later
 #### macOS
 
 Install Xcode Command Line Tools:
+
 ```bash
 xcode-select --install
 ```
@@ -85,6 +86,7 @@ bun run tauri dev
 ```
 
 This command:
+
 1. Starts Vite dev server on `localhost:1420`
 2. Compiles the Rust Tauri binary (first run takes 2–5 minutes; subsequent runs are fast)
 3. Opens the app window
@@ -107,13 +109,14 @@ bun run test       # all tests should pass (252 at time of writing)
 
 The SQLite database is created automatically on first launch:
 
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/com.devdrivr.cockpit/cockpit.db` |
-| Windows | `%APPDATA%\com.devdrivr.cockpit\cockpit.db` |
-| Linux | `~/.local/share/com.devdrivr.cockpit/cockpit.db` |
+| Platform | Path                                                            |
+| -------- | --------------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/com.devdrivr.cockpit/cockpit.db` |
+| Windows  | `%APPDATA%\com.devdrivr.cockpit\cockpit.db`                     |
+| Linux    | `~/.local/share/com.devdrivr.cockpit/cockpit.db`                |
 
 To inspect or reset:
+
 ```bash
 # macOS — inspect
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db
@@ -166,6 +169,7 @@ bun run test:watch       # Watch mode during development
 ### VS Code (recommended)
 
 Install these extensions:
+
 - **rust-analyzer** — Rust language server
 - **Tauri** (tauri-apps.tauri-vscode) — Tauri-specific commands and snippets
 - **ESLint** — JavaScript/TypeScript linting
@@ -182,19 +186,25 @@ The project runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes
 ## Common First-Run Issues
 
 ### Rust compile takes forever
+
 Normal on first run. The Tauri Rust binary takes 2–5 minutes to compile cold. It's cached after that.
 
 ### "error: linker `cc` not found" (Linux)
+
 Install build-essential: `sudo apt install build-essential`
 
 ### App opens but stays blank / "Loading..."
+
 The DB init failed. Check the terminal (not the browser console) for Rust errors. Most common cause: stale lockfile after a dependency change.
+
 ```bash
 bun run clean && bun install && bun run tauri dev
 ```
 
 ### Window opens at wrong size or position
+
 SQLite has a stale `windowBounds` value. Reset it:
+
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
   "UPDATE settings SET value = '{\"x\":100,\"y\":100,\"width\":1200,\"height\":800}' WHERE key = 'windowBounds';"

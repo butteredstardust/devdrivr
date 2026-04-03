@@ -7,6 +7,7 @@ JSON Tools is a comprehensive utility for working with JSON data. It provides fe
 ## Features
 
 ### Lint & Format
+
 - **Validation**: Real-time JSON syntax validation with error highlighting
 - **Formatting**: Pretty-print JSON with proper indentation
 - **Minification**: Compress JSON by removing whitespace
@@ -14,11 +15,13 @@ JSON Tools is a comprehensive utility for working with JSON data. It provides fe
 - **Path Querying**: Query specific values using JSONPath syntax
 
 ### Tree View
+
 - **Interactive Tree**: Expandable/collapsible JSON structure visualization
 - **Value Copying**: Click on any value to copy it to clipboard
 - **Path Copying**: Click on property names to copy their JSONPath
 
 ### Table View
+
 - **Tabular Display**: View JSON arrays as tables
 - **Cell Copying**: Click on any cell to copy its contents
 - **Column Detection**: Automatically detect all object keys for column headers
@@ -35,6 +38,7 @@ JSON Tools is a comprehensive utility for working with JSON data. It provides fe
 ### Path Queries
 
 Use JSONPath syntax to query specific values:
+
 - `$.key` - Access property "key" at root level
 - `$.array[0]` - Access first item in array
 - `$.nested.key` - Access nested property
@@ -74,6 +78,7 @@ The JSON Tools component is organized into three main tabs:
 ### State Management
 
 The component uses `useToolState` for persistent state across sessions:
+
 - `input`: Current JSON content
 - `activeTab`: Currently selected view tab
 - `query`: Current JSONPath query string
@@ -102,6 +107,7 @@ The component uses `useToolState` for persistent state across sessions:
 ## Customization
 
 The component respects the application theme system and uses CSS variables for consistent styling:
+
 - `--color-bg`: Main background
 - `--color-surface`: Panel backgrounds
 - `--color-text`: Primary text

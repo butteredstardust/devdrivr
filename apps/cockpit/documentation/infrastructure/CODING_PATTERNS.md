@@ -17,11 +17,13 @@
 ## Adding a New Tool
 
 ### 1. Create the component
+
 ```
 src/tools/<your-tool-id>/YourTool.tsx
 ```
 
 ### 2. Register it in the tool registry
+
 ```typescript
 // src/app/tool-registry.ts
 {
@@ -34,12 +36,14 @@ src/tools/<your-tool-id>/YourTool.tsx
 ```
 
 ### 3. Add to the correct group (if new group)
+
 ```typescript
 // src/app/tool-groups.tsx
 { id: 'convert', label: 'Convert', icon: ArrowsClockwise }
 ```
 
 ### 4. Tool component template
+
 ```typescript
 import { useToolState } from '@/hooks/useToolState'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -80,6 +84,7 @@ export default function MyTool() {
 ## State Management (Zustand)
 
 ### Reading from a store — always use selectors
+
 ```typescript
 // ✅ Correct — selector prevents unnecessary re-renders
 const theme = useSettingsStore((s) => s.theme)
@@ -90,17 +95,20 @@ const { theme } = useSettingsStore()
 ```
 
 ### Writing to a store
+
 ```typescript
 const updateSetting = useSettingsStore((s) => s.update)
-await updateSetting('theme', 'dark')   // persists to SQLite automatically
+await updateSetting('theme', 'dark') // persists to SQLite automatically
 ```
 
 ### Adding a new setting
+
 1. Add the type to `AppSettings` in `src/types/models.ts`
 2. Add default value to `DEFAULT_SETTINGS` in the same file
 3. Add to the settings object in `settings.store.ts` → `update()` method
 
 ### Writing a new store
+
 ```typescript
 // Required: idempotent init guard
 let initPromise: Promise<void> | null = null
@@ -138,6 +146,7 @@ updateState({ input: '', output: '', tab: 'result' })
 ```
 
 **How it works:**
+
 - On mount: check in-memory cache → if miss, load from SQLite
 - On update: write to cache synchronously + queue 2s SQLite write
 - On unmount: write immediately (cache is already up-to-date)
@@ -150,6 +159,7 @@ updateState({ input: '', output: '', tab: 'result' })
 ### Creating a new worker
 
 **Worker file** (`src/workers/my-task.worker.ts`):
+
 ```typescript
 import { handleRpc } from './rpc'
 
@@ -166,6 +176,7 @@ handleRpc(api)
 ```
 
 **Using the worker in a tool**:
+
 ```typescript
 import { useWorker } from '@/hooks/useWorker'
 import type { MyTaskWorker } from '@/workers/my-task.worker'
@@ -173,7 +184,7 @@ import MyTaskWorkerFactory from '@/workers/my-task.worker?worker'
 
 const worker = useWorker<MyTaskWorker>(
   () => new MyTaskWorkerFactory(),
-  ['doWork']   // list every method name
+  ['doWork'] // list every method name
 )
 
 // worker is null until the Worker spawns — always guard
@@ -181,6 +192,7 @@ const result = worker ? await worker.doWork(input, options) : null
 ```
 
 **Rules:**
+
 - Always use `?worker` import (not `new URL(...), { type: 'module' }`)
 - Always list method names in the `useWorker` call
 - Always null-check before calling methods
@@ -191,6 +203,7 @@ const result = worker ? await worker.doWork(input, options) : null
 ## Theming
 
 ### Colors — only use CSS variables
+
 ```typescript
 // ✅ Correct
 className="bg-[var(--color-surface)] text-[var(--color-text)]"
@@ -202,6 +215,7 @@ style={{ borderColor: '#39ff14' }}
 ```
 
 ### Available tokens (defined in `src/index.css`)
+
 ```
 --color-bg           Main background
 --color-surface      Card/panel background
@@ -219,10 +233,11 @@ style={{ borderColor: '#39ff14' }}
 ```
 
 ### Applying theme programmatically
+
 ```typescript
 import { applyTheme } from '@/lib/theme'
 // Only call inside async init functions — never at module level
-applyTheme('dark')   // 'dark' | 'light' | 'system'
+applyTheme('dark') // 'dark' | 'light' | 'system'
 ```
 
 ---
@@ -230,6 +245,7 @@ applyTheme('dark')   // 'dark' | 'light' | 'system'
 ## Database Access
 
 ### Always use `getDb()` — never `Database.load()` directly
+
 ```typescript
 import { getDb } from '@/lib/db'
 
@@ -239,15 +255,16 @@ await conn.execute('INSERT INTO my_table VALUES ($1, $2)', [id, value])
 ```
 
 ### Existing helper functions in `db.ts`
+
 ```typescript
-getSetting<T>(key, fallback)    // Get a settings value
-setSetting(key, value)          // Set a settings value (JSON serialized)
-saveNote(note)                  // Upsert a note
-loadNotes()                     // Load all notes
-saveSnippet(snippet)            // Upsert a snippet
-loadSnippets()                  // Load all snippets
-addHistoryEntry(entry)          // Insert + prune history
-loadHistory(tool, limit)        // Load recent history for a tool
+getSetting<T>(key, fallback) // Get a settings value
+setSetting(key, value) // Set a settings value (JSON serialized)
+saveNote(note) // Upsert a note
+loadNotes() // Load all notes
+saveSnippet(snippet) // Upsert a snippet
+loadSnippets() // Load all snippets
+addHistoryEntry(entry) // Insert + prune history
+loadHistory(tool, limit) // Load recent history for a tool
 ```
 
 ---
@@ -255,6 +272,7 @@ loadHistory(tool, limit)        // Load recent history for a tool
 ## Keyboard Shortcuts
 
 ### Tool-local shortcut (responds only when tool is active)
+
 ```typescript
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 
@@ -268,6 +286,7 @@ useKeyboardShortcut({ key: 'f', mod: true, shift: true }, handleFormat)
 **Note:** Shortcuts are automatically suppressed when focus is in an editable field (input, textarea, Monaco editor) unless a modifier key is held.
 
 ### Global shortcut (add to `useGlobalShortcuts.ts`)
+
 ```typescript
 // src/hooks/useGlobalShortcuts.ts
 useKeyboardShortcut({ key: 'p', mod: true, shift: true }, () => {
@@ -276,6 +295,7 @@ useKeyboardShortcut({ key: 'p', mod: true, shift: true }, () => {
 ```
 
 ### Tool action dispatch (shell → active tool)
+
 ```typescript
 import { dispatchToolAction } from '@/lib/tool-actions'
 
@@ -294,12 +314,13 @@ useToolAction((action) => {
 ## Window / DPI
 
 ### Converting physical to logical pixels (required for Retina)
+
 ```typescript
 const factor = await win.scaleFactor()
-const pos = await win.outerPosition()          // physical pixels
-const sz = await win.outerSize()               // physical pixels
-const logicalPos = pos.toLogical(factor)       // logical
-const logicalSz = sz.toLogical(factor)         // logical
+const pos = await win.outerPosition() // physical pixels
+const sz = await win.outerSize() // physical pixels
+const logicalPos = pos.toLogical(factor) // logical
+const logicalSz = sz.toLogical(factor) // logical
 ```
 
 **Never** pass raw `outerPosition`/`outerSize` values to `setPosition`/`setSize` — they'll be doubled on Retina screens.
@@ -309,6 +330,7 @@ const logicalSz = sz.toLogical(factor)         // logical
 ## Icons
 
 Always use Phosphor Icons — never inline SVGs or emoji:
+
 ```typescript
 import { ArrowRight, Clipboard, Lightning } from '@phosphor-icons/react'
 
@@ -327,17 +349,18 @@ This codebase runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTyp
 ```typescript
 // Array access may be undefined — must check
 const items = ['a', 'b', 'c']
-const first = items[0]   // type: string | undefined
+const first = items[0] // type: string | undefined
 if (first !== undefined) console.log(first.toUpperCase())
 
 // Optional properties are exact
 type Config = { label?: string }
-const c: Config = { label: undefined }  // ✅
-const c2: Config = {}                   // ✅
+const c: Config = { label: undefined } // ✅
+const c2: Config = {} // ✅
 // c.label = undefined is an assignment to an absent key — careful
 ```
 
 ### `any` is forbidden — except in worker files (plugin types)
+
 ```typescript
 // ✅ Worker plugin lists only
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -354,14 +377,14 @@ const result: any = doSomething()
 
 ## File Naming Conventions
 
-| Type | Convention | Example |
-|------|-----------|---------|
-| Tool component | `PascalCase.tsx` | `CodeFormatter.tsx` |
-| Worker | `kebab-case.worker.ts` | `formatter.worker.ts` |
-| Hook | `useCamelCase.ts` | `useToolState.ts` |
-| Store | `kebab-case.store.ts` | `settings.store.ts` |
-| Library | `kebab-case.ts` | `tool-actions.ts` |
-| Type file | `kebab-case.ts` | `models.ts` |
+| Type           | Convention             | Example               |
+| -------------- | ---------------------- | --------------------- |
+| Tool component | `PascalCase.tsx`       | `CodeFormatter.tsx`   |
+| Worker         | `kebab-case.worker.ts` | `formatter.worker.ts` |
+| Hook           | `useCamelCase.ts`      | `useToolState.ts`     |
+| Store          | `kebab-case.store.ts`  | `settings.store.ts`   |
+| Library        | `kebab-case.ts`        | `tool-actions.ts`     |
+| Type file      | `kebab-case.ts`        | `models.ts`           |
 
 ---
 

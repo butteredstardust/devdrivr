@@ -17,19 +17,19 @@ type ApiStore = {
   collections: ApiCollection[]
   requests: ApiRequest[]
   activeEnvironmentId: string | null
-  
+
   // Actions
   init: () => Promise<void>
-  
+
   createEnvironment: (name: string, variables: Record<string, string>) => Promise<ApiEnvironment>
   updateEnvironment: (env: ApiEnvironment) => Promise<void>
   deleteEnvironment: (id: string) => Promise<void>
   setActiveEnvironmentId: (id: string | null) => void
-  
+
   createCollection: (name: string) => Promise<ApiCollection>
   updateCollection: (col: ApiCollection) => Promise<void>
   deleteCollection: (id: string) => Promise<void>
-  
+
   createRequest: (req: Omit<ApiRequest, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiRequest>
   updateRequest: (req: ApiRequest) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
@@ -102,7 +102,9 @@ export const useApiStore = create<ApiStore>((set) => ({
       updatedAt: Date.now(),
     }
     await saveApiCollection(col)
-    set((state) => ({ collections: [...state.collections, col].sort((a,b) => a.name.localeCompare(b.name)) }))
+    set((state) => ({
+      collections: [...state.collections, col].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
     return col
   },
 
@@ -110,7 +112,9 @@ export const useApiStore = create<ApiStore>((set) => ({
     const updated = { ...col, updatedAt: Date.now() }
     await saveApiCollection(updated)
     set((state) => ({
-      collections: state.collections.map((c) => (c.id === updated.id ? updated : c)).sort((a,b) => a.name.localeCompare(b.name)),
+      collections: state.collections
+        .map((c) => (c.id === updated.id ? updated : c))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     }))
   },
 
@@ -129,7 +133,9 @@ export const useApiStore = create<ApiStore>((set) => ({
       updatedAt: Date.now(),
     }
     await saveApiRequest(req)
-    set((state) => ({ requests: [...state.requests, req].sort((a,b) => a.name.localeCompare(b.name)) }))
+    set((state) => ({
+      requests: [...state.requests, req].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
     return req
   },
 
@@ -137,7 +143,9 @@ export const useApiStore = create<ApiStore>((set) => ({
     const updated = { ...req, updatedAt: Date.now() }
     await saveApiRequest(updated)
     set((state) => ({
-      requests: state.requests.map((r) => (r.id === updated.id ? updated : r)).sort((a,b) => a.name.localeCompare(b.name)),
+      requests: state.requests
+        .map((r) => (r.id === updated.id ? updated : r))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     }))
   },
 

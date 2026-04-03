@@ -23,7 +23,10 @@ type WorkerRpc<T> = {
 
 let nextId = 1
 
-export function useWorker<T>(factory: () => Worker, methods: (keyof T & string)[]): WorkerRpc<T> | null {
+export function useWorker<T>(
+  factory: () => Worker,
+  methods: (keyof T & string)[]
+): WorkerRpc<T> | null {
   const [rpc, setRpc] = useState<WorkerRpc<T> | null>(null)
   const workerRef = useRef<Worker | null>(null)
 

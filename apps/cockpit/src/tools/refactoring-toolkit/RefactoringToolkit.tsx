@@ -162,9 +162,7 @@ export default function RefactoringToolkit() {
           {CATEGORIES.map((cat) => {
             const catTransforms = availableTransforms.filter((t) => t.category === cat.id)
             if (catTransforms.length === 0) return null
-            const allSelected = catTransforms.every((t) =>
-              state.selectedTransforms.includes(t.id)
-            )
+            const allSelected = catTransforms.every((t) => state.selectedTransforms.includes(t.id))
             return (
               <div key={cat.id} className="mb-4">
                 <button
@@ -215,7 +213,8 @@ export default function RefactoringToolkit() {
               original={state.input}
               modified={preview}
               language={state.language}
-              options={{ ...monacoOptions,
+              options={{
+                ...monacoOptions,
                 readOnly: true,
                 renderSideBySide: true,
                 enableSplitViewResizing: true,

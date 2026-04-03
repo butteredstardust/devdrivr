@@ -44,10 +44,7 @@ export default function TsPlayground() {
     strict: true,
   })
 
-  const worker = useWorker<TypeScriptWorker>(
-    () => new TypeScriptWorkerFactory(),
-    ['transpile']
-  )
+  const worker = useWorker<TypeScriptWorker>(() => new TypeScriptWorkerFactory(), ['transpile'])
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [output, setOutput] = useState('')
@@ -96,10 +93,7 @@ export default function TsPlayground() {
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           Target
-          <Select
-            value={state.target}
-            onChange={(e) => updateState({ target: e.target.value })}
-          >
+          <Select value={state.target} onChange={(e) => updateState({ target: e.target.value })}>
             <option value="ES5">ES5</option>
             <option value="ES2015">ES2015</option>
             <option value="ES2020">ES2020</option>
@@ -108,10 +102,7 @@ export default function TsPlayground() {
         </label>
         <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
           Module
-          <Select
-            value={state.module}
-            onChange={(e) => updateState({ module: e.target.value })}
-          >
+          <Select value={state.module} onChange={(e) => updateState({ module: e.target.value })}>
             <option value="ESNext">ESNext</option>
             <option value="CommonJS">CommonJS</option>
             <option value="None">None</option>

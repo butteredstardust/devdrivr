@@ -107,7 +107,11 @@ export default function JwtDecoder() {
     const exp = decoded.payload['exp'] as number
     const expiresAt = new Date(exp * 1000)
     const diffMs = expiresAt.getTime() - now
-    return { expired: diffMs < 0, expiresAt: expiresAt.toLocaleString(), relative: formatRelative(diffMs) }
+    return {
+      expired: diffMs < 0,
+      expiresAt: expiresAt.toLocaleString(),
+      relative: formatRelative(diffMs),
+    }
   }, [decoded, now])
 
   // Color-coded token parts
@@ -168,7 +172,8 @@ export default function JwtDecoder() {
                     : 'border-[var(--color-success)] bg-[var(--color-success)]/10 text-[var(--color-success)]'
                 }`}
               >
-                {expiry.expired ? '⚠ Token expired' : '✓ Token valid'} — {expiry.expiresAt} ({expiry.relative})
+                {expiry.expired ? '⚠ Token expired' : '✓ Token valid'} — {expiry.expiresAt} (
+                {expiry.relative})
               </div>
             )}
 
@@ -237,7 +242,11 @@ export default function JwtDecoder() {
                             )}
                           </span>
                         ) : typeof value === 'string' ? (
-                          value.length > 60 ? value.slice(0, 60) + '…' : value
+                          value.length > 60 ? (
+                            value.slice(0, 60) + '…'
+                          ) : (
+                            value
+                          )
                         ) : (
                           JSON.stringify(value)
                         )}

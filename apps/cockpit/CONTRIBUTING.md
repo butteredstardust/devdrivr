@@ -21,12 +21,15 @@ There are many ways to contribute to devdrivr cockpit:
 ## Reporting Issues
 
 ### Before Submitting a Bug Report
+
 - Check the existing issues to avoid duplicates
 - Create a reduced test case to demonstrate the issue
 - Include steps to reproduce, expected behavior, and actual behavior
 
 ### Submitting a Bug Report
+
 When submitting a bug report, please include:
+
 - A clear, descriptive title
 - Specific steps to reproduce the issue
 - Expected vs. actual behavior

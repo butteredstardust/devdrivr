@@ -20,7 +20,12 @@ describe('CssToTailwind', () => {
   it('converts new properties correctly', () => {
     renderTool(CssToTailwind)
     const editor = screen.getByTestId('monaco-editor')
-    fireEvent.change(editor, { target: { value: 'text-transform: uppercase;\nobject-fit: cover;\nmargin-inline: 1rem;\npadding-block: 2rem;' } })
+    fireEvent.change(editor, {
+      target: {
+        value:
+          'text-transform: uppercase;\nobject-fit: cover;\nmargin-inline: 1rem;\npadding-block: 2rem;',
+      },
+    })
     expect(screen.getByText('uppercase')).toBeInTheDocument()
     expect(screen.getByText('object-cover')).toBeInTheDocument()
     expect(screen.getByText('mx-[1rem]')).toBeInTheDocument()

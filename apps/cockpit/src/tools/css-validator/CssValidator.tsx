@@ -203,7 +203,10 @@ export default function CssValidator() {
         <div className="max-h-32 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
           {errors.map((e, i) => (
             <div key={i} className="text-xs text-[var(--color-error)]">
-              <span className="text-[var(--color-text-muted)]">Line {e.line}:{e.column}</span> {e.message}
+              <span className="text-[var(--color-text-muted)]">
+                Line {e.line}:{e.column}
+              </span>{' '}
+              {e.message}
             </div>
           ))}
         </div>

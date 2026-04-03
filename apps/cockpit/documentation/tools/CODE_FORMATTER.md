@@ -64,6 +64,7 @@ The Code Formatter uses Monaco Editor for code editing with real-time syntax hig
 ### State Management
 
 The component uses `useToolState` for persistent state:
+
 - `input`: Current code content
 - `language`: Currently selected language
 - `tabWidth`: Indentation setting (2 or 4)
@@ -87,6 +88,7 @@ The component uses `useToolState` for persistent state:
 ## Customization
 
 The component follows the application theme system and uses CSS variables:
+
 - `--color-bg`: Main background
 - `--color-surface`: Panel backgrounds
 - `--color-border`: Border colors

@@ -1,5 +1,13 @@
 import type { ToolGroupMeta } from '@/types/tools'
-import { CodeIcon, DatabaseIcon, GlobeIcon, ArrowsLeftRightIcon, CheckCircleIcon, WifiHighIcon, PencilSimpleIcon } from '@phosphor-icons/react'
+import {
+  CodeIcon,
+  DatabaseIcon,
+  GlobeIcon,
+  ArrowsLeftRightIcon,
+  CheckCircleIcon,
+  WifiHighIcon,
+  PencilSimpleIcon,
+} from '@phosphor-icons/react'
 
 export const TOOL_GROUPS: ToolGroupMeta[] = [
   { id: 'code', label: 'Code', icon: <CodeIcon size={14} /> },

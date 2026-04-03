@@ -84,8 +84,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
     }, 3000)
   },
-  removeToast: (id) =>
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
   setSettingsPanelOpen: (open) => set({ settingsPanelOpen: open }),
   toggleSettingsPanel: () => set((s) => ({ settingsPanelOpen: !s.settingsPanelOpen })),

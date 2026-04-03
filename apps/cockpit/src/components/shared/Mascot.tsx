@@ -33,22 +33,10 @@ export function Mascot({ className }: { className?: string }) {
       `}</style>
       <g className="mascot-geometry">
         {/* Penrose Triangle / Impossible Triangle */}
-        <path
-          className="mascot-path"
-          d="M50 15 L85 85 L15 85 Z"
-        />
-        <path
-          className="mascot-path"
-          d="M50 15 L60 35 L30 75 L15 85"
-        />
-        <path
-          className="mascot-path"
-          d="M85 85 L75 65 L40 65 L50 15"
-        />
-        <path
-          className="mascot-path"
-          d="M15 85 L25 65 L70 65 L85 85"
-        />
+        <path className="mascot-path" d="M50 15 L85 85 L15 85 Z" />
+        <path className="mascot-path" d="M50 15 L60 35 L30 75 L15 85" />
+        <path className="mascot-path" d="M85 85 L75 65 L40 65 L50 15" />
+        <path className="mascot-path" d="M15 85 L25 65 L70 65 L85 85" />
         <polygon className="mascot-fill" points="50,15 85,85 15,85" />
       </g>
     </svg>

@@ -1,6 +1,6 @@
 # ARCHITECTURE DECISIONS — devdrivr cockpit
 
-> The *why* behind every non-obvious technical choice. Read this before undoing anything that seems wrong — it was probably deliberate.
+> The _why_ behind every non-obvious technical choice. Read this before undoing anything that seems wrong — it was probably deliberate.
 
 ---
 
@@ -43,6 +43,7 @@ Reverting to Comlink will silently break all worker tools on macOS (and any WebK
 ### Context
 
 Workers were originally imported as module workers:
+
 ```typescript
 new Worker(new URL('./formatter.worker.ts', import.meta.url), { type: 'module' })
 ```
@@ -52,6 +53,7 @@ This pattern relies on the browser supporting ES module workers (`{ type: 'modul
 ### Decision
 
 All worker imports use Vite's `?worker` suffix:
+
 ```typescript
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 const worker = new FormatterWorkerFactory()
@@ -79,6 +81,7 @@ Vite bundles the worker and all its dependencies into a self-contained blob URL 
 ### Decision
 
 SQL formatting uses `sql-formatter` (ESM-native) directly inside the formatter worker:
+
 ```typescript
 import { format as formatSql } from 'sql-formatter'
 // SQL bypasses Prettier entirely
@@ -102,6 +105,7 @@ if (options.language === 'sql') {
 ### Context
 
 React StrictMode mounts every component twice (in development) to surface side-effect bugs. In Tauri's WebView, this causes a visible flash on startup because:
+
 1. `providers.tsx` runs window geometry restore and store init on mount.
 2. The double-mount fires the restore sequence twice, causing a momentary incorrect window geometry before the second mount corrects it.
 
@@ -175,18 +179,22 @@ WAL mode is set immediately after the DB connection is established, in `getDb()`
 ### Decision
 
 Every store `init()` must use a module-level promise guard:
+
 ```typescript
 let initPromise: Promise<void> | null = null
 
 init: async () => {
   if (!initPromise) {
-    initPromise = (async () => { /* DB queries, set state */ })()
+    initPromise = (async () => {
+      /* DB queries, set state */
+    })()
   }
   return initPromise
 }
 ```
 
 This ensures:
+
 - The first call fires the async work.
 - All subsequent calls (concurrent or sequential) await the same promise.
 - No double-execution, no races.
@@ -213,30 +221,31 @@ CSS custom properties (`var(--color-*)`) are defined under `:root` (dark, defaul
 ### Decision
 
 All colours are expressed as CSS custom property tokens:
+
 ```typescript
-className="bg-[var(--color-surface)] text-[var(--color-text)]"
+className = 'bg-[var(--color-surface)] text-[var(--color-text)]'
 ```
 
 Never hardcode hex values, rgb(), or Tailwind palette utilities.
 
 ### Token inventory
 
-| Token | Dark | Light | Semantic use |
-|-------|------|-------|--------------|
-| `--color-bg` | #0a0a0a | #faf8f0 | Main window background |
-| `--color-surface` | #181818 | #f5f3eb | Card, panel, sidebar |
-| `--color-surface-raised` | #1e1e1e | #ffffff | Modals, dropdowns, tooltips |
-| `--color-surface-hover` | #282828 | #ece9e0 | Hover state backgrounds |
-| `--color-border` | #333333 | #d4d0c8 | All borders and dividers |
-| `--color-text` | #e0e0e0 | #1a1a1a | Primary body text |
-| `--color-text-muted` | #888888 | #666666 | Secondary / dimmed text |
-| `--color-accent` | #39ff14 | #00875a | Brand colour, interactive highlights |
-| `--color-accent-dim` | #1a7a0a | #b3e0d0 | Accent with low opacity (hover fills) |
-| `--color-error` | #ef4444 | #dc2626 | Errors, destructive actions |
-| `--color-warning` | #f59e0b | #d97706 | Warnings |
-| `--color-success` | #22c55e | #16a34a | Success states |
-| `--color-info` | #3b82f6 | #2563eb | Informational |
-| `--color-shadow` | rgba(0,0,0,0.4) | rgba(0,0,0,0.1) | Box shadows |
+| Token                    | Dark            | Light           | Semantic use                          |
+| ------------------------ | --------------- | --------------- | ------------------------------------- |
+| `--color-bg`             | #0a0a0a         | #faf8f0         | Main window background                |
+| `--color-surface`        | #181818         | #f5f3eb         | Card, panel, sidebar                  |
+| `--color-surface-raised` | #1e1e1e         | #ffffff         | Modals, dropdowns, tooltips           |
+| `--color-surface-hover`  | #282828         | #ece9e0         | Hover state backgrounds               |
+| `--color-border`         | #333333         | #d4d0c8         | All borders and dividers              |
+| `--color-text`           | #e0e0e0         | #1a1a1a         | Primary body text                     |
+| `--color-text-muted`     | #888888         | #666666         | Secondary / dimmed text               |
+| `--color-accent`         | #39ff14         | #00875a         | Brand colour, interactive highlights  |
+| `--color-accent-dim`     | #1a7a0a         | #b3e0d0         | Accent with low opacity (hover fills) |
+| `--color-error`          | #ef4444         | #dc2626         | Errors, destructive actions           |
+| `--color-warning`        | #f59e0b         | #d97706         | Warnings                              |
+| `--color-success`        | #22c55e         | #16a34a         | Success states                        |
+| `--color-info`           | #3b82f6         | #2563eb         | Informational                         |
+| `--color-shadow`         | rgba(0,0,0,0.4) | rgba(0,0,0,0.1) | Box shadows                           |
 
 ### Consequences
 
@@ -272,15 +281,16 @@ Never hardcode hex values, rgb(), or Tailwind palette utilities.
 
 ### Context
 
-Tauri's `window.outerPosition()` and `window.outerSize()` return *physical* pixels. On a Retina display with `devicePixelRatio` of 2, physical pixels are twice the logical pixel value. If saved raw and restored, the window appears at double its intended size/position.
+Tauri's `window.outerPosition()` and `window.outerSize()` return _physical_ pixels. On a Retina display with `devicePixelRatio` of 2, physical pixels are twice the logical pixel value. If saved raw and restored, the window appears at double its intended size/position.
 
 ### Decision
 
 Always call `scaleFactor()` and convert before saving:
+
 ```typescript
 const factor = await win.scaleFactor()
 const pos = (await win.outerPosition()).toLogical(factor)
-const sz  = (await win.outerSize()).toLogical(factor)
+const sz = (await win.outerSize()).toLogical(factor)
 ```
 
 Save the logical values. On restore, pass them directly to `setPosition`/`setSize` (Tauri accepts logical pixels for these setters).
@@ -299,11 +309,12 @@ Save the logical values. On restore, pass them directly to `setPosition`/`setSiz
 
 ### Context
 
-Zustand v5 re-renders a component whenever the selected value changes (by reference equality). If the entire store is destructured (`const { theme, sidebar } = useStore()`), the component subscribes to the *entire* store and re-renders on any state change, regardless of whether the consumed values changed.
+Zustand v5 re-renders a component whenever the selected value changes (by reference equality). If the entire store is destructured (`const { theme, sidebar } = useStore()`), the component subscribes to the _entire_ store and re-renders on any state change, regardless of whether the consumed values changed.
 
 ### Decision
 
 Always use selector functions:
+
 ```typescript
 // ✅ Re-renders only when 'theme' changes
 const theme = useSettingsStore((s) => s.theme)
@@ -331,6 +342,7 @@ Tools persist their UI state (input text, selected options, output) so that swit
 ### Decision
 
 `useToolState` implements a two-tier persistence strategy:
+
 1. **In-memory cache** (`src/stores/tool-state.store.ts`): writes are synchronous and instant.
 2. **Debounced SQLite write**: batched 2 seconds after the last update.
 3. **Immediate flush on unmount**: the component's cleanup effect writes any pending state before the tool is unmounted, ensuring no data is lost on rapid tool switching.

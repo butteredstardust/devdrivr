@@ -166,12 +166,7 @@ export default function TimestampConverter() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
         {PRESETS.map((p) => (
-          <Button
-            key={p.label}
-            variant="secondary"
-            size="sm"
-            onClick={() => handlePreset(p)}
-          >
+          <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
             {p.label}
           </Button>
         ))}

@@ -25,11 +25,22 @@ export function Providers({ children }: { children: ReactNode }) {
       if (!geometryRestored.current) {
         geometryRestored.current = true
         try {
-          const bounds = await getSetting<{ x: number; y: number; width: number; height: number } | null>('windowBounds', null)
-          const sizeValid = bounds && bounds.width >= 800 && bounds.width <= 4000 && bounds.height >= 500 && bounds.height <= 3000
+          const bounds = await getSetting<{
+            x: number
+            y: number
+            width: number
+            height: number
+          } | null>('windowBounds', null)
+          const sizeValid =
+            bounds &&
+            bounds.width >= 800 &&
+            bounds.width <= 4000 &&
+            bounds.height >= 500 &&
+            bounds.height <= 3000
           // Clamp position so the window isn't restored entirely off-screen
           // (e.g. after disconnecting an external monitor)
-          const posValid = bounds && bounds.x > -200 && bounds.y > -200 && bounds.x < 4000 && bounds.y < 3000
+          const posValid =
+            bounds && bounds.x > -200 && bounds.y > -200 && bounds.x < 4000 && bounds.y < 3000
           if (sizeValid) {
             const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
             if (posValid) {
@@ -76,7 +87,12 @@ export function Providers({ children }: { children: ReactNode }) {
             const sz = await win.outerSize()
             const logicalPos = pos.toLogical(factor)
             const logicalSz = sz.toLogical(factor)
-            await setSetting('windowBounds', { x: logicalPos.x, y: logicalPos.y, width: logicalSz.width, height: logicalSz.height })
+            await setSetting('windowBounds', {
+              x: logicalPos.x,
+              y: logicalPos.y,
+              width: logicalSz.width,
+              height: logicalSz.height,
+            })
           } catch {
             // Window may have been destroyed
           }

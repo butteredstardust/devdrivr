@@ -135,12 +135,7 @@ export default function UrlCodec() {
         <Button variant="primary" size="sm" onClick={handleToggle}>
           {state.mode === 'encode' ? 'Encode →' : '← Decode'}
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleSwap}
-          disabled={!output.text}
-        >
+        <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
           ⇄ Swap
         </Button>
         <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
@@ -194,7 +189,9 @@ export default function UrlCodec() {
             <CopyButton text={output.text} />
           </div>
           {output.error ? (
-            <Alert variant="error" className="m-4">{output.error}</Alert>
+            <Alert variant="error" className="m-4">
+              {output.error}
+            </Alert>
           ) : (
             <pre className="flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-sm text-[var(--color-text)]">
               {output.text}
@@ -215,9 +212,7 @@ export default function UrlCodec() {
             {urlParts.search && (
               <span className="text-[var(--color-warning)]">{urlParts.search}</span>
             )}
-            {urlParts.hash && (
-              <span className="text-[var(--color-success)]">{urlParts.hash}</span>
-            )}
+            {urlParts.hash && <span className="text-[var(--color-success)]">{urlParts.hash}</span>}
           </div>
           {urlParts.params.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1">

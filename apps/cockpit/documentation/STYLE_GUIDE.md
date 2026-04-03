@@ -17,28 +17,35 @@ All documentation should follow a consistent structure:
 ## Formatting Guidelines
 
 ### Headers
+
 Use `##` for main sections and `###` for subsections. Avoid deeper nesting.
 
 ### Code Examples
+
 Use fenced code blocks with language specification:
+
 ```typescript
-const example = "code here";
+const example = 'code here'
 ```
 
 ### Lists
+
 Use hyphens for bullet points:
+
 - Item one
 - Item two
 
 ### Tables
+
 Use markdown tables for structured data:
 | Column 1 | Column 2 |
 |----------|----------|
-| Data     | Data     |
+| Data | Data |
 
 ## Content Guidelines
 
 ### File Structure
+
 1. Start with a top-level heading (#) for the title
 2. Use clear, concise language
 3. Focus on practical information
@@ -46,7 +53,9 @@ Use markdown tables for structured data:
 5. Provide clear examples
 
 ### Tool Documentation Specific
+
 For tool documentation, include:
+
 - Overview of the tool's purpose
 - Features and capabilities
 - Usage instructions

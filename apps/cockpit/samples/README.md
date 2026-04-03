@@ -9,6 +9,7 @@ Pre-built sample collections for importing into Cockpit tools.
 A curated collection of **25 JavaScript utility functions** ready to import into the Snippets Manager.
 
 **Includes:**
+
 - Deep clone, debounce, throttle, sleep/delay
 - UUID generation, array utilities (flatten, unique, group, chunk)
 - Object utilities (pick, omit, get nested values)
@@ -20,6 +21,7 @@ A curated collection of **25 JavaScript utility functions** ready to import into
 - JSON parsing with error handling
 
 **How to import:**
+
 1. Open Cockpit → Snippets Manager (or press F10)
 2. Click **[F10: IMP]** or the import button
 3. Copy the entire JSON array from the code block
@@ -31,6 +33,7 @@ A curated collection of **25 JavaScript utility functions** ready to import into
 A comprehensive **REST API collection** with **42 endpoints** for ThingWorx platform operations.
 
 **Includes:**
+
 - Thing operations (GET/PUT/POST/DELETE properties and services)
 - Property history queries with date range filtering
 - ThingTemplates, ThingShapes, DataShapes (CRUD)
@@ -42,6 +45,7 @@ A comprehensive **REST API collection** with **42 endpoints** for ThingWorx plat
 - Organization queries
 
 **How to import:**
+
 1. Open Cockpit → API Client (if available)
 2. Click **Import Collection** or similar
 3. Copy the entire JSON array from the code block
@@ -55,12 +59,14 @@ A specialized collection of **JavaScript snippets** for ThingWorx service develo
 **Uses ES5 syntax** (compatible with Rhino 1.7.11, no arrow functions or modern JS).
 
 **Includes:**
+
 - InfoTable creation and manipulation
 - Row operations (add, find, iterate)
 - Property and field queries
 - Advanced patterns for ThingWorx-specific APIs
 
 **How to import:**
+
 1. Open Cockpit → Snippets Manager (or press F10)
 2. Click **[F10: IMP]** or the import button
 3. Copy the entire JSON array from the code block

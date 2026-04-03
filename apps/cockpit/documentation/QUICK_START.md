@@ -228,7 +228,7 @@ Use the built-in API for automation:
 import { ApiClient } from './api'
 
 const client = new ApiClient()
-client.get('/api/data').then(response => {
+client.get('/api/data').then((response) => {
   console.log(response.data)
 })
 ```

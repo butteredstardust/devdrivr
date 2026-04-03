@@ -1,6 +1,20 @@
 import Database from '@tauri-apps/plugin-sql'
-import type { Note, Snippet, HistoryEntry, ApiEnvironment, ApiCollection, ApiRequest } from '@/types/models'
-import { noteRowSchema, snippetRowSchema, historyRowSchema, apiEnvironmentRowSchema, apiCollectionRowSchema, apiRequestRowSchema } from '@/lib/schemas'
+import type {
+  Note,
+  Snippet,
+  HistoryEntry,
+  ApiEnvironment,
+  ApiCollection,
+  ApiRequest,
+} from '@/types/models'
+import {
+  noteRowSchema,
+  snippetRowSchema,
+  historyRowSchema,
+  apiEnvironmentRowSchema,
+  apiCollectionRowSchema,
+  apiRequestRowSchema,
+} from '@/lib/schemas'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
 // (e.g., StrictMode double-mount or parallel store inits).
@@ -95,7 +109,9 @@ function rowToNote(row: NoteRow): Note | null {
 
 export async function loadNotes(): Promise<Note[]> {
   const conn = await getDb()
-  const rows = await conn.select<NoteRow[]>('SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC')
+  const rows = await conn.select<NoteRow[]>(
+    'SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC'
+  )
   return rows.map(rowToNote).filter((n): n is Note => n !== null)
 }
 
@@ -106,11 +122,19 @@ export async function saveNote(note: Note): Promise<void> {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13`,
     [
-      note.id, note.title, note.content, note.color,
-      note.pinned ? 1 : 0, note.poppedOut ? 1 : 0,
-      note.windowBounds?.x ?? null, note.windowBounds?.y ?? null,
-      note.windowBounds?.width ?? null, note.windowBounds?.height ?? null,
-      note.createdAt, note.updatedAt, JSON.stringify(note.tags || []),
+      note.id,
+      note.title,
+      note.content,
+      note.color,
+      note.pinned ? 1 : 0,
+      note.poppedOut ? 1 : 0,
+      note.windowBounds?.x ?? null,
+      note.windowBounds?.y ?? null,
+      note.windowBounds?.width ?? null,
+      note.windowBounds?.height ?? null,
+      note.createdAt,
+      note.updatedAt,
+      JSON.stringify(note.tags || []),
     ]
   )
 }
@@ -153,7 +177,15 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
     `INSERT INTO snippets (id, title, content, language, tags, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, updated_at=$7`,
-    [snippet.id, snippet.title, snippet.content, snippet.language, JSON.stringify(snippet.tags), snippet.createdAt, snippet.updatedAt]
+    [
+      snippet.id,
+      snippet.title,
+      snippet.content,
+      snippet.language,
+      JSON.stringify(snippet.tags),
+      snippet.createdAt,
+      snippet.updatedAt,
+    ]
   )
 }
 
@@ -185,15 +217,22 @@ function rowToHistory(row: HistoryRow): HistoryEntry | null {
 export async function loadHistory(tool?: string, limit: number = 100): Promise<HistoryEntry[]> {
   const conn = await getDb()
   if (tool) {
-    return (await conn.select<HistoryRow[]>(
-      'SELECT * FROM history WHERE tool = $1 ORDER BY timestamp DESC LIMIT $2',
-      [tool, limit]
-    )).map(rowToHistory).filter((e): e is HistoryEntry => e !== null)
+    return (
+      await conn.select<HistoryRow[]>(
+        'SELECT * FROM history WHERE tool = $1 ORDER BY timestamp DESC LIMIT $2',
+        [tool, limit]
+      )
+    )
+      .map(rowToHistory)
+      .filter((e): e is HistoryEntry => e !== null)
   }
-  return (await conn.select<HistoryRow[]>(
-    'SELECT * FROM history ORDER BY timestamp DESC LIMIT $1',
-    [limit]
-  )).map(rowToHistory).filter((e): e is HistoryEntry => e !== null)
+  return (
+    await conn.select<HistoryRow[]>('SELECT * FROM history ORDER BY timestamp DESC LIMIT $1', [
+      limit,
+    ])
+  )
+    .map(rowToHistory)
+    .filter((e): e is HistoryEntry => e !== null)
 }
 
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
@@ -235,15 +274,19 @@ export async function clearAllHistory(): Promise<void> {
 
 export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
   const conn = await getDb()
-  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_environments ORDER BY updated_at DESC')
-  return rows.map((r) => {
-    const res = apiEnvironmentRowSchema.safeParse(r)
-    if (!res.success) {
-      console.warn('[db] loadApiEnvironments: invalid row', res.error.issues)
-      return null
-    }
-    return res.data
-  }).filter((x): x is ApiEnvironment => x !== null)
+  const rows = await conn.select<Array<Record<string, unknown>>>(
+    'SELECT * FROM api_environments ORDER BY updated_at DESC'
+  )
+  return rows
+    .map((r) => {
+      const res = apiEnvironmentRowSchema.safeParse(r)
+      if (!res.success) {
+        console.warn('[db] loadApiEnvironments: invalid row', res.error.issues)
+        return null
+      }
+      return res.data
+    })
+    .filter((x): x is ApiEnvironment => x !== null)
 }
 
 export async function saveApiEnvironment(env: ApiEnvironment): Promise<void> {
@@ -263,15 +306,19 @@ export async function deleteApiEnvironment(id: string): Promise<void> {
 
 export async function loadApiCollections(): Promise<ApiCollection[]> {
   const conn = await getDb()
-  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_collections ORDER BY name ASC')
-  return rows.map((r) => {
-    const res = apiCollectionRowSchema.safeParse(r)
-    if (!res.success) {
-      console.warn('[db] loadApiCollections: invalid row', res.error.issues)
-      return null
-    }
-    return res.data
-  }).filter((x): x is ApiCollection => x !== null)
+  const rows = await conn.select<Array<Record<string, unknown>>>(
+    'SELECT * FROM api_collections ORDER BY name ASC'
+  )
+  return rows
+    .map((r) => {
+      const res = apiCollectionRowSchema.safeParse(r)
+      if (!res.success) {
+        console.warn('[db] loadApiCollections: invalid row', res.error.issues)
+        return null
+      }
+      return res.data
+    })
+    .filter((x): x is ApiCollection => x !== null)
 }
 
 export async function saveApiCollection(col: ApiCollection): Promise<void> {
@@ -291,15 +338,19 @@ export async function deleteApiCollection(id: string): Promise<void> {
 
 export async function loadApiRequests(): Promise<ApiRequest[]> {
   const conn = await getDb()
-  const rows = await conn.select<Array<Record<string, unknown>>>('SELECT * FROM api_requests ORDER BY name ASC')
-  return rows.map((r) => {
-    const res = apiRequestRowSchema.safeParse(r)
-    if (!res.success) {
-      console.warn('[db] loadApiRequests: invalid row', res.error.issues)
-      return null
-    }
-    return res.data
-  }).filter((x): x is ApiRequest => x !== null)
+  const rows = await conn.select<Array<Record<string, unknown>>>(
+    'SELECT * FROM api_requests ORDER BY name ASC'
+  )
+  return rows
+    .map((r) => {
+      const res = apiRequestRowSchema.safeParse(r)
+      if (!res.success) {
+        console.warn('[db] loadApiRequests: invalid row', res.error.issues)
+        return null
+      }
+      return res.data
+    })
+    .filter((x): x is ApiRequest => x !== null)
 }
 
 export async function saveApiRequest(req: ApiRequest): Promise<void> {
@@ -309,9 +360,17 @@ export async function saveApiRequest(req: ApiRequest): Promise<void> {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
     [
-      req.id, req.collectionId, req.name, req.method, req.url,
-      JSON.stringify(req.headers), req.body, req.bodyMode, JSON.stringify(req.auth),
-      req.createdAt, req.updatedAt
+      req.id,
+      req.collectionId,
+      req.name,
+      req.method,
+      req.url,
+      JSON.stringify(req.headers),
+      req.body,
+      req.bodyMode,
+      JSON.stringify(req.auth),
+      req.createdAt,
+      req.updatedAt,
     ]
   )
 }

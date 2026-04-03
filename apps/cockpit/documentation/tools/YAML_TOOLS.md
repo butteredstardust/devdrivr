@@ -7,16 +7,19 @@ YAML Tools is a comprehensive utility for working with YAML data. It provides fe
 ## Features
 
 ### Lint & Format
+
 - **Validation**: Real-time YAML syntax validation with error highlighting
 - **Formatting**: Pretty-print YAML with proper indentation
 - **Minification**: Compress YAML by removing unnecessary whitespace
 - **Key Sorting**: Sort object keys alphabetically
 
 ### Tree View
+
 - **Interactive Tree**: Expandable/collapsible YAML structure visualization
 - **Value Copying**: Click on any value to copy it to clipboard
 
 ### JSON ↔ YAML Conversion
+
 - **YAML to JSON**: Convert YAML documents to JSON format
 - **JSON to YAML**: Convert JSON documents to YAML format
 - **Bidirectional Conversion**: Easy switching between conversion directions
@@ -39,6 +42,7 @@ YAML Tools is a comprehensive utility for working with YAML data. It provides fe
 ### JSON/YAML Conversion
 
 Switch between conversion modes:
+
 - **YAML → JSON**: Convert YAML to JSON format
 - **JSON → YAML**: Convert JSON to YAML format
 
@@ -67,6 +71,7 @@ The YAML Tools component is organized into three main tabs:
 ### State Management
 
 The component uses `useToolState` for persistent state across sessions:
+
 - `input`: Current YAML content
 - `activeTab`: Currently selected view tab
 - `jsonInput`: Current JSON content for conversion

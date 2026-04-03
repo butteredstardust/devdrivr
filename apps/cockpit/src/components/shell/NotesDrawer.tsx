@@ -5,7 +5,17 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
-import { PushPinIcon, TrashIcon, NoteIcon, ClockCounterClockwiseIcon, ArrowCounterClockwiseIcon, CopyIcon, PaperPlaneTiltIcon, TagIcon, XIcon } from '@phosphor-icons/react'
+import {
+  PushPinIcon,
+  TrashIcon,
+  NoteIcon,
+  ClockCounterClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  CopyIcon,
+  PaperPlaneTiltIcon,
+  TagIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import type { NoteColor, Note as NoteType } from '@/types/models'
 import { processMarkdown } from '@/lib/markdown'
 
@@ -30,7 +40,16 @@ const DRAWER_TABS = [
   { id: 'history', label: 'History' },
 ]
 
-const NOTE_COLORS: NoteColor[] = ['yellow', 'green', 'blue', 'pink', 'purple', 'orange', 'red', 'gray']
+const NOTE_COLORS: NoteColor[] = [
+  'yellow',
+  'green',
+  'blue',
+  'pink',
+  'purple',
+  'orange',
+  'red',
+  'gray',
+]
 
 const COLOR_MAP: Record<NoteColor, string> = {
   yellow: 'bg-yellow-500/10 border-yellow-500/20',
@@ -51,7 +70,7 @@ function MarkdownRenderer({ content }: { content: string }) {
   }, [content])
 
   return (
-    <div 
+    <div
       className="prose prose-xs max-w-none overflow-hidden text-xs text-[var(--color-text)]"
       dangerouslySetInnerHTML={{ __html: html }}
     />
@@ -79,9 +98,12 @@ function NoteEditor({
     setTagInput('')
   }, [tagInput, note.id, note.tags, onUpdate])
 
-  const handleRemoveTag = useCallback((tag: string) => {
-    onUpdate(note.id, { tags: note.tags.filter((t) => t !== tag) })
-  }, [note.id, note.tags, onUpdate])
+  const handleRemoveTag = useCallback(
+    (tag: string) => {
+      onUpdate(note.id, { tags: note.tags.filter((t) => t !== tag) })
+    },
+    [note.id, note.tags, onUpdate]
+  )
 
   const autoGrow = useCallback(() => {
     const ta = textareaRef.current
@@ -125,11 +147,14 @@ function NoteEditor({
         rows={2}
         className="w-full min-h-[4rem] max-h-[20rem] resize-none overflow-auto bg-transparent text-xs text-[var(--color-text)] outline-none"
       />
-      
+
       {/* Tag Editor */}
       <div className="mt-1 flex flex-wrap gap-1">
-        {note.tags.map(tag => (
-          <span key={tag} className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">
+        {note.tags.map((tag) => (
+          <span
+            key={tag}
+            className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]"
+          >
             {tag}
             <button onClick={() => handleRemoveTag(tag)} className="hover:text-[var(--color-text)]">
               <XIcon size={10} />
@@ -183,38 +208,41 @@ export function NotesDrawer() {
     setWidth(savedWidth)
   }, [savedWidth])
 
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    dragState.current = { startX: e.clientX, startWidth: width }
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      dragState.current = { startX: e.clientX, startWidth: width }
 
-    const onMove = (ev: MouseEvent) => {
-      if (!dragState.current) return
-      const delta = dragState.current.startX - ev.clientX
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
-      setWidth(next)
-    }
+      const onMove = (ev: MouseEvent) => {
+        if (!dragState.current) return
+        const delta = dragState.current.startX - ev.clientX
+        const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
+        setWidth(next)
+      }
 
-    const onUp = (ev: MouseEvent) => {
-      if (!dragState.current) return
-      const delta = dragState.current.startX - ev.clientX
-      const final = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
-      dragState.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      // Debounce the DB write
-      clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => {
-        void updateSetting('notesDrawerWidth', final)
-      }, 500)
-    }
+      const onUp = (ev: MouseEvent) => {
+        if (!dragState.current) return
+        const delta = dragState.current.startX - ev.clientX
+        const final = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta))
+        dragState.current = null
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        // Debounce the DB write
+        clearTimeout(saveTimer.current)
+        saveTimer.current = setTimeout(() => {
+          void updateSetting('notesDrawerWidth', final)
+        }, 500)
+      }
 
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [width, updateSetting])
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [width, updateSetting]
+  )
 
   const notes = useNotesStore((s) => s.notes)
   const addNote = useNotesStore((s) => s.add)
@@ -250,17 +278,23 @@ export function NotesDrawer() {
     setLastAction('Note created', 'success')
   }, [addNote, setLastAction])
 
-  const handleDelete = useCallback(async (id: string) => {
-    await removeNote(id)
-    setLastAction('Note deleted', 'info')
-  }, [removeNote, setLastAction])
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await removeNote(id)
+      setLastAction('Note deleted', 'info')
+    },
+    [removeNote, setLastAction]
+  )
 
   const setPendingSendTo = useUiStore((s) => s.setPendingSendTo)
-  const handleHistoryReplay = useCallback((tool: string, input: string) => {
-    if (input) setPendingSendTo(input)
-    setActiveTool(tool)
-    setLastAction(`Replayed to ${tool}`, 'info')
-  }, [setActiveTool, setPendingSendTo, setLastAction])
+  const handleHistoryReplay = useCallback(
+    (tool: string, input: string) => {
+      if (input) setPendingSendTo(input)
+      setActiveTool(tool)
+      setLastAction(`Replayed to ${tool}`, 'info')
+    },
+    [setActiveTool, setPendingSendTo, setLastAction]
+  )
 
   return (
     <aside
@@ -315,20 +349,17 @@ export function NotesDrawer() {
                       onDone={() => setEditingId(null)}
                     />
                   ) : (
-                    <div
-                      className="group cursor-pointer"
-                      onClick={() => setEditingId(note.id)}
-                    >
+                    <div className="group cursor-pointer" onClick={() => setEditingId(note.id)}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-xs font-bold text-[var(--color-text)]">
                           {note.title || 'Untitled'}
                         </span>
                         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              navigator.clipboard.writeText(note.content);
-                              setLastAction('Copied to clipboard', 'info');
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigator.clipboard.writeText(note.content)
+                              setLastAction('Copied to clipboard', 'info')
                             }}
                             className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Copy content"
@@ -336,10 +367,10 @@ export function NotesDrawer() {
                             <CopyIcon size={12} />
                           </button>
                           <button
-                            onClick={(e) => { 
-                              e.stopPropagation();
-                              setPendingSendTo(note.content);
-                              setLastAction('Ready to send to tool', 'info');
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPendingSendTo(note.content)
+                              setLastAction('Ready to send to tool', 'info')
                             }}
                             className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Use as input"
@@ -347,14 +378,20 @@ export function NotesDrawer() {
                             <PaperPlaneTiltIcon size={12} />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); updateNote(note.id, { pinned: !note.pinned }) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              updateNote(note.id, { pinned: !note.pinned })
+                            }}
                             className={`rounded p-1 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
                             title={note.pinned ? 'Unpin' : 'Pin'}
                           >
                             <PushPinIcon size={12} weight={note.pinned ? 'fill' : 'regular'} />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(note.id)
+                            }}
                             className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
                             title="Delete note"
                           >
@@ -362,7 +399,7 @@ export function NotesDrawer() {
                           </button>
                         </div>
                       </div>
-                      
+
                       {note.content && (
                         <div className="mt-2 line-clamp-6">
                           <MarkdownRenderer content={note.content} />
@@ -371,8 +408,11 @@ export function NotesDrawer() {
 
                       {note.tags.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
-                          {note.tags.map(tag => (
-                            <span key={tag} className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)]">
+                          {note.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)]"
+                            >
                               <TagIcon size={8} />
                               {tag}
                             </span>
@@ -405,7 +445,9 @@ export function NotesDrawer() {
             >
               <option value="">All tools</option>
               {Array.from(new Set(historyEntries.map((e) => e.tool))).map((tool) => (
-                <option key={tool} value={tool}>{tool}</option>
+                <option key={tool} value={tool}>
+                  {tool}
+                </option>
               ))}
             </select>
           </div>
@@ -426,13 +468,12 @@ export function NotesDrawer() {
                   <span className="text-xs font-bold text-[var(--color-accent)]">{entry.tool}</span>
                   <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
                     <ArrowCounterClockwiseIcon size={10} />
-                    <span className="text-[10px]">
-                      {timeAgo(entry.timestamp)}
-                    </span>
+                    <span className="text-[10px]">{timeAgo(entry.timestamp)}</span>
                   </div>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
-                  {entry.input.slice(0, 100)}{entry.input.length > 100 ? '...' : ''}
+                  {entry.input.slice(0, 100)}
+                  {entry.input.length > 100 ? '...' : ''}
                 </p>
               </div>
             ))}

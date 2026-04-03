@@ -105,7 +105,8 @@ function toFetch(p: ParsedCurl): string {
     opts.push('  },')
   }
   if (p.body) opts.push(`  body: ${JSON.stringify(p.body)},`)
-  if (opts.length === 0) return `const response = await fetch('${esc(p.url)}')\nconst data = await response.json()`
+  if (opts.length === 0)
+    return `const response = await fetch('${esc(p.url)}')\nconst data = await response.json()`
   return `const response = await fetch('${esc(p.url)}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
 }
 
@@ -138,10 +139,7 @@ function toKy(p: ParsedCurl): string {
 }
 
 function toXhr(p: ParsedCurl): string {
-  const lines = [
-    `const xhr = new XMLHttpRequest()`,
-    `xhr.open('${p.method}', '${esc(p.url)}')`,
-  ]
+  const lines = [`const xhr = new XMLHttpRequest()`, `xhr.open('${p.method}', '${esc(p.url)}')`]
   for (const [k, v] of Object.entries(p.headers)) {
     lines.push(`xhr.setRequestHeader('${esc(k)}', '${esc(v)}')`)
   }

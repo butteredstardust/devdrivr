@@ -90,9 +90,8 @@ export default function HashGenerator() {
   const runCompute = useCallback(
     (input: string) => {
       setIsComputing(true)
-      const fn = state.hmacMode && state.hmacKey
-        ? computeHmac(input, state.hmacKey)
-        : computeHashes(input)
+      const fn =
+        state.hmacMode && state.hmacKey ? computeHmac(input, state.hmacKey) : computeHashes(input)
       fn.then((result) => {
         setHashes(result)
         setIsComputing(false)
@@ -148,10 +147,7 @@ export default function HashGenerator() {
     return null
   }, [compareNormalized, hashes, hashList])
 
-  const inputBytes = useMemo(
-    () => new TextEncoder().encode(state.input).length,
-    [state.input]
-  )
+  const inputBytes = useMemo(() => new TextEncoder().encode(state.input).length, [state.input])
 
   return (
     <div className="flex h-full flex-col">
@@ -218,9 +214,7 @@ export default function HashGenerator() {
             {compareNormalized && hashes && (
               <span
                 className={`shrink-0 text-xs font-bold ${
-                  matchedAlgo
-                    ? 'text-[var(--color-success)]'
-                    : 'text-[var(--color-error)]'
+                  matchedAlgo ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
                 }`}
               >
                 {matchedAlgo ? `✓ Matches ${matchedAlgo}` : '✗ No match'}
@@ -236,8 +230,7 @@ export default function HashGenerator() {
           <div className="flex flex-col gap-3">
             {hashList.map((h) => {
               const displayValue = applyCase(h.value)
-              const isMatch =
-                compareNormalized && h.value.toLowerCase() === compareNormalized
+              const isMatch = compareNormalized && h.value.toLowerCase() === compareNormalized
               return (
                 <div
                   key={h.label}
@@ -268,11 +261,7 @@ export default function HashGenerator() {
                   <CopyButton
                     text={displayValue}
                     className="ml-2 shrink-0"
-                    label={
-                      isMatch
-                        ? '✓ Copy'
-                        : 'Copy'
-                    }
+                    label={isMatch ? '✓ Copy' : 'Copy'}
                   />
                 </div>
               )

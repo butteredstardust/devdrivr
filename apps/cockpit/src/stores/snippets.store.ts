@@ -10,7 +10,10 @@ type SnippetsStore = {
   saving: boolean
   init: () => Promise<void>
   add: (title: string, content: string, language: string, tags?: string[]) => Promise<Snippet>
-  update: (id: string, patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags'>>) => Promise<void>
+  update: (
+    id: string,
+    patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags'>>
+  ) => Promise<void>
   remove: (id: string) => Promise<void>
   clearAll: () => Promise<void>
 }

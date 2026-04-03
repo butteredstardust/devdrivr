@@ -440,7 +440,12 @@ export default function JsonSchemaValidator() {
                 onChange={(e) => updateState({ schemaUrl: e.target.value })}
                 className="border border-[var(--color-border)] bg-transparent text-xs px-2 py-0.5 rounded w-48 text-[var(--color-text)] outline-none"
               />
-              <Button variant="secondary" size="sm" onClick={loadSchemaFromUrl} disabled={loadingUrl}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={loadSchemaFromUrl}
+                disabled={loadingUrl}
+              >
                 {loadingUrl ? 'Loading…' : 'Load'}
               </Button>
               <CopyButton text={state.schema} />

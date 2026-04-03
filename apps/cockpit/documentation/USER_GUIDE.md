@@ -50,6 +50,7 @@ The devdrivr cockpit interface is designed for efficiency and keyboard navigatio
 ### Sidebar Navigation
 
 The sidebar is organized into tool groups:
+
 - **Core Tools**: Essential utilities like Code Formatter, JSON Tools, YAML Tools
 - **Data Tools**: JSON/YAML processors, API client, database utilities
 - **Text Processing**: Regex tester, text utilities, string processors
@@ -65,6 +66,7 @@ The application provides 27+ tools organized by function. Each tool is designed 
 ### State Persistence
 
 All tool states are automatically saved and restored between sessions:
+
 - Notes and snippets are saved to local SQLite database
 - Tool states are preserved with automatic debouncing
 - Window position and size are remembered between sessions
@@ -72,6 +74,7 @@ All tool states are automatically saved and restored between sessions:
 ### Keyboard-Driven Navigation
 
 The application is optimized for keyboard use:
+
 - `Cmd/Ctrl + K` for quick tool switching
 - `Cmd/Ctrl + ,` for settings
 - `Cmd/Ctrl + /` for the command palette
@@ -82,6 +85,7 @@ The application is optimized for keyboard use:
 ### Code Formatter
 
 Format code in multiple languages with consistent styling:
+
 - JavaScript, TypeScript, JSON, CSS, HTML, and more
 - Configurable formatting options
 - Real-time syntax highlighting
@@ -90,6 +94,7 @@ Format code in multiple languages with consistent styling:
 ### JSON Tools
 
 Work with JSON data:
+
 - Format with proper indentation
 - Minify by removing whitespace
 - Sort object keys alphabetically
@@ -98,6 +103,7 @@ Work with JSON data:
 ### YAML Tools
 
 Comprehensive YAML utility:
+
 - Lint and format YAML content
 - Interactive tree view browser
 - Convert between JSON and YAML
@@ -106,6 +112,7 @@ Comprehensive YAML utility:
 ### API Client
 
 Test and debug API endpoints:
+
 - Create collections for organizing requests
 - Set up environment variables
 - View request history
@@ -114,6 +121,7 @@ Test and debug API endpoints:
 ### Notes
 
 Create and manage notes:
+
 - Color-coded note system
 - Automatic saving and syncing
 - Searchable notes list
@@ -122,6 +130,7 @@ Create and manage notes:
 ### Snippets
 
 Store and organize code snippets:
+
 - Categorize by language or purpose
 - Quick insert with keyboard shortcuts
 - Syntax highlighting
@@ -140,6 +149,7 @@ Access settings through the gear icon in the top right or with `Cmd/Ctrl + ,`.
 ### Keyboard Shortcuts
 
 All keyboard shortcuts can be customized:
+
 - Global navigation shortcuts
 - Tool-specific shortcuts
 - Custom user-defined shortcuts
@@ -147,6 +157,7 @@ All keyboard shortcuts can be customized:
 ### Data Management
 
 Control your data:
+
 - Clear history
 - Export/import notes and snippets
 - Reset settings to defaults
@@ -156,14 +167,14 @@ Control your data:
 
 ### Global Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + ,` | Open Settings |
-| `Cmd/Ctrl + K` | Quick tool search |
-| `Cmd/Ctrl + Shift + K` | Global command palette |
-| `Cmd/C/trl + /` | Show keyboard shortcuts |
-| `Cmd/Ctrl + [` | Previous tool |
-| `Cmd/Ctrl + ]` | Next tool |
+| Shortcut               | Action                  |
+| ---------------------- | ----------------------- |
+| `Cmd/Ctrl + ,`         | Open Settings           |
+| `Cmd/Ctrl + K`         | Quick tool search       |
+| `Cmd/Ctrl + Shift + K` | Global command palette  |
+| `Cmd/C/trl + /`        | Show keyboard shortcuts |
+| `Cmd/Ctrl + [`         | Previous tool           |
+| `Cmd/Ctrl + ]`         | Next tool               |
 
 ### Tool-Specific Shortcuts
 
@@ -174,6 +185,7 @@ Each tool may have its own keyboard shortcuts for common operations like formatt
 ### Local Storage
 
 All data is stored locally in SQLite:
+
 - Settings are stored in the `settings` table
 - Tool states are stored in the `tool_state` table
 - Notes are stored in the `notes` table
@@ -184,12 +196,14 @@ All data is stored locally in SQLite:
 ### Data Persistence
 
 Data is automatically saved with a two-tier system:
+
 1. In-memory cache for instant response
 2. Debounced SQLite writes for persistence
 
 ### Backup and Restore
 
 The application automatically preserves your data between sessions. In case of issues:
+
 1. Settings can be reset in the Settings panel
 2. Individual tool states can be cleared
 3. All data can be exported to files
@@ -216,6 +230,7 @@ The application automatically preserves your data between sessions. In case of i
 ### Resetting the Application
 
 If you encounter persistent issues:
+
 1. Open Settings
 2. Navigate to the Data section
 3. Choose what data to reset
@@ -244,6 +259,7 @@ bun run check-types
 ### Custom Shortcuts
 
 Create custom keyboard shortcuts:
+
 1. Open Settings (`Cmd/Ctrl + ,`)
 2. Navigate to Keyboard Shortcuts
 3. Click "Add Shortcut"
@@ -258,7 +274,7 @@ Use the built-in API for automation:
 import { ApiClient } from './api'
 
 const client = new ApiClient()
-client.get('/api/data').then(response => {
+client.get('/api/data').then((response) => {
   console.log(response.data)
 })
 ```
@@ -266,6 +282,7 @@ client.get('/api/data').then(response => {
 ### Performance Optimization
 
 The application uses several techniques to maintain performance:
+
 - Web Workers handle heavy computational tasks
 - Virtualized lists for large data sets
 - Efficient state management with Zustand
@@ -275,6 +292,7 @@ The application uses several techniques to maintain performance:
 ### Customizing the Interface
 
 Adjust the interface to your preferences:
+
 - Change themes in Settings
 - Customize editor settings
 - Modify keyboard shortcuts
@@ -291,6 +309,7 @@ Adjust the interface to your preferences:
 ## Feedback and Support
 
 For issues, suggestions, or questions:
+
 1. Check the documentation
 2. Search existing issues
 3. Join our community Discord

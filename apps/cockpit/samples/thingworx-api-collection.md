@@ -3,6 +3,7 @@
 Copy the JSON array below and paste into the API Client tool for importing REST endpoints.
 
 This collection includes 42 ThingWorx REST API endpoints covering:
+
 - Thing operations (get, set, create, delete properties and services)
 - Property history and queries
 - DataShapes and Thing Templates
@@ -892,19 +893,19 @@ This collection includes 42 ThingWorx REST API endpoints covering:
 
 ## Included Endpoints
 
-| Category | Count | Examples |
-|----------|-------|----------|
-| Things | 12 | Properties, Services, Creation, Deletion, Queries |
-| Property History | 2 | Simple query, Date range query |
-| Templates & Shapes | 6 | ThingTemplates, ThingShapes, Definitions |
-| DataShapes | 4 | Get, Create, Delete, Field definitions |
-| Streams | 4 | Get entries, Add entries, Query, Purge |
-| ValueStreams | 2 | Get all, Query |
-| DataTables | 2 | Get all, Query |
-| Repository | 3 | List files, Read, Write |
-| Users & Groups | 8 | Get, Create, Delete, Membership |
-| Projects | 3 | Get, Create, Delete |
-| Alerts | 2 | Get definitions, Acknowledge |
-| Admin & Permissions | 2 | Current user, Check permission, Organizations |
+| Category            | Count | Examples                                          |
+| ------------------- | ----- | ------------------------------------------------- |
+| Things              | 12    | Properties, Services, Creation, Deletion, Queries |
+| Property History    | 2     | Simple query, Date range query                    |
+| Templates & Shapes  | 6     | ThingTemplates, ThingShapes, Definitions          |
+| DataShapes          | 4     | Get, Create, Delete, Field definitions            |
+| Streams             | 4     | Get entries, Add entries, Query, Purge            |
+| ValueStreams        | 2     | Get all, Query                                    |
+| DataTables          | 2     | Get all, Query                                    |
+| Repository          | 3     | List files, Read, Write                           |
+| Users & Groups      | 8     | Get, Create, Delete, Membership                   |
+| Projects            | 3     | Get, Create, Delete                               |
+| Alerts              | 2     | Get definitions, Acknowledge                      |
+| Admin & Permissions | 2     | Current user, Check permission, Organizations     |
 
 **Total: 42 REST endpoints**

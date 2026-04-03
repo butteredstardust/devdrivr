@@ -24,10 +24,10 @@ async function loadUserData(userId: string) {
   } catch (error) {
     // Log error for debugging
     console.error('Failed to load user data:', error)
-    
+
     // Show user-friendly message
     showToast('Unable to load user data. Please try again.')
-    
+
     // Return safe default
     return null
   }
@@ -37,6 +37,7 @@ async function loadUserData(userId: string) {
 ### User-Facing Error Messages
 
 Error messages shown to users should be:
+
 - Clear and actionable
 - Free of technical jargon
 - Context-appropriate
@@ -44,16 +45,10 @@ Error messages shown to users should be:
 
 ```typescript
 // ✅ Good - User-friendly error message
-showUserMessage(
-  'Unable to save your work. Please check your connection and try again.',
-  'error'
-)
+showUserMessage('Unable to save your work. Please check your connection and try again.', 'error')
 
 // ❌ Bad - Technical error message
-showUserMessage(
-  'Error: NetworkError: Failed to fetch data from /api/save: Type Error',
-  'error'
-)
+showUserMessage('Error: NetworkError: Failed to fetch data from /api/save: Type Error', 'error')
 ```
 
 ## Component Error Boundaries
@@ -112,29 +107,29 @@ API calls should handle various HTTP status codes appropriately:
 async function fetchApi(url: string) {
   try {
     const response = await fetch(url)
-    
+
     if (response.status === 401) {
       // Handle authentication errors
       redirectToLogin()
       return
     }
-    
+
     if (response.status === 403) {
       // Handle authorization errors
       showAccessDenied()
       return
     }
-    
+
     if (response.status >= 500) {
       // Handle server errors
       showToast('Server error. Please try again later.')
       return
     }
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }
-    
+
     return response.json()
   } catch (error) {
     // Handle network errors
@@ -177,19 +172,19 @@ function validateAndProcess(input) {
   if (!input || input.trim() === '') {
     throw new Error('Input is required')
   }
-  
+
   // Validate data types
   if (typeof input !== 'string') {
     throw new Error('Input must be a string')
   }
-  
+
   // Validate data format
   try {
     JSON.parse(input)
   } catch (error) {
     throw new Error('Input must be valid JSON')
   }
-  
+
   return processInput(input)
 }
 ```
@@ -205,13 +200,13 @@ function logError(error, context) {
   if (process.env.NODE_ENV === 'development') {
     console.error('Error:', error, 'Context:', context)
   }
-  
+
   // Send non-sensitive error information to analytics
   if (window.analytics) {
     window.analytics.track('error', {
       message: error.message,
       name: error.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
   }
 }
@@ -225,14 +220,14 @@ function logError(error, context) {
 it('handles API errors gracefully', async () => {
   // Mock API failure
   fetch.mockRejectedValueOnce(new Error('Network error'))
-  
+
   const result = await fetchApi('/test')
-  
+
   expect(result).toBeNull()
   expect(showToast).toHaveBeenCalledWith(
     expect.objectContaining({
       message: 'Network error. Please check your connection.',
-      type: 'error'
+      type: 'error',
     })
   )
 })
@@ -244,10 +239,10 @@ it('handles API errors gracefully', async () => {
 it('recovers from database errors', async () => {
   // Simulate database failure
   Database.execute.mockRejectedValueOnce(new Error('DB Error'))
-  
+
   // Component should show error state
   render(<MyComponent />)
-  
+
   expect(screen.getByText('Unable to load data')).toBeInTheDocument()
 })
 ```
@@ -266,14 +261,14 @@ class ErrorHandler {
       message: error.message,
       name: error.name,
       timestamp: Date.now(),
-      ...context
+      ...context,
     }
-    
+
     // In development, log full details
     if (process.env.NODE_ERROR === 'development') {
       console.error('Error:', error, 'Context:', context)
     }
-    
+
     // Send minimal error information to analytics
     if (window.analytics) {
       window.analytics.track('error', errorInfo)
@@ -292,11 +287,11 @@ function processUserInput(input) {
   if (!input) {
     throw new Error('Input required')
   }
-  
+
   if (input.length > 1000) {
     throw new Error('Input too long')
   }
-  
+
   // Process valid input
   return processInput(input)
 }
@@ -328,10 +323,10 @@ function saveData(data) {
 function handleSaveError(data) {
   // Save to local storage as backup
   localStorage.setItem('backup_data', JSON.stringify(data))
-  
+
   // Show error message
   showToast('Unable to save. Your data is backed up locally.', 'warning')
-  
+
   // Try again later
   retrySave(data, 30000) // 30 second retry
 }
@@ -349,8 +344,8 @@ self.addEventListener('message', (event) => {
     self.postMessage({ result })
   } catch (error) {
     // Send error back to main thread
-    self.postMessage({ 
-      error: error.message || 'Unknown error in worker' 
+    self.postMessage({
+      error: error.message || 'Unknown error in worker',
     })
   }
 })
@@ -443,18 +438,18 @@ Implement automatic recovery where possible:
 class AutoRecovery {
   static async withRetry(operation, maxRetries = 3) {
     let lastError
-    
+
     for (let i = 0; i < maxRetries; i++) {
       try {
         return await operation()
       } catch (error) {
         lastError = error
         if (i < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
         }
       }
     }
-    
+
     throw lastError
   }
 }

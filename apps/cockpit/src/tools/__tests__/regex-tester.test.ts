@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest'
 // We test the escaping function and match logic independently
 
 function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 function highlightMatches(text: string, pattern: string, flags: string): string {

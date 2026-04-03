@@ -10,8 +10,10 @@ type AlertProps = {
 
 const VARIANT_CLASSES: Record<AlertVariant, string> = {
   error: 'bg-[var(--color-error)]/10 text-[var(--color-error)] border-l-[var(--color-error)]',
-  success: 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-l-[var(--color-success)]',
-  warning: 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-l-[var(--color-warning)]',
+  success:
+    'bg-[var(--color-success)]/10 text-[var(--color-success)] border-l-[var(--color-success)]',
+  warning:
+    'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-l-[var(--color-warning)]',
   info: 'bg-[var(--color-info)]/10 text-[var(--color-info)] border-l-[var(--color-info)]',
 }
 

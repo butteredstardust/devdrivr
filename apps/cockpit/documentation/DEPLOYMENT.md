@@ -11,6 +11,7 @@ The devdrivr cockpit application uses a continuous deployment approach with auto
 ### Versioning
 
 The project follows Semantic Versioning (SemVer) for version numbering:
+
 - MAJOR version for incompatible API changes
 - MINOR version for backward-compatible feature additions
 - PATCH version for backward-compatible bug fixes
@@ -36,16 +37,17 @@ The project follows Semantic Versioning (SemVer) for version numbering:
 ### Deployment Steps
 
 1. **Build Process**
+
    ```bash
    # Install dependencies
    bun install
-   
+
    # Run type checking
    npx tsc --noEmit
-   
+
    # Run tests
    bun run test
-   
+
    # Create production build
    bun run build
    ```
@@ -79,12 +81,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    
+
   build:
     # Builds the application for distribution
     needs: test
     runs-on: ubuntu-latest
-    
+
   release:
     # Creates GitHub release with assets
     needs: build
@@ -94,11 +96,13 @@ jobs:
 ## Environment Setup
 
 ### Development Environment
+
 - Node.js >= 18.x
 - Bun >= 1.0
 - Required system dependencies (Rust, cargo-cp-artifact)
 
 ### Production Environment
+
 - GitHub Actions runner
 - macOS 12.0+ (for universal binary builds)
 - Windows 10+ (for Windows builds)
@@ -107,11 +111,13 @@ jobs:
 ## Build Configuration
 
 ### Development
+
 - Uses Vite with HMR
 - Source maps enabled
 - Development tools included
 
 ### Production
+
 - Minified bundles
 - Tree-shaken dependencies
 - Optimized assets
@@ -120,6 +126,7 @@ jobs:
 ## Automated Testing
 
 ### Test Matrix
+
 - Unit tests: `bun run test`
 - Type checking: `npx tsc --noEmit`
 - E2E tests: Playwright (when configured)
@@ -146,12 +153,15 @@ jobs:
 ## Security Considerations
 
 ### Code Signing
+
 - macOS: Apple Developer ID required
 - Windows: Code signing certificate for production builds
 - Linux: AppImage/AppImage functions as unsigned
 
 ### Release Signing
+
 All production releases are signed:
+
 - macOS: Apple Notarization
 - Windows: SHA256 checksums
 - Linux: GPG signatures (optional)
@@ -159,11 +169,13 @@ All production releases are signed:
 ## Rollback Procedures
 
 ### Automated Rollbacks
+
 - GitHub Actions monitors crash rates
 - Auto-rollback on critical errors (>5% crash rate)
 - Manual rollback available for all releases
 
 ### Manual Rollback
+
 1. Identify failing release
 2. Revert to previous tag
 3. Update release notes
@@ -172,12 +184,14 @@ All production releases are signed:
 ## Monitoring and Maintenance
 
 ### Health Checks
+
 - Application startup time
 - Memory usage
 - Disk space
 - Network connectivity
 
 ### Maintenance Windows
+
 - Scheduled weekly: Tuesday 2-4 AM UTC
 - Emergency patches: 24/7 response
 - Database migrations: Off-peak hours only

@@ -16,54 +16,54 @@ Defined in `src/index.css` under `:root` (dark, default) and `.light` (overrides
 
 ### Background & Surface
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
-| `--color-bg` | `#0a0a0a` | `#faf8f0` | Main window / page background |
-| `--color-surface` | `#181818` | `#f5f3eb` | Sidebar, panels, cards, tool workspace |
-| `--color-surface-raised` | `#1e1e1e` | `#ffffff` | Modals, dropdowns, command palette |
-| `--color-surface-hover` | `#282828` | `#ece9e0` | Hover fill on buttons, list items |
+| Token                    | Dark      | Light     | When to use                            |
+| ------------------------ | --------- | --------- | -------------------------------------- |
+| `--color-bg`             | `#0a0a0a` | `#faf8f0` | Main window / page background          |
+| `--color-surface`        | `#181818` | `#f5f3eb` | Sidebar, panels, cards, tool workspace |
+| `--color-surface-raised` | `#1e1e1e` | `#ffffff` | Modals, dropdowns, command palette     |
+| `--color-surface-hover`  | `#282828` | `#ece9e0` | Hover fill on buttons, list items      |
 
 **Rule of thumb:** Nest surfaces by elevation — bg → surface → surface-raised.
 
 ### Text
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
-| `--color-text` | `#e0e0e0` | `#1a1a1a` | Primary body text, labels, headings |
+| Token                | Dark      | Light     | When to use                           |
+| -------------------- | --------- | --------- | ------------------------------------- |
+| `--color-text`       | `#e0e0e0` | `#1a1a1a` | Primary body text, labels, headings   |
 | `--color-text-muted` | `#888888` | `#666666` | Placeholders, secondary labels, hints |
 
 Never use a hex value for text. Always pick one of these two.
 
 ### Borders
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
+| Token            | Dark      | Light     | When to use                           |
+| ---------------- | --------- | --------- | ------------------------------------- |
 | `--color-border` | `#333333` | `#d4d0c8` | All borders: panels, inputs, dividers |
 
 One border token. All edges in the UI use it.
 
 ### Accent (Brand)
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
-| `--color-accent` | `#39ff14` (neon green) | `#00875a` (teal) | Active states, focused inputs, highlights, primary buttons |
-| `--color-accent-dim` | `#1a7a0a` | `#b3e0d0` | Hover fill backgrounds behind accent-coloured text |
+| Token                | Dark                   | Light            | When to use                                                |
+| -------------------- | ---------------------- | ---------------- | ---------------------------------------------------------- |
+| `--color-accent`     | `#39ff14` (neon green) | `#00875a` (teal) | Active states, focused inputs, highlights, primary buttons |
+| `--color-accent-dim` | `#1a7a0a`              | `#b3e0d0`        | Hover fill backgrounds behind accent-coloured text         |
 
 Use `accent` sparingly — it's the single point of visual focus. Use `accent-dim` for hover/selected fill so the accent text remains readable.
 
 ### Semantic Colours
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
-| `--color-error` | `#ef4444` | `#dc2626` | Error messages, destructive actions, validation failures |
-| `--color-warning` | `#f59e0b` | `#d97706` | Warnings, deprecation notices |
-| `--color-success` | `#22c55e` | `#16a34a` | Success states, copy confirmations |
-| `--color-info` | `#3b82f6` | `#2563eb` | Informational callouts, neutral status |
+| Token             | Dark      | Light     | When to use                                              |
+| ----------------- | --------- | --------- | -------------------------------------------------------- |
+| `--color-error`   | `#ef4444` | `#dc2626` | Error messages, destructive actions, validation failures |
+| `--color-warning` | `#f59e0b` | `#d97706` | Warnings, deprecation notices                            |
+| `--color-success` | `#22c55e` | `#16a34a` | Success states, copy confirmations                       |
+| `--color-info`    | `#3b82f6` | `#2563eb` | Informational callouts, neutral status                   |
 
 ### Shadows
 
-| Token | Dark | Light | When to use |
-|-------|------|-------|-------------|
+| Token            | Dark              | Light             | When to use         |
+| ---------------- | ----------------- | ----------------- | ------------------- |
 | `--color-shadow` | `rgba(0,0,0,0.4)` | `rgba(0,0,0,0.1)` | `box-shadow` values |
 
 Always use this token for shadows rather than hardcoding an alpha value.
@@ -99,31 +99,31 @@ style={{ boxShadow: `0 4px 16px var(--color-shadow)` }}
 
 ### Fonts
 
-| Token | Value | When to use |
-|-------|-------|-------------|
-| `--font-mono` | `'JetBrains Mono', 'Fira Code', monospace` | All code, input fields, output areas, Monaco editor |
-| `--font-pixel` | `'Silkscreen', monospace` | App logo / branding only |
+| Token          | Value                                      | When to use                                         |
+| -------------- | ------------------------------------------ | --------------------------------------------------- |
+| `--font-mono`  | `'JetBrains Mono', 'Fira Code', monospace` | All code, input fields, output areas, Monaco editor |
+| `--font-pixel` | `'Silkscreen', monospace`                  | App logo / branding only                            |
 
 The system sans-serif (default browser font) is used for all UI chrome — labels, buttons, headings.
 
 ```typescript
 // Code/monospace content
-className="font-[family-name:var(--font-mono)] text-sm"
+className = 'font-[family-name:var(--font-mono)] text-sm'
 
 // Logo
-className="font-[family-name:var(--font-pixel)]"
+className = 'font-[family-name:var(--font-pixel)]'
 ```
 
 ### Text Size Scale
 
 Use Tailwind's text scale. Common sizes in use:
 
-| Class | Use case |
-|-------|----------|
-| `text-xs` | Button labels, status bar, tab labels, sidebar items |
-| `text-sm` | Body text, tool labels, form inputs |
-| `text-base` | Section headings |
-| `text-lg` / `text-xl` | Modal titles (rare) |
+| Class                 | Use case                                             |
+| --------------------- | ---------------------------------------------------- |
+| `text-xs`             | Button labels, status bar, tab labels, sidebar items |
+| `text-sm`             | Body text, tool labels, form inputs                  |
+| `text-base`           | Section headings                                     |
+| `text-lg` / `text-xl` | Modal titles (rare)                                  |
 
 The Monaco editor font size follows `settings.editorFontSize` (default: 14px, range 10–20).
 
@@ -136,6 +136,7 @@ The app uses Tailwind's default spacing scale. No custom spacing tokens — use 
 ### Common Layout Patterns
 
 **Full-height tool workspace:**
+
 ```typescript
 <div className="flex h-full flex-col gap-2 p-3">
   {/* header row */}
@@ -146,6 +147,7 @@ The app uses Tailwind's default spacing scale. No custom spacing tokens — use 
 ```
 
 **Side-by-side panels:**
+
 ```typescript
 <div className="flex h-full min-h-0 gap-2">
   <div className="flex flex-1 flex-col">Left</div>
@@ -154,6 +156,7 @@ The app uses Tailwind's default spacing scale. No custom spacing tokens — use 
 ```
 
 **Toolbar row:**
+
 ```typescript
 <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
   ...
@@ -186,6 +189,7 @@ weight="thin"      // very subtle
 ```
 
 **Choosing weight by context:**
+
 - Sidebar group headers: `weight="bold"` at `size={16}`
 - Toolbar actions: `weight="regular"` at `size={14}` or `size={16}`
 - Status indicators: `weight="fill"` (solid, immediately readable at small sizes)
@@ -216,6 +220,7 @@ import { Button } from '@/components/shared/Button'
 ```
 
 **When to use which variant:**
+
 - `primary` — one per tool, the main action (Format, Run, Generate, etc.)
 - `secondary` — secondary actions (Clear, Reset, Copy as…)
 - `ghost` — tertiary actions, icon-only buttons, navigation
@@ -302,14 +307,21 @@ One animation is defined globally:
 
 ```css
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 ```
 
 Used for modals, toasts, and panels appearing. Apply with:
+
 ```typescript
-className="animate-[fade-in_150ms_ease-out]"
+className = 'animate-[fade-in_150ms_ease-out]'
 ```
 
 Keep all animations under 200ms. The app is a utility — it should feel instant.

@@ -24,7 +24,12 @@ function isValidAuth(val: unknown): val is ApiRequestAuth {
   const obj = val as Record<string, unknown>
   if (obj['type'] === 'none') return true
   if (obj['type'] === 'bearer' && typeof obj['token'] === 'string') return true
-  if (obj['type'] === 'basic' && typeof obj['username'] === 'string' && typeof obj['password'] === 'string') return true
+  if (
+    obj['type'] === 'basic' &&
+    typeof obj['username'] === 'string' &&
+    typeof obj['password'] === 'string'
+  )
+    return true
   return false
 }
 
@@ -138,7 +143,7 @@ export default function ApiClient() {
   const collections = useApiStore((s) => s.collections)
   const requests = useApiStore((s) => s.requests)
   const createRequest = useApiStore((s) => s.createRequest)
-  const updateRequest = useApiStore((s) => s.updateRequest)  
+  const updateRequest = useApiStore((s) => s.updateRequest)
   useEffect(() => {
     init()
   }, [init])
@@ -174,7 +179,7 @@ export default function ApiClient() {
   const [responseTab, setResponseTab] = useState('body')
   const [showEnvModal, setShowEnvModal] = useState(false)
 
-  const activeEnv = environments.find(e => e.id === activeEnvironmentId)
+  const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = activeEnv?.variables ?? {}
 
   // ---------------------------------------------------------------------------
@@ -194,7 +199,10 @@ export default function ApiClient() {
   const commitParams = useCallback(
     (newParams: Param[]) => {
       setParams(newParams)
-      const newUrl = buildUrlWithParams(url, newParams.filter((p) => p.key.trim()))
+      const newUrl = buildUrlWithParams(
+        url,
+        newParams.filter((p) => p.key.trim())
+      )
       urlRef.current = newUrl
       updateDraft({ url: newUrl })
     },
@@ -237,7 +245,7 @@ export default function ApiClient() {
 
     try {
       const fetchHeaders: Record<string, string> = {}
-      
+
       // Interpolate user headers
       for (const h of headers) {
         if (h.enabled && h.key.trim()) {
@@ -256,7 +264,7 @@ export default function ApiClient() {
       }
 
       const opts: RequestInit = { method, headers: fetchHeaders }
-      
+
       if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
         opts.body = interpolate(body, envVars)
       }
@@ -271,7 +279,14 @@ export default function ApiClient() {
         resHeaders[key] = value
       })
 
-      setResponse({ status: res.status, statusText: res.statusText, headers: resHeaders, body: resBody, time, size })
+      setResponse({
+        status: res.status,
+        statusText: res.statusText,
+        headers: resHeaders,
+        body: resBody,
+        time,
+        size,
+      })
       setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
     } catch (e) {
       const msg = (e as Error).message
@@ -298,9 +313,9 @@ export default function ApiClient() {
       await updateRequest({
         ...state.draft,
         id: state.activeRequestId,
-        collectionId: collections.find(c => c.name === 'Default')?.id ?? null, // Simplification: we might want a real collection picker
+        collectionId: collections.find((c) => c.name === 'Default')?.id ?? null, // Simplification: we might want a real collection picker
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       })
       setLastAction('Request updated', 'success')
     } else {
@@ -313,14 +328,15 @@ export default function ApiClient() {
     if (!reqName) return
 
     // Simplistic collection picker (in a real app we'd use a modal dropdown)
-    const activeCollections = collections.map(c => c.name).join(', ')
-    const colName = collections.length > 0 
-      ? prompt(`Collection name (Existing: ${activeCollections}):`, collections[0]?.name)
-      : prompt('Collection name:')
-    
+    const activeCollections = collections.map((c) => c.name).join(', ')
+    const colName =
+      collections.length > 0
+        ? prompt(`Collection name (Existing: ${activeCollections}):`, collections[0]?.name)
+        : prompt('Collection name:')
+
     let collectionId = null
     if (colName) {
-      const existing = collections.find(c => c.name.toLowerCase() === colName.toLowerCase())
+      const existing = collections.find((c) => c.name.toLowerCase() === colName.toLowerCase())
       collectionId = existing?.id
       // Note: If they typed a non-existent name, we probably should create the collection here,
       // but to keep it simple we either require an exact match or throw it into unassigned.
@@ -333,9 +349,9 @@ export default function ApiClient() {
     const newReq = await createRequest({
       ...state.draft,
       name: reqName,
-      collectionId: collectionId ?? null
+      collectionId: collectionId ?? null,
     })
-    
+
     updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
     setLastAction('Request saved', 'success')
   }
@@ -386,7 +402,10 @@ export default function ApiClient() {
         })
         count++
       }
-      setLastAction(count > 0 ? `Imported ${count} requests` : 'No valid requests found', count > 0 ? 'success' : 'error')
+      setLastAction(
+        count > 0 ? `Imported ${count} requests` : 'No valid requests found',
+        count > 0 ? 'success' : 'error'
+      )
     } catch {
       setLastAction('Import failed — paste a valid JSON array', 'error')
     }
@@ -403,7 +422,7 @@ export default function ApiClient() {
         body: req.body,
         bodyMode: req.bodyMode,
         auth: req.auth,
-      }
+      },
     })
     setResponse(null)
     setError(null)
@@ -467,13 +486,11 @@ export default function ApiClient() {
         activeRequestId={state.activeRequestId}
         onSelect={handleSelectLoadedRequest}
       />
-      
+
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header Row for Env / Save */}
         <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
-          <div className="flex-1 font-bold text-sm text-[var(--color-text)]">
-            {name}
-          </div>
+          <div className="flex-1 font-bold text-sm text-[var(--color-text)]">{name}</div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
@@ -482,7 +499,11 @@ export default function ApiClient() {
               onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
             >
               <option value="">No Environment</option>
-              {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              {environments.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
             </Select>
             <button
               onClick={() => setShowEnvModal(true)}
@@ -544,12 +565,7 @@ export default function ApiClient() {
               if (e.key === 'Enter') handleSend()
             }}
           />
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSend}
-            disabled={loading}
-          >
+          <Button variant="primary" size="sm" onClick={handleSend} disabled={loading}>
             {loading ? 'Sending…' : 'Send'}
           </Button>
         </div>
@@ -735,11 +751,7 @@ export default function ApiClient() {
                     <CopyButton text={prettyBody} />
                   </div>
                 </div>
-                <TabBar
-                  tabs={RESPONSE_TABS}
-                  activeTab={responseTab}
-                  onTabChange={setResponseTab}
-                />
+                <TabBar tabs={RESPONSE_TABS} activeTab={responseTab} onTabChange={setResponseTab} />
                 <div className="flex-1 overflow-auto">
                   {responseTab === 'body' ? (
                     <Editor

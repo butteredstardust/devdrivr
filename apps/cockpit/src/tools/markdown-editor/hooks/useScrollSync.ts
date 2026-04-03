@@ -14,22 +14,14 @@ type ScrollSource = 'editor' | 'preview' | null
 // ─── Pure helpers (exported for testing) ────────────────────────────
 
 /** Compute scroll ratio 0..1 from scroll position */
-export function scrollRatio(
-  scrollTop: number,
-  scrollHeight: number,
-  clientHeight: number
-): number {
+export function scrollRatio(scrollTop: number, scrollHeight: number, clientHeight: number): number {
   const maxScroll = scrollHeight - clientHeight
   if (maxScroll <= 0) return 0
   return Math.min(1, Math.max(0, scrollTop / maxScroll))
 }
 
 /** Convert ratio 0..1 to a scrollTop for a given container */
-export function applyRatio(
-  ratio: number,
-  scrollHeight: number,
-  clientHeight: number
-): number {
+export function applyRatio(ratio: number, scrollHeight: number, clientHeight: number): number {
   const maxScroll = scrollHeight - clientHeight
   if (maxScroll <= 0) return 0
   return Math.round(ratio * maxScroll)
