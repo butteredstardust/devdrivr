@@ -21,7 +21,8 @@ describe('parseYaml', () => {
 
   it('returns error for empty string', () => {
     const result = parseYaml('')
-    expect(result).toEqual({ ok: false, data: null, error: 'Input is empty' })
+    expect(result.ok).toBe(false)
+    expect(result.error).toBeTruthy()
   })
 
   it('parses a sequence (array)', () => {

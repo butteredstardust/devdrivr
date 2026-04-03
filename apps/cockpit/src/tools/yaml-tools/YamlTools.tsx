@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
+import { CheckCircle, XCircle } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
@@ -163,11 +164,15 @@ export default function YamlTools() {
               <CopyButton text={state.input} />
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && parsed.data !== null && (
-                <span className="text-xs text-[var(--color-success)]">✓ Valid</span>
+                <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
+                  <CheckCircle size={12} weight="fill" />
+                  Valid
+                </span>
               )}
               {!parsed.ok && (
-                <span className="truncate text-xs text-[var(--color-error)]">
-                  ✗ {parsed.error}
+                <span className="flex items-center gap-1 truncate text-xs text-[var(--color-error)]">
+                  <XCircle size={12} weight="fill" />
+                  {parsed.error}
                 </span>
               )}
               {stats && (
@@ -395,7 +400,7 @@ function YamlTree({
         </button>
         {expanded &&
           data.map((item, i) => (
-            <div key={i} className="ml-4">
+            <div key={`${path}[${i}]`} className="ml-4">
               <span className="text-[var(--color-text-muted)]">{i}: </span>
               <YamlTree data={item} path={`${path}[${i}]`} defaultExpanded={defaultExpanded} />
             </div>

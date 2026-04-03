@@ -8,6 +8,8 @@ export function parseYaml(input: string): ParseResult {
   if (!input.trim()) return { ok: false, data: null, error: 'Input is empty' }
   try {
     const data = yaml.load(input)
+    if (data === null || data === undefined)
+      return { ok: false, data: null, error: 'Document resolves to null or empty' }
     return { ok: true, data, error: null }
   } catch (e) {
     return { ok: false, data: null, error: e instanceof Error ? e.message : String(e) }
