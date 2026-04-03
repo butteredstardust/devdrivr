@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -85,6 +85,7 @@ function queryJsonPath(data: unknown, path: string): unknown {
 
 export default function JsonTools() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<JsonToolsState>('json-tools', {
     input: '',
     activeTab: 'lint',
@@ -258,7 +259,7 @@ export default function JsonTools() {
                 language="json"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
-                options={EDITOR_OPTIONS}
+                options={monacoOptions}
               />
             </div>
           </div>

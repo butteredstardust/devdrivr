@@ -13,6 +13,7 @@
     "clean": "rm -rf node_modules dist src-tauri/target"
   },
   "dependencies": {
+    "@fontsource/cascadia-code": "^5.2.3",
     "@fontsource/fira-code": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/silkscreen": "^5.2.8",

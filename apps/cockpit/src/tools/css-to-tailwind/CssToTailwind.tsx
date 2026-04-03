@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 
 type CssToTailwindState = {
@@ -146,6 +146,7 @@ function convertCssToTailwind(css: string): ConversionResult {
 
 export default function CssToTailwind() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CssToTailwindState>('css-to-tailwind', {
     input: '',
   })
@@ -167,7 +168,7 @@ export default function CssToTailwind() {
               language="css"
               value={state.input}
               onChange={(v) => updateState({ input: v ?? '' })}
-              options={EDITOR_OPTIONS}
+              options={monacoOptions}
             />
           </div>
         </div>

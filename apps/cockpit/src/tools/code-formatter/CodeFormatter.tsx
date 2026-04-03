@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
@@ -28,6 +28,7 @@ type CodeFormatterState = {
 
 export default function CodeFormatter() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
     language: 'javascript',
@@ -152,7 +153,7 @@ export default function CodeFormatter() {
           language={state.language}
           value={state.input}
           onChange={(v) => updateState({ input: v ?? '' })}
-          options={EDITOR_OPTIONS}
+          options={monacoOptions}
         />
       </div>
     </div>

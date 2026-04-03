@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Input'
@@ -36,6 +36,7 @@ console.log(greeting)
 
 export default function TsPlayground() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<TsPlaygroundState>('ts-playground', {
     input: EXAMPLE,
     target: 'ESNext',
@@ -146,7 +147,7 @@ export default function TsPlayground() {
             language="typescript"
             value={state.input}
             onChange={(v) => updateState({ input: v ?? '' })}
-            options={EDITOR_OPTIONS}
+            options={monacoOptions}
           />
         </div>
         <div className="w-1/2">
@@ -154,7 +155,7 @@ export default function TsPlayground() {
             theme={monacoTheme}
             language="javascript"
             value={output}
-            options={{ ...EDITOR_OPTIONS, readOnly: true }}
+            options={{ ...monacoOptions, readOnly: true }}
           />
         </div>
       </div>

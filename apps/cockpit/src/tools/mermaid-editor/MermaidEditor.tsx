@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
@@ -60,6 +60,7 @@ const TEMPLATES: Record<string, string> = {
 
 export default function MermaidEditor() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: TEMPLATES['flowchart'] ?? '',
   })
@@ -171,7 +172,7 @@ export default function MermaidEditor() {
             theme={monacoTheme}
             value={state.content}
             onChange={(v) => updateState({ content: v ?? '' })}
-            options={EDITOR_OPTIONS}
+            options={monacoOptions}
           />
         </div>
         <div

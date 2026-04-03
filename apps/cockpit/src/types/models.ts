@@ -10,6 +10,7 @@ export type AppSettings = {
   notesDrawerWidth: number
   defaultIndentSize: number
   defaultTimezone: string
+  editorFont: 'JetBrains Mono' | 'Fira Code' | 'Cascadia Code' | 'Source Code Pro'
   editorFontSize: number
   editorTheme: 'cockpit-dark' | 'cockpit-light' | 'match-app'
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notesDrawerWidth: 288,
   defaultIndentSize: 2,
   defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  editorFont: 'JetBrains Mono',
   editorFontSize: 14,
   editorTheme: 'cockpit-dark',
   editorKeybindingMode: 'standard',

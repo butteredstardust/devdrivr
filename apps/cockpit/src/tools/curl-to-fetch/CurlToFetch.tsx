@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 
@@ -212,6 +212,7 @@ const METHOD_COLORS: Record<string, string> = {
 
 export default function CurlToFetch() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CurlToFetchState>('curl-to-fetch', {
     input: '',
     outputTab: 'fetch',
@@ -301,7 +302,7 @@ export default function CurlToFetch() {
                 theme={monacoTheme}
                 language="javascript"
                 value={output}
-                options={{ ...EDITOR_OPTIONS, readOnly: true, domReadOnly: true }}
+                options={{ ...monacoOptions, readOnly: true, domReadOnly: true }}
               />
             </div>
           ) : state.input.trim() ? (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
+import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -170,6 +170,7 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
 export default function XmlTools() {
   const monacoTheme = useMonacoTheme()
+  const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<XmlToolsState>('xml-tools', {
     input: '',
     activeTab: 'lint',
@@ -328,7 +329,7 @@ export default function XmlTools() {
                 language="xml"
                 value={state.input}
                 onChange={(v) => updateState({ input: v ?? '' })}
-                options={EDITOR_OPTIONS}
+                options={monacoOptions}
               />
             </div>
           </div>
@@ -373,7 +374,7 @@ export default function XmlTools() {
                   theme={monacoTheme}
                   language="json"
                   value={jsonOutput}
-                  options={{ ...EDITOR_OPTIONS, readOnly: true }}
+                  options={{ ...monacoOptions, readOnly: true }}
                 />
               ) : (
                 <div className="p-4 text-sm text-[var(--color-text-muted)]">
