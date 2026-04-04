@@ -153,3 +153,14 @@ describe('setActiveTool (backward compat)', () => {
     expect(activeTool).toBe('base64')
   })
 })
+
+describe('restoreActiveTool (backward compat)', () => {
+  it('restores a single tab without calling setSetting', () => {
+    vi.clearAllMocks()
+    useUiStore.getState().restoreActiveTool('base64')
+    const state = useUiStore.getState()
+    expect(state.tabs).toHaveLength(1)
+    expect(state.activeTool).toBe('base64')
+    expect(setSetting).not.toHaveBeenCalled()
+  })
+})

@@ -53,12 +53,14 @@ export function useGlobalShortcuts(): void {
   )
 
   const nextTool = useCallback(() => {
+    if (!activeTool) return
     const idx = TOOLS.findIndex((t) => t.id === activeTool)
     const next = TOOLS[(idx + 1) % TOOLS.length]
     if (next) setActiveTool(next.id)
   }, [activeTool, setActiveTool])
 
   const prevTool = useCallback(() => {
+    if (!activeTool) return
     const idx = TOOLS.findIndex((t) => t.id === activeTool)
     const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
     if (prev) setActiveTool(prev.id)

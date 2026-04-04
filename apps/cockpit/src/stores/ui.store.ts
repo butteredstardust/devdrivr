@@ -84,9 +84,10 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     const existing = get().tabs.find((t) => t.toolId === toolId)
     if (existing) {
       // Tool already open — just focus it
-      const activeTool = derivedActiveTool(get().tabs, existing.id)
+      const currentTabs = get().tabs
+      const activeTool = derivedActiveTool(currentTabs, existing.id)
       set({ activeTabId: existing.id, activeTool })
-      persistTabs(get().tabs, existing.id)
+      persistTabs(currentTabs, existing.id)
     } else {
       const tab: WorkspaceTab = { id: crypto.randomUUID(), toolId }
       const tabs = [...get().tabs, tab]
