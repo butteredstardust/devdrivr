@@ -16,3 +16,8 @@ export type ToolGroupMeta = {
   label: string
   icon: ReactNode
 }
+
+export type WorkspaceTab = {
+  id: string      // crypto.randomUUID() — unique tab instance
+  toolId: string  // references ToolDefinition.id
+}
