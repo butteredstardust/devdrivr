@@ -307,7 +307,7 @@ export default function ApiClient() {
     } finally {
       setLoading(false)
     }
-  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction])
+  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction, addRequestHistory])
 
   useToolAction((action) => {
     if (action.type === 'execute') handleSend()
