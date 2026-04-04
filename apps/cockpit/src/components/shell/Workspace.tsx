@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { ToolboxIcon } from '@phosphor-icons/react'
+import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
 
 export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
@@ -26,20 +27,6 @@ export function Workspace() {
   )
   const { isDragging } = useFileDropZone(handleFileDrop)
 
-  if (!tool) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)] text-[var(--color-text-muted)]">
-        <ToolboxIcon size={36} weight="light" />
-        <div className="text-center">
-          <p className="text-sm">Select a tool to get started</p>
-          <p className="mt-1 text-xs opacity-60">Use the sidebar or press ⌘K</p>
-        </div>
-      </div>
-    )
-  }
-
-  const ToolComponent = tool.component
-
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">
       {isDragging && (
@@ -49,23 +36,34 @@ export function Workspace() {
           </div>
         </div>
       )}
-      <div className="flex h-10 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4">
-        <span className="font-pixel text-sm text-[var(--color-accent)]">{tool.name}</span>
-      </div>
-      <div className="flex-1 overflow-auto bg-[var(--color-bg)]">
-        <ErrorBoundary ref={errorBoundaryRef}>
-          <Suspense
-            fallback={
-              <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)]">
-                <div className="animate-spin h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
-                <span className="text-xs text-[var(--color-text-muted)]">Loading…</span>
-              </div>
-            }
-          >
-            <ToolComponent />
-          </Suspense>
-        </ErrorBoundary>
-      </div>
+      <WorkspaceTabStrip />
+      {!tool ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--color-text-muted)]">
+          <ToolboxIcon size={36} weight="light" />
+          <div className="text-center">
+            <p className="text-sm">Select a tool to get started</p>
+            <p className="mt-1 text-xs opacity-60">Use the sidebar or press ⌘K</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto bg-[var(--color-bg)]">
+          <ErrorBoundary ref={errorBoundaryRef}>
+            <Suspense
+              fallback={
+                <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)]">
+                  <div className="animate-spin h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
+                  <span className="text-xs text-[var(--color-text-muted)]">Loading…</span>
+                </div>
+              }
+            >
+              {(() => {
+                const ToolComponent = tool.component
+                return <ToolComponent />
+              })()}
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      )}
     </div>
   )
 }

@@ -128,7 +128,8 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 | `Cmd+,`           | Settings panel                           |
 | `Cmd+Shift+P`     | Toggle always-on-top                     |
 | `Cmd+/`           | Keyboard shortcuts reference             |
-| `Cmd+1/2/3`       | Switch tool tab                          |
+| `Cmd+1/2/3`       | Switch to workspace tab 1 / 2 / 3        |
+| `Cmd+W`           | Close current workspace tab              |
 
 > On Windows/Linux, replace `Cmd` with `Ctrl`.
 

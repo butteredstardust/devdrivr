@@ -123,6 +123,7 @@ export function CommandPalette() {
   const setOpen = useUiStore((s) => s.setCommandPaletteOpen)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const activeTool = useUiStore((s) => s.activeTool)
+  const tabs = useUiStore((s) => s.tabs)
   const addToast = useUiStore((s) => s.addToast)
   const recentToolIds = useUiStore((s) => s.recentToolIds)
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
@@ -394,7 +395,7 @@ export function CommandPalette() {
       />
       <div className="animate-fade-in fixed left-1/2 top-[15%] z-50 w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
         {/* Input */}
-        <div className="flex items-center border-b border-[var(--color-border)] px-3">
+        <div className="flex items-center border-b border-[var(--color-border)] px-3 pt-[3px] pb-[3px]">
           <span className="mr-2 text-sm text-[var(--color-text-muted)]">&gt;</span>
           <input
             ref={inputRef}
@@ -431,6 +432,8 @@ export function CommandPalette() {
             const { item, flatIndex } = section
             const isSelected = flatIndex === selectedIndex
             const isActive = item.kind === 'tool' && item.id === activeTool
+            const isOpenInTab =
+              item.kind === 'tool' && !isActive && tabs.some((t) => t.toolId === item.id)
 
             return (
               <button
@@ -449,8 +452,13 @@ export function CommandPalette() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{item.name}</span>
                     {isActive && (
-                      <span className="rounded bg-[var(--color-accent)]/20 px-1 text-[10px] text-[var(--color-accent)]">
+                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-[10px] text-[var(--color-accent)]">
                         active
+                      </span>
+                    )}
+                    {isOpenInTab && (
+                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-[10px] text-[var(--color-text-muted)]">
+                        open
                       </span>
                     )}
                     {item.kind === 'action' && (
