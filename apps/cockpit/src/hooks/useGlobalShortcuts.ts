@@ -19,6 +19,10 @@ export function useGlobalShortcuts(): void {
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
+  const tabs = useUiStore((s) => s.tabs)
+  const activeTabId = useUiStore((s) => s.activeTabId)
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const closeTab = useUiStore((s) => s.closeTab)
 
   const comboK = useMemo(() => ({ key: 'k', mod: true }) as const, [])
   const comboB = useMemo(() => ({ key: 'b', mod: true }) as const, [])
@@ -36,6 +40,7 @@ export function useGlobalShortcuts(): void {
   const comboO = useMemo(() => ({ key: 'o', mod: true }) as const, [])
   const comboS = useMemo(() => ({ key: 's', mod: true }) as const, [])
   const comboSlash = useMemo(() => ({ key: '/', mod: true }) as const, [])
+  const comboW = useMemo(() => ({ key: 'w', mod: true }) as const, [])
 
   const toggleSidebar = useCallback(
     () => update('sidebarCollapsed', !sidebarCollapsed),
@@ -61,9 +66,25 @@ export function useGlobalShortcuts(): void {
 
   const execute = useCallback(() => dispatchToolAction({ type: 'execute' }), [])
   const copyOutput = useCallback(() => dispatchToolAction({ type: 'copy-output' }), [])
-  const switchTab1 = useCallback(() => dispatchToolAction({ type: 'switch-tab', tab: 0 }), [])
-  const switchTab2 = useCallback(() => dispatchToolAction({ type: 'switch-tab', tab: 1 }), [])
-  const switchTab3 = useCallback(() => dispatchToolAction({ type: 'switch-tab', tab: 2 }), [])
+
+  const switchWorkspaceTab1 = useCallback(() => {
+    const tab = tabs[0]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab2 = useCallback(() => {
+    const tab = tabs[1]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab3 = useCallback(() => {
+    const tab = tabs[2]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const closeCurrentTab = useCallback(() => {
+    if (activeTabId) closeTab(activeTabId)
+  }, [activeTabId, closeTab])
 
   const openFile = useCallback(async () => {
     const result = await openFileDialog()
@@ -92,9 +113,10 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboPrev, prevTool)
   useKeyboardShortcut(comboEnter, execute)
   useKeyboardShortcut(comboShiftC, copyOutput)
-  useKeyboardShortcut(combo1, switchTab1)
-  useKeyboardShortcut(combo2, switchTab2)
-  useKeyboardShortcut(combo3, switchTab3)
+  useKeyboardShortcut(combo1, switchWorkspaceTab1)
+  useKeyboardShortcut(combo2, switchWorkspaceTab2)
+  useKeyboardShortcut(combo3, switchWorkspaceTab3)
+  useKeyboardShortcut(comboW, closeCurrentTab)
   useKeyboardShortcut(comboComma, toggleSettingsPanel)
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
   useKeyboardShortcut(comboO, openFile)
