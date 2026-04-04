@@ -107,6 +107,10 @@ export const historyRowSchema = z
     input: z.string(),
     output: z.string(),
     timestamp: z.number(),
+    duration_ms: z.number().nullable(),
+    success: z.number().nullable(),
+    output_size: z.number().nullable(),
+    starred: z.number().nullable(),
   })
   .transform((row): HistoryEntry => {
     const entry: HistoryEntry = {
@@ -118,6 +122,18 @@ export const historyRowSchema = z
     }
     if (row.sub_tab != null) {
       entry.subTab = row.sub_tab
+    }
+    if (row.duration_ms != null) {
+      entry.durationMs = row.duration_ms
+    }
+    if (row.success != null) {
+      entry.success = row.success === 1
+    }
+    if (row.output_size != null) {
+      entry.outputSize = row.output_size
+    }
+    if (row.starred != null) {
+      entry.starred = row.starred === 1
     }
     return entry
   })

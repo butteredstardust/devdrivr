@@ -238,8 +238,20 @@ export async function loadHistory(tool?: string, limit: number = 100): Promise<H
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
   const conn = await getDb()
   await conn.execute(
-    'INSERT INTO history (id, tool, sub_tab, input, output, timestamp) VALUES ($1, $2, $3, $4, $5, $6)',
-    [entry.id, entry.tool, entry.subTab ?? null, entry.input, entry.output, entry.timestamp]
+    `INSERT INTO history (id, tool, sub_tab, input, output, timestamp, duration_ms, success, output_size, starred)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      entry.id,
+      entry.tool,
+      entry.subTab ?? null,
+      entry.input,
+      entry.output,
+      entry.timestamp,
+      entry.durationMs ?? null,
+      entry.success ? 1 : 0,
+      entry.outputSize ?? null,
+      entry.starred ? 1 : 0,
+    ]
   )
 }
 

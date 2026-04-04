@@ -21,6 +21,10 @@ export interface HistoryEntryInput {
   subTab?: string
   success?: boolean
   error?: string
+  /** Duration in milliseconds */
+  durationMs?: number
+  /** Optional callback for additional metadata */
+  metadata?: { outputSize?: number }
 }
 
 /**
@@ -66,13 +70,14 @@ export function useToolHistory(config: ToolHistoryConfig) {
       toolId,
       entry.input.slice(0, maxOutputLength),
       failed ? entry.error || 'failed' : output,
-      entry.subTab
+      entry.subTab,
+      entry.durationMs,
+      !failed, // success
+      entry.metadata?.outputSize ?? output.length
     ).then(() => {
       if (failed) return // Don't show success toast on failure
-      // Toast is optional - uncomment if needed
-      // setLastAction('Saved to history', 'success')
     })
-  }, [addToHistory, toolId, minInputLength, maxOutputLength, setLastAction])
+  }, [addToHistory, toolId, minInputLength, maxOutputLength])
 
   const recordHistory = useCallback(
     (entry: HistoryEntryInput) => {

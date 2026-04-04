@@ -77,6 +77,14 @@ export type HistoryEntry = {
   input: string
   output: string
   timestamp: number
+  /** Execution duration in milliseconds */
+  durationMs?: number
+  /** Whether the operation succeeded */
+  success?: boolean
+  /** Size of output in bytes */
+  outputSize?: number
+  /** User-starred/favorite flag */
+  starred?: boolean
 }
 
 // --- API Client ---
