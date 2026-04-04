@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
@@ -69,6 +70,7 @@ export default function Base64Tool() {
     urlSafe: false,
     lineWrap: false,
   })
+  const { record } = useToolHistory({ toolId: 'base64' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const output = useMemo(() => {
@@ -145,6 +147,18 @@ export default function Base64Tool() {
   }, [state.mode, updateState, setLastAction])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSwap)
+
+  // Record history when output changes successfully
+  useEffect(() => {
+    if (state.input.trim() && output.text && !output.error) {
+      record({
+        input: `${state.mode === 'encode' ? 'Encode' : 'Decode'}: ${state.input.slice(0, 500)}${state.input.length > 500 ? '...' : ''}`,
+        output: output.text.slice(0, 1000),
+        subTab: state.mode,
+        success: true,
+      })
+    }
+  }, [state.input, state.mode, output.text, output.error, record])
 
   return (
     <div className="flex h-full flex-col">

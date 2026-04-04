@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { md5 } from 'js-md5'
 
@@ -83,6 +84,7 @@ export default function HashGenerator() {
     hmacMode: false,
     hmacKey: '',
   })
+  const { record } = useToolHistory({ toolId: 'hash-generator' })
   const [hashes, setHashes] = useState<Hashes | null>(null)
   const [isComputing, setIsComputing] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -118,6 +120,17 @@ export default function HashGenerator() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [state.input, runCompute])
+
+  useEffect(() => {
+    if (hashes && !isComputing) {
+      record({
+        input: state.input.slice(0, 300),
+        output: hashes.sha256.slice(0, 500),
+        subTab: state.hmacMode ? 'hmac' : 'standard',
+        success: true,
+      })
+    }
+  }, [hashes, isComputing, state.input, state.hmacMode, record])
 
   const applyCase = useCallback(
     (v: string) => (state.uppercase ? v.toUpperCase() : v),
