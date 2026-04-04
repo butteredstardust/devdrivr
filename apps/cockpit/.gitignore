@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript emit (in src dir for tsc --build compatibility)
+/src/**/*.js
+/src/**/*.d.ts
+!/src/vite-env.d.ts
+
+# Vite config emit
+/vite.config.js
+/vite.config.d.ts
