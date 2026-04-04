@@ -8,7 +8,7 @@ type Props = {
   initialName: string
   initialCollectionId: string | null
   collections: ApiCollection[]
-  onSave: (name: string, collectionId: string | null) => void
+  onSave: (name: string, collectionIdOrNewName: string | null, isNew: boolean) => void
   onClose: () => void
 }
 
@@ -37,11 +37,11 @@ export function SaveRequestModal({
   const handleSubmit = () => {
     const trimmedName = name.trim()
     if (!trimmedName) return
+    if (isNewCol && !newColName.trim()) return
     if (isNewCol) {
-      // signal caller to create + use this collection name
-      onSave(trimmedName, newColName.trim() || null)
+      onSave(trimmedName, newColName.trim(), true)
     } else {
-      onSave(trimmedName, collectionId || null)
+      onSave(trimmedName, collectionId || null, false)
     }
   }
 
@@ -119,7 +119,12 @@ export function SaveRequestModal({
           <Button variant="secondary" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!name.trim()}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSubmit}
+            disabled={!name.trim() || (isNewCol && !newColName.trim())}
+          >
             {mode === 'save-as' ? 'Save As' : 'Save'}
           </Button>
         </div>

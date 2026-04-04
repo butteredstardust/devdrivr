@@ -355,16 +355,11 @@ export default function ApiClient() {
   }, [])
 
   const handleSaveModalSubmit = useCallback(
-    async (reqName: string, collectionIdOrNewName: string | null) => {
+    async (reqName: string, collectionIdOrNewName: string | null, isNew: boolean) => {
       setShowSaveModal(false)
 
-      // If the value passed is not an existing collection id, treat it as a new collection name
       let resolvedCollectionId: string | null = collectionIdOrNewName
-      if (
-        collectionIdOrNewName &&
-        !collections.find((c) => c.id === collectionIdOrNewName)
-      ) {
-        // It's a new collection name — create it
+      if (isNew && collectionIdOrNewName) {
         const newCol = await createCollection(collectionIdOrNewName)
         resolvedCollectionId = newCol.id
       }
