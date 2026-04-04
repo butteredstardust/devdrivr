@@ -17,4 +17,15 @@ export default defineConfig({
     strictPort: true,
   },
   envPrefix: ['VITE_', 'TAURI_'],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          monaco: ['@monaco-editor/react', 'monaco-editor'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+  },
 })

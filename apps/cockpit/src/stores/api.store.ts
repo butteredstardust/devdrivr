@@ -9,14 +9,20 @@ import {
   deleteApiCollection,
   deleteApiEnvironment,
   deleteApiRequest,
+  loadHistory,
+  addHistoryEntry,
 } from '@/lib/db'
-import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
+import type { ApiCollection, ApiEnvironment, ApiRequest, HistoryEntry } from '@/types/models'
+
+const API_CLIENT_HISTORY_TOOL = 'api-client'
+const API_CLIENT_HISTORY_LIMIT = 30
 
 type ApiStore = {
   environments: ApiEnvironment[]
   collections: ApiCollection[]
   requests: ApiRequest[]
   activeEnvironmentId: string | null
+  requestHistory: HistoryEntry[]
 
   // Actions
   init: () => Promise<void>
@@ -33,6 +39,8 @@ type ApiStore = {
   createRequest: (req: Omit<ApiRequest, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiRequest>
   updateRequest: (req: ApiRequest) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
+
+  addRequestHistory: (entry: Omit<HistoryEntry, 'id' | 'tool' | 'timestamp'>) => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -42,19 +50,22 @@ export const useApiStore = create<ApiStore>((set) => ({
   collections: [],
   requests: [],
   activeEnvironmentId: null,
+  requestHistory: [],
 
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const [envs, cols, reqs] = await Promise.all([
+        const [envs, cols, reqs, hist] = await Promise.all([
           loadApiEnvironments(),
           loadApiCollections(),
           loadApiRequests(),
+          loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
         ])
         set({
           environments: envs,
           collections: cols,
           requests: reqs,
+          requestHistory: hist,
           // Could restore this from settings later
           activeEnvironmentId: envs[0]?.id ?? null,
         })
@@ -153,6 +164,21 @@ export const useApiStore = create<ApiStore>((set) => ({
     await deleteApiRequest(id)
     set((state) => ({
       requests: state.requests.filter((r) => r.id !== id),
+    }))
+  },
+
+  addRequestHistory: async ({ subTab, input, output }) => {
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      tool: API_CLIENT_HISTORY_TOOL,
+      ...(subTab !== undefined ? { subTab } : {}),
+      input,
+      output,
+      timestamp: Date.now(),
+    }
+    await addHistoryEntry(entry)
+    set((state) => ({
+      requestHistory: [entry, ...state.requestHistory].slice(0, API_CLIENT_HISTORY_LIMIT),
     }))
   },
 }))

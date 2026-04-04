@@ -14,6 +14,7 @@ import { useApiStore } from '@/stores/api.store'
 import { EnvironmentModal } from './components/EnvironmentModal'
 import { AuthTab } from './components/AuthTab'
 import { CollectionsSidebar } from './components/CollectionsSidebar'
+import { SaveRequestModal } from './components/SaveRequestModal'
 import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
@@ -143,7 +144,9 @@ export default function ApiClient() {
   const collections = useApiStore((s) => s.collections)
   const requests = useApiStore((s) => s.requests)
   const createRequest = useApiStore((s) => s.createRequest)
+  const createCollection = useApiStore((s) => s.createCollection)
   const updateRequest = useApiStore((s) => s.updateRequest)
+  const addRequestHistory = useApiStore((s) => s.addRequestHistory)
   useEffect(() => {
     init()
   }, [init])
@@ -178,6 +181,8 @@ export default function ApiClient() {
   const [requestTab, setRequestTab] = useState('params')
   const [responseTab, setResponseTab] = useState('body')
   const [showEnvModal, setShowEnvModal] = useState(false)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = activeEnv?.variables ?? {}
@@ -288,6 +293,13 @@ export default function ApiClient() {
         size,
       })
       setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
+
+      // Log to history
+      void addRequestHistory({
+        subTab: method,
+        input: `${method} ${interpolatedUrl}`,
+        output: `${res.status} ${res.statusText} · ${time}ms · ${formatSize(size)}`,
+      })
     } catch (e) {
       const msg = (e as Error).message
       setError(msg)
@@ -295,7 +307,7 @@ export default function ApiClient() {
     } finally {
       setLoading(false)
     }
-  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction])
+  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction, addRequestHistory])
 
   useToolAction((action) => {
     if (action.type === 'execute') handleSend()
@@ -304,57 +316,94 @@ export default function ApiClient() {
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
 
   // ---------------------------------------------------------------------------
+  // New Request
+  // ---------------------------------------------------------------------------
+
+  const handleNewRequest = useCallback(() => {
+    updateState({
+      activeRequestId: null,
+      draft: {
+        name: 'Untitled Request',
+        method: 'GET',
+        url: '',
+        headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+        body: '',
+        bodyMode: 'json',
+        auth: { type: 'none' },
+      },
+    })
+    setResponse(null)
+    setError(null)
+  }, [updateState])
+
+  // ---------------------------------------------------------------------------
   // Save Request logic
   // ---------------------------------------------------------------------------
 
-  const handleSave = async () => {
+  const handleSave = useCallback(() => {
     if (state.activeRequestId) {
-      // Update existing
-      await updateRequest({
-        ...state.draft,
-        id: state.activeRequestId,
-        collectionId: collections.find((c) => c.name === 'Default')?.id ?? null, // Simplification: we might want a real collection picker
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-      setLastAction('Request updated', 'success')
+      setSaveMode('save')
     } else {
-      handleSaveAs()
+      setSaveMode('save-as')
     }
-  }
+    setShowSaveModal(true)
+  }, [state.activeRequestId])
 
-  const handleSaveAs = async () => {
-    const reqName = prompt('Enter request name:', name)
-    if (!reqName) return
+  const handleSaveAs = useCallback(() => {
+    setSaveMode('save-as')
+    setShowSaveModal(true)
+  }, [])
 
-    // Simplistic collection picker (in a real app we'd use a modal dropdown)
-    const activeCollections = collections.map((c) => c.name).join(', ')
-    const colName =
-      collections.length > 0
-        ? prompt(`Collection name (Existing: ${activeCollections}):`, collections[0]?.name)
-        : prompt('Collection name:')
+  const handleSaveModalSubmit = useCallback(
+    async (reqName: string, collectionIdOrNewName: string | null, isNew: boolean) => {
+      setShowSaveModal(false)
 
-    let collectionId = null
-    if (colName) {
-      const existing = collections.find((c) => c.name.toLowerCase() === colName.toLowerCase())
-      collectionId = existing?.id
-      // Note: If they typed a non-existent name, we probably should create the collection here,
-      // but to keep it simple we either require an exact match or throw it into unassigned.
-      if (!existing) {
-        // Auto create? (could be complex without the store method available here with await)
-        // Ignoring auto-create for brevity in prompt
+      let resolvedCollectionId: string | null = collectionIdOrNewName
+      if (isNew && collectionIdOrNewName) {
+        const newCol = await createCollection(collectionIdOrNewName)
+        resolvedCollectionId = newCol.id
       }
-    }
 
-    const newReq = await createRequest({
-      ...state.draft,
-      name: reqName,
-      collectionId: collectionId ?? null,
-    })
+      if (saveMode === 'save' && state.activeRequestId) {
+        const existing = requests.find((r) => r.id === state.activeRequestId)
+        await updateRequest({
+          ...state.draft,
+          id: state.activeRequestId,
+          name: reqName,
+          collectionId: resolvedCollectionId,
+          createdAt: existing?.createdAt ?? Date.now(),
+          updatedAt: Date.now(),
+        })
+        updateState({ draft: { ...state.draft, name: reqName } })
+        setLastAction('Request updated', 'success')
+      } else {
+        const newReq = await createRequest({
+          ...state.draft,
+          name: reqName,
+          collectionId: resolvedCollectionId,
+        })
+        updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
+        setLastAction('Request saved', 'success')
+      }
+    },
+    [
+      saveMode,
+      state.activeRequestId,
+      state.draft,
+      requests,
+      collections,
+      createCollection,
+      createRequest,
+      updateRequest,
+      updateState,
+      setLastAction,
+    ]
+  )
 
-    updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
-    setLastAction('Request saved', 'success')
-  }
+  const saveModalInitialCollectionId = useMemo(() => {
+    if (!state.activeRequestId) return null
+    return requests.find((r) => r.id === state.activeRequestId)?.collectionId ?? null
+  }, [state.activeRequestId, requests])
 
   // ---------------------------------------------------------------------------
   // Import / Export
@@ -485,12 +534,29 @@ export default function ApiClient() {
       <CollectionsSidebar
         activeRequestId={state.activeRequestId}
         onSelect={handleSelectLoadedRequest}
+        onLoadFromHistory={(histMethod, histUrl) => {
+          updateState({
+            activeRequestId: null,
+            draft: { ...state.draft, method: histMethod, url: histUrl, name: 'Untitled Request' },
+          })
+          setResponse(null)
+          setError(null)
+        }}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header Row for Env / Save */}
         <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
-          <div className="flex-1 font-bold text-sm text-[var(--color-text)]">{name}</div>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button
+              onClick={handleNewRequest}
+              title="New Request"
+              className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
+            >
+              + New
+            </button>
+            <span className="truncate font-bold text-sm text-[var(--color-text)]">{name}</span>
+          </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
@@ -791,6 +857,16 @@ export default function ApiClient() {
       </div>
 
       {showEnvModal && <EnvironmentModal onClose={() => setShowEnvModal(false)} />}
+      {showSaveModal && (
+        <SaveRequestModal
+          mode={saveMode}
+          initialName={name}
+          initialCollectionId={saveModalInitialCollectionId}
+          collections={collections}
+          onSave={handleSaveModalSubmit}
+          onClose={() => setShowSaveModal(false)}
+        />
+      )}
     </div>
   )
 }
