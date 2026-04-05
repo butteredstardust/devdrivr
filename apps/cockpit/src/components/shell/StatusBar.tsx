@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { getToolById } from '@/app/tool-registry'
 import { usePlatform } from '@/hooks/usePlatform'
+import { THEME_META } from '@/lib/theme'
 import { PushPinIcon, CommandIcon, ClockIcon } from '@phosphor-icons/react'
 
 // ─── Isolated clock component (re-renders only itself every minute) ──
@@ -64,19 +65,7 @@ export function StatusBar() {
         : 'text-[var(--color-text-muted)]'
 
   const themeLabel =
-    theme === 'midnight'
-      ? 'Midnight'
-      : theme === 'warm-terminal'
-        ? 'Warm'
-        : theme === 'neon-brutalist'
-          ? 'Neon'
-          : theme === 'earth-code'
-            ? 'Earth'
-            : theme === 'cyber-luxe'
-              ? 'Cyber'
-              : theme === 'soft-focus'
-                ? 'Soft'
-                : 'System'
+    theme === 'system' ? 'System' : (THEME_META[theme]?.shortLabel ?? theme)
 
   return (
     <div className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[11px]">

@@ -11,6 +11,16 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'soft-focus',
 ]
 
+/** Short status-bar labels (≤6 chars) and full display names for each theme. */
+export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel: string }> = {
+  midnight: { shortLabel: 'Mid', fullLabel: 'Midnight Interface' },
+  'warm-terminal': { shortLabel: 'Warm', fullLabel: 'Warm Terminal' },
+  'neon-brutalist': { shortLabel: 'Neon', fullLabel: 'Neon Brutalist' },
+  'earth-code': { shortLabel: 'Earth', fullLabel: 'Earth & Code' },
+  'cyber-luxe': { shortLabel: 'Cyber', fullLabel: 'Cyber Luxe' },
+  'soft-focus': { shortLabel: 'Soft', fullLabel: 'Soft Focus' },
+}
+
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {
   if (theme === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'soft-focus'
