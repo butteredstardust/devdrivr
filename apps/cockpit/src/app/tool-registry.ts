@@ -28,6 +28,7 @@ const CssToTailwind = lazy(() => import('@/tools/css-to-tailwind/CssToTailwind')
 const ApiClient = lazy(() => import('@/tools/api-client/ApiClient'))
 const DocsBrowser = lazy(() => import('@/tools/docs-browser/DocsBrowser'))
 const SnippetsManager = lazy(() => import('@/tools/snippets/SnippetsManager'))
+const CsvTools = lazy(() => import('@/tools/csv-tools/CsvTools'))
 
 export const TOOLS: ToolDefinition[] = [
   // --- Code ---
@@ -96,6 +97,15 @@ export const TOOLS: ToolDefinition[] = [
     description:
       'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode',
     component: JsonSchemaValidator,
+  },
+  {
+    id: 'csv-tools',
+    name: 'CSV Tools',
+    group: 'data',
+    icon: 'CSV',
+    description:
+      'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
+    component: CsvTools,
   },
   // --- Web ---
   {
