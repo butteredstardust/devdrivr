@@ -45,9 +45,15 @@ export function StatusBar() {
   const clearLastAction = useUiStore((s) => s.clearLastAction)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const theme = useSettingsStore((s) => s.theme)
+  const toggleTheme = useSettingsStore((s) => s.toggleTheme)
+  const updateSetting = useSettingsStore((s) => s.update)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const historyCount = useHistoryStore((s) => s.entries.length)
   const { modSymbol } = usePlatform()
+
+  function openHistoryDrawer() {
+    void updateSetting('notesDrawerOpen', true)
+  }
 
   const tool = getToolById(activeTool)
 
@@ -85,16 +91,26 @@ export function StatusBar() {
       {/* Right: indicators */}
       <div className="flex items-center gap-3 text-[var(--color-text-muted)]">
         {historyCount > 0 && (
-          <span className="tabular-nums" title={`${historyCount} history entries`}>
+          <button
+            className="tabular-nums hover:text-[var(--color-text)] transition-colors"
+            title={`${historyCount} history entries — click to open`}
+            onClick={openHistoryDrawer}
+          >
             {historyCount} runs
-          </span>
+          </button>
         )}
         {editorKeybindingMode !== 'standard' && (
           <span className="uppercase" title="Editor keybinding mode">
             {editorKeybindingMode}
           </span>
         )}
-        <span title="Theme">{themeLabel}</span>
+        <button
+          className="hover:text-[var(--color-text)] transition-colors"
+          title="Theme — click to cycle"
+          onClick={() => void toggleTheme()}
+        >
+          {themeLabel}
+        </button>
         <span
           className="flex items-center gap-1 text-[var(--color-text-muted)] opacity-60"
           title="Command Palette"
