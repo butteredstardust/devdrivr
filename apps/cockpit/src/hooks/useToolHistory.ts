@@ -1,6 +1,5 @@
 import { useCallback, useRef, useEffect, useMemo } from 'react'
 import { useHistoryStore } from '@/stores/history.store'
-import { useUiStore } from '@/stores/ui.store'
 
 export interface ToolHistoryConfig {
   /** Tool identifier */
@@ -50,7 +49,6 @@ export function useToolHistory(config: ToolHistoryConfig) {
   const { toolId, debounceMs = 300, minInputLength = 1, maxOutputLength = 50_000 } = config
 
   const addToHistory = useHistoryStore((s) => s.add)
-  const setLastAction = useUiStore((s) => s.setLastAction)
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingEntry = useRef<HistoryEntryInput | null>(null)
@@ -72,11 +70,9 @@ export function useToolHistory(config: ToolHistoryConfig) {
       failed ? entry.error || 'failed' : output,
       entry.subTab,
       entry.durationMs,
-      !failed, // success
+      !failed,
       entry.metadata?.outputSize ?? output.length
-    ).then(() => {
-      if (failed) return // Don't show success toast on failure
-    })
+    )
   }, [addToHistory, toolId, minInputLength, maxOutputLength])
 
   const recordHistory = useCallback(
@@ -117,7 +113,10 @@ export function useToolHistory(config: ToolHistoryConfig) {
         toolId,
         entry.input.slice(0, maxOutputLength),
         failed ? entry.error || 'failed' : output,
-        entry.subTab
+        entry.subTab,
+        entry.durationMs,
+        !failed,
+        entry.metadata?.outputSize ?? output.length
       )
     },
     [addToHistory, toolId, minInputLength, maxOutputLength]
@@ -147,9 +146,9 @@ export function useToolHistory(config: ToolHistoryConfig) {
         recordHistory({
           input,
           output,
-          subTab: opts?.subTab,
+          ...(opts?.subTab != null ? { subTab: opts.subTab } : {}),
           success: opts?.success ?? true,
-          error: opts?.error,
+          ...(opts?.error != null ? { error: opts.error } : {}),
         })
       },
     }),

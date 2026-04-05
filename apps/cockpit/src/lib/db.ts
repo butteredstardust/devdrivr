@@ -203,6 +203,10 @@ type HistoryRow = {
   input: string
   output: string
   timestamp: number
+  duration_ms: number | null
+  success: number | null
+  output_size: number | null
+  starred: number | null
 }
 
 function rowToHistory(row: HistoryRow): HistoryEntry | null {

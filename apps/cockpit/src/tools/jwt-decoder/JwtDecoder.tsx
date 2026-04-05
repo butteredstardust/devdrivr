@@ -107,11 +107,6 @@ export default function JwtDecoder() {
     }
   }, [decoded, record, state.input])
 
-  const decoded = useMemo(() => {
-    if (!state.input.trim()) return null
-    return decodeJwt(state.input)
-  }, [state.input])
-
   // Live-tick expiry every second when token has exp claim
   const hasExp = decoded ? typeof decoded.payload['exp'] === 'number' : false
   useEffect(() => {
