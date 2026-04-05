@@ -48,6 +48,21 @@ export function WorkspaceTabStrip() {
         role="tablist"
         aria-label="Open tools"
         className="flex flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          const idx = tabs.findIndex((t) => t.id === activeTabId)
+          if (idx === -1) return
+          const next =
+            e.key === 'ArrowLeft'
+              ? tabs[Math.max(0, idx - 1)]
+              : tabs[Math.min(tabs.length - 1, idx + 1)]
+          if (next && next.id !== activeTabId) {
+            e.preventDefault()
+            setActiveTab(next.id)
+            const el = e.currentTarget.querySelector<HTMLElement>(`[data-tab-id="${next.id}"]`)
+            el?.focus()
+          }
+        }}
       >
         {tabs.map((tab) => {
           const tool = getToolById(tab.toolId)
@@ -57,8 +72,16 @@ export function WorkspaceTabStrip() {
               key={tab.id}
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              data-tab-id={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`group flex max-w-[180px] min-w-[100px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-b-2 px-3 text-xs transition-colors ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setActiveTab(tab.id)
+                }
+              }}
+              className={`group flex max-w-[180px] min-w-[100px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-b-2 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] ${
                 isActive
                   ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
                   : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
