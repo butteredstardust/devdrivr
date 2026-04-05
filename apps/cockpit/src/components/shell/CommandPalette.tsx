@@ -488,8 +488,17 @@ export function CommandPalette() {
             )
           })}
           {flatCount === 0 && (
-            <div className="px-3 py-4 text-center text-sm text-[var(--color-text-muted)]">
-              {isActionMode ? 'No actions found' : 'No tools found'}
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {isActionMode
+                  ? searchQuery
+                    ? `No actions matching "${searchQuery}"`
+                    : 'No actions available'
+                  : `No tools matching "${searchQuery}"`}
+              </p>
+              <p className="mt-2 text-xs text-[var(--color-text-muted)] opacity-60">
+                {isActionMode ? 'Remove > to search tools instead' : 'Tip: type > to search actions'}
+              </p>
             </div>
           )}
         </div>
