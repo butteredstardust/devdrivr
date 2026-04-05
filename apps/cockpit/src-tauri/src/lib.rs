@@ -21,6 +21,12 @@ pub fn run() {
             sql: include_str!("../migrations/003_notes_tags.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "add history metadata columns",
+            sql: include_str!("../migrations/004_history_metadata.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
