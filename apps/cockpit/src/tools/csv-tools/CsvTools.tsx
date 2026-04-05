@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useRef, useMemo, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
+import { useToolAction } from '@/hooks/useToolAction'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
@@ -36,34 +37,32 @@ export default function CsvTools() {
     jsonOutputFormat: 'array-of-objects',
   })
 
-  const { record } = useToolHistory({ toolId: 'csv-tools' })
-  const [parseError, setParseError] = useState<string | null>(null)
+  const { record } = useToolHistory({ toolId: 'csv-tools', debounceMs: 2000 })
+  const lastRecordedInput = useRef('')
 
-  // Parse CSV on input change
-  const parsed = useMemo(() => {
-    if (!state.input.trim()) return null
+  // Parse CSV — derive both data and error without setState
+  const parseResult = useMemo(() => {
+    if (!state.input.trim()) return { data: null, error: null }
 
     try {
       const delimiter =
         state.delimiter === 'auto' ? detectDelimiter(state.input) : state.delimiter
 
       const result = parseCsv(state.input, delimiter, state.hasHeader)
-
-      if (result.errors.length > 0 && result.errors[0]) {
-        setParseError(result.errors[0].message)
-      } else {
-        setParseError(null)
-      }
+      const error =
+        result.errors.length > 0 && result.errors[0] ? result.errors[0].message : null
 
       return {
-        data: result.data as Record<string, unknown>[],
-        meta: result.meta,
+        data: { data: result.data as Record<string, unknown>[], meta: result.meta },
+        error,
       }
     } catch (error) {
-      setParseError((error as Error).message)
-      return null
+      return { data: null, error: (error as Error).message }
     }
   }, [state.input, state.delimiter, state.hasHeader])
+
+  const parsed = parseResult.data
+  const parseError = parseResult.error
 
   // Calculate stats for display
   const stats = useMemo(() => {
@@ -77,23 +76,31 @@ export default function CsvTools() {
     return { cols, rows, size }
   }, [parsed, state.input])
 
-  // Record history when CSV is parsed successfully
-  useEffect(() => {
-    if (parsed && state.input.trim()) {
-      record({
-        input: `CSV (${stats?.cols} cols, ${stats?.rows} rows)`,
-        output: state.input.slice(0, 500),
-        subTab: state.activeTab,
-        success: true,
-      })
+  // Handle global tool actions (Cmd+Enter, file open, copy output)
+  useToolAction(async (action) => {
+    if (action.type === 'open-file') updateState({ input: action.content })
+    if (action.type === 'copy-output' && parsed) {
+      navigator.clipboard.writeText(JSON.stringify(parsed.data, null, 2))
     }
-  }, [parsed, state.input, state.activeTab, stats, record])
+  })
 
   const handleInputChange = useCallback(
     (value: string | undefined) => {
-      updateState({ input: value ?? '' })
+      const input = value ?? ''
+      updateState({ input })
+
+      // Record history only on meaningful input changes (debounced via useToolHistory)
+      if (input.trim() && input !== lastRecordedInput.current) {
+        lastRecordedInput.current = input
+        record({
+          input: input.slice(0, 200),
+          output: input.slice(0, 500),
+          subTab: state.activeTab,
+          success: true,
+        })
+      }
     },
-    [updateState]
+    [updateState, record, state.activeTab]
   )
 
   return (

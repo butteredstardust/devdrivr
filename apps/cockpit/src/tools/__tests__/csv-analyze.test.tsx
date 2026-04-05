@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import CsvAnalyze from '../csv-tools/CsvAnalyze'
 
@@ -6,6 +6,12 @@ const sampleData = [
   { name: 'Alice', age: 30, score: 95.5 },
   { name: 'Bob', age: 25, score: 88 },
 ]
+
+const originalClipboard = navigator.clipboard
+
+afterEach(() => {
+  Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, writable: true })
+})
 
 describe('CsvAnalyze', () => {
   it('renders column statistics', () => {
@@ -26,9 +32,9 @@ describe('CsvAnalyze', () => {
   })
 
   it('generates TypeScript interface', () => {
-    // Mock clipboard
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
     })
 
     const onSchemaGenerated = vi.fn()

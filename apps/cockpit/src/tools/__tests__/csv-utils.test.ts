@@ -53,6 +53,11 @@ describe('csv-utils', () => {
       expect(inferColumnType(values)).toBe('number')
     })
 
+    it('detects numeric strings as numbers', () => {
+      const values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+      expect(inferColumnType(values)).toBe('number')
+    })
+
     it('infers date type when 90%+ values are dates', () => {
       const values = ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']
       expect(inferColumnType(values)).toBe('date')

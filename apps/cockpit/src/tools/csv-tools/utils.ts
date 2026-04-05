@@ -74,6 +74,8 @@ export function inferColumnType(values: unknown[]): ColumnType {
     validCount++
     if (typeof val === 'number') {
       numberCount++
+    } else if (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val))) {
+      numberCount++
     } else if (typeof val === 'string' && isDateString(val)) {
       dateCount++
     }
