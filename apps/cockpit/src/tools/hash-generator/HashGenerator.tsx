@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { md5 } from 'js-md5'
+import { computeHashes, computeHmac, type Hashes } from './hash-utils'
 
 type HashGeneratorState = {
   input: string
@@ -9,64 +10,6 @@ type HashGeneratorState = {
   uppercase: boolean
   hmacMode: boolean
   hmacKey: string
-}
-
-type Hashes = {
-  md5: string
-  sha1: string
-  sha256: string
-  sha512: string
-}
-
-async function computeHashes(input: string): Promise<Hashes> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(input)
-
-  const [sha1, sha256, sha512] = await Promise.all([
-    crypto.subtle.digest('SHA-1', data),
-    crypto.subtle.digest('SHA-256', data),
-    crypto.subtle.digest('SHA-512', data),
-  ])
-
-  const toHex = (buffer: ArrayBuffer) =>
-    Array.from(new Uint8Array(buffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-
-  return {
-    md5: md5(input),
-    sha1: toHex(sha1),
-    sha256: toHex(sha256),
-    sha512: toHex(sha512),
-  }
-}
-
-async function computeHmac(input: string, secret: string): Promise<Hashes> {
-  const encoder = new TextEncoder()
-  const keyData = encoder.encode(secret)
-  const data = encoder.encode(input)
-
-  async function hmac(algoName: string): Promise<string> {
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: algoName },
-      false,
-      ['sign']
-    )
-    const sig = await crypto.subtle.sign('HMAC', key, data)
-    return Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  }
-
-  const [sha1, sha256, sha512] = await Promise.all([
-    hmac('SHA-1'),
-    hmac('SHA-256'),
-    hmac('SHA-512'),
-  ])
-
-  return { md5: '(HMAC-MD5 not supported)', sha1, sha256, sha512 }
 }
 
 function formatBytes(n: number): string {
@@ -83,6 +26,7 @@ export default function HashGenerator() {
     hmacMode: false,
     hmacKey: '',
   })
+  const { record } = useToolHistory({ toolId: 'hash-generator' })
   const [hashes, setHashes] = useState<Hashes | null>(null)
   const [isComputing, setIsComputing] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -118,6 +62,17 @@ export default function HashGenerator() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [state.input, runCompute])
+
+  useEffect(() => {
+    if (hashes && !isComputing) {
+      record({
+        input: state.input.slice(0, 300),
+        output: hashes.sha256.slice(0, 500),
+        subTab: state.hmacMode ? 'hmac' : 'standard',
+        success: true,
+      })
+    }
+  }, [hashes, isComputing, state.input, state.hmacMode, record])
 
   const applyCase = useCallback(
     (v: string) => (state.uppercase ? v.toUpperCase() : v),

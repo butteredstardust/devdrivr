@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Fuse from 'fuse.js'
+import type Fuse from 'fuse.js'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
@@ -257,15 +257,19 @@ export function NotesDrawer() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [historyFilter, setHistoryFilter] = useState('')
 
-  const fuse = useMemo(
-    () => new Fuse(notes, { keys: ['title', 'content', 'tags'], threshold: 0.3 }),
-    [notes]
-  )
+  const fuseRef = useRef<Fuse<NoteType> | null>(null)
+
+  useEffect(() => {
+    if (!drawerOpen) return
+    import('fuse.js').then(({ default: FuseClass }) => {
+      fuseRef.current = new FuseClass(notes, { keys: ['title', 'content', 'tags'], threshold: 0.3 })
+    })
+  }, [drawerOpen, notes])
 
   const filteredNotes = useMemo(() => {
     if (!search.trim()) return notes
-    return fuse.search(search).map((r) => r.item)
-  }, [notes, search, fuse])
+    return fuseRef.current ? fuseRef.current.search(search).map((r) => r.item) : notes
+  }, [notes, search])
 
   const filteredHistory = useMemo(() => {
     if (!historyFilter) return historyEntries

@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
@@ -91,6 +92,7 @@ export default function JsonTools() {
     activeTab: 'lint',
     query: '',
   })
+  const { record } = useToolHistory({ toolId: 'json-tools' })
 
   const formatter = useWorker<FormatterWorker>(
     () => new FormatterWorkerFactory(),
@@ -170,6 +172,18 @@ export default function JsonTools() {
     setError(null)
     setLastAction('Keys sorted', 'success')
   }, [parsed, updateState, setLastAction])
+
+  // Record history when JSON is successfully parsed and has content
+  useEffect(() => {
+    if (state.input.trim() && parsed.ok) {
+      record({
+        input: `JSON${state.query ? ` (query: ${state.query})` : ''}: ${state.input.slice(0, 300)}${state.input.length > 300 ? '...' : ''}`,
+        output: JSON.stringify(parsed.data, null, 2).slice(0, 1000),
+        subTab: state.activeTab,
+        success: true,
+      })
+    }
+  }, [state.input, state.activeTab, state.query, parsed.ok, parsed.data, record])
 
   return (
     <div className="flex h-full flex-col">

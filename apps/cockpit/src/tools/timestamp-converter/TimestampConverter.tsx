@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
@@ -120,6 +121,7 @@ export default function TimestampConverter() {
   const [state, updateState] = useToolState<TimestampState>('timestamp-converter', {
     input: '',
   })
+  const { record } = useToolHistory({ toolId: 'timestamp-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const [tick, setTick] = useState(0)
@@ -160,6 +162,18 @@ export default function TimestampConverter() {
     },
     [updateState]
   )
+
+  // Record history when timestamp is successfully converted
+  useEffect(() => {
+    if (state.input.trim() && parsed) {
+      record({
+        input: state.input.slice(0, 100),
+        output: parsed.date.toISOString(),
+        subTab: 'converted',
+        success: true,
+      })
+    }
+  }, [state.input, parsed, record])
 
   return (
     <div className="flex h-full flex-col">

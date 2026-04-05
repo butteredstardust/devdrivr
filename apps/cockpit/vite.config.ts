@@ -23,6 +23,8 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           monaco: ['@monaco-editor/react', 'monaco-editor'],
+          zod: ['zod'],
+          fuse: ['fuse.js'],
         },
       },
     },

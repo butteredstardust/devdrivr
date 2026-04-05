@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 
 type JwtDecoderState = {
@@ -87,12 +88,24 @@ export default function JwtDecoder() {
   const [state, updateState] = useToolState<JwtDecoderState>('jwt-decoder', {
     input: '',
   })
+  const { record } = useToolHistory({ toolId: 'jwt-decoder' })
   const [now, setNow] = useState(() => Date.now())
 
   const decoded = useMemo(() => {
     if (!state.input.trim()) return null
     return decodeJwt(state.input)
   }, [state.input])
+
+  useEffect(() => {
+    if (decoded) {
+      record({
+        input: state.input.slice(0, 1000),
+        output: JSON.stringify({ header: decoded.header, payload: decoded.payload }),
+        subTab: 'decoded',
+        success: true,
+      })
+    }
+  }, [decoded, record, state.input])
 
   // Live-tick expiry every second when token has exp claim
   const hasExp = decoded ? typeof decoded.payload['exp'] === 'number' : false

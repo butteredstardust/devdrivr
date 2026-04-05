@@ -1,5 +1,6 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
@@ -83,11 +84,23 @@ export default function CaseConverter() {
   const [state, updateState] = useToolState<CaseConverterState>('case-converter', {
     input: '',
   })
+  const { record } = useToolHistory({ toolId: 'case-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const cases = useMemo(() => computeCases(state.input), [state.input])
   const detected = useMemo(() => detectCase(state.input), [state.input])
   const words = useMemo(() => (state.input.trim() ? toWords(state.input) : []), [state.input])
+
+  useEffect(() => {
+    if (state.input.trim() && cases.length > 0) {
+      record({
+        input: state.input.slice(0, 200),
+        output: `${cases.length} conversions${detected ? ` (${detected})` : ''}`,
+        subTab: detected || 'unknown',
+        success: true,
+      })
+    }
+  }, [state.input, cases, detected, record])
 
   const handleUseAsInput = useCallback(
     (value: string, label: string) => {

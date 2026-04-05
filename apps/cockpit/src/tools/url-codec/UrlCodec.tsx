@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
@@ -70,6 +71,7 @@ export default function UrlCodec() {
     mode: 'encode',
     encodeMode: 'component',
   })
+  const { record } = useToolHistory({ toolId: 'url-codec' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const output = useMemo(() => {
@@ -125,6 +127,18 @@ export default function UrlCodec() {
   }, [output.text, state.mode, updateState, setLastAction])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSwap)
+
+  // Record history on successful conversion
+  useEffect(() => {
+    if (state.input.trim() && output.text && !output.error) {
+      record({
+        input: `${state.mode === 'encode' ? 'Encode' : 'Decode'} (${state.encodeMode}): ${state.input.slice(0, 300)}`,
+        output: output.text.slice(0, 1000),
+        subTab: state.mode,
+        success: true,
+      })
+    }
+  }, [state.input, state.mode, state.encodeMode, output.text, output.error, record])
 
   const noChange = state.input.trim() && output.text === state.input
 

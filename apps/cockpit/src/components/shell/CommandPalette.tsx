@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Fuse from 'fuse.js'
+import type Fuse from 'fuse.js'
 import { TOOLS } from '@/app/tool-registry'
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { useUiStore } from '@/stores/ui.store'
@@ -169,8 +169,16 @@ export function CommandPalette() {
     []
   )
 
-  const fuse = useMemo(() => new Fuse(allItems, fuseOpts), [allItems, fuseOpts])
-  const actionFuse = useMemo(() => new Fuse(actions, fuseOpts), [actions, fuseOpts])
+  const fuseRef = useRef<Fuse<PaletteItem> | null>(null)
+  const actionFuseRef = useRef<Fuse<PaletteItem> | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    import('fuse.js').then(({ default: FuseClass }) => {
+      fuseRef.current = new FuseClass(allItems, fuseOpts)
+      actionFuseRef.current = new FuseClass(actions, fuseOpts)
+    })
+  }, [isOpen, allItems, fuseOpts, actions])
 
   // ─── Results ───────────────────────────────────────────────────
 
@@ -195,9 +203,9 @@ export function CommandPalette() {
     }
 
     // Fuzzy search (action mode uses dedicated Fuse, normal mode searches everything)
-    const fuseInstance = isActionMode ? actionFuse : fuse
-    return fuseInstance.search(searchQuery).map((r) => r.item)
-  }, [searchQuery, isActionMode, toolItems, actions, fuse, actionFuse, activeTool, recentToolIds])
+    const fuseInstance = isActionMode ? actionFuseRef.current : fuseRef.current
+    return fuseInstance ? fuseInstance.search(searchQuery).map((r) => r.item) : []
+  }, [searchQuery, isActionMode, toolItems, actions, activeTool, recentToolIds])
 
   // ─── Section headers for default view ──────────────────────────
 

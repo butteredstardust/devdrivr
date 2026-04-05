@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
@@ -162,6 +163,7 @@ export default function UuidGenerator() {
     version: 'v4',
     bulkFormat: 'lines',
   })
+  const { record } = useToolHistory({ toolId: 'uuid-generator' })
 
   const [bulkUuids, setBulkUuids] = useState<string[]>([])
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -196,6 +198,32 @@ export default function UuidGenerator() {
     if (!state.validateInput.trim()) return null
     return parseUuid(state.validateInput)
   }, [state.validateInput])
+
+  // Record history when UUID is generated
+  useEffect(() => {
+    if (state.lastGenerated) {
+      record({
+        input: `Generate ${state.version}`,
+        output: state.lastGenerated,
+        subTab: state.version,
+        success: true,
+      })
+    }
+  }, [state.lastGenerated, state.version, record])
+
+  // Record history when UUID is validated
+  useEffect(() => {
+    if (state.validateInput.trim() && parsed) {
+      record({
+        input: `Validate: ${state.validateInput}`,
+        output: parsed.valid
+          ? `Valid ${parsed.version === 0 ? parsed.variant : `v${parsed.version}`} (${parsed.variant})`
+          : parsed.message,
+        subTab: 'validate',
+        success: parsed.valid,
+      })
+    }
+  }, [state.validateInput, parsed, record])
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-4">

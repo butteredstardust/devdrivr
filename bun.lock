@@ -33,7 +33,7 @@
     },
     "apps/cockpit": {
       "name": "cockpit",
-      "version": "0.1.11",
+      "version": "0.1.15",
       "dependencies": {
         "@fontsource/cascadia-code": "^5.2.3",
         "@fontsource/fira-code": "^5.2.7",
@@ -41,6 +41,7 @@
         "@fontsource/silkscreen": "^5.2.8",
         "@fontsource/source-code-pro": "^5.2.7",
         "@monaco-editor/react": "^4.7.0",
+        "@noble/hashes": "^2.0.1",
         "@phosphor-icons/react": "^2.1.10",
         "@prettier/plugin-xml": "^3.4.1",
         "@tailwindcss/vite": "^4.2.2",
@@ -992,6 +993,8 @@
     "@next/swc-win32-ia32-msvc": ["@next/swc-win32-ia32-msvc@13.5.9", "", { "os": "win32", "cpu": "ia32" }, "sha512-BLiPKJomaPrTAb7ykjA0LPcuuNMLDVK177Z1xe0nAem33+9FIayU4k/OWrtSn9SAJW/U60+1hoey5z+KCHdRLQ=="],
 
     "@next/swc-win32-x64-msvc": ["@next/swc-win32-x64-msvc@13.5.9", "", { "os": "win32", "cpu": "x64" }, "sha512-/72/dZfjXXNY/u+n8gqZDjI6rxKMpYsgBBYNZKWOQw0BpBF7WCnPflRy3ZtvQ2+IYI3ZH2bPyj7K+6a6wNk90Q=="],
+
+    "@noble/hashes": ["@noble/hashes@2.0.1", "", {}, "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 
