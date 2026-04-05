@@ -131,6 +131,18 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [init])
 
+  // Warm up heavy modules during browser idle time after app init.
+  useEffect(() => {
+    if (!initialized) return
+    const id = requestIdleCallback(() => {
+      void import('fuse.js')
+      void import('@/tools/json-tools/JsonTools')
+      void import('@/tools/regex-tester/RegexTester')
+      void import('@/tools/markdown-editor/MarkdownEditor')
+    })
+    return () => cancelIdleCallback(id)
+  }, [initialized])
+
   if (error) {
     return (
       <div className="flex h-full items-center justify-center p-8">
