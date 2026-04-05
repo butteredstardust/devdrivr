@@ -8,7 +8,7 @@
 
 A **local-first, keyboard-driven developer utility workspace** built as a native desktop app (Tauri 2 + React 19). It runs entirely on your machine — no cloud, no accounts, no network required (except the API Client tool). All state is persisted to a local SQLite database.
 
-Think of it as a developer's Swiss Army knife: 27 tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
+Think of it as a developer's Swiss Army knife: 28 tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
 
 ---
 
@@ -17,7 +17,7 @@ Think of it as a developer's Swiss Army knife: 27 tools covering formatting, con
 | Area                    | Status        | Notes                                                    |
 | ----------------------- | ------------- | -------------------------------------------------------- |
 | Core shell              | ✅ Stable     | Sidebar, notes drawer, command palette, status bar       |
-| All 27 tools            | ✅ Functional | See tool inventory below                                 |
+| All 28 tools            | ✅ Functional | See tool inventory below                                 |
 | Worker-based tools      | ✅ Fixed      | Custom RPC replaces Comlink (WebKit Proxy bug)           |
 | Notes drawer resize     | ✅ Done       | Drag handle, persisted width                             |
 | Settings panel          | ✅ Stable     | Theme, font size, keybindings, history retention         |
@@ -48,6 +48,7 @@ Think of it as a developer's Swiss Army knife: 27 tools covering formatting, con
 | XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                             |
 | YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON |
 | JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)             |
+| CSV Tools             | `csv-tools`             | View, edit, convert with JSON, analyze stats, and generate schemas for CSV data |
 
 ### Web Group
 
