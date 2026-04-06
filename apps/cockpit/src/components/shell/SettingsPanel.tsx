@@ -22,6 +22,7 @@ import {
   InfoIcon,
 } from '@phosphor-icons/react'
 import { Toggle } from '@/components/shared/Toggle'
+import { ALL_THEMES, THEME_META } from '@/lib/theme'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -44,12 +45,7 @@ const FONT_FAMILY_OPTIONS: AppSettings['editorFont'][] = [
 
 const THEME_OPTIONS: { value: Theme; label: string }[] = [
   { value: 'system', label: 'System' },
-  { value: 'midnight', label: 'Midnight Interface' },
-  { value: 'warm-terminal', label: 'Warm Terminal' },
-  { value: 'neon-brutalist', label: 'Neon Brutalist' },
-  { value: 'earth-code', label: 'Earth & Code' },
-  { value: 'cyber-luxe', label: 'Cyber Luxe' },
-  { value: 'soft-focus', label: 'Soft Focus' },
+  ...ALL_THEMES.map((id) => ({ value: id as Theme, label: THEME_META[id].fullLabel })),
 ]
 
 const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: string }[] = [

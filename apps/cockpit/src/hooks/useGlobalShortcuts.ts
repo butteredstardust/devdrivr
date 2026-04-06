@@ -35,6 +35,12 @@ export function useGlobalShortcuts(): void {
   const combo1 = useMemo(() => ({ key: '1', mod: true }) as const, [])
   const combo2 = useMemo(() => ({ key: '2', mod: true }) as const, [])
   const combo3 = useMemo(() => ({ key: '3', mod: true }) as const, [])
+  const combo4 = useMemo(() => ({ key: '4', mod: true }) as const, [])
+  const combo5 = useMemo(() => ({ key: '5', mod: true }) as const, [])
+  const combo6 = useMemo(() => ({ key: '6', mod: true }) as const, [])
+  const combo7 = useMemo(() => ({ key: '7', mod: true }) as const, [])
+  const combo8 = useMemo(() => ({ key: '8', mod: true }) as const, [])
+  const combo9 = useMemo(() => ({ key: '9', mod: true }) as const, [])
   const comboComma = useMemo(() => ({ key: ',', mod: true }) as const, [])
   const comboShiftP = useMemo(() => ({ key: 'p', mod: true, shift: true }) as const, [])
   const comboO = useMemo(() => ({ key: 'o', mod: true }) as const, [])
@@ -84,6 +90,36 @@ export function useGlobalShortcuts(): void {
     if (tab) setActiveTab(tab.id)
   }, [tabs, setActiveTab])
 
+  const switchWorkspaceTab4 = useCallback(() => {
+    const tab = tabs[3]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab5 = useCallback(() => {
+    const tab = tabs[4]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab6 = useCallback(() => {
+    const tab = tabs[5]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab7 = useCallback(() => {
+    const tab = tabs[6]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab8 = useCallback(() => {
+    const tab = tabs[7]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
+  const switchWorkspaceTab9 = useCallback(() => {
+    const tab = tabs[8]
+    if (tab) setActiveTab(tab.id)
+  }, [tabs, setActiveTab])
+
   const closeCurrentTab = useCallback(() => {
     if (activeTabId) closeTab(activeTabId)
   }, [activeTabId, closeTab])
@@ -118,6 +154,12 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(combo1, switchWorkspaceTab1)
   useKeyboardShortcut(combo2, switchWorkspaceTab2)
   useKeyboardShortcut(combo3, switchWorkspaceTab3)
+  useKeyboardShortcut(combo4, switchWorkspaceTab4)
+  useKeyboardShortcut(combo5, switchWorkspaceTab5)
+  useKeyboardShortcut(combo6, switchWorkspaceTab6)
+  useKeyboardShortcut(combo7, switchWorkspaceTab7)
+  useKeyboardShortcut(combo8, switchWorkspaceTab8)
+  useKeyboardShortcut(combo9, switchWorkspaceTab9)
   useKeyboardShortcut(comboW, closeCurrentTab)
   useKeyboardShortcut(comboComma, toggleSettingsPanel)
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
