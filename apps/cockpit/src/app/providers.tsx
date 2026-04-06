@@ -132,15 +132,23 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [init])
 
   // Warm up heavy modules during browser idle time after app init.
+  // Fallback to setTimeout if requestIdleCallback is not available (e.g., Tauri WebView).
   useEffect(() => {
     if (!initialized) return
-    const id = requestIdleCallback(() => {
+    const preload = () => {
       void import('fuse.js')
       void import('@/tools/json-tools/JsonTools')
       void import('@/tools/regex-tester/RegexTester')
       void import('@/tools/markdown-editor/MarkdownEditor')
-    })
-    return () => cancelIdleCallback(id)
+    }
+
+    if (typeof requestIdleCallback !== 'undefined') {
+      const id = requestIdleCallback(preload)
+      return () => cancelIdleCallback(id)
+    } else {
+      const id = setTimeout(preload, 2000)
+      return () => clearTimeout(id)
+    }
   }, [initialized])
 
   if (error) {

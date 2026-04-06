@@ -92,8 +92,10 @@ export function StatusBar() {
       <div className="flex items-center gap-3 text-[var(--color-text-muted)]">
         {historyCount > 0 && (
           <button
+            type="button"
             className="tabular-nums hover:text-[var(--color-text)] transition-colors"
             title={`${historyCount} history entries — click to open`}
+            aria-label={`${historyCount} history ${historyCount === 1 ? 'entry' : 'entries'} — click to open`}
             onClick={openHistoryDrawer}
           >
             {historyCount} runs
@@ -105,6 +107,7 @@ export function StatusBar() {
           </span>
         )}
         <button
+          type="button"
           className="hover:text-[var(--color-text)] transition-colors"
           title="Theme — click to cycle"
           onClick={() => void toggleTheme()}
