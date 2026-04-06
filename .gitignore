@@ -91,3 +91,4 @@ pnpm-lock.yaml
 *.swp
 *.swo
 
+.grepai/
