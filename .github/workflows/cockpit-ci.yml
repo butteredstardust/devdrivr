@@ -37,6 +37,9 @@ jobs:
         run: bun audit --audit-level=critical
         working-directory: .
 
+      - name: Lint
+        run: bun run lint
+
       - name: Type check
         run: npx tsc --noEmit
 
