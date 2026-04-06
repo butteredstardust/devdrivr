@@ -103,7 +103,7 @@ export default function DiffViewer() {
   ])
 
   // Auto-compare with debounce when both sides have content
-  // eslint-disable-next-line react-hooks/exhaustive-deps — computeDiff is intentionally omitted; all its deps are listed directly
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
