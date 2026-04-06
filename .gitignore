@@ -20,6 +20,7 @@
 
 # production
 /build
+/dist
 
 # debug
 npm-debug.log*
@@ -45,14 +46,6 @@ yarn-error.log*
 THUMBS_DB
 thumbs.db
 
-# ui
-
-dist/
-.DS_Store
-THUMBS_DB
-node_modules/
-types/
-
 # Cloudflare D1
 **/.wrangler/*
 **/.dev.vars
@@ -73,3 +66,28 @@ apps/expo/android/**
 **/fallback-*.js
 **/service-worker.js
 .claude/
+
+# Bun-specific
+node_modules/.bun/
+
+# Lockfiles from other package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build artifacts
+**/build/
+**/dist/
+
+# Misc
+**/.vscode/
+**/.idea/
+**/.DS_Store
+**/Thumbs.db
+
+# Generated files
+**/*.log
+**/*.tmp
+*.swp
+*.swo
+
