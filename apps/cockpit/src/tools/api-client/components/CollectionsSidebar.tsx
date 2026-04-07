@@ -149,7 +149,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
     <div className="flex h-full w-64 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-3">
-        <span className="font-pixel text-xs text-[var(--color-text-muted)]">Collections</span>
+        <span className="font-mono text-xs text-[var(--color-text-muted)]">Collections</span>
         <button
           onClick={handleCreateCollection}
           className="text-xs text-[var(--color-accent)] hover:underline"

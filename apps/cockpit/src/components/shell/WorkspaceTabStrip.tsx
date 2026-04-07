@@ -41,7 +41,7 @@ export function WorkspaceTabStrip() {
   }, [tabs, updateFades])
 
   return (
-    <div className="relative flex h-10 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div className="relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
       {/* Scrollable tab row */}
       <div
         ref={scrollRef}
@@ -81,24 +81,20 @@ export function WorkspaceTabStrip() {
                   setActiveTab(tab.id)
                 }
               }}
-              className={`group flex max-w-[180px] min-w-[100px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-b-2 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] ${
+              className={`group relative flex max-w-[180px] min-w-[80px] shrink-0 cursor-pointer select-none items-center gap-1.5 border-t-2 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] ${
                 isActive
-                  ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+                  ? 'border-[var(--color-accent)] bg-[var(--color-bg)] text-[var(--color-accent)]'
                   : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="truncate font-pixel text-[10px]">{tool?.name ?? tab.toolId}</span>
+              <span className="flex-1 truncate font-mono text-[10px]">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   closeTab(tab.id)
                 }}
                 aria-label={`Close ${tool?.name ?? 'tab'}`}
-                className={`ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:bg-[var(--color-surface-hover)] ${
-                  isActive
-                    ? 'opacity-60 hover:opacity-100'
-                    : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
-                }`}
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-[var(--color-surface-hover)]"
               >
                 <XIcon size={10} />
               </button>

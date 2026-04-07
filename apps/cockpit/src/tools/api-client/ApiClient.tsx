@@ -613,7 +613,7 @@ export default function ApiClient() {
           <select
             value={method}
             onChange={(e) => updateDraft({ method: e.target.value })}
-            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-pixel text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-mono text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
@@ -645,7 +645,7 @@ export default function ApiClient() {
             {requestTab === 'params' && (
               <div className="flex-1 overflow-auto p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-pixel text-xs text-[var(--color-text-muted)]">
+                  <span className="font-mono text-xs text-[var(--color-text-muted)]">
                     Query Parameters
                     {params.length > 0 && (
                       <span className="ml-1 text-[var(--color-text)]">({params.length})</span>
@@ -695,7 +695,7 @@ export default function ApiClient() {
             {requestTab === 'headers' && (
               <div className="flex-1 overflow-auto p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-pixel text-xs text-[var(--color-text-muted)]">
+                  <span className="font-mono text-xs text-[var(--color-text-muted)]">
                     Headers
                     {activeHeaderCount > 0 && (
                       <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>

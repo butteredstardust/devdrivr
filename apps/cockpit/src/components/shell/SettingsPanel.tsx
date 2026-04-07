@@ -583,7 +583,7 @@ export function SettingsPanel() {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-pixel text-sm text-[var(--color-accent)]">Settings</h2>
+          <h2 className="font-mono text-sm text-[var(--color-accent)]">Settings</h2>
           <button
             onClick={() => setOpen(false)}
             aria-label="Close settings"

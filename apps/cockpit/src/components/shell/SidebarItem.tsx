@@ -17,16 +17,16 @@ export function SidebarItem({ id, name, icon }: SidebarItemProps) {
       onClick={() => setActiveTool(id)}
       title={name}
       aria-label={name}
-      className={`flex h-9 w-full items-center gap-2 rounded-sm px-2 text-xs transition-colors ${
+      className={`flex h-8 w-full items-center gap-2 rounded-sm px-2 text-xs transition-colors border-l-2 ${
         isActive
-          ? 'border-l-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)] pl-1.5 text-[var(--color-accent)]'
-          : 'border-l-2 border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+          ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+          : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
       }`}
     >
       {isValidElement(icon) ? (
         <span className="flex w-5 shrink-0 items-center justify-center">{icon}</span>
       ) : (
-        <span className="w-5 shrink-0 text-center font-pixel text-[10px]">{icon}</span>
+        <span className="w-5 shrink-0 text-center font-mono text-[10px]">{icon}</span>
       )}
       <span className="truncate">{name}</span>
     </button>

@@ -552,7 +552,7 @@ export default function ColorConverter() {
     <div className="flex h-full flex-col gap-4 overflow-auto p-4">
       {/* ── Input ──────────────────────────────────────── */}
       <section>
-        <h2 className="mb-2 font-pixel text-sm text-[var(--color-text)]">Color Input</h2>
+        <h2 className="mb-2 font-mono text-sm text-[var(--color-text)]">Color Input</h2>
         <div className="flex items-center gap-3">
           <Input
             value={state.input}
@@ -602,7 +602,7 @@ export default function ColorConverter() {
               <button
                 key={tab}
                 onClick={() => setActiveSection(tab)}
-                className={`px-3 py-1 text-xs font-pixel rounded-t ${
+                className={`px-3 py-1 text-xs font-mono rounded-t ${
                   activeSection === tab
                     ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -693,7 +693,7 @@ export default function ColorConverter() {
 
       {/* ── Contrast Ratio ─────────────────────────────── */}
       <section>
-        <h2 className="mb-2 font-pixel text-sm text-[var(--color-text)]">Contrast Ratio (WCAG)</h2>
+        <h2 className="mb-2 font-mono text-sm text-[var(--color-text)]">Contrast Ratio (WCAG)</h2>
         <ContrastInputs
           contrastFg={state.contrastFg}
           contrastBg={state.contrastBg}

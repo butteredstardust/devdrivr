@@ -354,7 +354,7 @@ export default function CssToTailwind() {
               <div className="flex flex-col gap-4">
                 {result.classes.length > 0 && (
                   <section>
-                    <h3 className="mb-2 font-pixel text-xs text-[var(--color-success)]">
+                    <h3 className="mb-2 font-mono text-xs text-[var(--color-success)]">
                       Converted Classes
                     </h3>
                     <div className="flex flex-wrap gap-2">
@@ -377,7 +377,7 @@ export default function CssToTailwind() {
                 )}
                 {result.unconvertible.length > 0 && (
                   <section>
-                    <h3 className="mb-2 font-pixel text-xs text-[var(--color-warning)]">
+                    <h3 className="mb-2 font-mono text-xs text-[var(--color-warning)]">
                       Unconvertible
                     </h3>
                     {result.unconvertible.map((prop, i) => (

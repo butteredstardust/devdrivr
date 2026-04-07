@@ -85,7 +85,7 @@ export function ShortcutsModal() {
       />
       <div className="animate-fade-in fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-pixel text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
+          <h2 className="font-mono text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
           <button
             onClick={() => setOpen(false)}
             aria-label="Close shortcuts"
@@ -97,7 +97,7 @@ export function ShortcutsModal() {
         <div className="max-h-[70vh] overflow-y-auto px-4 py-3">
           {categories.map((cat) => (
             <div key={cat.label} className="mb-4 last:mb-0">
-              <h3 className="mb-2 font-pixel text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+              <h3 className="mb-2 font-mono text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
                 {cat.label}
               </h3>
               <div className="flex flex-col gap-1">

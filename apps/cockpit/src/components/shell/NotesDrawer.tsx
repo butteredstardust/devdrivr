@@ -327,7 +327,7 @@ export function NotesDrawer() {
             <button
               onClick={handleAddNote}
               aria-label="New note"
-              className="rounded border border-[var(--color-accent)] px-2 py-1 font-pixel text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
+              className="rounded border border-[var(--color-accent)] px-2 py-1 font-mono text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
             >
               +
             </button>

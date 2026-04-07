@@ -162,7 +162,7 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!initialized) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="font-pixel text-sm text-[var(--color-accent)]">Loading...</div>
+        <div className="font-mono text-sm text-[var(--color-accent)]">Loading...</div>
       </div>
     )
   }

@@ -61,7 +61,7 @@ export function SaveRequestModal({
       <div className="flex w-[420px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-pixel text-sm text-[var(--color-text)]">
+          <h2 className="font-mono text-sm text-[var(--color-text)]">
             {mode === 'save-as' ? 'Save Request As' : 'Save Request'}
           </h2>
           <button
@@ -75,14 +75,14 @@ export function SaveRequestModal({
         {/* Body */}
         <div className="flex flex-col gap-4 p-4">
           <div className="flex flex-col gap-1">
-            <label className="font-pixel text-xs text-[var(--color-text-muted)]">
+            <label className="font-mono text-xs text-[var(--color-text-muted)]">
               Request Name
             </label>
             <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} size="md" />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="font-pixel text-xs text-[var(--color-text-muted)]">Collection</label>
+            <label className="font-mono text-xs text-[var(--color-text-muted)]">Collection</label>
             <select
               value={collectionId}
               onChange={(e) => setCollectionId(e.target.value)}
@@ -100,7 +100,7 @@ export function SaveRequestModal({
 
           {isNewCol && (
             <div className="flex flex-col gap-1">
-              <label className="font-pixel text-xs text-[var(--color-text-muted)]">
+              <label className="font-mono text-xs text-[var(--color-text-muted)]">
                 New Collection Name
               </label>
               <Input

@@ -67,7 +67,7 @@ export function EnvironmentModal({ onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="flex h-[80vh] w-[800px] max-w-[90vw] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-pixel text-lg text-[var(--color-text)]">Manage Environments</h2>
+          <h2 className="font-mono text-lg text-[var(--color-text)]">Manage Environments</h2>
           <button
             onClick={onClose}
             className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"

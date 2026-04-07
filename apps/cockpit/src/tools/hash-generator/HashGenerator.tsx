@@ -109,7 +109,7 @@ export default function HashGenerator() {
       {/* Input area */}
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
-          <span className="font-pixel text-xs text-[var(--color-text-muted)]">Input</span>
+          <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
           {state.input && (
             <span className="text-[10px] tabular-nums text-[var(--color-text-muted)]">
               {formatBytes(inputBytes)} · {state.input.length} chars

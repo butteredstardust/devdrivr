@@ -217,7 +217,7 @@ export default function UrlCodec() {
       {/* URL parts panel */}
       {urlParts && (
         <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          <div className="mb-2 font-pixel text-xs text-[var(--color-text-muted)]">URL Parts</div>
+          <div className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">URL Parts</div>
           {/* Color-coded URL */}
           <div className="mb-2 break-all font-mono text-xs leading-relaxed">
             <span className="text-[var(--color-text-muted)]">{urlParts.protocol}//</span>

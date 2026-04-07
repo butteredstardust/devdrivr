@@ -114,7 +114,7 @@ export default function CaseConverter() {
     <div className="flex h-full flex-col">
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
-          <span className="font-pixel text-xs text-[var(--color-text-muted)]">Input</span>
+          <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
           {detected && (
             <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-accent)]">
               {detected}

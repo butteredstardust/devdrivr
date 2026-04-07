@@ -21,9 +21,9 @@ const proseBase = ['prose max-w-none', 'text-sm leading-relaxed', 'text-[var(--c
 )
 
 const proseHeadings = [
-  '[&_h1]:font-pixel [&_h1]:text-xl [&_h1]:text-[var(--color-accent)] [&_h1]:mb-4 [&_h1]:mt-6',
-  '[&_h2]:font-pixel [&_h2]:text-lg [&_h2]:text-[var(--color-accent)] [&_h2]:mb-3 [&_h2]:mt-5',
-  '[&_h3]:font-pixel [&_h3]:text-base [&_h3]:mb-2 [&_h3]:mt-4',
+  '[&_h1]:font-mono [&_h1]:text-xl [&_h1]:text-[var(--color-accent)] [&_h1]:mb-4 [&_h1]:mt-6',
+  '[&_h2]:font-mono [&_h2]:text-lg [&_h2]:text-[var(--color-accent)] [&_h2]:mb-3 [&_h2]:mt-5',
+  '[&_h3]:font-mono [&_h3]:text-base [&_h3]:mb-2 [&_h3]:mt-4',
   '[&_h4]:text-sm [&_h4]:font-semibold [&_h4]:mb-2 [&_h4]:mt-3',
 ].join(' ')
 

@@ -455,7 +455,7 @@ export function CommandPalette() {
                 onClick={() => executeItem(item)}
                 onMouseEnter={() => setSelectedIndex(flatIndex)}
               >
-                <span className="w-6 shrink-0 text-center font-pixel text-[10px]">{item.icon}</span>
+                <span className="w-6 shrink-0 text-center font-mono text-[10px]">{item.icon}</span>
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{item.name}</span>
