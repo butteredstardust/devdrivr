@@ -789,7 +789,7 @@ export default function CssValidator() {
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
         <span className="text-xs text-[var(--color-text-muted)]">Lint:</span>
         <Button
@@ -915,7 +915,7 @@ export default function CssValidator() {
         </div>
       )}
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0">
         <Editor
           theme={monacoTheme}
           language="css"
