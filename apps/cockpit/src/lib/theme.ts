@@ -11,6 +11,10 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'soft-focus',
   'tokyo-night',
   'tokyo-night-light',
+  'catppuccin-latte',
+  'catppuccin-frappe',
+  'catppuccin-macchiato',
+  'catppuccin-mocha',
 ]
 
 /** Short status-bar labels (≤6 chars) and full display names for each theme. */
@@ -23,6 +27,10 @@ export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel:
   'soft-focus': { shortLabel: 'Soft', fullLabel: 'Soft Focus' },
   'tokyo-night': { shortLabel: 'Tokyo', fullLabel: 'Tokyo Night' },
   'tokyo-night-light': { shortLabel: 'TkyoL', fullLabel: 'Tokyo Night Light' },
+  'catppuccin-latte': { shortLabel: 'CppLt', fullLabel: 'Catppuccin Latte' },
+  'catppuccin-frappe': { shortLabel: 'CppFr', fullLabel: 'Catppuccin Frappé' },
+  'catppuccin-macchiato': { shortLabel: 'CppMc', fullLabel: 'Catppuccin Macchiato' },
+  'catppuccin-mocha': { shortLabel: 'CppMo', fullLabel: 'Catppuccin Mocha' },
 }
 
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {
