@@ -9,6 +9,8 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'earth-code',
   'cyber-luxe',
   'soft-focus',
+  'tokyo-night',
+  'tokyo-night-light',
 ]
 
 /** Short status-bar labels (≤6 chars) and full display names for each theme. */
@@ -19,6 +21,8 @@ export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel:
   'earth-code': { shortLabel: 'Earth', fullLabel: 'Earth & Code' },
   'cyber-luxe': { shortLabel: 'Cyber', fullLabel: 'Cyber Luxe' },
   'soft-focus': { shortLabel: 'Soft', fullLabel: 'Soft Focus' },
+  'tokyo-night': { shortLabel: 'Tokyo', fullLabel: 'Tokyo Night' },
+  'tokyo-night-light': { shortLabel: 'TkyoL', fullLabel: 'Tokyo Night Light' },
 }
 
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {

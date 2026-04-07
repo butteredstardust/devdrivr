@@ -168,6 +168,74 @@
   --note-gray: #35355A;
 }
 
+.tokyo-night {
+  --color-bg: #1a1b26;
+  --color-surface: #24283b;
+  --color-surface-raised: #2e3348;
+  --color-surface-hover: #2e3348;
+  --color-border: #414868;
+  --color-text: #c0caf5;
+  --color-text-muted: #9aa5ce;
+  --color-accent: #7aa2f7;
+  --color-accent-dim: rgba(122, 162, 247, 0.2);
+  --color-info: #2ac3de;
+  --color-warning: #e0af68;
+  --color-error: #f7768e;
+  --color-success: #9ece6a;
+  --color-shadow: rgba(0,0,0,0.5);
+  --font-mono: 'JetBrains Mono', monospace;
+  --note-yellow: #e0af68;
+  --note-green: #9ece6a;
+  --note-blue: #7aa2f7;
+  --note-pink: #f7768e;
+  --note-purple: #bb9af7;
+  --note-orange: #ff9e64;
+  --note-red: #f7768e;
+  --note-gray: #565f89;
+}
+
+.tokyo-night-light {
+  --color-bg: #e6e7ed;
+  --color-surface: #d4d5dc;
+  --color-surface-raised: #c8c9d0;
+  --color-surface-hover: #c8c9d0;
+  --color-border: #a8abbe;
+  --color-text: #343b58;
+  --color-text-muted: #6c6e75;
+  --color-accent: #2959aa;
+  --color-accent-dim: rgba(41, 89, 170, 0.15);
+  --color-info: #006c86;
+  --color-warning: #8f5e15;
+  --color-error: #8c4351;
+  --color-success: #385f0d;
+  --color-shadow: rgba(0,0,0,0.1);
+  --font-mono: 'JetBrains Mono', monospace;
+  --note-yellow: #8f5e15;
+  --note-green: #385f0d;
+  --note-blue: #2959aa;
+  --note-pink: #8c4351;
+  --note-purple: #5a3e8e;
+  --note-orange: #965027;
+  --note-red: #8c4351;
+  --note-gray: #6c6e75;
+}
+
+/* hljs overrides for tokyo-night-light — Tokyo Night Light palette */
+.tokyo-night-light .hljs-keyword { color: #5a3e8e; }
+.tokyo-night-light .hljs-string { color: #385f0d; }
+.tokyo-night-light .hljs-number { color: #965027; }
+.tokyo-night-light .hljs-comment { color: #6c6e75; font-style: italic; }
+.tokyo-night-light .hljs-function { color: #2959aa; }
+.tokyo-night-light .hljs-tag { color: #8c4351; }
+.tokyo-night-light .hljs-attr { color: #0f4b6e; }
+.tokyo-night-light .hljs-built_in { color: #006c86; }
+.tokyo-night-light .hljs-type { color: #5a3e8e; }
+.tokyo-night-light .hljs-meta { color: #6c6e75; }
+.tokyo-night-light .hljs-literal { color: #965027; }
+.tokyo-night-light .hljs-addition { color: #385f0d; }
+.tokyo-night-light .hljs-deletion { color: #8c4351; }
+.tokyo-night-light .hljs-title { color: #2959aa; }
+
 .soft-focus {
   --color-bg: #F8F9FA;
   --color-surface: #E9ECEF;
