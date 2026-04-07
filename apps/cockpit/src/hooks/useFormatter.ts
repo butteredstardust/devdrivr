@@ -61,6 +61,9 @@ async function getPlugin(name: string): Promise<unknown> {
     case 'graphql':
       plugin = (await import('prettier/plugins/babel')).default
       break
+    case 'postcss':
+      plugin = (await import('prettier/parser-postcss')).default
+      break
     default:
       throw new Error(`Unknown plugin: ${name}`)
   }
@@ -73,9 +76,9 @@ const PARSER_PLUGINS: Record<string, string[]> = {
   babel: ['babel', 'estree'],
   typescript: ['typescript', 'estree'],
   json: ['babel', 'estree'],
-  css: ['babel'], // prettier uses its internal css parser — only estree needed
-  scss: ['babel'],
-  less: ['babel'],
+  css: ['postcss'],
+  scss: ['postcss'],
+  less: ['postcss'],
   html: ['html'],
   markdown: ['markdown'],
   yaml: ['yaml'],

@@ -194,6 +194,22 @@
   --note-gray: #565f89;
 }
 
+.css-error-line-gutter {
+  border-left: 3px solid rgba(239, 68, 68, 0.65);
+}
+
+.css-warning-line-gutter {
+  border-left: 3px solid rgba(245, 158, 11, 0.65);
+}
+
+.css-error-inline {
+  background-color: rgba(239, 68, 68, 0.16);
+}
+
+.css-warning-inline {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+
 .tokyo-night-light {
   --color-bg: #e6e7ed;
   --color-surface: #d4d5dc;
