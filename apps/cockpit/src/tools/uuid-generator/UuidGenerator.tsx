@@ -229,7 +229,7 @@ export default function UuidGenerator() {
     <div className="flex h-full flex-col gap-4 overflow-auto p-4">
       {/* ── Generate ─────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h2 className="font-pixel text-sm text-[var(--color-text)]">Generate</h2>
+        <h2 className="font-mono text-sm text-[var(--color-text)]">Generate</h2>
         <div className="flex flex-wrap items-center gap-3">
           <Select
             value={state.version}
@@ -257,7 +257,7 @@ export default function UuidGenerator() {
 
       {/* ── Constants ────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h2 className="font-pixel text-sm text-[var(--color-text)]">Constants</h2>
+        <h2 className="font-mono text-sm text-[var(--color-text)]">Constants</h2>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
@@ -278,7 +278,7 @@ export default function UuidGenerator() {
 
       {/* ── Bulk Generate ────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h2 className="font-pixel text-sm text-[var(--color-text)]">Bulk Generate</h2>
+        <h2 className="font-mono text-sm text-[var(--color-text)]">Bulk Generate</h2>
         <div className="flex flex-wrap items-center gap-3">
           <Input
             type="number"
@@ -311,7 +311,7 @@ export default function UuidGenerator() {
 
       {/* ── Validate & Parse ─────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <h2 className="font-pixel text-sm text-[var(--color-text)]">Validate & Parse</h2>
+        <h2 className="font-mono text-sm text-[var(--color-text)]">Validate & Parse</h2>
         <Input
           type="text"
           value={state.validateInput}

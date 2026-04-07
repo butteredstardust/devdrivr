@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
-          <div className="font-pixel text-lg text-[var(--color-error)]">Something broke</div>
+          <div className="font-mono text-lg text-[var(--color-error)]">Something broke</div>
           <pre className="max-w-lg overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-text-muted)]">
             {this.state.error?.message}
           </pre>

@@ -59,7 +59,7 @@ export function Sidebar() {
       <div
         className={`flex h-full flex-col transition-opacity duration-200 ${sidebarCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
       >
-        <div className="flex items-center justify-between px-2 py-3">
+        <div className="flex items-center justify-between px-2 py-2">
           <div className="flex items-center gap-1 overflow-hidden">
             <Mascot className="shrink-0" />
             <h1 className="font-pixel text-sm font-bold text-[var(--color-accent)] tracking-tight">
@@ -78,9 +78,9 @@ export function Sidebar() {
         </div>
         <div className="flex-1 overflow-y-auto py-1">
           <SidebarRecent />
-          {TOOL_GROUPS.map((group) => {
+          {TOOL_GROUPS.map((group, i) => {
             const tools = TOOLS.filter((t) => t.group === group.id)
-            return <SidebarGroup key={group.id} group={group} tools={tools} />
+            return <SidebarGroup key={group.id} group={group} tools={tools} isFirst={i === 0} />
           })}
         </div>
         <SidebarFooter collapsed={false} />

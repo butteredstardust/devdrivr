@@ -87,7 +87,7 @@ export function WorkspaceTabStrip() {
                   : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="truncate font-pixel text-[10px]">{tool?.name ?? tab.toolId}</span>
+              <span className="truncate font-mono text-[10px]">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation()

@@ -284,7 +284,7 @@ export default function RegexTester() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Pattern bar */}
         <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-          <span className="font-pixel text-xs text-[var(--color-text-muted)]">/</span>
+          <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
           <input
             ref={patternRef}
             value={state.pattern}
@@ -292,7 +292,7 @@ export default function RegexTester() {
             placeholder="Enter regex pattern..."
             className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
           />
-          <span className="font-pixel text-xs text-[var(--color-text-muted)]">/</span>
+          <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
           <div className="flex gap-1">
             {FLAG_OPTIONS.map((flag) => (
               <button
@@ -396,7 +396,7 @@ export default function RegexTester() {
         {/* Match details */}
         {matchCount > 0 && (
           <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-            <div className="mb-2 flex items-center gap-2 font-pixel text-xs text-[var(--color-text-muted)]">
+            <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
               <span>
                 {matchCount} match{matchCount !== 1 ? 'es' : ''}
                 {hasGroups
@@ -441,7 +441,7 @@ export default function RegexTester() {
       {/* Reference sidebar */}
       {showRef && (
         <div className="w-56 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          <div className="mb-2 font-pixel text-xs text-[var(--color-text-muted)]">
+          <div className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
             Reference · click to insert
           </div>
           {REFERENCE_CATEGORIES.map((cat) => (

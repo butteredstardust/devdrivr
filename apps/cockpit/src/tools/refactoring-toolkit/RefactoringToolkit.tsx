@@ -115,7 +115,7 @@ export default function RefactoringToolkit() {
         {preview !== null && !noChanges && (
           <button
             onClick={handleApply}
-            className={`rounded border px-3 py-1 font-pixel text-xs hover:opacity-80 ${
+            className={`rounded border px-3 py-1 font-mono text-xs hover:opacity-80 ${
               hasDestructive
                 ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
                 : 'border-[var(--color-success)] text-[var(--color-success)]'
@@ -167,7 +167,7 @@ export default function RefactoringToolkit() {
               <div key={cat.id} className="mb-4">
                 <button
                   onClick={() => toggleCategory(cat.id)}
-                  className="mb-2 flex w-full items-center gap-2 font-pixel text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  className="mb-2 flex w-full items-center gap-2 font-mono text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
                   <input
                     type="checkbox"

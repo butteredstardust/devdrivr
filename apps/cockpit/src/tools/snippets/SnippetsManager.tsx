@@ -435,7 +435,7 @@ export default function SnippetsManager() {
     <div className="grid h-full grid-cols-[16rem_1fr_13rem] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
       {/* ─── Pane 1: Selection ────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
           [ 01-SELECT ]
         </div>
 
@@ -549,7 +549,7 @@ export default function SnippetsManager() {
 
       {/* ─── Pane 2: Editor ───────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
           [ 02-EDIT:{' '}
           {selected
             ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}`
@@ -609,7 +609,7 @@ export default function SnippetsManager() {
 
       {/* ─── Pane 3: Meta ─────────────────────────────────────── */}
       <div className="flex w-52 flex-col overflow-hidden bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-pixel text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
           [ 03-META ]
         </div>
         {selected ? (
@@ -617,7 +617,7 @@ export default function SnippetsManager() {
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {/* Language */}
               <div>
-                <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Language
                 </div>
                 <Select
@@ -635,7 +635,7 @@ export default function SnippetsManager() {
 
               {/* Tags */}
               <div>
-                <div className="font-pixel text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Tags
                 </div>
                 <div className="space-y-1">
@@ -668,7 +668,7 @@ export default function SnippetsManager() {
 
             {/* Stats Block */}
             {editorStats && (
-              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-pixel text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
+              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-mono text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
                 L:{editorStats.lines} C:{editorStats.chars} B:{editorStats.bytes}
               </div>
             )}
@@ -681,7 +681,7 @@ export default function SnippetsManager() {
       </div>
 
       {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
-      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-pixel text-[10px]">
+      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-[10px]">
         <div className="flex items-center gap-4">
           <button
             onClick={handleNew}

@@ -6,13 +6,14 @@ import { SidebarItem } from './SidebarItem'
 type SidebarGroupProps = {
   group: ToolGroupMeta
   tools: ToolDefinition[]
+  isFirst?: boolean
 }
 
-export function SidebarGroup({ group, tools }: SidebarGroupProps) {
+export function SidebarGroup({ group, tools, isFirst }: SidebarGroupProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="mb-1">
+    <div className={`mb-1 ${!isFirst ? 'mt-2 border-t border-[var(--color-border)] pt-2' : ''}`}>
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
@@ -21,7 +22,7 @@ export function SidebarGroup({ group, tools }: SidebarGroupProps) {
           size={10}
           className={`shrink-0 transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         />
-        <span className="font-pixel text-[10px] tracking-normal">[{group.label}]</span>
+        <span className="font-mono text-xs tracking-normal">[{group.label}]</span>
         <span className="ml-auto font-mono text-[10px] font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
           {tools.length}
         </span>

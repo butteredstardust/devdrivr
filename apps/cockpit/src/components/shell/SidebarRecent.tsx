@@ -24,7 +24,7 @@ export function SidebarRecent() {
     <div className="mb-1">
       <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
         <ClockCounterClockwiseIcon size={10} className="shrink-0" />
-        <span className="font-pixel text-[10px] font-bold uppercase tracking-normal">[Recent]</span>
+        <span className="font-mono text-[10px] font-bold uppercase tracking-normal">[Recent]</span>
       </div>
       <div className="flex flex-col gap-1 px-1">
         {recentTools.map((tool) => (

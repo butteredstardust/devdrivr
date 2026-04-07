@@ -130,7 +130,7 @@ export default function MermaidEditor() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <span className="font-pixel text-xs text-[var(--color-text-muted)]">Templates:</span>
+        <span className="font-mono text-xs text-[var(--color-text-muted)]">Templates:</span>
         {Object.keys(TEMPLATES).map((name) => (
           <button
             key={name}
