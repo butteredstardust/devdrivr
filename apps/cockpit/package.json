@@ -20,6 +20,7 @@
     "@fontsource/silkscreen": "^5.2.8",
     "@fontsource/source-code-pro": "^5.2.7",
     "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.55.1",
     "@noble/hashes": "^2.0.1",
     "@phosphor-icons/react": "^2.1.10",
     "@prettier/plugin-xml": "^3.4.1",
