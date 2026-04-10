@@ -1,16 +1,19 @@
 {
-  "version": "0.1.25",
+  "version": "0.1.26",
   "notes": "Auto generated release manifest",
-  "pub_date": "2026-04-10T19:38:21.835Z",
+  "pub_date": "2026-04-10T20:54:33.392Z",
   "platforms": {
-    "win32": {
-      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.exe"
+    "windows-x86_64": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/download/cockpit-v0.1.26/devdrivr_0.1.26_x64-setup.exe"
     },
-    "darwin": {
-      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.app.tar.gz"
+    "darwin-x86_64": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/download/cockpit-v0.1.26/devdrivr_x64.app.tar.gz"
     },
-    "linux": {
-      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.AppImage"
+    "darwin-aarch64": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/download/cockpit-v0.1.26/devdrivr_aarch64.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/download/cockpit-v0.1.26/devdrivr_0.1.26_amd64.AppImage"
     }
   }
 }

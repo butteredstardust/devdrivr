@@ -81,7 +81,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDQzQ4NzIxNDkzOTNBMTcKUldRWE9qbEpJWWZFYkNQVHVubnFTeXpQR1dycDhLTW5zVlFZT25qbWROV2Aza1N4VXFNaTRCbkgK",
       "endpoints": [
-        "https://api.github.com/repos/butteredstardust/devdrivr/releases/latest/assets"
+        "https://github.com/butteredstardust/devdrivr/releases/download/cockpit-v{{version}}/latest.json"
       ]
     }
   }
