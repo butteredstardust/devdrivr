@@ -16,15 +16,19 @@ async function main() {
     platforms: {
       'windows-x86_64': {
         url: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_${version}_x64-setup.exe`,
+        signature: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_${version}_x64-setup.exe.sig`,
       },
       'darwin-x86_64': {
         url: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_x64.app.tar.gz`,
+        signature: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_x64.app.tar.gz.sig`,
       },
       'darwin-aarch64': {
         url: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_aarch64.app.tar.gz`,
+        signature: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_aarch64.app.tar.gz.sig`,
       },
       'linux-x86_64': {
         url: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_${version}_amd64.AppImage`,
+        signature: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/devdrivr_${version}_amd64.AppImage.sig`,
       },
     },
   }
