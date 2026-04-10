@@ -100,6 +100,7 @@ jobs:
         run: bun run scripts/generate-latest-json.ts
 
       - name: Upload latest.json as artifact
+        if: matrix.platform == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
           name: latest-json
