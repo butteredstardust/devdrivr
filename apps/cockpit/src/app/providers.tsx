@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { check } from '@tauri-apps/plugin-updater'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -91,6 +92,19 @@ export function Providers({ children }: { children: ReactNode }) {
       const settings = useSettingsStore.getState()
       if (settings.alwaysOnTop) {
         await win.setAlwaysOnTop(true)
+      }
+
+      // Check for updates in the background (non-blocking)
+      if (settings.autoUpdate) {
+        check()
+          .then((update) => {
+            if (update) {
+              useUiStore
+                .getState()
+                .addToast(`Update v${update.version} available — open Settings to install`, 'info')
+            }
+          })
+          .catch((err: unknown) => console.warn('Update check failed:', err))
       }
 
       // Save bounds on move/resize (debounced 2s) — convert to logical to match restore

@@ -29,7 +29,7 @@ apps/cockpit/
 | ------------------ | ----------------------------------------------------------------------------- |
 | `App.tsx`          | Root component: `<Sidebar> + <Workspace> + <NotesDrawer>` in a flex row       |
 | `providers.tsx`    | **Boot sequence**: window geometry → stores → active tool → listeners         |
-| `tool-registry.ts` | **Single source of truth** for all 27 tools (React.lazy, IDs, labels, groups) |
+| `tool-registry.ts` | **Single source of truth** for all 28 tools (React.lazy, IDs, labels, groups) |
 | `tool-groups.tsx`  | Sidebar group metadata: id, label, Phosphor icon per group                    |
 
 ### `src/components/shell/` — App Chrome

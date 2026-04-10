@@ -100,7 +100,7 @@ Hot-reload is active — TypeScript/React changes apply instantly without restar
 ```bash
 # From apps/cockpit/
 npx tsc --noEmit   # zero errors expected
-bun run test       # all tests should pass (252 at time of writing)
+bun run test       # all tests should pass (604 at time of writing)
 ```
 
 ---
@@ -158,7 +158,7 @@ bun run tauri build      # Production build (outputs to src-tauri/target/release
 bun run clean            # Delete node_modules, dist, src-tauri/target
 bun install              # Re-install after clean
 npx tsc --noEmit         # Type-check (must pass before any commit)
-bun run test             # Run unit tests (252 at time of writing)
+bun run test             # Run unit tests (604 at time of writing)
 bun run test:watch       # Watch mode during development
 ```
 
@@ -217,7 +217,7 @@ sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
 1. Open `src/tools/` — pick any tool
 2. Edit its `.tsx` file — the Vite dev server hot-reloads instantly
 3. Run `npx tsc --noEmit` — fix any type errors
-4. Run `bun run test` — ensure all tests pass (252 at time of writing)
+4. Run `bun run test` — ensure all tests pass (604 at time of writing)
 5. Commit with a conventional commit message: `fix(cockpit): description`
 
 See `documentation/infrastructure/CODING_PATTERNS.md` for all patterns you must follow before submitting a PR.

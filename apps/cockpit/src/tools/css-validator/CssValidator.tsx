@@ -422,7 +422,10 @@ function formatCssString(css: string) {
     .replace(/\s*,\s*/g, ', ')
     .trim()
 
-  const lines = compact.split(/\n/).map((line) => line.trim()).filter(Boolean)
+  const lines = compact
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
   let indent = 0
   let output = ''
 
@@ -533,10 +536,7 @@ function analyzeCss(css: string, disabledRules: string[]) {
           })
         }
 
-        if (
-          isRuleEnabled('deprecated', disabledRules) &&
-          DEPRECATED_PROPERTIES.has(normalized)
-        ) {
+        if (isRuleEnabled('deprecated', disabledRules) && DEPRECATED_PROPERTIES.has(normalized)) {
           issues.push({
             message: `Deprecated CSS property "${property}".`,
             line: declLoc.line,
@@ -560,10 +560,7 @@ function analyzeCss(css: string, disabledRules: string[]) {
           })
         }
 
-        if (
-          isRuleEnabled('zero-units', disabledRules) &&
-          LENGTH_PROPERTIES.has(normalized)
-        ) {
+        if (isRuleEnabled('zero-units', disabledRules) && LENGTH_PROPERTIES.has(normalized)) {
           cssTree.walk(declaration.value, {
             visit: 'Number',
             enter(node) {
@@ -749,7 +746,7 @@ export default function CssValidator() {
 
     const monaco = monacoRef.current
     const decorations = issues.map((issue) => {
-      const startColumn = issue.column > 0 ? issue.column : 1
+      const startColumn = issue.column > 0 ? issue.column + 1 : 1
       const endColumn = startColumn + 1
       return {
         range: new monaco.Range(issue.line, startColumn, issue.line, endColumn),
@@ -757,8 +754,7 @@ export default function CssValidator() {
           isWholeLine: true,
           linesDecorationsClassName:
             issue.type === 'error' ? 'css-error-line-gutter' : 'css-warning-line-gutter',
-          inlineClassName:
-            issue.type === 'error' ? 'css-error-inline' : 'css-warning-inline',
+          inlineClassName: issue.type === 'error' ? 'css-error-inline' : 'css-warning-inline',
           hoverMessage: { value: issue.message },
         },
       }
@@ -766,7 +762,7 @@ export default function CssValidator() {
 
     decorationIdsRef.current = editorRef.current.deltaDecorations(
       decorationIdsRef.current,
-      decorations,
+      decorations
     )
   }, [issues])
 
@@ -848,9 +844,15 @@ export default function CssValidator() {
 
       {stats && (
         <div className="flex flex-wrap items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1 text-xs text-[var(--color-text-muted)]">
-          <span>{stats.rules} rule{stats.rules !== 1 ? 's' : ''}</span>
-          <span>{stats.selectors} selector{stats.selectors !== 1 ? 's' : ''}</span>
-          <span>{stats.declarations} declaration{stats.declarations !== 1 ? 's' : ''}</span>
+          <span>
+            {stats.rules} rule{stats.rules !== 1 ? 's' : ''}
+          </span>
+          <span>
+            {stats.selectors} selector{stats.selectors !== 1 ? 's' : ''}
+          </span>
+          <span>
+            {stats.declarations} declaration{stats.declarations !== 1 ? 's' : ''}
+          </span>
           {stats.idSelectors > 0 && (
             <span className="text-[var(--color-warning)]">
               {stats.idSelectors} ID selector{stats.idSelectors !== 1 ? 's' : ''}
@@ -870,7 +872,10 @@ export default function CssValidator() {
                 {LINT_RULES.filter((rule) => rule.category === category).map((rule) => {
                   const disabled = state.disabledRules.includes(rule.id)
                   return (
-                    <label key={rule.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-xs">
+                    <label
+                      key={rule.id}
+                      className="flex cursor-pointer items-center gap-2 py-0.5 text-xs"
+                    >
                       <input
                         type="checkbox"
                         checked={!disabled}
@@ -878,10 +883,18 @@ export default function CssValidator() {
                         className="accent-[var(--color-accent)]"
                       />
                       <div>
-                        <div className={disabled ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text)]'}>
+                        <div
+                          className={
+                            disabled
+                              ? 'text-[var(--color-text-muted)] line-through'
+                              : 'text-[var(--color-text)]'
+                          }
+                        >
                           {rule.label}
                         </div>
-                        <div className="text-[10px] text-[var(--color-text-muted)]">{rule.description}</div>
+                        <div className="text-[10px] text-[var(--color-text-muted)]">
+                          {rule.description}
+                        </div>
                       </div>
                     </label>
                   )
@@ -898,9 +911,7 @@ export default function CssValidator() {
             <div
               key={`${issue.rule}-${index}`}
               className={`flex flex-wrap items-start gap-2 py-1 text-xs ${
-                issue.type === 'error'
-                  ? 'text-[var(--color-error)]'
-                  : 'text-[var(--color-warning)]'
+                issue.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'
               }`}
             >
               <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">

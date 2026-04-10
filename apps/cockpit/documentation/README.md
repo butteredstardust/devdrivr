@@ -9,7 +9,7 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 3. [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns and best practices
 4. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
 5. [TESTING.md](TESTING.md) - Testing documentation and best practices
-6. [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines for the project
+6. [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project
 7. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
 8. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
 9. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
@@ -26,7 +26,7 @@ For new developers, we recommend starting with:
 
 1. [QUICK_START.md](QUICK_START.md) - Get up and running quickly
 2. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive guide to using the application
-3. [CONTRIBUTING.md](CONTRIBUTING.md) - Guidelines for contributing to the project
+3. [CONTRIBUTING.md](../CONTRIBUTING.md) - Guidelines for contributing to the project
 
 ## Development Resources
 
@@ -37,13 +37,16 @@ For new developers, we recommend starting with:
 
 ## Tool Documentation
 
-- [JSON_TOOLS.md](tools/JSON_TOOLS.md) - JSON processing tools
+- [API_CLIENT.md](tools/API_CLIENT.md) - Full-featured HTTP client with environments and collections
 - [CODE_FORMATTER.md](tools/CODE_FORMATTER.md) - Multi-language code formatting
+- [JSON_TOOLS.md](tools/JSON_TOOLS.md) - JSON processing tools
+- [MARKDOWN_EDITOR.md](tools/MARKDOWN_EDITOR.md) - Markdown editor with live preview and export
+- [SNIPPETS.md](tools/SNIPPETS.md) - Code snippet library with tags and search
 - [YAML_TOOLS.md](tools/YAML_TOOLS.md) - YAML processing tools
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on how to contribute to the project.
 
 ## License
 

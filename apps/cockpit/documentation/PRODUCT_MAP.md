@@ -25,11 +25,11 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Windows cross-build     | 🔲 Planned    | GitHub Actions CI/CD planned                             |
-| Unit tests              | ✅ 252 tests  | Platform, theme, keybindings, registry, notes store      |
+| Unit tests              | ✅ 604 tests  | Platform, theme, keybindings, registry, notes store      |
 
 ---
 
-## Tool Inventory (27 Tools)
+## Tool Inventory (28 Tools)
 
 ### Code Group
 
@@ -42,12 +42,12 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 
 ### Data Group
 
-| Tool                  | ID                      | What It Does                                                    |
-| --------------------- | ----------------------- | --------------------------------------------------------------- |
-| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                         |
-| XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                             |
-| YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON |
-| JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)             |
+| Tool                  | ID                      | What It Does                                                                    |
+| --------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                                         |
+| XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                                             |
+| YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON                 |
+| JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)                             |
 | CSV Tools             | `csv-tools`             | View, edit, convert with JSON, analyze stats, and generate schemas for CSV data |
 
 ### Web Group

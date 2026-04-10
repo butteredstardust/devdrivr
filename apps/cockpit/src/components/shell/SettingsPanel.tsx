@@ -22,6 +22,7 @@ import {
   InfoIcon,
 } from '@phosphor-icons/react'
 import { Toggle } from '@/components/shared/Toggle'
+import { useAutoUpdate } from '@/hooks/useAutoUpdate'
 import { ALL_THEMES, THEME_META } from '@/lib/theme'
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -204,6 +205,8 @@ function GeneralTab() {
   const theme = useSettingsStore((s) => s.theme)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
+  const autoUpdate = useSettingsStore((s) => s.autoUpdate)
+  const { update: updateInfo, checking, installing, checkForUpdates, installUpdate } = useAutoUpdate()
 
   const handleAlwaysOnTop = useCallback(
     (checked: boolean) => {
@@ -232,6 +235,37 @@ function GeneralTab() {
           checked={sidebarCollapsed}
           onChange={(v) => update('sidebarCollapsed', v).catch(() => {})}
         />
+      </SettingRow>
+      <SettingRow label="Auto Update" hint="Check for updates automatically on startup">
+        <Toggle
+          checked={autoUpdate}
+          onChange={(v) => update('autoUpdate', v).catch(() => {})}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Updates"
+        hint={checking ? 'Checking…' : updateInfo ? `v${updateInfo.version} available` : 'Up to date'}
+      >
+        <div className="flex items-center gap-2">
+          {updateInfo && (
+            <button
+              onClick={installUpdate}
+              disabled={installing}
+              className="flex items-center gap-1 rounded border border-[var(--color-accent)] px-2 py-1 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 disabled:opacity-50"
+            >
+              <DownloadSimpleIcon size={12} />
+              {installing ? 'Installing…' : 'Install & Restart'}
+            </button>
+          )}
+          <button
+            onClick={checkForUpdates}
+            disabled={checking || installing}
+            className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-text)] hover:text-[var(--color-text)] disabled:opacity-50"
+          >
+            <ArrowCounterClockwiseIcon size={12} />
+            {checking ? 'Checking…' : 'Check for Updates'}
+          </button>
+        </div>
       </SettingRow>
     </div>
   )
@@ -327,6 +361,7 @@ function DataTab() {
         editorKeybindingMode: state.editorKeybindingMode,
         historyRetentionPerTool: state.historyRetentionPerTool,
         formatOnPaste: state.formatOnPaste,
+        autoUpdate: state.autoUpdate,
       }
       const json = JSON.stringify(data, null, 2)
       await navigator.clipboard.writeText(json)

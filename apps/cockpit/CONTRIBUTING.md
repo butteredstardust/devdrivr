@@ -4,7 +4,7 @@ Welcome to the devdrivr cockpit contribution guidelines! We're excited to have y
 
 ## Code of Conduct
 
-Please note that this project is released with a Contributor Code of Conduct. By participating in this project, you agree to abide by its terms. Please see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
+Please note that this project is released with a Contributor Code of Conduct. By participating in this project, you agree to abide by its terms.
 
 ## How to Contribute
 
@@ -101,7 +101,7 @@ Use conventional commit messages:
 
 ## Development Workflow
 
-1. **Setup**: Follow the development setup in [ONBOARDING.md](documentation/ONBOARDING.md)
+1. **Setup**: Follow the development setup in [ONBOARDING.md](documentation/infrastructure/ONBOARDING.md)
 2. **Coding**: Follow the patterns in [CODING_PATTERNS.md](documentation/infrastructure/CODING_PATTERNS.md)
 3. **Testing**: Follow the guidelines in [TESTING.md](documentation/TESTING.md)
 4. **Documentation**: Follow the style in [STYLE_GUIDE.md](documentation/STYLE_GUIDE.md)
