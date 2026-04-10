@@ -1,1 +1,88 @@
-{"$schema":"https://schema.tauri.app/config/2","productName":"devdrivr","version":"0.1.24","identifier":"com.devdrivr.cockpit","build":{"beforeDevCommand":"bun run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"bun run build","frontendDist":"../dist"},"app":{"windows":[{"title":"devdrivr","width":1200,"height":800,"minWidth":800,"minHeight":500,"decorations":true,"center":true,"backgroundColor":[10,10,10,255]}],"security":{"csp":null}},"bundle":{"active":true,"targets":"all","icon":["icons/32x32.png","icons/128x128.png","icons/128x128@2x.png","icons/icon.icns","icons/icon.ico"],"windows":{"nsis":{"installMode":"currentUser","displayLanguageSelector":false}},"macOS":{"dmg":{"windowSize":{"width":660,"height":400},"windowPosition":{"x":400,"y":400},"appPosition":{"x":180,"y":170},"applicationFolderPosition":{"x":480,"y":170}},"minimumSystemVersion":"10.13"},"linux":{"deb":{"depends":["libwebkit2gtk-4.1-0","libgtk-3-0"]}}},"plugins":{"updater":{"pubkey":"dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDQzQ4NzIxNDkzOTNBMTcKUldRWE9qbEpJWWZFYkNQVHVubnFTeXpQR1dycDhLTW5zVlFZT25qbWROV2Aza1N4VXFNaTRCbkgK","endpoints":["https://github.com/butteredstardust/devdrivr/releases/latest/download/latest.json"]}}}
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "devdrivr",
+  "version": "0.1.25",
+  "identifier": "com.devdrivr.cockpit",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "devdrivr",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "decorations": true,
+        "center": true,
+        "backgroundColor": [
+          10,
+          10,
+          10,
+          255
+        ]
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "macOS": {
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "windowPosition": {
+          "x": 400,
+          "y": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      },
+      "minimumSystemVersion": "10.13"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDQzQ4NzIxNDkzOTNBMTcKUldRWE9qbEpJWWZFYkNQVHVubnFTeXpQR1dycDhLTW5zVlFZT25qbWROV2Aza1N4VXFNaTRCbkgK",
+      "endpoints": [
+        "https://github.com/butteredstardust/devdrivr/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
