@@ -96,6 +96,7 @@ jobs:
         run: bun install
 
       - name: Generate release manifest
+        working-directory: ./apps/cockpit
         run: bun run scripts/generate-latest-json.ts
 
       - name: Upload latest.json as artifact
