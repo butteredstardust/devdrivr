@@ -8,6 +8,10 @@ import { useUiStore } from '@/stores/ui.store'
 import { MarkdownPreview } from './MarkdownPreview'
 import { useScrollSync } from './hooks/useScrollSync'
 import { useImageDrop } from './hooks/useImageDrop'
+import { LinkModal } from './modals/LinkModal'
+import { CodeBlockModal } from './modals/CodeBlockModal'
+import { ImageModal } from './modals/ImageModal'
+import { TableModal } from './modals/TableModal'
 
 // Markdown pipeline imports
 import { unified } from 'unified'
@@ -230,8 +234,8 @@ const FORMATTING_ACTIONS = [
     placeholder: '',
     line: true,
   },
-  { label: '🔗', title: 'Link', prefix: '[', suffix: '](url)', placeholder: 'link text' },
-  { label: '📷', title: 'Image', prefix: '![', suffix: '](url)', placeholder: 'alt text' },
+  { label: '🔗', title: 'Link', prefix: '[', suffix: '](url)', placeholder: 'link text', modal: 'link' as const },
+  { label: '📷', title: 'Image', prefix: '![', suffix: '](url)', placeholder: 'alt text', modal: 'image' as const },
   { label: '•', title: 'Bullet List', prefix: '- ', suffix: '', placeholder: 'item', line: true },
   {
     label: '1.',
@@ -250,6 +254,7 @@ const FORMATTING_ACTIONS = [
     suffix: '\n```',
     placeholder: 'code',
     line: true,
+    modal: 'code' as const,
   },
   {
     label: '⊞',
@@ -258,6 +263,7 @@ const FORMATTING_ACTIONS = [
     suffix: ' |  |  |',
     placeholder: 'cell',
     line: true,
+    modal: 'table' as const,
   },
 ]
 
@@ -267,6 +273,7 @@ const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
+    a: [...(defaultSchema.attributes?.['a'] ?? []), 'target', 'rel'],
     code: [...(defaultSchema.attributes?.['code'] ?? []), 'className'],
     span: [...(defaultSchema.attributes?.['span'] ?? []), 'className'],
     input: [...(defaultSchema.attributes?.['input'] ?? []), 'type', 'checked', 'disabled'],
@@ -324,6 +331,7 @@ export default function MarkdownEditor() {
   const editorRef = useRef<EditorInstance | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -427,6 +435,17 @@ export default function MarkdownEditor() {
     },
     []
   )
+
+  const handleModalInsert = useCallback((text: string) => {
+    const editor = editorRef.current
+    if (!editor) return
+    const selection = editor.getSelection()
+    const model = editor.getModel()
+    if (!model || !selection) return
+    editor.executeEdits('modal-insert', [{ range: selection, text, forceMoveMarkers: true }])
+    editor.focus()
+    setActiveModal(null)
+  }, [])
 
   // ─── Keyboard shortcuts for formatting ───────────────────────────
 
@@ -581,9 +600,13 @@ img{max-width:100%}</style>
           {FORMATTING_ACTIONS.map((action) => (
             <button
               key={action.title}
-              onClick={() =>
-                insertFormatting(action.prefix, action.suffix, action.placeholder, action.line)
-              }
+              onClick={() => {
+                if ('modal' in action && action.modal) {
+                  setActiveModal(action.modal)
+                } else {
+                  insertFormatting(action.prefix, action.suffix, action.placeholder, action.line)
+                }
+              }}
               title={action.title}
               className="rounded px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
             >
@@ -627,6 +650,23 @@ img{max-width:100%}</style>
           </div>
         )}
       </div>
+
+      {activeModal === 'link' && (
+        <LinkModal
+          initialText=""
+          onInsert={handleModalInsert}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'image' && (
+        <ImageModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'code' && (
+        <CodeBlockModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'table' && (
+        <TableModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
+      )}
     </div>
   )
 }
