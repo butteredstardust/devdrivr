@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 252 tests across 42 test suites, covering various components and utilities.
+The application currently has 604 tests across 92 test suites, covering various components and utilities.
 
 ## Testing Strategy
 
@@ -155,7 +155,7 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 | Area               | Gap                                                | Priority |
 | ------------------ | -------------------------------------------------- | -------- |
 | Worker tools       | No tests for `handleRpc` / `useWorker` round-trips | High     |
-| Tool components    | No rendering tests for any of the 27 tools         | Medium   |
+| Tool components    | No rendering tests for any of the 28 tools         | Medium   |
 | `useToolState`     | No tests for cache + debounce behaviour            | Medium   |
 | Settings store     | No tests for `init()` or `update()`                | Medium   |
 | DB helpers         | No tests for `getDb()`, `getSetting()`, etc.       | Medium   |
@@ -273,4 +273,4 @@ Tests run automatically on every push and PR via GitHub Actions (`.github/workfl
 3. Runs `npx tsc --noEmit` (type check)
 4. Runs `bun run test` (must exit 0)
 
-A PR cannot be merged if tests fail. All 252 tests **must all pass** before submitting any change.
+A PR cannot be merged if tests fail. All 604 tests **must all pass** before submitting any change.
