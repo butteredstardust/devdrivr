@@ -93,6 +93,7 @@ describe('settings store updates', () => {
       editorKeybindingMode: DEFAULT_SETTINGS.editorKeybindingMode,
       historyRetentionPerTool: DEFAULT_SETTINGS.historyRetentionPerTool,
       formatOnPaste: DEFAULT_SETTINGS.formatOnPaste,
+      autoUpdate: DEFAULT_SETTINGS.autoUpdate,
     })
   })
 

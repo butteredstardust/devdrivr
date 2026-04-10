@@ -52,6 +52,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       editorKeybindingMode: state.editorKeybindingMode,
       historyRetentionPerTool: state.historyRetentionPerTool,
       formatOnPaste: state.formatOnPaste,
+      autoUpdate: state.autoUpdate,
     }
     try {
       await setSetting('appSettings', settings)
