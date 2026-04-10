@@ -19,12 +19,7 @@
         "minHeight": 500,
         "decorations": true,
         "center": true,
-        "backgroundColor": [
-          10,
-          10,
-          10,
-          255
-        ]
+        "backgroundColor": [10, 10, 10, 255]
       }
     ],
     "security": {
@@ -70,19 +65,14 @@
     },
     "linux": {
       "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libgtk-3-0"
-        ]
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
       }
     }
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZDQzQ4NzIxNDkzOTNBMTcKUldRWE9qbEpJWWZFYkNQVHVubnFTeXpQR1dycDhLTW5zVlFZT25qbWROV2Aza1N4VXFNaTRCbkgK",
-      "endpoints": [
-        "https://github.com/butteredstardust/devdrivr/releases/latest/download/latest.json"
-      ]
+      "endpoints": ["https://api.github.com/repos/butteredstardust/devdrivr/releases/latest/assets"]
     }
   }
 }

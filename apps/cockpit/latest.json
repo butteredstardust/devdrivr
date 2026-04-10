@@ -1,0 +1,16 @@
+{
+  "version": "0.1.25",
+  "notes": "Auto generated release manifest",
+  "pub_date": "2026-04-10T19:38:21.835Z",
+  "platforms": {
+    "win32": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.exe"
+    },
+    "darwin": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.app.tar.gz"
+    },
+    "linux": {
+      "url": "https://github.com/butteredstardust/devdrivr/releases/latest/download/devdrivre.AppImage"
+    }
+  }
+}

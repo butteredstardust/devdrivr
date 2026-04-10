@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx --max-warnings 100",
-    "clean": "rm -rf node_modules dist src-tauri/target"
+    "clean": "rm -rf node_modules dist src-tauri/target",
+    "generate-manifest": "bun run scripts/generate-latest-json.ts"
   },
   "dependencies": {
     "@fontsource/cascadia-code": "^5.2.3",
