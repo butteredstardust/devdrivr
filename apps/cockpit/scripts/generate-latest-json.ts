@@ -1,10 +1,12 @@
 import * as fs from 'fs/promises'
+import path from 'path'
 
 const OWNER = 'butteredstardust'
 const REPO = 'devdrivr'
 
 async function main() {
-  const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'))
+  const pkgPath = path.resolve(process.cwd(), 'package.json')
+  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'))
   const version = pkg.version
   const date = new Date().toISOString()
   const tag = `cockpit-v${version}`
@@ -34,7 +36,7 @@ async function main() {
   }
 
   await fs.writeFile('latest.json', JSON.stringify(manifest, null, 2))
-  console.log('latest.json generated')
+  console.log('latest.json generated for version ' + version)
 }
 
 main().catch(console.error)

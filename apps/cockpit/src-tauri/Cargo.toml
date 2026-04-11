@@ -1,6 +1,6 @@
 [package]
 name = "cockpit"
-version = "0.1.0"
+version = "0.1.29"
 description = "devdrivr cockpit — developer utility workspace"
 authors = ["devdrivr"]
 edition = "2021"

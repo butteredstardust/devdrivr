@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 
 const packageJsonPath = path.join(root, 'package.json');
 const tauriConfPath = path.join(root, 'src-tauri', 'tauri.conf.json');
+const cargoTomlPath = path.join(root, 'src-tauri', 'Cargo.toml');
 
 function bump(version) {
   const parts = version.split('.').map(Number);
@@ -29,6 +30,12 @@ try {
   tauriConf.version = newVersion;
   fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
   console.log(`Bumping tauri.conf.json: ${oldVersion} -> ${newVersion}`);
+
+  // 3. Bump Cargo.toml
+  let cargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
+  cargoToml = cargoToml.replace(/^version = ".*"/m, `version = "${newVersion}"`);
+  fs.writeFileSync(cargoTomlPath, cargoToml);
+  console.log(`Bumping Cargo.toml: ${oldVersion} -> ${newVersion}`);
 
   // Output for CI
   console.log(`::set-output name=new_version::${newVersion}`);
