@@ -83,7 +83,7 @@ jobs:
 
 
       - name: CI Setup and Diagnostics
-        run: ./apps/cockpit/scripts/ci-setup.sh
+        run: bash ./apps/cockpit/scripts/ci-setup.sh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       - name: Install dependencies (Ubuntu only)
