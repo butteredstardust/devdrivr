@@ -3,9 +3,9 @@ import { resolve } from 'path'
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    environment: 'node', // Use node environment and set up DOM manually
     globals: true,
-    setupFiles: ['./src/test-setup.ts'],
+    setupFiles: ['./src/tools/__tests__/test-setup.ts', './src/test-setup.ts'],
     css: false,
   },
   resolve: {
@@ -17,6 +17,12 @@ export default defineConfig({
         './src/__mocks__/tauri-webview-window.ts'
       ),
       '@tauri-apps/plugin-sql': resolve(__dirname, './src/__mocks__/tauri-plugin-sql.ts'),
+      // Add worker mocks
+      '@/workers/typescript.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
+      '@/workers/formatter.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
+      '@/workers/refactoring.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
+      '@/workers/diff.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
+      '@/workers/xml.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
     },
   },
 })
