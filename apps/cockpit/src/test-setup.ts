@@ -43,6 +43,5 @@ Object.defineProperty(globalThis, 'Worker', { writable: true, value: MockWorker 
 
 // Polyfill vi.mocked for compatibility with older test patterns
 if (!vi.mocked) {
-  // @ts-ignore - Simple polyfill for vi.mocked
   vi.mocked = (obj) => obj
 }
