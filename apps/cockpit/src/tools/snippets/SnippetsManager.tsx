@@ -175,6 +175,8 @@ export default function SnippetsManager() {
   const monacoOptions = useMonacoOptions()
   const snippets = useSnippetsStore((s) => s.snippets)
   const saving = useSnippetsStore((s) => s.saving)
+  const activeFolder = useSnippetsStore((s) => s.activeFolder)
+  const setActiveFolder = useSnippetsStore((s) => s.setActiveFolder)
   const addSnippet = useSnippetsStore((s) => s.add)
   const updateSnippet = useSnippetsStore((s) => s.update)
   const removeSnippet = useSnippetsStore((s) => s.remove)
@@ -200,11 +202,11 @@ export default function SnippetsManager() {
   // ─── Handlers (defined early for shortcuts) ───────────────────────
 
   const handleNew = useCallback(async () => {
-    const snippet = await addSnippet('Untitled', '', 'javascript')
+    const snippet = await addSnippet('Untitled', '', 'javascript', [], activeFolder)
     setSelectedId(snippet.id)
     setLastAction('Snippet created', 'success')
     setTimeout(() => titleInputRef.current?.focus(), 50)
-  }, [addSnippet, setLastAction])
+  }, [addSnippet, setLastAction, activeFolder])
 
   // ─── Fuse search ─────────────────────────────────────────────────
 
@@ -212,6 +214,16 @@ export default function SnippetsManager() {
     () => new Fuse(snippets, { keys: ['title', 'content', 'tags'], threshold: 0.3 }),
     [snippets]
   )
+
+  // ─── All unique folders ──────────────────────────────────────────
+
+  const allFolders = useMemo(() => {
+    const folderSet = new Set<string>()
+    for (const s of snippets) {
+      if (s.folder) folderSet.add(s.folder)
+    }
+    return [...folderSet].sort()
+  }, [snippets])
 
   // ─── All unique tags (excluding favorite marker) ─────────────────
 
@@ -229,6 +241,11 @@ export default function SnippetsManager() {
 
   const filtered = useMemo(() => {
     let list = search.trim() ? fuse.search(search).map((r) => r.item) : [...snippets]
+
+    // Filter by folder
+    if (activeFolder) {
+      list = list.filter((s) => s.folder === activeFolder)
+    }
 
     // Filter by tag
     if (filterTag) {
@@ -255,7 +272,7 @@ export default function SnippetsManager() {
     })
 
     return list
-  }, [snippets, search, fuse, sortMode, filterTag])
+  }, [snippets, search, fuse, sortMode, filterTag, activeFolder])
 
   const selected = useMemo(
     () => snippets.find((s) => s.id === selectedId) ?? null,
@@ -280,7 +297,8 @@ export default function SnippetsManager() {
       selected.title + ' (copy)',
       selected.content,
       selected.language,
-      visibleTags(selected.tags)
+      visibleTags(selected.tags),
+      selected.folder
     )
     setSelectedId(snippet.id)
     setLastAction('Snippet duplicated', 'success')
@@ -467,6 +485,35 @@ export default function SnippetsManager() {
           ))}
         </div>
 
+        {/* Folder filter chips */}
+        {allFolders.length > 0 && (
+          <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
+            <button
+              onClick={() => setActiveFolder('')}
+              className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+                activeFolder === ''
+                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              All
+            </button>
+            {allFolders.map((folder) => (
+              <button
+                key={folder}
+                onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
+                className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+                  activeFolder === folder
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                    : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
+                }`}
+              >
+                {folder}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tag filter chips */}
         {allTags.length > 0 && (
           <TagFilterBar tags={allTags} filterTag={filterTag} onFilterTag={setFilterTag} />
@@ -535,7 +582,7 @@ export default function SnippetsManager() {
           ))}
           {filtered.length === 0 && (
             <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-              {search || filterTag ? 'No matching snippets' : 'No snippets yet'}
+              {search || filterTag || activeFolder ? 'No matching snippets' : 'No snippets yet'}
             </div>
           )}
         </div>
@@ -615,6 +662,25 @@ export default function SnippetsManager() {
         {selected ? (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* Folder */}
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                  Folder
+                </div>
+                <input
+                  value={selected.folder}
+                  onChange={(e) => updateSnippet(selected.id, { folder: e.target.value })}
+                  placeholder="e.g. work, personal"
+                  list="snippet-folders"
+                  className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
+                />
+                <datalist id="snippet-folders">
+                  {allFolders.map((f) => (
+                    <option key={f} value={f} />
+                  ))}
+                </datalist>
+              </div>
+
               {/* Language */}
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
