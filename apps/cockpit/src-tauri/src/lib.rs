@@ -35,6 +35,12 @@ pub fn run() {
             sql: include_str!("../migrations/004_history_metadata.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "add snippets folder column",
+            sql: include_str!("../migrations/005_snippets_folder.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
