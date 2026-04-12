@@ -40,4 +40,21 @@ class MockWorker {
 
 Object.defineProperty(globalThis, 'Worker', { writable: true, value: MockWorker })
 
+// matchMedia is not implemented in jsdom — stub it so components that call
+// getEffectiveTheme('system') don't crash. Defaults to dark mode (matches: false
+// means light, true means dark — we default to dark to match the app default).
+Object.defineProperty(globalThis.window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: query.includes('dark'),
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+})
+
 // vi.mocked is available by default in vitest 4.1.0+
