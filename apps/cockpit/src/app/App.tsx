@@ -8,6 +8,7 @@ import { ToastContainer } from '@/components/shared/Toast'
 import { SendToMenu, SendToContext } from '@/components/shared/SendToMenu'
 import { SettingsPanel } from '@/components/shell/SettingsPanel'
 import { ShortcutsModal } from '@/components/shell/ShortcutsModal'
+import { UpdateNotification } from '@/components/shell/UpdateNotification'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 
 export function App() {
@@ -27,6 +28,7 @@ export function App() {
   return (
     <SendToContext.Provider value={{ showSendTo }}>
       <div className="flex h-full flex-col">
+        <UpdateNotification />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <main className="flex-1 overflow-hidden">

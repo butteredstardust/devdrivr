@@ -110,3 +110,59 @@ jobs:
           tauriScript: bunx tauri
           args: ${{ matrix.args }}
 
+  publish-update-manifest:
+    name: 'Publish Update Manifest'
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./apps/cockpit/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          TAG="cockpit-v${VERSION}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > latest.json <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See the release page for details.",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_aarch64.dmg"
+              },
+              "darwin-x86_64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_x64.dmg"
+              },
+              "linux-x86_64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage"
+              },
+              "windows-x86_64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_x64-setup.exe"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload latest.json to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          TAG="cockpit-v${VERSION}"
+          gh release upload "${TAG}" latest.json --clobber
+
