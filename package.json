@@ -65,6 +65,9 @@
     "node": ">=18.16.1"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/jsdom": "^28.0.1",
+    "@types/mocha": "^10.0.10",
     "husky": "^9.1.7",
     "lint-staged": "^15.0.0"
   }

@@ -9,7 +9,7 @@ afterEach(cleanup)
 // Initialize stores before each test
 beforeEach(() => {
   // Ensure the store is properly initialized
-  if (useToolStateCache.getState) {
+  if (useToolStateCache.getState()) {
     useToolStateCache.setState({ cache: new Map() })
   }
 })

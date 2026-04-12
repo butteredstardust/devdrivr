@@ -207,11 +207,16 @@ export default function XmlTools() {
         .then((s) => {
           if (!cancelled) setStats(s)
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!cancelled) setStats(null)
+        })
     }, 500)
     return () => {
       cancelled = true
-      if (statsTimer.current) clearTimeout(statsTimer.current)
+      if (statsTimer.current) {
+        clearTimeout(statsTimer.current)
+        statsTimer.current = null
+      }
     }
   }, [worker, state.input])
 

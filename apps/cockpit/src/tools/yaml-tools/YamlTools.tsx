@@ -86,7 +86,8 @@ export default function YamlTools() {
   useEffect(() => {
     return () => {
       if (formatter) {
-        formatter.terminate?.()
+        // The formatter is a WorkerRpc type, which does not have a terminate method.
+        // The worker itself is managed by the useWorker hook, so no manual termination is needed.
       }
     }
   }, [formatter])

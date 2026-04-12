@@ -55,8 +55,8 @@ describe('yaml-helpers', () => {
     it('should sort keys in object', () => {
       const data = { z: 1, a: 2, m: { z: 3, a: 4 } }
       const result = sortKeysDeep(data)
-      expect(Object.keys(result)).toEqual(['a', 'm', 'z'])
-      expect(Object.keys((result as any).m)).toEqual(['a', 'z'])
+      expect(Object.keys(result as Record<string, unknown>)).toEqual(['a', 'm', 'z'])
+      expect(Object.keys((result as any).m as Record<string, unknown>)).toEqual(['a', 'z'])
     })
 
     it('should handle arrays', () => {
@@ -66,7 +66,8 @@ describe('yaml-helpers', () => {
       ]
       const result = sortKeysDeep(data)
       expect(Array.isArray(result)).toBe(true)
-      expect(Object.keys(result[0])).toEqual(['a', 'z'])
+      const typedResult = result as Array<Record<string, unknown>>
+      expect(Object.keys(typedResult[0] as Record<string, unknown>)).toEqual(['a', 'z'])
     })
   })
 })
