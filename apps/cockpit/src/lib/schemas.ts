@@ -75,6 +75,7 @@ export const snippetRowSchema = z
     content: z.string(),
     language: z.string(),
     tags: z.string(),
+    folder: z.string().default(''),
     created_at: z.number(),
     updated_at: z.number(),
   })
@@ -84,6 +85,7 @@ export const snippetRowSchema = z
       title: row.title,
       content: row.content,
       language: row.language,
+      folder: row.folder,
       tags: (() => {
         try {
           const parsed = JSON.parse(row.tags)

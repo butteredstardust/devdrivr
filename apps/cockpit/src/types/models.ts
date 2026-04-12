@@ -52,6 +52,7 @@ export type Snippet = {
   content: string
   language: string
   tags: string[]
+  folder: string
   createdAt: number
   updatedAt: number
 }

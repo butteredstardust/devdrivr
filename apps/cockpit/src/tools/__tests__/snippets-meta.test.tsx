@@ -14,6 +14,7 @@ describe('SnippetsManager Meta Pane', () => {
           content: 'line1\nline2',
           language: 'javascript',
           tags: ['tag1', 'tag2'],
+          folder: '',
           createdAt: Date.now(),
           updatedAt: Date.now(),
         },
