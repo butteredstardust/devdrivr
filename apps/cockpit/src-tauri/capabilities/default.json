@@ -35,7 +35,7 @@
       ]
     },
     {
-      "identifier": "fs:allow-create-dir",
+      "identifier": "fs:allow-mkdir",
       "allow": [
         { "path": "$DOWNLOAD/**" }
       ]
