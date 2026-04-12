@@ -21,7 +21,7 @@
 
 @theme {
   --font-pixel: 'Silkscreen', monospace;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', monospace;
+  --font-mono: 'Source Code Pro', monospace;
 }
 
 :root {
@@ -40,7 +40,7 @@
   --color-error: #ef4444;
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
 }
 
 .midnight {
@@ -57,7 +57,7 @@
   --color-warning: #f59e0b;
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f59e0b;
   --note-green: #10b981;
   --note-blue: #3b82f6;
@@ -82,7 +82,7 @@
   --color-warning: #f59e0b;
   --color-success: #06d6a0;
   --color-shadow: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Fira Code', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #ffd166;
   --note-green: #06d6a0;
   --note-blue: #118ab2;
@@ -132,7 +132,7 @@
   --color-warning: #f59e0b;
   --color-success: #00b894;
   --color-shadow: rgba(0, 0, 0, 0.3);
-  --font-mono: 'Fira Code', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #fdcb6e;
   --note-green: #00b894;
   --note-blue: #0984e3;
@@ -185,7 +185,7 @@
   --color-error: #f7768e;
   --color-success: #9ece6a;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e0af68;
   --note-green: #9ece6a;
   --note-blue: #7aa2f7;
@@ -227,7 +227,7 @@
   --color-error: #8c4351;
   --color-success: #385f0d;
   --color-shadow: rgba(0, 0, 0, 0.1);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #8f5e15;
   --note-green: #385f0d;
   --note-blue: #2959aa;
@@ -255,7 +255,7 @@
   --color-error: #f38ba8;
   --color-success: #a6e3a1;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f9e2af;
   --note-green: #a6e3a1;
   --note-blue: #89b4fa;
@@ -281,7 +281,7 @@
   --color-error: #ed8796;
   --color-success: #a6da95;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #eed49f;
   --note-green: #a6da95;
   --note-blue: #8aadf4;
@@ -307,7 +307,7 @@
   --color-error: #e78284;
   --color-success: #a6d189;
   --color-shadow: rgba(0, 0, 0, 0.5);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e5c890;
   --note-green: #a6d189;
   --note-blue: #8caaee;
@@ -333,7 +333,7 @@
   --color-error: #d20f39;
   --color-success: #40a02b;
   --color-shadow: rgba(0, 0, 0, 0.1);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #df8e1d;
   --note-green: #40a02b;
   --note-blue: #1e66f5;
