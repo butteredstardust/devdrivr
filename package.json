@@ -42,6 +42,11 @@
     "apps/*",
     "packages/*"
   ],
+  "lint-staged": {
+    "apps/cockpit/**/*.{ts,tsx,js,jsx,json,css,md}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {
     "@babel/runtime": "^7.23.2",
     "@manypkg/cli": "^0.21.0",
@@ -60,6 +65,7 @@
     "node": ">=18.16.1"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "lint-staged": "^15.0.0"
   }
 }

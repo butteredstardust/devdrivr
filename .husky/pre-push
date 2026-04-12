@@ -30,7 +30,7 @@ fi
 echo ""
 INFO "Running tests (apps/cockpit)..."
 TEST_OUT=""
-TEST_OUT=$(cd apps/cockpit && "$ROOT_BIN/vitest" run 2>&1) || TEST_RC=$?
+TEST_OUT=$(cd apps/cockpit && npx vitest run 2>&1) || TEST_RC=$?
 if [ "${TEST_RC:-0}" -ne 0 ]; then
   WARN "Tests failed in apps/cockpit"
   echo "$TEST_OUT" | tail -20 | sed 's/^/       /'
