@@ -9,7 +9,10 @@ vi.mock('@/lib/db', () => ({
   getSetting: vi.fn(),
   setSetting: vi.fn(),
 }))
-vi.mock('@/lib/theme', () => ({ applyTheme: vi.fn() }))
+vi.mock('@/lib/theme', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/theme')>()
+  return { ...actual, applyTheme: vi.fn() }
+})
 vi.mock('@/stores/ui.store', () => ({
   useUiStore: { getState: vi.fn(() => ({ addToast: vi.fn() })) },
 }))
@@ -140,27 +143,26 @@ describe('settings store updates', () => {
   it('toggleTheme() cycles through all themes in order, wrapping around', async () => {
     ;(setSetting as any).mockResolvedValue(undefined)
 
-    // Set to 'system'
+    const expected = [
+      'midnight',
+      'warm-terminal',
+      'neon-brutalist',
+      'earth-code',
+      'cyber-luxe',
+      'soft-focus',
+      'tokyo-night',
+      'tokyo-night-light',
+      'catppuccin-latte',
+      'catppuccin-frappe',
+      'catppuccin-macchiato',
+      'catppuccin-mocha',
+      'system', // wraps back
+    ]
+
     useSettingsStore.setState({ theme: 'system' })
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('midnight')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('warm-terminal')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('neon-brutalist')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('earth-code')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('cyber-luxe')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('soft-focus')
-
-    await useSettingsStore.getState().toggleTheme()
-    expect(useSettingsStore.getState().theme).toBe('system')
+    for (const theme of expected) {
+      await useSettingsStore.getState().toggleTheme()
+      expect(useSettingsStore.getState().theme).toBe(theme)
+    }
   })
 })

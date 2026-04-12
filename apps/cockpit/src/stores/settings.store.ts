@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { type AppSettings, DEFAULT_SETTINGS, type Theme } from '@/types/models'
 import { getSetting, setSetting } from '@/lib/db'
-import { applyTheme } from '@/lib/theme'
+import { applyTheme, ALL_THEMES } from '@/lib/theme'
 import { useUiStore } from '@/stores/ui.store'
 
 type SettingsStore = AppSettings & {
@@ -71,15 +71,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   toggleTheme: async () => {
     const current = get().theme
-    const ALL: Theme[] = [
-      'system',
-      'midnight',
-      'warm-terminal',
-      'neon-brutalist',
-      'earth-code',
-      'cyber-luxe',
-      'soft-focus',
-    ]
+    const ALL: Theme[] = ['system', ...ALL_THEMES]
     const idx = ALL.indexOf(current)
     const nextIdx = idx === -1 || idx === ALL.length - 1 ? 0 : idx + 1
     await get().update('theme', ALL[nextIdx]!)

@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme } from '@/lib/theme'
-import type { Theme } from '@/types/models'
+
 import { loader } from '@monaco-editor/react'
 
+// Themes where Monaco should use a light (vs) base
+const LIGHT_APP_THEMES = new Set<string>(['soft-focus', 'tokyo-night-light', 'catppuccin-latte'])
+
+// Static fallback themes — used when the user explicitly picks cockpit-dark or cockpit-light
 const DARK_THEME = {
   base: 'vs-dark' as const,
   inherit: true,
@@ -34,11 +38,59 @@ const LIGHT_THEME = {
 
 let themesRegistered = false
 
-function resolveMonacoTheme(theme: Theme, editorTheme: string): string {
+/** Convert an rgb()/rgba() string returned by getComputedStyle to a Monaco-compatible hex */
+function rgbToMonacoHex(rgb: string): string {
+  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+  if (!m || !m[1] || !m[2] || !m[3]) return '#808080'
+  return '#' + [m[1], m[2], m[3]].map((n) => parseInt(n).toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Resolve a CSS custom property to a hex color.
+ * Appends a temporary element to the body so that theme-class CSS vars on <html> resolve correctly.
+ */
+function getCssColor(varName: string): string {
+  const tmp = document.createElement('div')
+  tmp.style.color = `var(${varName})`
+  tmp.style.position = 'absolute'
+  tmp.style.opacity = '0'
+  tmp.style.pointerEvents = 'none'
+  document.body.appendChild(tmp)
+  const computed = getComputedStyle(tmp).color
+  document.body.removeChild(tmp)
+  return rgbToMonacoHex(computed)
+}
+
+/**
+ * Build a Monaco theme definition by reading the current app CSS custom properties.
+ * Called every time the app theme changes so editors always reflect the active palette.
+ */
+function buildCockpitTheme(isLight: boolean) {
+  const bg = getCssColor('--color-surface')
+  const fg = getCssColor('--color-text')
+  const muted = getCssColor('--color-text-muted')
+  const accent = getCssColor('--color-accent')
+  const raised = getCssColor('--color-surface-raised')
+  return {
+    base: (isLight ? 'vs' : 'vs-dark') as 'vs' | 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': bg,
+      'editor.foreground': fg,
+      'editorLineNumber.foreground': muted,
+      'editor.selectionBackground': accent + '33',
+      'editor.lineHighlightBackground': raised,
+      'editorCursor.foreground': accent,
+    },
+  }
+}
+
+function resolveMonacoTheme(editorTheme: string): string {
   if (editorTheme === 'cockpit-dark') return 'cockpit-dark'
   if (editorTheme === 'cockpit-light') return 'cockpit-light'
-  const effective = getEffectiveTheme(theme)
-  return effective === 'soft-focus' ? 'cockpit-light' : 'cockpit-dark'
+  // 'match-app': use a dynamic theme that tracks the active app palette
+  return 'cockpit-current'
 }
 
 export function useMonacoSettings() {
@@ -48,7 +100,7 @@ export function useMonacoSettings() {
   const editorFont = useSettingsStore((s) => s.editorFont)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
-  const resolvedTheme = resolveMonacoTheme(theme, editorTheme)
+  const resolvedTheme = resolveMonacoTheme(editorTheme)
 
   useEffect(() => {
     loader.init().then((monaco) => {
@@ -57,9 +109,18 @@ export function useMonacoSettings() {
         monaco.editor.defineTheme('cockpit-light', LIGHT_THEME)
         themesRegistered = true
       }
+      if (resolvedTheme === 'cockpit-current') {
+        // Redefine cockpit-current from CSS vars every time the app theme changes.
+        // defineTheme with an existing name updates it in place; setTheme then repaints all editors.
+        const effective = getEffectiveTheme(theme)
+        const isLight = LIGHT_APP_THEMES.has(effective)
+        monaco.editor.defineTheme('cockpit-current', buildCockpitTheme(isLight))
+      }
       monaco.editor.setTheme(resolvedTheme)
     })
-  }, [resolvedTheme])
+    // `theme` is included so the effect re-runs when the app theme changes while editorTheme
+    // stays 'match-app' (resolvedTheme stays 'cockpit-current' and never changes on its own)
+  }, [resolvedTheme, theme])
 
   return {
     theme: resolvedTheme,
