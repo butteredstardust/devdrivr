@@ -16,6 +16,7 @@ type ColorConverterState = {
   contrastFg: string
   contrastBg: string
   history: string[]
+  cssVarName: string
 }
 
 // ── CSS Named Colors (full 148) ──────────────────────────────────────
@@ -483,10 +484,11 @@ export default function ColorConverter() {
     contrastFg: '#ffffff',
     contrastBg: '#000000',
     history: [],
+    cssVarName: '--color-primary',
   })
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const [activeSection, setActiveSection] = useState<'formats' | 'scale' | 'harmony'>('formats')
+  const [activeSection, setActiveSection] = useState<'formats' | 'scale' | 'harmony' | 'cssvar'>('formats')
 
   const color = useMemo(() => {
     const rgb = parseColor(state.input)
@@ -598,7 +600,7 @@ export default function ColorConverter() {
       {color && (
         <>
           <div className="flex gap-2 border-b border-[var(--color-border)] pb-1">
-            {(['formats', 'scale', 'harmony'] as const).map((tab) => (
+            {(['formats', 'scale', 'harmony', 'cssvar'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveSection(tab)}
@@ -608,7 +610,7 @@ export default function ColorConverter() {
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                {tab === 'formats' ? 'Formats' : tab === 'scale' ? 'Shades & Tints' : 'Harmony'}
+                {tab === 'formats' ? 'Formats' : tab === 'scale' ? 'Shades & Tints' : tab === 'harmony' ? 'Harmony' : 'CSS Var'}
               </button>
             ))}
           </div>
@@ -685,6 +687,92 @@ export default function ColorConverter() {
                     <CopyButton text={h.hex} />
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── CSS Variable Preview ─────────────────────── */}
+          {activeSection === 'cssvar' && (
+            <section className="flex flex-col gap-4">
+              {/* Variable name input */}
+              <div className="flex items-center gap-3">
+                <label className="shrink-0 text-xs text-[var(--color-text-muted)]">
+                  Variable name
+                </label>
+                <Input
+                  value={state.cssVarName}
+                  onChange={(e) => updateState({ cssVarName: e.target.value })}
+                  placeholder="--color-primary"
+                  className="flex-1 font-mono"
+                />
+              </div>
+
+              {/* Declarations to copy */}
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Hex', value: `${state.cssVarName}: ${color.hex};` },
+                  {
+                    label: 'RGB',
+                    value: `${state.cssVarName}: rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b});`,
+                  },
+                  {
+                    label: 'HSL',
+                    value: `${state.cssVarName}: hsl(${color.hsl.h}, ${color.hsl.s}%, ${color.hsl.l}%);`,
+                  },
+                  {
+                    label: 'OKLCH',
+                    value: `${state.cssVarName}: oklch(${color.oklch.l}% ${color.oklch.c} ${color.oklch.h});`,
+                  },
+                ].map((decl) => (
+                  <div
+                    key={decl.label}
+                    className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
+                  >
+                    <div>
+                      <span className="text-xs text-[var(--color-text-muted)]">{decl.label}: </span>
+                      <span className="font-mono text-sm text-[var(--color-text)]">{decl.value}</span>
+                    </div>
+                    <CopyButton text={decl.value} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Live UI mockup */}
+              <div>
+                <div className="mb-2 text-xs text-[var(--color-text-muted)]">Preview</div>
+                <div className="flex flex-wrap items-center gap-3 rounded border border-[var(--color-border)] p-4">
+                  {/* Surface swatch */}
+                  <div
+                    className="flex h-10 w-24 items-center justify-center rounded border border-[var(--color-border)] font-mono text-xs"
+                    style={{ backgroundColor: color.hex, color: color.hsl.l > 50 ? '#000' : '#fff' }}
+                  >
+                    surface
+                  </div>
+                  {/* Button */}
+                  <button
+                    className="rounded px-3 py-1.5 text-xs font-bold"
+                    style={{ backgroundColor: color.hex, color: color.hsl.l > 50 ? '#000' : '#fff' }}
+                  >
+                    Button
+                  </button>
+                  {/* Badge */}
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                    style={{ backgroundColor: color.hex + '33', color: color.hex }}
+                  >
+                    Badge
+                  </span>
+                  {/* Text */}
+                  <span className="text-sm font-bold" style={{ color: color.hex }}>
+                    Text color
+                  </span>
+                  {/* Border sample */}
+                  <div
+                    className="h-10 w-10 rounded"
+                    style={{ border: `2px solid ${color.hex}` }}
+                    title="border color"
+                  />
+                </div>
               </div>
             </section>
           )}
