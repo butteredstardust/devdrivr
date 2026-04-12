@@ -1,130 +1,110 @@
+<div align="center">
+
 # devdrivr
 
-A local-first, keyboard-driven developer utility workspace. 28 tools in a single desktop app — no browser, no cloud, no latency.
+**27 developer tools. One desktop app. No browser, no cloud, no latency.**
 
-## Overview
+[![Release](https://img.shields.io/github/v/release/butteredstardust/devdrivr?style=for-the-badge&logo=github&color=181717)](https://github.com/butteredstardust/devdrivr/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/butteredstardust/devdrivr/cockpit-ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/butteredstardust/devdrivr/actions/workflows/cockpit-ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge)](https://github.com/butteredstardust/devdrivr/releases/latest)
 
-![Cockpit Main Interface](screenshots/Screenshot%202026-04-06%20at%2023.00.12.png)
+<br>
 
-The cockpit app combines 28 developer tools into a single, fast, local-first desktop experience — no browser, no cloud, no latency.
+![devdrivr cockpit](screenshots/Screenshot%202026-04-06%20at%2023.00.12.png)
 
-## Tools
+</div>
 
-### Code Tools
+---
 
-**Code** — Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit
+## What's inside
 
-### Data Tools
+The **cockpit** app is the heart of devdrivr — a local-first, keyboard-driven developer workspace built with Tauri 2 + React 19. Everything runs on your machine. No accounts, no telemetry, no internet required.
 
-**Data** — JSON Tools, XML Tools, JSON Schema Validator
+| Group       | Tools                                                                                                           |
+|-------------|----------------------------------------------------------------------------------------------------------------|
+| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                     |
+| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator                                                    |
+| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                              |
+| **Convert** | Case Converter · Color Converter · Timestamp · Base64 · URL Encode/Decode · cURL → Fetch · UUID · Hash        |
+| **Test**    | Regex Tester · JWT Decoder                                                                                     |
+| **Network** | API Client · Docs Browser                                                                                      |
+| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager                                                            |
 
-### Web Tools
+---
 
-**Web** — CSS Validator, HTML Validator, CSS Specificity, CSS → Tailwind
+## Quick start
 
-### Convert Tools
-
-**Convert** — Case Converter, Color Converter, Timestamp, Base64, URL Codec, cURL → Fetch, UUID Generator, Hash Generator
-
-### Test Tools
-
-**Test** — Regex Tester, JWT Decoder
-
-### Network Tools
-
-**Network** — API Client, Docs Browser
-
-### Write Tools
-
-**Write** — Markdown Editor, Mermaid Editor, Snippets Manager
-
-## Apps
-
-| App | Description |
-|-----|-------------|
-| [`apps/cockpit`](apps/cockpit) | Desktop app — Tauri 2 + React 19 (active development) |
-| [`apps/next`](apps/next) | Web app — Next.js |
-| [`apps/expo`](apps/expo) | Mobile app — Expo / React Native |
-| [`packages/api`](packages/api) | Backend — Hono on Cloudflare Workers + D1 |
-
-## cockpit
-
-The primary focus of this repo. A developer toolbox desktop app built with:
-
-- **Tauri 2** — native desktop shell (Rust + WebKit)
-- **React 19 + TypeScript 5.9** — UI
-- **Tailwind CSS 4 + Zustand 5** — styling and state
-- **SQLite** — local-first persistence
-
-### Quick Start
+> [!NOTE]
+> Prerequisites: [Bun](https://bun.sh) ≥ 1.0, [Rust](https://rustup.rs) stable, and [Tauri system dependencies](https://tauri.app/start/prerequisites/).
 
 ```bash
-# Prerequisites: Bun >= 1.0, Rust stable, Tauri system deps
-# See: https://tauri.app/start/prerequisites/
-
-cd apps/cockpit
+git clone https://github.com/butteredstardust/devdrivr
+cd devdrivr/apps/cockpit
 bun install
 bun run tauri dev
 ```
 
-See [`apps/cockpit/README.md`](apps/cockpit/README.md) for full documentation.
+See [`apps/cockpit/README.md`](apps/cockpit/README.md) for the full developer guide.
 
-## Monorepo
+---
 
-Built on the [T4 Stack](https://t4stack.com) — Turborepo monorepo targeting Cloudflare's edge platform.
+## Monorepo structure
+
+This repo is a [T4 Stack](https://t4stack.com) Turborepo. Active development is on `apps/cockpit`.
 
 ```
 apps/
-cockpit/ # Desktop — Tauri 2 + React 19 (active)
-next/ # Web — Next.js
-expo/ # Mobile — Expo / React Native
-docs/ # Documentation — Nextra
+  cockpit/    # Desktop — Tauri 2 + React 19 (active)
+  next/       # Web — Next.js
+  expo/       # Mobile — Expo / React Native
+  docs/       # Documentation — Nextra
 packages/
-api/ # Backend — Hono + Drizzle + Cloudflare D1
-ui/ # Shared — Tamagui component library
-app/ # Shared — cross-platform screens
+  api/        # Backend — Hono + Drizzle + Cloudflare D1
+  ui/         # Shared — Tamagui component library
+  app/        # Shared — cross-platform screens
 ```
 
-### Common Commands
+| App | Description |
+|-----|-------------|
+| [`apps/cockpit`](apps/cockpit) | Desktop app — Tauri 2 + React 19 |
+| [`apps/next`](apps/next) | Web app — Next.js |
+| [`apps/expo`](apps/expo) | Mobile app — Expo / React Native |
+| [`packages/api`](packages/api) | Backend — Hono on Cloudflare Workers + D1 |
 
 ```bash
-bun run dev # Start web + API dev servers
-bun run desktop # Start cockpit (Tauri)
-bun run check-types # Type-check all packages
-bun run build:web # Production web build
+bun run dev          # Start web + API dev servers
+bun run desktop      # Start cockpit (Tauri)
+bun run check-types  # Type-check all packages
+bun run build:web    # Production web build
 ```
 
-## Documentation
-
-- [`apps/cockpit/README.md`](apps/cockpit/README.md) — cockpit overview, tools, dev setup
-- [`docs/cockpit/ARCHITECTURE.md`](docs/cockpit/ARCHITECTURE.md) — architecture deep-dive
-- [`apps/cockpit/CLAUDE.md`](apps/cockpit/CLAUDE.md) — AI assistant guidance
+---
 
 ## Screenshots
 
-![Cockpit Main Interface](screenshots/Screenshot%202026-04-06%20at%2023.00.12.png)
+![Code Tools](screenshots/Screenshot%202026-04-06%20at%2023.00.27.png)
 
-**Code Tools** — Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit
+**Code** — Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit
 
-![Code Tools - Formatter & Playground](screenshots/Screenshot%202026-04-06%20at%2023.00.27.png)
+![Data Tools](screenshots/Screenshot%202026-04-06%20at%2023.01.25.png)
 
-**Data Tools** — JSON Tools, XML Tools, JSON Schema Validator
+**Data** — JSON Tools, XML Tools, YAML Tools, JSON Schema Validator
 
-![Data Tools - JSON/XML Validator](screenshots/Screenshot%202026-04-06%20at%2023.01.25.png)
+![Web Tools](screenshots/Screenshot%202026-04-06%20at%2023.01.36.png)
 
-**Web Tools** — CSS Validator, HTML Validator, CSS Specificity, CSS → Tailwind
+**Web** — CSS Validator, HTML Validator, CSS Specificity, CSS → Tailwind
 
-![Web Tools - CSS Validator](screenshots/Screenshot%202026-04-06%20at%2023.01.36.png)
+![Convert Tools](screenshots/Screenshot%202026-04-06%20at%2023.02.05.png)
 
-**Convert Tools** — Case Converter, Color Converter, Timestamp, Base64, URL Codec, cURL → Fetch, UUID Generator, Hash Generator
+**Convert** — Case Converter, Color Converter, Timestamp, Base64, URL Encode/Decode, cURL → Fetch, UUID, Hash
 
-![Convert Tools - Case & Color Converter](screenshots/Screenshot%202026-04-06%20at%2023.02.05.png)
+![Test Tools](screenshots/Screenshot%202026-04-06%20at%2023.02.24.png)
 
-**Test Tools** — Regex Tester, JWT Decoder
+**Test** — Regex Tester, JWT Decoder
 
-![Test Tools - Regex Tester](screenshots/Screenshot%202026-04-06%20at%2023.02.24.png)
+---
 
 ## License
 
 MIT
-
