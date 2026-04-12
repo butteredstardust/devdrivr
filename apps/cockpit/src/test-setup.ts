@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom'
-import { vi } from 'vitest'
 import { JSDOM } from 'jsdom'
 
 console.log('TEST SETUP LOADED')
@@ -41,8 +40,4 @@ class MockWorker {
 
 Object.defineProperty(globalThis, 'Worker', { writable: true, value: MockWorker })
 
-// Polyfill vi.mocked for compatibility with older test patterns
-if (!vi.mocked) {
-  // Simple identity function that matches the basic signature
-  vi.mocked = <T>(obj: T): any => obj
-}
+// vi.mocked is available by default in vitest 4.1.0+
