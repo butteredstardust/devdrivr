@@ -4,7 +4,7 @@ import { writeFile, mkdir } from '@tauri-apps/plugin-fs'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { downloadDir } from '@tauri-apps/api/path'
+import { downloadDir, join } from '@tauri-apps/api/path'
 import { getSetting, setSetting } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -40,7 +40,8 @@ type UpdaterStore = {
   isDownloading: boolean
   dismissed: boolean
   lastCheckedAt: number | null
-  checkForUpdate: () => Promise<void>
+  /** force=true bypasses the 1h cooldown (used by the manual "Check Now" button) */
+  checkForUpdate: (force?: boolean) => Promise<void>
   downloadUpdate: (savePath?: string) => Promise<void>
   dismiss: () => void
 }
@@ -84,19 +85,21 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   dismissed: false,
   lastCheckedAt: null,
 
-  checkForUpdate: async () => {
-    const { isChecking } = get()
-    if (isChecking) return
-
-    // Respect cooldown — read persisted lastCheckedAt from DB
-    const persistedLastChecked = await getSetting<number | null>('updaterLastCheckedAt', null)
-    if (persistedLastChecked !== null && Date.now() - persistedLastChecked < CHECK_COOLDOWN_MS) {
-      set({ lastCheckedAt: persistedLastChecked })
-      return
-    }
-
+  checkForUpdate: async (force = false) => {
+    // Set isChecking immediately to close the race window before any async work
+    if (get().isChecking) return
     set({ isChecking: true })
+
     try {
+      // Respect 1h cooldown unless manually triggered
+      if (!force) {
+        const persistedLastChecked = await getSetting<number | null>('updaterLastCheckedAt', null)
+        if (persistedLastChecked !== null && Date.now() - persistedLastChecked < CHECK_COOLDOWN_MS) {
+          set({ lastCheckedAt: persistedLastChecked, isChecking: false })
+          return
+        }
+      }
+
       const [os, arch] = await invoke<[string, string]>('get_platform_info')
       const platformKey = resolvePlatformKey(os, arch)
       const now = Date.now()
@@ -112,6 +115,9 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
       if (!response.ok) {
         await setSetting('updaterLastCheckedAt', now)
         set({ isChecking: false, lastCheckedAt: now })
+        if (force) {
+          useUiStore.getState().addToast('Could not reach update server', 'error')
+        }
         return
       }
 
@@ -123,6 +129,9 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
 
       if (compareVersions(manifest.version, currentVersion) <= 0) {
         set({ isChecking: false })
+        if (force) {
+          useUiStore.getState().addToast('devdrivr is up to date', 'success')
+        }
         return
       }
 
@@ -145,8 +154,11 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
         dismissed: false,
       })
     } catch {
-      // Silent fail — network issues should not disrupt the user
+      // Silent fail on auto-check; show error on manual check
       set({ isChecking: false })
+      if (force) {
+        useUiStore.getState().addToast('Update check failed', 'error')
+      }
     }
   },
 
@@ -196,7 +208,7 @@ export async function autoDownloadUpdate(updateInfo: UpdateInfo): Promise<void> 
     const dlDir = await downloadDir()
     const rawFilename = updateInfo.url.split('/').pop() ?? 'devdrivr-installer'
     const filename = sanitizeFilename(rawFilename)
-    const destPath = `${dlDir}/${filename}`
+    const destPath = await join(dlDir, filename)
 
     await mkdir(dlDir, { recursive: true })
     await downloadToPath(updateInfo.url, destPath)

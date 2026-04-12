@@ -283,7 +283,7 @@ function GeneralTab() {
 
         <div className="mt-2 flex items-center gap-3">
           <button
-            onClick={() => checkForUpdate().catch(() => {})}
+            onClick={() => checkForUpdate(true).catch(() => {})}
             disabled={isChecking}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
           >
