@@ -127,7 +127,7 @@ jobs:
           VERSION=$(node -p "require('./apps/cockpit/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Generate latest.json
+      - name: Verify release assets and generate latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -135,6 +135,30 @@ jobs:
           TAG="cockpit-v${VERSION}"
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Fetch actual asset names from the release and verify expected files exist
+          ASSETS=$(gh release view "${TAG}" --json assets --jq '[.assets[].name]')
+          echo "Release assets: ${ASSETS}"
+
+          EXPECTED_ASSETS=(
+            "devdrivr_${VERSION}_aarch64.dmg"
+            "devdrivr_${VERSION}_x64.dmg"
+            "devdrivr_${VERSION}_amd64.AppImage"
+            "devdrivr_${VERSION}_x64-setup.exe"
+          )
+
+          MISSING=0
+          for ASSET in "${EXPECTED_ASSETS[@]}"; do
+            if ! echo "${ASSETS}" | grep -q "\"${ASSET}\""; then
+              echo "WARNING: Expected asset not found in release: ${ASSET}"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          if [ "${MISSING}" -gt 0 ]; then
+            echo "ERROR: ${MISSING} expected asset(s) missing from release ${TAG}. Aborting manifest generation."
+            exit 1
+          fi
 
           cat > latest.json <<EOF
           {

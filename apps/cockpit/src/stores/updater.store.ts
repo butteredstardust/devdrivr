@@ -5,10 +5,13 @@ import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { downloadDir } from '@tauri-apps/api/path'
+import { getSetting, setSetting } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
 const MANIFEST_URL =
   'https://github.com/butteredstardust/devdrivr/releases/latest/download/latest.json'
+
+const CHECK_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
 
 type PlatformKey = 'darwin-aarch64' | 'darwin-x86_64' | 'linux-x86_64' | 'windows-x86_64'
 
@@ -35,7 +38,6 @@ type UpdaterStore = {
   updateInfo: UpdateInfo | null
   isChecking: boolean
   isDownloading: boolean
-  downloadProgress: number
   dismissed: boolean
   lastCheckedAt: number | null
   checkForUpdate: () => Promise<void>
@@ -62,11 +64,23 @@ function compareVersions(a: string, b: string): number {
   return 0
 }
 
+/** Strip any path separators from a URL-derived filename to prevent traversal. */
+function sanitizeFilename(raw: string): string {
+  return raw.replace(/[/\\]/g, '_').replace(/^\.+/, '_')
+}
+
+/** Shared download helper: fetches URL and writes to destPath. */
+async function downloadToPath(url: string, destPath: string): Promise<void> {
+  const response = await fetch(url, { method: 'GET' })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const buffer = await response.arrayBuffer()
+  await writeFile(destPath, new Uint8Array(buffer))
+}
+
 export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   updateInfo: null,
   isChecking: false,
   isDownloading: false,
-  downloadProgress: 0,
   dismissed: false,
   lastCheckedAt: null,
 
@@ -74,32 +88,47 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
     const { isChecking } = get()
     if (isChecking) return
 
+    // Respect cooldown — read persisted lastCheckedAt from DB
+    const persistedLastChecked = await getSetting<number | null>('updaterLastCheckedAt', null)
+    if (persistedLastChecked !== null && Date.now() - persistedLastChecked < CHECK_COOLDOWN_MS) {
+      set({ lastCheckedAt: persistedLastChecked })
+      return
+    }
+
     set({ isChecking: true })
     try {
       const [os, arch] = await invoke<[string, string]>('get_platform_info')
       const platformKey = resolvePlatformKey(os, arch)
+      const now = Date.now()
+
       if (!platformKey) {
-        set({ isChecking: false, lastCheckedAt: Date.now() })
+        await setSetting('updaterLastCheckedAt', now)
+        set({ isChecking: false, lastCheckedAt: now })
+        useUiStore.getState().addToast('Automatic updates are not supported on your platform', 'info')
         return
       }
 
       const response = await fetch(MANIFEST_URL, { method: 'GET' })
       if (!response.ok) {
-        set({ isChecking: false, lastCheckedAt: Date.now() })
+        await setSetting('updaterLastCheckedAt', now)
+        set({ isChecking: false, lastCheckedAt: now })
         return
       }
 
       const manifest = (await response.json()) as UpdateManifest
       const currentVersion = await getVersion()
 
+      await setSetting('updaterLastCheckedAt', now)
+      set({ lastCheckedAt: now })
+
       if (compareVersions(manifest.version, currentVersion) <= 0) {
-        set({ isChecking: false, lastCheckedAt: Date.now() })
+        set({ isChecking: false })
         return
       }
 
       const platformEntry = manifest.platforms[platformKey]
       if (!platformEntry) {
-        set({ isChecking: false, lastCheckedAt: Date.now() })
+        set({ isChecking: false })
         useUiStore.getState().addToast('Update available but no installer for your platform', 'info')
         return
       }
@@ -113,12 +142,11 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
           platformKey,
         },
         isChecking: false,
-        lastCheckedAt: Date.now(),
         dismissed: false,
       })
     } catch {
       // Silent fail — network issues should not disrupt the user
-      set({ isChecking: false, lastCheckedAt: Date.now() })
+      set({ isChecking: false })
     }
   },
 
@@ -126,14 +154,14 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
     const { updateInfo, isDownloading } = get()
     if (!updateInfo || isDownloading) return
 
-    set({ isDownloading: true, downloadProgress: 0 })
+    set({ isDownloading: true })
     const addToast = useUiStore.getState().addToast
 
     try {
       let destPath = savePath
       if (!destPath) {
-        // User-chosen path via save dialog
-        const filename = updateInfo.url.split('/').pop() ?? `devdrivr-installer`
+        const rawFilename = updateInfo.url.split('/').pop() ?? 'devdrivr-installer'
+        const filename = sanitizeFilename(rawFilename)
         const chosen = await saveDialog({
           defaultPath: filename,
           title: 'Save installer',
@@ -145,17 +173,11 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
         destPath = chosen
       }
 
-      const response = await fetch(updateInfo.url, { method: 'GET' })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-      const buffer = await response.arrayBuffer()
-      set({ downloadProgress: 90 })
-
-      await writeFile(destPath, new Uint8Array(buffer))
-      set({ downloadProgress: 100, isDownloading: false })
+      await downloadToPath(updateInfo.url, destPath)
+      set({ isDownloading: false })
       addToast(`Installer saved to ${destPath}`, 'success')
     } catch (err) {
-      set({ isDownloading: false, downloadProgress: 0 })
+      set({ isDownloading: false })
       const msg = err instanceof Error ? err.message : String(err)
       addToast(`Download failed: ${msg}`, 'error')
     }
@@ -172,16 +194,13 @@ export async function autoDownloadUpdate(updateInfo: UpdateInfo): Promise<void> 
   const addToast = useUiStore.getState().addToast
   try {
     const dlDir = await downloadDir()
-    const filename = updateInfo.url.split('/').pop() ?? `devdrivr-installer`
+    const rawFilename = updateInfo.url.split('/').pop() ?? 'devdrivr-installer'
+    const filename = sanitizeFilename(rawFilename)
     const destPath = `${dlDir}/${filename}`
 
     await mkdir(dlDir, { recursive: true })
+    await downloadToPath(updateInfo.url, destPath)
 
-    const response = await fetch(updateInfo.url, { method: 'GET' })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-    const buffer = await response.arrayBuffer()
-    await writeFile(destPath, new Uint8Array(buffer))
     addToast(`Update downloaded to ${destPath}`, 'success')
     useUpdaterStore.getState().dismiss()
   } catch (err) {

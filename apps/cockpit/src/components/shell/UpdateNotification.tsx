@@ -6,7 +6,6 @@ export function UpdateNotification() {
   const updateInfo = useUpdaterStore((s) => s.updateInfo)
   const dismissed = useUpdaterStore((s) => s.dismissed)
   const isDownloading = useUpdaterStore((s) => s.isDownloading)
-  const downloadProgress = useUpdaterStore((s) => s.downloadProgress)
   const dismiss = useUpdaterStore((s) => s.dismiss)
   const downloadUpdate = useUpdaterStore((s) => s.downloadUpdate)
   const notifyWhenUpdateAvailable = useSettingsStore((s) => s.notifyWhenUpdateAvailable)
@@ -29,9 +28,9 @@ export function UpdateNotification() {
       </span>
 
       {isDownloading ? (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
           <SpinnerIcon size={12} className="animate-spin text-[var(--color-accent)]" />
-          <span className="text-xs text-[var(--color-text-muted)]">{downloadProgress}%</span>
+          Downloading…
         </div>
       ) : (
         <button

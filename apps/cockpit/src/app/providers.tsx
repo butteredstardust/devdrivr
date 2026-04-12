@@ -94,15 +94,14 @@ export function Providers({ children }: { children: ReactNode }) {
         await win.setAlwaysOnTop(true)
       }
 
-      // Auto-check for updates (non-blocking)
+      // Auto-check for updates (non-blocking). checkForUpdate() self-guards with a 1h cooldown
+      // persisted to SQLite, so it's safe to call on every launch.
       if (settings.checkForUpdatesAutomatically) {
         const { checkForUpdate } = useUpdaterStore.getState()
         checkForUpdate()
           .then(() => {
-            const { updateInfo, downloadUpdatesAutomatically } = {
-              ...useUpdaterStore.getState(),
-              downloadUpdatesAutomatically: useSettingsStore.getState().downloadUpdatesAutomatically,
-            }
+            const updateInfo = useUpdaterStore.getState().updateInfo
+            const { downloadUpdatesAutomatically } = useSettingsStore.getState()
             if (updateInfo && downloadUpdatesAutomatically) {
               autoDownloadUpdate(updateInfo).catch(() => {})
             }

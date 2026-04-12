@@ -454,6 +454,12 @@ function DataTab() {
       // Boolean fields
       if (typeof obj['alwaysOnTop'] === 'boolean') await su('alwaysOnTop', obj['alwaysOnTop'])
       if (typeof obj['formatOnPaste'] === 'boolean') await su('formatOnPaste', obj['formatOnPaste'])
+      if (typeof obj['checkForUpdatesAutomatically'] === 'boolean')
+        await su('checkForUpdatesAutomatically', obj['checkForUpdatesAutomatically'])
+      if (typeof obj['downloadUpdatesAutomatically'] === 'boolean')
+        await su('downloadUpdatesAutomatically', obj['downloadUpdatesAutomatically'])
+      if (typeof obj['notifyWhenUpdateAvailable'] === 'boolean')
+        await su('notifyWhenUpdateAvailable', obj['notifyWhenUpdateAvailable'])
       if (typeof obj['sidebarCollapsed'] === 'boolean')
         await su('sidebarCollapsed', obj['sidebarCollapsed'])
       if (typeof obj['notesDrawerOpen'] === 'boolean')
