@@ -33,7 +33,8 @@ function sortKeysDeep(data: unknown): unknown {
   if (Array.isArray(data)) return data.map(sortKeysDeep)
   if (data !== null && typeof data === 'object') {
     const sorted: Record<string, unknown> = {}
-    for (const key of Object.keys(data as Record<string, unknown>).sort()) {
+    const keys = Object.keys(data as Record<string, unknown>).sort()
+    for (const key of keys) {
       sorted[key] = sortKeysDeep((data as Record<string, unknown>)[key])
     }
     return sorted
@@ -66,7 +67,7 @@ function queryJsonPath(data: unknown, path: string): unknown {
   if (!path.trim()) return undefined
   const parts = path
     .replace(/^\$\.?/, '') // strip leading $. or $
-    .replace(/\[(\d+)\]/g, '.$1') // arr[0] → arr.0
+    .replace(/\[(\d+)\]/g, '.$1') // arr[0] [38;5;241m[39m[39marr.0
     .split('.')
     .filter(Boolean)
   if (parts.length === 0) return data
@@ -75,6 +76,7 @@ function queryJsonPath(data: unknown, path: string): unknown {
   for (const part of parts) {
     if (current === null || current === undefined) return undefined
     if (typeof current !== 'object') return undefined
+    if (!(part in (current as Record<string, unknown>))) return undefined
     current = (current as Record<string, unknown>)[part]
   }
   return current
@@ -159,14 +161,14 @@ export default function JsonTools() {
   }, [formatter, state.input, updateState, setLastAction])
 
   const handleMinify = useCallback(() => {
-    if (!parsed.ok) return
+    if (!parsed.ok || parsed.data === null || parsed.data === undefined) return
     updateState({ input: JSON.stringify(parsed.data) })
     setError(null)
     setLastAction('Minified JSON', 'success')
   }, [parsed, updateState, setLastAction])
 
   const handleSortKeys = useCallback(() => {
-    if (!parsed.ok) return
+    if (!parsed.ok || parsed.data === null || parsed.data === undefined) return
     const sorted = sortKeysDeep(parsed.data)
     updateState({ input: JSON.stringify(sorted, null, 2) })
     setError(null)
@@ -350,14 +352,10 @@ function JsonTree({
   const [expanded, setExpanded] = useState(defaultExpanded)
   const setLastAction = useUiStore((s) => s.setLastAction)
 
-  const copyPath = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      navigator.clipboard.writeText(path)
-      setLastAction(`Copied: ${path}`, 'success')
-    },
-    [path, setLastAction]
-  )
+  const copyPath = useCallback(() => {
+    navigator.clipboard.writeText(path)
+    setLastAction(`Copied: ${path}`, 'success')
+  }, [path, setLastAction])
 
   const copyValue = useCallback(
     (val: unknown) => {
@@ -477,10 +475,14 @@ function JsonTable({ data }: { data: Record<string, unknown>[] }) {
 
   const copyCell = useCallback(
     (value: unknown) => {
-      navigator.clipboard.writeText(
-        typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')
-      )
-      setLastAction('Copied cell', 'success')
+      try {
+        const text =
+          typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '')
+        navigator.clipboard.writeText(text)
+        setLastAction('Copied cell', 'success')
+      } catch (e) {
+        setLastAction('Failed to copy cell', 'error')
+      }
     },
     [setLastAction]
   )
