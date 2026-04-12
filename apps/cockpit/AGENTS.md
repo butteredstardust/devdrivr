@@ -28,6 +28,12 @@ bun run test             # run Vitest tests — MUST all pass
 bun run tauri build      # production build
 ```
 
+> **Note**: For type checking in the cockpit directory, use:
+>
+> ```bash
+> cd apps/cockpit && npx tsc --noEmit
+> ```
+
 ---
 
 ## File Map — Know Before You Touch

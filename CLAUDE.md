@@ -30,6 +30,7 @@ bun run notes        # Nextra docs site
 
 # Type checking
 bun run check-types  # tsc --noEmit across all packages
+cd apps/cockpit && npx tsc --noEmit  # type-check cockpit specifically
 
 # Database
 bun run generate     # drizzle-kit generate migrations
@@ -92,6 +93,7 @@ app/*       → packages/app/*
 ## Code Style
 
 Prettier config (`.prettierrc`):
+
 - `semi: false`
 - `singleQuote: true`
 - `trailingComma: 'es5'`
@@ -101,6 +103,7 @@ Prettier config (`.prettierrc`):
 ## Environment Variables
 
 Required (see `.env.example`):
+
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8787
 NEXT_PUBLIC_APP_URL=http://localhost:3000
