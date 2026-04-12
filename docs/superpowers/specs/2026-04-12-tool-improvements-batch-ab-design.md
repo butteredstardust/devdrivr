@@ -70,7 +70,13 @@ Add a `folder` field to snippets so they can be grouped into named folders, with
 
 **Data model:**
 - `folder: string` added to the `Snippet` type in `src/types/models.ts` (default `""` = unfiled)
-- DB migration (005): `ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT ''`
+- DB migration (005):
+  ```sql
+  ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+  -- Explicitly backfill existing rows so upgrading users land in a clean state
+  UPDATE snippets SET folder = '' WHERE folder IS NULL;
+  ```
+  SQLite applies the DEFAULT to new rows automatically; the explicit UPDATE ensures any pre-existing rows are also set, following the same pattern as migration 004.
 
 **Sidebar pane 1 changes:**
 - A **Folder** filter section appears above the tag filter bar
