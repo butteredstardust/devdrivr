@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
+import DOMPurify from 'dompurify'
+
+const { sanitize } = DOMPurify
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
@@ -39,6 +42,10 @@ const LANGUAGES = [
 type DiffStats = { additions: number; deletions: number }
 
 function parseDiffStats(patch: string): DiffStats {
+  if (!patch || patch.trim().length === 0) {
+    return { additions: 0, deletions: 0 }
+  }
+
   let additions = 0
   let deletions = 0
   for (const line of patch.split('\n')) {
@@ -88,6 +95,10 @@ export default function DiffViewer() {
       })
       setDiffHtml(rendered)
       setLastAction('Diff computed', 'success')
+    } catch (error) {
+      setLastAction('Diff computation failed', 'error')
+      setDiffHtml('')
+      setRawPatch('')
     } finally {
       comparingRef.current = false
       setIsComparing(false)
@@ -100,10 +111,11 @@ export default function DiffViewer() {
     state.jsonMode,
     state.mode,
     setLastAction,
+    setDiffHtml,
+    setRawPatch,
   ])
 
   // Auto-compare with debounce when both sides have content
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
@@ -117,7 +129,7 @@ export default function DiffViewer() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, computeDiff)
 
@@ -211,7 +223,12 @@ export default function DiffViewer() {
       {diffHtml && !identical ? (
         <div
           className="flex-1 overflow-auto bg-[var(--color-surface)] p-2 text-xs"
-          dangerouslySetInnerHTML={{ __html: diffHtml }}
+          dangerouslySetInnerHTML={{
+            __html: sanitize(diffHtml, {
+              ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'del', 'ins', 'br', 'hr'],
+              ALLOWED_ATTR: ['class', 'style', 'data-diffline', 'data-diffpath'],
+            }),
+          }}
         />
       ) : (
         <div className="flex flex-1 gap-px bg-[var(--color-border)]">
@@ -238,7 +255,7 @@ export default function DiffViewer() {
                 theme={monacoTheme}
                 language={state.language}
                 value={state.right}
-                onChange={(v) => updateState({ right: v ?? '' })}
+                onChange={(v) => updateState({ right: String(v) })}
                 options={{ ...monacoOptions, wordWrap: 'off' }}
               />
             </div>
