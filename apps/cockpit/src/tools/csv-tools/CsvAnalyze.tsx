@@ -19,7 +19,7 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
 
   const columnStats = useMemo(() => {
     const keys = Object.keys(data[0] ?? {})
-    const result: Record<string, { type: ColumnType; stats: unknown }> = {}
+    const result: Record<string, { type: ColumnType; stats: unknown; nullCount: number; nullPct: number }> = {}
 
     for (const key of keys) {
       const values = data.map((row) => row[key])
@@ -32,7 +32,10 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
         stats = calculateStringStats(values)
       }
 
-      result[key] = { type, stats }
+      const nullCount = values.filter((v) => v === null || v === undefined || v === '').length
+      const nullPct = data.length > 0 ? (nullCount / data.length) * 100 : 0
+
+      result[key] = { type, stats, nullCount, nullPct }
     }
 
     return result
@@ -77,7 +80,7 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
         </button>
         {expandedPanel === 'stats' && (
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {Object.entries(columnStats).map(([key, { type, stats }]) => (
+            {Object.entries(columnStats).map(([key, { type, stats, nullCount, nullPct }]) => (
               <div
                 key={key}
                 className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
@@ -93,6 +96,11 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
                 {(type === 'string' || type === 'mixed') && stats != null && (
                   <div className="text-[10px] text-[var(--color-text-muted)]">
                     Unique: {String((stats as { unique: number }).unique)}
+                  </div>
+                )}
+                {nullCount > 0 && (
+                  <div className="text-[10px] text-[var(--color-warning)]">
+                    Nulls: {nullCount} ({nullPct.toFixed(1)}%)
                   </div>
                 )}
               </div>

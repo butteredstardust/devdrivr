@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
+import DOMPurify from 'dompurify'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
@@ -12,6 +13,8 @@ import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
+
+const { sanitize } = DOMPurify
 
 type DiffViewerState = {
   left: string
@@ -39,6 +42,10 @@ const LANGUAGES = [
 type DiffStats = { additions: number; deletions: number }
 
 function parseDiffStats(patch: string): DiffStats {
+  if (!patch || patch.trim().length === 0) {
+    return { additions: 0, deletions: 0 }
+  }
+
   let additions = 0
   let deletions = 0
   for (const line of patch.split('\n')) {
@@ -88,6 +95,10 @@ export default function DiffViewer() {
       })
       setDiffHtml(rendered)
       setLastAction('Diff computed', 'success')
+    } catch (error) {
+      setLastAction('Diff computation failed', 'error')
+      setDiffHtml('')
+      setRawPatch('')
     } finally {
       comparingRef.current = false
       setIsComparing(false)
@@ -100,10 +111,11 @@ export default function DiffViewer() {
     state.jsonMode,
     state.mode,
     setLastAction,
+    setDiffHtml,
+    setRawPatch,
   ])
 
   // Auto-compare with debounce when both sides have content
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
@@ -117,7 +129,7 @@ export default function DiffViewer() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, computeDiff)
 
@@ -211,7 +223,43 @@ export default function DiffViewer() {
       {diffHtml && !identical ? (
         <div
           className="flex-1 overflow-auto bg-[var(--color-surface)] p-2 text-xs"
-          dangerouslySetInnerHTML={{ __html: diffHtml }}
+          style={{
+            // Map diff2html tokens to app theme tokens so the diff
+            // always matches the current color scheme without needing
+            // the bundled light-only diff2html.min.css
+            ['--d2h-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-border-color' as string]: 'var(--color-border)',
+            ['--d2h-line-border-color' as string]: 'var(--color-border)',
+            ['--d2h-dim-color' as string]: 'var(--color-text-muted)',
+            ['--d2h-file-header-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-file-header-border-color' as string]: 'var(--color-border)',
+            ['--d2h-empty-placeholder-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-empty-placeholder-border-color' as string]: 'var(--color-border)',
+            ['--d2h-ins-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
+            ['--d2h-ins-border-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-label-color' as string]: 'var(--color-success)',
+            ['--d2h-del-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
+            ['--d2h-del-border-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-label-color' as string]: 'var(--color-error)',
+            ['--d2h-change-del-color' as string]: 'color-mix(in srgb, var(--color-warning) 20%, transparent)',
+            ['--d2h-change-ins-color' as string]: 'color-mix(in srgb, var(--color-success) 20%, transparent)',
+            ['--d2h-change-label-color' as string]: 'var(--color-warning)',
+            ['--d2h-info-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-info-border-color' as string]: 'var(--color-border)',
+          }}
+          dangerouslySetInnerHTML={{
+            __html: sanitize(diffHtml, {
+              ALLOWED_TAGS: [
+                'div', 'span', 'code', 'pre', 'del', 'ins', 'br', 'hr',
+                'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                'svg', 'path', 'label', 'input', 'a',
+              ],
+              ALLOWED_ATTR: ['class', 'style', 'data-diffline', 'data-diffpath', 'type', 'checked', 'disabled', 'title'],
+              FORCE_BODY: true,
+            }),
+          }}
         />
       ) : (
         <div className="flex flex-1 gap-px bg-[var(--color-border)]">
@@ -238,7 +286,7 @@ export default function DiffViewer() {
                 theme={monacoTheme}
                 language={state.language}
                 value={state.right}
-                onChange={(v) => updateState({ right: v ?? '' })}
+                onChange={(v) => updateState({ right: String(v) })}
                 options={{ ...monacoOptions, wordWrap: 'off' }}
               />
             </div>

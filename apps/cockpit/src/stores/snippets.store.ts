@@ -8,11 +8,13 @@ type SnippetsStore = {
   snippets: Snippet[]
   initialized: boolean
   saving: boolean
+  activeFolder: string
+  setActiveFolder: (folder: string) => void
   init: () => Promise<void>
-  add: (title: string, content: string, language: string, tags?: string[]) => Promise<Snippet>
+  add: (title: string, content: string, language: string, tags?: string[], folder?: string) => Promise<Snippet>
   update: (
     id: string,
-    patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags'>>
+    patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags' | 'folder'>>
   ) => Promise<void>
   remove: (id: string) => Promise<void>
   clearAll: () => Promise<void>
@@ -25,6 +27,8 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   snippets: [],
   initialized: false,
   saving: false,
+  activeFolder: '',
+  setActiveFolder: (folder) => set({ activeFolder: folder }),
 
   init: async () => {
     if (!initPromise) {
@@ -36,7 +40,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     return initPromise
   },
 
-  add: async (title, content, language, tags = []) => {
+  add: async (title, content, language, tags = [], folder = '') => {
     const now = Date.now()
     const snippet: Snippet = {
       id: nanoid(),
@@ -44,6 +48,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       content,
       language,
       tags,
+      folder,
       createdAt: now,
       updatedAt: now,
     }

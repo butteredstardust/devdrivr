@@ -152,6 +152,7 @@ type SnippetRow = {
   content: string
   language: string
   tags: string
+  folder: string
   created_at: number
   updated_at: number
 }
@@ -174,15 +175,16 @@ export async function loadSnippets(): Promise<Snippet[]> {
 export async function saveSnippet(snippet: Snippet): Promise<void> {
   const conn = await getDb()
   await conn.execute(
-    `INSERT INTO snippets (id, title, content, language, tags, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, updated_at=$7`,
+    `INSERT INTO snippets (id, title, content, language, tags, folder, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, updated_at=$8`,
     [
       snippet.id,
       snippet.title,
       snippet.content,
       snippet.language,
       JSON.stringify(snippet.tags),
+      snippet.folder,
       snippet.createdAt,
       snippet.updatedAt,
     ]

@@ -31,6 +31,18 @@ describe('CsvAnalyze', () => {
     expect(screen.getByText('TypeScript')).toBeInTheDocument()
   })
 
+  it('shows null percentage for columns with missing values', () => {
+    const dataWithNulls = [
+      { name: 'Alice', score: 95 },
+      { name: '', score: 88 },
+      { name: 'Charlie', score: 72 },
+      { name: null, score: null },
+    ]
+    render(<CsvAnalyze data={dataWithNulls as Record<string, unknown>[]} />)
+    // 2 of 4 name values are null/empty → 50.0%
+    expect(screen.getByText(/Nulls: 2 \(50\.0%\)/)).toBeInTheDocument()
+  })
+
   it('generates TypeScript interface', () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
