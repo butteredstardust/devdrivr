@@ -503,6 +503,43 @@ img{max-width:100%}</style>
     [state.content, html, setLastAction]
   )
 
+  const handleExportPdf = useCallback(() => {
+    const fullHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Export</title>
+<style>
+  @media print { body { margin: 0; } }
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #111; }
+  code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f8f8f8; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding: 0 16px; color: #666; }
+  img { max-width: 100%; }
+</style>
+</head><body>${html}</body></html>`
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    iframe.style.left = '-9999px'
+    document.body.appendChild(iframe)
+    const iframeDoc = iframe.contentWindow?.document
+    if (!iframeDoc) {
+      document.body.removeChild(iframe)
+      return
+    }
+    iframeDoc.open()
+    iframeDoc.write(fullHtml)
+    iframeDoc.close()
+    iframe.contentWindow?.focus()
+    iframe.contentWindow?.print()
+    setTimeout(() => document.body.removeChild(iframe), 1000)
+    setLastAction('Print dialog opened', 'success')
+  }, [html, setLastAction])
+
   const handleTemplateSelect = useCallback(
     (content: string) => {
       updateState({ content })
@@ -583,6 +620,13 @@ img{max-width:100%}</style>
             title="Download .html file"
           >
             ↓ HTML
+          </button>
+          <button
+            onClick={handleExportPdf}
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            title="Print / Save as PDF"
+          >
+            ↓ PDF
           </button>
           <button
             onClick={handleExportHtml}
