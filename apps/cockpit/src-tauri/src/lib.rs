@@ -1,5 +1,13 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+#[tauri::command]
+fn get_platform_info() -> (String, String) {
+    (
+        std::env::consts::OS.to_string(),
+        std::env::consts::ARCH.to_string(),
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let migrations = vec![
@@ -38,6 +46,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![get_platform_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

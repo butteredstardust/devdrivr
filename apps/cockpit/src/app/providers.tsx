@@ -4,6 +4,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useUpdaterStore, autoDownloadUpdate } from '@/stores/updater.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getSetting, setSetting } from '@/lib/db'
 import type { WorkspaceTab } from '@/types/tools'
@@ -91,6 +92,21 @@ export function Providers({ children }: { children: ReactNode }) {
       const settings = useSettingsStore.getState()
       if (settings.alwaysOnTop) {
         await win.setAlwaysOnTop(true)
+      }
+
+      // Auto-check for updates (non-blocking). checkForUpdate() self-guards with a 1h cooldown
+      // persisted to SQLite, so it's safe to call on every launch.
+      if (settings.checkForUpdatesAutomatically) {
+        const { checkForUpdate } = useUpdaterStore.getState()
+        checkForUpdate()
+          .then(() => {
+            const updateInfo = useUpdaterStore.getState().updateInfo
+            const { downloadUpdatesAutomatically } = useSettingsStore.getState()
+            if (updateInfo && downloadUpdatesAutomatically) {
+              autoDownloadUpdate(updateInfo).catch(() => {})
+            }
+          })
+          .catch(() => {})
       }
 
       // Save bounds on move/resize (debounced 2s) — convert to logical to match restore

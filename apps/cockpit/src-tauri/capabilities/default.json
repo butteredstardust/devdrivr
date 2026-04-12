@@ -22,11 +22,30 @@
     "sql:default",
     "sql:allow-execute",
     "fs:default",
-    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://github.com/**" },
+        { "url": "https://objects.githubusercontent.com/**" }
+      ]
+    },
     "dialog:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-read-file",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$HOME/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        { "path": "$DOWNLOAD/**" }
+      ]
+    },
     "core:window:allow-scale-factor",
     "core:window:allow-inner-position"
   ]

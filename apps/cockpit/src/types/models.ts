@@ -16,6 +16,9 @@ export type AppSettings = {
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
   historyRetentionPerTool: number
   formatOnPaste: boolean
+  checkForUpdatesAutomatically: boolean
+  downloadUpdatesAutomatically: boolean
+  notifyWhenUpdateAvailable: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -32,6 +35,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   editorKeybindingMode: 'standard',
   historyRetentionPerTool: 500,
   formatOnPaste: false,
+  checkForUpdatesAutomatically: true,
+  downloadUpdatesAutomatically: false,
+  notifyWhenUpdateAvailable: true,
 }
 
 export type ToolState = {
