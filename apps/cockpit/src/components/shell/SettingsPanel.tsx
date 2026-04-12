@@ -26,6 +26,7 @@ import {
 } from '@phosphor-icons/react'
 import { Toggle } from '@/components/shared/Toggle'
 import { ALL_THEMES, THEME_META } from '@/lib/theme'
+import { getVersion } from '@tauri-apps/api/app'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -216,6 +217,11 @@ function GeneralTab() {
   const updateInfo = useUpdaterStore((s) => s.updateInfo)
   const checkForUpdate = useUpdaterStore((s) => s.checkForUpdate)
 
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {})
+  }, [])
+
   const handleAlwaysOnTop = useCallback(
     (checked: boolean) => {
       getCurrentWindow()
@@ -282,6 +288,9 @@ function GeneralTab() {
         </div>
 
         <div className="mt-2 flex items-center gap-3">
+          {appVersion && (
+            <span className="text-[10px] text-[var(--color-text-muted)]">v{appVersion}</span>
+          )}
           <button
             onClick={() => checkForUpdate(true).catch(() => {})}
             disabled={isChecking}

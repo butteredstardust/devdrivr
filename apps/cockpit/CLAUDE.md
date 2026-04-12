@@ -78,7 +78,26 @@ Capabilities live in `src-tauri/capabilities/default.json` scoped to `"windows":
 | `src/stores/settings.store.ts`        | Theme, sidebar, editor preferences                                          |
 | `src/hooks/useGlobalShortcuts.ts`     | All keyboard shortcuts                                                      |
 | `src-tauri/capabilities/default.json` | IPC permissions                                                             |
-| `src-tauri/migrations/`               | DB schema across 3 migrations (001 initial, 002 API client, 003 notes tags) |
+| `src-tauri/migrations/`               | DB schema — 005 migrations (see SQLite Migrations section above)            |
+| `src-tauri/src/lib.rs`                | **Must also register** every migration file here                            |
+
+## SQLite Migrations — Two-Step Rule
+
+Adding a migration requires **two changes** — both must be in the same commit:
+
+1. Create the SQL file: `src-tauri/migrations/00N_description.sql`
+2. Register it in `src-tauri/src/lib.rs` — add a `Migration { version: N, ... }` entry to the `migrations` vec.
+
+The SQL file alone does nothing. `tauri-plugin-sql` only runs migrations that are registered in `lib.rs`. Shipping without step 2 will leave existing installs with missing columns and runtime errors.
+
+```rust
+Migration {
+    version: 5,
+    description: "add snippets folder column",
+    sql: include_str!("../migrations/005_snippets_folder.sql"),
+    kind: MigrationKind::Up,
+},
+```
 
 ## What NOT to Do
 
