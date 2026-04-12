@@ -1,6 +1,2 @@
 #!/bin/sh
-# devdrivr pre-commit: format staged files with Prettier via lint-staged
-
-. "$(dirname "$0")/h"
-
 bunx lint-staged
