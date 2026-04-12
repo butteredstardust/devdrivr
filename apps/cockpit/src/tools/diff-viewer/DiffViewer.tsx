@@ -223,6 +223,32 @@ export default function DiffViewer() {
       {diffHtml && !identical ? (
         <div
           className="flex-1 overflow-auto bg-[var(--color-surface)] p-2 text-xs"
+          style={{
+            // Map diff2html tokens to app theme tokens so the diff
+            // always matches the current color scheme without needing
+            // the bundled light-only diff2html.min.css
+            ['--d2h-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-border-color' as string]: 'var(--color-border)',
+            ['--d2h-line-border-color' as string]: 'var(--color-border)',
+            ['--d2h-dim-color' as string]: 'var(--color-text-muted)',
+            ['--d2h-file-header-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-file-header-border-color' as string]: 'var(--color-border)',
+            ['--d2h-empty-placeholder-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-empty-placeholder-border-color' as string]: 'var(--color-border)',
+            ['--d2h-ins-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
+            ['--d2h-ins-border-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-label-color' as string]: 'var(--color-success)',
+            ['--d2h-del-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
+            ['--d2h-del-border-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-label-color' as string]: 'var(--color-error)',
+            ['--d2h-change-del-color' as string]: 'color-mix(in srgb, var(--color-warning) 20%, transparent)',
+            ['--d2h-change-ins-color' as string]: 'color-mix(in srgb, var(--color-success) 20%, transparent)',
+            ['--d2h-change-label-color' as string]: 'var(--color-warning)',
+            ['--d2h-info-bg-color' as string]: 'var(--color-surface)',
+            ['--d2h-info-border-color' as string]: 'var(--color-border)',
+          }}
           dangerouslySetInnerHTML={{
             __html: sanitize(diffHtml, {
               ALLOWED_TAGS: [
