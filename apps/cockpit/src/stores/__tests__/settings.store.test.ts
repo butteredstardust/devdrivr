@@ -156,6 +156,16 @@ describe('settings store updates', () => {
       'catppuccin-frappe',
       'catppuccin-macchiato',
       'catppuccin-mocha',
+      'dracula',
+      'monokai',
+      'nord',
+      'night-owl',
+      'github-dark',
+      'github-light',
+      'solarized-dark',
+      'solarized-light',
+      'tomorrow-night',
+      'oceanic-next',
       'system', // wraps back
     ]
 

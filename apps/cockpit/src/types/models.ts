@@ -1,6 +1,29 @@
 import { NOTE_COLORS } from '@/lib/schemas'
 
-export type Theme = 'system' | 'midnight' | 'warm-terminal' | 'neon-brutalist' | 'earth-code' | 'cyber-luxe' | 'soft-focus' | 'tokyo-night' | 'tokyo-night-light' | 'catppuccin-latte' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha'
+export type Theme =
+  | 'system'
+  | 'midnight'
+  | 'warm-terminal'
+  | 'neon-brutalist'
+  | 'earth-code'
+  | 'cyber-luxe'
+  | 'soft-focus'
+  | 'tokyo-night'
+  | 'tokyo-night-light'
+  | 'catppuccin-latte'
+  | 'catppuccin-frappe'
+  | 'catppuccin-macchiato'
+  | 'catppuccin-mocha'
+  | 'dracula'
+  | 'monokai'
+  | 'nord'
+  | 'night-owl'
+  | 'github-dark'
+  | 'github-light'
+  | 'solarized-dark'
+  | 'solarized-light'
+  | 'tomorrow-night'
+  | 'oceanic-next'
 
 export type AppSettings = {
   theme: Theme

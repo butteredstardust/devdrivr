@@ -1,15 +1,43 @@
 import { useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme } from '@/lib/theme'
-
 import { loader } from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 
-// Themes where Monaco should use a light (vs) base
+// Pre-built Monaco theme JSONs (sourced from monaco-themes package, stored locally)
+import draculaTheme from '@/lib/editor-themes/dracula.json'
+import monokaiTheme from '@/lib/editor-themes/monokai.json'
+import nordTheme from '@/lib/editor-themes/nord.json'
+import nightOwlTheme from '@/lib/editor-themes/night-owl.json'
+import githubDarkTheme from '@/lib/editor-themes/github-dark.json'
+import githubLightTheme from '@/lib/editor-themes/github-light.json'
+import solarizedDarkTheme from '@/lib/editor-themes/solarized-dark.json'
+import solarizedLightTheme from '@/lib/editor-themes/solarized-light.json'
+import tomorrowNightTheme from '@/lib/editor-themes/tomorrow-night.json'
+import oceanicNextTheme from '@/lib/editor-themes/oceanic-next.json'
+
+type MonacoThemeData = editor.IStandaloneThemeData
+
+/** App themes backed by a pre-built monaco-themes JSON with full token rules. */
+const MONACO_PACKAGE_THEMES: Record<string, { data: MonacoThemeData; monacoId: string }> = {
+  dracula: { data: draculaTheme as MonacoThemeData, monacoId: 'dracula' },
+  monokai: { data: monokaiTheme as MonacoThemeData, monacoId: 'monokai' },
+  nord: { data: nordTheme as MonacoThemeData, monacoId: 'nord' },
+  'night-owl': { data: nightOwlTheme as MonacoThemeData, monacoId: 'night-owl' },
+  'github-dark': { data: githubDarkTheme as MonacoThemeData, monacoId: 'github-dark' },
+  'github-light': { data: githubLightTheme as MonacoThemeData, monacoId: 'github-light' },
+  'solarized-dark': { data: solarizedDarkTheme as MonacoThemeData, monacoId: 'solarized-dark' },
+  'solarized-light': { data: solarizedLightTheme as MonacoThemeData, monacoId: 'solarized-light' },
+  'tomorrow-night': { data: tomorrowNightTheme as MonacoThemeData, monacoId: 'tomorrow-night' },
+  'oceanic-next': { data: oceanicNextTheme as MonacoThemeData, monacoId: 'oceanic-next' },
+}
+
+// App themes (original 12) where Monaco should use a light (vs) base for cockpit-current
 const LIGHT_APP_THEMES = new Set<string>(['soft-focus', 'tokyo-night-light', 'catppuccin-latte'])
 
 // Static fallback themes — used when the user explicitly picks cockpit-dark or cockpit-light
-const DARK_THEME = {
-  base: 'vs-dark' as const,
+const DARK_THEME: MonacoThemeData = {
+  base: 'vs-dark',
   inherit: true,
   rules: [],
   colors: {
@@ -22,8 +50,8 @@ const DARK_THEME = {
   },
 }
 
-const LIGHT_THEME = {
-  base: 'vs' as const,
+const LIGHT_THEME: MonacoThemeData = {
+  base: 'vs',
   inherit: true,
   rules: [],
   colors: {
@@ -46,8 +74,8 @@ function rgbToMonacoHex(rgb: string): string {
 }
 
 /**
- * Resolve a CSS custom property to a hex color.
- * Appends a temporary element to the body so that theme-class CSS vars on <html> resolve correctly.
+ * Resolve a CSS custom property to a hex color by temporarily injecting a DOM element
+ * so that theme-class vars on <html> resolve correctly via inheritance.
  */
 function getCssColor(varName: string): string {
   const tmp = document.createElement('div')
@@ -62,17 +90,17 @@ function getCssColor(varName: string): string {
 }
 
 /**
- * Build a Monaco theme definition by reading the current app CSS custom properties.
- * Called every time the app theme changes so editors always reflect the active palette.
+ * Build a Monaco theme from the current app CSS custom properties.
+ * Used for the original 12 app themes that don't have a pre-built JSON.
  */
-function buildCockpitTheme(isLight: boolean) {
+function buildCockpitTheme(isLight: boolean): MonacoThemeData {
   const bg = getCssColor('--color-surface')
   const fg = getCssColor('--color-text')
   const muted = getCssColor('--color-text-muted')
   const accent = getCssColor('--color-accent')
   const raised = getCssColor('--color-surface-raised')
   return {
-    base: (isLight ? 'vs' : 'vs-dark') as 'vs' | 'vs-dark',
+    base: isLight ? 'vs' : 'vs-dark',
     inherit: true,
     rules: [],
     colors: {
@@ -86,11 +114,12 @@ function buildCockpitTheme(isLight: boolean) {
   }
 }
 
-function resolveMonacoTheme(editorTheme: string): string {
+function resolveMonacoTheme(appTheme: string, editorTheme: string): string {
   if (editorTheme === 'cockpit-dark') return 'cockpit-dark'
   if (editorTheme === 'cockpit-light') return 'cockpit-light'
-  // 'match-app': use a dynamic theme that tracks the active app palette
-  return 'cockpit-current'
+  // match-app: use the pre-built package theme if available, otherwise cockpit-current
+  const pkg = MONACO_PACKAGE_THEMES[appTheme]
+  return pkg ? pkg.monacoId : 'cockpit-current'
 }
 
 export function useMonacoSettings() {
@@ -100,27 +129,31 @@ export function useMonacoSettings() {
   const editorFont = useSettingsStore((s) => s.editorFont)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
-  const resolvedTheme = resolveMonacoTheme(editorTheme)
+
+  const effective = getEffectiveTheme(theme)
+  const resolvedTheme = resolveMonacoTheme(effective, editorTheme)
 
   useEffect(() => {
     loader.init().then((monaco) => {
       if (!themesRegistered) {
         monaco.editor.defineTheme('cockpit-dark', DARK_THEME)
         monaco.editor.defineTheme('cockpit-light', LIGHT_THEME)
+        // Pre-register all package themes once
+        for (const { data, monacoId } of Object.values(MONACO_PACKAGE_THEMES)) {
+          monaco.editor.defineTheme(monacoId, data)
+        }
         themesRegistered = true
       }
+
       if (resolvedTheme === 'cockpit-current') {
-        // Redefine cockpit-current from CSS vars every time the app theme changes.
-        // defineTheme with an existing name updates it in place; setTheme then repaints all editors.
-        const effective = getEffectiveTheme(theme)
+        // Redefine from CSS vars on every app theme change
         const isLight = LIGHT_APP_THEMES.has(effective)
         monaco.editor.defineTheme('cockpit-current', buildCockpitTheme(isLight))
       }
+
       monaco.editor.setTheme(resolvedTheme)
     })
-    // `theme` is included so the effect re-runs when the app theme changes while editorTheme
-    // stays 'match-app' (resolvedTheme stays 'cockpit-current' and never changes on its own)
-  }, [resolvedTheme, theme])
+  }, [resolvedTheme, effective])
 
   return {
     theme: resolvedTheme,
