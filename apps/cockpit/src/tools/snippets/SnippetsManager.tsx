@@ -590,7 +590,7 @@ export default function SnippetsManager() {
         {/* Snippet count */}
         <div className="border-t border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
           {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
-          {filterTag ? ` · ${filtered.length} shown` : ''}
+          {(filterTag || activeFolder) ? ` · ${filtered.length} shown` : ''}
         </div>
       </div>
 

@@ -366,7 +366,8 @@ export default function MarkdownEditor() {
         const result = await processor.process(state.content)
         setHtml(String(result))
       } catch (e) {
-        setHtml(`<p style="color: var(--color-error)">Render error: ${(e as Error).message}</p>`)
+        const msg = (e as Error).message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        setHtml(`<p style="color: var(--color-error)">Render error: ${msg}</p>`)
       }
     }, 300)
 
@@ -534,9 +535,19 @@ img{max-width:100%}</style>
     iframeDoc.open()
     iframeDoc.write(fullHtml)
     iframeDoc.close()
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-    setTimeout(() => document.body.removeChild(iframe), 1000)
+    const win = iframe.contentWindow
+    if (!win) {
+      document.body.removeChild(iframe)
+      return
+    }
+    win.addEventListener('afterprint', () => document.body.removeChild(iframe), { once: true })
+    win.focus()
+    try {
+      win.print()
+    } catch {
+      document.body.removeChild(iframe)
+      return
+    }
     setLastAction('Print dialog opened', 'success')
   }, [html, setLastAction])
 

@@ -3,8 +3,6 @@ import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
 import DOMPurify from 'dompurify'
-
-const { sanitize } = DOMPurify
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
@@ -15,6 +13,8 @@ import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
+
+const { sanitize } = DOMPurify
 
 type DiffViewerState = {
   left: string
@@ -225,8 +225,13 @@ export default function DiffViewer() {
           className="flex-1 overflow-auto bg-[var(--color-surface)] p-2 text-xs"
           dangerouslySetInnerHTML={{
             __html: sanitize(diffHtml, {
-              ALLOWED_TAGS: ['div', 'span', 'code', 'pre', 'del', 'ins', 'br', 'hr'],
-              ALLOWED_ATTR: ['class', 'style', 'data-diffline', 'data-diffpath'],
+              ALLOWED_TAGS: [
+                'div', 'span', 'code', 'pre', 'del', 'ins', 'br', 'hr',
+                'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                'svg', 'path', 'label', 'input', 'a',
+              ],
+              ALLOWED_ATTR: ['class', 'style', 'data-diffline', 'data-diffpath', 'type', 'checked', 'disabled', 'title'],
+              FORCE_BODY: true,
             }),
           }}
         />

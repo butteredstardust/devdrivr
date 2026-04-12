@@ -744,14 +744,14 @@ export default function ColorConverter() {
                   {/* Surface swatch */}
                   <div
                     className="flex h-10 w-24 items-center justify-center rounded border border-[var(--color-border)] font-mono text-xs"
-                    style={{ backgroundColor: color.hex, color: color.hsl.l > 50 ? '#000' : '#fff' }}
+                    style={{ backgroundColor: color.hex, color: color.oklch.l > 55 ? '#000' : '#fff' }}
                   >
                     surface
                   </div>
                   {/* Button */}
                   <button
                     className="rounded px-3 py-1.5 text-xs font-bold"
-                    style={{ backgroundColor: color.hex, color: color.hsl.l > 50 ? '#000' : '#fff' }}
+                    style={{ backgroundColor: color.hex, color: color.oklch.l > 55 ? '#000' : '#fff' }}
                   >
                     Button
                   </button>
