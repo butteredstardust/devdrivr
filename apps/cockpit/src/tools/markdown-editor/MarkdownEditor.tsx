@@ -234,8 +234,22 @@ const FORMATTING_ACTIONS = [
     placeholder: '',
     line: true,
   },
-  { label: '🔗', title: 'Link', prefix: '[', suffix: '](url)', placeholder: 'link text', modal: 'link' as const },
-  { label: '📷', title: 'Image', prefix: '![', suffix: '](url)', placeholder: 'alt text', modal: 'image' as const },
+  {
+    label: '🔗',
+    title: 'Link',
+    prefix: '[',
+    suffix: '](url)',
+    placeholder: 'link text',
+    modal: 'link' as const,
+  },
+  {
+    label: '📷',
+    title: 'Image',
+    prefix: '![',
+    suffix: '](url)',
+    placeholder: 'alt text',
+    modal: 'image' as const,
+  },
   { label: '•', title: 'Bullet List', prefix: '- ', suffix: '', placeholder: 'item', line: true },
   {
     label: '1.',
@@ -366,7 +380,10 @@ export default function MarkdownEditor() {
         const result = await processor.process(state.content)
         setHtml(String(result))
       } catch (e) {
-        const msg = (e as Error).message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const msg = (e as Error).message
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
         setHtml(`<p style="color: var(--color-error)">Render error: ${msg}</p>`)
       }
     }, 300)
@@ -568,6 +585,7 @@ img{max-width:100%}</style>
           tabs={MODES}
           activeTab={state.mode}
           onTabChange={(id) => updateState({ mode: id })}
+          noBorder
         />
         <div className="ml-auto flex items-center gap-3 py-2">
           {stats && (

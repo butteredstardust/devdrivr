@@ -7,14 +7,16 @@ type TabBarProps = {
   tabs: Tab[]
   activeTab: string
   onTabChange: (tabId: string) => void
+  /** Pass true when the parent container already provides the bottom border. */
+  noBorder?: boolean
 }
 
-export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
+export function TabBar({ tabs, activeTab, onTabChange, noBorder }: TabBarProps) {
   // Tab switching via Cmd+1/2/3 is handled globally in useGlobalShortcuts
   // via the 'switch-tab' tool action — no duplicate registration here.
 
   return (
-    <div className="flex border-b border-[var(--color-border)]">
+    <div className={`flex ${noBorder ? '' : 'border-b border-[var(--color-border)]'}`}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
