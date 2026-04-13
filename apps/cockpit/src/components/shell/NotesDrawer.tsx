@@ -186,7 +186,7 @@ function NoteEditor({
         </div>
         <button
           onClick={onDone}
-          className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
+          className="rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
         >
           Done
         </button>
@@ -415,7 +415,7 @@ export function NotesDrawer() {
                           {note.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)]"
+                              className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]"
                             >
                               <TagIcon size={8} />
                               {tag}
@@ -424,7 +424,7 @@ export function NotesDrawer() {
                         </div>
                       )}
 
-                      <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--color-text-muted)]">
+                      <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
                         <span>{timeAgo(note.updatedAt)}</span>
                         {note.content.length > 0 && (
                           <span>{note.content.split(/\s+/).length} words</span>
