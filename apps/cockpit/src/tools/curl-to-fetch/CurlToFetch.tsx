@@ -1,9 +1,12 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { useUiStore } from '@/stores/ui.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
+import { PlayIcon } from '@phosphor-icons/react'
 
 type CurlToFetchState = {
   input: string
@@ -239,6 +242,45 @@ export default function CurlToFetch() {
 
   const headerCount = parsed ? Object.keys(parsed.headers).length : 0
 
+  const openTab = useUiStore((s) => s.openTab)
+  const cacheSet = useToolStateCache((s) => s.set)
+  const cacheGet = useToolStateCache((s) => s.get)
+
+  const handleTestInApiClient = useCallback(() => {
+    if (!parsed) return
+
+    const headers = Object.entries(parsed.headers).map(([key, value]) => ({
+      key,
+      value,
+      enabled: true,
+    }))
+
+    const bodyMode =
+      parsed.body === null
+        ? 'none'
+        : parsed.body.trimStart().startsWith('{') || parsed.body.trimStart().startsWith('[')
+          ? 'json'
+          : 'text'
+
+    // Patch only the draft; preserve any other ApiClientState fields (e.g. activeRequestId)
+    const existing = cacheGet('api-client')
+    cacheSet('api-client', {
+      ...existing,
+      activeRequestId: null,
+      draft: {
+        name: `${parsed.method} ${parsed.url}`,
+        method: parsed.method,
+        url: parsed.url,
+        headers,
+        body: parsed.body ?? '',
+        bodyMode,
+        auth: { type: 'none' },
+      },
+    })
+
+    openTab('api-client')
+  }, [parsed, cacheGet, cacheSet, openTab])
+
   return (
     <div className="flex h-full flex-col">
       {/* Parsed request summary */}
@@ -266,6 +308,14 @@ export default function CurlToFetch() {
               body: {parsed.body.length} chars
             </span>
           )}
+          <button
+            onClick={handleTestInApiClient}
+            title="Open this request in API Client"
+            className="ml-auto flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+          >
+            <PlayIcon size={11} />
+            Test in API Client
+          </button>
         </div>
       )}
 
