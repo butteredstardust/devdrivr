@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { TabBar } from '@/components/shared/TabBar'
@@ -201,6 +202,7 @@ export default function RegexTester() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState('match')
+  const [showDiff, setShowDiff] = useState(false)
   const patternRef = useRef<HTMLInputElement>(null)
 
   const result = useMemo(
@@ -217,6 +219,24 @@ export default function RegexTester() {
     () => computeReplace(state.testString, state.pattern, state.flags, state.replacePattern),
     [state.testString, state.pattern, state.flags, state.replacePattern]
   )
+
+  // Character-level diff between source and substituted text (only computed when needed)
+  const charDiff = useMemo(() => {
+    if (!showDiff || mode !== 'replace') return null
+    if (replaceResult.error || !state.pattern || !state.testString) return null
+    return diffChars(state.testString, replaceResult.result)
+  }, [showDiff, mode, replaceResult.result, replaceResult.error, state.pattern, state.testString])
+
+  const diffStats = useMemo(() => {
+    if (!charDiff) return null
+    let added = 0
+    let removed = 0
+    for (const part of charDiff) {
+      if (part.added) added += part.value.length
+      else if (part.removed) removed += part.value.length
+    }
+    return { added, removed }
+  }, [charDiff])
 
   const toggleFlag = useCallback(
     (flag: string) => {
@@ -367,19 +387,61 @@ export default function RegexTester() {
             />
           </div>
           <div className="flex w-1/2 flex-col">
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-              {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
+              </span>
+              {mode === 'replace' && state.pattern && state.testString && !replaceResult.error && (
+                <div className="flex items-center gap-2">
+                  {diffStats && (
+                    <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                      <span className="text-[var(--color-success)]">+{diffStats.added}</span>
+                      {' / '}
+                      <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
+                      {' chars'}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowDiff((v) => !v)}
+                    title={showDiff ? 'Show plain result' : 'Show diff between source and result'}
+                    className={`text-xs transition-colors ${showDiff ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+                  >
+                    Diff
+                  </button>
+                </div>
+              )}
             </div>
             {mode === 'replace' ? (
-              <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]">
+              <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
                 {replaceResult.error ? (
                   <span className="text-[var(--color-error)]">{replaceResult.error}</span>
-                ) : state.pattern && state.testString ? (
-                  replaceResult.result
-                ) : (
+                ) : !state.pattern || !state.testString ? (
                   <span className="text-[var(--color-text-muted)]">
                     Replace preview will appear here
                   </span>
+                ) : charDiff ? (
+                  charDiff.map((part, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        background: part.added
+                          ? 'color-mix(in srgb, var(--color-success) 20%, transparent)'
+                          : part.removed
+                            ? 'color-mix(in srgb, var(--color-error) 20%, transparent)'
+                            : undefined,
+                        color: part.added
+                          ? 'var(--color-success)'
+                          : part.removed
+                            ? 'var(--color-error)'
+                            : 'var(--color-text)',
+                        textDecoration: part.removed ? 'line-through' : undefined,
+                      }}
+                    >
+                      {part.value}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[var(--color-text)]">{replaceResult.result}</span>
                 )}
               </div>
             ) : (
