@@ -4,6 +4,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
+import { FrameCornersIcon, XIcon } from '@phosphor-icons/react'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -275,7 +276,18 @@ export default function HtmlValidator() {
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [errors, setErrors] = useState<HtmlError[]>([])
+  const [isPopoutOpen, setIsPopoutOpen] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Close popout on Escape
+  useEffect(() => {
+    if (!isPopoutOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsPopoutOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isPopoutOpen])
 
   // Live validation
   useEffect(() => {
@@ -516,8 +528,16 @@ export default function HtmlValidator() {
         )}
         {showPreview && (
           <div className={`flex flex-col ${showEditor ? 'w-1/2' : 'w-full'}`}>
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-              Preview
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
+              <span className="text-xs text-[var(--color-text-muted)]">Preview</span>
+              <button
+                onClick={() => setIsPopoutOpen(true)}
+                disabled={!state.input.trim()}
+                title="Expand to full-size preview (Esc to close)"
+                className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+              >
+                <FrameCornersIcon size={13} />
+              </button>
             </div>
             <div className="flex-1 bg-white">
               {state.input.trim() ? (
@@ -528,7 +548,7 @@ export default function HtmlValidator() {
                   className="h-full w-full border-none"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-muted)]">
                   Enter HTML to see a live preview
                 </div>
               )}
@@ -536,6 +556,33 @@ export default function HtmlValidator() {
           </div>
         )}
       </div>
+
+      {/* ── Full-size preview overlay ─────────────────────────────── */}
+      {isPopoutOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full-size HTML preview"
+          className="fixed inset-0 z-50 flex flex-col bg-white"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+            <span className="text-xs text-[var(--color-text-muted)]">HTML Preview</span>
+            <button
+              onClick={() => setIsPopoutOpen(false)}
+              title="Close (Esc)"
+              className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            >
+              <XIcon size={14} />
+            </button>
+          </div>
+          <iframe
+            title="HTML Preview (full size)"
+            sandbox=""
+            srcDoc={state.input}
+            className="flex-1 border-none"
+          />
+        </div>
+      )}
     </div>
   )
 }
