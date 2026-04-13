@@ -164,3 +164,101 @@ describe('restoreActiveTool (backward compat)', () => {
     expect(setSetting).not.toHaveBeenCalled()
   })
 })
+
+describe('closeOtherTabs', () => {
+  it('keeps only the given tab and closes all others', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    useUiStore.getState().openTab('base64')
+    const midId = useUiStore.getState().tabs[1]!.id
+
+    useUiStore.getState().closeOtherTabs(midId)
+
+    const { tabs, activeTabId } = useUiStore.getState()
+    expect(tabs).toHaveLength(1)
+    expect(tabs[0]!.id).toBe(midId)
+    expect(activeTabId).toBe(midId)
+  })
+
+  it('is a no-op when there is only one tab', () => {
+    useUiStore.getState().openTab('json-tools')
+    const tabId = useUiStore.getState().tabs[0]!.id
+    const callsBefore = (setSetting as ReturnType<typeof vi.fn>).mock.calls.length
+
+    useUiStore.getState().closeOtherTabs(tabId)
+
+    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore)
+  })
+
+  it('is a no-op when tabId is unknown', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().closeOtherTabs('does-not-exist')
+    expect(useUiStore.getState().tabs).toHaveLength(1)
+  })
+
+  it('activates the kept tab even if a different tab was active', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    useUiStore.getState().openTab('base64')
+    const firstId = useUiStore.getState().tabs[0]!.id
+    // active tab is currently 'base64' (last opened)
+
+    useUiStore.getState().closeOtherTabs(firstId)
+
+    expect(useUiStore.getState().activeTabId).toBe(firstId)
+    expect(useUiStore.getState().activeTool).toBe('json-tools')
+  })
+})
+
+describe('closeTabsToRight', () => {
+  it('removes all tabs after the given one', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    useUiStore.getState().openTab('base64')
+    const firstId = useUiStore.getState().tabs[0]!.id
+
+    useUiStore.getState().closeTabsToRight(firstId)
+
+    const { tabs } = useUiStore.getState()
+    expect(tabs).toHaveLength(1)
+    expect(tabs[0]!.toolId).toBe('json-tools')
+  })
+
+  it('is a no-op when the tab is the last one', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    const lastId = useUiStore.getState().tabs[1]!.id
+    const callsBefore = (setSetting as ReturnType<typeof vi.fn>).mock.calls.length
+
+    useUiStore.getState().closeTabsToRight(lastId)
+
+    expect(useUiStore.getState().tabs).toHaveLength(2)
+    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore)
+  })
+
+  it('preserves the active tab when it is in the kept range', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    useUiStore.getState().openTab('base64')
+    const firstId = useUiStore.getState().tabs[0]!.id
+    useUiStore.getState().setActiveTab(firstId)
+
+    useUiStore.getState().closeTabsToRight(firstId)
+
+    expect(useUiStore.getState().activeTabId).toBe(firstId)
+  })
+
+  it('activates the anchor tab when the active tab is in the closed range', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('code-formatter')
+    useUiStore.getState().openTab('base64')
+    const firstId = useUiStore.getState().tabs[0]!.id
+    // active is 'base64' (last opened), which is to the right of firstId
+
+    useUiStore.getState().closeTabsToRight(firstId)
+
+    expect(useUiStore.getState().activeTabId).toBe(firstId)
+    expect(useUiStore.getState().activeTool).toBe('json-tools')
+  })
+})
