@@ -21,4 +21,50 @@ describe('HtmlValidator', () => {
       expect(validEl ?? warningEl).toBeTruthy()
     })
   })
+
+  it('renders pop-out button in preview header', () => {
+    renderTool(HtmlValidator)
+    expect(screen.getByTitle('Expand to full-size preview (Esc to close)')).toBeInTheDocument()
+  })
+
+  it('opens full-size overlay when pop-out button is clicked', () => {
+    renderTool(HtmlValidator)
+    // Provide HTML so the button is enabled
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '<p>hello</p>' } })
+
+    const btn = screen.getByTitle('Expand to full-size preview (Esc to close)')
+    fireEvent.click(btn)
+
+    expect(screen.getByRole('dialog', { name: 'Full-size HTML preview' })).toBeInTheDocument()
+    expect(screen.getByTitle('HTML Preview (full size)')).toBeInTheDocument()
+  })
+
+  it('closes full-size overlay when close button is clicked', () => {
+    renderTool(HtmlValidator)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '<p>hello</p>' } })
+
+    // Open
+    fireEvent.click(screen.getByTitle('Expand to full-size preview (Esc to close)'))
+    expect(screen.getByRole('dialog', { name: 'Full-size HTML preview' })).toBeInTheDocument()
+
+    // Close
+    fireEvent.click(screen.getByTitle('Close (Esc)'))
+    expect(screen.queryByRole('dialog', { name: 'Full-size HTML preview' })).not.toBeInTheDocument()
+  })
+
+  it('closes full-size overlay on Escape key', () => {
+    renderTool(HtmlValidator)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '<p>hello</p>' } })
+
+    // Open
+    fireEvent.click(screen.getByTitle('Expand to full-size preview (Esc to close)'))
+    expect(screen.getByRole('dialog', { name: 'Full-size HTML preview' })).toBeInTheDocument()
+
+    // Close via Escape
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Full-size HTML preview' })).not.toBeInTheDocument()
+  })
 })
