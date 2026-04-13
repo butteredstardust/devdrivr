@@ -86,7 +86,7 @@ export default function TsPlayground() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [worker, state.input, state.target, state.module, state.strict])
+  }, [worker, state.input, state.target, state.module, state.strict, handleTranspile])
 
   return (
     <div className="flex h-full flex-col">

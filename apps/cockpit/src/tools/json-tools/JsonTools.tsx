@@ -480,7 +480,7 @@ function JsonTable({ data }: { data: Record<string, unknown>[] }) {
           typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '')
         navigator.clipboard.writeText(text)
         setLastAction('Copied cell', 'success')
-      } catch (e) {
+      } catch {
         setLastAction('Failed to copy cell', 'error')
       }
     },

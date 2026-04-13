@@ -156,7 +156,8 @@ export default function CssSpecificity() {
     let maxS = -1
     let idx = -1
     for (let i = 0; i < results.length; i++) {
-      const r = results[i]!
+      const r = results[i]
+      if (!r) continue
       const effective = r.hasImportant ? r.score + 10000 : r.score
       if (effective > maxS) {
         maxS = effective

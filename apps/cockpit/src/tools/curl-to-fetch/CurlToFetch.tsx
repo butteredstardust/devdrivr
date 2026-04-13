@@ -54,7 +54,8 @@ function parseCurl(input: string): ParsedCurl | null {
   if (current) tokens.push(current)
 
   for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]!
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const token = tokens[i]! // safe: loop guard is i < tokens.length
     if (token === 'curl') continue
 
     if (token === '-X' || token === '--request') {

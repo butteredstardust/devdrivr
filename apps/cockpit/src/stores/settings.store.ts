@@ -74,6 +74,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     const ALL: Theme[] = ['system', ...ALL_THEMES]
     const idx = ALL.indexOf(current)
     const nextIdx = idx === -1 || idx === ALL.length - 1 ? 0 : idx + 1
-    await get().update('theme', ALL[nextIdx]!)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await get().update('theme', ALL[nextIdx]!) // safe: nextIdx is always a valid index (0 or idx+1 where idx < ALL.length-1)
   },
 }))

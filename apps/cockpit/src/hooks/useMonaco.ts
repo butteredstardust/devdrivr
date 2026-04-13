@@ -84,7 +84,7 @@ function getCssColor(varName: string): string {
   tmp.style.opacity = '0'
   tmp.style.pointerEvents = 'none'
   document.body.appendChild(tmp)
-  const computed = getComputedStyle(tmp).color
+  const computed = window.getComputedStyle(tmp).color
   document.body.removeChild(tmp)
   return rgbToMonacoHex(computed)
 }

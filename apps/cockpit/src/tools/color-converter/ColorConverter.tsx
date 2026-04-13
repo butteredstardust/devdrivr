@@ -182,11 +182,14 @@ function parseColor(input: string): RGB | null {
   if (hexMatch?.[1]) {
     const hex = hexMatch[1]
     if (hex.length === 3) {
+      // hex.length === 3 guarantees indices 0-2 exist
+      /* eslint-disable @typescript-eslint/no-non-null-assertion */
       return {
         r: parseInt(hex[0]! + hex[0]!, 16),
         g: parseInt(hex[1]! + hex[1]!, 16),
         b: parseInt(hex[2]! + hex[2]!, 16),
       }
+      /* eslint-enable @typescript-eslint/no-non-null-assertion */
     }
     if (hex.length >= 6) {
       return {
@@ -247,10 +250,12 @@ function rgbToHsl(rgb: RGB): HSL {
   if (max === min) return { h: 0, s: 0, l: Math.round(l * 100) }
   const d = max - min
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-  let h = 0
-  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
-  else if (max === g) h = ((b - r) / d + 2) / 6
-  else h = ((r - g) / d + 4) / 6
+  const h =
+    max === r
+      ? ((g - b) / d + (g < b ? 6 : 0)) / 6
+      : max === g
+        ? ((b - r) / d + 2) / 6
+        : ((r - g) / d + 4) / 6
   return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) }
 }
 
@@ -360,7 +365,8 @@ function luminance(rgb: RGB): number {
     const s = c / 255
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
   })
-  return 0.2126 * rs! + 0.7152 * gs! + 0.0722 * bs!
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return 0.2126 * rs! + 0.7152 * gs! + 0.0722 * bs! // safe: map always returns 3 elements for a 3-element input
 }
 
 function contrastRatio(fg: RGB, bg: RGB): number {
@@ -488,7 +494,9 @@ export default function ColorConverter() {
   })
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const [activeSection, setActiveSection] = useState<'formats' | 'scale' | 'harmony' | 'cssvar'>('formats')
+  const [activeSection, setActiveSection] = useState<'formats' | 'scale' | 'harmony' | 'cssvar'>(
+    'formats'
+  )
 
   const color = useMemo(() => {
     const rgb = parseColor(state.input)
@@ -610,7 +618,13 @@ export default function ColorConverter() {
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                {tab === 'formats' ? 'Formats' : tab === 'scale' ? 'Shades & Tints' : tab === 'harmony' ? 'Harmony' : 'CSS Var'}
+                {tab === 'formats'
+                  ? 'Formats'
+                  : tab === 'scale'
+                    ? 'Shades & Tints'
+                    : tab === 'harmony'
+                      ? 'Harmony'
+                      : 'CSS Var'}
               </button>
             ))}
           </div>
@@ -730,7 +744,9 @@ export default function ColorConverter() {
                   >
                     <div>
                       <span className="text-xs text-[var(--color-text-muted)]">{decl.label}: </span>
-                      <span className="font-mono text-sm text-[var(--color-text)]">{decl.value}</span>
+                      <span className="font-mono text-sm text-[var(--color-text)]">
+                        {decl.value}
+                      </span>
                     </div>
                     <CopyButton text={decl.value} />
                   </div>
@@ -744,14 +760,20 @@ export default function ColorConverter() {
                   {/* Surface swatch */}
                   <div
                     className="flex h-10 w-24 items-center justify-center rounded border border-[var(--color-border)] font-mono text-xs"
-                    style={{ backgroundColor: color.hex, color: color.oklch.l > 55 ? '#000' : '#fff' }}
+                    style={{
+                      backgroundColor: color.hex,
+                      color: color.oklch.l > 55 ? '#000' : '#fff',
+                    }}
                   >
                     surface
                   </div>
                   {/* Button */}
                   <button
                     className="rounded px-3 py-1.5 text-xs font-bold"
-                    style={{ backgroundColor: color.hex, color: color.oklch.l > 55 ? '#000' : '#fff' }}
+                    style={{
+                      backgroundColor: color.hex,
+                      color: color.oklch.l > 55 ? '#000' : '#fff',
+                    }}
                   >
                     Button
                   </button>

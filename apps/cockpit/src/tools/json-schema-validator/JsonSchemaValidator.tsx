@@ -207,7 +207,8 @@ export default function JsonSchemaValidator() {
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<JsonSchemaState>('json-schema-validator', {
     data: '',
-    schema: JSON.stringify(TEMPLATES['basic']!.schema, null, 2),
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    schema: JSON.stringify(TEMPLATES['basic']!.schema, null, 2), // safe: 'basic' is a known TEMPLATES key
     strict: false,
     schemaUrl: '',
   })
@@ -332,7 +333,7 @@ export default function JsonSchemaValidator() {
         })
         setLastAction('Loaded schema from URL', 'success')
       } catch (e) {
-        throw new Error('Invalid JSON')
+        throw new Error('Invalid JSON', { cause: e })
       }
     } catch (e) {
       setLastAction(`Error loading schema: ${(e as Error).message}`, 'error')

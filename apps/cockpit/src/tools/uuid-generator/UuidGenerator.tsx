@@ -32,7 +32,8 @@ function generateV1(): string {
   bytes[7] = timeHi & 0xff
 
   // Variant bits (RFC 4122)
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
 
   return formatUuid(bytes)
 }
@@ -51,9 +52,11 @@ function generateV7(): string {
   bytes[5] = now & 0xff
 
   // Version 7
-  bytes[6] = (bytes[6]! & 0x0f) | 0x70
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70 // safe: Uint8Array(16) guarantees index 6 exists
   // Variant bits
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
 
   return formatUuid(bytes)
 }
@@ -97,8 +100,10 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
   }
 
   const hex = trimmed.replace(/-/g, '')
-  const versionNibble = parseInt(hex[12]!, 16)
-  const variantNibble = parseInt(hex[16]!, 16)
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const versionNibble = parseInt(hex[12]!, 16) // safe: UUID_REGEX.test() guarantees 32 hex chars
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const variantNibble = parseInt(hex[16]!, 16) // safe: UUID_REGEX.test() guarantees 32 hex chars
 
   const variant =
     (variantNibble & 0x8) === 0
@@ -121,7 +126,7 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
     if (unixMs > 0 && unixMs < 4102444800000) {
       info.timestamp = new Date(unixMs).toISOString()
     }
-    info.node = hex.slice(20).match(/.{2}/g)!.join(':')
+    info.node = (hex.slice(20).match(/.{2}/g) ?? []).join(':')
   }
 
   // Extract timestamp for v7

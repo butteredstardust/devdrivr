@@ -57,7 +57,9 @@ function domToTreeNode(node: Node): TreeNode | null {
     }
     const children: TreeNode[] = []
     for (let i = 0; i < el.childNodes.length; i++) {
-      const child = domToTreeNode(el.childNodes[i]!)
+      const childNode = el.childNodes[i]
+      if (!childNode) continue
+      const child = domToTreeNode(childNode)
       if (child) children.push(child)
     }
     return { type: 'element', name: el.tagName, attributes: attrs, children }

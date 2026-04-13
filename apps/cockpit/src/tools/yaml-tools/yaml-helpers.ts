@@ -38,7 +38,7 @@ export function jsonToYaml(jsonInput: string): string {
     return stringifyYaml(data)
   } catch (e) {
     if (e instanceof SyntaxError) {
-      throw new Error(`Invalid JSON: ${e.message}`)
+      throw new Error(`Invalid JSON: ${e.message}`, { cause: e })
     }
     throw e instanceof Error ? e : new Error(String(e))
   }

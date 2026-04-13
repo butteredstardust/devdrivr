@@ -40,7 +40,7 @@ function yamlStats(data: unknown): { keys: number; depth: number; size: string }
         const entries = Object.entries(val as Record<string, unknown>)
         keyCount += entries.length
         for (const [, v] of entries) walk(v, depth + 1)
-      } catch (e) {
+      } catch {
         // Skip invalid objects
       }
     }
@@ -51,7 +51,7 @@ function yamlStats(data: unknown): { keys: number; depth: number; size: string }
     const bytes = new Blob([JSON.stringify(data)]).size
     const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
     return { keys: keyCount, depth: maxDepth, size }
-  } catch (e) {
+  } catch {
     return { keys: 0, depth: 0, size: '0 B' }
   }
 }

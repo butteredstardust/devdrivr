@@ -63,7 +63,9 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     const notes = get().notes
     const idx = notes.findIndex((n) => n.id === id)
     if (idx < 0) return
-    const updated = { ...notes[idx]!, ...patch, updatedAt: Date.now() }
+    const existing = notes[idx]
+    if (!existing) return
+    const updated = { ...existing, ...patch, updatedAt: Date.now() }
     try {
       await saveNote(updated)
     } catch (err) {

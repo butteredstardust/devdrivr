@@ -85,7 +85,7 @@ export default function Base64Tool() {
         let toDecode = state.input.replace(/\s/g, '')
         // Strip data URI prefix for decoding
         const dataUriMatch = toDecode.match(/^data:[^;]*;base64,(.*)$/)
-        if (dataUriMatch) toDecode = dataUriMatch[1]!
+        if (dataUriMatch?.[1]) toDecode = dataUriMatch[1]
         if (state.urlSafe) toDecode = fromUrlSafe(toDecode)
         return { text: decodeURIComponent(escape(atob(toDecode))), error: null }
       }

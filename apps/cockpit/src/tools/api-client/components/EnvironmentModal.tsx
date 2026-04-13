@@ -13,7 +13,7 @@ export function EnvironmentModal({ onClose }: Props) {
   const updateEnvironment = useApiStore((s) => s.updateEnvironment)
   const deleteEnvironment = useApiStore((s) => s.deleteEnvironment)
   const [selectedId, setSelectedId] = useState<string | null>(
-    environments.length > 0 ? environments[0]!.id : null
+    environments.length > 0 ? (environments[0]?.id ?? null) : null
   )
 
   const activeEnv = environments.find((e) => e.id === selectedId) || null

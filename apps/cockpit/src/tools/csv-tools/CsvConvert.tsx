@@ -23,8 +23,9 @@ export default function CsvConvert({
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
 
-  const [internalFormat, setInternalFormat] =
-    useState<'array-of-objects' | 'object-of-arrays'>(outputFormat)
+  const [internalFormat, setInternalFormat] = useState<'array-of-objects' | 'object-of-arrays'>(
+    outputFormat
+  )
 
   const convertedJson = useMemo(() => {
     if (!csvText.trim()) return ''
@@ -32,7 +33,7 @@ export default function CsvConvert({
     const result = parseCsv(csvText, delimiter, hasHeader)
     if (result.errors.length > 0) return ''
 
-    const data = result.data as Record<string, unknown>[]
+    const data = result.data
 
     if (internalFormat === 'object-of-arrays') {
       const columnar = toColumnarFormat(data)

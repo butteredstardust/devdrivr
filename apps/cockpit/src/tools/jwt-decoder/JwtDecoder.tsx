@@ -57,11 +57,14 @@ function decodeJwt(token: string): DecodedJwt | null {
   const parts = token.trim().split('.')
   if (parts.length !== 3) return null
   try {
-    const headerRaw = decodeBase64Url(parts[0]!)
-    const payloadRaw = decodeBase64Url(parts[1]!)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const headerRaw = decodeBase64Url(parts[0]!) // safe: length === 3 checked above
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const payloadRaw = decodeBase64Url(parts[1]!) // safe: length === 3 checked above
     const header = JSON.parse(headerRaw) as Record<string, unknown>
     const payload = JSON.parse(payloadRaw) as Record<string, unknown>
-    return { header, payload, signature: parts[2]!, headerRaw, payloadRaw }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return { header, payload, signature: parts[2]!, headerRaw, payloadRaw } // safe: length === 3
   } catch {
     return null
   }
@@ -117,7 +120,7 @@ export default function JwtDecoder() {
 
   const expiry = useMemo(() => {
     if (!decoded || typeof decoded.payload['exp'] !== 'number') return null
-    const exp = decoded.payload['exp'] as number
+    const exp = decoded.payload['exp']
     const expiresAt = new Date(exp * 1000)
     const diffMs = expiresAt.getTime() - now
     return {

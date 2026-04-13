@@ -154,8 +154,9 @@ function computeStats(html: string): HtmlStats {
   ])
   let match: RegExpExecArray | null
   while ((match = tagPattern.exec(html)) !== null) {
-    const full = match[0]!
-    const tag = match[1]!.toLowerCase()
+    const full = match[0]
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const tag = match[1]!.toLowerCase() // safe: capturing group is required by the regex
     if (selfClosing.has(tag) || full.endsWith('/>')) continue
     if (full.startsWith('</')) {
       depth--
@@ -171,8 +172,10 @@ function computeStats(html: string): HtmlStats {
   let hMatch: RegExpExecArray | null
   while ((hMatch = headingRe.exec(html)) !== null) {
     headings.push({
-      level: parseInt(hMatch[1]!),
-      text: hMatch[2]!.replace(/<[^>]+>/g, '').trim(),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      level: parseInt(hMatch[1]!), // safe: required capturing group in regex
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      text: hMatch[2]!.replace(/<[^>]+>/g, '').trim(), // safe: required capturing group in regex
     })
   }
 

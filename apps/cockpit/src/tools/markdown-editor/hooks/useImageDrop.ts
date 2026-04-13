@@ -48,7 +48,8 @@ export function uint8ToBase64(bytes: Uint8Array): string {
   if (bytes.length === 0) return ''
   let binary = ''
   for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    binary += String.fromCharCode(bytes[i]!) // safe: i < bytes.length
   }
   return btoa(binary)
 }
@@ -154,7 +155,7 @@ export function useImageDrop(
       cancelled = true
       unlisten?.()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, intentionally omitted
 
   return { isDraggingImage }
 }

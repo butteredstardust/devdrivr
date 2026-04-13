@@ -34,7 +34,7 @@ type FormatOptions = {
 const pluginCache = new Map<string, unknown>()
 
 async function getPlugin(name: string): Promise<unknown> {
-  if (pluginCache.has(name)) return pluginCache.get(name)!
+  if (pluginCache.has(name)) return pluginCache.get(name)
   let plugin: unknown
   switch (name) {
     case 'babel':

@@ -178,8 +178,10 @@ export const TRANSFORMS: Transform[] = [
           if (d.type !== 'VariableDeclarator') return false
           const init = d.init
           if (!init || init.type !== 'CallExpression') return false
-          const callee = init.callee as unknown as Named
-          const args = init.arguments as unknown[]
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          const callee = init.callee as unknown as Named // jscodeshift AST node — needs explicit cast
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          const args = init.arguments as unknown[] // jscodeshift AST node — needs explicit cast
           return (
             (init.callee as { type: string }).type === 'Identifier' &&
             callee.name === 'require' &&
@@ -236,6 +238,7 @@ export const TRANSFORMS: Transform[] = [
           const source = path.node.arguments[1]
           if (!source || source.type === 'SpreadElement') return
           j(path).replaceWith(
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             j.objectExpression([j.spreadElement(source as Parameters<typeof j.spreadElement>[0])])
           )
         })
@@ -392,8 +395,8 @@ export const TRANSFORMS: Transform[] = [
           )
         })
         .forEach((path) => {
-          const catchCallee = path.node.callee as unknown as { object: unknown }
-          const thenCall = catchCallee.object as unknown as {
+          const catchCallee = path.node.callee as unknown as { object: unknown } // jscodeshift AST
+          const thenCall = catchCallee.object as {
             callee: { object: unknown }
             arguments: unknown[]
           }

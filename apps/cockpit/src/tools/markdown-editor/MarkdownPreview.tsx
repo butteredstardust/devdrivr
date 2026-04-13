@@ -88,7 +88,8 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     const theme = useSettingsStore((s) => s.theme)
 
     // Expose the inner div via forwarded ref for scroll sync
-    useImperativeHandle(ref, () => innerRef.current!, [])
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    useImperativeHandle(ref, () => innerRef.current!, []) // safe: called after mount, ref is populated
 
     // ─── Mermaid diagrams (theme-aware) ───────────────────────────
     useEffect(() => {

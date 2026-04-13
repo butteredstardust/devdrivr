@@ -67,5 +67,7 @@ export function applyTheme(theme: Theme): void {
   html.classList.add(effective)
   try {
     localStorage.setItem('theme-cache', effective)
-  } catch {}
+  } catch {
+    /* intentional — localStorage may be unavailable */
+  }
 }

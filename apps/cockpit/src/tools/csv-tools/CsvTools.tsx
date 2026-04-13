@@ -45,15 +45,13 @@ export default function CsvTools() {
     if (!state.input.trim()) return { data: null, error: null }
 
     try {
-      const delimiter =
-        state.delimiter === 'auto' ? detectDelimiter(state.input) : state.delimiter
+      const delimiter = state.delimiter === 'auto' ? detectDelimiter(state.input) : state.delimiter
 
       const result = parseCsv(state.input, delimiter, state.hasHeader)
-      const error =
-        result.errors.length > 0 && result.errors[0] ? result.errors[0].message : null
+      const error = result.errors.length > 0 && result.errors[0] ? result.errors[0].message : null
 
       return {
-        data: { data: result.data as Record<string, unknown>[], meta: result.meta },
+        data: { data: result.data, meta: result.meta },
         error,
       }
     } catch (error) {
