@@ -98,33 +98,33 @@ function findMatches(
     const re = new RegExp(pattern, flags)
     const matches: Match[] = []
 
+    // Build an ordered list of named groups (preserving capture order) from a match.
+    // Using Object.entries(m.groups) directly is correct and avoids false positives
+    // when two groups capture the same value (the old value-search approach would
+    // misattribute the name in that case).
+    function buildGroups(m: RegExpExecArray): Match['groups'] {
+      if (m.groups && Object.keys(m.groups).length > 0) {
+        return Object.entries(m.groups).map(([name, value]) => ({ name, value: value ?? '' }))
+      }
+      const groups: Match['groups'] = []
+      for (let i = 1; i < m.length; i++) {
+        groups.push({ name: null, value: m[i] ?? '' })
+      }
+      return groups
+    }
+
     if (flags.includes('g')) {
       let m: RegExpExecArray | null
       let guard = 0
       while ((m = re.exec(text)) !== null && guard < 1000) {
         guard++
-        const groups: Match['groups'] = []
-        for (let i = 1; i < m.length; i++) {
-          const name = m.groups
-            ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              (Object.entries(m.groups).find(([, v]) => v === m![i])?.[0] ?? null) // m narrowed by while, but TS loses narrowing inside the closure
-            : null
-          groups.push({ name, value: m[i] ?? '' })
-        }
-        matches.push({ full: m[0], index: m.index, length: m[0].length, groups })
+        matches.push({ full: m[0], index: m.index, length: m[0].length, groups: buildGroups(m) })
         if (m[0] === '') re.lastIndex++
       }
     } else {
       const m = re.exec(text)
       if (m) {
-        const groups: Match['groups'] = []
-        for (let i = 1; i < m.length; i++) {
-          const name = m.groups
-            ? (Object.entries(m.groups).find(([, v]) => v === m[i])?.[0] ?? null)
-            : null
-          groups.push({ name, value: m[i] ?? '' })
-        }
-        matches.push({ full: m[0], index: m.index, length: m[0].length, groups })
+        matches.push({ full: m[0], index: m.index, length: m[0].length, groups: buildGroups(m) })
       }
     }
 

@@ -121,30 +121,39 @@ export default function Base64Tool() {
 
   const isImgPanning = useRef(false)
   const imgPanStart = useRef({ mouseX: 0, mouseY: 0, originX: 0, originY: 0 })
-  const imgViewRef = useRef<HTMLDivElement>(null)
+  const wheelCleanupRef = useRef<(() => void) | null>(null)
 
-  // Non-passive wheel listener (React 19 makes wheel passive by default)
-  useEffect(() => {
-    const el = imgViewRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const rect = el.getBoundingClientRect()
-      const cursorX = e.clientX - rect.left
-      const cursorY = e.clientY - rect.top
-      const { x, y, scale } = imgTransformRef.current
-      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
-      const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale * factor))
-      const ratio = newScale / scale
-      setImgTransform({
-        x: cursorX + (x - cursorX) * ratio,
-        y: cursorY + (y - cursorY) * ratio,
-        scale: newScale,
-      })
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [setImgTransform])
+  // Callback ref: attaches/detaches the non-passive wheel listener whenever the
+  // image container mounts or unmounts. A single useRef + useEffect approach
+  // fails here because imgViewRef is shared across two mutually-exclusive
+  // conditional branches, so the effect runs once on mount when both are null.
+  const imgViewRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (wheelCleanupRef.current) {
+        wheelCleanupRef.current()
+        wheelCleanupRef.current = null
+      }
+      if (!el) return
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault()
+        const rect = el.getBoundingClientRect()
+        const cursorX = e.clientX - rect.left
+        const cursorY = e.clientY - rect.top
+        const { x, y, scale } = imgTransformRef.current
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+        const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale * factor))
+        const ratio = newScale / scale
+        setImgTransform({
+          x: cursorX + (x - cursorX) * ratio,
+          y: cursorY + (y - cursorY) * ratio,
+          scale: newScale,
+        })
+      }
+      el.addEventListener('wheel', onWheel, { passive: false })
+      wheelCleanupRef.current = () => el.removeEventListener('wheel', onWheel)
+    },
+    [setImgTransform]
+  )
 
   const handleImgMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
@@ -237,7 +246,10 @@ export default function Base64Tool() {
     if (!state.input.trim()) return { text: '', error: null }
     try {
       if (state.mode === 'encode') {
-        let encoded = btoa(unescape(encodeURIComponent(state.input)))
+        const bytes = new TextEncoder().encode(state.input)
+        let binary = ''
+        for (const byte of bytes) binary += String.fromCharCode(byte)
+        let encoded = btoa(binary)
         if (state.urlSafe) encoded = toUrlSafe(encoded)
         if (state.lineWrap) encoded = wrapLines(encoded, 76)
         return { text: encoded, error: null }
@@ -246,7 +258,8 @@ export default function Base64Tool() {
         const dataUriMatch = toDecode.match(/^data:[^;]*;base64,(.*)$/)
         if (dataUriMatch?.[1]) toDecode = dataUriMatch[1]
         if (state.urlSafe) toDecode = fromUrlSafe(toDecode)
-        return { text: decodeURIComponent(escape(atob(toDecode))), error: null }
+        const decoded = Uint8Array.from(atob(toDecode), (c) => c.charCodeAt(0))
+        return { text: new TextDecoder().decode(decoded), error: null }
       }
     } catch (e) {
       return { text: '', error: (e as Error).message }

@@ -188,10 +188,14 @@ export default function MermaidEditor() {
 
   // ─── Export handlers ─────────────────────────────────────────────
 
-  const handleExportSvg = useCallback(() => {
+  const handleExportSvg = useCallback(async () => {
     if (!svgHtml) return
-    navigator.clipboard.writeText(svgHtml)
-    setLastAction('SVG copied to clipboard', 'success')
+    try {
+      await navigator.clipboard.writeText(svgHtml)
+      setLastAction('SVG copied to clipboard', 'success')
+    } catch {
+      setLastAction('Clipboard write failed', 'error')
+    }
   }, [svgHtml, setLastAction])
 
   const handleExportPng = useCallback(async () => {
