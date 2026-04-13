@@ -12,7 +12,7 @@ Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working i
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
 - **Build**: Vite 7 + Bun (package manager)
-- **27 tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **29 tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
 - **No cloud, no accounts** — everything runs locally
 
 ---
@@ -202,6 +202,135 @@ import { ArrowRight, Clipboard } from '@phosphor-icons/react'
 <span>→</span>
 ```
 
+### 13. Never use the Preview MCP tool
+
+This is a Tauri desktop app. The browser-based preview cannot render it.
+Do not call `preview_start` or any preview tool unless the user explicitly asks.
+
+### 14. Use `TextEncoder`/`TextDecoder` for UTF-8, not `unescape`/`escape`
+
+```typescript
+// ✅ Encode text → base64 (handles full Unicode)
+const bytes = new TextEncoder().encode(text)
+let binary = ''
+for (const byte of bytes) binary += String.fromCharCode(byte)
+const encoded = btoa(binary)
+
+// ✅ Decode base64 → text
+const decoded = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+const text = new TextDecoder().decode(decoded)
+
+// ❌ Deprecated — breaks on multi-byte characters
+btoa(unescape(encodeURIComponent(text)))
+decodeURIComponent(escape(atob(b64)))
+```
+
+### 15. React 19 — Wheel events are passive by default
+
+`onWheel` in JSX cannot call `e.preventDefault()` (browser ignores it). Attach the
+listener imperatively for any zoom / scroll-hijack:
+
+```typescript
+useEffect(() => {
+  const el = ref.current
+  if (!el) return
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault() /* zoom */
+  }
+  el.addEventListener('wheel', onWheel, { passive: false })
+  return () => el.removeEventListener('wheel', onWheel)
+}, [])
+```
+
+### 16. Refs on conditional JSX branches — use callback refs, not `useRef` + `useEffect`
+
+If a `ref` is attached to an element inside a conditional branch, a plain `useRef`
+will be `null` when the `useEffect` runs on mount (the branch may not be active).
+Use a `useCallback` callback ref so the listener attaches/detaches as the node
+mounts and unmounts:
+
+```typescript
+const wheelCleanupRef = useRef<(() => void) | null>(null)
+
+const callbackRef = useCallback((el: HTMLDivElement | null) => {
+  wheelCleanupRef.current?.()
+  wheelCleanupRef.current = null
+  if (!el) return
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault() /* ... */
+  }
+  el.addEventListener('wheel', onWheel, { passive: false })
+  wheelCleanupRef.current = () => el.removeEventListener('wheel', onWheel)
+}, []) // deps: only stable values
+
+// <div ref={callbackRef}>
+```
+
+### 17. ResizeObserver: guard for jsdom
+
+`ResizeObserver` is `undefined` in the Vitest/jsdom environment. Always guard:
+
+```typescript
+if (typeof ResizeObserver === 'undefined') return
+const observer = new ResizeObserver(update)
+observer.observe(el)
+return () => observer.disconnect()
+```
+
+### 18. Cross-tool navigation — inject state via `useToolStateCache`
+
+To pre-populate a destination tool before navigating, write to `useToolStateCache`.
+The destination reads from it synchronously on mount — no IPC or pub/sub needed:
+
+```typescript
+const cacheSet = useToolStateCache((s) => s.set)
+const cacheGet = useToolStateCache((s) => s.get)
+const openTab = useUiStore((s) => s.openTab)
+
+cacheSet('target-tool', {
+  ...cacheGet('target-tool'),
+  draft: {
+    /* ... */
+  },
+})
+openTab('target-tool')
+```
+
+### 19. Canvas 2D is sufficient for image processing
+
+No npm image library is needed for resize, crop, format conversion, or quality control.
+Canvas handles all of it:
+
+```typescript
+canvas.width = outW
+canvas.height = outH
+ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+canvas.toBlob(
+  (blob) => {
+    /* download */
+  },
+  'image/jpeg',
+  quality / 100
+)
+```
+
+For large images, debounce any input that triggers `toDataURL`/`toBlob` on every keystroke.
+
+### 20. Crop / geometry math — clamp dimensions before position
+
+When clamping a crop/selection rectangle to image bounds, always clamp `w`/`h` first
+so the subsequent `x`/`y` clamp expressions (`origW - w`, `origH - h`) use valid values:
+
+```typescript
+w = Math.max(1, Math.min(w, origW))
+h = Math.max(1, Math.min(h, origH))
+x = Math.max(0, Math.min(x, origW - w))
+y = Math.max(0, Math.min(y, origH - h))
+```
+
+Also lower-bound any new `x`/`y` computed from a drag delta before using it to derive
+a new `w`/`h` (e.g., NW/SW handle drag: `nx = Math.max(0, startX + dx)`).
+
 ---
 
 ## How to Add a New Tool
@@ -317,7 +446,7 @@ WAL mode is set at connection time in `getDb()` — not in migrations.
 Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
-- [ ] `bunx vitest run` — 326/326 passing
+- [ ] `bunx vitest run` — 361/361 passing
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`
