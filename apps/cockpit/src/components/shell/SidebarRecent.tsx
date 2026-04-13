@@ -26,9 +26,10 @@ export function SidebarRecent() {
         <ClockCounterClockwiseIcon size={10} className="shrink-0" />
         <span className="font-mono text-[11px] font-bold uppercase tracking-normal">[Recent]</span>
       </div>
+      {/* tabIndex={0} makes recent items explicit participants in keyboard nav */}
       <div className="flex flex-col gap-1 px-1">
         {recentTools.map((tool) => (
-          <SidebarItem key={tool.id} id={tool.id} name={tool.name} icon={tool.icon} />
+          <SidebarItem key={tool.id} id={tool.id} name={tool.name} icon={tool.icon} tabIndex={0} />
         ))}
       </div>
     </div>

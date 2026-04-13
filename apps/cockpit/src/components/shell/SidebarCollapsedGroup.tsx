@@ -11,6 +11,9 @@ type Props = {
 
 export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
   const [flyoutOpen, setFlyoutOpen] = useState(false)
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
+  const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
   const flyoutRef = useRef<HTMLDivElement>(null)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
@@ -25,8 +28,6 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
   )
 
   // Position the flyout next to the trigger, flipping if near bottom of viewport
-  const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({})
-
   useEffect(() => {
     if (!flyoutOpen || !triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
@@ -41,6 +42,33 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
       zIndex: 9999,
     })
   }, [flyoutOpen, tools.length])
+
+  // Tooltip positioning — shown on hover when flyout is closed.
+  // The unmount cleanup effect below ensures the tooltip is always hidden
+  // if the sidebar collapses (and this component loses interactivity or
+  // unmounts) while the pointer is still over the button.
+  const handleMouseEnter = useCallback(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setTooltipStyle({
+      position: 'fixed',
+      left: rect.right + 8,
+      top: rect.top + rect.height / 2,
+      transform: 'translateY(-50%)',
+      zIndex: 9999,
+    })
+    setTooltipVisible(true)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setTooltipVisible(false)
+  }, [])
+
+  // Hide tooltip on unmount (e.g. sidebar collapses while button is hovered
+  // and mouseleave never fires during the opacity transition)
+  useEffect(() => {
+    return () => setTooltipVisible(false)
+  }, [])
 
   // Close flyout on outside click
   useEffect(() => {
@@ -72,24 +100,41 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
 
   return (
     <>
+      {/* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px) */}
       <button
         ref={triggerRef}
         onClick={() => setFlyoutOpen(!flyoutOpen)}
-        className={`flex h-7 w-7 items-center justify-center rounded transition-colors duration-150 ${
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`flex h-8 w-8 items-center justify-center rounded transition-colors duration-150 ${
           isActiveGroup
             ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : flyoutOpen
               ? 'bg-[var(--color-surface-hover)] text-[var(--color-text)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
         }`}
-        title={group.label}
         aria-label={group.label}
         aria-expanded={flyoutOpen}
         aria-haspopup="true"
+        data-sidebar-collapsed-group={group.id}
       >
         <span className="flex w-5 shrink-0 items-center justify-center">{group.icon}</span>
       </button>
 
+      {/* Hover tooltip — rendered via portal so it overflows the 40px sidebar */}
+      {tooltipVisible &&
+        !flyoutOpen &&
+        createPortal(
+          <div
+            style={tooltipStyle}
+            className="pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 font-mono text-[11px] text-[var(--color-text)] shadow-md"
+          >
+            {group.label}
+          </div>,
+          document.body
+        )}
+
+      {/* Flyout tool list */}
       {flyoutOpen &&
         createPortal(
           <div
