@@ -29,6 +29,7 @@ const ApiClient = lazy(() => import('@/tools/api-client/ApiClient'))
 const DocsBrowser = lazy(() => import('@/tools/docs-browser/DocsBrowser'))
 const SnippetsManager = lazy(() => import('@/tools/snippets/SnippetsManager'))
 const CsvTools = lazy(() => import('@/tools/csv-tools/CsvTools'))
+const ImageTool = lazy(() => import('@/tools/image-tool/ImageTool'))
 
 export const TOOLS: ToolDefinition[] = [
   // --- Code ---
@@ -103,8 +104,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'CSV Tools',
     group: 'data',
     icon: 'CSV',
-    description:
-      'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
+    description: 'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
     component: CsvTools,
   },
   // --- Web ---
@@ -207,6 +207,14 @@ export const TOOLS: ToolDefinition[] = [
     icon: '##',
     description: 'Generate hashes and HMAC with comparison and export',
     component: HashGenerator,
+  },
+  {
+    id: 'image-tool',
+    name: 'Image Tool',
+    group: 'convert',
+    icon: '🖼',
+    description: 'Resize, crop, compress and convert images (JPEG, PNG, WebP)',
+    component: ImageTool,
   },
   // --- Test ---
   {

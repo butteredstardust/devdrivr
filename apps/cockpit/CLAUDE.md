@@ -22,7 +22,7 @@ Full canonical docs live in [`documentation/`](./documentation/):
 - **Package manager:** Bun only. Never use npm or yarn.
 - **Run commands from:** `apps/cockpit/` unless noted.
 - **Type-check:** `npx tsc --noEmit` — must stay clean.
-- **Tests:** `bunx vitest run` (Vitest, 326 tests / 48 files). Use `bunx`, not `bun run test`.
+- **Tests:** `bunx vitest run` (Vitest, 361 tests / 49 files). Use `bunx`, not `bun run test`.
 - **Dev server:** `bun run tauri dev` (starts Vite + Rust binary).
 
 ## Architecture
@@ -107,6 +107,135 @@ Migration {
 - Don't use physical pixel APIs (`outerPosition`, `outerSize`) without converting via `scaleFactor()` + `toLogical()`
 - Don't add `React.StrictMode` — it was removed to prevent double-mount flash in the Tauri WebView
 - Don't skip the idempotent promise guard when writing a new store `init()` method
+- Don't use the Preview MCP tool — this is a desktop app running in Tauri; the browser preview cannot render it and wastes tokens
+- Don't use deprecated `unescape`/`escape` for UTF-8 — use `TextEncoder`/`TextDecoder` instead
+
+## Patterns Established in This Codebase
+
+### React 19 — Non-Passive Wheel Events
+
+React 19 registers `wheel` and `touch` listeners as passive by default, so calling
+`e.preventDefault()` in a React `onWheel` handler has no effect (browser ignores it).
+For zoom-to-cursor and any scroll-hijacking, attach the listener imperatively:
+
+```typescript
+useEffect(
+  () => {
+    const el = ref.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      // zoom logic
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  },
+  [
+    /* stable deps only */
+  ]
+)
+```
+
+### Callback Ref Pattern (Conditional Branches)
+
+A single `useRef` + `useEffect` wheel-listener fails when the ref target is inside a
+conditional JSX branch — the effect runs once on mount when the element doesn't exist yet.
+Use a `useCallback` callback ref instead so the listener attaches/detaches as the node
+mounts and unmounts:
+
+```typescript
+const wheelCleanupRef = useRef<(() => void) | null>(null)
+
+const callbackRef = useCallback(
+  (el: HTMLDivElement | null) => {
+    if (wheelCleanupRef.current) {
+      wheelCleanupRef.current()
+      wheelCleanupRef.current = null
+    }
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault() /* ... */
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    wheelCleanupRef.current = () => el.removeEventListener('wheel', onWheel)
+  },
+  [
+    /* stable deps */
+  ]
+)
+
+// Use as: <div ref={callbackRef}>
+```
+
+### transformRef Mirror Pattern (Zoom State)
+
+For zoom/pan state that is read inside a non-React event handler (wheel) and also
+needs to trigger re-renders for a zoom badge, keep a `useRef` and `useState` in sync
+via a single setter. The `useRef` prevents stale closures; the `useState` drives renders:
+
+```typescript
+const [transform, _setTransform] = useState<Transform>(DEFAULT)
+const transformRef = useRef<Transform>(DEFAULT)
+const setTransform = useCallback((t: Transform) => {
+  transformRef.current = t // read by wheel handler — always fresh
+  _setTransform(t) // triggers zoom badge re-render
+}, [])
+```
+
+### Cross-Tool State Injection via `useToolStateCache`
+
+To pre-populate a destination tool before navigating to it, write directly to
+`useToolStateCache` (Zustand, accessible outside components). The target tool reads
+from the cache synchronously on mount via `useToolState` — no pub/sub or IPC needed:
+
+```typescript
+const cacheSet = useToolStateCache((s) => s.set)
+const cacheGet = useToolStateCache((s) => s.get)
+const openTab = useUiStore((s) => s.openTab)
+
+const handleSend = useCallback(() => {
+  const existing = cacheGet('target-tool')
+  cacheSet('target-tool', {
+    ...existing,
+    draft: {
+      /* ... */
+    },
+  })
+  openTab('target-tool')
+}, [cacheGet, cacheSet, openTab])
+```
+
+### Canvas 2D for Image Processing
+
+No npm image library is needed. The Canvas 2D API handles resize + crop + format
+conversion + quality encoding entirely in the browser:
+
+```typescript
+canvas.width = outW
+canvas.height = outH
+ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+canvas.toBlob(
+  (blob) => {
+    /* download or clipboard */
+  },
+  'image/jpeg',
+  quality / 100
+)
+```
+
+For export, `canvas.toDataURL` is synchronous. For large images, debounce any
+quality-slider or resize-input that triggers a re-render with a canvas redraw.
+
+### ResizeObserver Guard for jsdom
+
+`ResizeObserver` is undefined in jsdom (Vitest). Guard before using it:
+
+```typescript
+if (typeof ResizeObserver === 'undefined') return
+const observer = new ResizeObserver(update)
+observer.observe(el)
+return () => observer.disconnect()
+```
 
 ## Running the Test Suite
 
