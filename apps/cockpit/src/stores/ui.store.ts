@@ -28,6 +28,10 @@ type UiStore = {
   openTab: (toolId: string) => void
   /** Close a tab by its tab id. Activates adjacent tab if it was active. */
   closeTab: (tabId: string) => void
+  /** Close every tab except the one with the given tab id. */
+  closeOtherTabs: (tabId: string) => void
+  /** Close all tabs to the right of the given tab id. */
+  closeTabsToRight: (tabId: string) => void
   /** Switch the active tab without opening a new one. */
   setActiveTab: (tabId: string) => void
   /** Bootstrap-only restore — does NOT persist to DB. */
@@ -110,6 +114,37 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     }
     const nextActiveTool = derivedActiveTool(next, nextActiveId)
     set({ tabs: next, activeTabId: nextActiveId, activeTool: nextActiveTool })
+    persistTabs(next, nextActiveId)
+  },
+
+  closeOtherTabs: (tabId) => {
+    const { tabs } = get()
+    if (!tabs.some((t) => t.id === tabId)) return // unknown id — bail
+    const next = tabs.filter((t) => t.id === tabId)
+    if (next.length === tabs.length) return // nothing to close
+    const nextActiveId = next[0]?.id ?? null
+    set({
+      tabs: next,
+      activeTabId: nextActiveId,
+      activeTool: derivedActiveTool(next, nextActiveId),
+    })
+    persistTabs(next, nextActiveId)
+  },
+
+  closeTabsToRight: (tabId) => {
+    const { tabs, activeTabId } = get()
+    const idx = tabs.findIndex((t) => t.id === tabId)
+    if (idx === -1 || idx === tabs.length - 1) return // nothing to close
+    const next = tabs.slice(0, idx + 1)
+    // If active tab was in the closed range, activate the anchor tab
+    const nextActiveId = next.some((t) => t.id === activeTabId)
+      ? activeTabId
+      : (next[next.length - 1]?.id ?? null)
+    set({
+      tabs: next,
+      activeTabId: nextActiveId,
+      activeTool: derivedActiveTool(next, nextActiveId),
+    })
     persistTabs(next, nextActiveId)
   },
 
