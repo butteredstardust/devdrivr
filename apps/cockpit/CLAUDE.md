@@ -22,7 +22,7 @@ Full canonical docs live in [`documentation/`](./documentation/):
 - **Package manager:** Bun only. Never use npm or yarn.
 - **Run commands from:** `apps/cockpit/` unless noted.
 - **Type-check:** `npx tsc --noEmit` — must stay clean.
-- **Tests:** `bun run test` (Vitest, 252 tests / 42 files).
+- **Tests:** `bunx vitest run` (Vitest, 326 tests / 48 files). Use `bunx`, not `bun run test`.
 - **Dev server:** `bun run tauri dev` (starts Vite + Rust binary).
 
 ## Architecture
@@ -69,17 +69,17 @@ Capabilities live in `src-tauri/capabilities/default.json` scoped to `"windows":
 
 ## Key Files
 
-| File                                  | Purpose                                                                     |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| `src/app/providers.tsx`               | App bootstrap, window management                                            |
-| `src/app/tool-registry.ts`            | Register tools here                                                         |
-| `src/lib/db.ts`                       | All SQLite queries                                                          |
-| `src/lib/theme.ts`                    | Theme application                                                           |
-| `src/stores/settings.store.ts`        | Theme, sidebar, editor preferences                                          |
-| `src/hooks/useGlobalShortcuts.ts`     | All keyboard shortcuts                                                      |
-| `src-tauri/capabilities/default.json` | IPC permissions                                                             |
-| `src-tauri/migrations/`               | DB schema — 005 migrations (see SQLite Migrations section above)            |
-| `src-tauri/src/lib.rs`                | **Must also register** every migration file here                            |
+| File                                  | Purpose                                                          |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `src/app/providers.tsx`               | App bootstrap, window management                                 |
+| `src/app/tool-registry.ts`            | Register tools here                                              |
+| `src/lib/db.ts`                       | All SQLite queries                                               |
+| `src/lib/theme.ts`                    | Theme application                                                |
+| `src/stores/settings.store.ts`        | Theme, sidebar, editor preferences                               |
+| `src/hooks/useGlobalShortcuts.ts`     | All keyboard shortcuts                                           |
+| `src-tauri/capabilities/default.json` | IPC permissions                                                  |
+| `src-tauri/migrations/`               | DB schema — 005 migrations (see SQLite Migrations section above) |
+| `src-tauri/src/lib.rs`                | **Must also register** every migration file here                 |
 
 ## SQLite Migrations — Two-Step Rule
 
@@ -111,8 +111,8 @@ Migration {
 ## Running the Test Suite
 
 ```bash
-bun run test          # run once
-bun run test:watch    # watch mode
+bunx vitest run       # run once (bun run test fails — shell can't resolve vitest binary)
+bunx vitest           # watch mode
 ```
 
 Tests live in `src/**/*.test.ts` and cover: platform detection, theming, keybinding logic.
