@@ -5,9 +5,10 @@ type SidebarItemProps = {
   id: string
   name: string
   icon: string | ReactNode
+  tabIndex?: number
 }
 
-export function SidebarItem({ id, name, icon }: SidebarItemProps) {
+export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
   const activeTool = useUiStore((s) => s.activeTool)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const isActive = activeTool === id
@@ -17,9 +18,12 @@ export function SidebarItem({ id, name, icon }: SidebarItemProps) {
       onClick={() => setActiveTool(id)}
       title={name}
       aria-label={name}
-      className={`flex h-8 w-full items-center gap-2 rounded-sm px-2 text-xs transition-colors border-l-2 ${
+      aria-current={isActive ? 'page' : undefined}
+      tabIndex={tabIndex}
+      data-sidebar-item={id}
+      className={`flex h-8 w-full items-center gap-2 rounded-sm border-l-2 px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--color-accent)]/60 ${
         isActive
-          ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+          ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)] shadow-[inset_3px_0_8px_-4px_var(--color-accent)]'
           : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
       }`}
     >
