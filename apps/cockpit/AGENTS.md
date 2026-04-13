@@ -24,9 +24,12 @@ bun install              # install/restore dependencies
 bun run tauri dev        # start dev server (Vite + Tauri hot-reload)
 bun run clean            # delete node_modules, dist, src-tauri/target
 npx tsc --noEmit         # type-check — MUST pass before submitting
-bun run test             # run Vitest tests — MUST all pass
+bunx vitest run          # run Vitest tests — MUST all pass (use bunx, not bun run test)
 bun run tauri build      # production build
 ```
+
+> **Note**: Always run these from `apps/cockpit/`. `bun run test` may fail if the shell
+> cannot resolve the `vitest` binary — use `bunx vitest run` instead.
 
 ---
 
@@ -314,7 +317,7 @@ WAL mode is set at connection time in `getDb()` — not in migrations.
 Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
-- [ ] `bun run test` — 252/252 passing
+- [ ] `bunx vitest run` — 326/326 passing
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`

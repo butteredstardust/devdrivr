@@ -11,7 +11,13 @@ type SnippetsStore = {
   activeFolder: string
   setActiveFolder: (folder: string) => void
   init: () => Promise<void>
-  add: (title: string, content: string, language: string, tags?: string[], folder?: string) => Promise<Snippet>
+  add: (
+    title: string,
+    content: string,
+    language: string,
+    tags?: string[],
+    folder?: string
+  ) => Promise<Snippet>
   update: (
     id: string,
     patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags' | 'folder'>>
@@ -69,7 +75,8 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     const snippets = get().snippets
     const idx = snippets.findIndex((s) => s.id === id)
     if (idx < 0) return
-    const oldSnippet = snippets[idx]!
+    const oldSnippet = snippets[idx]
+    if (!oldSnippet) return
     const updated = { ...oldSnippet, ...patch, updatedAt: Date.now() }
 
     // 1. Update state immediately (optimistic)

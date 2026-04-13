@@ -219,7 +219,9 @@ function GeneralTab() {
 
   const [appVersion, setAppVersion] = useState<string | null>(null)
   useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => {})
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {})
   }, [])
 
   const handleAlwaysOnTop = useCallback(
@@ -259,7 +261,7 @@ function GeneralTab() {
 
       {/* Updates */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
           <ArrowCircleUpIcon size={10} />
           Updates
         </h4>
@@ -558,7 +560,7 @@ function DataTab() {
 
       {/* Storage Stats */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
           <InfoIcon size={10} />
           Storage
         </h4>
@@ -571,7 +573,7 @@ function DataTab() {
 
       {/* Data Management */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
           <TrashIcon size={10} />
           Clear Data
         </h4>
@@ -599,7 +601,7 @@ function DataTab() {
 
       {/* Export / Import / Reset */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
           <ExportIcon size={10} />
           Settings Transfer
         </h4>
@@ -634,7 +636,7 @@ function StatCard({ label, count }: { label: string; count: number }) {
   return (
     <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-center">
       <div className="font-mono text-sm font-bold text-[var(--color-text)]">{count}</div>
-      <div className="text-[10px] text-[var(--color-text-muted)]">{label}</div>
+      <div className="text-[11px] text-[var(--color-text-muted)]">{label}</div>
     </div>
   )
 }

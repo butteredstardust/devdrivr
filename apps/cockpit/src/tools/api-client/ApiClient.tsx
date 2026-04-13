@@ -185,7 +185,7 @@ export default function ApiClient() {
   const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
-  const envVars = activeEnv?.variables ?? {}
+  const envVars = useMemo(() => activeEnv?.variables ?? {}, [activeEnv])
 
   // ---------------------------------------------------------------------------
   // Query params
@@ -391,7 +391,6 @@ export default function ApiClient() {
       state.activeRequestId,
       state.draft,
       requests,
-      collections,
       createCollection,
       createRequest,
       updateRequest,

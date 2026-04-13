@@ -97,7 +97,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
             style={flyoutStyle}
             className="min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
           >
-            <div className="px-2.5 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <div className="px-2.5 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {group.label}
             </div>
             {tools.map((tool) => {

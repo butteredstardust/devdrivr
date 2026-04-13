@@ -15,6 +15,16 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'catppuccin-frappe',
   'catppuccin-macchiato',
   'catppuccin-mocha',
+  'dracula',
+  'monokai',
+  'nord',
+  'night-owl',
+  'github-dark',
+  'github-light',
+  'solarized-dark',
+  'solarized-light',
+  'tomorrow-night',
+  'oceanic-next',
 ]
 
 /** Short status-bar labels (≤6 chars) and full display names for each theme. */
@@ -31,6 +41,16 @@ export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel:
   'catppuccin-frappe': { shortLabel: 'CppFr', fullLabel: 'Catppuccin Frappé' },
   'catppuccin-macchiato': { shortLabel: 'CppMc', fullLabel: 'Catppuccin Macchiato' },
   'catppuccin-mocha': { shortLabel: 'CppMo', fullLabel: 'Catppuccin Mocha' },
+  dracula: { shortLabel: 'Drac', fullLabel: 'Dracula' },
+  monokai: { shortLabel: 'Mono', fullLabel: 'Monokai' },
+  nord: { shortLabel: 'Nord', fullLabel: 'Nord' },
+  'night-owl': { shortLabel: 'Owl', fullLabel: 'Night Owl' },
+  'github-dark': { shortLabel: 'GH', fullLabel: 'GitHub Dark' },
+  'github-light': { shortLabel: 'GHLt', fullLabel: 'GitHub Light' },
+  'solarized-dark': { shortLabel: 'SolD', fullLabel: 'Solarized Dark' },
+  'solarized-light': { shortLabel: 'SolL', fullLabel: 'Solarized Light' },
+  'tomorrow-night': { shortLabel: 'Tmrw', fullLabel: 'Tomorrow Night' },
+  'oceanic-next': { shortLabel: 'Ocen', fullLabel: 'Oceanic Next' },
 }
 
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {
@@ -47,5 +67,7 @@ export function applyTheme(theme: Theme): void {
   html.classList.add(effective)
   try {
     localStorage.setItem('theme-cache', effective)
-  } catch {}
+  } catch {
+    /* intentional — localStorage may be unavailable */
+  }
 }

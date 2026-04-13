@@ -105,7 +105,8 @@ function findMatches(
         const groups: Match['groups'] = []
         for (let i = 1; i < m.length; i++) {
           const name = m.groups
-            ? (Object.entries(m.groups).find(([, v]) => v === m![i])?.[0] ?? null)
+            ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              (Object.entries(m.groups).find(([, v]) => v === m![i])?.[0] ?? null) // m narrowed by while, but TS loses narrowing inside the closure
             : null
           groups.push({ name, value: m[i] ?? '' })
         }
@@ -118,7 +119,7 @@ function findMatches(
         const groups: Match['groups'] = []
         for (let i = 1; i < m.length; i++) {
           const name = m.groups
-            ? (Object.entries(m.groups).find(([, v]) => v === m![i])?.[0] ?? null)
+            ? (Object.entries(m.groups).find(([, v]) => v === m[i])?.[0] ?? null)
             : null
           groups.push({ name, value: m[i] ?? '' })
         }
@@ -157,7 +158,8 @@ function highlightMatches(text: string, pattern: string, flags: string): string 
     while ((m = re.exec(text)) !== null && guard < 1000) {
       guard++
       parts.push(escapeHtml(text.slice(lastIndex, m.index)))
-      const c = MATCH_COLORS[colorIdx % MATCH_COLORS.length]!
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const c = MATCH_COLORS[colorIdx % MATCH_COLORS.length]! // safe: modulo keeps index in bounds
       parts.push(
         `<mark style="background:${c.bg};color:${c.text};border-radius:2px;padding:0 2px">${escapeHtml(m[0])}</mark>`
       )

@@ -95,7 +95,7 @@ export default function DiffViewer() {
       })
       setDiffHtml(rendered)
       setLastAction('Diff computed', 'success')
-    } catch (error) {
+    } catch {
       setLastAction('Diff computation failed', 'error')
       setDiffHtml('')
       setRawPatch('')
@@ -235,16 +235,24 @@ export default function DiffViewer() {
             ['--d2h-file-header-border-color' as string]: 'var(--color-border)',
             ['--d2h-empty-placeholder-bg-color' as string]: 'var(--color-surface)',
             ['--d2h-empty-placeholder-border-color' as string]: 'var(--color-border)',
-            ['--d2h-ins-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
-            ['--d2h-ins-border-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
-            ['--d2h-ins-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-bg-color' as string]:
+              'color-mix(in srgb, var(--color-success) 15%, transparent)',
+            ['--d2h-ins-border-color' as string]:
+              'color-mix(in srgb, var(--color-success) 40%, transparent)',
+            ['--d2h-ins-highlight-bg-color' as string]:
+              'color-mix(in srgb, var(--color-success) 40%, transparent)',
             ['--d2h-ins-label-color' as string]: 'var(--color-success)',
-            ['--d2h-del-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
-            ['--d2h-del-border-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
-            ['--d2h-del-highlight-bg-color' as string]: 'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-bg-color' as string]:
+              'color-mix(in srgb, var(--color-error) 12%, transparent)',
+            ['--d2h-del-border-color' as string]:
+              'color-mix(in srgb, var(--color-error) 40%, transparent)',
+            ['--d2h-del-highlight-bg-color' as string]:
+              'color-mix(in srgb, var(--color-error) 40%, transparent)',
             ['--d2h-del-label-color' as string]: 'var(--color-error)',
-            ['--d2h-change-del-color' as string]: 'color-mix(in srgb, var(--color-warning) 20%, transparent)',
-            ['--d2h-change-ins-color' as string]: 'color-mix(in srgb, var(--color-success) 20%, transparent)',
+            ['--d2h-change-del-color' as string]:
+              'color-mix(in srgb, var(--color-warning) 20%, transparent)',
+            ['--d2h-change-ins-color' as string]:
+              'color-mix(in srgb, var(--color-success) 20%, transparent)',
             ['--d2h-change-label-color' as string]: 'var(--color-warning)',
             ['--d2h-info-bg-color' as string]: 'var(--color-surface)',
             ['--d2h-info-border-color' as string]: 'var(--color-border)',
@@ -252,11 +260,36 @@ export default function DiffViewer() {
           dangerouslySetInnerHTML={{
             __html: sanitize(diffHtml, {
               ALLOWED_TAGS: [
-                'div', 'span', 'code', 'pre', 'del', 'ins', 'br', 'hr',
-                'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                'svg', 'path', 'label', 'input', 'a',
+                'div',
+                'span',
+                'code',
+                'pre',
+                'del',
+                'ins',
+                'br',
+                'hr',
+                'table',
+                'thead',
+                'tbody',
+                'tr',
+                'th',
+                'td',
+                'svg',
+                'path',
+                'label',
+                'input',
+                'a',
               ],
-              ALLOWED_ATTR: ['class', 'style', 'data-diffline', 'data-diffpath', 'type', 'checked', 'disabled', 'title'],
+              ALLOWED_ATTR: [
+                'class',
+                'style',
+                'data-diffline',
+                'data-diffpath',
+                'type',
+                'checked',
+                'disabled',
+                'title',
+              ],
               FORCE_BODY: true,
             }),
           }}

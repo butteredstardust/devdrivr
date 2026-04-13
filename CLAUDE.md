@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **devdrivr** is a Turborepo monorepo. Active development is focused on `apps/cockpit` — a local-first, keyboard-driven developer utility workspace built with Tauri 2 + React 19.
 
-> For cockpit-specific guidance see `apps/cockpit/CLAUDE.md`.
+> For cockpit-specific guidance see [`apps/cockpit/CLAUDE.md`](apps/cockpit/CLAUDE.md) (Claude) and [`apps/cockpit/AGENTS.md`](apps/cockpit/AGENTS.md) (other agents).
 
 The broader monorepo is the **T4 Stack** for building universal TypeScript apps (iOS, Android, Web, Desktop) targeting Cloudflare's edge platform.
 
@@ -30,6 +30,7 @@ bun run notes        # Nextra docs site
 
 # Type checking
 bun run check-types  # tsc --noEmit across all packages
+cd apps/cockpit && npx tsc --noEmit  # type-check cockpit specifically
 
 # Database
 bun run generate     # drizzle-kit generate migrations
@@ -92,6 +93,7 @@ app/*       → packages/app/*
 ## Code Style
 
 Prettier config (`.prettierrc`):
+
 - `semi: false`
 - `singleQuote: true`
 - `trailingComma: 'es5'`
@@ -101,6 +103,7 @@ Prettier config (`.prettierrc`):
 ## Environment Variables
 
 Required (see `.env.example`):
+
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8787
 NEXT_PUBLIC_APP_URL=http://localhost:3000

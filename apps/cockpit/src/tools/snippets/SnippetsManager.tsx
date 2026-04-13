@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
+import { DownloadSimpleIcon, StarIcon, XIcon } from '@phosphor-icons/react'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -137,7 +138,7 @@ function TagFilterBar({
         {filterTag && (
           <button
             onClick={() => onFilterTag(null)}
-            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-[10px] text-[var(--color-error)]"
+            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-xs text-[var(--color-error)]"
           >
             ✕ Clear
           </button>
@@ -146,7 +147,7 @@ function TagFilterBar({
           <button
             key={tag}
             onClick={() => onFilterTag(filterTag === tag ? null : tag)}
-            className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+            className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
               filterTag === tag
                 ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                 : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
@@ -159,7 +160,7 @@ function TagFilterBar({
       {overflows && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          className="mt-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
         >
           {expanded ? '▲ Show less' : `▼ ${tags.length} tags…`}
         </button>
@@ -474,10 +475,10 @@ export default function SnippetsManager() {
             <button
               key={opt.id}
               onClick={() => setSortMode(opt.id)}
-              className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                 sortMode === opt.id
                   ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
               {opt.label}
@@ -490,10 +491,10 @@ export default function SnippetsManager() {
           <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
             <button
               onClick={() => setActiveFolder('')}
-              className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                 activeFolder === ''
                   ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
               All
@@ -502,7 +503,7 @@ export default function SnippetsManager() {
               <button
                 key={folder}
                 onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
-                className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
+                className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                   activeFolder === folder
                     ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                     : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
@@ -590,7 +591,7 @@ export default function SnippetsManager() {
         {/* Snippet count */}
         <div className="border-t border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
           {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
-          {(filterTag || activeFolder) ? ` · ${filtered.length} shown` : ''}
+          {filterTag || activeFolder ? ` · ${filtered.length} shown` : ''}
         </div>
       </div>
 
@@ -609,10 +610,10 @@ export default function SnippetsManager() {
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
               <button
                 onClick={handleToggleFavorite}
-                className={`text-sm transition-opacity ${isFavorite(selected.tags) ? 'opacity-100' : 'opacity-30 hover:opacity-60'}`}
+                className={`rounded p-1 transition-colors ${isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-warning)]'}`}
                 title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
               >
-                ⭐
+                <StarIcon size={14} weight={isFavorite(selected.tags) ? 'fill' : 'regular'} />
               </button>
               <input
                 ref={titleInputRef}
@@ -624,10 +625,10 @@ export default function SnippetsManager() {
               <CopyButton text={selected.content} />
               <button
                 onClick={handleDownload}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 title="Download as file"
               >
-                ↓
+                <DownloadSimpleIcon size={14} />
               </button>
             </div>
 
@@ -713,9 +714,9 @@ export default function SnippetsManager() {
                       <span className="truncate">{tag}</span>
                       <button
                         onClick={() => handleRemoveTag(tag)}
-                        className="text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                        className="shrink-0 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-error)]"
                       >
-                        [X]
+                        <XIcon size={10} />
                       </button>
                     </div>
                   ))}
@@ -747,41 +748,43 @@ export default function SnippetsManager() {
       </div>
 
       {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
-      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-[10px]">
-        <div className="flex items-center gap-4">
+      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
+        <div className="flex items-center gap-1">
           <button
             onClick={handleNew}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F5: NEW]
           </button>
           <button
             onClick={handleDuplicate}
             disabled={!selected}
-            className={`text-[var(--color-text-muted)] ${selected ? 'hover:text-[var(--color-accent)]' : 'opacity-30 cursor-not-allowed'}`}
+            className={`rounded px-2 py-0.5 transition-colors ${selected ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]' : 'cursor-not-allowed opacity-30'}`}
           >
             [F6: DUP]
           </button>
           <button
             onClick={handleDeleteClick}
             disabled={!selected}
-            className={`transition-colors ${
+            className={`rounded px-2 py-0.5 transition-colors ${
               selectedId && confirmDeleteId === selectedId
-                ? 'font-bold text-[var(--color-error)]'
-                : `text-[var(--color-text-muted)] ${selected ? 'hover:text-[var(--color-error)]' : 'opacity-30 cursor-not-allowed'}`
+                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)]'
+                : selected
+                  ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]'
+                  : 'cursor-not-allowed opacity-30'
             }`}
           >
             {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
           </button>
           <button
             onClick={handleExport}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F9: EXP]
           </button>
           <button
             onClick={handleImport}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F10: IMP]
           </button>

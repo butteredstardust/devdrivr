@@ -40,7 +40,7 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   )
   if (rows.length === 0) return fallback
   try {
-    return JSON.parse(rows[0]!.value) as T
+    return JSON.parse(rows[0]?.value ?? 'null') as T
   } catch (err) {
     console.warn(`[db] getSetting: failed to parse value for key "${key}", using fallback`, err)
     return fallback
@@ -65,7 +65,7 @@ export async function loadToolState(toolId: string): Promise<Record<string, unkn
   )
   if (rows.length === 0) return null
   try {
-    return JSON.parse(rows[0]!.state) as Record<string, unknown>
+    return JSON.parse(rows[0]?.state ?? 'null') as Record<string, unknown>
   } catch (err) {
     console.warn(`[db] loadToolState: failed to parse state for tool "${toolId}"`, err)
     return null

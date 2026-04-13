@@ -27,8 +27,21 @@ export function yamlToJson(yamlInput: string): string {
 }
 
 export function jsonToYaml(jsonInput: string): string {
-  const data: unknown = JSON.parse(jsonInput)
-  return stringifyYaml(data)
+  if (!jsonInput.trim()) {
+    throw new Error('JSON input is empty')
+  }
+  try {
+    const data: unknown = JSON.parse(jsonInput)
+    if (data === null || data === undefined) {
+      throw new Error('JSON resolves to null or empty')
+    }
+    return stringifyYaml(data)
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      throw new Error(`Invalid JSON: ${e.message}`, { cause: e })
+    }
+    throw e instanceof Error ? e : new Error(String(e))
+  }
 }
 
 export function sortKeysDeep(data: unknown): unknown {

@@ -21,7 +21,8 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
           setIsDragging(false)
           const paths = event.payload.paths
           if (paths.length > 0) {
-            const filePath = paths[0]!
+            const filePath = paths[0] ?? ''
+            if (!filePath) return
             const filename = filePath.split('/').pop() ?? filePath.split('\\').pop() ?? filePath
             readTextFile(filePath)
               .then((content) => {

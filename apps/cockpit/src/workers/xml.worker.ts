@@ -1,5 +1,6 @@
 import { handleRpc } from './rpc'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
+import type { Node, Element } from '@xmldom/xmldom'
 
 type XmlResult = {
   valid: boolean
@@ -25,14 +26,20 @@ type JsonResult = {
   error?: string
 }
 
+// Use xmldom's Node types. The library's Node interface doesn't match the DOM
+// lib types exactly, so we use it directly from the import above.
+
+function makeParser(errors: string[]): DOMParser {
+  return new DOMParser({
+    onError: (_level, msg) => errors.push(msg),
+  })
+}
+
 const api = {
   validate(xml: string): XmlResult {
     try {
       const errors: string[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parser = new DOMParser({
-        onerror: (error: any) => errors.push(error.message ?? String(error)),
-      } as any)
+      const parser = makeParser(errors)
       parser.parseFromString(xml, 'text/xml')
       return { valid: errors.length === 0, errors }
     } catch (e) {
@@ -43,10 +50,7 @@ const api = {
   format(xml: string, indent: number = 2): XmlResult {
     try {
       const errors: string[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parser = new DOMParser({
-        onerror: (error: any) => errors.push(error.message ?? String(error)),
-      } as any)
+      const parser = makeParser(errors)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
         return { valid: false, errors }
@@ -65,10 +69,7 @@ const api = {
   minify(xml: string): XmlResult {
     try {
       const errors: string[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parser = new DOMParser({
-        onerror: (error: any) => errors.push(error.message ?? String(error)),
-      } as any)
+      const parser = makeParser(errors)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
         return { valid: false, errors }
@@ -86,10 +87,7 @@ const api = {
   toJson(xml: string): JsonResult {
     try {
       const errors: string[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parser = new DOMParser({
-        onerror: (error: any) => errors.push(error.message ?? String(error)),
-      } as any)
+      const parser = makeParser(errors)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) {
         return { valid: false, error: errors.join('\n') }
@@ -104,10 +102,7 @@ const api = {
   stats(xml: string): XmlStats {
     try {
       const errors: string[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parser = new DOMParser({
-        onerror: (error: any) => errors.push(error.message ?? String(error)),
-      } as any)
+      const parser = makeParser(errors)
       const doc = parser.parseFromString(xml, 'text/xml')
       if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
       return collectStats(doc.documentElement)
@@ -159,16 +154,15 @@ function formatXmlString(xml: string, indent: number): string {
   return formatted.trimEnd()
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function nodeToJson(node: any): any {
+function nodeToJson(node: Element | Node | null): unknown {
   if (!node) return null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const obj: any = {}
+  const obj: Record<string, unknown> = {}
 
   // Attributes
-  if (node.attributes && node.attributes.length > 0) {
-    for (let i = 0; i < node.attributes.length; i++) {
-      const attr = node.attributes.item(i)
+  const el = node as Element
+  if (el.attributes && el.attributes.length > 0) {
+    for (let i = 0; i < el.attributes.length; i++) {
+      const attr = el.attributes.item(i)
       if (attr) obj[`@${attr.name}`] = attr.value
     }
   }
@@ -184,14 +178,17 @@ function nodeToJson(node: any): any {
       if (child.nodeType === 3 || child.nodeType === 4) {
         const txt = (child.textContent ?? '').trim()
         if (txt) textParts.push(txt)
-      } else if (child.nodeType === 1 && child.tagName) {
-        const tag = child.tagName
-        const value = nodeToJson(child)
-        if (obj[tag] !== undefined) {
-          if (!Array.isArray(obj[tag])) obj[tag] = [obj[tag]]
-          obj[tag].push(value)
-        } else {
-          obj[tag] = value
+      } else if (child.nodeType === 1) {
+        const childEl = child as Element
+        if (childEl.tagName) {
+          const tag = childEl.tagName
+          const value = nodeToJson(childEl)
+          if (obj[tag] !== undefined) {
+            if (!Array.isArray(obj[tag])) obj[tag] = [obj[tag]]
+            ;(obj[tag] as unknown[]).push(value)
+          } else {
+            obj[tag] = value
+          }
         }
       }
     }
@@ -206,9 +203,8 @@ function nodeToJson(node: any): any {
   return Object.keys(obj).length === 0 ? '' : obj
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function collectStats(
-  node: any,
+  node: Node | null,
   depth = 0
 ): { elements: number; attributes: number; textNodes: number; depth: number } {
   let elements = 0
@@ -220,7 +216,8 @@ function collectStats(
 
   if (node.nodeType === 1) {
     elements++
-    if (node.attributes) attributes += node.attributes.length
+    const el = node as Element
+    if (el.attributes) attributes += el.attributes.length
   }
   if ((node.nodeType === 3 || node.nodeType === 4) && (node.textContent ?? '').trim()) {
     textNodes++
@@ -240,26 +237,30 @@ function collectStats(
   return { elements, attributes, textNodes, depth: maxDepth }
 }
 
-// Use `any` types for xmldom nodes since they don't match the DOM lib types
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function evaluateSimpleXPath(doc: any, expression: string): any[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const results: any[] = []
+// Use xmldom nodes since they don't match the DOM lib types exactly
+function evaluateSimpleXPath(
+  doc: ReturnType<DOMParser['parseFromString']>,
+  expression: string
+): Node[] {
+  const results: Node[] = []
   try {
     const parts = expression.replace(/^\/\//, '/').split('/').filter(Boolean)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let nodes: any[] = [doc.documentElement]
+    const root = doc.documentElement
+    if (!root) return results
+    let nodes: Node[] = [root]
 
     for (const part of parts) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const next: any[] = []
+      const next: Node[] = []
       const tagName = part.replace(/\[.*\]/, '')
       for (const node of nodes) {
         if (node.childNodes) {
           for (let i = 0; i < node.childNodes.length; i++) {
             const child = node.childNodes.item(i)
-            if (child && child.tagName === tagName) {
-              next.push(child)
+            if (child) {
+              const childEl = child as Element
+              if (childEl.tagName === tagName) {
+                next.push(child)
+              }
             }
           }
         }

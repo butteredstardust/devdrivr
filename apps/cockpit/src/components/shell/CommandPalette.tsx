@@ -430,7 +430,7 @@ export function CommandPalette() {
               return (
                 <div
                   key={`header-${section.label}`}
-                  className="px-3 pb-0.5 pt-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                  className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
                 >
                   {section.label}
                 </div>
@@ -497,7 +497,9 @@ export function CommandPalette() {
                   : `No tools matching "${searchQuery}"`}
               </p>
               <p className="mt-2 text-xs text-[var(--color-text-muted)] opacity-60">
-                {isActionMode ? 'Remove > to search tools instead' : 'Tip: type > to search actions'}
+                {isActionMode
+                  ? 'Remove > to search tools instead'
+                  : 'Tip: type > to search actions'}
               </p>
             </div>
           )}
