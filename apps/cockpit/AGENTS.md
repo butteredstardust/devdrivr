@@ -87,19 +87,42 @@ When asked to "open a PR" or "commit and push", the full sequence is implied —
 
 ---
 
-## Commands (always run from `apps/cockpit/`)
+## Commands
+
+**All commands must be run from `apps/cockpit/`** with the PATH prefix shown. Running from the monorepo root will use the wrong config or fail to find binaries entirely.
 
 ```bash
-bun install              # install/restore dependencies
-bun run tauri dev        # start dev server (Vite + Tauri hot-reload)
-bun run clean            # delete node_modules, dist, src-tauri/target
-npx tsc --noEmit         # type-check — MUST pass before submitting
-bunx vitest run          # run Vitest tests — MUST all pass (use bunx, not bun run test)
-bun run tauri build      # production build
+# Typecheck — zero errors required before every commit
+PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+
+# Tests — bunx ONLY; bun run test cannot resolve the vitest binary
+PATH="/opt/homebrew/bin:$PATH" bunx vitest run        # run once
+PATH="/opt/homebrew/bin:$PATH" bunx vitest            # watch mode
+
+# Lint
+PATH="/opt/homebrew/bin:$PATH" bun run lint
+
+# Dev server (Vite + Tauri hot-reload)
+PATH="/opt/homebrew/bin:$PATH" bun run tauri dev
+
+# Production build
+PATH="/opt/homebrew/bin:$PATH" bun run tauri build
+
+# Install / restore dependencies
+PATH="/opt/homebrew/bin:$PATH" bun install
+
+# Clean build artifacts and node_modules
+PATH="/opt/homebrew/bin:$PATH" bun run clean
 ```
 
-> **Note**: Always run these from `apps/cockpit/`. `bun run test` may fail if the shell
-> cannot resolve the `vitest` binary — use `bunx vitest run` instead.
+### Common mistakes
+
+| Wrong                      | Right                                | Why                                                     |
+| -------------------------- | ------------------------------------ | ------------------------------------------------------- |
+| Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules |
+| `bun run test`             | `bunx vitest run`                    | bun can't resolve the vitest binary directly            |
+| `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager                    |
+| No PATH prefix             | `PATH="/opt/homebrew/bin:$PATH" ...` | Homebrew tools not on default shell PATH                |
 
 ---
 

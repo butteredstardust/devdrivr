@@ -90,10 +90,45 @@ Full canonical docs live in [`documentation/`](./documentation/):
 ## Essentials
 
 - **Package manager:** Bun only. Never use npm or yarn.
-- **Run commands from:** `apps/cockpit/` unless noted.
-- **Type-check:** `npx tsc --noEmit` — must stay clean.
-- **Tests:** `bunx vitest run` (Vitest, 380+ tests / 50+ files). Use `bunx`, not `bun run test`.
-- **Dev server:** `bun run tauri dev` (starts Vite + Rust binary).
+- **Run commands from:** `apps/cockpit/` — never the monorepo root.
+- **PATH prefix required:** Bun and other Homebrew tools are in `/opt/homebrew/bin`, which is not on the default shell PATH. Every command below needs the prefix.
+
+## Commands
+
+All commands must be run from `apps/cockpit/` with the PATH prefix. Running from the monorepo root will silently use the wrong config or fail to find binaries.
+
+```bash
+# Typecheck — must be zero errors before committing
+PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+
+# Tests — use bunx, NOT bun run test (bun can't resolve the vitest binary directly)
+PATH="/opt/homebrew/bin:$PATH" bunx vitest run        # run once
+PATH="/opt/homebrew/bin:$PATH" bunx vitest            # watch mode
+
+# Lint — ESLint across src/
+PATH="/opt/homebrew/bin:$PATH" bun run lint
+
+# Dev server — starts Vite + Tauri hot-reload
+PATH="/opt/homebrew/bin:$PATH" bun run tauri dev
+
+# Production build
+PATH="/opt/homebrew/bin:$PATH" bun run tauri build
+
+# Install / restore dependencies
+PATH="/opt/homebrew/bin:$PATH" bun install
+
+# Clean build artifacts and node_modules
+PATH="/opt/homebrew/bin:$PATH" bun run clean
+```
+
+### Common mistakes
+
+| Wrong                      | Right                                | Why                                                             |
+| -------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules         |
+| `bun run test`             | `bunx vitest run`                    | bun resolves scripts but can't find the `vitest` binary in PATH |
+| `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager here                       |
+| No PATH prefix             | `PATH="/opt/homebrew/bin:$PATH" ...` | Homebrew tools not on default shell PATH                        |
 
 ## Architecture
 
