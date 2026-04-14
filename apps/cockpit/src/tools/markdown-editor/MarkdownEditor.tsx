@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
-import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { MarkdownPreview } from './MarkdownPreview'
 import { useScrollSync } from './hooks/useScrollSync'
@@ -12,6 +11,7 @@ import { LinkModal } from './modals/LinkModal'
 import { CodeBlockModal } from './modals/CodeBlockModal'
 import { ImageModal } from './modals/ImageModal'
 import { TableModal } from './modals/TableModal'
+import { ArrowsClockwiseIcon, CaretDownIcon, LinkIcon, ImageIcon } from '@phosphor-icons/react'
 
 // Markdown pipeline imports
 import { unified } from 'unified'
@@ -39,11 +39,24 @@ type TocEntry = {
 
 type EditorInstance = Parameters<OnMount>[0]
 
+type FormattingAction = {
+  label: string
+  title: string
+  prefix: string
+  suffix: string
+  placeholder: string
+  line?: boolean
+  modal?: 'link' | 'image' | 'code' | 'table'
+  group: number
+  icon?: React.ComponentType<{ size?: number }>
+}
+
 // ─── Constants ───────────────────────────────────────────────────────
 
+// Edit first — natural workflow order
 const MODES = [
-  { id: 'split', label: 'Split' },
   { id: 'edit', label: 'Edit' },
+  { id: 'split', label: 'Split' },
   { id: 'preview', label: 'Preview' },
 ]
 
@@ -204,12 +217,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   },
 ]
 
-const FORMATTING_ACTIONS = [
-  { label: 'B', title: 'Bold (⌘B)', prefix: '**', suffix: '**', placeholder: 'bold text' },
-  { label: 'I', title: 'Italic (⌘I)', prefix: '_', suffix: '_', placeholder: 'italic text' },
-  { label: '~~', title: 'Strikethrough', prefix: '~~', suffix: '~~', placeholder: 'strikethrough' },
-  { label: '`', title: 'Inline Code', prefix: '`', suffix: '`', placeholder: 'code' },
-  { label: 'H1', title: 'Heading 1', prefix: '# ', suffix: '', placeholder: 'Heading', line: true },
+const FORMATTING_ACTIONS: FormattingAction[] = [
+  // Group 1 — inline text formatting
+  {
+    label: 'B',
+    title: 'Bold (⌘B)',
+    prefix: '**',
+    suffix: '**',
+    placeholder: 'bold text',
+    group: 1,
+  },
+  {
+    label: 'I',
+    title: 'Italic (⌘I)',
+    prefix: '_',
+    suffix: '_',
+    placeholder: 'italic text',
+    group: 1,
+  },
+  {
+    label: '~~',
+    title: 'Strikethrough',
+    prefix: '~~',
+    suffix: '~~',
+    placeholder: 'strikethrough',
+    group: 1,
+  },
+  { label: '`', title: 'Inline Code', prefix: '`', suffix: '`', placeholder: 'code', group: 1 },
+  // Group 2 — headings
+  {
+    label: 'H1',
+    title: 'Heading 1',
+    prefix: '# ',
+    suffix: '',
+    placeholder: 'Heading',
+    line: true,
+    group: 2,
+  },
   {
     label: 'H2',
     title: 'Heading 2',
@@ -217,6 +261,7 @@ const FORMATTING_ACTIONS = [
     suffix: '',
     placeholder: 'Heading',
     line: true,
+    group: 2,
   },
   {
     label: 'H3',
@@ -225,6 +270,44 @@ const FORMATTING_ACTIONS = [
     suffix: '',
     placeholder: 'Heading',
     line: true,
+    group: 2,
+  },
+  // Group 3 — structure / lists
+  {
+    label: '•',
+    title: 'Bullet List',
+    prefix: '- ',
+    suffix: '',
+    placeholder: 'item',
+    line: true,
+    group: 3,
+  },
+  {
+    label: '1.',
+    title: 'Numbered List',
+    prefix: '1. ',
+    suffix: '',
+    placeholder: 'item',
+    line: true,
+    group: 3,
+  },
+  {
+    label: '☐',
+    title: 'Task List',
+    prefix: '- [ ] ',
+    suffix: '',
+    placeholder: 'task',
+    line: true,
+    group: 3,
+  },
+  {
+    label: '>',
+    title: 'Blockquote',
+    prefix: '> ',
+    suffix: '',
+    placeholder: 'quote',
+    line: true,
+    group: 3,
   },
   {
     label: '—',
@@ -233,34 +316,30 @@ const FORMATTING_ACTIONS = [
     suffix: '',
     placeholder: '',
     line: true,
+    group: 3,
   },
+  // Group 4 — media / insertions
   {
-    label: '🔗',
+    label: 'Link',
     title: 'Link',
     prefix: '[',
     suffix: '](url)',
     placeholder: 'link text',
-    modal: 'link' as const,
+    modal: 'link',
+    group: 4,
+    icon: LinkIcon,
   },
   {
-    label: '📷',
+    label: 'Image',
     title: 'Image',
     prefix: '![',
     suffix: '](url)',
     placeholder: 'alt text',
-    modal: 'image' as const,
+    modal: 'image',
+    group: 4,
+    icon: ImageIcon,
   },
-  { label: '•', title: 'Bullet List', prefix: '- ', suffix: '', placeholder: 'item', line: true },
-  {
-    label: '1.',
-    title: 'Numbered List',
-    prefix: '1. ',
-    suffix: '',
-    placeholder: 'item',
-    line: true,
-  },
-  { label: '☐', title: 'Task List', prefix: '- [ ] ', suffix: '', placeholder: 'task', line: true },
-  { label: '>', title: 'Blockquote', prefix: '> ', suffix: '', placeholder: 'quote', line: true },
+  // Group 5 — code / data blocks
   {
     label: '```',
     title: 'Code Block',
@@ -268,7 +347,8 @@ const FORMATTING_ACTIONS = [
     suffix: '\n```',
     placeholder: 'code',
     line: true,
-    modal: 'code' as const,
+    modal: 'code',
+    group: 5,
   },
   {
     label: '⊞',
@@ -277,9 +357,23 @@ const FORMATTING_ACTIONS = [
     suffix: ' |  |  |',
     placeholder: 'cell',
     line: true,
-    modal: 'table' as const,
+    modal: 'table',
+    group: 5,
   },
 ]
+
+// ─── Export style constants ───────────────────────────────────────────
+
+const BASE_EXPORT_STYLES =
+  'body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}' +
+  'code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:0.9em}' +
+  'pre{background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:6px;overflow-x:auto}' +
+  'pre code{background:none;padding:0}' +
+  'table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}' +
+  'th{background:#f8f8f8}blockquote{border-left:4px solid #ddd;margin:0;padding:0 16px;color:#666}img{max-width:100%}'
+
+const PRINT_STYLES =
+  '@media print{body{margin:0}}' + BASE_EXPORT_STYLES.replace('body{', 'body{color:#111;')
 
 // ─── Processor ───────────────────────────────────────────────────────
 
@@ -345,7 +439,10 @@ export default function MarkdownEditor() {
   const editorRef = useRef<EditorInstance | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showExport, setShowExport] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
+  const templatesRef = useRef<HTMLDivElement>(null)
+  const exportRef = useRef<HTMLDivElement>(null)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -408,6 +505,30 @@ export default function MarkdownEditor() {
   // ─── TOC ─────────────────────────────────────────────────────────
 
   const toc = useMemo(() => extractToc(html), [html])
+
+  // ─── Outside-click dismiss for Templates & Export dropdowns ──────
+
+  useEffect(() => {
+    if (!showTemplates) return
+    const handler = (e: MouseEvent) => {
+      if (templatesRef.current && !templatesRef.current.contains(e.target as Node)) {
+        setShowTemplates(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showTemplates])
+
+  useEffect(() => {
+    if (!showExport) return
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setShowExport(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showExport])
 
   // ─── Formatting insertion ────────────────────────────────────────
 
@@ -484,29 +605,21 @@ export default function MarkdownEditor() {
 
   // ─── Export handlers ─────────────────────────────────────────────
 
-  const handleExportHtml = useCallback(() => {
-    const fullHtml = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Export</title>
-<style>body{font-family:system-ui;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}
-code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:0.9em}
-pre{background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:6px;overflow-x:auto}
-pre code{background:none;padding:0}
-table{border-collapse:collapse;width:100%}
-th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}
-th{background:#f8f8f8}
-blockquote{border-left:4px solid #ddd;margin:0;padding:0 16px;color:#666}
-img{max-width:100%}</style>
-</head><body>${html}</body></html>`
-    navigator.clipboard.writeText(fullHtml)
+  const buildFullHtml = useCallback(
+    (styles: string) =>
+      `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Export</title>\n<style>${styles}</style>\n</head><body>${html}</body></html>`,
+    [html]
+  )
+
+  const handleCopyHtml = useCallback(() => {
+    navigator.clipboard.writeText(buildFullHtml(BASE_EXPORT_STYLES))
     setLastAction('HTML copied to clipboard', 'success')
-  }, [html, setLastAction])
+    setShowExport(false)
+  }, [buildFullHtml, setLastAction])
 
   const handleDownload = useCallback(
     (format: 'md' | 'html') => {
-      const content =
-        format === 'md'
-          ? state.content
-          : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Export</title></head><body>${html}</body></html>`
+      const content = format === 'md' ? state.content : buildFullHtml(BASE_EXPORT_STYLES)
       const blob = new Blob([content], {
         type: format === 'md' ? 'text/markdown' : 'text/html',
       })
@@ -517,32 +630,15 @@ img{max-width:100%}</style>
       a.click()
       URL.revokeObjectURL(url)
       setLastAction(`Downloaded as .${format}`, 'success')
+      setShowExport(false)
     },
-    [state.content, html, setLastAction]
+    [buildFullHtml, state.content, setLastAction]
   )
 
   const handleExportPdf = useCallback(() => {
-    const fullHtml = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Export</title>
-<style>
-  @media print { body { margin: 0; } }
-  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #111; }
-  code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-  pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; }
-  pre code { background: none; padding: 0; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-  th { background: #f8f8f8; }
-  blockquote { border-left: 4px solid #ddd; margin: 0; padding: 0 16px; color: #666; }
-  img { max-width: 100%; }
-</style>
-</head><body>${html}</body></html>`
+    const fullHtml = buildFullHtml(PRINT_STYLES)
     const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = 'none'
-    iframe.style.left = '-9999px'
+    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;left:-9999px'
     document.body.appendChild(iframe)
     const iframeDoc = iframe.contentWindow?.document
     if (!iframeDoc) {
@@ -566,7 +662,8 @@ img{max-width:100%}</style>
       return
     }
     setLastAction('Print dialog opened', 'success')
-  }, [html, setLastAction])
+    setShowExport(false)
+  }, [buildFullHtml, setLastAction])
 
   const handleTemplateSelect = useCallback(
     (content: string) => {
@@ -596,16 +693,26 @@ img{max-width:100%}</style>
               {stats.words}w · {stats.chars}c · {stats.readTime}
             </span>
           )}
-          {/* Scroll sync toggle (only visible in split mode) */}
+
+          {/* Scroll sync toggle — icon button, split mode only */}
           {state.mode === 'split' && (
             <button
               onClick={() => updateState({ scrollSync: !state.scrollSync })}
-              className={`text-xs transition-colors ${state.scrollSync ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
-              title={state.scrollSync ? 'Scroll sync on' : 'Scroll sync off'}
+              title={
+                state.scrollSync
+                  ? 'Scroll sync on (click to disable)'
+                  : 'Scroll sync off (click to enable)'
+              }
+              className={`flex items-center justify-center rounded p-0.5 transition-colors ${
+                state.scrollSync
+                  ? 'text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
             >
-              Sync
+              <ArrowsClockwiseIcon size={13} weight={state.scrollSync ? 'bold' : 'regular'} />
             </button>
           )}
+
           {toc.length > 0 && (
             <button
               onClick={() => updateState({ showToc: !state.showToc })}
@@ -615,7 +722,9 @@ img{max-width:100%}</style>
               TOC
             </button>
           )}
-          <div className="relative">
+
+          {/* Templates dropdown */}
+          <div ref={templatesRef} className="relative">
             <button
               onClick={() => setShowTemplates(!showTemplates)}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
@@ -636,56 +745,94 @@ img{max-width:100%}</style>
               </div>
             )}
           </div>
-          <button
-            onClick={() => handleDownload('md')}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            title="Download .md file"
-          >
-            ↓ MD
-          </button>
-          <button
-            onClick={() => handleDownload('html')}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            title="Download .html file"
-          >
-            ↓ HTML
-          </button>
-          <button
-            onClick={handleExportPdf}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            title="Print / Save as PDF"
-          >
-            ↓ PDF
-          </button>
-          <button
-            onClick={handleExportHtml}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          >
-            Export HTML
-          </button>
-          <CopyButton text={state.content} label="Copy MD" />
+
+          {/* Export dropdown — consolidates Copy MD, Copy HTML, Download .md/.html, Print/PDF */}
+          <div ref={exportRef} className="relative">
+            <button
+              onClick={() => setShowExport(!showExport)}
+              className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              Export
+              <CaretDownIcon size={10} />
+            </button>
+            {showExport && (
+              <div className="absolute right-0 top-full z-10 mt-1 min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+                <button
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(state.content)
+                      .then(() => setLastAction('Markdown copied to clipboard', 'success'))
+                      .catch(() => setLastAction('Failed to copy to clipboard', 'error'))
+                    setShowExport(false)
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Copy Markdown
+                </button>
+                <button
+                  onClick={handleCopyHtml}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Copy HTML
+                </button>
+                <div className="my-1 border-t border-[var(--color-border)]" />
+                <button
+                  onClick={() => handleDownload('md')}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Download .md
+                </button>
+                <button
+                  onClick={() => handleDownload('html')}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Download .html
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Print / PDF
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ─── Formatting Toolbar ─────────────────────────────────── */}
       {showEditor && (
         <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--color-border)] px-2 py-1">
-          {FORMATTING_ACTIONS.map((action) => (
-            <button
-              key={action.title}
-              onClick={() => {
-                if ('modal' in action && action.modal) {
-                  setActiveModal(action.modal)
-                } else {
-                  insertFormatting(action.prefix, action.suffix, action.placeholder, action.line)
-                }
-              }}
-              title={action.title}
-              className="rounded px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-            >
-              {action.label}
-            </button>
-          ))}
+          {FORMATTING_ACTIONS.map((action, i) => {
+            const prev = FORMATTING_ACTIONS[i - 1]
+            const showSep = i > 0 && prev !== undefined && action.group !== prev.group
+            const Icon = action.icon
+            return (
+              <Fragment key={action.title}>
+                {showSep && (
+                  <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--color-border)]" />
+                )}
+                <button
+                  onClick={() => {
+                    if ('modal' in action && action.modal) {
+                      setActiveModal(action.modal)
+                    } else {
+                      insertFormatting(
+                        action.prefix,
+                        action.suffix,
+                        action.placeholder,
+                        action.line
+                      )
+                    }
+                  }}
+                  title={action.title}
+                  className="flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  {Icon ? <Icon size={12} /> : action.label}
+                </button>
+              </Fragment>
+            )
+          })}
         </div>
       )}
 

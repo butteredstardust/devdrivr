@@ -8,11 +8,13 @@ import { TableModal } from '../markdown-editor/modals/TableModal'
 import { ImageModal } from '../markdown-editor/modals/ImageModal'
 
 describe('MarkdownEditor', () => {
-  it('renders tab bar', () => {
+  it('renders tab bar with Edit first', () => {
     renderTool(MarkdownEditor)
-    expect(screen.getByText('Split')).toBeInTheDocument()
-    expect(screen.getByText('Edit')).toBeInTheDocument()
-    expect(screen.getByText('Preview')).toBeInTheDocument()
+    const tabs = ['Edit', 'Split', 'Preview'].map((label) => screen.getByText(label))
+    expect(tabs[0]).toBeInTheDocument()
+    // DOCUMENT_POSITION_FOLLOWING = 4 — confirms Edit precedes Split precedes Preview
+    expect(tabs[0]!.compareDocumentPosition(tabs[1]!)).toBe(4)
+    expect(tabs[1]!.compareDocumentPosition(tabs[2]!)).toBe(4)
   })
 
   it('renders editor', () => {
@@ -27,10 +29,51 @@ describe('MarkdownEditor', () => {
     expect(screen.getByText(/2w/)).toBeInTheDocument()
   })
 
-  it('renders export and copy buttons', () => {
+  it('renders Export dropdown button', () => {
     renderTool(MarkdownEditor)
-    expect(screen.getByText('Export HTML')).toBeInTheDocument()
-    expect(screen.getByText('Copy MD')).toBeInTheDocument()
+    expect(screen.getByText('Export')).toBeInTheDocument()
+  })
+
+  it('Export dropdown opens on click and shows all actions', () => {
+    renderTool(MarkdownEditor)
+    fireEvent.click(screen.getByText('Export'))
+    expect(screen.getByText('Copy Markdown')).toBeInTheDocument()
+    expect(screen.getByText('Copy HTML')).toBeInTheDocument()
+    expect(screen.getByText('Download .md')).toBeInTheDocument()
+    expect(screen.getByText('Download .html')).toBeInTheDocument()
+    expect(screen.getByText('Print / PDF')).toBeInTheDocument()
+  })
+
+  it('Export dropdown closes on outside click', () => {
+    render(
+      <div>
+        <button data-testid="outside">outside</button>
+        <MarkdownEditor />
+      </div>
+    )
+    fireEvent.click(screen.getByText('Export'))
+    expect(screen.getByText('Copy Markdown')).toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByTestId('outside'))
+    expect(screen.queryByText('Copy Markdown')).toBeNull()
+  })
+
+  it('Templates dropdown closes on outside click', () => {
+    render(
+      <div>
+        <button data-testid="outside">outside</button>
+        <MarkdownEditor />
+      </div>
+    )
+    fireEvent.click(screen.getByText('Templates'))
+    expect(screen.getByText('README')).toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByTestId('outside'))
+    expect(screen.queryByText('README')).toBeNull()
+  })
+
+  it('toolbar renders Link and Image buttons with icons', () => {
+    renderTool(MarkdownEditor)
+    expect(screen.getByTitle('Link')).toBeInTheDocument()
+    expect(screen.getByTitle('Image')).toBeInTheDocument()
   })
 })
 
@@ -181,7 +224,6 @@ describe('ImageModal', () => {
     expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/image.png')
   })
 })
-
 
 describe('MarkdownEditor modal integration', () => {
   it('opens link modal when Link toolbar button clicked', async () => {
