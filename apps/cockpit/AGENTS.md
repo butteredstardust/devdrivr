@@ -2,6 +2,21 @@
 
 Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working in `apps/cockpit`.
 
+## Development Workflow
+
+When given a feature or update request, execute this pipeline end-to-end without pausing for permission at each step:
+
+1. **Evaluate & refine** — read the relevant code before writing any; surface tradeoffs or ambiguities; propose adjustments if the request has edge cases worth flagging
+2. **Plan** — agree on approach before touching code; for anything non-trivial, write out the steps
+3. **Implement** — write the code; do not add features, abstractions, or cleanup beyond what was asked
+4. **Verify** — `npx tsc --noEmit` (zero errors) + `bunx vitest run` (all passing); fix anything broken before moving on
+5. **Code review** — self-review against the rules in this file; catch bugs, anti-patterns, and regressions
+6. **Fix** — address every issue found in review before committing
+7. **Commit & push** — conventional commit message on a feature branch
+8. **Open PR** — description targeted at a human reviewer; user-facing language, not a dev log
+
+Operate autonomously through all 8 steps. Make decisions informed by best practice and the non-negotiable rules below. Only pause if something is genuinely ambiguous about the intent of the request — not for routine implementation choices.
+
 ---
 
 ## What This Project Is
