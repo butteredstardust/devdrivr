@@ -19,6 +19,61 @@ Operate autonomously through all 8 steps. Make decisions informed by best practi
 
 ---
 
+## Git Workflow
+
+### Never commit directly to main
+
+All work goes on a feature branch. If commits accidentally land on `main` before a branch is created, rescue them before pushing:
+
+```bash
+git checkout -b feat/my-feature   # branch at current HEAD — captures the commits
+git checkout main
+git reset --hard origin/main      # strip the commits off main
+git push -u origin feat/my-feature
+```
+
+### Branch naming
+
+```
+feat/short-description       # new feature or enhancement
+fix/short-description        # bug fix
+docs/short-description       # documentation only
+chore/short-description      # tooling, deps, config
+refactor/short-description   # no behaviour change
+```
+
+### Commit messages — conventional commits
+
+Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `cockpit`.
+
+```
+feat(cockpit): add cron expression parser
+fix(cockpit): resolve tag filter losing focus on blur
+docs(cockpit): update AGENTS.md with git workflow
+```
+
+### Commits need HUSKY_PATH
+
+The pre-commit hook calls `bunx`. Bun lives in `/opt/homebrew/bin`, which is not on the minimal shell PATH. Every commit must be prefixed:
+
+```bash
+HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
+```
+
+Omitting this causes `command not found: bunx` and the commit fails.
+
+### PRs
+
+- Title: matches the commit message format, under 70 chars
+- Body: **Summary** bullets in user-facing language + **Test plan** checklist
+- Target: always `main`
+- Push new branches with `-u`: `git push -u origin feat/my-feature`
+- Never force-push to `main`
+
+When asked to "open a PR" or "commit and push", the full sequence is implied — branch (if not already on one) → commit → push → `gh pr create`. Do not ask for confirmation between steps.
+
+---
+
 ## What This Project Is
 
 **devdrivr cockpit** is a local-first, keyboard-driven developer utility desktop app.

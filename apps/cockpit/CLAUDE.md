@@ -2,6 +2,59 @@
 
 Guidance for Claude Code working in `apps/cockpit`.
 
+## Git Workflow
+
+### Never commit directly to main
+
+All work goes on a feature branch. If commits accidentally land on `main` before a branch is created, rescue them:
+
+```bash
+git checkout -b feat/my-feature   # create branch at current HEAD (captures the commits)
+git checkout main
+git reset --hard origin/main      # strip the commits off main
+git push -u origin feat/my-feature
+```
+
+### Branch naming
+
+```
+feat/short-description       # new feature or enhancement
+fix/short-description        # bug fix
+docs/short-description       # documentation only
+chore/short-description      # tooling, deps, config
+refactor/short-description   # no behaviour change
+```
+
+### Commit messages — conventional commits
+
+```
+feat(cockpit): add cron expression parser
+fix(cockpit): resolve tag filter losing focus on blur
+docs(cockpit): update CLAUDE.md with Fuse.js pattern
+chore(release): bump version to 0.1.37 [skip ci]
+```
+
+Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `cockpit`.
+
+### Commits need HUSKY_PATH
+
+The pre-commit hook calls `bunx`. Bun lives in `/opt/homebrew/bin`, which isn't on the minimal shell PATH. Always prefix:
+
+```bash
+HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
+```
+
+### PRs
+
+- Title: matches the commit message format, under 70 chars
+- Body: **Summary** bullets (user-facing language) + **Test plan** checklist
+- Target branch: always `main`
+- Never force-push to `main`
+
+When asked to "open a PR" or "commit and push", the full sequence is implied: branch (if not already on one) → commit → `git push -u origin <branch>` → `gh pr create`.
+
+---
+
 ## Development Workflow
 
 When given a feature or update request, follow this pipeline end-to-end without pausing for permission at each step:
