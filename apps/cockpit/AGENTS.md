@@ -128,6 +128,8 @@ PATH="/opt/homebrew/bin:$PATH" bun run clean
 
 ## File Map — Know Before You Touch
 
+The `@/` path alias maps to `src/`. Use it for all imports — never write relative paths like `../../lib/db`.
+
 ```
 src/app/tool-registry.ts          ← SINGLE SOURCE OF TRUTH for all tools
 src/app/tool-groups.tsx           ← sidebar group metadata (Phosphor icons)
@@ -476,6 +478,47 @@ No pixel height needed. Outer div transitions row size; inner `overflow-hidden` 
 
 ### 24. `void` prefix for async fire-and-forget event handlers
 
+### 25. DB migrations — always backfill existing rows
+
+`ALTER TABLE` gives existing rows `NULL` for the new column. Always include an explicit `UPDATE` in the same migration — never rely on `DEFAULT` alone for existing data:
+
+```sql
+-- ✅ Column added AND existing rows backfilled in same migration
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+UPDATE snippets SET folder = '' WHERE folder IS NULL;
+
+-- ❌ Existing rows are NULL even with DEFAULT — causes runtime errors on existing installs
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+```
+
+### 26. Tailwind v4 — no config file
+
+This project uses Tailwind CSS 4 (CSS-first). There is **no `tailwind.config.js`** — do not create one. All configuration lives in `src/index.css`. Do not use `@apply` with v3 plugin syntax. Standard arbitrary value syntax still applies: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
+
+### 27. Prefer platform APIs over npm packages
+
+Reach for browser/web platform APIs before adding a dependency:
+
+| Task                       | Use this                    | Not this                 |
+| -------------------------- | --------------------------- | ------------------------ |
+| Image resize/crop/compress | Canvas 2D API               | `sharp`, `jimp`          |
+| Hashing                    | `crypto.subtle`             | `crypto-js`              |
+| UTF-8 encode/decode        | `TextEncoder`/`TextDecoder` | `buffer` polyfill        |
+| HTML/XML parsing           | `DOMParser`                 | `cheerio`, `htmlparser2` |
+
+If a browser API handles the task, use it. Adding a package requires a clear reason why the platform API is insufficient.
+
+### 28. Test file location
+
+Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx` — not co-located with the component. Creating `src/tools/my-tool/MyTool.test.tsx` works but breaks the established pattern.
+
+```
+src/tools/__tests__/
+  snippets.test.tsx
+  api-client.test.tsx
+  markdown-editor.test.tsx
+```
+
 Calling an async function from a synchronous event handler without handling the returned Promise causes an unhandled rejection warning. Use `void`:
 
 ```typescript
@@ -586,7 +629,7 @@ if (typeof data === 'object' && data !== null) { ... }
 settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
 tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
 notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags)
-snippets         (id, title, content, language, tags TEXT, created_at, updated_at)  -- tags = JSON array
+snippets         (id, title, content, language, tags TEXT, folder TEXT, created_at, updated_at)  -- tags = JSON array; folder added migration 005
 history          (id, tool, sub_tab, input, output, timestamp)
 api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002
 api_collections  (id, name, description, created_at, updated_at)        -- API Client — migration 002
@@ -603,6 +646,7 @@ Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
 - [ ] `bunx vitest run` — all passing (zero failures)
+- [ ] `bun run lint` — zero errors (warnings tolerated up to threshold)
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`

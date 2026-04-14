@@ -172,6 +172,34 @@ Capabilities live in `src-tauri/capabilities/default.json` scoped to `"windows":
 - `useRef` for values that shouldn't trigger re-renders.
 - Phosphor icons (`@phosphor-icons/react`) for all iconography — tree-shakeable, 6 weights.
 
+### Path alias
+
+`@/` maps to `src/`. Use it for all imports — never use relative paths like `../../lib/db`:
+
+```typescript
+// ✅
+import { getDb } from '@/lib/db'
+import { useSnippetsStore } from '@/stores/snippets.store'
+
+// ❌ Works but breaks the codebase pattern
+import { getDb } from '../../lib/db'
+```
+
+### Tailwind v4 — no config file
+
+This project uses Tailwind CSS 4, which is CSS-first. There is no `tailwind.config.js` — configuration lives in `src/index.css`. Do not create a config file. Do not use `@apply` with v3 plugin syntax. Arbitrary values use the standard bracket syntax: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
+
+### Prefer platform APIs over npm packages
+
+Reach for browser/web platform APIs before adding a dependency. This codebase already uses:
+
+- **Canvas 2D** for image resize, crop, compress, export — no `sharp` or `jimp`
+- **Web Crypto** (`crypto.subtle`) for hashing — no `crypto-js`
+- **`TextEncoder`/`TextDecoder`** for UTF-8 — no `buffer` polyfill
+- **`DOMParser`** for HTML/XML parsing — no `cheerio`
+
+If a browser API exists that handles the task, use it.
+
 ## Key Files
 
 | File                                  | Purpose                                                          |
@@ -194,6 +222,17 @@ Adding a migration requires **two changes** — both must be in the same commit:
 2. Register it in `src-tauri/src/lib.rs` — add a `Migration { version: N, ... }` entry to the `migrations` vec.
 
 The SQL file alone does nothing. `tauri-plugin-sql` only runs migrations that are registered in `lib.rs`. Shipping without step 2 will leave existing installs with missing columns and runtime errors.
+
+### Migration backfill rule
+
+When adding a column via `ALTER TABLE`, existing rows get `NULL` for that column. Always include an explicit `UPDATE` in the same migration to backfill a sensible default — otherwise existing installs silently have corrupt/missing data:
+
+```sql
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+UPDATE snippets SET folder = '' WHERE folder IS NULL;
+```
+
+Never rely on `DEFAULT` alone for existing rows — always backfill explicitly.
 
 ```rust
 Migration {
@@ -405,7 +444,19 @@ bunx vitest run       # run once (bun run test fails — shell can't resolve vit
 bunx vitest           # watch mode
 ```
 
-Tests live in `src/**/*.test.ts` and cover: platform detection, theming, keybinding logic.
+Tests live in `src/**/__tests__/*.test.tsx` for tool tests and `src/**/*.test.ts` for unit tests.
+
+### Test file location
+
+Tool tests go in `src/tools/__tests__/<tool-id>.test.tsx` — **not** co-located with the component. Putting a test file next to the component (`src/tools/my-tool/MyTool.test.tsx`) works but breaks the established pattern.
+
+```
+src/tools/__tests__/
+  snippets.test.tsx
+  markdown-editor.test.tsx
+  api-client.test.tsx
+  ...
+```
 
 ### Testing Patterns — Common Traps
 
