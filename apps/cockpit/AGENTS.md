@@ -2,6 +2,76 @@
 
 Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working in `apps/cockpit`.
 
+## Development Workflow
+
+When given a feature or update request, execute this pipeline end-to-end without pausing for permission at each step:
+
+1. **Evaluate & refine** — read the relevant code before writing any; surface tradeoffs or ambiguities; propose adjustments if the request has edge cases worth flagging
+2. **Plan** — agree on approach before touching code; for anything non-trivial, write out the steps
+3. **Implement** — write the code; do not add features, abstractions, or cleanup beyond what was asked
+4. **Verify** — `npx tsc --noEmit` (zero errors) + `bunx vitest run` (all passing); fix anything broken before moving on
+5. **Code review** — self-review against the rules in this file; catch bugs, anti-patterns, and regressions
+6. **Fix** — address every issue found in review before committing
+7. **Commit & push** — conventional commit message on a feature branch
+8. **Open PR** — description targeted at a human reviewer; user-facing language, not a dev log
+
+Operate autonomously through all 8 steps. Make decisions informed by best practice and the non-negotiable rules below. Only pause if something is genuinely ambiguous about the intent of the request — not for routine implementation choices.
+
+---
+
+## Git Workflow
+
+### Never commit directly to main
+
+All work goes on a feature branch. If commits accidentally land on `main` before a branch is created, rescue them before pushing:
+
+```bash
+git checkout -b feat/my-feature   # branch at current HEAD — captures the commits
+git checkout main
+git reset --hard origin/main      # strip the commits off main
+git push -u origin feat/my-feature
+```
+
+### Branch naming
+
+```
+feat/short-description       # new feature or enhancement
+fix/short-description        # bug fix
+docs/short-description       # documentation only
+chore/short-description      # tooling, deps, config
+refactor/short-description   # no behaviour change
+```
+
+### Commit messages — conventional commits
+
+Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `cockpit`.
+
+```
+feat(cockpit): add cron expression parser
+fix(cockpit): resolve tag filter losing focus on blur
+docs(cockpit): update AGENTS.md with git workflow
+```
+
+### Commits need HUSKY_PATH
+
+The pre-commit hook calls `bunx`. Bun lives in `/opt/homebrew/bin`, which is not on the minimal shell PATH. Every commit must be prefixed:
+
+```bash
+HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
+```
+
+Omitting this causes `command not found: bunx` and the commit fails.
+
+### PRs
+
+- Title: matches the commit message format, under 70 chars
+- Body: **Summary** bullets in user-facing language + **Test plan** checklist
+- Target: always `main`
+- Push new branches with `-u`: `git push -u origin feat/my-feature`
+- Never force-push to `main`
+
+When asked to "open a PR" or "commit and push", the full sequence is implied — branch (if not already on one) → commit → push → `gh pr create`. Do not ask for confirmation between steps.
+
 ---
 
 ## What This Project Is
@@ -17,23 +87,48 @@ Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working i
 
 ---
 
-## Commands (always run from `apps/cockpit/`)
+## Commands
+
+**All commands must be run from `apps/cockpit/`** with the PATH prefix shown. Running from the monorepo root will use the wrong config or fail to find binaries entirely.
 
 ```bash
-bun install              # install/restore dependencies
-bun run tauri dev        # start dev server (Vite + Tauri hot-reload)
-bun run clean            # delete node_modules, dist, src-tauri/target
-npx tsc --noEmit         # type-check — MUST pass before submitting
-bunx vitest run          # run Vitest tests — MUST all pass (use bunx, not bun run test)
-bun run tauri build      # production build
+# Typecheck — zero errors required before every commit
+PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+
+# Tests — bunx ONLY; bun run test cannot resolve the vitest binary
+PATH="/opt/homebrew/bin:$PATH" bunx vitest run        # run once
+PATH="/opt/homebrew/bin:$PATH" bunx vitest            # watch mode
+
+# Lint
+PATH="/opt/homebrew/bin:$PATH" bun run lint
+
+# Dev server (Vite + Tauri hot-reload)
+PATH="/opt/homebrew/bin:$PATH" bun run tauri dev
+
+# Production build
+PATH="/opt/homebrew/bin:$PATH" bun run tauri build
+
+# Install / restore dependencies
+PATH="/opt/homebrew/bin:$PATH" bun install
+
+# Clean build artifacts and node_modules
+PATH="/opt/homebrew/bin:$PATH" bun run clean
 ```
 
-> **Note**: Always run these from `apps/cockpit/`. `bun run test` may fail if the shell
-> cannot resolve the `vitest` binary — use `bunx vitest run` instead.
+### Common mistakes
+
+| Wrong                      | Right                                | Why                                                     |
+| -------------------------- | ------------------------------------ | ------------------------------------------------------- |
+| Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules |
+| `bun run test`             | `bunx vitest run`                    | bun can't resolve the vitest binary directly            |
+| `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager                    |
+| No PATH prefix             | `PATH="/opt/homebrew/bin:$PATH" ...` | Homebrew tools not on default shell PATH                |
 
 ---
 
 ## File Map — Know Before You Touch
+
+The `@/` path alias maps to `src/`. Use it for all imports — never write relative paths like `../../lib/db`.
 
 ```
 src/app/tool-registry.ts          ← SINGLE SOURCE OF TRUTH for all tools
@@ -331,6 +426,110 @@ y = Math.max(0, Math.min(y, origH - h))
 Also lower-bound any new `x`/`y` computed from a drag delta before using it to derive
 a new `w`/`h` (e.g., NW/SW handle drag: `nx = Math.max(0, startX + dx)`).
 
+### 21. Fuse.js search highlighting — use composite React keys
+
+When using `includeMatches: true`, define a local interface instead of importing Fuse types:
+
+```typescript
+interface FuseMatchEntry {
+  key?: string
+  indices: ReadonlyArray<[number, number]>
+}
+```
+
+Keep two memos: `fuseResults` (drives both filtered list AND match data) and `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`.
+
+**Always use composite keys** on `<mark>` elements — `key={\`${start}-${end}\`}`, not `key={start}`. Fuse can return overlapping index ranges with the same `start` value, causing duplicate key warnings.
+
+### 22. CSS grid collapse animation
+
+```tsx
+<div
+  className={`grid transition-[grid-template-rows] duration-200 ${
+    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+  }`}
+>
+  <div className="overflow-hidden">{children}</div>
+</div>
+```
+
+No pixel height needed. Outer div transitions row size; inner `overflow-hidden` clips content. Toggle button must have `aria-expanded={!collapsed}`.
+
+### 23. ARIA combobox — wiring and focus management
+
+```tsx
+<input
+  role="combobox"
+  aria-autocomplete="list"
+  aria-expanded={suggestions.length > 0}
+  aria-controls="suggestions-id"
+  aria-activedescendant={index >= 0 ? `suggestion-${suggestions[index]}` : undefined}
+/>
+<div role="listbox" id="suggestions-id">
+  {suggestions.map((s) => (
+    <button key={s} role="option" id={`suggestion-${s}`}
+      onMouseDown={(e) => { e.preventDefault(); void handleSelect(s) }}
+    />
+  ))}
+</div>
+```
+
+`e.preventDefault()` on `onMouseDown` keeps input focus when clicking a suggestion. Always prefix async `onMouseDown` handlers with `void` — omitting it leaves an unhandled promise rejection.
+
+### 24. `void` prefix for async fire-and-forget event handlers
+
+### 25. DB migrations — always backfill existing rows
+
+`ALTER TABLE` gives existing rows `NULL` for the new column. Always include an explicit `UPDATE` in the same migration — never rely on `DEFAULT` alone for existing data:
+
+```sql
+-- ✅ Column added AND existing rows backfilled in same migration
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+UPDATE snippets SET folder = '' WHERE folder IS NULL;
+
+-- ❌ Existing rows are NULL even with DEFAULT — causes runtime errors on existing installs
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+```
+
+### 26. Tailwind v4 — no config file
+
+This project uses Tailwind CSS 4 (CSS-first). There is **no `tailwind.config.js`** — do not create one. All configuration lives in `src/index.css`. Do not use `@apply` with v3 plugin syntax. Standard arbitrary value syntax still applies: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
+
+### 27. Prefer platform APIs over npm packages
+
+Reach for browser/web platform APIs before adding a dependency:
+
+| Task                       | Use this                    | Not this                 |
+| -------------------------- | --------------------------- | ------------------------ |
+| Image resize/crop/compress | Canvas 2D API               | `sharp`, `jimp`          |
+| Hashing                    | `crypto.subtle`             | `crypto-js`              |
+| UTF-8 encode/decode        | `TextEncoder`/`TextDecoder` | `buffer` polyfill        |
+| HTML/XML parsing           | `DOMParser`                 | `cheerio`, `htmlparser2` |
+
+If a browser API handles the task, use it. Adding a package requires a clear reason why the platform API is insufficient.
+
+### 28. Test file location
+
+Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx` — not co-located with the component. Creating `src/tools/my-tool/MyTool.test.tsx` works but breaks the established pattern.
+
+```
+src/tools/__tests__/
+  snippets.test.tsx
+  api-client.test.tsx
+  markdown-editor.test.tsx
+```
+
+Calling an async function from a synchronous event handler without handling the returned Promise causes an unhandled rejection warning. Use `void`:
+
+```typescript
+// ✅
+onMouseDown={() => { void handleAsyncAction() }}
+onChange={() => { void saveToDb(value) }}
+
+// ❌ Returns a Promise that is silently dropped — triggers lint/runtime warning
+onMouseDown={() => handleAsyncAction()}
+```
+
 ---
 
 ## How to Add a New Tool
@@ -430,7 +629,7 @@ if (typeof data === 'object' && data !== null) { ... }
 settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
 tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
 notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags)
-snippets         (id, title, content, language, tags TEXT, created_at, updated_at)  -- tags = JSON array
+snippets         (id, title, content, language, tags TEXT, folder TEXT, created_at, updated_at)  -- tags = JSON array; folder added migration 005
 history          (id, tool, sub_tab, input, output, timestamp)
 api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002
 api_collections  (id, name, description, created_at, updated_at)        -- API Client — migration 002
@@ -446,7 +645,8 @@ WAL mode is set at connection time in `getDb()` — not in migrations.
 Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
-- [ ] `bunx vitest run` — 361/361 passing
+- [ ] `bunx vitest run` — all passing (zero failures)
+- [ ] `bun run lint` — zero errors (warnings tolerated up to threshold)
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`
