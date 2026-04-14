@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useApiStore } from '@/stores/api.store'
@@ -16,6 +19,7 @@ import { AuthTab } from './components/AuthTab'
 import { CollectionsSidebar } from './components/CollectionsSidebar'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
+import { BracketsCurlyIcon, CopyIcon } from '@phosphor-icons/react'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -58,6 +62,8 @@ type ResponseData = {
   time: number
   size: number
 }
+
+type EditorInstance = Parameters<OnMount>[0]
 
 const REQUEST_TABS = [
   { id: 'params', label: 'Params' },
@@ -175,7 +181,11 @@ export default function ApiClient() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const openTab = useUiStore((s) => s.openTab)
+  const cacheGet = useToolStateCache((s) => s.get)
+  const cacheSet = useToolStateCache((s) => s.set)
   const [response, setResponse] = useState<ResponseData | null>(null)
+  const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestTab, setRequestTab] = useState('params')
@@ -193,6 +203,11 @@ export default function ApiClient() {
 
   const [params, setParams] = useState<Param[]>(() => parseQueryParams(url))
   const urlRef = useRef(url)
+  const responseSelectionToolbar = useMonacoSelectionToolbar(
+    responseEditor,
+    responseTab === 'body' && response != null,
+    response?.body ?? ''
+  )
 
   useEffect(() => {
     if (url !== urlRef.current) {
@@ -200,6 +215,54 @@ export default function ApiClient() {
       setParams(parseQueryParams(url))
     }
   }, [url])
+
+  const handleResponseEditorMount: OnMount = useCallback((editor) => {
+    setResponseEditor(editor)
+  }, [])
+
+  const copyResponseSelection = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        setLastAction('Response selection copied to clipboard', 'success')
+      } catch {
+        setLastAction('Failed to copy response selection', 'error')
+      }
+    },
+    [setLastAction]
+  )
+
+  const sendResponseSelectionToJsonTools = useCallback(
+    (text: string) => {
+      cacheSet('json-tools', {
+        ...cacheGet('json-tools'),
+        input: text,
+        activeTab: 'lint',
+        query: '',
+      })
+      openTab('json-tools')
+      setLastAction('Sent response selection to JSON Tools', 'success')
+    },
+    [cacheGet, cacheSet, openTab, setLastAction]
+  )
+
+  const responseSelectionActions = useMemo(
+    () => [
+      {
+        id: 'copy',
+        label: 'Copy selection',
+        icon: <CopyIcon size={14} />,
+        onSelect: copyResponseSelection,
+      },
+      {
+        id: 'json-tools',
+        label: 'Send to JSON Tools',
+        icon: <BracketsCurlyIcon size={14} />,
+        onSelect: sendResponseSelectionToJsonTools,
+      },
+    ],
+    [copyResponseSelection, sendResponseSelectionToJsonTools]
+  )
 
   const commitParams = useCallback(
     (newParams: Param[]) => {
@@ -823,6 +886,7 @@ export default function ApiClient() {
                       theme={monacoTheme}
                       language={responseLanguage}
                       value={prettyBody}
+                      onMount={handleResponseEditorMount}
                       options={{ ...monacoOptions, readOnly: true }}
                     />
                   ) : (
@@ -866,6 +930,11 @@ export default function ApiClient() {
           onClose={() => setShowSaveModal(false)}
         />
       )}
+      <SelectionContextToolbar
+        selection={responseSelectionToolbar.selection}
+        actions={responseSelectionActions}
+        onDismiss={responseSelectionToolbar.clearSelection}
+      />
     </div>
   )
 }

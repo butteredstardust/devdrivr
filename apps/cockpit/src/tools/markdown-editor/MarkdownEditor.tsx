@@ -3,7 +3,10 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
+import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
+import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { MarkdownPreview } from './MarkdownPreview'
 import { useScrollSync } from './hooks/useScrollSync'
 import { useImageDrop } from './hooks/useImageDrop'
@@ -11,7 +14,17 @@ import { LinkModal } from './modals/LinkModal'
 import { CodeBlockModal } from './modals/CodeBlockModal'
 import { ImageModal } from './modals/ImageModal'
 import { TableModal } from './modals/TableModal'
-import { ArrowsClockwiseIcon, CaretDownIcon, LinkIcon, ImageIcon } from '@phosphor-icons/react'
+import {
+  ArrowsClockwiseIcon,
+  CaretDownIcon,
+  CodeIcon,
+  CopyIcon,
+  ImageIcon,
+  LinkIcon,
+  QuotesIcon,
+  TextBIcon,
+  TextItalicIcon,
+} from '@phosphor-icons/react'
 
 // Markdown pipeline imports
 import { unified } from 'unified'
@@ -437,6 +450,7 @@ export default function MarkdownEditor() {
   const previewRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorRef = useRef<EditorInstance | null>(null)
+  const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -451,11 +465,14 @@ export default function MarkdownEditor() {
 
   useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
+  const editorSelectionToolbar = useMonacoSelectionToolbar(mountedEditor, showEditor, state.content)
+  const previewSelectionToolbar = useDomSelectionToolbar(previewRef, showPreview)
 
   // ─── Editor mount ────────────────────────────────────────────────
 
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor
+    setMountedEditor(editor)
   }, [])
 
   useEffect(() => {
@@ -573,6 +590,88 @@ export default function MarkdownEditor() {
       editor.focus()
     },
     []
+  )
+
+  const copySelection = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        setLastAction('Selection copied to clipboard', 'success')
+      } catch {
+        setLastAction('Failed to copy selection', 'error')
+      }
+    },
+    [setLastAction]
+  )
+
+  const copyPreviewQuote = useCallback(
+    async (text: string) => {
+      const quote = text
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n')
+      try {
+        await navigator.clipboard.writeText(quote)
+        setLastAction('Quoted selection copied to clipboard', 'success')
+      } catch {
+        setLastAction('Failed to copy selection', 'error')
+      }
+    },
+    [setLastAction]
+  )
+
+  const editorSelectionActions = useMemo(
+    () => [
+      {
+        id: 'bold',
+        label: 'Bold',
+        icon: <TextBIcon size={14} weight="bold" />,
+        onSelect: () => insertFormatting('**', '**', 'bold text'),
+      },
+      {
+        id: 'italic',
+        label: 'Italic',
+        icon: <TextItalicIcon size={14} />,
+        onSelect: () => insertFormatting('_', '_', 'italic text'),
+      },
+      {
+        id: 'code',
+        label: 'Inline code',
+        icon: <CodeIcon size={14} />,
+        onSelect: () => insertFormatting('`', '`', 'code'),
+      },
+      {
+        id: 'quote',
+        label: 'Quote',
+        icon: <QuotesIcon size={14} />,
+        onSelect: () => insertFormatting('> ', '', 'quote', true),
+      },
+      {
+        id: 'copy',
+        label: 'Copy selection',
+        icon: <CopyIcon size={14} />,
+        onSelect: copySelection,
+      },
+    ],
+    [copySelection, insertFormatting]
+  )
+
+  const previewSelectionActions = useMemo(
+    () => [
+      {
+        id: 'copy',
+        label: 'Copy selection',
+        icon: <CopyIcon size={14} />,
+        onSelect: copySelection,
+      },
+      {
+        id: 'quote',
+        label: 'Copy as quote',
+        icon: <QuotesIcon size={14} />,
+        onSelect: copyPreviewQuote,
+      },
+    ],
+    [copyPreviewQuote, copySelection]
   )
 
   const handleModalInsert = useCallback((text: string) => {
@@ -887,6 +986,16 @@ export default function MarkdownEditor() {
       {activeModal === 'table' && (
         <TableModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
       )}
+      <SelectionContextToolbar
+        selection={editorSelectionToolbar.selection}
+        actions={editorSelectionActions}
+        onDismiss={editorSelectionToolbar.clearSelection}
+      />
+      <SelectionContextToolbar
+        selection={editorSelectionToolbar.selection ? null : previewSelectionToolbar.selection}
+        actions={previewSelectionActions}
+        onDismiss={previewSelectionToolbar.clearSelection}
+      />
     </div>
   )
 }
