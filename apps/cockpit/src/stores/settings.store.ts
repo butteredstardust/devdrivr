@@ -42,6 +42,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       theme: state.theme,
       alwaysOnTop: state.alwaysOnTop,
       sidebarCollapsed: state.sidebarCollapsed,
+      collapsedSidebarGroups: state.collapsedSidebarGroups,
+      pinnedToolIds: state.pinnedToolIds,
       notesDrawerOpen: state.notesDrawerOpen,
       notesDrawerWidth: state.notesDrawerWidth,
       defaultIndentSize: state.defaultIndentSize,

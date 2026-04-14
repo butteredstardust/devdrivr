@@ -8,21 +8,32 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useUiStore } from '@/stores/ui.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { DEFAULT_SETTINGS } from '@/types/models'
 import { SidebarItem } from '@/components/shell/SidebarItem'
 import { SidebarGroup } from '@/components/shell/SidebarGroup'
+import { SidebarPinned } from '@/components/shell/SidebarPinned'
+import { SidebarCollapsedGroup } from '@/components/shell/SidebarCollapsedGroup'
 import type { ToolGroupMeta, ToolDefinition } from '@/types/tools'
+
+vi.mock('@/lib/db', () => ({
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  getSetting: vi.fn(),
+}))
 
 // ── Fixtures ───────────────────────────────────────────────────────
 
-const GROUP: ToolGroupMeta = { id: 'convert', label: 'TestGroup', icon: '◆' }
+const fixtureIcon = (id: string) => <span aria-hidden="true" data-testid={`icon-${id}`} />
+
+const GROUP: ToolGroupMeta = { id: 'convert', label: 'TestGroup', icon: fixtureIcon('group') }
 
 const TOOLS: ToolDefinition[] = [
   {
     id: 'tool-a',
     name: 'Tool A',
     group: 'convert',
-    icon: 'A',
+    icon: fixtureIcon('a'),
     description: '',
     component: null as never,
   },
@@ -30,7 +41,7 @@ const TOOLS: ToolDefinition[] = [
     id: 'tool-b',
     name: 'Tool B',
     group: 'convert',
-    icon: 'B',
+    icon: fixtureIcon('b'),
     description: '',
     component: null as never,
   },
@@ -38,7 +49,7 @@ const TOOLS: ToolDefinition[] = [
     id: 'tool-c',
     name: 'Tool C',
     group: 'convert',
-    icon: 'C',
+    icon: fixtureIcon('c'),
     description: '',
     component: null as never,
   },
@@ -48,6 +59,7 @@ beforeEach(() => {
   cleanup()
   useToolStateCache.setState({ cache: new Map() })
   useUiStore.setState({ activeTool: '' })
+  useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
 })
 
 // ── SidebarItem ────────────────────────────────────────────────────
@@ -55,37 +67,37 @@ beforeEach(() => {
 describe('SidebarItem — active indicator', () => {
   it('applies glow shadow class when item is active', () => {
     useUiStore.setState({ activeTool: 'tool-a' })
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
     expect(btn.className).toContain('shadow-[inset_3px_0_8px_-4px_var(--color-accent)]')
   })
 
   it('does not apply glow shadow when item is inactive', () => {
     useUiStore.setState({ activeTool: 'tool-b' })
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
     expect(btn.className).not.toContain('shadow-[inset')
   })
 
   it('has aria-current="page" when active', () => {
     useUiStore.setState({ activeTool: 'tool-a' })
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('has no aria-current when inactive', () => {
     useUiStore.setState({ activeTool: 'tool-b' })
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).not.toHaveAttribute('aria-current')
   })
 
   it('accepts tabIndex prop and forwards it to the button', () => {
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" tabIndex={-1} />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} tabIndex={-1} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).toHaveAttribute('tabindex', '-1')
   })
 
   it('carries data-sidebar-item attribute for keyboard nav targeting', () => {
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).toHaveAttribute(
       'data-sidebar-item',
       'tool-a'
@@ -95,9 +107,21 @@ describe('SidebarItem — active indicator', () => {
   it('calls setActiveTool when clicked', () => {
     const setActiveTool = vi.fn()
     useUiStore.setState({ activeTool: '', setActiveTool } as never)
-    render(<SidebarItem id="tool-a" name="Tool A" icon="A" />)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Tool A' }))
     expect(setActiveTool).toHaveBeenCalledWith('tool-a')
+  })
+
+  it('toggles pinned state from the row pin button', () => {
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin Tool A' }))
+
+    expect(useSettingsStore.getState().pinnedToolIds).toEqual(['tool-a'])
+    expect(screen.getByRole('button', { name: 'Unpin Tool A' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 })
 
@@ -174,6 +198,52 @@ describe('SidebarGroup — group collapse & keyboard nav', () => {
   it('shows tool count badge', () => {
     render(<SidebarGroup group={GROUP} tools={TOOLS} />)
     expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('persists collapsed groups in settings when the header is clicked', () => {
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /TestGroup/i }))
+
+    expect(useSettingsStore.getState().collapsedSidebarGroups).toEqual(['convert'])
+  })
+
+  it('keeps the active group expanded even when it was previously collapsed', () => {
+    useSettingsStore.setState({ collapsedSidebarGroups: ['convert'] })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} isActiveGroup />)
+
+    expect(screen.getByRole('button', { name: /TestGroup/i })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByRole('button', { name: 'Tool A' })).toHaveAttribute('tabindex', '0')
+  })
+})
+
+// ── SidebarPinned ──────────────────────────────────────────────────
+
+describe('SidebarPinned — favorite tools', () => {
+  it('renders pinned tools above the main tool groups', () => {
+    useSettingsStore.setState({ pinnedToolIds: ['base64'] })
+
+    render(<SidebarPinned />)
+
+    expect(screen.getByText('[Pinned]')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Base64' })).toBeInTheDocument()
+  })
+})
+
+// ── Collapsed flyout icon rendering ────────────────────────────────
+
+describe('SidebarCollapsedGroup — flyout icons', () => {
+  it('renders tool icons in the collapsed flyout instead of falling back to a text bullet', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'TestGroup' }))
+
+    expect(screen.getByRole('button', { name: 'Tool A' })).toBeInTheDocument()
+    expect(screen.getByTestId('icon-a')).toBeInTheDocument()
   })
 })
 

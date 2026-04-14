@@ -1,4 +1,4 @@
-import type { LazyExoticComponent, ComponentType, ReactNode } from 'react'
+import type { LazyExoticComponent, ComponentType, ReactElement } from 'react'
 
 export type ToolGroup = 'code' | 'data' | 'web' | 'convert' | 'test' | 'network' | 'write'
 
@@ -6,7 +6,7 @@ export type ToolDefinition = {
   id: string
   name: string
   group: ToolGroup
-  icon: string | ReactNode
+  icon: ReactElement
   description: string
   component: LazyExoticComponent<ComponentType>
 }
@@ -14,7 +14,7 @@ export type ToolDefinition = {
 export type ToolGroupMeta = {
   id: ToolGroup
   label: string
-  icon: ReactNode
+  icon: ReactElement
 }
 
 export type WorkspaceTab = {

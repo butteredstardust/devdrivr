@@ -86,6 +86,8 @@ describe('settings store updates', () => {
       theme: DEFAULT_SETTINGS.theme,
       alwaysOnTop: DEFAULT_SETTINGS.alwaysOnTop,
       sidebarCollapsed: DEFAULT_SETTINGS.sidebarCollapsed,
+      collapsedSidebarGroups: DEFAULT_SETTINGS.collapsedSidebarGroups,
+      pinnedToolIds: DEFAULT_SETTINGS.pinnedToolIds,
       notesDrawerOpen: DEFAULT_SETTINGS.notesDrawerOpen,
       notesDrawerWidth: DEFAULT_SETTINGS.notesDrawerWidth,
       defaultIndentSize: DEFAULT_SETTINGS.defaultIndentSize,

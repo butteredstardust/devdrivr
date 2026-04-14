@@ -1,21 +1,24 @@
 import { useMemo } from 'react'
 import { ClockCounterClockwiseIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { SidebarItem } from './SidebarItem'
 
 export function SidebarRecent() {
   const recentToolIds = useUiStore((s) => s.recentToolIds)
   const activeTool = useUiStore((s) => s.activeTool)
+  const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
 
   const recentTools = useMemo(
     () =>
       recentToolIds
         .filter((id) => id !== activeTool)
+        .filter((id) => !pinnedToolIds.includes(id))
         .map((id) => TOOLS.find((t) => t.id === id))
         .filter((t): t is (typeof TOOLS)[number] => t != null)
         .slice(0, 3),
-    [recentToolIds, activeTool]
+    [recentToolIds, activeTool, pinnedToolIds]
   )
 
   if (recentTools.length === 0) return null
