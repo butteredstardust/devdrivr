@@ -22,7 +22,7 @@ Full canonical docs live in [`documentation/`](./documentation/):
 - **Package manager:** Bun only. Never use npm or yarn.
 - **Run commands from:** `apps/cockpit/` unless noted.
 - **Type-check:** `npx tsc --noEmit` — must stay clean.
-- **Tests:** `bunx vitest run` (Vitest, 361 tests / 49 files). Use `bunx`, not `bun run test`.
+- **Tests:** `bunx vitest run` (Vitest, 380+ tests / 50+ files). Use `bunx`, not `bun run test`.
 - **Dev server:** `bun run tauri dev` (starts Vite + Rust binary).
 
 ## Architecture
@@ -226,6 +226,62 @@ canvas.toBlob(
 For export, `canvas.toDataURL` is synchronous. For large images, debounce any
 quality-slider or resize-input that triggers a re-render with a canvas redraw.
 
+### Fuse.js Search Highlighting
+
+Use `includeMatches: true` in Fuse config. Define a local interface to avoid importing Fuse types directly:
+
+```typescript
+interface FuseMatchEntry {
+  key?: string
+  indices: ReadonlyArray<[number, number]>
+}
+```
+
+Keep two memos: `fuseResults` (drives both the filtered list AND match data) and `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`. The `highlightMatches(text, matches, key)` helper wraps matched char ranges in `<mark>`.
+
+**Use a composite React key** `key={\`${start}-${end}\`}`— Fuse can return overlapping ranges where two entries share the same`start`value, which causes duplicate key warnings with`key={start}` alone.
+
+### CSS Grid Collapse Animation
+
+```tsx
+<div
+  className={`grid transition-[grid-template-rows] duration-200 ${
+    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+  }`}
+>
+  <div className="overflow-hidden">{children}</div>
+</div>
+```
+
+The outer div transitions between row sizes; the inner `overflow-hidden` div clips the content. No need to know the pixel height. Set `aria-expanded={!collapsed}` on the toggle button.
+
+### ARIA Combobox for Autocomplete Inputs
+
+```tsx
+<input
+  role="combobox"
+  aria-autocomplete="list"
+  aria-expanded={suggestions.length > 0}
+  aria-controls="suggestions-listbox"
+  aria-activedescendant={index >= 0 ? `suggestion-${suggestions[index]}` : undefined}
+/>
+<div role="listbox" id="suggestions-listbox" data-testid="suggestions">
+  {suggestions.map((s, i) => (
+    <button
+      key={s}
+      role="option"
+      id={`suggestion-${s}`}
+      onMouseDown={(e) => {
+        e.preventDefault() // keep input focus
+        void handleSelect(s) // void prefix — async handler in onMouseDown
+      }}
+    />
+  ))}
+</div>
+```
+
+`onMouseDown` + `e.preventDefault()` prevents the input from losing focus when clicking a suggestion. Always prefix async `onMouseDown` handlers with `void` to avoid unhandled promise rejections.
+
 ### ResizeObserver Guard for jsdom
 
 `ResizeObserver` is undefined in jsdom (Vitest). Guard before using it:
@@ -245,3 +301,19 @@ bunx vitest           # watch mode
 ```
 
 Tests live in `src/**/*.test.ts` and cover: platform detection, theming, keybinding logic.
+
+### Testing Patterns — Common Traps
+
+**Text split by `<mark>` elements** — `highlightMatches` renders `<mark>` nodes that split the text across multiple DOM nodes. `getByText(/regex/)` and `getByText('full text')` will fail because testing-library matches single text nodes. Query the parent element and check `.textContent` instead:
+
+```typescript
+const titleEl = document.querySelector('.my-title-class')
+expect(titleEl?.textContent).toBe('fetchUserData')
+```
+
+**Ambiguous `getByText` when same text appears in multiple places** — e.g. a global tag chip and an autocomplete suggestion dropdown both showing "api" causes "Found multiple elements". Scope to the container via `data-testid` and use `toHaveTextContent()`:
+
+```typescript
+const suggestions = screen.getByTestId('tag-suggestions')
+expect(suggestions).toHaveTextContent('api')
+```

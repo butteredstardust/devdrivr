@@ -331,6 +331,69 @@ y = Math.max(0, Math.min(y, origH - h))
 Also lower-bound any new `x`/`y` computed from a drag delta before using it to derive
 a new `w`/`h` (e.g., NW/SW handle drag: `nx = Math.max(0, startX + dx)`).
 
+### 21. Fuse.js search highlighting — use composite React keys
+
+When using `includeMatches: true`, define a local interface instead of importing Fuse types:
+
+```typescript
+interface FuseMatchEntry {
+  key?: string
+  indices: ReadonlyArray<[number, number]>
+}
+```
+
+Keep two memos: `fuseResults` (drives both filtered list AND match data) and `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`.
+
+**Always use composite keys** on `<mark>` elements — `key={\`${start}-${end}\`}`, not `key={start}`. Fuse can return overlapping index ranges with the same `start` value, causing duplicate key warnings.
+
+### 22. CSS grid collapse animation
+
+```tsx
+<div
+  className={`grid transition-[grid-template-rows] duration-200 ${
+    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+  }`}
+>
+  <div className="overflow-hidden">{children}</div>
+</div>
+```
+
+No pixel height needed. Outer div transitions row size; inner `overflow-hidden` clips content. Toggle button must have `aria-expanded={!collapsed}`.
+
+### 23. ARIA combobox — wiring and focus management
+
+```tsx
+<input
+  role="combobox"
+  aria-autocomplete="list"
+  aria-expanded={suggestions.length > 0}
+  aria-controls="suggestions-id"
+  aria-activedescendant={index >= 0 ? `suggestion-${suggestions[index]}` : undefined}
+/>
+<div role="listbox" id="suggestions-id">
+  {suggestions.map((s) => (
+    <button key={s} role="option" id={`suggestion-${s}`}
+      onMouseDown={(e) => { e.preventDefault(); void handleSelect(s) }}
+    />
+  ))}
+</div>
+```
+
+`e.preventDefault()` on `onMouseDown` keeps input focus when clicking a suggestion. Always prefix async `onMouseDown` handlers with `void` — omitting it leaves an unhandled promise rejection.
+
+### 24. `void` prefix for async fire-and-forget event handlers
+
+Calling an async function from a synchronous event handler without handling the returned Promise causes an unhandled rejection warning. Use `void`:
+
+```typescript
+// ✅
+onMouseDown={() => { void handleAsyncAction() }}
+onChange={() => { void saveToDb(value) }}
+
+// ❌ Returns a Promise that is silently dropped — triggers lint/runtime warning
+onMouseDown={() => handleAsyncAction()}
+```
+
 ---
 
 ## How to Add a New Tool
@@ -446,7 +509,7 @@ WAL mode is set at connection time in `getDb()` — not in migrations.
 Before opening a PR, verify every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
-- [ ] `bunx vitest run` — 361/361 passing
+- [ ] `bunx vitest run` — all passing (zero failures)
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`
