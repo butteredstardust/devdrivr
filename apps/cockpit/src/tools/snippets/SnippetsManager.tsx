@@ -1,7 +1,21 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
-import { DownloadSimpleIcon, StarIcon, XIcon } from '@phosphor-icons/react'
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  DownloadSimpleIcon,
+  StarIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -67,6 +81,39 @@ const LANG_EXTENSIONS: Record<string, string> = {
   text: 'txt',
 }
 
+// Per-language badge colours (bg + text as CSS colour values)
+type LangStyle = { bg: string; color: string }
+const LANG_STYLES: Record<string, LangStyle> = {
+  javascript: { bg: 'rgba(234,179,8,0.15)', color: '#ca8a04' },
+  typescript: { bg: 'rgba(96,165,250,0.15)', color: '#60a5fa' },
+  python: { bg: 'rgba(74,222,128,0.15)', color: '#4ade80' },
+  rust: { bg: 'rgba(251,146,60,0.15)', color: '#fb923c' },
+  go: { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee' },
+  sql: { bg: 'rgba(167,139,250,0.15)', color: '#a78bfa' },
+  bash: { bg: 'rgba(74,222,128,0.18)', color: '#86efac' },
+  json: { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24' },
+  css: { bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
+  html: { bg: 'rgba(239,68,68,0.15)', color: '#f87171' },
+  markdown: { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' },
+  yaml: { bg: 'rgba(250,204,21,0.15)', color: '#facc15' },
+  dockerfile: { bg: 'rgba(56,189,248,0.15)', color: '#38bdf8' },
+  ruby: { bg: 'rgba(239,68,68,0.18)', color: '#fca5a5' },
+  php: { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
+  java: { bg: 'rgba(249,115,22,0.18)', color: '#fdba74' },
+  kotlin: { bg: 'rgba(139,92,246,0.18)', color: '#c4b5fd' },
+  swift: { bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
+  graphql: { bg: 'rgba(236,72,153,0.15)', color: '#ec4899' },
+  cpp: { bg: 'rgba(96,165,250,0.18)', color: '#93c5fd' },
+  csharp: { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
+  c: { bg: 'rgba(96,165,250,0.12)', color: '#7dd3fc' },
+  xml: { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' },
+  toml: { bg: 'rgba(251,191,36,0.12)', color: '#d97706' },
+}
+const DEFAULT_LANG_STYLE: LangStyle = {
+  bg: 'var(--color-accent-dim)',
+  color: 'var(--color-accent)',
+}
+
 type SortMode = 'updated' | 'created' | 'title' | 'language'
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
@@ -75,6 +122,14 @@ const SORT_OPTIONS: { id: SortMode; label: string }[] = [
   { id: 'title', label: 'A → Z' },
   { id: 'language', label: 'Lang' },
 ]
+
+// ─── Types ───────────────────────────────────────────────────────────
+
+// Subset of FuseResultMatch we actually need
+interface FuseMatchEntry {
+  key?: string
+  indices: ReadonlyArray<[number, number]>
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -105,6 +160,36 @@ function isFavorite(tags: string[]): boolean {
   return tags.includes(FAVORITE_TAG)
 }
 
+/** Wraps matched character ranges in a <mark> element. */
+function highlightMatches(
+  text: string,
+  matches: ReadonlyArray<FuseMatchEntry> | undefined,
+  key: string
+): ReactNode {
+  if (!matches) return text
+  const match = matches.find((m) => m.key === key)
+  if (!match || match.indices.length === 0) return text
+  const sorted = [...match.indices].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0))
+  const parts: ReactNode[] = []
+  let last = 0
+  for (const pair of sorted) {
+    const start = pair[0] ?? 0
+    const end = pair[1] ?? 0
+    if (start > last) parts.push(text.slice(last, start))
+    parts.push(
+      <mark
+        key={`${start}-${end}`}
+        className="rounded bg-[var(--color-accent)]/25 text-[var(--color-accent)] not-italic"
+      >
+        {text.slice(start, end + 1)}
+      </mark>
+    )
+    last = end + 1
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return <>{parts}</>
+}
+
 // ─── Tag Filter Bar ──────────────────────────────────────────────────
 
 const TAG_BAR_COLLAPSED_HEIGHT = 28 // ~1 row of chips
@@ -129,7 +214,7 @@ function TagFilterBar({
   }, [tags])
 
   return (
-    <div className="border-b border-[var(--color-border)] px-3 py-1.5">
+    <div className="px-3 py-1.5">
       <div
         ref={containerRef}
         className="flex flex-wrap gap-1 overflow-hidden transition-[max-height] duration-150"
@@ -189,9 +274,13 @@ export default function SnippetsManager() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
   const [filterTag, setFilterTag] = useState<string | null>(null)
+  const [foldersCollapsed, setFoldersCollapsed] = useState(false)
+  const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  const [suggestionIndex, setSuggestionIndex] = useState(-1)
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const tagInputRef = useRef<HTMLInputElement>(null)
 
   // Clear confirm timer on unmount
   useEffect(() => {
@@ -212,9 +301,23 @@ export default function SnippetsManager() {
   // ─── Fuse search ─────────────────────────────────────────────────
 
   const fuse = useMemo(
-    () => new Fuse(snippets, { keys: ['title', 'content', 'tags'], threshold: 0.3 }),
+    () =>
+      new Fuse(snippets, {
+        keys: ['title', 'content', 'tags'],
+        threshold: 0.3,
+        includeMatches: true,
+      }),
     [snippets]
   )
+
+  // ─── Fuse results + match map ────────────────────────────────────
+
+  const fuseResults = useMemo(() => (search.trim() ? fuse.search(search) : null), [fuse, search])
+
+  const matchMap = useMemo(() => {
+    if (!fuseResults) return new Map<string, ReadonlyArray<FuseMatchEntry>>()
+    return new Map(fuseResults.map((r) => [r.item.id, (r.matches ?? []) as FuseMatchEntry[]]))
+  }, [fuseResults])
 
   // ─── All unique folders ──────────────────────────────────────────
 
@@ -241,7 +344,7 @@ export default function SnippetsManager() {
   // ─── Filtered + sorted list ──────────────────────────────────────
 
   const filtered = useMemo(() => {
-    let list = search.trim() ? fuse.search(search).map((r) => r.item) : [...snippets]
+    let list = fuseResults ? fuseResults.map((r) => r.item) : [...snippets]
 
     // Filter by folder
     if (activeFolder) {
@@ -273,7 +376,7 @@ export default function SnippetsManager() {
     })
 
     return list
-  }, [snippets, search, fuse, sortMode, filterTag, activeFolder])
+  }, [snippets, fuseResults, sortMode, filterTag, activeFolder])
 
   const selected = useMemo(
     () => snippets.find((s) => s.id === selectedId) ?? null,
@@ -289,6 +392,14 @@ export default function SnippetsManager() {
     const bytes = new TextEncoder().encode(selected.content).length
     return { lines, chars, bytes }
   }, [selected])
+
+  // ─── Tag autocomplete suggestions ───────────────────────────────
+
+  const tagSuggestions = useMemo(() => {
+    if (!tagInput.trim() || !selected) return []
+    const query = tagInput.trim().toLowerCase()
+    return allTags.filter((t) => t.toLowerCase().includes(query) && !selected.tags.includes(t))
+  }, [tagInput, allTags, selected])
 
   // ─── Handlers ────────────────────────────────────────────────────
 
@@ -348,6 +459,17 @@ export default function SnippetsManager() {
     await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
     setTagInput('')
   }, [selected, tagInput, updateSnippet])
+
+  const handleAddTagFromSuggestion = useCallback(
+    async (tag: string) => {
+      if (!selected) return
+      if (selected.tags.includes(tag)) return
+      await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
+      setTagInput('')
+      tagInputRef.current?.focus()
+    },
+    [selected, updateSnippet]
+  )
 
   const handleRemoveTag = useCallback(
     async (tag: string) => {
@@ -486,101 +608,152 @@ export default function SnippetsManager() {
           ))}
         </div>
 
-        {/* Folder filter chips */}
+        {/* Folder filter — collapsible */}
         {allFolders.length > 0 && (
-          <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
+          <div className="border-b border-[var(--color-border)]">
             <button
-              onClick={() => setActiveFolder('')}
-              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                activeFolder === ''
-                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-              }`}
+              onClick={() => setFoldersCollapsed(!foldersCollapsed)}
+              className="flex w-full items-center gap-1.5 px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              aria-expanded={!foldersCollapsed}
             >
-              All
+              {foldersCollapsed ? (
+                <CaretRightIcon size={9} weight="bold" />
+              ) : (
+                <CaretDownIcon size={9} weight="bold" />
+              )}
+              FOLDERS
             </button>
-            {allFolders.map((folder) => (
-              <button
-                key={folder}
-                onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
-                className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                  activeFolder === folder
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
-                }`}
-              >
-                {folder}
-              </button>
-            ))}
+            <div
+              className={`grid transition-[grid-template-rows] duration-150 ${foldersCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
+            >
+              <div className="overflow-hidden">
+                <div className="flex flex-wrap gap-1 px-3 pb-1.5">
+                  <button
+                    onClick={() => setActiveFolder('')}
+                    className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                      activeFolder === ''
+                        ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                        : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {allFolders.map((folder) => (
+                    <button
+                      key={folder}
+                      onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
+                      className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                        activeFolder === folder
+                          ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                          : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
+                      }`}
+                    >
+                      {folder}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Tag filter chips */}
+        {/* Tag filter — collapsible */}
         {allTags.length > 0 && (
-          <TagFilterBar tags={allTags} filterTag={filterTag} onFilterTag={setFilterTag} />
+          <div className="border-b border-[var(--color-border)]">
+            <button
+              onClick={() => setTagsCollapsed(!tagsCollapsed)}
+              className="flex w-full items-center gap-1.5 px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              aria-expanded={!tagsCollapsed}
+            >
+              {tagsCollapsed ? (
+                <CaretRightIcon size={9} weight="bold" />
+              ) : (
+                <CaretDownIcon size={9} weight="bold" />
+              )}
+              TAGS
+            </button>
+            <div
+              className={`grid transition-[grid-template-rows] duration-150 ${tagsCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
+            >
+              <div className="overflow-hidden">
+                <TagFilterBar tags={allTags} filterTag={filterTag} onFilterTag={setFilterTag} />
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Snippet list */}
         <div className="flex-1 overflow-auto">
-          {filtered.map((snippet) => (
-            <button
-              key={snippet.id}
-              onClick={() => setSelectedId(snippet.id)}
-              className={`flex w-full flex-col border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
-                selectedId === snippet.id
-                  ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                  : 'hover:bg-[var(--color-surface-hover)]'
-              }`}
-            >
-              <div className="flex items-center gap-1">
-                {isFavorite(snippet.tags) && (
-                  <span className="text-[10px]" title="Favorite">
-                    [*]
-                  </span>
-                )}
-                <span
-                  className={`flex-1 truncate text-xs font-bold ${selectedId === snippet.id ? 'text-[var(--color-bg)]' : 'text-[var(--color-text)]'}`}
-                >
-                  {snippet.title || 'Untitled'}
-                </span>
-                <span
-                  className={`shrink-0 text-[10px] ${selectedId === snippet.id ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
-                >
-                  {relativeTime(snippet.updatedAt)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-[10px] font-bold ${selectedId === snippet.id ? 'text-[var(--color-bg)]' : 'text-[var(--color-accent)]'}`}
-                >
-                  [{(LANG_EXTENSIONS[snippet.language] || snippet.language).toUpperCase()}]
-                </span>
-                {snippet.content && (
-                  <span
-                    className={`truncate text-[10px] ${selectedId === snippet.id ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
-                  >
-                    {contentPreview(snippet.content)}
-                  </span>
-                )}
-              </div>
-              {visibleTags(snippet.tags).length > 0 && (
-                <div className="mt-0.5 flex flex-wrap gap-1">
-                  {visibleTags(snippet.tags).map((tag) => (
-                    <span
-                      key={tag}
-                      className={`rounded px-1 text-[10px] ${
-                        selectedId === snippet.id
-                          ? 'bg-[var(--color-bg)]/20 text-[var(--color-bg)]'
-                          : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                      }`}
-                    >
-                      {tag}
+          {filtered.map((snippet) => {
+            const isSelected = selectedId === snippet.id
+            const matches = isSelected ? undefined : matchMap.get(snippet.id)
+            const langStyle = LANG_STYLES[snippet.language] ?? DEFAULT_LANG_STYLE
+            return (
+              <button
+                key={snippet.id}
+                onClick={() => setSelectedId(snippet.id)}
+                className={`flex w-full flex-col border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
+                  isSelected
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                    : 'hover:bg-[var(--color-surface-hover)]'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  {isFavorite(snippet.tags) && (
+                    <span className="text-[10px]" title="Favorite">
+                      [*]
                     </span>
-                  ))}
+                  )}
+                  <span
+                    className={`flex-1 truncate text-xs font-bold ${isSelected ? 'text-[var(--color-bg)]' : 'text-[var(--color-text)]'}`}
+                  >
+                    {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[10px] ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                  >
+                    {relativeTime(snippet.updatedAt)}
+                  </span>
                 </div>
-              )}
-            </button>
-          ))}
+                <div className="flex items-center gap-2">
+                  {/* Language pill */}
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
+                    style={
+                      isSelected
+                        ? { backgroundColor: 'rgba(255,255,255,0.2)', color: 'var(--color-bg)' }
+                        : { backgroundColor: langStyle.bg, color: langStyle.color }
+                    }
+                  >
+                    {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
+                  </span>
+                  {snippet.content && (
+                    <span
+                      className={`truncate text-[10px] ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                    >
+                      {contentPreview(snippet.content)}
+                    </span>
+                  )}
+                </div>
+                {visibleTags(snippet.tags).length > 0 && (
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {visibleTags(snippet.tags).map((tag) => (
+                      <span
+                        key={tag}
+                        className={`rounded px-1 text-[10px] ${
+                          isSelected
+                            ? 'bg-[var(--color-bg)]/20 text-[var(--color-bg)]'
+                            : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                        }`}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            )
+          })}
           {filtered.length === 0 && (
             <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
               {search || filterTag || activeFolder ? 'No matching snippets' : 'No snippets yet'}
@@ -721,15 +894,83 @@ export default function SnippetsManager() {
                     </div>
                   ))}
                 </div>
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddTag()
-                  }}
-                  placeholder="+ Add tag..."
-                  className="mt-2 w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
-                />
+                {/* Tag input with autocomplete */}
+                <div className="relative mt-2">
+                  <input
+                    ref={tagInputRef}
+                    id="tag-input"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={tagSuggestions.length > 0}
+                    aria-controls="tag-suggestions"
+                    aria-activedescendant={
+                      suggestionIndex >= 0 ? `tag-suggestion-${suggestionIndex}` : undefined
+                    }
+                    value={tagInput}
+                    onChange={(e) => {
+                      setTagInput(e.target.value)
+                      setSuggestionIndex(-1)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setSuggestionIndex((i) => Math.min(i + 1, tagSuggestions.length - 1))
+                        return
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setSuggestionIndex((i) => Math.max(i - 1, -1))
+                        return
+                      }
+                      if (e.key === 'Enter') {
+                        if (suggestionIndex >= 0) {
+                          e.preventDefault()
+                          const chosen = tagSuggestions[suggestionIndex]
+                          if (chosen) void handleAddTagFromSuggestion(chosen)
+                          setSuggestionIndex(-1)
+                          return
+                        }
+                        handleAddTag()
+                        return
+                      }
+                      if (e.key === 'Escape') {
+                        setSuggestionIndex(-1)
+                        setTagInput('')
+                      }
+                    }}
+                    placeholder="+ Add tag..."
+                    className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
+                  />
+                  {tagSuggestions.length > 0 && (
+                    <div
+                      id="tag-suggestions"
+                      role="listbox"
+                      aria-label="Tag suggestions"
+                      className="absolute left-0 right-0 top-full z-10 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+                      data-testid="tag-suggestions"
+                    >
+                      {tagSuggestions.map((suggestion, i) => (
+                        <button
+                          key={suggestion}
+                          id={`tag-suggestion-${i}`}
+                          role="option"
+                          aria-selected={i === suggestionIndex}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            void handleAddTagFromSuggestion(suggestion)
+                          }}
+                          className={`flex w-full items-center px-2 py-1 text-left text-xs text-[var(--color-text)] transition-colors ${
+                            i === suggestionIndex
+                              ? 'bg-[var(--color-surface-hover)]'
+                              : 'hover:bg-[var(--color-surface-hover)]'
+                          }`}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -741,8 +982,31 @@ export default function SnippetsManager() {
             )}
           </div>
         ) : (
-          <div className="flex-1 p-4 text-center text-xs text-[var(--color-text-muted)] italic">
-            No snippet selected
+          /* Empty meta pane: keyboard shortcuts hint card */
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+              No snippet selected
+            </div>
+            <div className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)]/30 p-3">
+              <div className="mb-2 font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                Shortcuts
+              </div>
+              {(
+                [
+                  ['F5 / ⌘N', 'New snippet'],
+                  ['F6', 'Duplicate'],
+                  ['F8', 'Delete'],
+                  ['⌘F', 'Search'],
+                  ['F9', 'Export'],
+                  ['F10', 'Import'],
+                ] as [string, string][]
+              ).map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between py-0.5">
+                  <span className="font-mono text-[9px] text-[var(--color-accent)]">{key}</span>
+                  <span className="text-[9px] text-[var(--color-text-muted)]">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
