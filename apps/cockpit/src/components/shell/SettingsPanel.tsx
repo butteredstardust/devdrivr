@@ -399,6 +399,8 @@ function DataTab() {
         theme: state.theme,
         alwaysOnTop: state.alwaysOnTop,
         sidebarCollapsed: state.sidebarCollapsed,
+        collapsedSidebarGroups: state.collapsedSidebarGroups,
+        pinnedToolIds: state.pinnedToolIds,
         notesDrawerOpen: state.notesDrawerOpen,
         notesDrawerWidth: state.notesDrawerWidth,
         defaultIndentSize: state.defaultIndentSize,
@@ -436,6 +438,19 @@ function DataTab() {
       'vim',
       'emacs',
     ])
+    const validGroups = new Set<AppSettings['collapsedSidebarGroups'][number]>([
+      'code',
+      'data',
+      'web',
+      'convert',
+      'test',
+      'network',
+      'write',
+    ])
+    const validToolIds = new Set(TOOLS.map((tool) => tool.id))
+    const isToolGroup = (id: unknown): id is AppSettings['collapsedSidebarGroups'][number] =>
+      typeof id === 'string' &&
+      validGroups.has(id as AppSettings['collapsedSidebarGroups'][number])
 
     try {
       const text = await navigator.clipboard.readText()
@@ -498,6 +513,20 @@ function DataTab() {
         await su('editorFont', obj['editorFont'] as AppSettings['editorFont'])
       if (typeof obj['defaultTimezone'] === 'string')
         await su('defaultTimezone', obj['defaultTimezone'])
+      if (Array.isArray(obj['collapsedSidebarGroups'])) {
+        await su(
+          'collapsedSidebarGroups',
+          obj['collapsedSidebarGroups'].filter(isToolGroup)
+        )
+      }
+      if (Array.isArray(obj['pinnedToolIds'])) {
+        await su(
+          'pinnedToolIds',
+          obj['pinnedToolIds'].filter(
+            (id): id is string => typeof id === 'string' && validToolIds.has(id)
+          )
+        )
+      }
       // Apply alwaysOnTop to the live Tauri window
       const finalOnTop = useSettingsStore.getState().alwaysOnTop
       getCurrentWindow()

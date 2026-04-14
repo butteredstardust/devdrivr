@@ -1,13 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import type Fuse from 'fuse.js'
 import { TOOLS } from '@/app/tool-registry'
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
+import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CommandIcon,
+  FloppyDiskIcon,
+  FolderOpenIcon,
+  GearSixIcon,
+  KeyboardIcon,
+  MoonStarsIcon,
+  NotePencilIcon,
+  PushPinIcon,
+  PushPinSlashIcon,
+  SidebarIcon,
+  type Icon,
+} from '@phosphor-icons/react'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -16,9 +32,11 @@ type PaletteItem = {
   kind: 'tool' | 'action'
   name: string
   description: string
-  icon: string
+  icon: ReactElement
   shortcut?: string
   group?: string
+  groupLabel?: string
+  searchTerms?: string[]
 }
 
 type SectionItem =
@@ -31,89 +49,150 @@ const GROUP_LABELS: Record<string, string> = Object.fromEntries(
   TOOL_GROUPS.map((g) => [g.id, g.label])
 )
 
-function buildActions(modSymbol: string): PaletteItem[] {
+const actionIcon = (IconComponent: Icon) => (
+  <IconComponent size={16} weight="regular" aria-hidden="true" />
+)
+
+function themeLabel(theme: Theme): string {
+  return theme
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+type ActionState = {
+  alwaysOnTop: boolean
+  notesDrawerOpen: boolean
+  sidebarCollapsed: boolean
+  theme: Theme
+}
+
+function buildActions(modSymbol: string, state: ActionState): PaletteItem[] {
+  const sidebarName = state.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'
+  const notesName = state.notesDrawerOpen ? 'Close Notes' : 'Open Notes'
+  const pinName = state.alwaysOnTop ? 'Unpin Window' : 'Pin Window'
+
   return [
     {
       id: 'action:theme',
       kind: 'action',
-      name: 'Toggle Theme',
-      description: 'Switch between dark, light, and system',
-      icon: '◐',
+      name: `Change Theme (${themeLabel(state.theme)})`,
+      description: 'Cycle to the next app theme',
+      icon: actionIcon(MoonStarsIcon),
       shortcut: `${modSymbol}⇧T`,
+      searchTerms: ['theme', 'appearance', 'dark', 'light', 'system', state.theme],
     },
     {
       id: 'action:sidebar',
       kind: 'action',
-      name: 'Toggle Sidebar',
-      description: 'Show or hide the sidebar',
-      icon: '◫',
+      name: sidebarName,
+      description: state.sidebarCollapsed ? 'Expand the sidebar' : 'Collapse the sidebar',
+      icon: actionIcon(SidebarIcon),
       shortcut: `${modSymbol}B`,
+      searchTerms: ['sidebar', 'navigation', 'nav', 'panel', 'toggle sidebar'],
     },
     {
       id: 'action:notes',
       kind: 'action',
-      name: 'Toggle Notes',
-      description: 'Open or close the notes drawer',
-      icon: '¶',
+      name: notesName,
+      description: state.notesDrawerOpen ? 'Close the notes drawer' : 'Open the notes drawer',
+      icon: actionIcon(NotePencilIcon),
       shortcut: `${modSymbol}⇧N`,
+      searchTerms: ['notes', 'drawer', 'scratchpad', 'toggle notes'],
     },
     {
       id: 'action:settings',
       kind: 'action',
       name: 'Open Settings',
       description: 'Appearance, editor, and data preferences',
-      icon: '⚙',
+      icon: actionIcon(GearSixIcon),
       shortcut: `${modSymbol},`,
+      searchTerms: ['settings', 'preferences', 'appearance', 'editor', 'data'],
     },
     {
       id: 'action:shortcuts',
       kind: 'action',
       name: 'Keyboard Shortcuts',
       description: 'View all keyboard shortcuts',
-      icon: '⌨',
+      icon: actionIcon(KeyboardIcon),
       shortcut: `${modSymbol}/`,
+      searchTerms: ['shortcuts', 'hotkeys', 'keybindings', 'keyboard'],
     },
     {
       id: 'action:pin',
       kind: 'action',
-      name: 'Toggle Always on Top',
-      description: 'Pin or unpin the window above others',
-      icon: '⊤',
+      name: pinName,
+      description: state.alwaysOnTop
+        ? 'Allow other windows to cover Cockpit'
+        : 'Keep Cockpit above other windows',
+      icon: actionIcon(state.alwaysOnTop ? PushPinSlashIcon : PushPinIcon),
       shortcut: `${modSymbol}⇧P`,
+      searchTerms: ['pin', 'unpin', 'always on top', 'window', 'float'],
     },
     {
       id: 'action:open-file',
       kind: 'action',
       name: 'Open File',
       description: 'Open a file and send to the active tool',
-      icon: '↗',
+      icon: actionIcon(FolderOpenIcon),
       shortcut: `${modSymbol}O`,
+      searchTerms: ['open', 'file', 'import', 'load'],
     },
     {
       id: 'action:save-file',
       kind: 'action',
       name: 'Save Output',
       description: 'Save the active tool output to a file',
-      icon: '↓',
+      icon: actionIcon(FloppyDiskIcon),
       shortcut: `${modSymbol}S`,
+      searchTerms: ['save', 'file', 'download', 'export', 'output'],
     },
     {
       id: 'action:next-tool',
       kind: 'action',
       name: 'Next Tool',
       description: 'Switch to the next tool in the list',
-      icon: '→',
+      icon: actionIcon(ArrowRightIcon),
       shortcut: `${modSymbol}]`,
+      searchTerms: ['next', 'tool', 'switch', 'forward'],
     },
     {
       id: 'action:prev-tool',
       kind: 'action',
       name: 'Previous Tool',
       description: 'Switch to the previous tool in the list',
-      icon: '←',
+      icon: actionIcon(ArrowLeftIcon),
       shortcut: `${modSymbol}[`,
+      searchTerms: ['previous', 'prev', 'tool', 'switch', 'back'],
     },
   ]
+}
+
+function searchTermsForTool(tool: (typeof TOOLS)[number]): string[] {
+  const groupLabel = GROUP_LABELS[tool.group] ?? tool.group
+
+  return [tool.id, tool.id.replaceAll('-', ' '), tool.group, groupLabel]
+}
+
+function fallbackSearch(items: PaletteItem[], searchQuery: string): PaletteItem[] {
+  const needle = searchQuery.toLowerCase()
+
+  return items.filter((item) =>
+    [
+      item.name,
+      item.description,
+      item.group,
+      item.groupLabel,
+      item.shortcut,
+      ...(item.searchTerms ?? []),
+    ]
+      .filter((value): value is string => value != null)
+      .some((value) => value.toLowerCase().includes(needle))
+  )
+}
+
+function optionId(item: PaletteItem): string {
+  return `command-palette-option-${item.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -133,6 +212,7 @@ export function CommandPalette() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const notesDrawerOpen = useSettingsStore((s) => s.notesDrawerOpen)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
+  const theme = useSettingsStore((s) => s.theme)
   const { modSymbol } = usePlatform()
 
   const [query, setQuery] = useState('')
@@ -142,7 +222,10 @@ export function CommandPalette() {
 
   // ─── Palette items ─────────────────────────────────────────────
 
-  const actions = useMemo(() => buildActions(modSymbol), [modSymbol])
+  const actions = useMemo(
+    () => buildActions(modSymbol, { alwaysOnTop, notesDrawerOpen, sidebarCollapsed, theme }),
+    [modSymbol, alwaysOnTop, notesDrawerOpen, sidebarCollapsed, theme]
+  )
 
   const toolItems: PaletteItem[] = useMemo(
     () =>
@@ -151,8 +234,10 @@ export function CommandPalette() {
         kind: 'tool' as const,
         name: t.name,
         description: t.description,
-        icon: typeof t.icon === 'string' ? t.icon : '•',
+        icon: t.icon,
         group: t.group,
+        groupLabel: GROUP_LABELS[t.group] ?? t.group,
+        searchTerms: searchTermsForTool(t),
       })),
     []
   )
@@ -161,7 +246,7 @@ export function CommandPalette() {
 
   const fuseOpts = useMemo(
     () => ({
-      keys: ['name', 'description'] as string[],
+      keys: ['name', 'description', 'group', 'groupLabel', 'shortcut', 'searchTerms'] as string[],
       threshold: 0.4,
       includeScore: true,
       includeMatches: true,
@@ -204,8 +289,11 @@ export function CommandPalette() {
 
     // Fuzzy search (action mode uses dedicated Fuse, normal mode searches everything)
     const fuseInstance = isActionMode ? actionFuseRef.current : fuseRef.current
-    return fuseInstance ? fuseInstance.search(searchQuery).map((r) => r.item) : []
-  }, [searchQuery, isActionMode, toolItems, actions, activeTool, recentToolIds])
+    const searchableItems = isActionMode ? actions : allItems
+    return fuseInstance
+      ? fuseInstance.search(searchQuery).map((r) => r.item)
+      : fallbackSearch(searchableItems, searchQuery)
+  }, [searchQuery, isActionMode, toolItems, actions, allItems, activeTool, recentToolIds])
 
   // ─── Section headers for default view ──────────────────────────
 
@@ -245,6 +333,12 @@ export function CommandPalette() {
   }, [results, searchQuery, isActionMode, activeTool, recentToolIds])
 
   const flatCount = useMemo(() => sections.filter((s) => s.type === 'item').length, [sections])
+  const selectedOptionId = useMemo(() => {
+    const selected = sections.filter((s): s is SectionItem & { type: 'item' } => s.type === 'item')[
+      selectedIndex
+    ]
+    return selected ? optionId(selected.item) : undefined
+  }, [sections, selectedIndex])
 
   // Clamp selectedIndex when result count shrinks (e.g. mid-keystroke)
   useEffect(() => {
@@ -282,8 +376,10 @@ export function CommandPalette() {
         case 'action:pin': {
           const win = getCurrentWindow()
           const next = !alwaysOnTop
-          win.setAlwaysOnTop(next).catch(() => {})
-          settingsUpdate('alwaysOnTop', next).catch(() => {})
+          win
+            .setAlwaysOnTop(next)
+            .then(() => settingsUpdate('alwaysOnTop', next))
+            .catch(() => addToast('Failed to update window pin state', 'error'))
           break
         }
         case 'action:open-file':
@@ -359,11 +455,19 @@ export function CommandPalette() {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((i) => Math.min(i + 1, flatCount - 1))
+          if (flatCount > 0) setSelectedIndex((i) => (i + 1) % flatCount)
           break
         case 'ArrowUp':
           e.preventDefault()
-          setSelectedIndex((i) => Math.max(i - 1, 0))
+          if (flatCount > 0) setSelectedIndex((i) => (i - 1 + flatCount) % flatCount)
+          break
+        case 'Home':
+          e.preventDefault()
+          setSelectedIndex(0)
+          break
+        case 'End':
+          e.preventDefault()
+          setSelectedIndex(Math.max(0, flatCount - 1))
           break
         case 'Enter': {
           e.preventDefault()
@@ -377,6 +481,10 @@ export function CommandPalette() {
         case 'Escape':
           e.preventDefault()
           setOpen(false)
+          break
+        case 'Tab':
+          e.preventDefault()
+          inputRef.current?.focus()
           break
         case 'Backspace':
           // If query is empty and in action mode, exit action mode
@@ -398,13 +506,22 @@ export function CommandPalette() {
     <>
       <div
         role="presentation"
-        className="fixed inset-0 z-40 bg-black/50"
+        className="fixed inset-0 z-40"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--color-shadow) 50%, transparent)' }}
         onClick={() => setOpen(false)}
       />
-      <div className="animate-fade-in fixed left-1/2 top-[15%] z-50 w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="command-palette-title"
+        className="animate-fade-in fixed left-1/2 top-[15%] z-50 w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+      >
+        <h2 id="command-palette-title" className="sr-only">
+          Command palette
+        </h2>
         {/* Input */}
         <div className="flex items-center border-b border-[var(--color-border)] px-3 pt-[3px] pb-[3px]">
-          <span className="mr-2 text-sm text-[var(--color-text-muted)]">&gt;</span>
+          <CommandIcon size={14} className="mr-2 text-[var(--color-text-muted)]" />
           <input
             ref={inputRef}
             value={query}
@@ -414,6 +531,11 @@ export function CommandPalette() {
             }}
             onKeyDown={onKeyDown}
             placeholder={`Search tools... (${modSymbol}K)  •  Type > for actions`}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={flatCount > 0}
+            aria-controls="command-palette-results"
+            aria-activedescendant={selectedOptionId}
             className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus-visible:outline-none"
           />
           {isActionMode && (
@@ -424,12 +546,18 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-96 overflow-y-auto py-1">
+        <div
+          ref={listRef}
+          id="command-palette-results"
+          role="listbox"
+          className="max-h-96 overflow-y-auto py-1"
+        >
           {sections.map((section) => {
             if (section.type === 'header') {
               return (
                 <div
                   key={`header-${section.label}`}
+                  role="presentation"
                   className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
                 >
                   {section.label}
@@ -446,16 +574,23 @@ export function CommandPalette() {
             return (
               <button
                 key={item.id}
+                id={optionId(item)}
+                role="option"
+                aria-selected={isSelected}
                 data-palette-item
+                tabIndex={-1}
                 className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${
                   isSelected
                     ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
                     : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
                 }`}
                 onClick={() => executeItem(item)}
+                onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setSelectedIndex(flatIndex)}
               >
-                <span className="w-6 shrink-0 text-center font-mono text-[10px]">{item.icon}</span>
+                <span className="flex w-6 shrink-0 justify-center text-[var(--color-text-muted)]">
+                  {item.icon}
+                </span>
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{item.name}</span>

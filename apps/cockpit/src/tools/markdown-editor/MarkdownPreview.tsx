@@ -160,7 +160,11 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         )}
 
         {/* Preview Content */}
-        <div ref={innerRef} className="flex-1 overflow-auto p-6">
+        <div
+          ref={innerRef}
+          className="flex-1 overflow-auto p-6"
+          data-selection-surface="markdown-preview"
+        >
           {html ? (
             <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={{ __html: html }} />
           ) : (

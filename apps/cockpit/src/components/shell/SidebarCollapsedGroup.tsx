@@ -157,8 +157,8 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
                       : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
                   }`}
                 >
-                  <span className="w-4 shrink-0 text-center font-mono text-[10px]">
-                    {typeof tool.icon === 'string' ? tool.icon : '•'}
+                  <span className="flex w-4 shrink-0 items-center justify-center">
+                    {tool.icon}
                   </span>
                   <span className="truncate">{tool.name}</span>
                 </button>

@@ -7,6 +7,7 @@ import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
+import { SidebarPinned } from './SidebarPinned'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 
@@ -139,10 +140,19 @@ export function Sidebar() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto py-1" onKeyDown={handleNavKeyDown}>
+          <SidebarPinned />
           <SidebarRecent />
           {TOOL_GROUPS.map((group, i) => {
             const tools = TOOLS.filter((t) => t.group === group.id)
-            return <SidebarGroup key={group.id} group={group} tools={tools} isFirst={i === 0} />
+            return (
+              <SidebarGroup
+                key={group.id}
+                group={group}
+                tools={tools}
+                isFirst={i === 0}
+                isActiveGroup={group.id === activeGroup}
+              />
+            )
           })}
         </div>
         <SidebarFooter collapsed={false} />

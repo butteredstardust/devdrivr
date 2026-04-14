@@ -1,4 +1,5 @@
 import { NOTE_COLORS } from '@/lib/schemas'
+import type { ToolGroup } from '@/types/tools'
 
 export type Theme =
   | 'system'
@@ -29,6 +30,8 @@ export type AppSettings = {
   theme: Theme
   alwaysOnTop: boolean
   sidebarCollapsed: boolean
+  collapsedSidebarGroups: ToolGroup[]
+  pinnedToolIds: string[]
   notesDrawerOpen: boolean
   notesDrawerWidth: number
   defaultIndentSize: number
@@ -48,6 +51,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   alwaysOnTop: false,
   sidebarCollapsed: false,
+  collapsedSidebarGroups: [],
+  pinnedToolIds: [],
   notesDrawerOpen: false,
   notesDrawerWidth: 288,
   defaultIndentSize: 2,

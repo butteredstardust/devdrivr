@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
+import { useSettingsStore } from '@/stores/settings.store'
 import { CaretRightIcon } from '@phosphor-icons/react'
 import { SidebarItem } from './SidebarItem'
 
@@ -7,29 +8,58 @@ type SidebarGroupProps = {
   group: ToolGroupMeta
   tools: ToolDefinition[]
   isFirst?: boolean
+  isActiveGroup?: boolean
 }
 
-export function SidebarGroup({ group, tools, isFirst }: SidebarGroupProps) {
-  const [collapsed, setCollapsed] = useState(false)
+export function SidebarGroup({ group, tools, isFirst, isActiveGroup = false }: SidebarGroupProps) {
+  const collapsedSidebarGroups = useSettingsStore((s) => s.collapsedSidebarGroups)
+  const update = useSettingsStore((s) => s.update)
+  const persistentlyCollapsed = collapsedSidebarGroups.includes(group.id)
+  const collapsed = persistentlyCollapsed && !isActiveGroup
+
+  const collapseGroup = useCallback(() => {
+    if (!persistentlyCollapsed) {
+      void update('collapsedSidebarGroups', [...collapsedSidebarGroups, group.id])
+    }
+  }, [collapsedSidebarGroups, group.id, persistentlyCollapsed, update])
+
+  const expandGroup = useCallback(() => {
+    if (persistentlyCollapsed) {
+      void update(
+        'collapsedSidebarGroups',
+        collapsedSidebarGroups.filter((id) => id !== group.id)
+      )
+    }
+  }, [collapsedSidebarGroups, group.id, persistentlyCollapsed, update])
+
+  const toggleCollapsed = useCallback(() => {
+    if (collapsed) {
+      expandGroup()
+    } else if (persistentlyCollapsed && isActiveGroup) {
+      expandGroup()
+    } else {
+      collapseGroup()
+    }
+  }, [collapseGroup, collapsed, expandGroup, isActiveGroup, persistentlyCollapsed])
 
   // ArrowRight expands, ArrowLeft collapses — matches standard tree-nav convention
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowRight' && collapsed) {
         e.stopPropagation()
-        setCollapsed(false)
+        expandGroup()
       } else if (e.key === 'ArrowLeft' && !collapsed) {
         e.stopPropagation()
-        setCollapsed(true)
+        collapseGroup()
       }
     },
-    [collapsed]
+    [collapseGroup, collapsed, expandGroup]
   )
 
   return (
     <div className={`mb-1 ${!isFirst ? 'mt-2 border-t border-[var(--color-border)] pt-2' : ''}`}>
       <button
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={toggleCollapsed}
         onKeyDown={handleKeyDown}
         aria-expanded={!collapsed}
         data-sidebar-group={group.id}
