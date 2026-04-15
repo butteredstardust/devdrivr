@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
+import { Dialog } from '@/components/shared/Dialog'
 import { useUiStore } from '@/stores/ui.store'
 import { usePlatform } from '@/hooks/usePlatform'
-import { XIcon } from '@phosphor-icons/react'
 
 type ShortcutEntry = {
   keys: string[]
@@ -63,59 +62,38 @@ export function ShortcutsModal() {
   const setOpen = useUiStore((s) => s.setShortcutsModalOpen)
   const { modSymbol } = usePlatform()
 
-  useEffect(() => {
-    if (!open) return
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [open, setOpen])
-
   if (!open) return null
 
   const categories = getCategories(modSymbol)
 
   return (
-    <>
-      <div
-        role="presentation"
-        className="fixed inset-0 z-50 bg-black/50"
-        onClick={() => setOpen(false)}
-      />
-      <div className="animate-fade-in fixed left-1/2 top-1/2 z-50 w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-mono text-sm text-[var(--color-accent)]">Keyboard Shortcuts</h2>
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="Close shortcuts"
-            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-          >
-            <XIcon size={16} />
-          </button>
-        </div>
-        <div className="max-h-[70vh] overflow-y-auto px-4 py-3">
-          {categories.map((cat) => (
-            <div key={cat.label} className="mb-4 last:mb-0">
-              <h3 className="mb-2 font-mono text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                {cat.label}
-              </h3>
-              <div className="flex flex-col gap-1">
-                {cat.shortcuts.map((s) => (
-                  <div key={s.action} className="flex items-center justify-between py-1.5">
-                    <span className="text-xs text-[var(--color-text)]">{s.action}</span>
-                    <div className="flex items-center gap-1">
-                      {s.keys.map((k, i) => (
-                        <Kbd key={i}>{k}</Kbd>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+    <Dialog
+      title="Keyboard Shortcuts"
+      onClose={() => setOpen(false)}
+      closeLabel="Close shortcuts"
+      className="w-full max-w-[560px]"
+      bodyClassName="max-h-[70vh] px-4 py-3"
+      titleClassName="text-[var(--color-accent)]"
+    >
+      {categories.map((cat) => (
+        <div key={cat.label} className="mb-4 last:mb-0">
+          <h3 className="mb-2 font-mono text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+            {cat.label}
+          </h3>
+          <div className="flex flex-col gap-1">
+            {cat.shortcuts.map((s) => (
+              <div key={s.action} className="flex items-center justify-between py-1.5">
+                <span className="text-xs text-[var(--color-text)]">{s.action}</span>
+                <div className="flex items-center gap-1">
+                  {s.keys.map((k, i) => (
+                    <Kbd key={i}>{k}</Kbd>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-    </>
+      ))}
+    </Dialog>
   )
 }

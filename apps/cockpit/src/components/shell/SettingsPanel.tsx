@@ -9,7 +9,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { DEFAULT_SETTINGS, type AppSettings, type Theme } from '@/types/models'
 import { TOOLS } from '@/app/tool-registry'
 import {
-  XIcon,
   GearSixIcon,
   CodeIcon,
   DatabaseIcon,
@@ -24,6 +23,7 @@ import {
   ArrowCircleUpIcon,
   SpinnerIcon,
 } from '@phosphor-icons/react'
+import { Dialog } from '@/components/shared/Dialog'
 import { Toggle } from '@/components/shared/Toggle'
 import { ALL_THEMES, THEME_META } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
@@ -142,14 +142,20 @@ function DangerButton({
   confirmLabel,
   onConfirm,
   icon,
+  successMessage,
+  errorMessage,
 }: {
   label: string
   confirmLabel: string
   onConfirm: () => Promise<void>
   icon: React.ReactNode
+  successMessage: string
+  errorMessage: string
 }) {
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState(false)
+  const [pending, setPending] = useState(false)
+  const addToast = useUiStore((s) => s.addToast)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
@@ -163,13 +169,17 @@ function DangerButton({
       return
     }
     clearTimeout(timerRef.current)
+    setPending(true)
     try {
       await onConfirm()
       setDone(true)
+      addToast(successMessage, 'success')
       timerRef.current = setTimeout(() => setDone(false), 2000)
-    } catch {
-      // silently reset — the store action is responsible for user feedback
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      addToast(`${errorMessage}: ${msg}`, 'error')
     } finally {
+      setPending(false)
       setConfirming(false)
     }
   }
@@ -188,15 +198,23 @@ function DangerButton({
 
   return (
     <button
+      type="button"
       onClick={handleClick}
+      disabled={pending}
       className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors ${
         confirming
           ? 'border-[var(--color-error)] bg-[var(--color-error)]/10 text-[var(--color-error)]'
           : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)]'
-      }`}
+      } disabled:pointer-events-none disabled:opacity-60`}
     >
-      {confirming ? <WarningIcon size={12} /> : icon}
-      {confirming ? confirmLabel : label}
+      {pending ? (
+        <SpinnerIcon size={12} className="animate-spin" aria-hidden="true" />
+      ) : confirming ? (
+        <WarningIcon size={12} aria-hidden="true" />
+      ) : (
+        icon
+      )}
+      {pending ? 'Working…' : confirming ? confirmLabel : label}
     </button>
   )
 }
@@ -211,6 +229,7 @@ function GeneralTab() {
   const checkForUpdatesAutomatically = useSettingsStore((s) => s.checkForUpdatesAutomatically)
   const downloadUpdatesAutomatically = useSettingsStore((s) => s.downloadUpdatesAutomatically)
   const notifyWhenUpdateAvailable = useSettingsStore((s) => s.notifyWhenUpdateAvailable)
+  const addToast = useUiStore((s) => s.addToast)
 
   const isChecking = useUpdaterStore((s) => s.isChecking)
   const lastCheckedAt = useUpdaterStore((s) => s.lastCheckedAt)
@@ -228,10 +247,10 @@ function GeneralTab() {
     (checked: boolean) => {
       getCurrentWindow()
         .setAlwaysOnTop(checked)
-        .catch(() => {})
-      update('alwaysOnTop', checked).catch(() => {})
+        .then(() => update('alwaysOnTop', checked))
+        .catch(() => addToast('Failed to update window pin state', 'error'))
     },
-    [update]
+    [addToast, update]
   )
 
   const lastCheckedLabel = lastCheckedAt
@@ -294,7 +313,10 @@ function GeneralTab() {
             <span className="text-[10px] text-[var(--color-text-muted)]">v{appVersion}</span>
           )}
           <button
-            onClick={() => checkForUpdate(true).catch(() => {})}
+            type="button"
+            onClick={() => {
+              void checkForUpdate(true)
+            }}
             disabled={isChecking}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
           >
@@ -449,8 +471,7 @@ function DataTab() {
     ])
     const validToolIds = new Set(TOOLS.map((tool) => tool.id))
     const isToolGroup = (id: unknown): id is AppSettings['collapsedSidebarGroups'][number] =>
-      typeof id === 'string' &&
-      validGroups.has(id as AppSettings['collapsedSidebarGroups'][number])
+      typeof id === 'string' && validGroups.has(id as AppSettings['collapsedSidebarGroups'][number])
 
     try {
       const text = await navigator.clipboard.readText()
@@ -514,10 +535,7 @@ function DataTab() {
       if (typeof obj['defaultTimezone'] === 'string')
         await su('defaultTimezone', obj['defaultTimezone'])
       if (Array.isArray(obj['collapsedSidebarGroups'])) {
-        await su(
-          'collapsedSidebarGroups',
-          obj['collapsedSidebarGroups'].filter(isToolGroup)
-        )
+        await su('collapsedSidebarGroups', obj['collapsedSidebarGroups'].filter(isToolGroup))
       }
       if (Array.isArray(obj['pinnedToolIds'])) {
         await su(
@@ -529,9 +547,7 @@ function DataTab() {
       }
       // Apply alwaysOnTop to the live Tauri window
       const finalOnTop = useSettingsStore.getState().alwaysOnTop
-      getCurrentWindow()
-        .setAlwaysOnTop(finalOnTop)
-        .catch(() => {})
+      await getCurrentWindow().setAlwaysOnTop(finalOnTop)
       addToast('Settings imported', 'success')
     } catch {
       addToast('Failed to import settings', 'error')
@@ -544,11 +560,8 @@ function DataTab() {
     for (const key of keys) {
       await settingsUpdate(key, DEFAULT_SETTINGS[key])
     }
-    getCurrentWindow()
-      .setAlwaysOnTop(false)
-      .catch(() => {})
-    addToast('Settings reset to defaults', 'success')
-  }, [addToast])
+    await getCurrentWindow().setAlwaysOnTop(false)
+  }, [])
 
   // Build timezone options: user's local TZ first, then popular list (deduped)
   const tzOptions = useMemo(() => {
@@ -612,18 +625,24 @@ function DataTab() {
             confirmLabel="Confirm clear?"
             onConfirm={clearNotes}
             icon={<TrashIcon size={12} />}
+            successMessage="Notes cleared"
+            errorMessage="Failed to clear notes"
           />
           <DangerButton
             label={`Clear Snippets (${snippetCount})`}
             confirmLabel="Confirm clear?"
             onConfirm={clearSnippets}
             icon={<TrashIcon size={12} />}
+            successMessage="Snippets cleared"
+            errorMessage="Failed to clear snippets"
           />
           <DangerButton
             label={`Clear History (${historyCount})`}
             confirmLabel="Confirm clear?"
             onConfirm={clearHistory}
             icon={<TrashIcon size={12} />}
+            successMessage="History cleared"
+            errorMessage="Failed to clear history"
           />
         </div>
       </div>
@@ -636,6 +655,7 @@ function DataTab() {
         </h4>
         <div className="flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={handleExportSettings}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
@@ -643,6 +663,7 @@ function DataTab() {
             Export to Clipboard
           </button>
           <button
+            type="button"
             onClick={handleImportSettings}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
@@ -654,6 +675,8 @@ function DataTab() {
             confirmLabel="Confirm reset?"
             onConfirm={handleResetDefaults}
             icon={<ArrowCounterClockwiseIcon size={12} />}
+            successMessage="Settings reset to defaults"
+            errorMessage="Failed to reset settings"
           />
         </div>
       </div>
@@ -676,70 +699,19 @@ export function SettingsPanel() {
   const open = useUiStore((s) => s.settingsPanelOpen)
   const setOpen = useUiStore((s) => s.setSettingsPanelOpen)
   const [activeTab, setActiveTab] = useState<TabId>('general')
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [open, setOpen])
 
   if (!open) return null
 
   return (
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setOpen(false)
-      }}
-    >
-      <div
-        ref={panelRef}
-        className="animate-fade-in w-full max-w-lg rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2 className="font-mono text-sm text-[var(--color-accent)]">Settings</h2>
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="Close settings"
-            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-          >
-            <XIcon size={16} />
-          </button>
-        </div>
-
-        {/* Tab bar */}
-        <div className="flex border-b border-[var(--color-border)]">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]'
-                  : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
-          {activeTab === 'general' && <GeneralTab />}
-          {activeTab === 'editor' && <EditorTab />}
-          {activeTab === 'data' && <DataTab />}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-2.5">
+    <Dialog
+      title="Settings"
+      onClose={() => setOpen(false)}
+      closeLabel="Close settings"
+      className="w-full max-w-lg"
+      bodyClassName="p-0"
+      titleClassName="text-[var(--color-accent)]"
+      footer={
+        <div className="flex w-full items-center justify-between">
           <span className="text-[10px] text-[var(--color-text-muted)]">
             {TOOLS.length} tools loaded
           </span>
@@ -747,7 +719,33 @@ export function SettingsPanel() {
             Changes saved automatically
           </span>
         </div>
+      }
+    >
+      {/* Tab bar */}
+      <div className="flex border-b border-[var(--color-border)]">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+              activeTab === tab.id
+                ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]'
+                : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
       </div>
-    </div>
+
+      {/* Tab content */}
+      <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
+        {activeTab === 'general' && <GeneralTab />}
+        {activeTab === 'editor' && <EditorTab />}
+        {activeTab === 'data' && <DataTab />}
+      </div>
+    </Dialog>
   )
 }
