@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type Fuse from 'fuse.js'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
@@ -51,15 +51,16 @@ const NOTE_COLORS: NoteColor[] = [
   'gray',
 ]
 
-const COLOR_MAP: Record<NoteColor, string> = {
-  yellow: 'bg-yellow-500/10 border-yellow-500/20',
-  green: 'bg-green-500/10 border-green-500/20',
-  blue: 'bg-blue-500/10 border-blue-500/20',
-  pink: 'bg-pink-500/10 border-pink-500/20',
-  purple: 'bg-purple-500/10 border-purple-500/20',
-  orange: 'bg-orange-500/10 border-orange-500/20',
-  red: 'bg-red-500/10 border-red-500/20',
-  gray: 'bg-gray-500/10 border-gray-500/20',
+function noteColorVar(color: NoteColor): string {
+  return `var(--note-${color})`
+}
+
+function noteCardStyle(color: NoteColor): CSSProperties {
+  const token = noteColorVar(color)
+  return {
+    backgroundColor: `color-mix(in srgb, ${token} 10%, var(--color-surface))`,
+    borderColor: `color-mix(in srgb, ${token} 28%, var(--color-border))`,
+  }
 }
 
 function MarkdownRenderer({ content }: { content: string }) {
@@ -83,26 +84,35 @@ function NoteEditor({
   onDone,
 }: {
   note: NoteType
-  onUpdate: (id: string, patch: Partial<NoteType>) => void
+  onUpdate: (id: string, patch: Partial<NoteType>) => void | Promise<void>
   onDone: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [tagInput, setTagInput] = useState('')
 
+  const applyUpdate = useCallback(
+    (patch: Partial<NoteType>) => {
+      void Promise.resolve(onUpdate(note.id, patch)).catch(() => {
+        // The persisted notes store already raises the user-facing toast.
+      })
+    },
+    [note.id, onUpdate]
+  )
+
   const handleAddTag = useCallback(() => {
     const tag = tagInput.trim().toLowerCase()
     if (tag && !note.tags.includes(tag)) {
-      onUpdate(note.id, { tags: [...note.tags, tag] })
+      applyUpdate({ tags: [...note.tags, tag] })
     }
     setTagInput('')
-  }, [tagInput, note.id, note.tags, onUpdate])
+  }, [applyUpdate, tagInput, note.tags])
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      onUpdate(note.id, { tags: note.tags.filter((t) => t !== tag) })
+      applyUpdate({ tags: note.tags.filter((t) => t !== tag) })
     },
-    [note.id, note.tags, onUpdate]
+    [applyUpdate, note.tags]
   )
 
   const autoGrow = useCallback(() => {
@@ -130,7 +140,7 @@ function NoteEditor({
     <div ref={containerRef} className="flex min-w-0 flex-col gap-1 overflow-hidden">
       <input
         value={note.title}
-        onChange={(e) => onUpdate(note.id, { title: e.target.value })}
+        onChange={(e) => applyUpdate({ title: e.target.value })}
         placeholder="Title"
         className="w-full bg-transparent text-xs font-bold text-[var(--color-text)] outline-none"
         autoFocus
@@ -139,7 +149,7 @@ function NoteEditor({
         ref={textareaRef}
         value={note.content}
         onChange={(e) => {
-          onUpdate(note.id, { content: e.target.value })
+          applyUpdate({ content: e.target.value })
           autoGrow()
         }}
         onInput={autoGrow}
@@ -156,8 +166,13 @@ function NoteEditor({
             className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]"
           >
             {tag}
-            <button onClick={() => handleRemoveTag(tag)} className="hover:text-[var(--color-text)]">
-              <XIcon size={10} />
+            <button
+              type="button"
+              onClick={() => handleRemoveTag(tag)}
+              aria-label={`Remove ${tag} tag`}
+              className="inline-flex min-h-5 min-w-5 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            >
+              <XIcon size={10} aria-hidden="true" />
             </button>
           </span>
         ))}
@@ -177,14 +192,22 @@ function NoteEditor({
           {NOTE_COLORS.map((c) => (
             <button
               key={c}
-              onClick={() => onUpdate(note.id, { color: c })}
-              className={`h-3 w-3 rounded-full border ${note.color === c ? 'ring-2 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}
-              style={{ backgroundColor: `var(--note-${c}, ${c === 'gray' ? '#666' : c})` }}
+              type="button"
+              onClick={() => applyUpdate({ color: c })}
+              aria-label={`Set note color to ${c}`}
+              aria-pressed={note.color === c}
+              className={`min-h-6 min-w-6 rounded-full border transition-transform duration-150 hover:scale-110 ${
+                note.color === c
+                  ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]'
+                  : 'border-[var(--color-border)]'
+              }`}
+              style={{ backgroundColor: noteColorVar(c) }}
               title={c}
             />
           ))}
         </div>
         <button
+          type="button"
           onClick={onDone}
           className="rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
         >
@@ -277,15 +300,23 @@ export function NotesDrawer() {
   }, [historyEntries, historyFilter])
 
   const handleAddNote = useCallback(async () => {
-    const note = await addNote('New note', '', 'yellow')
-    setEditingId(note.id)
-    setLastAction('Note created', 'success')
+    try {
+      const note = await addNote('New note', '', 'yellow')
+      setEditingId(note.id)
+      setLastAction('Note created', 'success')
+    } catch {
+      setLastAction('Failed to create note', 'error')
+    }
   }, [addNote, setLastAction])
 
   const handleDelete = useCallback(
     async (id: string) => {
-      await removeNote(id)
-      setLastAction('Note deleted', 'info')
+      try {
+        await removeNote(id)
+        setLastAction('Note deleted', 'info')
+      } catch {
+        setLastAction('Failed to delete note', 'error')
+      }
     },
     [removeNote, setLastAction]
   )
@@ -308,6 +339,9 @@ export function NotesDrawer() {
       {/* Drag handle — sits on the left edge */}
       <div
         onMouseDown={handleDragStart}
+        role="separator"
+        aria-label="Resize notes drawer"
+        aria-orientation="vertical"
         className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 transition-colors"
         title="Drag to resize"
       />
@@ -325,7 +359,10 @@ export function NotesDrawer() {
               className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
             />
             <button
-              onClick={handleAddNote}
+              type="button"
+              onClick={() => {
+                void handleAddNote()
+              }}
               aria-label="New note"
               className="rounded border border-[var(--color-accent)] px-2 py-1 font-mono text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
             >
@@ -343,7 +380,8 @@ export function NotesDrawer() {
             {filteredNotes.map((note) => (
               <div
                 key={note.id}
-                className={`mb-3 rounded-lg border shadow-sm transition-colors duration-150 ${COLOR_MAP[note.color] ?? 'bg-[var(--color-surface)] border-[var(--color-border)]'} ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
+                className={`mb-3 rounded-lg border shadow-sm transition-colors duration-150 ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
+                style={noteCardStyle(note.color)}
               >
                 <div className="p-3">
                   {editingId === note.id ? (
@@ -358,48 +396,65 @@ export function NotesDrawer() {
                         <span className="truncate text-xs font-bold text-[var(--color-text)]">
                           {note.title || 'Untitled'}
                         </span>
-                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              navigator.clipboard.writeText(note.content)
-                              setLastAction('Copied to clipboard', 'info')
+                              navigator.clipboard
+                                .writeText(note.content)
+                                .then(() => setLastAction('Copied to clipboard', 'info'))
+                                .catch(() => setLastAction('Failed to copy note', 'error'))
                             }}
-                            className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                            aria-label={`Copy ${note.title || 'untitled note'} content`}
+                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Copy content"
                           >
-                            <CopyIcon size={12} />
+                            <CopyIcon size={12} aria-hidden="true" />
                           </button>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation()
                               setPendingSendTo(note.content)
                               setLastAction('Ready to send to tool', 'info')
                             }}
-                            className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                            aria-label={`Use ${note.title || 'untitled note'} as input`}
+                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
                             title="Use as input"
                           >
-                            <PaperPlaneTiltIcon size={12} />
+                            <PaperPlaneTiltIcon size={12} aria-hidden="true" />
                           </button>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              updateNote(note.id, { pinned: !note.pinned })
+                              void updateNote(note.id, { pinned: !note.pinned }).catch(() =>
+                                setLastAction('Failed to update note', 'error')
+                              )
                             }}
-                            className={`rounded p-1 transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+                            aria-label={`${note.pinned ? 'Unpin' : 'Pin'} ${note.title || 'untitled note'}`}
+                            aria-pressed={note.pinned}
+                            className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}`}
                             title={note.pinned ? 'Unpin' : 'Pin'}
                           >
-                            <PushPinIcon size={12} weight={note.pinned ? 'fill' : 'regular'} />
+                            <PushPinIcon
+                              size={12}
+                              weight={note.pinned ? 'fill' : 'regular'}
+                              aria-hidden="true"
+                            />
                           </button>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleDelete(note.id)
+                              void handleDelete(note.id)
                             }}
-                            className="rounded p-1 text-[var(--color-text-muted)] transition-colors duration-150 hover:text-[var(--color-error)]"
+                            aria-label={`Delete ${note.title || 'untitled note'}`}
+                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
                             title="Delete note"
                           >
-                            <TrashIcon size={12} />
+                            <TrashIcon size={12} aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -417,7 +472,7 @@ export function NotesDrawer() {
                               key={tag}
                               className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]"
                             >
-                              <TagIcon size={8} />
+                              <TagIcon size={8} aria-hidden="true" />
                               {tag}
                             </span>
                           ))}
