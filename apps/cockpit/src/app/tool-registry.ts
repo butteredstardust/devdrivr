@@ -7,6 +7,7 @@ import {
   BookOpenTextIcon,
   BracketsAngleIcon,
   BracketsCurlyIcon,
+  ChatCircleTextIcon,
   ClockIcon,
   CodeBlockIcon,
   FileCssIcon,
@@ -62,6 +63,7 @@ const DocsBrowser = lazy(() => import('@/tools/docs-browser/DocsBrowser'))
 const SnippetsManager = lazy(() => import('@/tools/snippets/SnippetsManager'))
 const CsvTools = lazy(() => import('@/tools/csv-tools/CsvTools'))
 const ImageTool = lazy(() => import('@/tools/image-tool/ImageTool'))
+const PromptTemplates = lazy(() => import('@/tools/prompt-templates/PromptTemplates'))
 
 const toolIcon = (Icon: Icon) => createElement(Icon, { size: 16, weight: 'regular' })
 
@@ -308,6 +310,14 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(ScissorsIcon),
     description: 'Manage snippets with favorites, tag filters, sort, duplicate, and download',
     component: SnippetsManager,
+  },
+  {
+    id: 'prompt-templates',
+    name: 'Prompt Templates',
+    group: 'write',
+    icon: toolIcon(ChatCircleTextIcon),
+    description: 'Fill curated AI prompt templates with variables, preview tokens, and copy',
+    component: PromptTemplates,
   },
 ]
 
