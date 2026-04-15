@@ -103,12 +103,13 @@ describe('CommandPalette', () => {
   it('supports Home, End, and wraparound arrow navigation', () => {
     render(<CommandPalette />)
     const input = screen.getByRole('combobox')
+    const lastOption = () => {
+      const options = screen.getAllByRole('option')
+      return options[options.length - 1]!
+    }
 
     fireEvent.keyDown(input, { key: 'ArrowUp' })
-    expect(screen.getByRole('option', { name: /Snippets/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    expect(lastOption()).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.keyDown(input, { key: 'Home' })
     expect(screen.getByRole('option', { name: /Code Formatter/ })).toHaveAttribute(
@@ -117,10 +118,7 @@ describe('CommandPalette', () => {
     )
 
     fireEvent.keyDown(input, { key: 'End' })
-    expect(screen.getByRole('option', { name: /Snippets/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    expect(lastOption()).toHaveAttribute('aria-selected', 'true')
   })
 
   it('does not persist always-on-top when the window pin call fails', async () => {
