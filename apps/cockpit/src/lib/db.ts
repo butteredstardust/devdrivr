@@ -6,6 +6,7 @@ import type {
   ApiEnvironment,
   ApiCollection,
   ApiRequest,
+  PromptTemplate,
 } from '@/types/models'
 import {
   noteRowSchema,
@@ -14,6 +15,7 @@ import {
   apiEnvironmentRowSchema,
   apiCollectionRowSchema,
   apiRequestRowSchema,
+  promptTemplateRowSchema,
 } from '@/lib/schemas'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
@@ -194,6 +196,97 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
 export async function deleteSnippet(id: string): Promise<void> {
   const conn = await getDb()
   await conn.execute('DELETE FROM snippets WHERE id = $1', [id])
+}
+
+// --- Prompt Templates ---
+
+type PromptTemplateRow = {
+  id: string
+  name: string
+  description: string
+  category: string
+  tags: string
+  prompt: string
+  variables_schema: string
+  estimated_tokens: number
+  optimized_for: string
+  version: string
+  tips: string
+  created_at: number
+  updated_at: number
+}
+
+function rowToPromptTemplate(row: PromptTemplateRow): PromptTemplate | null {
+  const result = promptTemplateRowSchema.safeParse(row)
+  if (!result.success) {
+    console.warn('[db] rowToPromptTemplate: invalid row, skipping', result.error.issues)
+    return null
+  }
+  return result.data
+}
+
+export async function loadUserPromptTemplates(): Promise<PromptTemplate[]> {
+  const conn = await getDb()
+  const rows = await conn.select<PromptTemplateRow[]>(
+    'SELECT * FROM user_prompt_templates ORDER BY updated_at DESC'
+  )
+  return rows
+    .map(rowToPromptTemplate)
+    .filter((template): template is PromptTemplate => template !== null)
+}
+
+async function executeSaveUserPromptTemplate(
+  conn: Database,
+  template: PromptTemplate
+): Promise<void> {
+  await conn.execute(
+    `INSERT INTO user_prompt_templates
+      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, version, tips, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     ON CONFLICT(id) DO UPDATE SET
+      name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
+      estimated_tokens=$8, optimized_for=$9, version=$10, tips=$11, updated_at=$13`,
+    [
+      template.id,
+      template.name,
+      template.description,
+      template.category,
+      JSON.stringify(template.tags),
+      template.prompt,
+      JSON.stringify(template.variables),
+      template.estimatedTokens,
+      template.optimizedFor,
+      template.version,
+      JSON.stringify(template.tips ?? []),
+      template.createdAt ?? Date.now(),
+      template.updatedAt ?? Date.now(),
+    ]
+  )
+}
+
+export async function saveUserPromptTemplate(template: PromptTemplate): Promise<void> {
+  const conn = await getDb()
+  await executeSaveUserPromptTemplate(conn, template)
+}
+
+export async function saveUserPromptTemplates(templates: PromptTemplate[]): Promise<void> {
+  if (templates.length === 0) return
+  const conn = await getDb()
+  await conn.execute('BEGIN TRANSACTION')
+  try {
+    for (const template of templates) {
+      await executeSaveUserPromptTemplate(conn, template)
+    }
+    await conn.execute('COMMIT')
+  } catch (err) {
+    await conn.execute('ROLLBACK')
+    throw err
+  }
+}
+
+export async function deleteUserPromptTemplate(id: string): Promise<void> {
+  const conn = await getDb()
+  await conn.execute('DELETE FROM user_prompt_templates WHERE id = $1', [id])
 }
 
 // --- History ---

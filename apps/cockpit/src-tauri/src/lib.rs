@@ -41,6 +41,12 @@ pub fn run() {
             sql: include_str!("../migrations/005_snippets_folder.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "add user prompt templates table",
+            sql: include_str!("../migrations/006_prompt_templates.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

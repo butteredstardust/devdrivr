@@ -9,19 +9,25 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
+import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import { BUILTIN_PROMPT_TEMPLATES, CATEGORY_LABELS } from './builtin-templates'
+import { parsePromptTemplateImport, serializePromptTemplateExport } from './template-import'
 import {
   estimateTokens,
   mergeDefaultValues,
   missingRequiredVariables,
   renderPrompt,
+  syncVariablesToPrompt,
   templateSearchText,
+  templateToDraft,
   tokenTone,
+  type PromptTemplateDraft,
 } from './template-utils'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
+  PromptTemplateVariableType,
   PromptTemplateValues,
   TokenTone,
 } from './types'
@@ -56,17 +62,17 @@ function tokenClass(tone: TokenTone): string {
   return 'border-[var(--color-success)] text-[var(--color-success)]'
 }
 
-function categoryCount(category: CategoryFilter): number {
-  if (category === 'all') return BUILTIN_PROMPT_TEMPLATES.length
-  return BUILTIN_PROMPT_TEMPLATES.filter((template) => template.category === category).length
+function categoryCount(category: CategoryFilter, templates: PromptTemplate[]): number {
+  if (category === 'all') return templates.length
+  return templates.filter((template) => template.category === category).length
 }
 
-function getTemplateById(id: string): PromptTemplate {
-  const fallbackTemplate = BUILTIN_PROMPT_TEMPLATES[0]
+function getTemplateById(id: string, templates: PromptTemplate[]): PromptTemplate {
+  const fallbackTemplate = templates[0]
   if (!fallbackTemplate) {
     throw new Error('No prompt templates configured')
   }
-  return BUILTIN_PROMPT_TEMPLATES.find((template) => template.id === id) ?? fallbackTemplate
+  return templates.find((template) => template.id === id) ?? fallbackTemplate
 }
 
 type VariableFormProps = {
@@ -312,13 +318,436 @@ function QuickFillModal({
   )
 }
 
+type TemplateEditorModalProps = {
+  mode: 'create' | 'edit' | 'duplicate'
+  sourceTemplate?: PromptTemplate
+  onClose: () => void
+  onSave: (draft: PromptTemplateDraft) => Promise<void>
+}
+
+const OPTIMIZED_FOR_OPTIONS: PromptTemplate['optimizedFor'][] = [
+  'Claude',
+  'ChatGPT',
+  'Cursor',
+  'Generic',
+]
+
+const VARIABLE_TYPE_OPTIONS: PromptTemplateVariableType[] = ['text', 'textarea', 'select']
+
+function splitList(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function joinList(value: string[]): string {
+  return value.join(', ')
+}
+
+function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: TemplateEditorModalProps) {
+  const [draft, setDraft] = useState<PromptTemplateDraft>(() => templateToDraft(sourceTemplate))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const firstInputRef = useRef<HTMLInputElement>(null)
+  const onCloseRef = useRef(onClose)
+  const onSaveRef = useRef(onSave)
+  const submitRef = useRef<(() => Promise<void>) | null>(null)
+
+  onCloseRef.current = onClose
+  onSaveRef.current = onSave
+
+  const submit = useCallback(async () => {
+    if (!draft.name.trim()) {
+      setError('Name is required')
+      return
+    }
+    if (!draft.prompt.trim()) {
+      setError('Prompt body is required')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSaveRef.current({
+        ...draft,
+        estimatedTokens: estimateTokens(draft.prompt),
+        variables: syncVariablesToPrompt(draft.prompt, draft.variables),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save template')
+    } finally {
+      setSaving(false)
+    }
+  }, [draft])
+  submitRef.current = submit
+
+  useEffect(() => {
+    const previousActive =
+      document.activeElement && 'focus' in document.activeElement
+        ? (document.activeElement as { focus: () => void })
+        : null
+    setTimeout(() => firstInputRef.current?.focus(), 0)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault()
+        void submitRef.current?.()
+      }
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          modalRef.current?.querySelectorAll<HTMLElement>(
+            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          ) ?? []
+        ).filter((element) => !element.hasAttribute('disabled'))
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (!first || !last) {
+          event.preventDefault()
+          return
+        }
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        } else if (!modalRef.current?.contains(document.activeElement)) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      previousActive?.focus()
+    }
+  }, [])
+
+  const title =
+    mode === 'edit'
+      ? 'Edit Prompt Template'
+      : mode === 'duplicate'
+        ? 'Duplicate Template'
+        : 'Create Template'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/80 p-6"
+      role="presentation"
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prompt-template-editor-title"
+        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)]"
+      >
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
+          <div>
+            <h2
+              id="prompt-template-editor-title"
+              className="text-sm font-bold text-[var(--color-text)]"
+            >
+              {title}
+            </h2>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Use placeholders like {'{{code}}'}. Variables are synced automatically.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            aria-label="Close template editor"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden">
+          <div className="min-h-0 overflow-auto border-r border-[var(--color-border)] p-4">
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Name
+                </span>
+                <Input
+                  ref={firstInputRef}
+                  value={draft.name}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  className="w-full"
+                  aria-label="Template name"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Description
+                </span>
+                <textarea
+                  value={draft.description}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, description: event.target.value }))
+                  }
+                  rows={3}
+                  aria-label="Template description"
+                  className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    Category
+                  </span>
+                  <Select
+                    value={draft.category}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        category: event.target.value as PromptTemplateCategory,
+                      }))
+                    }
+                    className="w-full"
+                    aria-label="Template category"
+                  >
+                    {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    Optimized For
+                  </span>
+                  <Select
+                    value={draft.optimizedFor}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        optimizedFor: event.target.value as PromptTemplate['optimizedFor'],
+                      }))
+                    }
+                    className="w-full"
+                    aria-label="Optimized for"
+                  >
+                    {OPTIMIZED_FOR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Tags
+                </span>
+                <Input
+                  value={joinList(draft.tags)}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, tags: splitList(event.target.value) }))
+                  }
+                  placeholder="testing, typescript, review"
+                  className="w-full"
+                  aria-label="Template tags"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Tips
+                </span>
+                <Input
+                  value={joinList(draft.tips)}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, tips: splitList(event.target.value) }))
+                  }
+                  placeholder="Include surrounding code, paste logs with timestamps"
+                  className="w-full"
+                  aria-label="Template tips"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-col overflow-hidden">
+            <label className="flex min-h-0 flex-1 flex-col">
+              <span className="border-b border-[var(--color-border)] px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                Prompt Body
+              </span>
+              <textarea
+                value={draft.prompt}
+                onChange={(event) => {
+                  const prompt = event.target.value
+                  setDraft((current) => ({
+                    ...current,
+                    prompt,
+                    variables: syncVariablesToPrompt(prompt, current.variables),
+                    estimatedTokens: estimateTokens(prompt),
+                  }))
+                }}
+                aria-label="Prompt body"
+                className="min-h-0 flex-1 resize-none bg-[var(--color-bg)] p-4 font-mono text-xs leading-5 text-[var(--color-text)] outline-none"
+              />
+            </label>
+            <div className="max-h-56 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <span>Variables</span>
+                <span>{draft.variables.length}</span>
+              </div>
+              <div className="space-y-2">
+                {draft.variables.map((variable) => (
+                  <div
+                    key={variable.name}
+                    className="grid grid-cols-[1fr_7rem_5rem] items-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2"
+                  >
+                    <div>
+                      <div className="font-mono text-xs text-[var(--color-text)]">
+                        {'{{'}
+                        {variable.name}
+                        {'}}'}
+                      </div>
+                      <Input
+                        value={variable.label}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            variables: current.variables.map((item) =>
+                              item.name === variable.name
+                                ? { ...item, label: event.target.value }
+                                : item
+                            ),
+                          }))
+                        }
+                        aria-label={`${variable.name} label`}
+                        className="mt-1 w-full"
+                      />
+                    </div>
+                    <Select
+                      value={variable.type}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          variables: current.variables.map((item) =>
+                            item.name === variable.name
+                              ? {
+                                  ...item,
+                                  type: event.target.value as PromptTemplateVariableType,
+                                  ...(event.target.value === 'select' &&
+                                  (!item.options || item.options.length === 0)
+                                    ? { options: ['Option'] }
+                                    : {}),
+                                }
+                              : item
+                          ),
+                        }))
+                      }
+                      aria-label={`${variable.name} type`}
+                    >
+                      {VARIABLE_TYPE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </Select>
+                    <label className="flex items-center justify-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+                      <input
+                        type="checkbox"
+                        checked={variable.required ?? false}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            variables: current.variables.map((item) =>
+                              item.name === variable.name
+                                ? { ...item, required: event.target.checked }
+                                : item
+                            ),
+                          }))
+                        }
+                      />
+                      Req
+                    </label>
+                    {variable.type === 'select' && (
+                      <label className="col-span-3 block">
+                        <span className="mb-1 block font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                          Options
+                        </span>
+                        <Input
+                          value={joinList(variable.options ?? [])}
+                          onChange={(event) =>
+                            setDraft((current) => ({
+                              ...current,
+                              variables: current.variables.map((item) =>
+                                item.name === variable.name
+                                  ? { ...item, options: splitList(event.target.value) }
+                                  : item
+                              ),
+                            }))
+                          }
+                          placeholder="TypeScript, Python, Go"
+                          aria-label={`${variable.name} options`}
+                          className="w-full"
+                        />
+                      </label>
+                    )}
+                  </div>
+                ))}
+                {draft.variables.length === 0 && (
+                  <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-xs text-[var(--color-text-muted)]">
+                    Add placeholders like {'{{context}}'} to create variables.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
+          <div className="text-xs text-[var(--color-error)]">{error}</div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => void submit()} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Template'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PromptTemplates() {
   const [state, updateState] = useToolState<PromptTemplatesState>('prompt-templates', DEFAULT_STATE)
+  const userTemplates = usePromptTemplatesStore((s) => s.userTemplates)
+  const savingTemplates = usePromptTemplatesStore((s) => s.saving)
+  const createTemplate = usePromptTemplatesStore((s) => s.create)
+  const updateTemplate = usePromptTemplatesStore((s) => s.update)
+  const removeTemplate = usePromptTemplatesStore((s) => s.remove)
+  const importTemplates = usePromptTemplatesStore((s) => s.importMany)
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editorState, setEditorState] = useState<{
+    mode: 'create' | 'edit' | 'duplicate'
+    template?: PromptTemplate
+  } | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const selectedTemplate = getTemplateById(state.selectedId)
+  const allTemplates = useMemo(
+    () => [...BUILTIN_PROMPT_TEMPLATES, ...userTemplates],
+    [userTemplates]
+  )
+  const selectedTemplate = getTemplateById(state.selectedId, allTemplates)
   const selectedValues = useMemo(
     () => mergeDefaultValues(selectedTemplate, state.inputsByTemplate[selectedTemplate.id]),
     [selectedTemplate, state.inputsByTemplate]
@@ -335,12 +764,12 @@ export default function PromptTemplates() {
 
   const filteredTemplates = useMemo(() => {
     const query = state.search.trim().toLowerCase()
-    return BUILTIN_PROMPT_TEMPLATES.filter((template) => {
+    return allTemplates.filter((template) => {
       const matchesCategory = state.category === 'all' || template.category === state.category
       const matchesSearch = !query || templateSearchText(template).includes(query)
       return matchesCategory && matchesSearch
     })
-  }, [state.category, state.search])
+  }, [allTemplates, state.category, state.search])
 
   const selectTemplate = useCallback(
     (template: PromptTemplate) => {
@@ -384,6 +813,64 @@ export default function PromptTemplates() {
     }
   }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction])
 
+  const handleSaveEditor = useCallback(
+    async (draft: PromptTemplateDraft) => {
+      if (editorState?.mode === 'edit' && editorState.template?.author === 'user') {
+        const updated = await updateTemplate(editorState.template.id, draft)
+        if (updated) {
+          updateState({ selectedId: updated.id })
+          setLastAction('Prompt template updated', 'success')
+        }
+      } else {
+        const created = await createTemplate(draft)
+        updateState({ selectedId: created.id })
+        setLastAction('Prompt template saved', 'success')
+      }
+      setEditorState(null)
+    },
+    [createTemplate, editorState, setLastAction, updateState, updateTemplate]
+  )
+
+  const handleDeleteTemplate = useCallback(async () => {
+    if (selectedTemplate.author !== 'user') {
+      setLastAction('Built-in templates cannot be deleted', 'error')
+      return
+    }
+    if (confirmDeleteId !== selectedTemplate.id) {
+      setConfirmDeleteId(selectedTemplate.id)
+      setLastAction('Press delete again to confirm', 'info')
+      return
+    }
+    await removeTemplate(selectedTemplate.id)
+    setConfirmDeleteId(null)
+    updateState({ selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '' })
+    setLastAction('Prompt template deleted', 'info')
+  }, [confirmDeleteId, removeTemplate, selectedTemplate, setLastAction, updateState])
+
+  const handleExport = useCallback(async () => {
+    try {
+      const exportDrafts = userTemplates.map((template) => templateToDraft(template))
+      await navigator.clipboard.writeText(serializePromptTemplateExport(exportDrafts))
+      setLastAction(`Exported ${exportDrafts.length} prompt templates`, 'success')
+    } catch {
+      setLastAction('Export failed — clipboard unavailable', 'error')
+    }
+  }, [setLastAction, userTemplates])
+
+  const handleImport = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const drafts = parsePromptTemplateImport(text)
+      const imported = await importTemplates(drafts)
+      if (imported[0]) {
+        updateState({ selectedId: imported[0].id })
+      }
+      setLastAction(`Imported ${imported.length} prompt template(s)`, 'success')
+    } catch (err) {
+      setLastAction(err instanceof Error ? err.message : 'Import failed', 'error')
+    }
+  }, [importTemplates, setLastAction, updateState])
+
   useToolAction((action) => {
     if (action.type === 'copy-output') {
       void copyRenderedPrompt()
@@ -395,7 +882,31 @@ export default function PromptTemplates() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (modalOpen) return
+      if (modalOpen || editorState) return
+      if (event.key === 'F5') {
+        event.preventDefault()
+        setEditorState({ mode: 'create' })
+      }
+      if (event.key === 'F6') {
+        event.preventDefault()
+        setEditorState({ mode: 'duplicate', template: selectedTemplate })
+      }
+      if (event.key === 'F7' && selectedTemplate.author === 'user') {
+        event.preventDefault()
+        setEditorState({ mode: 'edit', template: selectedTemplate })
+      }
+      if (event.key === 'F8' && selectedTemplate.author === 'user') {
+        event.preventDefault()
+        void handleDeleteTemplate()
+      }
+      if (event.key === 'F9') {
+        event.preventDefault()
+        void handleExport()
+      }
+      if (event.key === 'F10') {
+        event.preventDefault()
+        void handleImport()
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault()
         searchRef.current?.focus()
@@ -407,7 +918,15 @@ export default function PromptTemplates() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [copyRenderedPrompt, modalOpen])
+  }, [
+    copyRenderedPrompt,
+    editorState,
+    handleDeleteTemplate,
+    handleExport,
+    handleImport,
+    modalOpen,
+    selectedTemplate,
+  ])
 
   return (
     <div className="grid h-full grid-cols-[18rem_minmax(26rem,1fr)_minmax(22rem,0.9fr)] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
@@ -445,7 +964,9 @@ export default function PromptTemplates() {
                 }`}
               >
                 {filter.label}{' '}
-                <span className="font-mono text-[10px]">{categoryCount(filter.id)}</span>
+                <span className="font-mono text-[10px]">
+                  {categoryCount(filter.id, allTemplates)}
+                </span>
               </button>
             ))}
           </div>
@@ -485,7 +1006,8 @@ export default function PromptTemplates() {
                     selected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-accent)]'
                   }`}
                 >
-                  {CATEGORY_LABELS[template.category]} / {template.optimizedFor}
+                  {CATEGORY_LABELS[template.category]} / {template.optimizedFor} /{' '}
+                  {template.author === 'user' ? 'CUSTOM' : 'BUILT-IN'}
                 </span>
               </button>
             )
@@ -497,7 +1019,8 @@ export default function PromptTemplates() {
           )}
         </div>
         <div className="border-t border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
-          {filteredTemplates.length} shown / {BUILTIN_PROMPT_TEMPLATES.length} built in
+          {filteredTemplates.length} shown / {BUILTIN_PROMPT_TEMPLATES.length} built in /{' '}
+          {userTemplates.length} custom
         </div>
       </div>
 
@@ -516,9 +1039,33 @@ export default function PromptTemplates() {
                 {selectedTemplate.description}
               </p>
             </div>
-            <Button size="sm" variant="primary" onClick={() => setModalOpen(true)}>
-              Quick Fill
-            </Button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditorState({ mode: 'create' })}
+              >
+                New
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
+              >
+                Duplicate
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={selectedTemplate.author !== 'user'}
+                onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+              >
+                Edit
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => setModalOpen(true)}>
+                Quick Fill
+              </Button>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1">
             {selectedTemplate.tags.map((tag) => (
@@ -555,6 +1102,62 @@ export default function PromptTemplates() {
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => setEditorState({ mode: 'create' })}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+          >
+            [F5: NEW]
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+          >
+            [F6: DUP]
+          </button>
+          <button
+            type="button"
+            disabled={selectedTemplate.author !== 'user'}
+            onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+            className={`rounded px-2 py-0.5 transition-colors ${
+              selectedTemplate.author === 'user'
+                ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]'
+                : 'cursor-not-allowed opacity-30'
+            }`}
+          >
+            [F7: EDIT]
+          </button>
+          <button
+            type="button"
+            disabled={selectedTemplate.author !== 'user'}
+            onClick={() => void handleDeleteTemplate()}
+            className={`rounded px-2 py-0.5 transition-colors ${
+              selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
+                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)]'
+                : selectedTemplate.author === 'user'
+                  ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]'
+                  : 'cursor-not-allowed opacity-30'
+            }`}
+          >
+            {selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
+              ? '[CONFIRM?]'
+              : '[F8: DEL]'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleExport()}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+          >
+            [F9: EXP]
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleImport()}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+          >
+            [F10: IMP]
+          </button>
+          <button
+            type="button"
             onClick={() => setModalOpen(true)}
             className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
@@ -576,8 +1179,10 @@ export default function PromptTemplates() {
           </button>
         </div>
         <div className="ml-auto flex items-center gap-3 text-[var(--color-text-muted)]">
+          {savingTemplates && <span className="text-[var(--color-accent)]">[SAVING...]</span>}
           <ClipboardTextIcon size={13} />
           <span>{CATEGORY_LABELS[selectedTemplate.category].toUpperCase()}</span>
+          <span>{selectedTemplate.author === 'user' ? 'CUSTOM' : 'BUILT-IN'}</span>
           <span>~{tokens} TOKENS</span>
         </div>
       </div>
@@ -593,6 +1198,14 @@ export default function PromptTemplates() {
         onClose={() => setModalOpen(false)}
         onCopy={() => void copyRenderedPrompt()}
       />
+      {editorState && (
+        <TemplateEditorModal
+          mode={editorState.mode}
+          {...(editorState.template ? { sourceTemplate: editorState.template } : {})}
+          onClose={() => setEditorState(null)}
+          onSave={handleSaveEditor}
+        />
+      )}
     </div>
   )
 }

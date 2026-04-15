@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
+import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore, autoDownloadUpdate } from '@/stores/updater.store'
@@ -63,6 +64,7 @@ export function Providers({ children }: { children: ReactNode }) {
       if (cancelled) return
       await useNotesStore.getState().init()
       await useSnippetsStore.getState().init()
+      await usePromptTemplatesStore.getState().init()
       await useHistoryStore.getState().init()
 
       // Restore workspace tabs (with backward-compat fallback for legacy activeTool key)
