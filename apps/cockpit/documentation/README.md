@@ -12,9 +12,10 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 6. [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines for the project
 7. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
 8. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-9. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
-10. [tools/](tools/) - Tool-specific documentation
-11. [infrastructure/](infrastructure/) - Core infrastructure documentation
+9. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
+10. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
+11. [tools/](tools/) - Tool-specific documentation
+12. [infrastructure/](infrastructure/) - Core infrastructure documentation
 
 ## Overview
 
@@ -27,6 +28,7 @@ For new developers, we recommend starting with:
 1. [QUICK_START.md](QUICK_START.md) - Get up and running quickly
 2. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive guide to using the application
 3. [CONTRIBUTING.md](CONTRIBUTING.md) - Guidelines for contributing to the project
+4. [MCP_SERVER.md](MCP_SERVER.md) - Connect CLI agents to local Cockpit data
 
 ## Development Resources
 

@@ -80,7 +80,12 @@ fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
     headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
+        .and_then(|value| {
+            let (scheme, token) = value.split_once(' ')?;
+            scheme.eq_ignore_ascii_case("bearer").then_some(token)
+        })
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
 }
 
 fn secure_eq(left: &str, right: &str) -> bool {
@@ -144,21 +149,25 @@ async fn start_server(
         return Err("MCP API key is required".to_string());
     }
 
-    let mut guard = manager.running.lock().await;
-    if guard
-        .as_ref()
-        .is_some_and(|running| running.handle.is_finished())
-    {
-        *guard = None;
-    }
-    if let Some(running) = guard.as_mut() {
-        if running.status.host == settings.host && running.status.port == settings.port {
-            *running.settings.write().await = settings.clone();
-            running.status = status_for(&settings, true, running.last_error.read().await.clone());
-            return Ok(running.status.clone());
+    let running_to_shutdown = {
+        let mut guard = manager.running.lock().await;
+        if guard
+            .as_ref()
+            .is_some_and(|running| running.handle.is_finished())
+        {
+            *guard = None;
         }
-    }
-    if let Some(running) = guard.take() {
+        if let Some(running) = guard.as_mut() {
+            if running.status.host == settings.host && running.status.port == settings.port {
+                *running.settings.write().await = settings.clone();
+                running.status =
+                    status_for(&settings, true, running.last_error.read().await.clone());
+                return Ok(running.status.clone());
+            }
+        }
+        guard.take()
+    };
+    if let Some(running) = running_to_shutdown {
         shutdown_running(running).await;
     }
 
@@ -222,13 +231,19 @@ async fn start_server(
     });
 
     let status = status_for(&settings, true, None);
-    *guard = Some(RunningMcp {
-        settings: shared_settings,
-        status: status.clone(),
-        cancellation,
-        handle,
-        last_error,
-    });
+    let running_to_shutdown = {
+        let mut guard = manager.running.lock().await;
+        guard.replace(RunningMcp {
+            settings: shared_settings,
+            status: status.clone(),
+            cancellation,
+            handle,
+            last_error,
+        })
+    };
+    if let Some(running) = running_to_shutdown {
+        shutdown_running(running).await;
+    }
     Ok(status)
 }
 
@@ -246,8 +261,11 @@ pub async fn mcp_stop(
     manager: tauri::State<'_, McpManager>,
     settings: McpSettings,
 ) -> Result<McpStatus, String> {
-    let mut guard = manager.running.lock().await;
-    if let Some(running) = guard.take() {
+    let running_to_shutdown = {
+        let mut guard = manager.running.lock().await;
+        guard.take()
+    };
+    if let Some(running) = running_to_shutdown {
         shutdown_running(running).await;
     }
     Ok(status_for(&settings, false, None))
@@ -259,11 +277,12 @@ pub async fn mcp_restart(
     manager: tauri::State<'_, McpManager>,
     settings: McpSettings,
 ) -> Result<McpStatus, String> {
-    {
+    let running_to_shutdown = {
         let mut guard = manager.running.lock().await;
-        if let Some(running) = guard.take() {
-            shutdown_running(running).await;
-        }
+        guard.take()
+    };
+    if let Some(running) = running_to_shutdown {
+        shutdown_running(running).await;
     }
     start_server(app, &manager, settings).await
 }
@@ -317,4 +336,26 @@ pub fn mcp_rotate_key() -> String {
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::header::AUTHORIZATION;
+
+    #[test]
+    fn extracts_bearer_token_case_insensitively() {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, "bearer test-token".parse().unwrap());
+
+        assert_eq!(extract_bearer_token(&headers), Some("test-token"));
+    }
+
+    #[test]
+    fn rejects_empty_bearer_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, "Bearer   ".parse().unwrap());
+
+        assert_eq!(extract_bearer_token(&headers), None);
+    }
 }
