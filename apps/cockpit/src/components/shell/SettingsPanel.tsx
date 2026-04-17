@@ -75,6 +75,9 @@ const EDITOR_THEME_OPTIONS: { value: AppSettings['editorTheme']; label: string }
   { value: 'match-app', label: 'Match App Theme' },
 ]
 
+const MIN_MCP_PORT = 1024
+const MAX_MCP_PORT = 65535
+
 const POPULAR_TIMEZONES = [
   'UTC',
   'America/New_York',
@@ -782,10 +785,21 @@ function McpTab() {
   )
 
   const applyPort = useCallback(() => {
-    const port = Math.min(65535, Math.max(1024, Number(portDraft)))
+    const trimmed = portDraft.trim()
+    if (!/^\d+$/.test(trimmed)) {
+      addToast('MCP port must be a number between 1024 and 65535', 'error')
+      return
+    }
+
+    const port = Number(trimmed)
+    if (!Number.isSafeInteger(port) || port < MIN_MCP_PORT || port > MAX_MCP_PORT) {
+      addToast('MCP port must be between 1024 and 65535', 'error')
+      return
+    }
+
     setPortDraft(String(port))
     void runAction(() => updateSettings({ port }), 'MCP port updated')
-  }, [portDraft, runAction, updateSettings])
+  }, [addToast, portDraft, runAction, updateSettings])
 
   const envCommand = `export COCKPIT_MCP_KEY=${settings.apiKey}`
   const codexCommand = `codex mcp add cockpit --url ${status.url} --bearer-token-env-var COCKPIT_MCP_KEY`
@@ -879,10 +893,12 @@ function McpTab() {
           <div className="flex items-center gap-2">
             <input
               type="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={portDraft}
               onChange={(event) => setPortDraft(event.target.value)}
-              min={1024}
-              max={65535}
+              min={MIN_MCP_PORT}
+              max={MAX_MCP_PORT}
               className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
             />
             <button

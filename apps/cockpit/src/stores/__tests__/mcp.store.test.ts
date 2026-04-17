@@ -61,4 +61,59 @@ describe('useMcpStore', () => {
       settings: state.settings,
     })
   })
+
+  it('stops the server and persists disabled autostart', async () => {
+    mocks.getSetting.mockResolvedValue(null)
+    const { useMcpStore } = await import('@/stores/mcp.store')
+
+    await useMcpStore.getState().init()
+    await useMcpStore.getState().stop()
+
+    const state = useMcpStore.getState()
+    expect(state.settings.enabled).toBe(false)
+    expect(state.pending).toBe(false)
+    expect(mocks.setSetting).toHaveBeenLastCalledWith('mcpSettings', state.settings)
+    expect(mocks.invoke).toHaveBeenLastCalledWith('mcp_stop', { settings: state.settings })
+  })
+
+  it('restarts the server and keeps autostart enabled', async () => {
+    mocks.getSetting.mockResolvedValue({ enabled: false })
+    const { useMcpStore } = await import('@/stores/mcp.store')
+
+    await useMcpStore.getState().init()
+    await useMcpStore.getState().restart()
+
+    const state = useMcpStore.getState()
+    expect(state.settings.enabled).toBe(true)
+    expect(state.pending).toBe(false)
+    expect(mocks.setSetting).toHaveBeenLastCalledWith('mcpSettings', state.settings)
+    expect(mocks.invoke).toHaveBeenLastCalledWith('mcp_restart', { settings: state.settings })
+  })
+
+  it('rotates the API key and applies settings', async () => {
+    mocks.getSetting.mockResolvedValue({ apiKey: 'old-key' })
+    const { useMcpStore } = await import('@/stores/mcp.store')
+
+    await useMcpStore.getState().init()
+    await useMcpStore.getState().rotateKey()
+
+    const state = useMcpStore.getState()
+    expect(state.settings.apiKey).not.toBe('old-key')
+    expect(state.settings.apiKey).not.toBe('')
+    expect(mocks.setSetting).toHaveBeenLastCalledWith('mcpSettings', state.settings)
+    expect(mocks.invoke).toHaveBeenLastCalledWith('mcp_apply_settings', {
+      settings: state.settings,
+    })
+  })
+
+  it('clears pending and rejects when start fails', async () => {
+    mocks.getSetting.mockResolvedValue(null)
+    const { useMcpStore } = await import('@/stores/mcp.store')
+
+    await useMcpStore.getState().init()
+    mocks.invoke.mockRejectedValueOnce(new Error('port unavailable'))
+
+    await expect(useMcpStore.getState().start()).rejects.toThrow('port unavailable')
+    expect(useMcpStore.getState().pending).toBe(false)
+  })
 })

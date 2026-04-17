@@ -16,6 +16,7 @@ use super::types::{McpDataChangedEvent, McpSettings, ResourcePermissions};
 
 type SharedSettings = Arc<RwLock<McpSettings>>;
 type McpResult = std::result::Result<CallToolResult, McpError>;
+const REDACTED_AUTH_VALUE: &str = "***REDACTED***";
 
 #[derive(Clone)]
 pub struct CockpitMcpService {
@@ -311,12 +312,17 @@ fn redacted_auth(auth: Value, expose: bool) -> Value {
         Value::Object(mut obj) => {
             match obj.get("type").and_then(Value::as_str) {
                 Some("bearer") => {
-                    obj.insert("token".to_string(), Value::String("<redacted>".to_string()));
+                    obj.insert("__cockpitRedacted".to_string(), Value::Bool(true));
+                    obj.insert(
+                        "token".to_string(),
+                        Value::String(REDACTED_AUTH_VALUE.to_string()),
+                    );
                 }
                 Some("basic") => {
+                    obj.insert("__cockpitRedacted".to_string(), Value::Bool(true));
                     obj.insert(
                         "password".to_string(),
-                        Value::String("<redacted>".to_string()),
+                        Value::String(REDACTED_AUTH_VALUE.to_string()),
                     );
                 }
                 _ => {}
@@ -325,6 +331,58 @@ fn redacted_auth(auth: Value, expose: bool) -> Value {
         }
         other => other,
     }
+}
+
+fn strip_redaction_marker(auth: Value) -> Value {
+    match auth {
+        Value::Object(mut obj) => {
+            obj.remove("__cockpitRedacted");
+            Value::Object(obj)
+        }
+        other => other,
+    }
+}
+
+fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
+    let mut incoming_obj = match incoming {
+        Value::Object(obj) => obj,
+        other => return serde_json::to_string(&other).unwrap_or_else(|_| current_auth.to_string()),
+    };
+
+    let redacted = incoming_obj
+        .remove("__cockpitRedacted")
+        .and_then(|value| value.as_bool())
+        == Some(true);
+
+    if redacted {
+        if let Ok(Value::Object(current_obj)) = serde_json::from_str::<Value>(current_auth) {
+            match incoming_obj.get("type").and_then(Value::as_str) {
+                Some("bearer")
+                    if incoming_obj
+                        .get("token")
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| value == REDACTED_AUTH_VALUE) =>
+                {
+                    if let Some(token) = current_obj.get("token") {
+                        incoming_obj.insert("token".to_string(), token.clone());
+                    }
+                }
+                Some("basic")
+                    if incoming_obj
+                        .get("password")
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| value == REDACTED_AUTH_VALUE) =>
+                {
+                    if let Some(password) = current_obj.get("password") {
+                        incoming_obj.insert("password".to_string(), password.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    serde_json::to_string(&Value::Object(incoming_obj)).unwrap_or_else(|_| current_auth.to_string())
 }
 
 fn api_request_to_json(row: ApiRequestRow, expose_auth: bool) -> Value {
@@ -836,7 +894,10 @@ impl CockpitMcpService {
         .bind(value_to_db_json(args.headers, json!([])))
         .bind(args.body.unwrap_or_default())
         .bind(args.body_mode.unwrap_or_else(|| "json".to_string()))
-        .bind(value_to_db_json(args.auth, json!({ "type": "none" })))
+        .bind(value_to_db_json(
+            args.auth.map(strip_redaction_marker),
+            json!({ "type": "none" }),
+        ))
         .bind(now)
         .bind(now)
         .execute(&self.pool)
@@ -859,17 +920,10 @@ impl CockpitMcpService {
                 .await
                 .map_err(db_error)?
                 .ok_or_else(|| not_found("API request", &args.id))?;
-        let auth = match args.auth {
-            Some(Value::Object(ref obj))
-                if obj
-                    .values()
-                    .any(|value| value.as_str() == Some("<redacted>")) =>
-            {
-                current.auth
-            }
-            Some(value) => serde_json::to_string(&value).unwrap_or(current.auth),
-            None => current.auth,
-        };
+        let auth = args
+            .auth
+            .map(|value| resolve_auth_update(value, &current.auth))
+            .unwrap_or(current.auth);
         let headers = args
             .headers
             .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
@@ -922,5 +976,50 @@ impl ServerHandler for CockpitMcpService {
             ),
             ..ServerInfo::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacted_basic_auth_preserves_only_password() {
+        let current = json!({
+            "type": "basic",
+            "username": "old-user",
+            "password": "old-password"
+        })
+        .to_string();
+        let incoming = json!({
+            "type": "basic",
+            "username": "new-user",
+            "password": REDACTED_AUTH_VALUE,
+            "__cockpitRedacted": true
+        });
+
+        let updated = parse_json(&resolve_auth_update(incoming, &current), json!({}));
+
+        assert_eq!(updated["username"], "new-user");
+        assert_eq!(updated["password"], "old-password");
+        assert_eq!(updated.get("__cockpitRedacted"), None);
+    }
+
+    #[test]
+    fn redacted_literal_without_marker_is_saved() {
+        let current = json!({
+            "type": "bearer",
+            "token": "old-token"
+        })
+        .to_string();
+        let incoming = json!({
+            "type": "bearer",
+            "token": REDACTED_AUTH_VALUE
+        });
+
+        let updated = parse_json(&resolve_auth_update(incoming, &current), json!({}));
+
+        assert_eq!(updated["token"], REDACTED_AUTH_VALUE);
+        assert_eq!(updated.get("__cockpitRedacted"), None);
     }
 }

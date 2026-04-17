@@ -83,6 +83,21 @@ fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
         .and_then(|value| value.strip_prefix("Bearer "))
 }
 
+fn secure_eq(left: &str, right: &str) -> bool {
+    let left = left.as_bytes();
+    let right = right.as_bytes();
+    let mut diff = left.len() ^ right.len();
+    let max_len = left.len().max(right.len());
+
+    for i in 0..max_len {
+        let left_byte = left.get(i).copied().unwrap_or(0);
+        let right_byte = right.get(i).copied().unwrap_or(0);
+        diff |= (left_byte ^ right_byte) as usize;
+    }
+
+    diff == 0
+}
+
 async fn auth_middleware(
     State(settings): State<SharedSettings>,
     headers: HeaderMap,
@@ -91,7 +106,7 @@ async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let expected = settings.read().await.api_key.clone();
     match extract_bearer_token(&headers) {
-        Some(token) if token == expected => Ok(next.run(request).await),
+        Some(token) if secure_eq(token, &expected) => Ok(next.run(request).await),
         _ => Err(StatusCode::UNAUTHORIZED),
     }
 }
