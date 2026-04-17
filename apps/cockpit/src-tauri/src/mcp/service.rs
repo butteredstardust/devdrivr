@@ -20,6 +20,15 @@ const REDACTED_AUTH_VALUE: &str = "***REDACTED***";
 const DEFAULT_SEARCH_LIMIT: i64 = 50;
 const MAX_SEARCH_LIMIT: i64 = 500;
 const MAX_MULTI_GET: usize = 100;
+const HELP_TOPICS: [&str; 7] = [
+    "overview",
+    "tools",
+    "workflows",
+    "permissions",
+    "errors",
+    "schema",
+    "clients",
+];
 
 #[derive(Clone)]
 pub struct CockpitMcpService {
@@ -116,6 +125,11 @@ struct MultiGetArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CountsArgs {
     types: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct HelpArgs {
+    topic: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -456,6 +470,17 @@ fn unsupported_resource_type(resource_type: &str) -> McpError {
                 "Call introspect to discover supported MCP resource types",
             ],
         )),
+    )
+}
+
+fn unknown_help_topic(topic: &str) -> McpError {
+    invalid_argument(
+        "topic",
+        format!("Unknown help topic: {topic}"),
+        &[
+            "Use one of: overview, tools, workflows, permissions, errors, schema, clients",
+            "Omit topic to get the overview help",
+        ],
     )
 }
 
@@ -912,6 +937,339 @@ fn parse_resource_types(types: Vec<String>) -> std::result::Result<Vec<ResourceT
         .map(unique_resource_types)
 }
 
+fn available_help_topics() -> Vec<&'static str> {
+    HELP_TOPICS.to_vec()
+}
+
+fn normalize_help_topic(topic: Option<&str>) -> std::result::Result<&'static str, McpError> {
+    let topic = topic
+        .map(str::trim)
+        .filter(|topic| !topic.is_empty())
+        .unwrap_or("overview")
+        .to_ascii_lowercase();
+    HELP_TOPICS
+        .iter()
+        .copied()
+        .find(|known_topic| *known_topic == topic)
+        .ok_or_else(|| unknown_help_topic(&topic))
+}
+
+fn help_payload(topic: &str, content: String) -> Value {
+    json!({
+        "topic": topic,
+        "availableTopics": available_help_topics(),
+        "content": content,
+    })
+}
+
+fn help_response(topic: &str, content: String) -> McpResult {
+    to_json_text(help_payload(topic, content))
+}
+
+fn mcp_url(settings: &McpSettings) -> String {
+    format!("http://{}:{}/mcp", settings.host, settings.port)
+}
+
+fn help_overview(settings: &McpSettings) -> String {
+    format!(
+        r#"# Cockpit MCP Overview
+
+Cockpit MCP lets CLI agents read and manage local devdrivr cockpit notes, snippets, prompt templates, and saved API client requests.
+
+Server:
+- URL: `{url}`
+- Enabled in settings: `{enabled}`
+- Authentication: `Authorization: Bearer $COCKPIT_MCP_KEY`
+
+Primary resources:
+- `notes`: markdown-compatible notes with tags and pinned state.
+- `snippets`: reusable code or text snippets with language, folder, and tags.
+- `promptTemplates`: built-in and user prompt templates with variables and tips.
+- `apiRequests`: saved API client requests. Requests are not executed by MCP.
+
+Quick start:
+- Search everything: `search({{"query":"react","limit":10}})`
+- Search tagged snippets: `search({{"types":["snippets"],"tags":["react","hooks"]}})`
+- Inspect schemas: `introspect()`
+- Count resources: `counts()`
+- Fetch selected records: `multi_get({{"ids":[{{"type":"notes","id":"..."}}]}})`
+
+Use `help({{"topic":"tools"}})` for the tool reference and `help({{"topic":"clients"}})` for CLI setup examples.
+"#,
+        url = mcp_url(settings),
+        enabled = settings.enabled
+    )
+}
+
+fn permission_for_tool(name: &str) -> &'static str {
+    let resource = if name.starts_with("notes_") {
+        "notes"
+    } else if name.starts_with("snippets_") {
+        "snippets"
+    } else if name.starts_with("prompt_templates_") {
+        "promptTemplates"
+    } else if name.starts_with("api_requests_") || name.starts_with("api_collections_") {
+        "apiRequests"
+    } else {
+        return "none";
+    };
+
+    let action = if name.ends_with("_create") {
+        "create"
+    } else if name.ends_with("_update") {
+        "update"
+    } else if name.ends_with("_delete") {
+        "delete"
+    } else {
+        "read"
+    };
+
+    match (resource, action) {
+        ("notes", "read") => "notes.read",
+        ("notes", "create") => "notes.create",
+        ("notes", "update") => "notes.update",
+        ("notes", "delete") => "notes.delete",
+        ("snippets", "read") => "snippets.read",
+        ("snippets", "create") => "snippets.create",
+        ("snippets", "update") => "snippets.update",
+        ("snippets", "delete") => "snippets.delete",
+        ("promptTemplates", "read") => "promptTemplates.read",
+        ("promptTemplates", "create") => "promptTemplates.create",
+        ("promptTemplates", "update") => "promptTemplates.update",
+        ("promptTemplates", "delete") => "promptTemplates.delete",
+        ("apiRequests", "read") => "apiRequests.read",
+        ("apiRequests", "create") => "apiRequests.create",
+        ("apiRequests", "update") => "apiRequests.update",
+        ("apiRequests", "delete") => "apiRequests.delete",
+        _ => "none",
+    }
+}
+
+fn tool_pitfall(name: &str) -> &'static str {
+    match name {
+        "search" => "Use `types` and `tags` to reduce result volume; `limit` is capped at 500.",
+        "multi_get" => "Maximum 100 IDs per call; missing IDs are returned per item instead of failing the whole call.",
+        "introspect" => "Use this for machine-readable schemas; use `help` for workflow guidance.",
+        "counts" => "Counts only returns resources allowed by current read permissions unless a denied type is explicitly requested.",
+        "help" => "The API key is never returned; copy it from Settings > MCP.",
+        "prompt_templates_delete" => "Built-in templates cannot be deleted. Update a built-in to create a user-owned copy.",
+        "api_requests_list" | "api_requests_get" => {
+            "Auth secrets are redacted unless API request secret exposure is enabled in MCP settings."
+        }
+        "api_requests_create" | "api_requests_update" => {
+            "This saves the request definition only; it does not execute the HTTP request."
+        }
+        _ => "Check required permissions and use IDs returned by search or list tools.",
+    }
+}
+
+fn schema_parameter_summary(schema: &Value) -> String {
+    let properties = schema
+        .get("properties")
+        .and_then(Value::as_object)
+        .or_else(|| {
+            schema
+                .get("$defs")
+                .and_then(Value::as_object)
+                .and_then(|defs| {
+                    defs.values()
+                        .find_map(|def| def.get("properties")?.as_object())
+                })
+        });
+    let Some(properties) = properties else {
+        return "none".to_string();
+    };
+    let required = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    let mut fields = properties
+        .keys()
+        .map(|name| {
+            if required.iter().any(|required| required == name) {
+                format!("{name} (required)")
+            } else {
+                format!("{name} (optional)")
+            }
+        })
+        .collect::<Vec<_>>();
+    fields.sort();
+    if fields.is_empty() {
+        "none".to_string()
+    } else {
+        fields.join(", ")
+    }
+}
+
+fn help_tools_from_router(tool_router: &ToolRouter<CockpitMcpService>) -> String {
+    let mut content = String::from(
+        "# Cockpit MCP Tool Reference\n\nUse `introspect()` for full machine-readable resource schemas. The list below is generated from the active MCP tool router.\n\n",
+    );
+
+    for tool in tool_router.list_all() {
+        let name = tool.name.as_ref();
+        let schema = tool.schema_as_json_value();
+        let description = tool.description.as_deref().unwrap_or("No description.");
+        content.push_str(&format!(
+            "## `{name}`\n- Description: {description}\n- Parameters: {params}\n- Required permission: `{permission}`\n- Common pitfall: {pitfall}\n\n",
+            params = schema_parameter_summary(&schema),
+            permission = permission_for_tool(name),
+            pitfall = tool_pitfall(name)
+        ));
+    }
+
+    content
+}
+
+fn help_workflows() -> String {
+    r#"# Cockpit MCP Workflows
+
+## Find React snippets tagged hooks
+1. Call `search({"types":["snippets"],"query":"react","tags":["hooks"],"limit":20})`.
+2. Use `multi_get` for the IDs that need full content.
+3. If no results appear, retry with fewer tags or use `snippets_list({"query":"react"})`.
+
+## Gather context for an agent task
+1. Call `counts()` to understand data volume.
+2. Call `search({"query":"<topic>","limit":20})`.
+3. Call `multi_get` for selected IDs.
+4. Quote IDs in any proposed update so the user can review exact targets.
+
+## Create or update resources
+1. Confirm the matching create/update permission is enabled.
+2. Use `*_create` for new records or `*_update` with an existing ID.
+3. For prompt templates, updating a built-in creates a user copy.
+4. For API requests, remember MCP saves definitions but does not execute HTTP calls.
+
+## Share prompt templates
+1. Call `prompt_templates_list({"query":"<topic>"})`.
+2. Call `prompt_templates_get` for selected IDs.
+3. On the target machine, recreate user-owned templates with `prompt_templates_create`.
+
+## Debug connection issues
+1. Verify Cockpit is open and MCP is enabled in Settings > MCP.
+2. Confirm the MCP URL and port shown by `help({"topic":"clients"})`.
+3. Export `COCKPIT_MCP_KEY` from the key shown in Settings > MCP.
+4. Restart the MCP client after changing permissions or the key.
+"#
+    .to_string()
+}
+
+fn help_permissions(settings: &McpSettings) -> String {
+    format!(
+        r#"# Cockpit MCP Permissions
+
+Default posture is read-only:
+- `notes.read`
+- `snippets.read`
+- `promptTemplates.read`
+- `apiRequests.read`
+
+Current permissions:
+```json
+{permissions}
+```
+
+Write access:
+1. Open Cockpit > Settings > MCP > Permissions.
+2. Enable create, update, or delete for the resource type.
+3. Apply settings or restart MCP.
+4. Restart the MCP client if it caches tool context.
+
+API request secrets:
+- Auth secrets are redacted by default.
+- Current `apiRequestsExposeSecrets`: `{expose_secrets}`.
+- Redacted values use `{redacted}` and include `__cockpitRedacted: true`.
+- The MCP API key itself is never returned by help or introspection.
+"#,
+        permissions = serde_json::to_string_pretty(&settings.permissions)
+            .unwrap_or_else(|_| "{}".to_string()),
+        expose_secrets = settings.api_requests_expose_secrets,
+        redacted = REDACTED_AUTH_VALUE
+    )
+}
+
+fn help_errors() -> String {
+    r#"# Cockpit MCP Error Reference
+
+- `UNAUTHORIZED`: API key missing or incorrect. Copy the key from Settings > MCP and send `Authorization: Bearer $COCKPIT_MCP_KEY`.
+- `PERMISSION_DENIED`: Current MCP permissions do not allow the action. Enable the permission in Settings > MCP > Permissions.
+- `RESOURCE_NOT_FOUND`: The ID does not exist for that resource type. Use `search`, `multi_get`, or a list tool to find current IDs.
+- `INVALID_ARGUMENT`: A parameter is invalid, such as an empty `types` array or invalid `limit`.
+- `UNSUPPORTED_RESOURCE_TYPE`: Use one of `notes`, `snippets`, `promptTemplates`, or `apiRequests`.
+- `BATCH_TOO_LARGE`: Split `multi_get` into batches of 100 IDs or fewer.
+- `DATABASE_ERROR`: Cockpit could not read or write the local SQLite database. Restart Cockpit and check logs.
+- `BUILTIN_TEMPLATE_DELETE_DENIED`: Built-in prompt templates cannot be deleted. Update one to create a user-owned copy.
+
+Most MCP errors include structured `data.code` and `data.suggestions` so agents can explain the fix without guessing.
+"#
+    .to_string()
+}
+
+fn help_schema(settings: &McpSettings) -> String {
+    format!(
+        r#"# Cockpit MCP Schema and Limits
+
+Use `introspect()` for complete resource fields, examples, permissions, and redaction metadata.
+
+Primary resource types:
+- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `tags`, `createdAt`, `updatedAt`.
+- `snippets`: fields include `id`, `title`, `content`, `language`, `folder`, `tags`, `createdAt`, `updatedAt`.
+- `promptTemplates`: fields include `id`, `name`, `prompt`, `variables`, `author`, `tags`, `estimatedTokens`, `createdAt`, `updatedAt`.
+- `apiRequests`: fields include `id`, `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
+
+Limits:
+- Search/list limit is capped at `{max_results}`.
+- `multi_get` accepts at most `{max_multi_get}` IDs.
+- Supported port range in the UI: 1024-65535.
+- Current endpoint: `{url}`.
+- API request auth supports `none`, `bearer`, and `basic`.
+- Prompt estimated tokens are approximately `ceil(chars / 4)`.
+"#,
+        max_results = MAX_SEARCH_LIMIT,
+        max_multi_get = MAX_MULTI_GET,
+        url = mcp_url(settings)
+    )
+}
+
+fn help_clients(settings: &McpSettings) -> String {
+    format!(
+        r#"# Cockpit MCP Client Setup
+
+Set the API key from Cockpit Settings > MCP:
+```bash
+export COCKPIT_MCP_KEY="copy-from-cockpit-settings"
+```
+
+Codex CLI:
+```bash
+codex mcp add cockpit --url {url} --bearer-token-env-var COCKPIT_MCP_KEY
+```
+
+Claude Code:
+```bash
+claude mcp add --transport http cockpit {url} --header "Authorization: Bearer $COCKPIT_MCP_KEY"
+```
+
+Verify connection:
+```text
+Ask your agent: "Use Cockpit MCP to search for notes about Rust."
+```
+
+Disconnect examples:
+```bash
+codex mcp remove cockpit
+claude mcp remove cockpit
+```
+
+Do not paste the raw API key into prompts. Keep it in `COCKPIT_MCP_KEY` or your MCP client's secret storage.
+"#,
+        url = mcp_url(settings)
+    )
+}
+
 fn matches_query(value: &Value, query: &Option<String>) -> bool {
     let Some(query) = query
         .as_ref()
@@ -1132,6 +1490,25 @@ impl CockpitMcpService {
                 id,
             },
         );
+    }
+
+    #[tool(
+        description = "Get topic-based help for Cockpit MCP. Topics: overview, tools, workflows, permissions, errors, schema, clients."
+    )]
+    async fn help(&self, Parameters(args): Parameters<HelpArgs>) -> McpResult {
+        let topic = normalize_help_topic(args.topic.as_deref())?;
+        let settings = self.settings.read().await.clone();
+        let content = match topic {
+            "overview" => help_overview(&settings),
+            "tools" => help_tools_from_router(&self.tool_router),
+            "workflows" => help_workflows(),
+            "permissions" => help_permissions(&settings),
+            "errors" => help_errors(),
+            "schema" => help_schema(&settings),
+            "clients" => help_clients(&settings),
+            _ => return Err(unknown_help_topic(topic)),
+        };
+        help_response(topic, content)
     }
 
     #[tool(
@@ -1363,7 +1740,7 @@ impl CockpitMcpService {
                 }
             },
             "tools": {
-                "discovery": ["search", "multi_get", "introspect", "counts"],
+                "discovery": ["help", "search", "multi_get", "introspect", "counts"],
                 "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete"],
                 "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete"],
                 "promptTemplates": ["prompt_templates_list", "prompt_templates_get", "prompt_templates_create", "prompt_templates_update", "prompt_templates_delete"],
@@ -1899,7 +2276,7 @@ impl ServerHandler for CockpitMcpService {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(
-                "Use these tools to read and manage local devdrivr cockpit notes, snippets, prompt templates, and saved API client requests."
+                "Use `help` for Cockpit MCP guidance and `introspect` for schemas. These tools read and manage local devdrivr cockpit notes, snippets, prompt templates, and saved API client requests."
                     .to_string(),
             ),
             ..ServerInfo::default()
@@ -2096,5 +2473,115 @@ mod tests {
 
         assert_eq!(data["code"], "BATCH_TOO_LARGE");
         assert_eq!(data["argument"], "ids");
+    }
+
+    fn permissions(read: bool, create: bool, update: bool, delete: bool) -> ResourcePermissions {
+        ResourcePermissions {
+            read,
+            create,
+            update,
+            delete,
+        }
+    }
+
+    fn test_settings() -> McpSettings {
+        McpSettings {
+            enabled: true,
+            host: "127.0.0.1".to_string(),
+            port: 17347,
+            api_key: "raw-test-api-key".to_string(),
+            permissions: super::super::types::McpPermissions {
+                notes: permissions(true, false, false, false),
+                snippets: permissions(true, false, false, false),
+                prompt_templates: permissions(true, false, false, false),
+                api_requests: permissions(true, false, false, false),
+            },
+            api_requests_expose_secrets: false,
+        }
+    }
+
+    #[test]
+    fn help_topic_defaults_to_overview_and_rejects_unknown_topics() {
+        assert_eq!(normalize_help_topic(None).unwrap(), "overview");
+        assert_eq!(normalize_help_topic(Some(" Tools ")).unwrap(), "tools");
+
+        let err = normalize_help_topic(Some("bookmarks")).expect_err("unknown topic should fail");
+        let data = err.data.expect("error data");
+        assert_eq!(data["code"], "INVALID_ARGUMENT");
+        assert_eq!(data["argument"], "topic");
+        assert!(data["suggestions"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty()));
+    }
+
+    #[test]
+    fn help_payload_includes_available_topics_and_content() {
+        let payload = help_payload("overview", "content".to_string());
+
+        assert_eq!(payload["topic"], "overview");
+        assert_eq!(payload["content"], "content");
+        assert_eq!(
+            payload["availableTopics"].as_array().expect("topics").len(),
+            HELP_TOPICS.len()
+        );
+    }
+
+    #[test]
+    fn help_tools_includes_registered_discovery_tools() {
+        let content = help_tools_from_router(&CockpitMcpService::tool_router());
+
+        assert!(content.contains("`help`"));
+        assert!(content.contains("`search`"));
+        assert!(content.contains("`multi_get`"));
+        assert!(content.contains("`introspect`"));
+        assert!(content.contains("`counts`"));
+    }
+
+    #[test]
+    fn help_clients_uses_env_var_without_revealing_api_key() {
+        let settings = test_settings();
+        let content = help_clients(&settings);
+
+        assert!(content.contains("COCKPIT_MCP_KEY"));
+        assert!(content.contains("http://127.0.0.1:17347/mcp"));
+        assert!(!content.contains(&settings.api_key));
+    }
+
+    #[test]
+    fn help_errors_lists_current_structured_error_codes() {
+        let content = help_errors();
+
+        for code in [
+            "UNAUTHORIZED",
+            "PERMISSION_DENIED",
+            "RESOURCE_NOT_FOUND",
+            "INVALID_ARGUMENT",
+            "UNSUPPORTED_RESOURCE_TYPE",
+            "BATCH_TOO_LARGE",
+            "DATABASE_ERROR",
+            "BUILTIN_TEMPLATE_DELETE_DENIED",
+        ] {
+            assert!(content.contains(code), "missing {code}");
+        }
+    }
+
+    #[test]
+    fn help_topics_all_return_non_empty_content() {
+        let settings = test_settings();
+        let tools = CockpitMcpService::tool_router();
+
+        for topic in HELP_TOPICS {
+            let content = match topic {
+                "overview" => help_overview(&settings),
+                "tools" => help_tools_from_router(&tools),
+                "workflows" => help_workflows(),
+                "permissions" => help_permissions(&settings),
+                "errors" => help_errors(),
+                "schema" => help_schema(&settings),
+                "clients" => help_clients(&settings),
+                _ => unreachable!(),
+            };
+            assert!(!content.trim().is_empty(), "{topic} should not be empty");
+        }
     }
 }
