@@ -11,6 +11,7 @@ type SnippetsStore = {
   activeFolder: string
   setActiveFolder: (folder: string) => void
   init: () => Promise<void>
+  refresh: () => Promise<void>
   add: (
     title: string,
     content: string,
@@ -44,6 +45,11 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       })()
     }
     return initPromise
+  },
+
+  refresh: async () => {
+    const snippets = await loadSnippets()
+    set({ snippets, initialized: true })
   },
 
   add: async (title, content, language, tags = [], folder = '') => {

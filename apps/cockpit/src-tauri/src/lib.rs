@@ -1,3 +1,5 @@
+mod mcp;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[tauri::command]
@@ -47,6 +49,12 @@ pub fn run() {
             sql: include_str!("../migrations/006_prompt_templates.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "add prompt template authors",
+            sql: include_str!("../migrations/007_prompt_template_authors.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -58,7 +66,16 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_platform_info])
+        .manage(mcp::McpManager::default())
+        .invoke_handler(tauri::generate_handler![
+            get_platform_info,
+            mcp::mcp_apply_settings,
+            mcp::mcp_rotate_key,
+            mcp::mcp_restart,
+            mcp::mcp_start,
+            mcp::mcp_status,
+            mcp::mcp_stop,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

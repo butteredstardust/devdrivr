@@ -210,6 +210,7 @@ type PromptTemplateRow = {
   variables_schema: string
   estimated_tokens: number
   optimized_for: string
+  author: string
   version: string
   tips: string
   created_at: number
@@ -228,7 +229,7 @@ function rowToPromptTemplate(row: PromptTemplateRow): PromptTemplate | null {
 export async function loadUserPromptTemplates(): Promise<PromptTemplate[]> {
   const conn = await getDb()
   const rows = await conn.select<PromptTemplateRow[]>(
-    'SELECT * FROM user_prompt_templates ORDER BY updated_at DESC'
+    "SELECT * FROM user_prompt_templates WHERE author = 'user' ORDER BY updated_at DESC"
   )
   return rows
     .map(rowToPromptTemplate)
@@ -241,11 +242,42 @@ async function executeSaveUserPromptTemplate(
 ): Promise<void> {
   await conn.execute(
     `INSERT INTO user_prompt_templates
-      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, version, tips, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      ON CONFLICT(id) DO UPDATE SET
       name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
-      estimated_tokens=$8, optimized_for=$9, version=$10, tips=$11, updated_at=$13`,
+      estimated_tokens=$8, optimized_for=$9, author=$10, version=$11, tips=$12, updated_at=$14`,
+    [
+      template.id,
+      template.name,
+      template.description,
+      template.category,
+      JSON.stringify(template.tags),
+      template.prompt,
+      JSON.stringify(template.variables),
+      template.estimatedTokens,
+      template.optimizedFor,
+      template.author,
+      template.version,
+      JSON.stringify(template.tips ?? []),
+      template.createdAt ?? Date.now(),
+      template.updatedAt ?? Date.now(),
+    ]
+  )
+}
+
+async function executeSeedBuiltinPromptTemplate(
+  conn: Database,
+  template: PromptTemplate
+): Promise<void> {
+  await conn.execute(
+    `INSERT INTO user_prompt_templates
+      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'builtin', $10, $11, $12, $13)
+     ON CONFLICT(id) DO UPDATE SET
+      name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
+      estimated_tokens=$8, optimized_for=$9, author='builtin', version=$10, tips=$11, updated_at=$13
+     WHERE author = 'builtin'`,
     [
       template.id,
       template.name,
@@ -286,7 +318,22 @@ export async function saveUserPromptTemplates(templates: PromptTemplate[]): Prom
 
 export async function deleteUserPromptTemplate(id: string): Promise<void> {
   const conn = await getDb()
-  await conn.execute('DELETE FROM user_prompt_templates WHERE id = $1', [id])
+  await conn.execute("DELETE FROM user_prompt_templates WHERE id = $1 AND author = 'user'", [id])
+}
+
+export async function seedBuiltinPromptTemplates(templates: PromptTemplate[]): Promise<void> {
+  if (templates.length === 0) return
+  const conn = await getDb()
+  await conn.execute('BEGIN TRANSACTION')
+  try {
+    for (const template of templates) {
+      await executeSeedBuiltinPromptTemplate(conn, template)
+    }
+    await conn.execute('COMMIT')
+  } catch (err) {
+    await conn.execute('ROLLBACK')
+    throw err
+  }
 }
 
 // --- History ---

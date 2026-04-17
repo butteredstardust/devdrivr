@@ -14,6 +14,7 @@ This comprehensive user guide covers all aspects of using the devdrivr cockpit a
 8. [Data Management](#data-management)
 9. [Troubleshooting](#troubleshooting)
 10. [Advanced Usage](#advanced-usage)
+11. [MCP Server](#mcp-server)
 
 ## Introduction
 
@@ -163,6 +164,17 @@ Control your data:
 - Reset settings to defaults
 - Manage API collections and environments
 
+### MCP
+
+The MCP settings tab controls the local agent server:
+
+- Enable or disable automatic MCP startup
+- View server status and URL
+- Start, stop, or restart the MCP server
+- Copy or rotate the bearer token used by MCP clients
+- Configure per-resource permissions for notes, snippets, prompt templates, and API requests
+- Decide whether saved API request auth secrets are exposed or redacted
+
 ## Keyboard Shortcuts
 
 ### Global Shortcuts
@@ -267,7 +279,10 @@ Create custom keyboard shortcuts:
 
 ### API Access
 
-Use the built-in API for automation:
+Use the built-in MCP server for local agent automation. See [MCP Server](#mcp-server)
+for setup details.
+
+The legacy API example below is illustrative only:
 
 ```javascript
 // Example API usage
@@ -324,3 +339,49 @@ For issues, suggestions, or questions:
 - **Collection**: A group of related API requests
 - **Environment**: A set of variables for API testing
 - **Snippet**: A saved piece of code for reuse
+
+## MCP Server
+
+cockpit includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
+It lets agents search, inspect, and manage local notes, snippets, prompt templates,
+and saved API client requests with explicit permissions.
+
+Default endpoint:
+
+```text
+http://127.0.0.1:17347/mcp
+```
+
+Basic setup:
+
+1. Open Settings (`Cmd/Ctrl + ,`) and choose MCP.
+2. Enable MCP and copy the API key.
+3. Export the key for your MCP client:
+
+```bash
+export COCKPIT_MCP_KEY="copy-from-cockpit-settings"
+```
+
+4. Register Cockpit with your client. Example for Codex CLI:
+
+```bash
+codex mcp add cockpit --url http://127.0.0.1:17347/mcp --bearer-token-env-var COCKPIT_MCP_KEY
+```
+
+Security defaults:
+
+- The server binds to `127.0.0.1` only.
+- Read permissions are enabled by default; write permissions are opt-in.
+- Saved API request auth secrets are redacted unless secret exposure is enabled.
+- The MCP API key is never returned by MCP help or schema tools.
+
+Useful first agent requests:
+
+```text
+Use Cockpit MCP to search for snippets tagged react.
+Use Cockpit MCP help to show available workflows.
+Use Cockpit MCP to count my notes and snippets.
+```
+
+For full setup, tool reference, limits, and troubleshooting, see
+[MCP_SERVER.md](MCP_SERVER.md).

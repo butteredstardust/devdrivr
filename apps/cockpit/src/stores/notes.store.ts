@@ -8,6 +8,7 @@ type NotesStore = {
   notes: Note[]
   initialized: boolean
   init: () => Promise<void>
+  refresh: () => Promise<void>
   add: (title?: string, content?: string, color?: NoteColor) => Promise<Note>
   update: (
     id: string,
@@ -33,6 +34,11 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       })()
     }
     return initPromise
+  },
+
+  refresh: async () => {
+    const notes = await loadNotes()
+    set({ notes, initialized: true })
   },
 
   add: async (title = '', content = '', color: NoteColor = 'yellow') => {

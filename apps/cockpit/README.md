@@ -22,15 +22,15 @@
 
 Everything you reach for during a coding session — in one keyboard-driven app.
 
-| Group       | Tools                                                                                                                         |
-|-------------|-------------------------------------------------------------------------------------------------------------------------------|
-| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                   |
-| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator                                                                   |
-| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                             |
-| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash   |
-| **Test**    | Regex Tester · JWT Decoder                                                                                                    |
-| **Network** | API Client · Docs Browser                                                                                                     |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager                                                                           |
+| Group       | Tools                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                 |
+| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator                                                                |
+| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                          |
+| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash |
+| **Test**    | Regex Tester · JWT Decoder                                                                                                 |
+| **Network** | API Client · Docs Browser                                                                                                  |
+| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager                                                                        |
 
 ### Shell features
 
@@ -38,6 +38,7 @@ Everything you reach for during a coding session — in one keyboard-driven app.
 - **Notes drawer** — persistent notes with color tags and full-text search
 - **Per-tool history** — inputs and outputs are saved automatically
 - **Snippets library** — tagged code snippets accessible from any tool
+- **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
 - **Themes** — 7 built-in themes including dark, light, and system
 - **Always-on-top** — pin the window over your editor or browser
 - **Window state persistence** — remembers size and position across launches
@@ -48,7 +49,7 @@ Everything you reach for during a coding session — in one keyboard-driven app.
 ## Tech stack
 
 | Layer         | Technology                             |
-|---------------|----------------------------------------|
+| ------------- | -------------------------------------- |
 | Desktop shell | Tauri 2 (Rust + WebKit)                |
 | UI            | React 19, TypeScript 5.9               |
 | Styling       | Tailwind CSS 4, CSS custom properties  |
@@ -95,37 +96,57 @@ bun run tauri build
 
 ## Keyboard shortcuts
 
-| Shortcut        | Action                        |
-|-----------------|-------------------------------|
-| `Cmd+K`         | Command palette               |
-| `Cmd+B`         | Toggle sidebar                |
-| `Cmd+]` / `[`   | Next / previous tool          |
-| `Cmd+Shift+N`   | Toggle notes drawer           |
-| `Cmd+Enter`     | Execute / run                 |
-| `Cmd+Shift+C`   | Copy output                   |
-| `Cmd+1/2/3`     | Switch sub-tab                |
-| `Cmd+O`         | Open file                     |
-| `Cmd+S`         | Save file                     |
-| `Cmd+,`         | Settings                      |
-| `Cmd+Shift+T`   | Toggle theme                  |
-| `Cmd+Shift+P`   | Toggle always-on-top          |
-| `Cmd+/`         | Keyboard shortcuts reference  |
+| Shortcut      | Action                       |
+| ------------- | ---------------------------- |
+| `Cmd+K`       | Command palette              |
+| `Cmd+B`       | Toggle sidebar               |
+| `Cmd+]` / `[` | Next / previous tool         |
+| `Cmd+Shift+N` | Toggle notes drawer          |
+| `Cmd+Enter`   | Execute / run                |
+| `Cmd+Shift+C` | Copy output                  |
+| `Cmd+1/2/3`   | Switch sub-tab               |
+| `Cmd+O`       | Open file                    |
+| `Cmd+S`       | Save file                    |
+| `Cmd+,`       | Settings                     |
+| `Cmd+Shift+T` | Toggle theme                 |
+| `Cmd+Shift+P` | Toggle always-on-top         |
+| `Cmd+/`       | Keyboard shortcuts reference |
 
 ---
 
 ## Themes
 
-| Theme           | Description                        |
-|-----------------|------------------------------------|
-| `system`        | Follows OS light/dark setting      |
-| `midnight`      | Deep dark — default dark theme     |
-| `warm-terminal` | Amber tones on dark                |
-| `neon-brutalist` | High contrast, vivid accents      |
-| `earth-code`    | Muted greens and browns            |
-| `cyber-luxe`    | Purple and gold on dark            |
-| `soft-focus`    | Soft light theme                   |
+| Theme            | Description                    |
+| ---------------- | ------------------------------ |
+| `system`         | Follows OS light/dark setting  |
+| `midnight`       | Deep dark — default dark theme |
+| `warm-terminal`  | Amber tones on dark            |
+| `neon-brutalist` | High contrast, vivid accents   |
+| `earth-code`     | Muted greens and browns        |
+| `cyber-luxe`     | Purple and gold on dark        |
+| `soft-focus`     | Soft light theme               |
 
 Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
+
+---
+
+## MCP server
+
+cockpit includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
+When enabled in Settings, it starts with the app and exposes authenticated tools for
+notes, snippets, prompt templates, saved API client requests, search, schema
+introspection, and topic-based help.
+
+Key details:
+
+- Binds to `127.0.0.1` only.
+- Default URL: `http://127.0.0.1:17347/mcp`.
+- Uses a bearer token copied from Settings → MCP.
+- Defaults to read-only permissions.
+- Redacts saved API request auth secrets unless explicitly allowed.
+
+See [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md) for setup commands,
+permissions, tools, limits, and troubleshooting.
 
 ---
 
@@ -185,11 +206,11 @@ cockpit checks [GitHub releases](https://github.com/butteredstardust/devdrivr/re
 
 **Update settings** (in Settings → General):
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Check for updates automatically | On | Checks once per hour in the background |
-| Download update automatically | Off | Saves installer to Downloads folder silently |
-| Notify when update available | On | Shows a dismissible banner when an update is found |
+| Setting                         | Default | Description                                        |
+| ------------------------------- | ------- | -------------------------------------------------- |
+| Check for updates automatically | On      | Checks once per hour in the background             |
+| Download update automatically   | Off     | Saves installer to Downloads folder silently       |
+| Notify when update available    | On      | Shows a dismissible banner when an update is found |
 
 You can always trigger a manual check with the **Check Now** button in Settings.
 
@@ -197,15 +218,16 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md) | Full tool list, product status, shortcuts |
-| [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md) | First-time setup for new contributors |
-| [`documentation/TESTING.md`](documentation/TESTING.md) | Test strategy and coverage map |
-| [`documentation/DESIGN_SYSTEM.md`](documentation/DESIGN_SYSTEM.md) | Color tokens, typography, component patterns |
-| [`documentation/infrastructure/CODING_PATTERNS.md`](documentation/infrastructure/CODING_PATTERNS.md) | Patterns to follow before writing any code |
-| [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | ADRs — why things are the way they are |
-| [`documentation/infrastructure/TROUBLESHOOTING.md`](documentation/infrastructure/TROUBLESHOOTING.md) | When something breaks |
+| Doc                                                                                                                | Description                                     |
+| ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
+| [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
+| [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
+| [`documentation/TESTING.md`](documentation/TESTING.md)                                                             | Test strategy and coverage map                  |
+| [`documentation/DESIGN_SYSTEM.md`](documentation/DESIGN_SYSTEM.md)                                                 | Color tokens, typography, component patterns    |
+| [`documentation/infrastructure/CODING_PATTERNS.md`](documentation/infrastructure/CODING_PATTERNS.md)               | Patterns to follow before writing any code      |
+| [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | ADRs — why things are the way they are          |
+| [`documentation/infrastructure/TROUBLESHOOTING.md`](documentation/infrastructure/TROUBLESHOOTING.md)               | When something breaks                           |
 
 ---
 
