@@ -4,10 +4,14 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useHistoryStore } from '@/stores/history.store'
+import { useApiStore } from '@/stores/api.store'
+import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore, autoDownloadUpdate } from '@/stores/updater.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { getSetting, setSetting } from '@/lib/db'
+import type { McpDataChangedEvent } from '@/types/models'
 import type { WorkspaceTab } from '@/types/tools'
 import { getToolById } from '@/app/tool-registry'
 
@@ -66,6 +70,19 @@ export function Providers({ children }: { children: ReactNode }) {
       await useSnippetsStore.getState().init()
       await usePromptTemplatesStore.getState().init()
       await useHistoryStore.getState().init()
+
+      const unlistenMcpChanged = await listen<McpDataChangedEvent>('mcp:data-changed', (event) => {
+        const { resource } = event.payload
+        if (resource === 'notes') void useNotesStore.getState().refresh()
+        if (resource === 'snippets') void useSnippetsStore.getState().refresh()
+        if (resource === 'promptTemplates') void usePromptTemplatesStore.getState().refresh()
+        if (resource === 'apiRequests' || resource === 'apiCollections') {
+          void useApiStore.getState().refresh()
+        }
+      })
+      cleanups.push(unlistenMcpChanged)
+
+      await useMcpStore.getState().init()
 
       // Restore workspace tabs (with backward-compat fallback for legacy activeTool key)
       const savedTabs = await getSetting<WorkspaceTab[] | null>('openTabs', null)

@@ -4,9 +4,11 @@ import {
   loadUserPromptTemplates,
   saveUserPromptTemplate,
   saveUserPromptTemplates,
+  seedBuiltinPromptTemplates,
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 import type { PromptTemplate } from '@/types/models'
+import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
 import {
   estimateTokens,
   syncVariablesToPrompt,
@@ -18,6 +20,7 @@ type PromptTemplatesStore = {
   initialized: boolean
   saving: boolean
   init: () => Promise<void>
+  refresh: () => Promise<void>
   create: (draft: PromptTemplateDraft) => Promise<PromptTemplate>
   update: (id: string, draft: PromptTemplateDraft) => Promise<PromptTemplate | null>
   remove: (id: string) => Promise<void>
@@ -69,11 +72,17 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
+        await seedBuiltinPromptTemplates(BUILTIN_PROMPT_TEMPLATES)
         const userTemplates = await loadUserPromptTemplates()
         set({ userTemplates, initialized: true })
       })()
     }
     return initPromise
+  },
+
+  refresh: async () => {
+    const userTemplates = await loadUserPromptTemplates()
+    set({ userTemplates, initialized: true })
   },
 
   create: async (draft) => {

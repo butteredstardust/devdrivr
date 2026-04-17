@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
+import { MCP_ACTIONS, MCP_RESOURCE_LABELS, MCP_RESOURCES, useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -22,6 +23,15 @@ import {
   InfoIcon,
   ArrowCircleUpIcon,
   SpinnerIcon,
+  PlugsConnectedIcon,
+  PowerIcon,
+  StopCircleIcon,
+  ArrowClockwiseIcon,
+  CopyIcon,
+  KeyIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  ShieldCheckIcon,
 } from '@phosphor-icons/react'
 import { Dialog } from '@/components/shared/Dialog'
 import { Toggle } from '@/components/shared/Toggle'
@@ -30,12 +40,13 @@ import { getVersion } from '@tauri-apps/api/app'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-type TabId = 'general' | 'editor' | 'data'
+type TabId = 'general' | 'editor' | 'data' | 'mcp'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'general', label: 'General', icon: <GearSixIcon size={14} /> },
   { id: 'editor', label: 'Editor', icon: <CodeIcon size={14} /> },
   { id: 'data', label: 'Data', icon: <DatabaseIcon size={14} /> },
+  { id: 'mcp', label: 'MCP', icon: <PlugsConnectedIcon size={14} /> },
 ]
 
 const INDENT_OPTIONS = [2, 4] as const
@@ -693,6 +704,326 @@ function StatCard({ label, count }: { label: string; count: number }) {
   )
 }
 
+function McpActionButton({
+  label,
+  icon,
+  pending,
+  onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  pending: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
+    >
+      {pending ? <SpinnerIcon size={12} className="animate-spin" /> : icon}
+      {label}
+    </button>
+  )
+}
+
+function McpTab() {
+  const initialized = useMcpStore((s) => s.initialized)
+  const pending = useMcpStore((s) => s.pending)
+  const settings = useMcpStore((s) => s.settings)
+  const status = useMcpStore((s) => s.status)
+  const start = useMcpStore((s) => s.start)
+  const stop = useMcpStore((s) => s.stop)
+  const restart = useMcpStore((s) => s.restart)
+  const updateSettings = useMcpStore((s) => s.updateSettings)
+  const updatePermission = useMcpStore((s) => s.updatePermission)
+  const rotateKey = useMcpStore((s) => s.rotateKey)
+  const refreshStatus = useMcpStore((s) => s.refreshStatus)
+  const addToast = useUiStore((s) => s.addToast)
+  const [keyVisible, setKeyVisible] = useState(false)
+  const [portDraft, setPortDraft] = useState(String(settings.port))
+
+  useEffect(() => {
+    setPortDraft(String(settings.port))
+  }, [settings.port])
+
+  useEffect(() => {
+    void refreshStatus()
+    const id = setInterval(() => {
+      void refreshStatus()
+    }, 5000)
+    return () => clearInterval(id)
+  }, [refreshStatus])
+
+  const runAction = useCallback(
+    async (action: () => Promise<void>, success: string) => {
+      try {
+        await action()
+        addToast(success, 'success')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        addToast(msg, 'error')
+      }
+    },
+    [addToast]
+  )
+
+  const copyText = useCallback(
+    async (text: string, success: string) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        addToast(success, 'success')
+      } catch {
+        addToast('Failed to copy to clipboard', 'error')
+      }
+    },
+    [addToast]
+  )
+
+  const applyPort = useCallback(() => {
+    const port = Math.min(65535, Math.max(1024, Number(portDraft)))
+    setPortDraft(String(port))
+    void runAction(() => updateSettings({ port }), 'MCP port updated')
+  }, [portDraft, runAction, updateSettings])
+
+  const envCommand = `export COCKPIT_MCP_KEY=${settings.apiKey}`
+  const codexCommand = `codex mcp add cockpit --url ${status.url} --bearer-token-env-var COCKPIT_MCP_KEY`
+  const claudeCommand = `claude mcp add --transport http cockpit ${status.url} --header "Authorization: Bearer ${settings.apiKey}"`
+  const genericJson = JSON.stringify(
+    {
+      mcpServers: {
+        cockpit: {
+          type: 'http',
+          url: status.url,
+          headers: {
+            Authorization: 'Bearer <your cockpit MCP key>',
+          },
+        },
+      },
+    },
+    null,
+    2
+  )
+
+  if (!initialized) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+        <SpinnerIcon size={12} className="animate-spin" />
+        Initializing MCP settings…
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  status.running ? 'bg-[var(--color-success)]' : 'bg-[var(--color-error)]'
+                }`}
+              />
+              <span className="text-sm font-semibold text-[var(--color-text)]">
+                {status.running ? 'MCP server running' : 'MCP server stopped'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void copyText(status.url, 'MCP URL copied')}
+              className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)]"
+            >
+              {status.url}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <McpActionButton
+              label="Start"
+              icon={<PowerIcon size={12} />}
+              pending={pending}
+              onClick={() => void runAction(start, 'MCP server started')}
+            />
+            <McpActionButton
+              label="Stop"
+              icon={<StopCircleIcon size={12} />}
+              pending={pending}
+              onClick={() => void runAction(stop, 'MCP server stopped')}
+            />
+            <McpActionButton
+              label="Restart"
+              icon={<ArrowClockwiseIcon size={12} />}
+              pending={pending}
+              onClick={() => void runAction(restart, 'MCP server restarted')}
+            />
+          </div>
+        </div>
+        {status.lastError && (
+          <div className="mt-2 rounded border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-2 py-1 text-[11px] text-[var(--color-error)]">
+            {status.lastError}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <SettingRow label="Auto-start MCP" hint="Start the local MCP server when cockpit opens">
+          <Toggle
+            checked={settings.enabled}
+            onChange={(v) =>
+              void runAction(() => updateSettings({ enabled: v }), 'MCP setting saved')
+            }
+          />
+        </SettingRow>
+        <SettingRow label="Port" hint="Localhost port for Streamable HTTP">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={portDraft}
+              onChange={(event) => setPortDraft(event.target.value)}
+              min={1024}
+              max={65535}
+              className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+            />
+            <button
+              type="button"
+              onClick={applyPort}
+              disabled={pending}
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+            >
+              Apply
+            </button>
+          </div>
+        </SettingRow>
+      </div>
+
+      <div>
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <KeyIcon size={10} />
+          Authentication
+        </h4>
+        <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2">
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded bg-[var(--color-surface)] px-2 py-1 font-mono text-[11px] text-[var(--color-text)]">
+              {keyVisible ? settings.apiKey : '•'.repeat(Math.min(32, settings.apiKey.length))}
+            </code>
+            <button
+              type="button"
+              onClick={() => setKeyVisible((v) => !v)}
+              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+              aria-label={keyVisible ? 'Hide MCP key' : 'Show MCP key'}
+            >
+              {keyVisible ? <EyeSlashIcon size={13} /> : <EyeIcon size={13} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyText(settings.apiKey, 'MCP key copied')}
+              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+              aria-label="Copy MCP key"
+            >
+              <CopyIcon size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void runAction(rotateKey, 'MCP key rotated')}
+              disabled={pending}
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-warning)] hover:text-[var(--color-warning)] disabled:opacity-50"
+            >
+              Rotate
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <ShieldCheckIcon size={10} />
+          Permissions
+        </h4>
+        <div className="overflow-hidden rounded border border-[var(--color-border)]">
+          <div className="grid grid-cols-[1.4fr_repeat(4,0.7fr)] border-b border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1.5 text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+            <span>Resource</span>
+            {MCP_ACTIONS.map((action) => (
+              <span key={action} className="text-center">
+                {action}
+              </span>
+            ))}
+          </div>
+          {MCP_RESOURCES.map((resource) => (
+            <div
+              key={resource}
+              className="grid grid-cols-[1.4fr_repeat(4,0.7fr)] items-center border-b border-[var(--color-border)] px-2 py-2 last:border-b-0"
+            >
+              <span className="text-xs text-[var(--color-text)]">
+                {MCP_RESOURCE_LABELS[resource]}
+              </span>
+              {MCP_ACTIONS.map((action) => (
+                <div key={action} className="flex justify-center">
+                  <Toggle
+                    checked={settings.permissions[resource][action]}
+                    onChange={(v) =>
+                      void runAction(
+                        () => updatePermission(resource, action, v),
+                        'MCP permission saved'
+                      )
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <SettingRow
+          label="Expose API request secrets"
+          hint="Allow authenticated MCP clients to read saved bearer/basic auth values"
+        >
+          <Toggle
+            checked={settings.apiRequestsExposeSecrets}
+            onChange={(v) =>
+              void runAction(
+                () => updateSettings({ apiRequestsExposeSecrets: v }),
+                'MCP secret permission saved'
+              )
+            }
+          />
+        </SettingRow>
+      </div>
+
+      <div>
+        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <PlugsConnectedIcon size={10} />
+          Client Setup
+        </h4>
+        <div className="space-y-2">
+          {(
+            [
+              ['Shell key', envCommand],
+              ['Codex', codexCommand],
+              ['Claude Code', claudeCommand],
+              ['Generic JSON', genericJson],
+            ] as const
+          ).map(([label, command]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => void copyText(command, `${label} setup copied`)}
+              className="flex w-full items-start gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
+            >
+              <CopyIcon size={13} className="mt-0.5 shrink-0 text-[var(--color-text-muted)]" />
+              <span className="min-w-24 text-[11px] font-semibold text-[var(--color-text)]">
+                {label}
+              </span>
+              <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[10px] text-[var(--color-text-muted)]">
+                {command}
+              </code>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Panel ─────────────────────────────────────────────────────
 
 export function SettingsPanel() {
@@ -745,6 +1076,7 @@ export function SettingsPanel() {
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && <DataTab />}
+        {activeTab === 'mcp' && <McpTab />}
       </div>
     </Dialog>
   )

@@ -201,3 +201,34 @@ export type ApiRequest = {
   createdAt: number
   updatedAt: number
 }
+
+export type McpResource = 'notes' | 'snippets' | 'promptTemplates' | 'apiRequests'
+export type McpAction = 'read' | 'create' | 'update' | 'delete'
+
+export type McpResourcePermissions = Record<McpAction, boolean>
+export type McpPermissions = Record<McpResource, McpResourcePermissions>
+
+export type McpSettings = {
+  enabled: boolean
+  host: '127.0.0.1'
+  port: number
+  apiKey: string
+  permissions: McpPermissions
+  apiRequestsExposeSecrets: boolean
+}
+
+export type McpStatus = {
+  running: boolean
+  host: string
+  port: number
+  url: string
+  lastError: string | null
+}
+
+export type McpDataChangedResource = McpResource | 'apiCollections'
+
+export type McpDataChangedEvent = {
+  resource: McpDataChangedResource
+  action: McpAction
+  id?: string
+}

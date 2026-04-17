@@ -26,6 +26,7 @@ type ApiStore = {
 
   // Actions
   init: () => Promise<void>
+  refresh: () => Promise<void>
 
   createEnvironment: (name: string, variables: Record<string, string>) => Promise<ApiEnvironment>
   updateEnvironment: (env: ApiEnvironment) => Promise<void>
@@ -72,6 +73,25 @@ export const useApiStore = create<ApiStore>((set) => ({
       })()
     }
     return initPromise
+  },
+
+  refresh: async () => {
+    const [envs, cols, reqs, hist] = await Promise.all([
+      loadApiEnvironments(),
+      loadApiCollections(),
+      loadApiRequests(),
+      loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
+    ])
+    set((state) => ({
+      environments: envs,
+      collections: cols,
+      requests: reqs,
+      requestHistory: hist,
+      activeEnvironmentId:
+        state.activeEnvironmentId && envs.some((env) => env.id === state.activeEnvironmentId)
+          ? state.activeEnvironmentId
+          : (envs[0]?.id ?? null),
+    }))
   },
 
   createEnvironment: async (name, variables) => {
