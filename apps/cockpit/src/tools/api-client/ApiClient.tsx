@@ -18,25 +18,13 @@ import { EnvironmentModal } from './components/EnvironmentModal'
 import { AuthTab } from './components/AuthTab'
 import { CollectionsSidebar } from './components/CollectionsSidebar'
 import { SaveRequestModal } from './components/SaveRequestModal'
-import type { ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
+import { ImportSpecModal } from './components/ImportSpecModal'
+import { importApiSpec } from '@/lib/api-import'
+import type { ApiImportResult, ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 import { BracketsCurlyIcon, CopyIcon } from '@phosphor-icons/react'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
-
-function isValidAuth(val: unknown): val is ApiRequestAuth {
-  if (!val || typeof val !== 'object') return false
-  const obj = val as Record<string, unknown>
-  if (obj['type'] === 'none') return true
-  if (obj['type'] === 'bearer' && typeof obj['token'] === 'string') return true
-  if (
-    obj['type'] === 'basic' &&
-    typeof obj['username'] === 'string' &&
-    typeof obj['password'] === 'string'
-  )
-    return true
-  return false
-}
 
 type Param = { key: string; value: string }
 
@@ -152,6 +140,7 @@ export default function ApiClient() {
   const createRequest = useApiStore((s) => s.createRequest)
   const createCollection = useApiStore((s) => s.createCollection)
   const updateRequest = useApiStore((s) => s.updateRequest)
+  const importApiData = useApiStore((s) => s.importApiData)
   const addRequestHistory = useApiStore((s) => s.addRequestHistory)
   useEffect(() => {
     init()
@@ -192,6 +181,7 @@ export default function ApiClient() {
   const [responseTab, setResponseTab] = useState('body')
   const [showEnvModal, setShowEnvModal] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
@@ -372,12 +362,6 @@ export default function ApiClient() {
     }
   }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction, addRequestHistory])
 
-  useToolAction((action) => {
-    if (action.type === 'execute') handleSend()
-  })
-
-  useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
-
   // ---------------------------------------------------------------------------
   // New Request
   // ---------------------------------------------------------------------------
@@ -471,6 +455,44 @@ export default function ApiClient() {
   // Import / Export
   // ---------------------------------------------------------------------------
 
+  const handleImportData = useCallback(
+    async (data: ApiImportResult) => {
+      const result = await importApiData(data)
+      setLastAction(
+        `Imported ${result.requests} requests into ${result.collections} collections`,
+        'success'
+      )
+    },
+    [importApiData, setLastAction]
+  )
+
+  const handleImportContent = useCallback(
+    async (content: string, filename: string) => {
+      try {
+        const parsed = importApiSpec({ content, filename })
+        if (parsed.requests.length === 0) {
+          setLastAction('Import found no executable HTTP requests', 'error')
+          return
+        }
+        await handleImportData(parsed)
+      } catch (err) {
+        setLastAction((err as Error).message, 'error')
+      }
+    },
+    [handleImportData, setLastAction]
+  )
+
+  useToolAction((action) => {
+    if (action.type === 'execute') {
+      void handleSend()
+    }
+    if (action.type === 'open-file') {
+      void handleImportContent(action.content, action.filename)
+    }
+  })
+
+  useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
+
   const handleExport = useCallback(async () => {
     try {
       const exportData = requests.map((r) => ({
@@ -489,38 +511,6 @@ export default function ApiClient() {
       setLastAction('Export failed — clipboard unavailable', 'error')
     }
   }, [requests, setLastAction])
-
-  const handleImport = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      const parsed: unknown = JSON.parse(text)
-      if (!Array.isArray(parsed)) {
-        setLastAction('Import failed — paste a valid JSON array', 'error')
-        return
-      }
-      let count = 0
-      for (const item of parsed as Array<Record<string, unknown>>) {
-        if (typeof item['name'] !== 'string' || typeof item['url'] !== 'string') continue
-        await createRequest({
-          name: item['name'],
-          method: typeof item['method'] === 'string' ? item['method'] : 'GET',
-          url: item['url'],
-          headers: Array.isArray(item['headers']) ? (item['headers'] as ApiHeader[]) : [],
-          body: typeof item['body'] === 'string' ? item['body'] : '',
-          bodyMode: typeof item['bodyMode'] === 'string' ? item['bodyMode'] : 'none',
-          auth: isValidAuth(item['auth']) ? item['auth'] : { type: 'none' },
-          collectionId: typeof item['collectionId'] === 'string' ? item['collectionId'] : null,
-        })
-        count++
-      }
-      setLastAction(
-        count > 0 ? `Imported ${count} requests` : 'No valid requests found',
-        count > 0 ? 'success' : 'error'
-      )
-    } catch {
-      setLastAction('Import failed — paste a valid JSON array', 'error')
-    }
-  }, [createRequest, setLastAction])
 
   const handleSelectLoadedRequest = (req: ApiRequest) => {
     updateState({
@@ -654,10 +644,10 @@ export default function ApiClient() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={handleImport}
-              title="Import requests from clipboard (JSON)"
+              onClick={() => setShowImportModal(true)}
+              title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
             >
-              Import
+              Import...
             </Button>
             <Button
               variant="secondary"
@@ -929,6 +919,9 @@ export default function ApiClient() {
           onSave={handleSaveModalSubmit}
           onClose={() => setShowSaveModal(false)}
         />
+      )}
+      {showImportModal && (
+        <ImportSpecModal onImport={handleImportData} onClose={() => setShowImportModal(false)} />
       )}
       <SelectionContextToolbar
         selection={responseSelectionToolbar.selection}

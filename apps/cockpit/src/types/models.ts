@@ -202,6 +202,34 @@ export type ApiRequest = {
   updatedAt: number
 }
 
+export type ApiImportFormat =
+  | 'postman'
+  | 'openapi'
+  | 'asyncapi'
+  | 'protobuf'
+  | 'graphql'
+  | 'cockpit-json'
+
+export type ApiImportCollectionDraft = {
+  key: string
+  name: string
+}
+
+export type ApiImportRequestDraft = Omit<
+  ApiRequest,
+  'id' | 'collectionId' | 'createdAt' | 'updatedAt'
+> & {
+  collectionKey: string | null
+}
+
+export type ApiImportResult = {
+  format: ApiImportFormat
+  sourceTitle: string
+  collections: ApiImportCollectionDraft[]
+  requests: ApiImportRequestDraft[]
+  warnings: string[]
+}
+
 export type McpResource = 'notes' | 'snippets' | 'promptTemplates' | 'apiRequests'
 export type McpAction = 'read' | 'create' | 'update' | 'delete'
 

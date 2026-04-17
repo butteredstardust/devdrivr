@@ -489,6 +489,15 @@ export async function saveApiCollection(col: ApiCollection): Promise<void> {
   )
 }
 
+async function executeSaveApiCollection(conn: Database, col: ApiCollection): Promise<void> {
+  await conn.execute(
+    `INSERT INTO api_collections (id, name, created_at, updated_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
+    [col.id, col.name, col.createdAt, col.updatedAt]
+  )
+}
+
 export async function deleteApiCollection(id: string): Promise<void> {
   const conn = await getDb()
   await conn.execute('DELETE FROM api_collections WHERE id = $1', [id])
@@ -531,6 +540,48 @@ export async function saveApiRequest(req: ApiRequest): Promise<void> {
       req.updatedAt,
     ]
   )
+}
+
+async function executeSaveApiRequest(conn: Database, req: ApiRequest): Promise<void> {
+  await conn.execute(
+    `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
+    [
+      req.id,
+      req.collectionId,
+      req.name,
+      req.method,
+      req.url,
+      JSON.stringify(req.headers),
+      req.body,
+      req.bodyMode,
+      JSON.stringify(req.auth),
+      req.createdAt,
+      req.updatedAt,
+    ]
+  )
+}
+
+export async function saveApiImport(
+  collections: ApiCollection[],
+  requests: ApiRequest[]
+): Promise<void> {
+  if (collections.length === 0 && requests.length === 0) return
+  const conn = await getDb()
+  await conn.execute('BEGIN TRANSACTION')
+  try {
+    for (const collection of collections) {
+      await executeSaveApiCollection(conn, collection)
+    }
+    for (const request of requests) {
+      await executeSaveApiRequest(conn, request)
+    }
+    await conn.execute('COMMIT')
+  } catch (err) {
+    await conn.execute('ROLLBACK')
+    throw err
+  }
 }
 
 export async function deleteApiRequest(id: string): Promise<void> {

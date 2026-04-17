@@ -19,6 +19,11 @@ describe('ApiClient', () => {
     expect(screen.getByText('Send')).toBeInTheDocument()
   })
 
+  it('renders import button', () => {
+    renderTool(ApiClient)
+    expect(screen.getByText('Import...')).toBeInTheDocument()
+  })
+
   it('renders request tabs', () => {
     renderTool(ApiClient)
     expect(screen.getByText('Params')).toBeInTheDocument()

@@ -5,6 +5,7 @@ import {
   loadApiRequests,
   saveApiCollection,
   saveApiEnvironment,
+  saveApiImport,
   saveApiRequest,
   deleteApiCollection,
   deleteApiEnvironment,
@@ -13,6 +14,7 @@ import {
   addHistoryEntry,
 } from '@/lib/db'
 import type { ApiCollection, ApiEnvironment, ApiRequest, HistoryEntry } from '@/types/models'
+import type { ApiImportResult } from '@/types/models'
 
 const API_CLIENT_HISTORY_TOOL = 'api-client'
 const API_CLIENT_HISTORY_LIMIT = 30
@@ -40,6 +42,7 @@ type ApiStore = {
   createRequest: (req: Omit<ApiRequest, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiRequest>
   updateRequest: (req: ApiRequest) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
+  importApiData: (data: ApiImportResult) => Promise<{ collections: number; requests: number }>
 
   addRequestHistory: (entry: Omit<HistoryEntry, 'id' | 'tool' | 'timestamp'>) => Promise<void>
 }
@@ -185,6 +188,48 @@ export const useApiStore = create<ApiStore>((set) => ({
     set((state) => ({
       requests: state.requests.filter((r) => r.id !== id),
     }))
+  },
+
+  importApiData: async (data) => {
+    const now = Date.now()
+    const importedCollections: ApiCollection[] = data.collections.map((collection) => ({
+      id: crypto.randomUUID(),
+      name: collection.name,
+      createdAt: now,
+      updatedAt: now,
+    }))
+    const collectionIdByKey = new Map(
+      data.collections.map((collection, index) => [
+        collection.key,
+        importedCollections[index]?.id ?? null,
+      ])
+    )
+    const importedRequests: ApiRequest[] = data.requests.map((request) => ({
+      id: crypto.randomUUID(),
+      collectionId: request.collectionKey
+        ? (collectionIdByKey.get(request.collectionKey) ?? null)
+        : null,
+      name: request.name,
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: request.body,
+      bodyMode: request.bodyMode,
+      auth: request.auth,
+      createdAt: now,
+      updatedAt: now,
+    }))
+
+    await saveApiImport(importedCollections, importedRequests)
+    set((state) => ({
+      collections: [...state.collections, ...importedCollections].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      ),
+      requests: [...state.requests, ...importedRequests].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      ),
+    }))
+    return { collections: importedCollections.length, requests: importedRequests.length }
   },
 
   addRequestHistory: async ({ subTab, input, output }) => {
