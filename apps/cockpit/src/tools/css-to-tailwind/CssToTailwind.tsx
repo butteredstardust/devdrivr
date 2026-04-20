@@ -330,11 +330,11 @@ export default function CssToTailwind() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+        <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
             CSS Input
           </div>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
               language="css"

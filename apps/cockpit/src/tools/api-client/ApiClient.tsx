@@ -688,9 +688,9 @@ export default function ApiClient() {
           </Button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* ── Request panel ─────────────────────────────────── */}
-          <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+          <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
             <TabBar tabs={REQUEST_TABS} activeTab={requestTab} onTabChange={setRequestTab} />
 
             {/* Params tab */}
@@ -800,7 +800,7 @@ export default function ApiClient() {
 
             {/* Body tab */}
             {requestTab === 'body' && (
-              <div className="flex flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
                   {BODY_MODES.map((mode) => (
                     <button
@@ -822,7 +822,7 @@ export default function ApiClient() {
                   )}
                 </div>
                 {showBody ? (
-                  <div className="flex-1">
+                  <div className="min-h-0 flex-1 overflow-hidden">
                     <Editor
                       theme={monacoTheme}
                       language={bodyEditorLang}
@@ -843,7 +843,7 @@ export default function ApiClient() {
           </div>
 
           {/* ── Response panel ────────────────────────────────── */}
-          <div className="flex w-1/2 flex-col">
+          <div className="flex min-h-0 w-1/2 flex-col overflow-hidden">
             {error && (
               <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
                 {error}
@@ -870,7 +870,7 @@ export default function ApiClient() {
                   </div>
                 </div>
                 <TabBar tabs={RESPONSE_TABS} activeTab={responseTab} onTabChange={setResponseTab} />
-                <div className="flex-1 overflow-auto">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   {responseTab === 'body' ? (
                     <Editor
                       theme={monacoTheme}
@@ -880,7 +880,7 @@ export default function ApiClient() {
                       options={{ ...monacoOptions, readOnly: true }}
                     />
                   ) : (
-                    <div className="p-3">
+                    <div className="h-full overflow-auto p-3">
                       {Object.entries(response.headers).map(([key, value]) => (
                         <div key={key} className="mb-1 flex items-start gap-1 text-xs">
                           <span className="shrink-0 font-bold text-[var(--color-accent)]">

@@ -295,12 +295,12 @@ export default function DiffViewer() {
           }}
         />
       ) : (
-        <div className="flex flex-1 gap-px bg-[var(--color-border)]">
-          <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 gap-px overflow-hidden bg-[var(--color-border)]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
               Left (original)
             </div>
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language={state.language}
@@ -310,11 +310,11 @@ export default function DiffViewer() {
               />
             </div>
           </div>
-          <div className="flex flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
               Right (modified)
             </div>
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language={state.language}

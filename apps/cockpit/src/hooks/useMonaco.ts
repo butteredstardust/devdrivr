@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme } from '@/lib/theme'
 import { loader } from '@monaco-editor/react'
@@ -65,6 +65,7 @@ const LIGHT_THEME: MonacoThemeData = {
 }
 
 let themesRegistered = false
+const EMPTY_OVERRIDES: Record<string, unknown> = {}
 
 /** Convert an rgb()/rgba() string returned by getComputedStyle to a Monaco-compatible hex */
 function rgbToMonacoHex(rgb: string): string {
@@ -134,7 +135,9 @@ export function useMonacoSettings() {
   const resolvedTheme = resolveMonacoTheme(effective, editorTheme)
 
   useEffect(() => {
-    loader.init().then((monaco) => {
+    let cancelled = false
+
+    loader.init().then(async (monaco) => {
       if (!themesRegistered) {
         monaco.editor.defineTheme('cockpit-dark', DARK_THEME)
         monaco.editor.defineTheme('cockpit-light', LIGHT_THEME)
@@ -152,8 +155,22 @@ export function useMonacoSettings() {
       }
 
       monaco.editor.setTheme(resolvedTheme)
+
+      try {
+        await document.fonts?.ready
+      } catch {
+        // Font readiness can reject in constrained webview environments. Monaco still
+        // falls back to its current measurements in that case.
+      }
+
+      if (!cancelled && typeof monaco.editor.remeasureFonts === 'function') {
+        monaco.editor.remeasureFonts()
+      }
     })
-  }, [resolvedTheme, effective])
+    return () => {
+      cancelled = true
+    }
+  }, [resolvedTheme, effective, editorFont])
 
   return {
     theme: resolvedTheme,
@@ -169,24 +186,27 @@ export function useMonacoTheme(): string {
   return theme
 }
 
-export function useMonacoOptions(overrides: Record<string, unknown> = {}) {
+export function useMonacoOptions(overrides: Record<string, unknown> = EMPTY_OVERRIDES) {
   const settings = useMonacoSettings()
 
-  return {
-    ...EDITOR_OPTIONS,
-    fontSize: settings.fontSize,
-    fontFamily: settings.fontFamily,
-    tabSize: settings.tabSize,
-    formatOnPaste: settings.formatOnPaste,
-    ...overrides,
-  }
+  return useMemo(
+    () => ({
+      ...EDITOR_OPTIONS,
+      fontSize: settings.fontSize,
+      fontFamily: settings.fontFamily,
+      lineHeight: Math.max(20, Math.ceil(settings.fontSize * 1.5)),
+      tabSize: settings.tabSize,
+      formatOnPaste: settings.formatOnPaste,
+      ...overrides,
+    }),
+    [settings.fontSize, settings.fontFamily, settings.tabSize, settings.formatOnPaste, overrides]
+  )
 }
 
 /**
  * Base Monaco editor options shared across all tools.
  */
 export const EDITOR_OPTIONS = {
-  lineHeight: 20,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   automaticLayout: true,

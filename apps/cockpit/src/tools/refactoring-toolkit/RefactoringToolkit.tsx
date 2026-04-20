@@ -207,7 +207,7 @@ export default function RefactoringToolkit() {
         </div>
 
         {/* Editor area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {preview !== null && !noChanges ? (
             <DiffEditor
               original={state.input}

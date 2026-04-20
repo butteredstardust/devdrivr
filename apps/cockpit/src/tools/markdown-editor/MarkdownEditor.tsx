@@ -690,6 +690,7 @@ export default function MarkdownEditor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return
+      if (!editorRef.current?.hasTextFocus()) return
       if (e.key === 'b') {
         e.preventDefault()
         insertFormatting('**', '**', 'bold text')
@@ -941,7 +942,7 @@ export default function MarkdownEditor() {
         {showEditor && (
           <div
             ref={editorContainerRef}
-            className={`relative h-full ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+            className={`relative h-full min-h-0 overflow-hidden ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
           >
             <Editor
               theme={monacoTheme}

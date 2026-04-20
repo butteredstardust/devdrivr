@@ -513,9 +513,9 @@ export default function HtmlValidator() {
       <div className="flex flex-1 overflow-hidden">
         {showEditor && (
           <div
-            className={`flex flex-col ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+            className={`flex min-h-0 flex-col overflow-hidden ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
           >
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language="html"

@@ -254,7 +254,7 @@ export default function JsonTools() {
             )}
 
             {/* Editor */}
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language="json"

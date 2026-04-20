@@ -24,6 +24,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       initPromise = (async () => {
         const saved = await getSetting<Partial<AppSettings>>('appSettings', {})
         const merged = { ...DEFAULT_SETTINGS, ...saved }
+        if (merged.editorKeybindingMode !== 'standard') merged.editorKeybindingMode = 'standard'
         set({ ...merged, initialized: true })
         applyTheme(merged.theme)
       })()

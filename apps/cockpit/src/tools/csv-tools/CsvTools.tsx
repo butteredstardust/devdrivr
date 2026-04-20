@@ -161,7 +161,7 @@ export default function CsvTools() {
         {/* Input editor — always visible as left pane when there's content, or full width for empty state */}
         {state.input.trim() ? (
           <>
-            <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+            <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
               <Editor
                 theme={monacoTheme}
                 language="plaintext"
@@ -185,7 +185,7 @@ export default function CsvTools() {
             </div>
           </>
         ) : (
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
               language="plaintext"

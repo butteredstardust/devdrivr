@@ -806,7 +806,7 @@ export default function SnippetsManager() {
             </div>
 
             {/* Monaco editor */}
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language={selected.language}
