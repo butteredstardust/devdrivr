@@ -880,7 +880,7 @@ export default function ApiClient() {
                       options={{ ...monacoOptions, readOnly: true }}
                     />
                   ) : (
-                    <div className="p-3">
+                    <div className="h-full overflow-auto p-3">
                       {Object.entries(response.headers).map(([key, value]) => (
                         <div key={key} className="mb-1 flex items-start gap-1 text-xs">
                           <span className="shrink-0 font-bold text-[var(--color-accent)]">

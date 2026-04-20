@@ -7,9 +7,30 @@ import { dispatchToolAction } from '@/lib/tool-actions'
 import { ToolboxIcon } from '@phosphor-icons/react'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
 
+const MONACO_TOOL_IDS = new Set([
+  'api-client',
+  'code-formatter',
+  'css-to-tailwind',
+  'css-validator',
+  'csv-tools',
+  'curl-to-fetch',
+  'diff-viewer',
+  'html-validator',
+  'json-schema-validator',
+  'json-tools',
+  'markdown-editor',
+  'mermaid-editor',
+  'refactoring-toolkit',
+  'snippets',
+  'ts-playground',
+  'xml-tools',
+  'yaml-tools',
+])
+
 export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
   const tool = getToolById(activeTool)
+  const usesMonaco = MONACO_TOOL_IDS.has(activeTool)
   const addToast = useUiStore((s) => s.addToast)
   const errorBoundaryRef = useRef<ErrorBoundary>(null)
 
@@ -46,7 +67,11 @@ export function Workspace() {
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-hidden bg-[var(--color-bg)]">
+        <div
+          className={`min-h-0 flex-1 bg-[var(--color-bg)] ${
+            usesMonaco ? 'overflow-hidden' : 'overflow-auto'
+          }`}
+        >
           <ErrorBoundary ref={errorBoundaryRef}>
             <Suspense
               fallback={
