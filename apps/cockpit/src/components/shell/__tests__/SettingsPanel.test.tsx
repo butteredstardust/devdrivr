@@ -44,6 +44,7 @@ beforeEach(() => {
         createdAt: 1,
         updatedAt: 1,
         tags: [],
+        sortOrder: 1024,
       },
     ],
     clearAll: vi.fn().mockResolvedValue(undefined),

@@ -15,12 +15,22 @@ import {
   PaperPlaneTiltIcon,
   TagIcon,
   XIcon,
+  DotsSixVerticalIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from '@phosphor-icons/react'
 import type { NoteColor, Note as NoteType } from '@/types/models'
 import { processMarkdown } from '@/lib/markdown'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 600
+
+type DropPosition = 'before' | 'after'
+
+type DragOverNote = {
+  id: string
+  position: DropPosition
+}
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts
@@ -60,6 +70,7 @@ function noteCardStyle(color: NoteColor): CSSProperties {
   return {
     backgroundColor: `color-mix(in srgb, ${token} 10%, var(--color-surface))`,
     borderColor: `color-mix(in srgb, ${token} 28%, var(--color-border))`,
+    borderLeftColor: token,
   }
 }
 
@@ -270,6 +281,7 @@ export function NotesDrawer() {
   const notes = useNotesStore((s) => s.notes)
   const addNote = useNotesStore((s) => s.add)
   const updateNote = useNotesStore((s) => s.update)
+  const reorderNotes = useNotesStore((s) => s.reorder)
   const removeNote = useNotesStore((s) => s.remove)
   const historyEntries = useHistoryStore((s) => s.entries)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
@@ -279,6 +291,9 @@ export function NotesDrawer() {
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [historyFilter, setHistoryFilter] = useState('')
+  const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null)
+  const [dragOverNote, setDragOverNote] = useState<DragOverNote | null>(null)
+  const [fuseVersion, setFuseVersion] = useState(0)
 
   const fuseRef = useRef<Fuse<NoteType> | null>(null)
 
@@ -286,13 +301,29 @@ export function NotesDrawer() {
     if (!drawerOpen) return
     import('fuse.js').then(({ default: FuseClass }) => {
       fuseRef.current = new FuseClass(notes, { keys: ['title', 'content', 'tags'], threshold: 0.3 })
+      setFuseVersion((version) => version + 1)
     })
   }, [drawerOpen, notes])
 
+  const fuseReady = fuseVersion > 0
+
   const filteredNotes = useMemo(() => {
     if (!search.trim()) return notes
-    return fuseRef.current ? fuseRef.current.search(search).map((r) => r.item) : notes
-  }, [notes, search])
+    return fuseReady && fuseRef.current ? fuseRef.current.search(search).map((r) => r.item) : notes
+  }, [fuseReady, notes, search])
+
+  const noteSections = useMemo(() => {
+    if (search.trim()) {
+      return [{ id: 'results', label: 'Results', notes: filteredNotes }]
+    }
+
+    return [
+      { id: 'pinned', label: 'Pinned', notes: filteredNotes.filter((note) => note.pinned) },
+      { id: 'notes', label: 'Notes', notes: filteredNotes.filter((note) => !note.pinned) },
+    ].filter((section) => section.notes.length > 0)
+  }, [filteredNotes, search])
+
+  const canReorderNotes = !search.trim()
 
   const filteredHistory = useMemo(() => {
     if (!historyFilter) return historyEntries
@@ -319,6 +350,64 @@ export function NotesDrawer() {
       }
     },
     [removeNote, setLastAction]
+  )
+
+  const handleNoteDragStart = useCallback(
+    (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
+      if (!canReorderNotes || editingId === note.id) {
+        e.preventDefault()
+        return
+      }
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', note.id)
+      setDraggedNoteId(note.id)
+    },
+    [canReorderNotes, editingId]
+  )
+
+  const handleNoteDragOver = useCallback(
+    (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
+      if (!draggedNoteId || draggedNoteId === note.id) return
+      const dragged = notes.find((n) => n.id === draggedNoteId)
+      if (!dragged || dragged.pinned !== note.pinned) return
+
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const bounds = e.currentTarget.getBoundingClientRect()
+      const position: DropPosition = e.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+      setDragOverNote({ id: note.id, position })
+    },
+    [draggedNoteId, notes]
+  )
+
+  const clearNoteDragState = useCallback(() => {
+    setDraggedNoteId(null)
+    setDragOverNote(null)
+  }, [])
+
+  const handleNoteDrop = useCallback(
+    (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      const sourceId = draggedNoteId ?? e.dataTransfer.getData('text/plain')
+      const position = dragOverNote?.id === note.id ? dragOverNote.position : 'before'
+      clearNoteDragState()
+      if (!sourceId || sourceId === note.id) return
+
+      void reorderNotes(sourceId, note.id, position)
+        .then(() => setLastAction('Note moved', 'success'))
+        .catch(() => setLastAction('Failed to move note', 'error'))
+    },
+    [clearNoteDragState, dragOverNote, draggedNoteId, reorderNotes, setLastAction]
+  )
+
+  const moveNote = useCallback(
+    (source: NoteType, target: NoteType | undefined, position: DropPosition) => {
+      if (!target) return
+      void reorderNotes(source.id, target.id, position)
+        .then(() => setLastAction('Note moved', 'success'))
+        .catch(() => setLastAction('Failed to move note', 'error'))
+    },
+    [reorderNotes, setLastAction]
   )
 
   const setPendingSendTo = useUiStore((s) => s.setPendingSendTo)
@@ -352,12 +441,24 @@ export function NotesDrawer() {
       {activeTab === 'notes' && (
         <>
           <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search notes..."
-              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-            />
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 focus-within:border-[var(--color-accent)]">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search notes..."
+                className="min-w-0 flex-1 bg-transparent text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear notes search"
+                  className="inline-flex min-h-5 min-w-5 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  <XIcon size={11} aria-hidden="true" />
+                </button>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -369,6 +470,14 @@ export function NotesDrawer() {
               +
             </button>
           </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-[10px] text-[var(--color-text-muted)]">
+            <span>
+              {search
+                ? `${filteredNotes.length} of ${notes.length} note${notes.length === 1 ? '' : 's'}`
+                : `${notes.length} note${notes.length === 1 ? '' : 's'}`}
+            </span>
+            {canReorderNotes && notes.length > 1 && <span>Drag notes to reorder</span>}
+          </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredNotes.length === 0 && (
               <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
@@ -377,118 +486,185 @@ export function NotesDrawer() {
                 {!search && <span className="text-[10px] opacity-60">Click + to create one</span>}
               </div>
             )}
-            {filteredNotes.map((note) => (
-              <div
-                key={note.id}
-                className={`mb-3 rounded-lg border shadow-sm transition-colors duration-150 ${editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''}`}
-                style={noteCardStyle(note.color)}
-              >
-                <div className="p-3">
-                  {editingId === note.id ? (
-                    <NoteEditor
-                      note={note}
-                      onUpdate={updateNote}
-                      onDone={() => setEditingId(null)}
-                    />
-                  ) : (
-                    <div className="group cursor-pointer" onClick={() => setEditingId(note.id)}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-bold text-[var(--color-text)]">
-                          {note.title || 'Untitled'}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              navigator.clipboard
-                                .writeText(note.content)
-                                .then(() => setLastAction('Copied to clipboard', 'info'))
-                                .catch(() => setLastAction('Failed to copy note', 'error'))
-                            }}
-                            aria-label={`Copy ${note.title || 'untitled note'} content`}
-                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
-                            title="Copy content"
+            {noteSections.map((section) => (
+              <section key={section.id} className="mb-3">
+                <div className="mb-1 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <span>{section.label}</span>
+                  <span>{section.notes.length}</span>
+                </div>
+                {section.notes.map((note, noteIndex) => {
+                  const dragPlacement = dragOverNote?.id === note.id ? dragOverNote.position : null
+                  const previousNote = section.notes[noteIndex - 1]
+                  const nextNote = section.notes[noteIndex + 1]
+                  return (
+                    <div
+                      key={note.id}
+                      data-testid={`note-card-${note.id}`}
+                      draggable={canReorderNotes && editingId !== note.id}
+                      onDragStart={(e) => handleNoteDragStart(note, e)}
+                      onDragOver={(e) => handleNoteDragOver(note, e)}
+                      onDrop={(e) => handleNoteDrop(note, e)}
+                      onDragEnd={clearNoteDragState}
+                      className={`mb-3 rounded-lg border border-l-4 shadow-sm transition-colors duration-150 ${
+                        editingId === note.id ? 'ring-1 ring-[var(--color-accent)]' : ''
+                      } ${draggedNoteId === note.id ? 'opacity-60' : ''} ${
+                        dragPlacement === 'before'
+                          ? 'border-t-2 border-t-[var(--color-accent)]'
+                          : ''
+                      } ${
+                        dragPlacement === 'after' ? 'border-b-2 border-b-[var(--color-accent)]' : ''
+                      }`}
+                      style={noteCardStyle(note.color)}
+                    >
+                      <div className="p-3">
+                        {editingId === note.id ? (
+                          <NoteEditor
+                            note={note}
+                            onUpdate={updateNote}
+                            onDone={() => setEditingId(null)}
+                          />
+                        ) : (
+                          <div
+                            className="group cursor-pointer"
+                            onClick={() => setEditingId(note.id)}
                           >
-                            <CopyIcon size={12} aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setPendingSendTo(note.content)
-                              setLastAction('Ready to send to tool', 'info')
-                            }}
-                            aria-label={`Use ${note.title || 'untitled note'} as input`}
-                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
-                            title="Use as input"
-                          >
-                            <PaperPlaneTiltIcon size={12} aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void updateNote(note.id, { pinned: !note.pinned }).catch(() =>
-                                setLastAction('Failed to update note', 'error')
-                              )
-                            }}
-                            aria-label={`${note.pinned ? 'Unpin' : 'Pin'} ${note.title || 'untitled note'}`}
-                            aria-pressed={note.pinned}
-                            className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}`}
-                            title={note.pinned ? 'Unpin' : 'Pin'}
-                          >
-                            <PushPinIcon
-                              size={12}
-                              weight={note.pinned ? 'fill' : 'regular'}
-                              aria-hidden="true"
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void handleDelete(note.id)
-                            }}
-                            aria-label={`Delete ${note.title || 'untitled note'}`}
-                            className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
-                            title="Delete note"
-                          >
-                            <TrashIcon size={12} aria-hidden="true" />
-                          </button>
-                        </div>
-                      </div>
+                            <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
+                              {canReorderNotes && (
+                                <span
+                                  aria-hidden="true"
+                                  className="inline-flex min-h-6 min-w-4 cursor-grab items-center justify-center rounded opacity-60 transition-opacity group-hover:opacity-100"
+                                  title="Drag to reorder"
+                                >
+                                  <DotsSixVerticalIcon size={13} />
+                                </span>
+                              )}
+                              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                                <span className="truncate text-xs font-bold text-[var(--color-text)]">
+                                  {note.title || 'Untitled'}
+                                </span>
+                                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      moveNote(note, previousNote, 'before')
+                                    }}
+                                    disabled={!canReorderNotes || !previousNote}
+                                    aria-label={`Move ${note.title || 'untitled note'} up`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    title="Move up"
+                                  >
+                                    <ArrowUpIcon size={12} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      moveNote(note, nextNote, 'after')
+                                    }}
+                                    disabled={!canReorderNotes || !nextNote}
+                                    aria-label={`Move ${note.title || 'untitled note'} down`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    title="Move down"
+                                  >
+                                    <ArrowDownIcon size={12} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      navigator.clipboard
+                                        .writeText(note.content)
+                                        .then(() => setLastAction('Copied to clipboard', 'info'))
+                                        .catch(() => setLastAction('Failed to copy note', 'error'))
+                                    }}
+                                    aria-label={`Copy ${note.title || 'untitled note'} content`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                                    title="Copy content"
+                                  >
+                                    <CopyIcon size={12} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setPendingSendTo(note.content)
+                                      setLastAction('Ready to send to tool', 'info')
+                                    }}
+                                    aria-label={`Use ${note.title || 'untitled note'} as input`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                                    title="Use as input"
+                                  >
+                                    <PaperPlaneTiltIcon size={12} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      void updateNote(note.id, { pinned: !note.pinned }).catch(() =>
+                                        setLastAction('Failed to update note', 'error')
+                                      )
+                                    }}
+                                    aria-label={`${note.pinned ? 'Unpin' : 'Pin'} ${note.title || 'untitled note'}`}
+                                    aria-pressed={note.pinned}
+                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}`}
+                                    title={note.pinned ? 'Unpin' : 'Pin'}
+                                  >
+                                    <PushPinIcon
+                                      size={12}
+                                      weight={note.pinned ? 'fill' : 'regular'}
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      void handleDelete(note.id)
+                                    }}
+                                    aria-label={`Delete ${note.title || 'untitled note'}`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
+                                    title="Delete note"
+                                  >
+                                    <TrashIcon size={12} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
 
-                      {note.content && (
-                        <div className="mt-2 line-clamp-6">
-                          <MarkdownRenderer content={note.content} />
-                        </div>
-                      )}
+                            {note.content && (
+                              <div className="mt-2 line-clamp-6">
+                                <MarkdownRenderer content={note.content} />
+                              </div>
+                            )}
 
-                      {note.tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {note.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]"
-                            >
-                              <TagIcon size={8} aria-hidden="true" />
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                            {note.tags.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {note.tags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]"
+                                  >
+                                    <TagIcon size={8} aria-hidden="true" />
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
 
-                      <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
-                        <span>{timeAgo(note.updatedAt)}</span>
-                        {note.content.length > 0 && (
-                          <span>{note.content.split(/\s+/).length} words</span>
+                            <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
+                              <span>{timeAgo(note.updatedAt)}</span>
+                              {note.content.length > 0 && (
+                                <span>{note.content.split(/\s+/).length} words</span>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  )
+                })}
+              </section>
             ))}
           </div>
         </>

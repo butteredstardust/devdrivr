@@ -66,6 +66,7 @@ export const noteRowSchema = z
     created_at: z.number(),
     updated_at: z.number(),
     tags: z.string().optional(),
+    sort_order: z.number().default(0),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -86,6 +87,7 @@ export const noteRowSchema = z
           return []
         }
       })(),
+      sortOrder: row.sort_order,
     }
     if (
       row.window_x != null &&

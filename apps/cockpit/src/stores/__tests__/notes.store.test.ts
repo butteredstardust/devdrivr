@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
-import { loadNotes, saveNote, deleteNote } from '@/lib/db'
+import { loadNotes, saveNote, saveNotesOrder, deleteNote } from '@/lib/db'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
   saveNote: vi.fn(),
+  saveNotesOrder: vi.fn(),
   deleteNote: vi.fn(),
 }))
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   // Instead, we test the store actions directly (add, update, remove)
   ;(loadNotes as any).mockResolvedValue([])
   ;(saveNote as any).mockResolvedValue(undefined)
+  ;(saveNotesOrder as any).mockResolvedValue(undefined)
   ;(deleteNote as any).mockResolvedValue(undefined)
 })
 
@@ -32,6 +34,7 @@ describe('notes store', () => {
     expect(note.content).toBe('Test content')
     expect(note.color).toBe('yellow')
     expect(note.tags).toEqual([])
+    expect(note.sortOrder).toBeLessThan(0)
     expect(note.id).toBeTruthy()
 
     const { notes } = useNotesStore.getState()
@@ -82,5 +85,25 @@ describe('notes store', () => {
     const { notes } = useNotesStore.getState()
     expect(notes).toHaveLength(0)
     expect(deleteNote).toHaveBeenCalledWith(note.id)
+  })
+
+  it('reorders notes within the same pin group', async () => {
+    const first = await useNotesStore.getState().add('First')
+    const second = await useNotesStore.getState().add('Second')
+    const third = await useNotesStore.getState().add('Third')
+    ;(saveNote as any).mockClear()
+    ;(saveNotesOrder as any).mockClear()
+
+    await useNotesStore.getState().reorder(first.id, third.id, 'before')
+
+    const { notes } = useNotesStore.getState()
+    expect(notes.map((note) => note.id)).toEqual([first.id, third.id, second.id])
+    expect(notes.map((note) => note.sortOrder)).toEqual([1024, 2048, 3072])
+    expect(saveNotesOrder).toHaveBeenCalledWith([
+      { id: first.id, sortOrder: 1024 },
+      { id: third.id, sortOrder: 2048 },
+      { id: second.id, sortOrder: 3072 },
+    ])
+    expect(saveNote).not.toHaveBeenCalled()
   })
 })
