@@ -462,7 +462,7 @@ export default function MermaidEditor() {
         {/* Editor */}
         {showEditor && (
           <div
-            className={`${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'} h-full`}
+            className={`min-h-0 overflow-hidden ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'} h-full`}
           >
             <Editor
               theme={monacoTheme}

@@ -338,7 +338,7 @@ export default function XmlTools() {
                 <pre className="whitespace-pre-wrap">{error}</pre>
               </Alert>
             )}
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language="xml"
@@ -386,7 +386,7 @@ export default function XmlTools() {
                 {jsonError}
               </Alert>
             )}
-            <div className="flex-1 overflow-auto">
+            <div className="min-h-0 flex-1 overflow-hidden">
               {jsonOutput ? (
                 <Editor
                   theme={monacoTheme}

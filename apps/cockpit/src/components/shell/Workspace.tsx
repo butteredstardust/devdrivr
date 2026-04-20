@@ -46,7 +46,7 @@ export function Workspace() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto bg-[var(--color-bg)]">
+        <div className="min-h-0 flex-1 overflow-hidden bg-[var(--color-bg)]">
           <ErrorBoundary ref={errorBoundaryRef}>
             <Suspense
               fallback={

@@ -242,7 +242,7 @@ export default function YamlTools() {
                 {error}
               </Alert>
             )}
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language="yaml"
@@ -324,13 +324,13 @@ export default function YamlTools() {
               </Alert>
             )}
             <div className="flex flex-1 overflow-hidden">
-              <div className="flex flex-1 flex-col border-r border-[var(--color-border)]">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-[var(--color-border)]">
                 <div className="border-b border-[var(--color-border)] px-4 py-1">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
                     {convertDirection === 'yaml-to-json' ? 'YAML Input' : 'JSON Input'}
                   </span>
                 </div>
-                <div className="flex-1">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   {convertDirection === 'yaml-to-json' ? (
                     <Editor
                       theme={monacoTheme}
@@ -350,13 +350,13 @@ export default function YamlTools() {
                   )}
                 </div>
               </div>
-              <div className="flex flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div className="border-b border-[var(--color-border)] px-4 py-1">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
                     {convertDirection === 'yaml-to-json' ? 'JSON Output' : 'YAML Output'}
                   </span>
                 </div>
-                <div className="flex-1">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   <Editor
                     theme={monacoTheme}
                     language={convertDirection === 'yaml-to-json' ? 'json' : 'yaml'}

@@ -415,12 +415,12 @@ export default function JsonSchemaValidator() {
 
       {/* Editors */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+        <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
             <span className="text-xs text-[var(--color-text-muted)]">JSON Data</span>
             <CopyButton text={state.data} />
           </div>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
               language="json"
@@ -430,7 +430,7 @@ export default function JsonSchemaValidator() {
             />
           </div>
         </div>
-        <div className="flex w-1/2 flex-col">
+        <div className="flex min-h-0 w-1/2 flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
             <span className="text-xs text-[var(--color-text-muted)]">JSON Schema</span>
             <div className="flex items-center gap-2">
@@ -452,7 +452,7 @@ export default function JsonSchemaValidator() {
               <CopyButton text={state.schema} />
             </div>
           </div>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
               language="json"

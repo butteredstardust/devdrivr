@@ -65,8 +65,6 @@ const THEME_OPTIONS: { value: Theme; label: string }[] = [
 
 const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: string }[] = [
   { value: 'standard', label: 'Standard' },
-  { value: 'vim', label: 'Vim' },
-  { value: 'emacs', label: 'Emacs' },
 ]
 
 const EDITOR_THEME_OPTIONS: { value: AppSettings['editorTheme']; label: string }[] = [
@@ -394,7 +392,7 @@ function EditorTab() {
           options={EDITOR_THEME_OPTIONS}
         />
       </SettingRow>
-      <SettingRow label="Keybinding Mode" hint="Keyboard shortcuts style">
+      <SettingRow label="Keybinding Mode" hint="Monaco standard shortcuts">
         <SelectInput
           value={editorKeybindingMode}
           onChange={(v) =>
@@ -469,11 +467,7 @@ function DataTab() {
       'cyber-luxe',
       'soft-focus',
     ])
-    const validKeybindings = new Set<AppSettings['editorKeybindingMode']>([
-      'standard',
-      'vim',
-      'emacs',
-    ])
+    const validKeybindings = new Set<AppSettings['editorKeybindingMode']>(['standard'])
     const validGroups = new Set<AppSettings['collapsedSidebarGroups'][number]>([
       'code',
       'data',

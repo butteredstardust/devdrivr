@@ -346,7 +346,7 @@ export default function CurlToFetch() {
             <CopyButton text={output} className="mr-2" />
           </div>
           {parsed ? (
-            <div className="flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Editor
                 theme={monacoTheme}
                 language="javascript"

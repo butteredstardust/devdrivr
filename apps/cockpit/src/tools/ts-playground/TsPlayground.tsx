@@ -132,7 +132,7 @@ export default function TsPlayground() {
         </div>
       )}
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-1/2 border-r border-[var(--color-border)]">
+        <div className="min-h-0 w-1/2 overflow-hidden border-r border-[var(--color-border)]">
           <Editor
             theme={monacoTheme}
             language="typescript"
@@ -141,7 +141,7 @@ export default function TsPlayground() {
             options={monacoOptions}
           />
         </div>
-        <div className="w-1/2">
+        <div className="min-h-0 w-1/2 overflow-hidden">
           <Editor
             theme={monacoTheme}
             language="javascript"
