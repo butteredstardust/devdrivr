@@ -81,38 +81,47 @@ const LANG_EXTENSIONS: Record<string, string> = {
   text: 'txt',
 }
 
-// Per-language badge colours (bg + text as CSS colour values)
-type LangStyle = { bg: string; color: string }
-const LANG_STYLES: Record<string, LangStyle> = {
-  javascript: { bg: 'rgba(234,179,8,0.15)', color: '#ca8a04' },
-  typescript: { bg: 'rgba(96,165,250,0.15)', color: '#60a5fa' },
-  python: { bg: 'rgba(74,222,128,0.15)', color: '#4ade80' },
-  rust: { bg: 'rgba(251,146,60,0.15)', color: '#fb923c' },
-  go: { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee' },
-  sql: { bg: 'rgba(167,139,250,0.15)', color: '#a78bfa' },
-  bash: { bg: 'rgba(74,222,128,0.18)', color: '#86efac' },
-  json: { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24' },
-  css: { bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
-  html: { bg: 'rgba(239,68,68,0.15)', color: '#f87171' },
-  markdown: { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' },
-  yaml: { bg: 'rgba(250,204,21,0.15)', color: '#facc15' },
-  dockerfile: { bg: 'rgba(56,189,248,0.15)', color: '#38bdf8' },
-  ruby: { bg: 'rgba(239,68,68,0.18)', color: '#fca5a5' },
-  php: { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
-  java: { bg: 'rgba(249,115,22,0.18)', color: '#fdba74' },
-  kotlin: { bg: 'rgba(139,92,246,0.18)', color: '#c4b5fd' },
-  swift: { bg: 'rgba(249,115,22,0.15)', color: '#f97316' },
-  graphql: { bg: 'rgba(236,72,153,0.15)', color: '#ec4899' },
-  cpp: { bg: 'rgba(96,165,250,0.18)', color: '#93c5fd' },
-  csharp: { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
-  c: { bg: 'rgba(96,165,250,0.12)', color: '#7dd3fc' },
-  xml: { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' },
-  toml: { bg: 'rgba(251,191,36,0.12)', color: '#d97706' },
+type LangTone = 'accent' | 'success' | 'warning' | 'info' | 'error' | 'muted'
+
+const LANG_TONES: Record<string, LangTone> = {
+  javascript: 'warning',
+  typescript: 'info',
+  python: 'success',
+  rust: 'warning',
+  go: 'info',
+  sql: 'accent',
+  bash: 'success',
+  json: 'warning',
+  css: 'warning',
+  html: 'error',
+  markdown: 'muted',
+  yaml: 'warning',
+  dockerfile: 'info',
+  ruby: 'error',
+  php: 'accent',
+  java: 'warning',
+  kotlin: 'accent',
+  swift: 'warning',
+  graphql: 'accent',
+  cpp: 'info',
+  csharp: 'accent',
+  c: 'info',
+  xml: 'muted',
+  toml: 'warning',
 }
-const DEFAULT_LANG_STYLE: LangStyle = {
-  bg: 'var(--color-accent-dim)',
-  color: 'var(--color-accent)',
+
+const LANG_TONE_CLASSES: Record<LangTone, string> = {
+  accent: 'bg-[color-mix(in_oklab,var(--color-accent)_18%,transparent)] text-[var(--color-accent)]',
+  success:
+    'bg-[color-mix(in_oklab,var(--color-success)_18%,transparent)] text-[var(--color-success)]',
+  warning:
+    'bg-[color-mix(in_oklab,var(--color-warning)_18%,transparent)] text-[var(--color-warning)]',
+  info: 'bg-[color-mix(in_oklab,var(--color-info)_18%,transparent)] text-[var(--color-info)]',
+  error: 'bg-[color-mix(in_oklab,var(--color-error)_18%,transparent)] text-[var(--color-error)]',
+  muted: 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
 }
+
+const SELECTED_LANG_CLASS = 'bg-[var(--color-bg)] text-[var(--color-accent)]'
 
 type SortMode = 'updated' | 'created' | 'title' | 'language'
 
@@ -687,7 +696,7 @@ export default function SnippetsManager() {
           {filtered.map((snippet) => {
             const isSelected = selectedId === snippet.id
             const matches = isSelected ? undefined : matchMap.get(snippet.id)
-            const langStyle = LANG_STYLES[snippet.language] ?? DEFAULT_LANG_STYLE
+            const langTone = LANG_TONES[snippet.language] ?? 'accent'
             return (
               <button
                 key={snippet.id}
@@ -718,12 +727,9 @@ export default function SnippetsManager() {
                 <div className="flex items-center gap-2">
                   {/* Language pill */}
                   <span
-                    className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
-                    style={
-                      isSelected
-                        ? { backgroundColor: 'rgba(255,255,255,0.2)', color: 'var(--color-bg)' }
-                        : { backgroundColor: langStyle.bg, color: langStyle.color }
-                    }
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                      isSelected ? SELECTED_LANG_CLASS : LANG_TONE_CLASSES[langTone]
+                    }`}
                   >
                     {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
                   </span>

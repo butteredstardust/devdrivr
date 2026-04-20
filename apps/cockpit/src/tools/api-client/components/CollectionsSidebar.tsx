@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiRequest } from '@/types/models'
+import { DotsThreeVerticalIcon } from '@phosphor-icons/react'
 
 type Props = {
   activeRequestId: string | null
@@ -371,27 +372,35 @@ type RequestRowProps = {
 function RequestRow({ req, isActive, onSelect, onContextMenu }: RequestRowProps) {
   return (
     <div
-      className={`group flex cursor-pointer items-center justify-between rounded px-2 py-1 text-xs ${
+      className={`group flex cursor-pointer items-center justify-between rounded text-xs ${
         isActive
           ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
           : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
       }`}
-      onClick={onSelect}
       onContextMenu={onContextMenu}
     >
-      <span className="truncate flex-1">{req.name}</span>
-      <span className={`ml-2 shrink-0 text-[8px] font-bold ${getMethodColor(req.method)}`}>
-        {req.method}
-      </span>
       <button
+        type="button"
+        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between px-2 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)]"
+        onClick={onSelect}
+        aria-label={req.name}
+        aria-current={isActive ? 'true' : undefined}
+      >
+        <span className="flex-1 truncate">{req.name}</span>
+        <span className={`ml-2 shrink-0 text-[8px] font-bold ${getMethodColor(req.method)}`}>
+          {req.method}
+        </span>
+      </button>
+      <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation()
           onContextMenu(e)
         }}
-        className="ml-1 hidden shrink-0 text-[var(--color-text-muted)] group-hover:block hover:text-[var(--color-text)]"
+        className="ml-1 hidden shrink-0 rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:block focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] group-hover:block group-focus-within:block"
         title="Options"
       >
-        ⋮
+        <DotsThreeVerticalIcon size={14} weight="bold" />
       </button>
     </div>
   )
