@@ -53,6 +53,8 @@ describe('NotesDrawer', () => {
     expect(screen.getByRole('button', { name: 'Use Test note as input' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pin Test note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete Test note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Test note up' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Test note down' })).toBeInTheDocument()
     expect(screen.getByRole('separator', { name: 'Resize notes drawer' })).toHaveAttribute(
       'aria-orientation',
       'vertical'
@@ -120,5 +122,17 @@ describe('NotesDrawer', () => {
     fireEvent.drop(secondCard, { dataTransfer })
 
     expect(reorder).toHaveBeenCalledWith('note-1', 'note-2', 'after')
+  })
+
+  it('supports keyboard-accessible move controls', () => {
+    const reorder = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ notes: [testNote, secondNote], reorder })
+    render(<NotesDrawer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Test note down' }))
+
+    expect(reorder).toHaveBeenCalledWith('note-1', 'note-2', 'after')
+    expect(screen.getByRole('button', { name: 'Move Test note up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Second note down' })).toBeDisabled()
   })
 })

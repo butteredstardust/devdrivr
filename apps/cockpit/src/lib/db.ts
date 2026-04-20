@@ -143,6 +143,24 @@ export async function saveNote(note: Note): Promise<void> {
   )
 }
 
+export async function saveNotesOrder(notes: Pick<Note, 'id' | 'sortOrder'>[]): Promise<void> {
+  if (notes.length === 0) return
+  const conn = await getDb()
+  await conn.execute('BEGIN IMMEDIATE')
+  try {
+    for (const note of notes) {
+      await conn.execute('UPDATE notes SET sort_order = $1 WHERE id = $2', [
+        note.sortOrder,
+        note.id,
+      ])
+    }
+    await conn.execute('COMMIT')
+  } catch (err) {
+    await conn.execute('ROLLBACK')
+    throw err
+  }
+}
+
 export async function deleteNote(id: string): Promise<void> {
   const conn = await getDb()
   await conn.execute('DELETE FROM notes WHERE id = $1', [id])

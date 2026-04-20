@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Note, NoteColor } from '@/types/models'
-import { loadNotes, saveNote, deleteNote, clearAllNotes } from '@/lib/db'
+import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
 const SORT_STEP = 1024
@@ -134,7 +134,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     const changedNotes = nextNotes.filter((note) => updatedById.has(note.id))
 
     try {
-      await Promise.all(changedNotes.map(saveNote))
+      await saveNotesOrder(changedNotes.map(({ id, sortOrder }) => ({ id, sortOrder })))
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to reorder notes: ' + msg, 'error')

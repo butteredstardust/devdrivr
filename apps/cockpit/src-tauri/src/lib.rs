@@ -55,6 +55,12 @@ pub fn run() {
             sql: include_str!("../migrations/007_prompt_template_authors.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "add notes sort order",
+            sql: include_str!("../migrations/008_notes_sort_order.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

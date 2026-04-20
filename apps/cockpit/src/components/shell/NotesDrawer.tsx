@@ -16,6 +16,8 @@ import {
   TagIcon,
   XIcon,
   DotsSixVerticalIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from '@phosphor-icons/react'
 import type { NoteColor, Note as NoteType } from '@/types/models'
 import { processMarkdown } from '@/lib/markdown'
@@ -398,6 +400,16 @@ export function NotesDrawer() {
     [clearNoteDragState, dragOverNote, draggedNoteId, reorderNotes, setLastAction]
   )
 
+  const moveNote = useCallback(
+    (source: NoteType, target: NoteType | undefined, position: DropPosition) => {
+      if (!target) return
+      void reorderNotes(source.id, target.id, position)
+        .then(() => setLastAction('Note moved', 'success'))
+        .catch(() => setLastAction('Failed to move note', 'error'))
+    },
+    [reorderNotes, setLastAction]
+  )
+
   const setPendingSendTo = useUiStore((s) => s.setPendingSendTo)
   const handleHistoryReplay = useCallback(
     (tool: string, input: string) => {
@@ -480,8 +492,10 @@ export function NotesDrawer() {
                   <span>{section.label}</span>
                   <span>{section.notes.length}</span>
                 </div>
-                {section.notes.map((note) => {
+                {section.notes.map((note, noteIndex) => {
                   const dragPlacement = dragOverNote?.id === note.id ? dragOverNote.position : null
+                  const previousNote = section.notes[noteIndex - 1]
+                  const nextNote = section.notes[noteIndex + 1]
                   return (
                     <div
                       key={note.id}
@@ -529,6 +543,32 @@ export function NotesDrawer() {
                                   {note.title || 'Untitled'}
                                 </span>
                                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      moveNote(note, previousNote, 'before')
+                                    }}
+                                    disabled={!canReorderNotes || !previousNote}
+                                    aria-label={`Move ${note.title || 'untitled note'} up`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    title="Move up"
+                                  >
+                                    <ArrowUpIcon size={12} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      moveNote(note, nextNote, 'after')
+                                    }}
+                                    disabled={!canReorderNotes || !nextNote}
+                                    aria-label={`Move ${note.title || 'untitled note'} down`}
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    title="Move down"
+                                  >
+                                    <ArrowDownIcon size={12} aria-hidden="true" />
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={(e) => {
