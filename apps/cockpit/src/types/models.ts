@@ -145,6 +145,7 @@ export type Note = {
   createdAt: number
   updatedAt: number
   tags: string[]
+  sortOrder: number
 }
 
 export type HistoryEntry = {

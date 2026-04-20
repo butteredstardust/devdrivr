@@ -32,6 +32,7 @@ describe('notes store', () => {
     expect(note.content).toBe('Test content')
     expect(note.color).toBe('yellow')
     expect(note.tags).toEqual([])
+    expect(note.sortOrder).toBeLessThan(0)
     expect(note.id).toBeTruthy()
 
     const { notes } = useNotesStore.getState()
@@ -82,5 +83,19 @@ describe('notes store', () => {
     const { notes } = useNotesStore.getState()
     expect(notes).toHaveLength(0)
     expect(deleteNote).toHaveBeenCalledWith(note.id)
+  })
+
+  it('reorders notes within the same pin group', async () => {
+    const first = await useNotesStore.getState().add('First')
+    const second = await useNotesStore.getState().add('Second')
+    const third = await useNotesStore.getState().add('Third')
+    ;(saveNote as any).mockClear()
+
+    await useNotesStore.getState().reorder(first.id, third.id, 'before')
+
+    const { notes } = useNotesStore.getState()
+    expect(notes.map((note) => note.id)).toEqual([first.id, third.id, second.id])
+    expect(notes.map((note) => note.sortOrder)).toEqual([1024, 2048, 3072])
+    expect(saveNote).toHaveBeenCalledTimes(3)
   })
 })
