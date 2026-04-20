@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import MarkdownEditor from '../markdown-editor/MarkdownEditor'
+import { MarkdownPreview } from '../markdown-editor/MarkdownPreview'
 import { LinkModal } from '../markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '../markdown-editor/modals/CodeBlockModal'
 import { TableModal } from '../markdown-editor/modals/TableModal'
@@ -74,6 +75,39 @@ describe('MarkdownEditor', () => {
     renderTool(MarkdownEditor)
     expect(screen.getByTitle('Link')).toBeInTheDocument()
     expect(screen.getByTitle('Image')).toBeInTheDocument()
+  })
+
+  it('scrolls duplicate TOC entries to the matching heading occurrence', () => {
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
+    let scrolledElement: Element | null = null
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: function scrollIntoView() {
+        scrolledElement = this
+      },
+    })
+
+    try {
+      render(
+        <MarkdownPreview
+          html="<h2>Repeat</h2><p>First</p><h2>Repeat</h2><p>Second</p>"
+          showToc
+          toc={[
+            { level: 2, text: 'Repeat', id: 'repeat' },
+            { level: 2, text: 'Repeat', id: 'repeat-2' },
+          ]}
+        />
+      )
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Repeat' })[1]!)
+
+      expect(scrolledElement).toBe(document.querySelectorAll('h2')[1])
+    } finally {
+      Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView,
+      })
+    }
   })
 })
 

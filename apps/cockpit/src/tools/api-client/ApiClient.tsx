@@ -183,9 +183,12 @@ export default function ApiClient() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
+  const [responseCollapsed, setResponseCollapsed] = useState(true)
+  const [responsePaneUserToggled, setResponsePaneUserToggled] = useState(false)
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = useMemo(() => activeEnv?.variables ?? {}, [activeEnv])
+  const responseVisible = !responseCollapsed
 
   // ---------------------------------------------------------------------------
   // Query params
@@ -205,6 +208,15 @@ export default function ApiClient() {
       setParams(parseQueryParams(url))
     }
   }, [url])
+
+  useEffect(() => {
+    if (!responsePaneUserToggled && (loading || response || error)) setResponseCollapsed(false)
+  }, [loading, response, error, responsePaneUserToggled])
+
+  const toggleResponsePane = useCallback(() => {
+    setResponsePaneUserToggled(true)
+    setResponseCollapsed((collapsed) => !collapsed)
+  }, [])
 
   const handleResponseEditorMount: OnMount = useCallback((editor) => {
     setResponseEditor(editor)
@@ -686,11 +698,23 @@ export default function ApiClient() {
           <Button variant="primary" size="sm" onClick={handleSend} disabled={loading}>
             {loading ? 'Sending…' : 'Send'}
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleResponsePane}
+            aria-pressed={responseVisible}
+          >
+            {responseVisible ? 'Hide Response' : 'Show Response'}
+          </Button>
         </div>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* ── Request panel ─────────────────────────────────── */}
-          <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
+          <div
+            className={`flex min-h-0 flex-col overflow-hidden ${
+              responseVisible ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'
+            }`}
+          >
             <TabBar tabs={REQUEST_TABS} activeTab={requestTab} onTabChange={setRequestTab} />
 
             {/* Params tab */}
@@ -843,7 +867,9 @@ export default function ApiClient() {
           </div>
 
           {/* ── Response panel ────────────────────────────────── */}
-          <div className="flex min-h-0 w-1/2 flex-col overflow-hidden">
+          <div
+            className={`${responseVisible ? 'flex' : 'hidden'} min-h-0 w-1/2 flex-col overflow-hidden`}
+          >
             {error && (
               <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
                 {error}

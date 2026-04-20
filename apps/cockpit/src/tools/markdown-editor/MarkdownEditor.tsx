@@ -3,6 +3,7 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
@@ -14,6 +15,7 @@ import { LinkModal } from './modals/LinkModal'
 import { CodeBlockModal } from './modals/CodeBlockModal'
 import { ImageModal } from './modals/ImageModal'
 import { TableModal } from './modals/TableModal'
+import { nextHeadingId } from './heading-ids'
 import {
   ArrowsClockwiseIcon,
   CaretDownIcon,
@@ -414,15 +416,13 @@ const processor = unified()
 
 function extractToc(html: string): TocEntry[] {
   const entries: TocEntry[] = []
+  const headingCounts = new Map<string, number>()
   const re = /<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi
   let match
   while ((match = re.exec(html)) !== null) {
     const level = parseInt(match[1] as string, 10)
     const text = (match[2] as string).replace(/<[^>]+>/g, '')
-    const id = text
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
+    const id = nextHeadingId(text, headingCounts)
     entries.push({ level, text, id })
   }
   return entries
@@ -814,23 +814,34 @@ export default function MarkdownEditor() {
           )}
 
           {toc.length > 0 && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => updateState({ showToc: !state.showToc })}
-              className={`text-xs transition-colors ${state.showToc ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+              className={
+                state.showToc ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+              }
               title="Table of Contents"
+              aria-pressed={state.showToc}
             >
               TOC
-            </button>
+            </Button>
           )}
 
           {/* Templates dropdown */}
           <div ref={templatesRef} className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className={
+                showTemplates ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+              }
+              aria-expanded={showTemplates}
+              aria-haspopup="menu"
             >
               Templates
-            </button>
+            </Button>
             {showTemplates && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 {TEMPLATES.map((t) => (
@@ -848,13 +859,17 @@ export default function MarkdownEditor() {
 
           {/* Export dropdown — consolidates Copy MD, Copy HTML, Download .md/.html, Print/PDF */}
           <div ref={exportRef} className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowExport(!showExport)}
-              className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className={`gap-1 ${showExport ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
+              aria-expanded={showExport}
+              aria-haspopup="menu"
             >
               Export
               <CaretDownIcon size={10} />
-            </button>
+            </Button>
             {showExport && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 <button

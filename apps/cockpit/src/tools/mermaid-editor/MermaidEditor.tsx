@@ -4,6 +4,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
+import { Button } from '@/components/shared/Button'
 import { useUiStore } from '@/stores/ui.store'
 import { CaretDownIcon } from '@phosphor-icons/react'
 
@@ -345,13 +346,17 @@ export default function MermaidEditor() {
         <div className="ml-auto flex items-center gap-3 py-2">
           {/* Templates dropdown */}
           <div ref={templatesRef} className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
-              className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className={`gap-1 ${showTemplates ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
+              aria-expanded={showTemplates}
+              aria-haspopup="menu"
             >
               Templates
               <CaretDownIcon size={10} />
-            </button>
+            </Button>
             {showTemplates && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 {Object.keys(TEMPLATES).map((name) => (
@@ -372,13 +377,17 @@ export default function MermaidEditor() {
 
           {/* Export dropdown */}
           <div ref={exportRef} className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowExport(!showExport)}
-              className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className={`gap-1 ${showExport ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
+              aria-expanded={showExport}
+              aria-haspopup="menu"
             >
               Export
               <CaretDownIcon size={10} />
-            </button>
+            </Button>
             {showExport && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 <button

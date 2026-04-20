@@ -75,7 +75,10 @@ describe('SnippetsManager', () => {
     })
     renderTool(SnippetsManager)
     // Language pill shows uppercased shorthand without brackets
-    expect(screen.getByText('js')).toBeInTheDocument()
+    const languagePill = screen.getByText('js')
+    expect(languagePill).toBeInTheDocument()
+    expect(languagePill).toHaveClass('text-[var(--color-warning)]')
+    expect(languagePill).not.toHaveAttribute('style')
     expect(screen.queryByText('[JS]')).not.toBeInTheDocument()
   })
 
@@ -112,6 +115,8 @@ describe('SnippetsManager', () => {
 
     expect(item1).toHaveClass('bg-[var(--color-accent)]')
     expect(item1).toHaveClass('text-[var(--color-bg)]')
+    expect(screen.getByText('js')).toHaveClass('bg-[var(--color-bg)]')
+    expect(screen.getByText('js')).toHaveClass('text-[var(--color-accent)]')
   })
 
   it('shows the correct editor header with title and extension', () => {

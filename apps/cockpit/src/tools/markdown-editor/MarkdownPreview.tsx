@@ -1,6 +1,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme } from '@/lib/theme'
+import { nextHeadingId } from './heading-ids'
 
 type TocEntry = {
   level: number
@@ -125,11 +126,9 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     function scrollToHeading(id: string) {
       if (!innerRef.current) return
       const headings = innerRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6')
+      const headingCounts = new Map<string, number>()
       for (const h of headings) {
-        const hId = (h.textContent ?? '')
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, '')
-          .replace(/\s+/g, '-')
+        const hId = nextHeadingId(h.textContent ?? '', headingCounts)
         if (hId === id) {
           h.scrollIntoView({ behavior: 'smooth', block: 'start' })
           break
