@@ -124,6 +124,13 @@ function interpolate(text: string, vars: Record<string, string>): string {
   })
 }
 
+function base64EncodeUtf8(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -330,7 +337,7 @@ export default function ApiClient() {
       } else if (auth.type === 'basic') {
         const u = interpolate(auth.username, envVars)
         const p = interpolate(auth.password, envVars)
-        fetchHeaders['Authorization'] = `Basic ${btoa(`${u}:${p}`)}`
+        fetchHeaders['Authorization'] = `Basic ${base64EncodeUtf8(`${u}:${p}`)}`
       }
 
       const opts: RequestInit = { method, headers: fetchHeaders }

@@ -321,6 +321,8 @@ export default function RegexTester() {
                 key={flag}
                 onClick={() => toggleFlag(flag)}
                 title={FLAG_TITLES[flag]}
+                aria-label={`${FLAG_TITLES[flag]} flag`}
+                aria-pressed={state.flags.includes(flag)}
                 className={`h-6 w-6 rounded text-xs font-bold ${
                   state.flags.includes(flag)
                     ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'

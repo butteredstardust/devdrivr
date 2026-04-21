@@ -416,6 +416,18 @@ export default function ImageTool() {
     cropDragRef.current = null
   }, [])
 
+  useEffect(() => {
+    if (state.activeTab !== 'crop') {
+      cropDragRef.current = null
+      return
+    }
+    window.addEventListener('mouseup', handleCropMouseUp)
+    return () => {
+      window.removeEventListener('mouseup', handleCropMouseUp)
+      cropDragRef.current = null
+    }
+  }, [handleCropMouseUp, state.activeTab])
+
   const handleResetCrop = useCallback(() => {
     if (!originalImg) return
     updateState({
@@ -572,6 +584,7 @@ export default function ImageTool() {
         {/* Preview panel */}
         <div
           ref={previewContainerRef}
+          data-testid="image-preview"
           className="relative flex flex-1 select-none items-center justify-center overflow-hidden bg-[var(--color-surface)]"
           style={{
             backgroundImage:
@@ -616,7 +629,7 @@ export default function ImageTool() {
                       left: displayMetrics?.offsetX ?? 0,
                       width: displayMetrics?.displayW ?? 0,
                       height: cropDisplayRect.top - (displayMetrics?.offsetY ?? 0),
-                      background: 'rgba(0,0,0,0.55)',
+                      background: 'color-mix(in srgb, var(--color-bg) 72%, transparent)',
                     }}
                   />
                   <div
@@ -630,7 +643,7 @@ export default function ImageTool() {
                         (displayMetrics?.offsetY ?? 0) +
                         (displayMetrics?.displayH ?? 0) -
                         (cropDisplayRect.top + cropDisplayRect.height),
-                      background: 'rgba(0,0,0,0.55)',
+                      background: 'color-mix(in srgb, var(--color-bg) 72%, transparent)',
                     }}
                   />
                   <div
@@ -640,7 +653,7 @@ export default function ImageTool() {
                       left: displayMetrics?.offsetX ?? 0,
                       width: cropDisplayRect.left - (displayMetrics?.offsetX ?? 0),
                       height: cropDisplayRect.height,
-                      background: 'rgba(0,0,0,0.55)',
+                      background: 'color-mix(in srgb, var(--color-bg) 72%, transparent)',
                     }}
                   />
                   <div
@@ -653,19 +666,20 @@ export default function ImageTool() {
                         (displayMetrics?.displayW ?? 0) -
                         (cropDisplayRect.left + cropDisplayRect.width),
                       height: cropDisplayRect.height,
-                      background: 'rgba(0,0,0,0.55)',
+                      background: 'color-mix(in srgb, var(--color-bg) 72%, transparent)',
                     }}
                   />
 
                   {/* Crop box + handles */}
                   <div
+                    data-testid="crop-box"
                     className="absolute"
                     style={{
                       left: cropDisplayRect.left,
                       top: cropDisplayRect.top,
                       width: cropDisplayRect.width,
                       height: cropDisplayRect.height,
-                      border: '1.5px solid white',
+                      border: '1.5px solid var(--color-accent)',
                       boxSizing: 'border-box',
                       cursor: 'move',
                     }}
@@ -676,7 +690,7 @@ export default function ImageTool() {
                       className="pointer-events-none absolute inset-0"
                       style={{
                         backgroundImage:
-                          'linear-gradient(rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.2) 1px, transparent 1px)',
+                          'linear-gradient(color-mix(in srgb, var(--color-accent) 35%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 35%, transparent) 1px, transparent 1px)',
                         backgroundSize: '33.33% 33.33%',
                       }}
                     />
@@ -690,8 +704,9 @@ export default function ImageTool() {
                           position: 'absolute',
                           width: 12,
                           height: 12,
-                          background: 'white',
-                          border: '1.5px solid rgba(0,0,0,0.4)',
+                          background: 'var(--color-bg)',
+                          border:
+                            '1.5px solid color-mix(in srgb, var(--color-accent) 70%, var(--color-border))',
                           boxSizing: 'border-box',
                           ...(handle === 'nw' && {
                             top: -6,
@@ -931,17 +946,20 @@ function CropPanel({
   return (
     <div className="flex flex-col gap-4">
       {/* Enable toggle */}
-      <label className="flex cursor-pointer items-center gap-2">
-        <div
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
           onClick={onToggle}
+          aria-pressed={enabled}
+          aria-label={enabled ? 'Disable crop' : 'Enable crop'}
           className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}`}
         >
           <div
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`}
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-[var(--color-bg)] shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`}
           />
-        </div>
+        </button>
         <span className="text-xs text-[var(--color-text)]">Enable crop</span>
-      </label>
+      </div>
 
       {/* Crop coordinates */}
       <div className={enabled ? '' : 'pointer-events-none opacity-40'}>

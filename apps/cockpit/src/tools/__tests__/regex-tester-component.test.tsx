@@ -21,6 +21,19 @@ describe('RegexTester (component)', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
   })
 
+  it('exposes regex flag toggle pressed state', () => {
+    renderTool(RegexTester)
+
+    const globalFlag = screen.getByRole('button', { name: /global/i })
+    const caseInsensitiveFlag = screen.getByRole('button', { name: /case insensitive/i })
+
+    expect(globalFlag).toHaveAttribute('aria-pressed', 'true')
+    expect(caseInsensitiveFlag).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(caseInsensitiveFlag)
+    expect(caseInsensitiveFlag).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('shows match and replace tabs', () => {
     renderTool(RegexTester)
     expect(screen.getByText('Match')).toBeInTheDocument()

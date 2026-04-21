@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
 import ApiClient from '../api-client/ApiClient'
 import { CollectionsSidebar } from '../api-client/components/CollectionsSidebar'
 
+const fetchMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@tauri-apps/plugin-http', () => ({
-  fetch: vi.fn(async () => new Response('ok', { status: 200, statusText: 'OK' })),
+  fetch: fetchMock,
 }))
+
+function base64EncodeUtf8(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
 
 describe('ApiClient', () => {
   beforeEach(() => {
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(new Response('ok', { status: 200, statusText: 'OK' }))
     useApiStore.setState({
       environments: [],
       collections: [],
@@ -74,6 +86,33 @@ describe('ApiClient', () => {
 
     await waitFor(() => expect(screen.getByText('Show Response')).toBeInTheDocument())
     expect(responsePanel).toHaveClass('hidden')
+  })
+
+  it('encodes non-ASCII Basic auth credentials as UTF-8 bytes', async () => {
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://example.com' },
+    })
+    fireEvent.click(screen.getByText('Auth'))
+    fireEvent.change(screen.getByDisplayValue('No Auth'), {
+      target: { value: 'basic' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Username'), {
+      target: { value: 'Jörg' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Password'), {
+      target: { value: 'päss🔐' },
+    })
+
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: {
+        Authorization: `Basic ${base64EncodeUtf8('Jörg:päss🔐')}`,
+      },
+    })
   })
 
   it('renders saved request rows as selectable buttons', () => {
