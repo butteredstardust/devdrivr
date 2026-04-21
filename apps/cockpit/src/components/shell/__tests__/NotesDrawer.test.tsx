@@ -55,6 +55,7 @@ describe('NotesDrawer', () => {
     expect(screen.getByRole('button', { name: 'Delete Test note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Move Test note up' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Move Test note down' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Drag Test note to reorder' })).toBeInTheDocument()
     expect(screen.getByRole('separator', { name: 'Resize notes drawer' })).toHaveAttribute(
       'aria-orientation',
       'vertical'
@@ -100,8 +101,8 @@ describe('NotesDrawer', () => {
       setData: vi.fn((type: string, value: string) => data.set(type, value)),
       getData: vi.fn((type: string) => data.get(type) ?? ''),
     }
-    const firstCard = screen.getByTestId('note-card-note-1')
     const secondCard = screen.getByTestId('note-card-note-2')
+    const firstDragHandle = screen.getByRole('button', { name: 'Drag Test note to reorder' })
     Object.defineProperty(secondCard, 'getBoundingClientRect', {
       configurable: true,
       value: () => ({
@@ -117,7 +118,7 @@ describe('NotesDrawer', () => {
       }),
     })
 
-    fireEvent.dragStart(firstCard, { dataTransfer })
+    fireEvent.dragStart(firstDragHandle, { dataTransfer })
     fireEvent.dragOver(secondCard, { dataTransfer, clientY: 80 })
     fireEvent.drop(secondCard, { dataTransfer })
 

@@ -296,6 +296,7 @@ export function NotesDrawer() {
   const [fuseVersion, setFuseVersion] = useState(0)
 
   const fuseRef = useRef<Fuse<NoteType> | null>(null)
+  const draggedNoteIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!drawerOpen) return
@@ -353,13 +354,14 @@ export function NotesDrawer() {
   )
 
   const handleNoteDragStart = useCallback(
-    (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
+    (note: NoteType, e: React.DragEvent<HTMLButtonElement>) => {
       if (!canReorderNotes || editingId === note.id) {
         e.preventDefault()
         return
       }
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', note.id)
+      draggedNoteIdRef.current = note.id
       setDraggedNoteId(note.id)
     },
     [canReorderNotes, editingId]
@@ -367,8 +369,9 @@ export function NotesDrawer() {
 
   const handleNoteDragOver = useCallback(
     (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
-      if (!draggedNoteId || draggedNoteId === note.id) return
-      const dragged = notes.find((n) => n.id === draggedNoteId)
+      const sourceId = draggedNoteIdRef.current ?? draggedNoteId
+      if (!sourceId || sourceId === note.id) return
+      const dragged = notes.find((n) => n.id === sourceId)
       if (!dragged || dragged.pinned !== note.pinned) return
 
       e.preventDefault()
@@ -381,6 +384,7 @@ export function NotesDrawer() {
   )
 
   const clearNoteDragState = useCallback(() => {
+    draggedNoteIdRef.current = null
     setDraggedNoteId(null)
     setDragOverNote(null)
   }, [])
@@ -388,7 +392,8 @@ export function NotesDrawer() {
   const handleNoteDrop = useCallback(
     (note: NoteType, e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault()
-      const sourceId = draggedNoteId ?? e.dataTransfer.getData('text/plain')
+      const sourceId =
+        draggedNoteIdRef.current ?? draggedNoteId ?? e.dataTransfer.getData('text/plain')
       const position = dragOverNote?.id === note.id ? dragOverNote.position : 'before'
       clearNoteDragState()
       if (!sourceId || sourceId === note.id) return
@@ -500,8 +505,6 @@ export function NotesDrawer() {
                     <div
                       key={note.id}
                       data-testid={`note-card-${note.id}`}
-                      draggable={canReorderNotes && editingId !== note.id}
-                      onDragStart={(e) => handleNoteDragStart(note, e)}
                       onDragOver={(e) => handleNoteDragOver(note, e)}
                       onDrop={(e) => handleNoteDrop(note, e)}
                       onDragEnd={clearNoteDragState}
@@ -530,13 +533,17 @@ export function NotesDrawer() {
                           >
                             <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
                               {canReorderNotes && (
-                                <span
-                                  aria-hidden="true"
+                                <button
+                                  type="button"
+                                  draggable={editingId !== note.id}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onDragStart={(e) => handleNoteDragStart(note, e)}
+                                  aria-label={`Drag ${note.title || 'untitled note'} to reorder`}
                                   className="inline-flex min-h-6 min-w-4 cursor-grab items-center justify-center rounded opacity-60 transition-opacity group-hover:opacity-100"
                                   title="Drag to reorder"
                                 >
-                                  <DotsSixVerticalIcon size={13} />
-                                </span>
+                                  <DotsSixVerticalIcon size={13} aria-hidden="true" />
+                                </button>
                               )}
                               <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                                 <span className="truncate text-xs font-bold text-[var(--color-text)]">

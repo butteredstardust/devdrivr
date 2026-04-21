@@ -175,9 +175,10 @@ async fn start_server(
     let connect_options = SqliteConnectOptions::new()
         .filename(db_path)
         .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(5))
         .create_if_missing(false);
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
+        .max_connections(1)
         .connect_with(connect_options)
         .await
         .map_err(|err| format!("Failed to connect MCP to cockpit database: {err}"))?;

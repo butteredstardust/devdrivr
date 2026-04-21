@@ -27,6 +27,18 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'oceanic-next',
 ]
 
+const LIGHT_EFFECTIVE_THEMES = new Set<EffectiveTheme>([
+  'soft-focus',
+  'tokyo-night-light',
+  'catppuccin-latte',
+  'github-light',
+  'solarized-light',
+])
+
+export function isLightEffectiveTheme(theme: EffectiveTheme): boolean {
+  return LIGHT_EFFECTIVE_THEMES.has(theme)
+}
+
 /** Short status-bar labels (≤6 chars) and full display names for each theme. */
 export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel: string }> = {
   midnight: { shortLabel: 'Mid', fullLabel: 'Midnight Interface' },

@@ -1,7 +1,33 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent, render } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, screen, fireEvent, render } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import MermaidEditor from '../mermaid-editor/MermaidEditor'
+import { useSettingsStore } from '@/stores/settings.store'
+import { DEFAULT_SETTINGS } from '@/types/models'
+
+const mermaidMock = vi.hoisted(() => ({
+  initialize: vi.fn(),
+  render: vi.fn(),
+}))
+
+vi.mock('mermaid', () => ({
+  default: mermaidMock,
+}))
+
+function deferred<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve
+  })
+  const resolve = (value: T | PromiseLike<T>) => resolvePromise(value)
+  return { promise, resolve }
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.clearAllMocks()
+  useSettingsStore.setState(DEFAULT_SETTINGS)
+})
 
 describe('MermaidEditor', () => {
   it('renders editor', () => {
@@ -29,6 +55,63 @@ describe('MermaidEditor', () => {
   it('shows persistent interaction hint', () => {
     renderTool(MermaidEditor)
     expect(screen.getByText('Scroll · Drag · Double-click to reset')).toBeInTheDocument()
+  })
+
+  it('ignores stale async renders after rapid edits', async () => {
+    vi.useFakeTimers()
+    const oldRender = deferred<{ svg: string }>()
+    const newRender = deferred<{ svg: string }>()
+    mermaidMock.render.mockImplementation((_id: string, source: string) => {
+      if (source.includes('New')) return newRender.promise
+      return oldRender.promise
+    })
+
+    const { container } = renderTool(MermaidEditor)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: 'flowchart TD\nOld' },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: 'flowchart TD\nNew' },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(mermaidMock.render).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      newRender.resolve({ svg: '<svg><text>new diagram</text></svg>' })
+      await Promise.resolve()
+    })
+    expect(container.innerHTML).toContain('new diagram')
+
+    await act(async () => {
+      oldRender.resolve({ svg: '<svg><text>old diagram</text></svg>' })
+      await Promise.resolve()
+    })
+
+    expect(container.innerHTML).toContain('new diagram')
+    expect(container.innerHTML).not.toContain('old diagram')
+  })
+
+  it('uses the light Mermaid theme when the app theme is light', async () => {
+    vi.useFakeTimers()
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS, theme: 'github-light' })
+    mermaidMock.render.mockResolvedValue({ svg: '<svg><text>diagram</text></svg>' })
+
+    renderTool(MermaidEditor)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    expect(mermaidMock.initialize).toHaveBeenCalledWith({
+      startOnLoad: false,
+      theme: 'default',
+    })
   })
 })
 

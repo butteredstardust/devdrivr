@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import MarkdownEditor from '../markdown-editor/MarkdownEditor'
@@ -7,6 +7,38 @@ import { LinkModal } from '../markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '../markdown-editor/modals/CodeBlockModal'
 import { TableModal } from '../markdown-editor/modals/TableModal'
 import { ImageModal } from '../markdown-editor/modals/ImageModal'
+import { useSettingsStore } from '@/stores/settings.store'
+import { DEFAULT_SETTINGS } from '@/types/models'
+
+const mermaidMock = vi.hoisted(() => ({
+  initialize: vi.fn(),
+  render: vi.fn(),
+}))
+
+vi.mock('mermaid', () => ({
+  default: mermaidMock,
+}))
+
+function deferred<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve
+  })
+  const resolve = (value: T | PromiseLike<T>) => resolvePromise(value)
+  return { promise, resolve }
+}
+
+const originalClipboard = navigator.clipboard
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.clearAllMocks()
+  useSettingsStore.setState(DEFAULT_SETTINGS)
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: originalClipboard,
+  })
+})
 
 describe('MarkdownEditor', () => {
   it('renders tab bar with Edit first', () => {
@@ -43,6 +75,24 @@ describe('MarkdownEditor', () => {
     expect(screen.getByText('Download .md')).toBeInTheDocument()
     expect(screen.getByText('Download .html')).toBeInTheDocument()
     expect(screen.getByText('Print / PDF')).toBeInTheDocument()
+  })
+
+  it('copies HTML from current editor content without waiting for preview debounce', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    renderTool(MarkdownEditor)
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Fresh Export' },
+    })
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByText('Copy HTML'))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
+    expect(writeText.mock.calls[0]?.[0]).toContain('<h1>Fresh Export</h1>')
   })
 
   it('Export dropdown closes on outside click', () => {
@@ -108,6 +158,63 @@ describe('MarkdownEditor', () => {
         value: originalScrollIntoView,
       })
     }
+  })
+
+  it('ignores stale async Mermaid renders in the preview', async () => {
+    const oldRender = deferred<{ svg: string }>()
+    const newRender = deferred<{ svg: string }>()
+    mermaidMock.render.mockImplementation((_id: string, source: string) => {
+      if (source.includes('New')) return newRender.promise
+      return oldRender.promise
+    })
+
+    const { container, rerender } = render(
+      <MarkdownPreview
+        html="<pre><code class='language-mermaid'>flowchart TD&#xA;Old</code></pre>"
+        showToc={false}
+        toc={[]}
+      />
+    )
+
+    await waitFor(() => expect(mermaidMock.render).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <MarkdownPreview
+        html="<pre><code class='language-mermaid'>flowchart TD&#xA;New</code></pre>"
+        showToc={false}
+        toc={[]}
+      />
+    )
+    await waitFor(() => expect(mermaidMock.render).toHaveBeenCalledTimes(2))
+
+    newRender.resolve({ svg: '<svg><text>new diagram</text></svg>' })
+    await waitFor(() => expect(container.innerHTML).toContain('new diagram'))
+
+    oldRender.resolve({ svg: '<svg><text>old diagram</text></svg>' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(container.innerHTML).toContain('new diagram')
+    expect(container.innerHTML).not.toContain('old diagram')
+  })
+
+  it('uses the light Mermaid theme in preview when the app theme is light', async () => {
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS, theme: 'github-light' })
+    mermaidMock.render.mockResolvedValue({ svg: '<svg><text>diagram</text></svg>' })
+
+    render(
+      <MarkdownPreview
+        html="<pre><code class='language-mermaid'>flowchart TD&#xA;A</code></pre>"
+        showToc={false}
+        toc={[]}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mermaidMock.initialize).toHaveBeenCalledWith({
+        startOnLoad: false,
+        theme: 'default',
+      })
+    )
   })
 })
 

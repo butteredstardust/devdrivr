@@ -1,7 +1,148 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import ImageTool from '../image-tool/ImageTool'
+
+const originalFileReader = globalThis.FileReader
+const originalImage = globalThis.Image
+const originalResizeObserver = globalThis.ResizeObserver
+const originalGetBoundingClientRect = window.HTMLElement.prototype.getBoundingClientRect
+const originalCanvasGetContext = window.HTMLCanvasElement.prototype.getContext
+const originalCanvasToDataUrl = window.HTMLCanvasElement.prototype.toDataURL
+const originalCanvasToBlob = window.HTMLCanvasElement.prototype.toBlob
+
+function installImageMocks() {
+  class MockFileReader {
+    onload: ((event: { target: { result: string } }) => void) | null = null
+    readAsDataURL() {
+      this.onload?.({ target: { result: 'data:image/png;base64,AAA=' } })
+    }
+  }
+
+  class MockImage {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    naturalWidth = 100
+    naturalHeight = 80
+    private source = ''
+
+    set src(value: string) {
+      this.source = value
+      this.onload?.()
+    }
+
+    get src() {
+      return this.source
+    }
+  }
+
+  class MockResizeObserver {
+    private readonly callback: ResizeObserverCallback
+
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+    }
+
+    observe(target: Element) {
+      this.callback([{ target } as ResizeObserverEntry], this)
+    }
+
+    disconnect() {}
+    unobserve() {}
+  }
+
+  Object.defineProperty(globalThis, 'FileReader', {
+    configurable: true,
+    value: MockFileReader,
+  })
+  Object.defineProperty(globalThis, 'Image', {
+    configurable: true,
+    value: MockImage,
+  })
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: MockResizeObserver,
+  })
+  Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      width: 200,
+      height: 160,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 160,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }),
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: () => ({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    }),
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'toDataURL', {
+    configurable: true,
+    value: () => 'data:image/png;base64,AAA=',
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'toBlob', {
+    configurable: true,
+    value(callback: BlobCallback) {
+      callback(new Blob(['image'], { type: 'image/png' }))
+    },
+  })
+}
+
+function restoreImageMocks() {
+  Object.defineProperty(globalThis, 'FileReader', {
+    configurable: true,
+    value: originalFileReader,
+  })
+  Object.defineProperty(globalThis, 'Image', {
+    configurable: true,
+    value: originalImage,
+  })
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: originalResizeObserver,
+  })
+  Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: originalGetBoundingClientRect,
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: originalCanvasGetContext,
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'toDataURL', {
+    configurable: true,
+    value: originalCanvasToDataUrl,
+  })
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'toBlob', {
+    configurable: true,
+    value: originalCanvasToBlob,
+  })
+}
+
+async function loadMockImage() {
+  installImageMocks()
+  renderTool(ImageTool)
+  const preview = screen.getByTestId('image-preview')
+  fireEvent.drop(preview, {
+    dataTransfer: {
+      files: [new File(['image'], 'sample.png', { type: 'image/png' })],
+    },
+  })
+  await waitFor(() => expect(screen.getByText('sample.png')).toBeInTheDocument())
+  return preview
+}
+
+afterEach(() => {
+  restoreImageMocks()
+})
 
 describe('ImageTool', () => {
   // ── Empty state ──────────────────────────────────────────────────
@@ -54,6 +195,39 @@ describe('ImageTool', () => {
     renderTool(ImageTool)
     fireEvent.click(screen.getByText('Crop'))
     expect(screen.getByText(/open an image to get started/i)).toBeInTheDocument()
+  })
+
+  it('uses a keyboard-operable crop toggle with pressed state', async () => {
+    await loadMockImage()
+
+    fireEvent.click(screen.getByText('Crop'))
+    const toggle = screen.getByRole('button', { name: 'Enable crop' })
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.keyDown(toggle, { key: 'Enter' })
+    fireEvent.click(toggle)
+
+    expect(screen.getByRole('button', { name: 'Disable crop' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('stops crop dragging when mouse is released outside the preview', async () => {
+    const preview = await loadMockImage()
+    fireEvent.click(screen.getByText('Crop'))
+    fireEvent.click(screen.getByRole('button', { name: 'Enable crop' }))
+    await waitFor(() => expect(screen.getByTestId('crop-box')).toBeInTheDocument())
+
+    const xInput = screen.getAllByRole('spinbutton')[0]!
+    expect(xInput).toHaveValue(0)
+
+    fireEvent.mouseDown(screen.getByTestId('crop-box'), { clientX: 20, clientY: 20 })
+    fireEvent.mouseUp(window)
+    fireEvent.mouseMove(preview, { clientX: 80, clientY: 80 })
+
+    expect(xInput).toHaveValue(0)
   })
 
   // ── Export tab ───────────────────────────────────────────────────
