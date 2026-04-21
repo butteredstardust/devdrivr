@@ -91,17 +91,28 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     if (idx < 0) return
     const existing = notes[idx]
     if (!existing) return
-    const updated = { ...existing, ...patch, updatedAt: Date.now() }
-    try {
-      await saveNote(updated)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      useUiStore.getState().addToast('Failed to save note: ' + msg, 'error')
-      throw err
+    const updated = {
+      ...existing,
+      ...patch,
+      updatedAt: Math.max(Date.now(), existing.updatedAt + 1),
     }
     set((s) => ({
       notes: sortNotes(s.notes.map((n) => (n.id === id ? updated : n))),
     }))
+
+    try {
+      await saveNote(updated)
+    } catch (err) {
+      const current = get().notes.find((n) => n.id === id)
+      if (current?.updatedAt === updated.updatedAt) {
+        set((s) => ({
+          notes: sortNotes(s.notes.map((n) => (n.id === id ? existing : n))),
+        }))
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to save note: ' + msg, 'error')
+      throw err
+    }
   },
 
   reorder: async (sourceId, targetId, position) => {
@@ -132,16 +143,18 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     )
     const nextNotes = sortNotes(notes.map((note) => updatedById.get(note.id) ?? note))
     const changedNotes = nextNotes.filter((note) => updatedById.has(note.id))
+    set({ notes: nextNotes })
 
     try {
       await saveNotesOrder(changedNotes.map(({ id, sortOrder }) => ({ id, sortOrder })))
     } catch (err) {
+      if (get().notes === nextNotes) {
+        set({ notes })
+      }
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to reorder notes: ' + msg, 'error')
       throw err
     }
-
-    set({ notes: nextNotes })
   },
 
   remove: async (id) => {

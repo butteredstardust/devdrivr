@@ -1,12 +1,13 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
-import { loadNotes, saveNote, saveNotesOrder, deleteNote } from '@/lib/db'
+import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
   saveNote: vi.fn(),
   saveNotesOrder: vi.fn(),
   deleteNote: vi.fn(),
+  clearAllNotes: vi.fn(),
 }))
 
 // Reset store state between tests
@@ -18,7 +19,19 @@ beforeEach(() => {
   ;(saveNote as any).mockResolvedValue(undefined)
   ;(saveNotesOrder as any).mockResolvedValue(undefined)
   ;(deleteNote as any).mockResolvedValue(undefined)
+  ;(clearAllNotes as any).mockResolvedValue(undefined)
 })
+
+function deferred<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolvePromise = res
+    reject = rej
+  })
+  const resolve = (value?: T | PromiseLike<T>) => resolvePromise(value as T)
+  return { promise, resolve, reject }
+}
 
 describe('notes store', () => {
   it('starts empty and uninitialized', () => {
@@ -69,6 +82,19 @@ describe('notes store', () => {
     expect(useNotesStore.getState().notes[0]!.tags).toEqual(['tag1'])
   })
 
+  it('updates note state before the database write finishes', async () => {
+    const note = await useNotesStore.getState().add('Original')
+    const pending = deferred<void>()
+    ;(saveNote as any).mockReturnValueOnce(pending.promise)
+
+    const updatePromise = useNotesStore.getState().update(note.id, { title: 'Draft title' })
+
+    expect(useNotesStore.getState().notes[0]!.title).toBe('Draft title')
+
+    pending.resolve()
+    await updatePromise
+  })
+
   it('update with unknown ID is a no-op', async () => {
     await useNotesStore.getState().add('Note')
     await useNotesStore.getState().update('nonexistent', { title: 'Ghost' })
@@ -105,5 +131,19 @@ describe('notes store', () => {
       { id: second.id, sortOrder: 3072 },
     ])
     expect(saveNote).not.toHaveBeenCalled()
+  })
+
+  it('reorders note state before the database write finishes', async () => {
+    const first = await useNotesStore.getState().add('First')
+    const second = await useNotesStore.getState().add('Second')
+    const pending = deferred<void>()
+    ;(saveNotesOrder as any).mockReturnValueOnce(pending.promise)
+
+    const reorderPromise = useNotesStore.getState().reorder(first.id, second.id, 'after')
+
+    expect(useNotesStore.getState().notes.map((note) => note.id)).toEqual([second.id, first.id])
+
+    pending.resolve()
+    await reorderPromise
   })
 })

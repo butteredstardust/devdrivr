@@ -21,15 +21,50 @@ import {
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
 // (e.g., StrictMode double-mount or parallel store inits).
 let dbPromise: Promise<Database> | null = null
+let writeQueue: Promise<void> = Promise.resolve()
 
 export function getDb(): Promise<Database> {
   if (!dbPromise) {
     dbPromise = Database.load('sqlite:cockpit.db').then(async (conn) => {
       await conn.execute('PRAGMA journal_mode=WAL')
+      await conn.execute('PRAGMA busy_timeout=5000')
       return conn
     })
   }
   return dbPromise
+}
+
+function enqueueWrite<T>(operation: (conn: Database) => Promise<T>): Promise<T> {
+  const run = writeQueue.then(async () => {
+    const conn = await getDb()
+    return operation(conn)
+  })
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+function runTransaction<T>(
+  mode: 'TRANSACTION' | 'IMMEDIATE',
+  operation: (conn: Database) => Promise<T>
+): Promise<T> {
+  return enqueueWrite(async (conn) => {
+    await conn.execute(mode === 'IMMEDIATE' ? 'BEGIN IMMEDIATE' : 'BEGIN TRANSACTION')
+    try {
+      const result = await operation(conn)
+      await conn.execute('COMMIT')
+      return result
+    } catch (err) {
+      try {
+        await conn.execute('ROLLBACK')
+      } catch (rollbackErr) {
+        console.warn('[db] transaction rollback failed', rollbackErr)
+      }
+      throw err
+    }
+  })
 }
 
 // --- Settings ---
@@ -50,10 +85,11 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2',
-    [key, JSON.stringify(value)]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2',
+      [key, JSON.stringify(value)]
+    )
   )
 }
 
@@ -75,10 +111,11 @@ export async function loadToolState(toolId: string): Promise<Record<string, unkn
 }
 
 export async function saveToolState(toolId: string, state: Record<string, unknown>): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    'INSERT INTO tool_state (tool_id, state, updated_at) VALUES ($1, $2, $3) ON CONFLICT(tool_id) DO UPDATE SET state = $2, updated_at = $3',
-    [toolId, JSON.stringify(state), Date.now()]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      'INSERT INTO tool_state (tool_id, state, updated_at) VALUES ($1, $2, $3) ON CONFLICT(tool_id) DO UPDATE SET state = $2, updated_at = $3',
+      [toolId, JSON.stringify(state), Date.now()]
+    )
   )
 }
 
@@ -119,51 +156,45 @@ export async function loadNotes(): Promise<Note[]> {
 }
 
 export async function saveNote(note: Note): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13, sort_order=$14`,
-    [
-      note.id,
-      note.title,
-      note.content,
-      note.color,
-      note.pinned ? 1 : 0,
-      note.poppedOut ? 1 : 0,
-      note.windowBounds?.x ?? null,
-      note.windowBounds?.y ?? null,
-      note.windowBounds?.width ?? null,
-      note.windowBounds?.height ?? null,
-      note.createdAt,
-      note.updatedAt,
-      JSON.stringify(note.tags || []),
-      note.sortOrder,
-    ]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13, sort_order=$14`,
+      [
+        note.id,
+        note.title,
+        note.content,
+        note.color,
+        note.pinned ? 1 : 0,
+        note.poppedOut ? 1 : 0,
+        note.windowBounds?.x ?? null,
+        note.windowBounds?.y ?? null,
+        note.windowBounds?.width ?? null,
+        note.windowBounds?.height ?? null,
+        note.createdAt,
+        note.updatedAt,
+        JSON.stringify(note.tags || []),
+        note.sortOrder,
+      ]
+    )
   )
 }
 
 export async function saveNotesOrder(notes: Pick<Note, 'id' | 'sortOrder'>[]): Promise<void> {
   if (notes.length === 0) return
-  const conn = await getDb()
-  await conn.execute('BEGIN IMMEDIATE')
-  try {
+  await runTransaction('IMMEDIATE', async (conn) => {
     for (const note of notes) {
       await conn.execute('UPDATE notes SET sort_order = $1 WHERE id = $2', [
         note.sortOrder,
         note.id,
       ])
     }
-    await conn.execute('COMMIT')
-  } catch (err) {
-    await conn.execute('ROLLBACK')
-    throw err
-  }
+  })
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM notes WHERE id = $1', [id])
+  await enqueueWrite((conn) => conn.execute('DELETE FROM notes WHERE id = $1', [id]))
 }
 
 // --- Snippets ---
@@ -195,27 +226,27 @@ export async function loadSnippets(): Promise<Snippet[]> {
 }
 
 export async function saveSnippet(snippet: Snippet): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO snippets (id, title, content, language, tags, folder, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, updated_at=$8`,
-    [
-      snippet.id,
-      snippet.title,
-      snippet.content,
-      snippet.language,
-      JSON.stringify(snippet.tags),
-      snippet.folder,
-      snippet.createdAt,
-      snippet.updatedAt,
-    ]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO snippets (id, title, content, language, tags, folder, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, updated_at=$8`,
+      [
+        snippet.id,
+        snippet.title,
+        snippet.content,
+        snippet.language,
+        JSON.stringify(snippet.tags),
+        snippet.folder,
+        snippet.createdAt,
+        snippet.updatedAt,
+      ]
+    )
   )
 }
 
 export async function deleteSnippet(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM snippets WHERE id = $1', [id])
+  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets WHERE id = $1', [id]))
 }
 
 // --- Prompt Templates ---
@@ -317,43 +348,31 @@ async function executeSeedBuiltinPromptTemplate(
 }
 
 export async function saveUserPromptTemplate(template: PromptTemplate): Promise<void> {
-  const conn = await getDb()
-  await executeSaveUserPromptTemplate(conn, template)
+  await enqueueWrite((conn) => executeSaveUserPromptTemplate(conn, template))
 }
 
 export async function saveUserPromptTemplates(templates: PromptTemplate[]): Promise<void> {
   if (templates.length === 0) return
-  const conn = await getDb()
-  await conn.execute('BEGIN TRANSACTION')
-  try {
+  await runTransaction('TRANSACTION', async (conn) => {
     for (const template of templates) {
       await executeSaveUserPromptTemplate(conn, template)
     }
-    await conn.execute('COMMIT')
-  } catch (err) {
-    await conn.execute('ROLLBACK')
-    throw err
-  }
+  })
 }
 
 export async function deleteUserPromptTemplate(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute("DELETE FROM user_prompt_templates WHERE id = $1 AND author = 'user'", [id])
+  await enqueueWrite((conn) =>
+    conn.execute("DELETE FROM user_prompt_templates WHERE id = $1 AND author = 'user'", [id])
+  )
 }
 
 export async function seedBuiltinPromptTemplates(templates: PromptTemplate[]): Promise<void> {
   if (templates.length === 0) return
-  const conn = await getDb()
-  await conn.execute('BEGIN TRANSACTION')
-  try {
+  await runTransaction('TRANSACTION', async (conn) => {
     for (const template of templates) {
       await executeSeedBuiltinPromptTemplate(conn, template)
     }
-    await conn.execute('COMMIT')
-  } catch (err) {
-    await conn.execute('ROLLBACK')
-    throw err
-  }
+  })
 }
 
 // --- History ---
@@ -402,50 +421,49 @@ export async function loadHistory(tool?: string, limit: number = 100): Promise<H
 }
 
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO history (id, tool, sub_tab, input, output, timestamp, duration_ms, success, output_size, starred)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [
-      entry.id,
-      entry.tool,
-      entry.subTab ?? null,
-      entry.input,
-      entry.output,
-      entry.timestamp,
-      entry.durationMs ?? null,
-      entry.success ? 1 : 0,
-      entry.outputSize ?? null,
-      entry.starred ? 1 : 0,
-    ]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO history (id, tool, sub_tab, input, output, timestamp, duration_ms, success, output_size, starred)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        entry.id,
+        entry.tool,
+        entry.subTab ?? null,
+        entry.input,
+        entry.output,
+        entry.timestamp,
+        entry.durationMs ?? null,
+        entry.success ? 1 : 0,
+        entry.outputSize ?? null,
+        entry.starred ? 1 : 0,
+      ]
+    )
   )
 }
 
 export async function pruneHistory(tool: string, keepCount: number): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `DELETE FROM history WHERE tool = $1 AND id NOT IN (
-       SELECT id FROM history WHERE tool = $1 ORDER BY timestamp DESC LIMIT $2
-     )`,
-    [tool, keepCount]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `DELETE FROM history WHERE tool = $1 AND id NOT IN (
+         SELECT id FROM history WHERE tool = $1 ORDER BY timestamp DESC LIMIT $2
+       )`,
+      [tool, keepCount]
+    )
   )
 }
 
 // --- Bulk clear ---
 
 export async function clearAllNotes(): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM notes')
+  await enqueueWrite((conn) => conn.execute('DELETE FROM notes'))
 }
 
 export async function clearAllSnippets(): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM snippets')
+  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets'))
 }
 
 export async function clearAllHistory(): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM history')
+  await enqueueWrite((conn) => conn.execute('DELETE FROM history'))
 }
 
 // --- API Client ---
@@ -468,18 +486,18 @@ export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
 }
 
 export async function saveApiEnvironment(env: ApiEnvironment): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO api_environments (id, name, variables, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT(id) DO UPDATE SET name=$2, variables=$3, updated_at=$5`,
-    [env.id, env.name, JSON.stringify(env.variables), env.createdAt, env.updatedAt]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO api_environments (id, name, variables, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT(id) DO UPDATE SET name=$2, variables=$3, updated_at=$5`,
+      [env.id, env.name, JSON.stringify(env.variables), env.createdAt, env.updatedAt]
+    )
   )
 }
 
 export async function deleteApiEnvironment(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM api_environments WHERE id = $1', [id])
+  await enqueueWrite((conn) => conn.execute('DELETE FROM api_environments WHERE id = $1', [id]))
 }
 
 export async function loadApiCollections(): Promise<ApiCollection[]> {
@@ -500,12 +518,13 @@ export async function loadApiCollections(): Promise<ApiCollection[]> {
 }
 
 export async function saveApiCollection(col: ApiCollection): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO api_collections (id, name, created_at, updated_at)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
-    [col.id, col.name, col.createdAt, col.updatedAt]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO api_collections (id, name, created_at, updated_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
+      [col.id, col.name, col.createdAt, col.updatedAt]
+    )
   )
 }
 
@@ -519,8 +538,7 @@ async function executeSaveApiCollection(conn: Database, col: ApiCollection): Pro
 }
 
 export async function deleteApiCollection(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM api_collections WHERE id = $1', [id])
+  await enqueueWrite((conn) => conn.execute('DELETE FROM api_collections WHERE id = $1', [id]))
 }
 
 export async function loadApiRequests(): Promise<ApiRequest[]> {
@@ -541,24 +559,25 @@ export async function loadApiRequests(): Promise<ApiRequest[]> {
 }
 
 export async function saveApiRequest(req: ApiRequest): Promise<void> {
-  const conn = await getDb()
-  await conn.execute(
-    `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
-    [
-      req.id,
-      req.collectionId,
-      req.name,
-      req.method,
-      req.url,
-      JSON.stringify(req.headers),
-      req.body,
-      req.bodyMode,
-      JSON.stringify(req.auth),
-      req.createdAt,
-      req.updatedAt,
-    ]
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
+      [
+        req.id,
+        req.collectionId,
+        req.name,
+        req.method,
+        req.url,
+        JSON.stringify(req.headers),
+        req.body,
+        req.bodyMode,
+        JSON.stringify(req.auth),
+        req.createdAt,
+        req.updatedAt,
+      ]
+    )
   )
 }
 
@@ -588,23 +607,16 @@ export async function saveApiImport(
   requests: ApiRequest[]
 ): Promise<void> {
   if (collections.length === 0 && requests.length === 0) return
-  const conn = await getDb()
-  await conn.execute('BEGIN TRANSACTION')
-  try {
+  await runTransaction('TRANSACTION', async (conn) => {
     for (const collection of collections) {
       await executeSaveApiCollection(conn, collection)
     }
     for (const request of requests) {
       await executeSaveApiRequest(conn, request)
     }
-    await conn.execute('COMMIT')
-  } catch (err) {
-    await conn.execute('ROLLBACK')
-    throw err
-  }
+  })
 }
 
 export async function deleteApiRequest(id: string): Promise<void> {
-  const conn = await getDb()
-  await conn.execute('DELETE FROM api_requests WHERE id = $1', [id])
+  await enqueueWrite((conn) => conn.execute('DELETE FROM api_requests WHERE id = $1', [id]))
 }
