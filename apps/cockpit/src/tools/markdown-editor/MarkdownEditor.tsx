@@ -433,6 +433,20 @@ function readingTime(words: number): string {
   return minutes <= 1 ? '< 1 min read' : `${minutes} min read`
 }
 
+async function renderMarkdownContent(content: string): Promise<string> {
+  if (!content.trim()) return ''
+  try {
+    const result = await processor.process(content)
+    return String(result)
+  } catch (e) {
+    const msg = (e as Error).message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    return `<p style="color: var(--color-error)">Render error: ${msg}</p>`
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function MarkdownEditor() {
@@ -485,24 +499,14 @@ export default function MarkdownEditor() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    let cancelled = false
     debounceRef.current = setTimeout(async () => {
-      if (!state.content.trim()) {
-        setHtml('')
-        return
-      }
-      try {
-        const result = await processor.process(state.content)
-        setHtml(String(result))
-      } catch (e) {
-        const msg = (e as Error).message
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-        setHtml(`<p style="color: var(--color-error)">Render error: ${msg}</p>`)
-      }
+      const nextHtml = await renderMarkdownContent(state.content)
+      if (!cancelled) setHtml(nextHtml)
     }, 300)
 
     return () => {
+      cancelled = true
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [state.content])
@@ -706,20 +710,30 @@ export default function MarkdownEditor() {
   // ─── Export handlers ─────────────────────────────────────────────
 
   const buildFullHtml = useCallback(
-    (styles: string) =>
-      `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Export</title>\n<style>${styles}</style>\n</head><body>${html}</body></html>`,
-    [html]
+    (bodyHtml: string, styles: string) =>
+      `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Export</title>\n<style>${styles}</style>\n</head><body>${bodyHtml}</body></html>`,
+    []
   )
 
-  const handleCopyHtml = useCallback(() => {
-    navigator.clipboard.writeText(buildFullHtml(BASE_EXPORT_STYLES))
-    setLastAction('HTML copied to clipboard', 'success')
+  const buildCurrentExportHtml = useCallback(
+    async (styles: string) => buildFullHtml(await renderMarkdownContent(state.content), styles),
+    [buildFullHtml, state.content]
+  )
+
+  const handleCopyHtml = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(await buildCurrentExportHtml(BASE_EXPORT_STYLES))
+      setLastAction('HTML copied to clipboard', 'success')
+    } catch {
+      setLastAction('Failed to copy HTML', 'error')
+    }
     setShowExport(false)
-  }, [buildFullHtml, setLastAction])
+  }, [buildCurrentExportHtml, setLastAction])
 
   const handleDownload = useCallback(
-    (format: 'md' | 'html') => {
-      const content = format === 'md' ? state.content : buildFullHtml(BASE_EXPORT_STYLES)
+    async (format: 'md' | 'html') => {
+      const content =
+        format === 'md' ? state.content : await buildCurrentExportHtml(BASE_EXPORT_STYLES)
       const blob = new Blob([content], {
         type: format === 'md' ? 'text/markdown' : 'text/html',
       })
@@ -732,11 +746,11 @@ export default function MarkdownEditor() {
       setLastAction(`Downloaded as .${format}`, 'success')
       setShowExport(false)
     },
-    [buildFullHtml, state.content, setLastAction]
+    [buildCurrentExportHtml, state.content, setLastAction]
   )
 
-  const handleExportPdf = useCallback(() => {
-    const fullHtml = buildFullHtml(PRINT_STYLES)
+  const handleExportPdf = useCallback(async () => {
+    const fullHtml = await buildCurrentExportHtml(PRINT_STYLES)
     const iframe = document.createElement('iframe')
     iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;left:-9999px'
     document.body.appendChild(iframe)
@@ -763,7 +777,7 @@ export default function MarkdownEditor() {
     }
     setLastAction('Print dialog opened', 'success')
     setShowExport(false)
-  }, [buildFullHtml, setLastAction])
+  }, [buildCurrentExportHtml, setLastAction])
 
   const handleTemplateSelect = useCallback(
     (content: string) => {
@@ -885,26 +899,34 @@ export default function MarkdownEditor() {
                   Copy Markdown
                 </button>
                 <button
-                  onClick={handleCopyHtml}
+                  onClick={() => {
+                    void handleCopyHtml()
+                  }}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 >
                   Copy HTML
                 </button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
                 <button
-                  onClick={() => handleDownload('md')}
+                  onClick={() => {
+                    void handleDownload('md')
+                  }}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 >
                   Download .md
                 </button>
                 <button
-                  onClick={() => handleDownload('html')}
+                  onClick={() => {
+                    void handleDownload('html')
+                  }}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 >
                   Download .html
                 </button>
                 <button
-                  onClick={handleExportPdf}
+                  onClick={() => {
+                    void handleExportPdf()
+                  }}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 >
                   Print / PDF

@@ -6,6 +6,8 @@ import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
 import { useUiStore } from '@/stores/ui.store'
+import { useSettingsStore } from '@/stores/settings.store'
+import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { CaretDownIcon } from '@phosphor-icons/react'
 
 type MermaidEditorState = {
@@ -74,13 +76,13 @@ const MIN_ZOOM = 0.1
 const MAX_ZOOM = 8
 const DEFAULT_TRANSFORM: Transform = { x: 0, y: 0, scale: 1 }
 
-// Module-level init guard — mermaid.initialize is expensive; call it once
-let mermaidInitialized = false
-async function getMermaid() {
+let initializedMermaidTheme: 'default' | 'dark' | null = null
+
+async function getMermaid(theme: 'default' | 'dark') {
   const { default: mermaid } = await import('mermaid')
-  if (!mermaidInitialized) {
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-    mermaidInitialized = true
+  if (initializedMermaidTheme !== theme) {
+    mermaid.initialize({ startOnLoad: false, theme })
+    initializedMermaidTheme = theme
   }
   return mermaid
 }
@@ -88,6 +90,9 @@ async function getMermaid() {
 export default function MermaidEditor() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
+  const appTheme = useSettingsStore((s) => s.theme)
+  const effectiveTheme = getEffectiveTheme(appTheme)
+  const mermaidTheme = isLightEffectiveTheme(effectiveTheme) ? 'default' : 'dark'
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: TEMPLATES['flowchart'] ?? '',
     exportScale: 2,
@@ -101,6 +106,7 @@ export default function MermaidEditor() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const renderSeqRef = useRef(0)
   const wheelCleanupRef = useRef<(() => void) | null>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
@@ -215,6 +221,7 @@ export default function MermaidEditor() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    const renderSeq = (renderSeqRef.current += 1)
     if (!state.content.trim()) {
       setSvgHtml('')
       setError(null)
@@ -224,22 +231,26 @@ export default function MermaidEditor() {
     setIsRendering(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const mermaid = await getMermaid()
-        const { svg } = await mermaid.render('mermaid-preview', state.content)
+        const mermaid = await getMermaid(mermaidTheme)
+        const { svg } = await mermaid.render(`mermaid-preview-${renderSeq}`, state.content)
+        if (renderSeq !== renderSeqRef.current) return
         setSvgHtml(svg)
         setError(null)
       } catch (e) {
+        if (renderSeq !== renderSeqRef.current) return
         setError((e as Error).message)
         setSvgHtml('')
       } finally {
-        setIsRendering(false)
+        if (renderSeq === renderSeqRef.current) {
+          setIsRendering(false)
+        }
       }
     }, 500)
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.content])
+  }, [state.content, mermaidTheme])
 
   // ─── Export handlers ─────────────────────────────────────────────
 

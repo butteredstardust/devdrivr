@@ -1,6 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
-import { getEffectiveTheme } from '@/lib/theme'
+import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { nextHeadingId } from './heading-ids'
 
 type TocEntry = {
@@ -86,6 +86,7 @@ const PREVIEW_STYLES = [
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
   function MarkdownPreview({ html, showToc, toc }, ref) {
     const innerRef = useRef<HTMLDivElement>(null)
+    const mermaidRenderSeqRef = useRef(0)
     const theme = useSettingsStore((s) => s.theme)
 
     // Expose the inner div via forwarded ref for scroll sync
@@ -95,13 +96,16 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     // ─── Mermaid diagrams (theme-aware) ───────────────────────────
     useEffect(() => {
       if (!html || !innerRef.current) return
+      const renderSeq = (mermaidRenderSeqRef.current += 1)
+      let cancelled = false
       const mermaidBlocks = innerRef.current.querySelectorAll('code.language-mermaid')
       if (mermaidBlocks.length === 0) return
 
       const effective = getEffectiveTheme(theme)
-      const mermaidTheme = effective === 'soft-focus' ? 'default' : 'dark'
+      const mermaidTheme = isLightEffectiveTheme(effective) ? 'default' : 'dark'
 
       import('mermaid').then(({ default: mermaid }) => {
+        if (cancelled || renderSeq !== mermaidRenderSeqRef.current) return
         mermaid.initialize({ startOnLoad: false, theme: mermaidTheme })
         mermaidBlocks.forEach(async (block, i) => {
           const parent = block.parentElement
@@ -111,6 +115,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
               `mermaid-${Date.now()}-${i}`,
               block.textContent ?? ''
             )
+            if (cancelled || renderSeq !== mermaidRenderSeqRef.current) return
             const wrapper = document.createElement('div')
             wrapper.className = 'mermaid-diagram'
             wrapper.innerHTML = svg
@@ -120,6 +125,9 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           }
         })
       })
+      return () => {
+        cancelled = true
+      }
     }, [html, theme])
 
     // ─── TOC scroll ───────────────────────────────────────────────
