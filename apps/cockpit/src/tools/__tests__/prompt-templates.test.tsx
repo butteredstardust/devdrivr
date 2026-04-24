@@ -165,6 +165,22 @@ describe('PromptTemplates', () => {
     await waitFor(() => expect(document.activeElement).not.toBe(searchInput))
   })
 
+  it('opens quick fill with Enter when focus is not in an interactive field', async () => {
+    renderTool(PromptTemplates)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+  })
+
+  it('exposes the selected template state for assistive tech', () => {
+    renderTool(PromptTemplates)
+
+    const selectedRow = screen.getAllByText('Review: Detect Code Smells')[0]!.closest('button')
+
+    expect(selectedRow).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('creates a custom template from the editor modal', async () => {
     renderTool(PromptTemplates)
 

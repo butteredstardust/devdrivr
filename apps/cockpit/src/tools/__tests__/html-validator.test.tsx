@@ -22,6 +22,16 @@ describe('HtmlValidator', () => {
     })
   })
 
+  it('shows a validating state instead of a stale valid badge while input is pending', () => {
+    renderTool(HtmlValidator)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: '<div>' } })
+
+    expect(screen.getByText(/validating/i)).toBeInTheDocument()
+    expect(screen.queryByText(/valid html/i)).not.toBeInTheDocument()
+  })
+
   it('renders pop-out button in preview header', () => {
     renderTool(HtmlValidator)
     expect(screen.getByTitle('Expand to full-size preview (Esc to close)')).toBeInTheDocument()
@@ -66,5 +76,24 @@ describe('HtmlValidator', () => {
     // Close via Escape
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Full-size HTML preview' })).not.toBeInTheDocument()
+  })
+
+  it('moves focus into the full-size overlay, traps Tab, and restores focus on close', async () => {
+    renderTool(HtmlValidator)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '<p>hello</p>' } })
+
+    const expandButton = screen.getByTitle('Expand to full-size preview (Esc to close)')
+    expandButton.focus()
+    fireEvent.click(expandButton)
+
+    const closeButton = screen.getByLabelText('Close full-size preview')
+    await waitFor(() => expect(document.activeElement).toBe(closeButton))
+
+    fireEvent.keyDown(window, { key: 'Tab' })
+    expect(document.activeElement).toBe(closeButton)
+
+    fireEvent.click(closeButton)
+    await waitFor(() => expect(document.activeElement).toBe(expandButton))
   })
 })

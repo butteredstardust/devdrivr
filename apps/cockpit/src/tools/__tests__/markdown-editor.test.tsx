@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import MarkdownEditor from '../markdown-editor/MarkdownEditor'
+import MarkdownEditor, { prefixMarkdownLines } from '../markdown-editor/MarkdownEditor'
 import { MarkdownPreview } from '../markdown-editor/MarkdownPreview'
 import { LinkModal } from '../markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '../markdown-editor/modals/CodeBlockModal'
@@ -215,6 +215,14 @@ describe('MarkdownEditor', () => {
         theme: 'default',
       })
     )
+  })
+
+  it('prefixes every selected content line for multiline markdown actions', () => {
+    expect(prefixMarkdownLines('alpha\nbeta', '- ')).toBe('- alpha\n- beta')
+  })
+
+  it('preserves blank lines when prefixing multiline selections', () => {
+    expect(prefixMarkdownLines('alpha\n\nbeta', '> ')).toBe('> alpha\n\n> beta')
   })
 })
 

@@ -380,15 +380,23 @@ const FORMATTING_ACTIONS: FormattingAction[] = [
 // ─── Export style constants ───────────────────────────────────────────
 
 const BASE_EXPORT_STYLES =
-  'body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}' +
-  'code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:0.9em}' +
-  'pre{background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:6px;overflow-x:auto}' +
+  ':root{' +
+  '--export-bg:Canvas;' +
+  '--export-text:CanvasText;' +
+  '--export-muted:color-mix(in srgb, CanvasText 55%, Canvas 45%);' +
+  '--export-border:color-mix(in srgb, CanvasText 18%, Canvas 82%);' +
+  '--export-surface:color-mix(in srgb, Canvas 90%, CanvasText 10%);' +
+  '--export-inverse-bg:color-mix(in srgb, CanvasText 88%, Canvas 12%);' +
+  '--export-inverse-text:Canvas;' +
+  '}' +
+  'body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;background:var(--export-bg);color:var(--export-text)}' +
+  'code{background:var(--export-surface);padding:2px 6px;border-radius:3px;font-size:0.9em}' +
+  'pre{background:var(--export-inverse-bg);color:var(--export-inverse-text);padding:16px;border-radius:6px;overflow-x:auto}' +
   'pre code{background:none;padding:0}' +
-  'table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}' +
-  'th{background:#f8f8f8}blockquote{border-left:4px solid #ddd;margin:0;padding:0 16px;color:#666}img{max-width:100%}'
+  'table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--export-border);padding:8px 12px;text-align:left}' +
+  'th{background:var(--export-surface)}blockquote{border-left:4px solid var(--export-border);margin:0;padding:0 16px;color:var(--export-muted)}img{max-width:100%}'
 
-const PRINT_STYLES =
-  '@media print{body{margin:0}}' + BASE_EXPORT_STYLES.replace('body{', 'body{color:#111;')
+const PRINT_STYLES = '@media print{body{margin:0}}' + BASE_EXPORT_STYLES
 
 // ─── Processor ───────────────────────────────────────────────────────
 
@@ -431,6 +439,13 @@ function extractToc(html: string): TocEntry[] {
 function readingTime(words: number): string {
   const minutes = Math.ceil(words / WORDS_PER_MINUTE)
   return minutes <= 1 ? '< 1 min read' : `${minutes} min read`
+}
+
+export function prefixMarkdownLines(text: string, prefix: string): string {
+  return text
+    .split('\n')
+    .map((line) => (line.length > 0 ? `${prefix}${line}` : line))
+    .join('\n')
 }
 
 async function renderMarkdownContent(content: string): Promise<string> {
@@ -566,7 +581,9 @@ export default function MarkdownEditor() {
 
       let insertText: string
       let extraOffset = 0
-      if (lineStart && !selectedText) {
+      if (lineStart && selectedText && !prefix.includes('\n')) {
+        insertText = prefixMarkdownLines(selectedText, prefix)
+      } else if (lineStart && !selectedText) {
         const lineContent = model.getLineContent(selection.startLineNumber)
         const needsNewline = lineContent.trim().length > 0 && selection.startColumn > 1
         if (needsNewline) extraOffset = 1

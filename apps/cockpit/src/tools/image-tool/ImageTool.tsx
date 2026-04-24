@@ -88,6 +88,29 @@ function estimateSizeFromDataUrl(dataUrl: string): number {
   return Math.round((base64.length * 3) / 4)
 }
 
+type CropRect = {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export function clampCropRect(rect: CropRect, bounds: { maxW: number; maxH: number }): CropRect {
+  const maxW = Math.max(1, bounds.maxW)
+  const maxH = Math.max(1, bounds.maxH)
+  let w = Math.round(Number.isFinite(rect.w) ? rect.w : maxW)
+  let h = Math.round(Number.isFinite(rect.h) ? rect.h : maxH)
+  let x = Math.round(Number.isFinite(rect.x) ? rect.x : 0)
+  let y = Math.round(Number.isFinite(rect.y) ? rect.y : 0)
+
+  w = Math.max(1, Math.min(w, maxW))
+  h = Math.max(1, Math.min(h, maxH))
+  x = Math.max(0, Math.min(x, maxW - w))
+  y = Math.max(0, Math.min(y, maxH - h))
+
+  return { x, y, w, h }
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 export default function ImageTool() {
@@ -395,18 +418,13 @@ export default function ImageTool() {
           break
       }
 
-      // Clamp dimensions first, then positions — ordering matters because
-      // the position clamp uses the (now correct) clamped w/h values.
-      w = Math.max(1, Math.min(w, origW))
-      h = Math.max(1, Math.min(h, origH))
-      x = Math.max(0, Math.min(x, origW - w))
-      y = Math.max(0, Math.min(y, origH - h))
+      const next = clampCropRect({ x, y, w, h }, { maxW: origW, maxH: origH })
 
       updateState({
-        cropX: Math.round(x),
-        cropY: Math.round(y),
-        cropW: Math.round(w),
-        cropH: Math.round(h),
+        cropX: next.x,
+        cropY: next.y,
+        cropW: next.w,
+        cropH: next.h,
       })
     },
     [updateState]
@@ -437,6 +455,23 @@ export default function ImageTool() {
       cropH: originalImg.naturalHeight,
     })
   }, [originalImg, updateState])
+
+  const handleCropChange = useCallback(
+    (x: number, y: number, w: number, h: number) => {
+      if (!originalImg) return
+      const next = clampCropRect(
+        { x, y, w, h },
+        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
+      )
+      updateState({
+        cropX: next.x,
+        cropY: next.y,
+        cropW: next.w,
+        cropH: next.h,
+      })
+    },
+    [originalImg, updateState]
+  )
 
   // ── Export ─────────────────────────────────────────────────────
 
@@ -789,7 +824,7 @@ export default function ImageTool() {
               maxW={originalImg.naturalWidth}
               maxH={originalImg.naturalHeight}
               onToggle={() => updateState({ cropEnabled: !state.cropEnabled })}
-              onChange={(x, y, w, h) => updateState({ cropX: x, cropY: y, cropW: w, cropH: h })}
+              onChange={handleCropChange}
               onReset={handleResetCrop}
             />
           ) : (

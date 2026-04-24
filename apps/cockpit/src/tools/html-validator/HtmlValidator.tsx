@@ -277,27 +277,52 @@ export default function HtmlValidator() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [errors, setErrors] = useState<HtmlError[]>([])
   const [isPopoutOpen, setIsPopoutOpen] = useState(false)
+  const [isValidating, setIsValidating] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const validationSeqRef = useRef(0)
+  const popoutCloseButtonRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
-  // Close popout on Escape
   useEffect(() => {
     if (!isPopoutOpen) return
+    previousFocusRef.current =
+      document.activeElement && 'focus' in document.activeElement
+        ? (document.activeElement as HTMLElement)
+        : null
+    popoutCloseButtonRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsPopoutOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setIsPopoutOpen(false)
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        popoutCloseButtonRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      previousFocusRef.current?.focus()
+    }
   }, [isPopoutOpen])
 
   // Live validation
   useEffect(() => {
     if (!state.input.trim()) {
+      validationSeqRef.current += 1
+      setIsValidating(false)
       setErrors([])
       return
     }
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    const validationSeq = validationSeqRef.current + 1
+    validationSeqRef.current = validationSeq
+    setIsValidating(true)
     debounceRef.current = setTimeout(async () => {
       const errs = await validateHtml(state.input, state.disabledRules)
+      if (validationSeq !== validationSeqRef.current) return
+      setIsValidating(false)
       setErrors(errs)
       const errorCount = errs.filter((e) => e.type === 'error').length
       const warnCount = errs.filter((e) => e.type === 'warning').length
@@ -390,13 +415,18 @@ export default function HtmlValidator() {
 
         {/* Status */}
         <div className="ml-auto flex items-center gap-2">
-          {state.input.trim() && errors.length === 0 && (
+          {isValidating && state.input.trim() && (
+            <span className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-text-muted)]">
+              … Validating
+            </span>
+          )}
+          {!isValidating && state.input.trim() && errors.length === 0 && (
             <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
               ✓ Valid HTML
             </span>
           )}
           {errorCount > 0 && (
-            <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
+            <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
               ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
             </span>
           )}
@@ -539,7 +569,7 @@ export default function HtmlValidator() {
                 <FrameCornersIcon size={13} />
               </button>
             </div>
-            <div className="flex-1 bg-white">
+            <div className="flex-1 bg-[var(--color-bg)]">
               {state.input.trim() ? (
                 <iframe
                   title="HTML Preview"
@@ -563,12 +593,14 @@ export default function HtmlValidator() {
           role="dialog"
           aria-modal="true"
           aria-label="Full-size HTML preview"
-          className="fixed inset-0 z-50 flex flex-col bg-white"
+          className="fixed inset-0 z-50 flex flex-col bg-[var(--color-bg)]"
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
             <span className="text-xs text-[var(--color-text-muted)]">HTML Preview</span>
             <button
+              ref={popoutCloseButtonRef}
               onClick={() => setIsPopoutOpen(false)}
+              aria-label="Close full-size preview"
               title="Close (Esc)"
               className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
             >
