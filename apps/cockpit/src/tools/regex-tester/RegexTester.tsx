@@ -17,7 +17,7 @@ type Match = {
   full: string
   index: number
   length: number
-  groups: Array<{ name: string | null; value: string }>
+  groups: Array<{ index: number; name: string | null; value: string }>
 }
 
 // ── Reference data ─────────────────────────────────────────────────
@@ -86,38 +86,95 @@ const MODE_TABS = [
   { id: 'replace', label: 'Replace' },
 ]
 
+const MAX_REGEX_MATCHES = 1000
+
 // ── Matching logic ─────────────────────────────────────────────────
+
+export function extractCaptureGroupNames(pattern: string): Array<string | null> {
+  const names: Array<string | null> = []
+  let inClass = false
+
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i]
+    if (!char) break
+
+    if (char === '\\') {
+      i++
+      continue
+    }
+
+    if (char === '[') {
+      inClass = true
+      continue
+    }
+
+    if (char === ']' && inClass) {
+      inClass = false
+      continue
+    }
+
+    if (inClass || char !== '(') continue
+
+    const next = pattern[i + 1]
+    if (next !== '?') {
+      names.push(null)
+      continue
+    }
+
+    if (
+      pattern.startsWith('(?:', i) ||
+      pattern.startsWith('(?=', i) ||
+      pattern.startsWith('(?!', i)
+    ) {
+      continue
+    }
+
+    if (pattern.startsWith('(?<=', i) || pattern.startsWith('(?<!', i)) {
+      continue
+    }
+
+    if (pattern.startsWith('(?<', i)) {
+      const end = pattern.indexOf('>', i + 3)
+      if (end !== -1) {
+        names.push(pattern.slice(i + 3, end))
+      }
+    }
+  }
+
+  return names
+}
 
 function findMatches(
   pattern: string,
   flags: string,
   text: string
-): { matches: Match[]; error: string | null } {
-  if (!pattern) return { matches: [], error: null }
+): { matches: Match[]; error: string | null; truncated: boolean } {
+  if (!pattern) return { matches: [], error: null, truncated: false }
   try {
     const re = new RegExp(pattern, flags)
     const matches: Match[] = []
+    const captureGroupNames = extractCaptureGroupNames(pattern)
 
-    // Build an ordered list of named groups (preserving capture order) from a match.
-    // Using Object.entries(m.groups) directly is correct and avoids false positives
-    // when two groups capture the same value (the old value-search approach would
-    // misattribute the name in that case).
     function buildGroups(m: RegExpExecArray): Match['groups'] {
-      if (m.groups && Object.keys(m.groups).length > 0) {
-        return Object.entries(m.groups).map(([name, value]) => ({ name, value: value ?? '' }))
-      }
       const groups: Match['groups'] = []
       for (let i = 1; i < m.length; i++) {
-        groups.push({ name: null, value: m[i] ?? '' })
+        groups.push({
+          index: i,
+          name: captureGroupNames[i - 1] ?? null,
+          value: m[i] ?? '',
+        })
       }
       return groups
     }
 
+    let truncated = false
     if (flags.includes('g')) {
       let m: RegExpExecArray | null
-      let guard = 0
-      while ((m = re.exec(text)) !== null && guard < 1000) {
-        guard++
+      while ((m = re.exec(text)) !== null) {
+        if (matches.length >= MAX_REGEX_MATCHES) {
+          truncated = true
+          break
+        }
         matches.push({ full: m[0], index: m.index, length: m[0].length, groups: buildGroups(m) })
         if (m[0] === '') re.lastIndex++
       }
@@ -128,9 +185,9 @@ function findMatches(
       }
     }
 
-    return { matches, error: null }
+    return { matches, error: null, truncated }
   } catch (e) {
-    return { matches: [], error: (e as Error).message }
+    return { matches: [], error: (e as Error).message, truncated: false }
   }
 }
 
@@ -147,17 +204,24 @@ const MATCH_COLORS = [
   { bg: 'var(--color-info)', text: 'var(--color-bg)' },
 ]
 
-function highlightMatches(text: string, pattern: string, flags: string): string {
-  if (!pattern || !text) return ''
+function highlightMatches(
+  text: string,
+  pattern: string,
+  flags: string
+): { html: string; truncated: boolean } {
+  if (!pattern || !text) return { html: '', truncated: false }
   try {
     const re = new RegExp(pattern, flags.includes('g') ? flags : flags + 'g')
     const parts: string[] = []
     let lastIndex = 0
     let m: RegExpExecArray | null
-    let guard = 0
     let colorIdx = 0
-    while ((m = re.exec(text)) !== null && guard < 1000) {
-      guard++
+    let truncated = false
+    while ((m = re.exec(text)) !== null) {
+      if (colorIdx >= MAX_REGEX_MATCHES) {
+        truncated = true
+        break
+      }
       parts.push(escapeHtml(text.slice(lastIndex, m.index)))
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const c = MATCH_COLORS[colorIdx % MATCH_COLORS.length]! // safe: modulo keeps index in bounds
@@ -169,9 +233,9 @@ function highlightMatches(text: string, pattern: string, flags: string): string 
       if (m[0] === '') re.lastIndex++
     }
     parts.push(escapeHtml(text.slice(lastIndex)))
-    return parts.join('')
+    return { html: parts.join(''), truncated }
   } catch {
-    return escapeHtml(text)
+    return { html: escapeHtml(text), truncated: false }
   }
 }
 
@@ -288,14 +352,14 @@ export default function RegexTester() {
       try {
         await navigator.clipboard.writeText(text)
         setLastAction(
-          `Copied ${result.matches.length} match${result.matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
+          `Copied ${result.truncated ? `first ${result.matches.length}` : result.matches.length} match${result.matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
           'success'
         )
       } catch {
         setLastAction('Failed to copy', 'error')
       }
     },
-    [result.matches, setLastAction]
+    [result.matches, result.truncated, setLastAction]
   )
 
   const matchCount = result.matches.length
@@ -344,7 +408,12 @@ export default function RegexTester() {
           )}
           {!result.error && matchCount > 0 && (
             <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
-              {matchCount}
+              {result.truncated ? `${matchCount}+` : matchCount}
+            </span>
+          )}
+          {!result.error && result.truncated && (
+            <span className="text-xs text-[var(--color-warning)]">
+              Showing first {MAX_REGEX_MATCHES} matches
             </span>
           )}
         </div>
@@ -451,7 +520,7 @@ export default function RegexTester() {
                 className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]"
                 dangerouslySetInnerHTML={{
                   __html:
-                    highlighted ||
+                    highlighted.html ||
                     '<span style="color:var(--color-text-muted)">Matches will be highlighted here</span>',
                 }}
               />
@@ -464,7 +533,8 @@ export default function RegexTester() {
           <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
             <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
               <span>
-                {matchCount} match{matchCount !== 1 ? 'es' : ''}
+                {result.truncated ? `First ${matchCount}` : matchCount} match
+                {matchCount !== 1 ? 'es' : ''}
                 {hasGroups
                   ? ` · ${result.matches.reduce((n, m) => n + m.groups.length, 0)} groups`
                   : ''}
@@ -489,7 +559,7 @@ export default function RegexTester() {
                         {g.name ? (
                           <span className="text-[var(--color-info)]">{g.name}</span>
                         ) : (
-                          <span className="opacity-60">${j + 1}</span>
+                          <span className="opacity-60">${g.index}</span>
                         )}
                         {'='}
                         <code className="text-[var(--color-text)]">{g.value}</code>

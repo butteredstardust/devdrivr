@@ -87,6 +87,42 @@ async function getMermaid(theme: 'default' | 'dark') {
   return mermaid
 }
 
+function getMenuItems(menu: HTMLElement | null): HTMLButtonElement[] {
+  if (!menu) return []
+  return Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).filter(
+    (item) => !item.disabled
+  )
+}
+
+function focusFirstMenuItem(menu: HTMLElement | null) {
+  const items = getMenuItems(menu)
+  items[0]?.focus()
+}
+
+function moveMenuFocus(menu: HTMLElement | null, direction: 1 | -1) {
+  const items = getMenuItems(menu)
+  if (items.length === 0) return
+
+  const activeElement = document.activeElement
+  const currentIndex = items.findIndex((item) => item === activeElement)
+  const nextIndex =
+    currentIndex === -1
+      ? direction === 1
+        ? 0
+        : items.length - 1
+      : (currentIndex + direction + items.length) % items.length
+
+  items[nextIndex]?.focus()
+}
+
+function scheduleFrame(callback: () => void) {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(callback)
+    return
+  }
+  setTimeout(callback, 0)
+}
+
 export default function MermaidEditor() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
@@ -110,6 +146,10 @@ export default function MermaidEditor() {
   const wheelCleanupRef = useRef<(() => void) | null>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
+  const templatesButtonRef = useRef<HTMLButtonElement>(null)
+  const exportButtonRef = useRef<HTMLButtonElement>(null)
+  const templatesMenuRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   const mode = state.mode ?? 'split'
   const showEditor = mode === 'edit' || mode === 'split'
@@ -163,6 +203,12 @@ export default function MermaidEditor() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
+    if (
+      e.target instanceof Element &&
+      e.target.closest('a, button, [role="button"], [href], .clickable')
+    ) {
+      return
+    }
     isPanning.current = true
     const { x, y } = transformRef.current
     panStart.current = { mouseX: e.clientX, mouseY: e.clientY, originX: x, originY: y }
@@ -215,6 +261,18 @@ export default function MermaidEditor() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [showExport])
+
+  useEffect(() => {
+    if (showTemplates) {
+      scheduleFrame(() => focusFirstMenuItem(templatesMenuRef.current))
+    }
+  }, [showTemplates])
+
+  useEffect(() => {
+    if (showExport) {
+      scheduleFrame(() => focusFirstMenuItem(exportMenuRef.current))
+    }
   }, [showExport])
 
   // ─── Mermaid rendering (debounced 500ms) ─────────────────────────
@@ -358,24 +416,57 @@ export default function MermaidEditor() {
           {/* Templates dropdown */}
           <div ref={templatesRef} className="relative">
             <Button
+              ref={templatesButtonRef}
               variant="ghost"
               size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setShowTemplates(true)
+                } else if (e.key === 'Escape') {
+                  setShowTemplates(false)
+                }
+              }}
               className={`gap-1 ${showTemplates ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
               aria-expanded={showTemplates}
               aria-haspopup="menu"
+              aria-controls="mermaid-templates-menu"
             >
               Templates
               <CaretDownIcon size={10} />
             </Button>
             {showTemplates && (
-              <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+              <div
+                id="mermaid-templates-menu"
+                ref={templatesMenuRef}
+                role="menu"
+                aria-label="Mermaid templates"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setShowTemplates(false)
+                    templatesButtonRef.current?.focus()
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    moveMenuFocus(templatesMenuRef.current, 1)
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    moveMenuFocus(templatesMenuRef.current, -1)
+                  }
+                }}
+                className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+              >
                 {Object.keys(TEMPLATES).map((name) => (
                   <button
                     key={name}
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
                     onClick={() => {
                       updateState({ content: TEMPLATES[name] ?? '' })
                       setShowTemplates(false)
+                      templatesButtonRef.current?.focus()
                     }}
                     className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                   >
@@ -389,19 +480,51 @@ export default function MermaidEditor() {
           {/* Export dropdown */}
           <div ref={exportRef} className="relative">
             <Button
+              ref={exportButtonRef}
               variant="ghost"
               size="sm"
               onClick={() => setShowExport(!showExport)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setShowExport(true)
+                } else if (e.key === 'Escape') {
+                  setShowExport(false)
+                }
+              }}
               className={`gap-1 ${showExport ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
               aria-expanded={showExport}
               aria-haspopup="menu"
+              aria-controls="mermaid-export-menu"
             >
               Export
               <CaretDownIcon size={10} />
             </Button>
             {showExport && (
-              <div className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+              <div
+                id="mermaid-export-menu"
+                ref={exportMenuRef}
+                role="menu"
+                aria-label="Mermaid export actions"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setShowExport(false)
+                    exportButtonRef.current?.focus()
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    moveMenuFocus(exportMenuRef.current, 1)
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    moveMenuFocus(exportMenuRef.current, -1)
+                  }
+                }}
+                className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+              >
                 <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   onClick={handleCopySvg}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
@@ -409,6 +532,9 @@ export default function MermaidEditor() {
                   Copy SVG
                 </button>
                 <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   onClick={handleDownloadSvg}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
@@ -425,6 +551,9 @@ export default function MermaidEditor() {
                     {EXPORT_SCALES.map((s) => (
                       <button
                         key={s}
+                        type="button"
+                        role="menuitem"
+                        tabIndex={-1}
                         onClick={() => updateState({ exportScale: s })}
                         title={`Export PNG at ${s}× resolution`}
                         className={`px-1.5 py-0.5 text-[10px] transition-colors first:rounded-l last:rounded-r ${
@@ -439,6 +568,9 @@ export default function MermaidEditor() {
                   </div>
                 </div>
                 <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   onClick={handleCopyPng}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
@@ -446,6 +578,9 @@ export default function MermaidEditor() {
                   Copy PNG ({exportScale}×)
                 </button>
                 <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   onClick={handleDownloadPng}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
@@ -456,6 +591,9 @@ export default function MermaidEditor() {
                 <div className="my-1 border-t border-[var(--color-border)]" />
 
                 <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   onClick={handleCopySource}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 >
@@ -518,11 +656,13 @@ export default function MermaidEditor() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '1rem',
-                pointerEvents: 'none',
               }}
             >
               {svgHtml ? (
-                <div dangerouslySetInnerHTML={{ __html: svgHtml }} />
+                <div
+                  data-testid="mermaid-preview-content"
+                  dangerouslySetInnerHTML={{ __html: svgHtml }}
+                />
               ) : (
                 <div className="select-none text-center text-sm text-[var(--color-text-muted)]">
                   {isRendering ? (

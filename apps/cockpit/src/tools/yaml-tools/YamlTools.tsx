@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
 import Editor from '@monaco-editor/react'
 import { CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -11,7 +11,13 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import { parseYaml, stringifyYaml, sortKeysDeep, yamlToJson, jsonToYaml } from './yaml-helpers'
+import {
+  parseYaml,
+  stringifyYaml,
+  sortKeysDeep,
+  yamlToJson,
+  jsonToYaml,
+} from '@/tools/yaml-tools/yaml-helpers'
 
 type YamlToolsState = {
   input: string
@@ -56,6 +62,27 @@ function yamlStats(data: unknown): { keys: number; depth: number; size: string }
   }
 }
 
+function TreeValueButton({
+  children,
+  className,
+  onClick,
+}: {
+  children: ReactNode
+  className: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Click to copy"
+      className={`cursor-pointer rounded hover:underline ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function YamlTools() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
@@ -92,6 +119,11 @@ export default function YamlTools() {
     }
   }, [formatter])
 
+  useEffect(() => {
+    setConvertOutput('')
+    setConvertError(null)
+  }, [state.input, state.jsonInput, convertDirection])
+
   const parsed = useMemo(() => parseYaml(state.input), [state.input])
 
   const stats = useMemo(() => {
@@ -119,7 +151,7 @@ export default function YamlTools() {
   }, [formatter, state.input, updateState, setLastAction])
 
   const handleMinify = useCallback(() => {
-    if (!parsed.ok || parsed.data === null) return
+    if (!parsed.ok) return
     try {
       const minified = stringifyYaml(parsed.data).replace(/\n\s*\n/g, '\n')
       updateState({ input: minified })
@@ -133,7 +165,7 @@ export default function YamlTools() {
   }, [parsed, updateState, setLastAction])
 
   const handleSortKeys = useCallback(() => {
-    if (!parsed.ok || parsed.data === null) return
+    if (!parsed.ok) return
     try {
       const sorted = sortKeysDeep(parsed.data)
       const result = stringifyYaml(sorted)
@@ -175,6 +207,7 @@ export default function YamlTools() {
         setLastAction('Converted JSON → YAML', 'success')
       }
     } catch (e) {
+      setConvertOutput('')
       setConvertError(e instanceof Error ? e.message : String(e))
       setLastAction('Conversion failed', 'error')
     } finally {
@@ -198,25 +231,15 @@ export default function YamlTools() {
               <Button variant="primary" size="sm" onClick={handleFormat} disabled={isFormatting}>
                 {isFormatting ? 'Formatting…' : 'Format'}
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleMinify}
-                disabled={!parsed.ok || parsed.data === null}
-              >
+              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
                 Minify
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSortKeys}
-                disabled={!parsed.ok || parsed.data === null}
-              >
+              <Button variant="secondary" size="sm" onClick={handleSortKeys} disabled={!parsed.ok}>
                 Sort Keys
               </Button>
               <CopyButton text={state.input} />
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-              {parsed.ok && parsed.data !== null && (
+              {parsed.ok && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
                   <CheckCircleIcon size={12} weight="fill" />
                   Valid
@@ -265,7 +288,7 @@ export default function YamlTools() {
               )}
             </div>
             <div className="flex-1 overflow-auto p-4">
-              {parsed.ok && parsed.data !== null ? (
+              {parsed.ok ? (
                 <YamlTree data={parsed.data} path="$" defaultExpanded={true} />
               ) : (
                 <div className="text-sm text-[var(--color-text-muted)]">
@@ -283,28 +306,26 @@ export default function YamlTools() {
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
               <button
+                type="button"
                 onClick={() => {
                   setConvertDirection('yaml-to-json')
-                  setConvertOutput('')
-                  setConvertError(null)
                 }}
                 className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                   convertDirection === 'yaml-to-json'
-                    ? 'bg-[var(--color-accent)] text-white'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
                 YAML → JSON
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setConvertDirection('json-to-yaml')
-                  setConvertOutput('')
-                  setConvertError(null)
                 }}
                 className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                   convertDirection === 'json-to-yaml'
-                    ? 'bg-[var(--color-accent)] text-white'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
@@ -400,53 +421,39 @@ function YamlTree({
 
   if (data === null || data === undefined)
     return (
-      <span
-        className="cursor-pointer text-[var(--color-text-muted)] hover:underline"
-        onClick={() => copyValue(null)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-text-muted)]" onClick={() => copyValue(null)}>
         null
-      </span>
+      </TreeValueButton>
     )
 
   if (typeof data === 'boolean')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-warning)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-warning)]" onClick={() => copyValue(data)}>
         {String(data)}
-      </span>
+      </TreeValueButton>
     )
 
   if (typeof data === 'number')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-accent)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-accent)]" onClick={() => copyValue(data)}>
         {data}
-      </span>
+      </TreeValueButton>
     )
 
   if (typeof data === 'string')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-success)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-success)]" onClick={() => copyValue(data)}>
         {data}
-      </span>
+      </TreeValueButton>
     )
 
   if (Array.isArray(data)) {
     return (
       <div className="ml-4">
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
           className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           {expanded ? '▼' : '▶'} <span className="text-xs">[{data.length}]</span>
@@ -467,7 +474,9 @@ function YamlTree({
     return (
       <div className="ml-4">
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
           className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           {expanded ? '▼' : '▶'} <span className="text-xs">{`{${entries.length}}`}</span>

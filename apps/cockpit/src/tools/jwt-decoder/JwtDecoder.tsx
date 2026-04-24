@@ -53,6 +53,10 @@ function decodeBase64Url(str: string): string {
   )
 }
 
+export function isJwtObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 function decodeJwt(token: string): DecodedJwt | null {
   const parts = token.trim().split('.')
   if (parts.length !== 3) return null
@@ -61,8 +65,9 @@ function decodeJwt(token: string): DecodedJwt | null {
     const headerRaw = decodeBase64Url(parts[0]!) // safe: length === 3 checked above
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const payloadRaw = decodeBase64Url(parts[1]!) // safe: length === 3 checked above
-    const header = JSON.parse(headerRaw) as Record<string, unknown>
-    const payload = JSON.parse(payloadRaw) as Record<string, unknown>
+    const header = JSON.parse(headerRaw) as unknown
+    const payload = JSON.parse(payloadRaw) as unknown
+    if (!isJwtObject(header) || !isJwtObject(payload)) return null
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return { header, payload, signature: parts[2]!, headerRaw, payloadRaw } // safe: length === 3
   } catch {

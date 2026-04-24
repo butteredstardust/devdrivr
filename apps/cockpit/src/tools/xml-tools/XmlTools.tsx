@@ -129,10 +129,13 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
   return (
     <div>
-      <div
+      <button
+        type="button"
         style={{ paddingLeft: indent }}
-        className="flex cursor-pointer items-center gap-1 py-0.5 text-xs hover:bg-[var(--color-surface-hover)]"
+        className="flex w-full items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)]"
         onClick={() => hasChildren && setExpanded(!expanded)}
+        aria-expanded={hasChildren ? expanded : undefined}
+        disabled={!hasChildren}
       >
         {hasChildren ? (
           <span className="w-3 text-center text-[var(--color-text-muted)]">
@@ -151,7 +154,7 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
         ))}
         <span className="text-[var(--color-accent)]">{hasChildren ? '>' : ' />'}</span>
         {!hasChildren && <span className="ml-1 text-[var(--color-text-muted)]">(empty)</span>}
-      </div>
+      </button>
       {expanded &&
         hasChildren &&
         node.children.map((child, i) => <TreeNodeRow key={i} node={child} depth={depth + 1} />)}
@@ -222,6 +225,16 @@ export default function XmlTools() {
     }
   }, [worker, state.input])
 
+  useEffect(() => {
+    setJsonOutput('')
+    setJsonError(null)
+    setXpathResults([])
+  }, [state.input])
+
+  useEffect(() => {
+    setXpathResults([])
+  }, [state.xpathQuery])
+
   const handleFormat = useCallback(async () => {
     if (!worker || !state.input.trim()) return
     const result = await worker.format(state.input, state.indent)
@@ -275,7 +288,10 @@ export default function XmlTools() {
   }, [worker, state.input, setLastAction])
 
   const handleXPath = useCallback(async () => {
-    if (!worker || !state.input.trim() || !state.xpathQuery.trim()) return
+    if (!worker || !state.input.trim() || !state.xpathQuery.trim()) {
+      setXpathResults([])
+      return
+    }
     const result = await worker.queryXPath(state.input, state.xpathQuery)
     setXpathResults(result.matches)
     setLastAction(`${result.count} match(es)`, result.count > 0 ? 'success' : 'info')
@@ -413,7 +429,7 @@ export default function XmlTools() {
                 placeholder="Enter XPath expression (e.g. /root/child)"
                 className="flex-1"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleXPath()
+                  if (e.key === 'Enter') void handleXPath()
                 }}
               />
               <Button variant="primary" size="sm" onClick={handleXPath}>

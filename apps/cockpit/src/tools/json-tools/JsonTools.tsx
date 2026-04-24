@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
@@ -80,6 +80,13 @@ function queryJsonPath(data: unknown, path: string): unknown {
     current = (current as Record<string, unknown>)[part]
   }
   return current
+}
+
+export function isTabularJsonArray(data: unknown): data is Record<string, unknown>[] {
+  return (
+    Array.isArray(data) &&
+    data.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item))
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -318,8 +325,8 @@ export default function JsonTools() {
         {/* ── Table View ────────────────────────────────────── */}
         {state.activeTab === 'table' && (
           <div className="h-full overflow-auto p-4">
-            {parsed.ok && Array.isArray(parsed.data) ? (
-              <JsonTable data={parsed.data as Record<string, unknown>[]} />
+            {parsed.ok && isTabularJsonArray(parsed.data) ? (
+              <JsonTable data={parsed.data} />
             ) : (
               <div className="text-sm text-[var(--color-text-muted)]">
                 {parsed.error
@@ -333,6 +340,27 @@ export default function JsonTools() {
         )}
       </div>
     </div>
+  )
+}
+
+function TreeValueButton({
+  children,
+  className,
+  onClick,
+}: {
+  children: ReactNode
+  className: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Click to copy"
+      className={`cursor-pointer rounded hover:underline ${className}`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -368,57 +396,52 @@ function JsonTree({
 
   if (data === null)
     return (
-      <span
-        className="cursor-pointer text-[var(--color-text-muted)] hover:underline"
-        onClick={() => copyValue(null)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-text-muted)]" onClick={() => copyValue(null)}>
         null
-      </span>
+      </TreeValueButton>
     )
   if (typeof data === 'boolean')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-warning)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-warning)]" onClick={() => copyValue(data)}>
         {String(data)}
-      </span>
+      </TreeValueButton>
     )
   if (typeof data === 'number')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-accent)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-accent)]" onClick={() => copyValue(data)}>
         {data}
-      </span>
+      </TreeValueButton>
     )
   if (typeof data === 'string')
     return (
-      <span
-        className="cursor-pointer text-[var(--color-success)] hover:underline"
-        onClick={() => copyValue(data)}
-        title="Click to copy"
-      >
+      <TreeValueButton className="text-[var(--color-success)]" onClick={() => copyValue(data)}>
         &quot;{data}&quot;
-      </span>
+      </TreeValueButton>
     )
 
   if (Array.isArray(data)) {
+    const hasChildren = data.length > 0
     return (
       <div className="ml-4">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-        >
-          {expanded ? '▼' : '▶'}{' '}
-          <span className="cursor-pointer text-xs hover:underline" onClick={copyPath}>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => hasChildren && setExpanded(!expanded)}
+            aria-expanded={hasChildren ? expanded : undefined}
+            disabled={!hasChildren}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
+            {hasChildren ? (expanded ? '▼' : '▶') : '•'}
+          </button>
+          <button
+            type="button"
+            className="text-xs text-[var(--color-text-muted)] hover:underline"
+            onClick={copyPath}
+            title="Copy path"
+          >
             [{data.length}]
-          </span>
-        </button>
+          </button>
+        </div>
         {expanded &&
           data.map((item, i) => (
             <div key={i} className="ml-4">
@@ -432,17 +455,28 @@ function JsonTree({
 
   if (typeof data === 'object') {
     const entries = Object.entries(data as Record<string, unknown>)
+    const hasChildren = entries.length > 0
     return (
       <div className="ml-4">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-        >
-          {expanded ? '▼' : '▶'}{' '}
-          <span className="cursor-pointer text-xs hover:underline" onClick={copyPath}>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => hasChildren && setExpanded(!expanded)}
+            aria-expanded={hasChildren ? expanded : undefined}
+            disabled={!hasChildren}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
+            {hasChildren ? (expanded ? '▼' : '▶') : '•'}
+          </button>
+          <button
+            type="button"
+            className="text-xs text-[var(--color-text-muted)] hover:underline"
+            onClick={copyPath}
+            title="Copy path"
+          >
             {`{${entries.length}}`}
-          </span>
-        </button>
+          </button>
+        </div>
         {expanded &&
           entries.map(([key, value]) => (
             <div key={key} className="ml-4">
@@ -489,6 +523,14 @@ function JsonTable({ data }: { data: Record<string, unknown>[] }) {
 
   if (data.length === 0)
     return <div className="text-sm text-[var(--color-text-muted)]">Empty array</div>
+
+  if (columns.length === 0) {
+    return (
+      <div className="text-sm text-[var(--color-text-muted)]">
+        Table view requires a JSON array of objects
+      </div>
+    )
+  }
 
   return (
     <div className="overflow-auto">

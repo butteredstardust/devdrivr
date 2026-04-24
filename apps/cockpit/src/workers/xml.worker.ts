@@ -1,6 +1,7 @@
 import { handleRpc } from './rpc'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import type { Node, Element } from '@xmldom/xmldom'
+import { evaluateSimpleXPath } from '@/lib/xml-xpath'
 
 type XmlResult = {
   valid: boolean
@@ -235,42 +236,6 @@ function collectStats(
   }
 
   return { elements, attributes, textNodes, depth: maxDepth }
-}
-
-// Use xmldom nodes since they don't match the DOM lib types exactly
-function evaluateSimpleXPath(
-  doc: ReturnType<DOMParser['parseFromString']>,
-  expression: string
-): Node[] {
-  const results: Node[] = []
-  try {
-    const parts = expression.replace(/^\/\//, '/').split('/').filter(Boolean)
-    const root = doc.documentElement
-    if (!root) return results
-    let nodes: Node[] = [root]
-
-    for (const part of parts) {
-      const next: Node[] = []
-      const tagName = part.replace(/\[.*\]/, '')
-      for (const node of nodes) {
-        if (node.childNodes) {
-          for (let i = 0; i < node.childNodes.length; i++) {
-            const child = node.childNodes.item(i)
-            if (child) {
-              const childEl = child as Element
-              if (childEl.tagName === tagName) {
-                next.push(child)
-              }
-            }
-          }
-        }
-      }
-      nodes = next
-    }
-    return nodes
-  } catch {
-    return results
-  }
 }
 
 export type XmlWorker = typeof api
