@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import DocsBrowser from '../docs-browser/DocsBrowser'
+import DocsBrowser from '@/tools/docs-browser/DocsBrowser'
 
 describe('DocsBrowser', () => {
   it('renders DevDocs label', () => {

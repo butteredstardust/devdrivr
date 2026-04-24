@@ -13,13 +13,13 @@ export default function DocsBrowser({
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [loading, setLoading] = useState(!defaultLoadError)
   const [loadError, setLoadError] = useState(defaultLoadError)
+  const [showSlowFallback, setShowSlowFallback] = useState(false)
   const [frameKey, setFrameKey] = useState(0)
 
   useEffect(() => {
     if (!loading || loadError) return
     const timeout = window.setTimeout(() => {
-      setLoading(false)
-      setLoadError(true)
+      setShowSlowFallback(true)
     }, 5000)
     return () => window.clearTimeout(timeout)
   }, [loadError, loading, frameKey])
@@ -27,6 +27,7 @@ export default function DocsBrowser({
   const handleRetry = useCallback(() => {
     setLoading(true)
     setLoadError(false)
+    setShowSlowFallback(false)
     setFrameKey((current) => current + 1)
   }, [])
 
@@ -44,11 +45,24 @@ export default function DocsBrowser({
           Open externally
         </a>
       </div>
-      {(loading || loadError) && (
+      {(loading || loadError || showSlowFallback) && (
         <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs text-[var(--color-text-muted)]">
           {loadError ? (
             <div className="flex items-center justify-between gap-3">
               <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : showSlowFallback ? (
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                DevDocs is taking longer than usual to load. You can keep waiting or retry.
+              </span>
               <button
                 type="button"
                 onClick={handleRetry}
@@ -71,10 +85,12 @@ export default function DocsBrowser({
         onLoad={() => {
           setLoading(false)
           setLoadError(false)
+          setShowSlowFallback(false)
         }}
         onError={() => {
           setLoading(false)
           setLoadError(true)
+          setShowSlowFallback(false)
         }}
       />
     </div>

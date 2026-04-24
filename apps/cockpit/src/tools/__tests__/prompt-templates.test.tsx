@@ -3,10 +3,10 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import PromptTemplates from '../prompt-templates/PromptTemplates'
-import { BUILTIN_PROMPT_TEMPLATES } from '../prompt-templates/builtin-templates'
-import { parsePromptTemplateImport } from '../prompt-templates/template-import'
-import { estimateTokens, renderPrompt, tokenTone } from '../prompt-templates/template-utils'
+import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
+import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
+import { parsePromptTemplateImport } from '@/tools/prompt-templates/template-import'
+import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
 
 const originalClipboard = navigator.clipboard
 

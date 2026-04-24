@@ -319,6 +319,7 @@ export default function HtmlValidator() {
     const validationSeq = validationSeqRef.current + 1
     validationSeqRef.current = validationSeq
     setIsValidating(true)
+    setErrors([])
     debounceRef.current = setTimeout(async () => {
       const errs = await validateHtml(state.input, state.disabledRules)
       if (validationSeq !== validationSeqRef.current) return

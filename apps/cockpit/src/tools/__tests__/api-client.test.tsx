@@ -3,8 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
-import ApiClient, { buildUrlWithParams, parseQueryParams } from '../api-client/ApiClient'
-import { CollectionsSidebar } from '../api-client/components/CollectionsSidebar'
+import ApiClient, { buildUrlWithParams, parseQueryParams } from '@/tools/api-client/ApiClient'
+import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
