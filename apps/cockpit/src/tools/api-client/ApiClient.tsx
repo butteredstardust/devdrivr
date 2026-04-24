@@ -75,30 +75,39 @@ const BODY_MODES = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parseQueryParams(url: string): Param[] {
-  try {
-    const u = new URL(url)
-    const params: Param[] = []
-    u.searchParams.forEach((value, key) => {
-      params.push({ key, value })
-    })
-    return params
-  } catch {
-    return []
+function splitUrlParts(url: string): { base: string; query: string; hash: string } {
+  const hashIndex = url.indexOf('#')
+  const withoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url
+  const hash = hashIndex >= 0 ? url.slice(hashIndex) : ''
+  const queryIndex = withoutHash.indexOf('?')
+
+  return {
+    base: queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash,
+    query: queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : '',
+    hash,
   }
 }
 
-function buildUrlWithParams(url: string, params: Param[]): string {
-  try {
-    const u = new URL(url)
-    const pairs = params
-      .filter((p) => p.key.trim())
-      .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-    u.search = pairs.length > 0 ? `?${pairs.join('&')}` : ''
-    return u.toString()
-  } catch {
-    return url
-  }
+export function parseQueryParams(url: string): Param[] {
+  const { query } = splitUrlParts(url)
+  const params: Param[] = []
+  new URLSearchParams(query).forEach((value, key) => {
+    params.push({ key, value })
+  })
+  return params
+}
+
+export function buildUrlWithParams(url: string, params: Param[]): string {
+  const { base, hash } = splitUrlParts(url)
+  const search = new URLSearchParams()
+  params
+    .filter((p) => p.key.trim())
+    .forEach((p) => {
+      search.append(p.key, p.value)
+    })
+
+  const query = search.toString()
+  return `${base}${query ? `?${query}` : ''}${hash}`
 }
 
 function detectResponseLanguage(headers: Record<string, string>): string {
@@ -131,6 +140,24 @@ function base64EncodeUtf8(text: string): string {
   return btoa(binary)
 }
 
+function createDefaultDraft(
+  method = 'GET',
+  patch: Partial<ApiClientState['draft']> = {}
+): ApiClientState['draft'] {
+  return {
+    name: 'Untitled Request',
+    method,
+    url: '',
+    headers: BODY_METHODS.has(method)
+      ? [{ key: 'Content-Type', value: 'application/json', enabled: true }]
+      : [],
+    body: '',
+    bodyMode: BODY_METHODS.has(method) ? 'json' : 'none',
+    auth: { type: 'none' },
+    ...patch,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -155,15 +182,7 @@ export default function ApiClient() {
 
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
     activeRequestId: null,
-    draft: {
-      name: 'Untitled Request',
-      method: 'GET',
-      url: '',
-      headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
-      body: '',
-      bodyMode: 'json',
-      auth: { type: 'none' },
-    },
+    draft: createDefaultDraft(),
   })
 
   // Destructure draft for convenience
@@ -318,6 +337,7 @@ export default function ApiClient() {
 
     setLoading(true)
     setError(null)
+    setResponse(null)
     const start = performance.now()
 
     try {
@@ -374,6 +394,7 @@ export default function ApiClient() {
       })
     } catch (e) {
       const msg = (e as Error).message
+      setResponse(null)
       setError(msg)
       setLastAction('Request failed', 'error')
     } finally {
@@ -388,15 +409,7 @@ export default function ApiClient() {
   const handleNewRequest = useCallback(() => {
     updateState({
       activeRequestId: null,
-      draft: {
-        name: 'Untitled Request',
-        method: 'GET',
-        url: '',
-        headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
-        body: '',
-        bodyMode: 'json',
-        auth: { type: 'none' },
-      },
+      draft: createDefaultDraft(),
     })
     setResponse(null)
     setError(null)
@@ -608,7 +621,7 @@ export default function ApiClient() {
         onLoadFromHistory={(histMethod, histUrl) => {
           updateState({
             activeRequestId: null,
-            draft: { ...state.draft, method: histMethod, url: histUrl, name: 'Untitled Request' },
+            draft: createDefaultDraft(histMethod, { url: histUrl }),
           })
           setResponse(null)
           setError(null)

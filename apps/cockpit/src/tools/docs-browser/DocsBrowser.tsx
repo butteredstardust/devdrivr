@@ -1,7 +1,35 @@
+import { useCallback, useEffect, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 
-export default function DocsBrowser() {
+type DocsBrowserProps = {
+  defaultLoadError?: boolean
+  frameSrc?: string
+}
+
+export default function DocsBrowser({
+  defaultLoadError = false,
+  frameSrc = 'https://devdocs.io',
+}: DocsBrowserProps) {
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const [loading, setLoading] = useState(!defaultLoadError)
+  const [loadError, setLoadError] = useState(defaultLoadError)
+  const [showSlowFallback, setShowSlowFallback] = useState(false)
+  const [frameKey, setFrameKey] = useState(0)
+
+  useEffect(() => {
+    if (!loading || loadError) return
+    const timeout = window.setTimeout(() => {
+      setShowSlowFallback(true)
+    }, 5000)
+    return () => window.clearTimeout(timeout)
+  }, [loadError, loading, frameKey])
+
+  const handleRetry = useCallback(() => {
+    setLoading(true)
+    setLoadError(false)
+    setShowSlowFallback(false)
+    setFrameKey((current) => current + 1)
+  }, [])
 
   return (
     <div className="flex h-full flex-col">
@@ -17,11 +45,53 @@ export default function DocsBrowser() {
           Open externally
         </a>
       </div>
+      {(loading || loadError || showSlowFallback) && (
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs text-[var(--color-text-muted)]">
+          {loadError ? (
+            <div className="flex items-center justify-between gap-3">
+              <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : showSlowFallback ? (
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                DevDocs is taking longer than usual to load. You can keep waiting or retry.
+              </span>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <span>Loading DevDocs…</span>
+          )}
+        </div>
+      )}
       <iframe
-        src="https://devdocs.io"
+        key={frameKey}
+        src={frameSrc}
         className="flex-1 border-none"
         title="DevDocs"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        onLoad={() => {
+          setLoading(false)
+          setLoadError(false)
+          setShowSlowFallback(false)
+        }}
+        onError={() => {
+          setLoading(false)
+          setLoadError(true)
+          setShowSlowFallback(false)
+        }}
       />
     </div>
   )

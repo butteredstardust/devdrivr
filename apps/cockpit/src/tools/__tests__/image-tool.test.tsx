@@ -230,6 +230,24 @@ describe('ImageTool', () => {
     expect(xInput).toHaveValue(0)
   })
 
+  it('clamps manual crop inputs to the image bounds', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Crop'))
+    fireEvent.click(screen.getByRole('button', { name: 'Enable crop' }))
+
+    const [xInput, yInput, widthInput, heightInput] = screen.getAllByRole('spinbutton')
+
+    fireEvent.change(widthInput!, { target: { value: '40' } })
+    fireEvent.change(heightInput!, { target: { value: '20' } })
+    fireEvent.change(xInput!, { target: { value: '999' } })
+    fireEvent.change(yInput!, { target: { value: '999' } })
+
+    expect(xInput).toHaveValue(60)
+    expect(yInput).toHaveValue(60)
+    expect(widthInput).toHaveValue(40)
+    expect(heightInput).toHaveValue(20)
+  })
+
   // ── Export tab ───────────────────────────────────────────────────
 
   it('switches to export tab', () => {

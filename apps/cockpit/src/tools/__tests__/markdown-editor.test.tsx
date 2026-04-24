@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import MarkdownEditor from '../markdown-editor/MarkdownEditor'
-import { MarkdownPreview } from '../markdown-editor/MarkdownPreview'
-import { LinkModal } from '../markdown-editor/modals/LinkModal'
-import { CodeBlockModal } from '../markdown-editor/modals/CodeBlockModal'
-import { TableModal } from '../markdown-editor/modals/TableModal'
-import { ImageModal } from '../markdown-editor/modals/ImageModal'
+import MarkdownEditor, { prefixMarkdownLines } from '@/tools/markdown-editor/MarkdownEditor'
+import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
+import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
+import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
+import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
+import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 
@@ -215,6 +215,14 @@ describe('MarkdownEditor', () => {
         theme: 'default',
       })
     )
+  })
+
+  it('prefixes every selected content line for multiline markdown actions', () => {
+    expect(prefixMarkdownLines('alpha\nbeta', '- ')).toBe('- alpha\n- beta')
+  })
+
+  it('preserves blank lines when prefixing multiline selections', () => {
+    expect(prefixMarkdownLines('alpha\n\nbeta', '> ')).toBe('> alpha\n\n> beta')
   })
 })
 

@@ -67,6 +67,15 @@ function categoryCount(category: CategoryFilter, templates: PromptTemplate[]): n
   return templates.filter((template) => template.category === category).length
 }
 
+function shouldIgnoreGlobalEnter(target: EventTarget | null): boolean {
+  if (!target || typeof target !== 'object') return false
+  const element = target as Element & { isContentEditable?: boolean }
+  if (element.isContentEditable) return true
+  return typeof element.closest === 'function'
+    ? element.closest('input, textarea, select, button, a, [role="button"]') !== null
+    : false
+}
+
 function getTemplateById(id: string, templates: PromptTemplate[]): PromptTemplate {
   const fallbackTemplate = templates[0]
   if (!fallbackTemplate) {
@@ -914,6 +923,9 @@ export default function PromptTemplates() {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault()
         void copyRenderedPrompt()
+      } else if (event.key === 'Enter' && !shouldIgnoreGlobalEnter(event.target)) {
+        event.preventDefault()
+        setModalOpen(true)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -971,13 +983,15 @@ export default function PromptTemplates() {
             ))}
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto" role="listbox" aria-label="Prompt templates">
           {filteredTemplates.map((template) => {
             const selected = template.id === selectedTemplate.id
             return (
               <button
                 key={template.id}
                 type="button"
+                role="option"
+                aria-selected={selected}
                 onClick={() => selectTemplate(template)}
                 onDoubleClick={() => {
                   selectTemplate(template)

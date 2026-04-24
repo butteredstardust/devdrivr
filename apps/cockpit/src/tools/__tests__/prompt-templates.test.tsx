@@ -3,10 +3,10 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import PromptTemplates from '../prompt-templates/PromptTemplates'
-import { BUILTIN_PROMPT_TEMPLATES } from '../prompt-templates/builtin-templates'
-import { parsePromptTemplateImport } from '../prompt-templates/template-import'
-import { estimateTokens, renderPrompt, tokenTone } from '../prompt-templates/template-utils'
+import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
+import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
+import { parsePromptTemplateImport } from '@/tools/prompt-templates/template-import'
+import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
 
 const originalClipboard = navigator.clipboard
 
@@ -163,6 +163,22 @@ describe('PromptTemplates', () => {
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
 
     await waitFor(() => expect(document.activeElement).not.toBe(searchInput))
+  })
+
+  it('opens quick fill with Enter when focus is not in an interactive field', async () => {
+    renderTool(PromptTemplates)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+  })
+
+  it('exposes the selected template state for assistive tech', () => {
+    renderTool(PromptTemplates)
+
+    const selectedRow = screen.getAllByText('Review: Detect Code Smells')[0]!.closest('button')
+
+    expect(selectedRow).toHaveAttribute('aria-selected', 'true')
   })
 
   it('creates a custom template from the editor modal', async () => {

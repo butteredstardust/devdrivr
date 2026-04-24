@@ -281,10 +281,12 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                   const [method, ...urlParts] = entry.input.split(' ')
                   const histUrl = urlParts.join(' ')
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={entry.id}
-                      className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-[var(--color-surface-hover)]"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-[var(--color-surface-hover)]"
                       title={`${entry.input}\n${entry.output}\nClick to restore`}
+                      aria-label={`Restore ${entry.input}`}
                       onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
                     >
                       <span
@@ -296,7 +298,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       <span className="shrink-0 text-[var(--color-text-muted)]">
                         {entry.output.split('·')[1]?.trim() ?? ''}
                       </span>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
