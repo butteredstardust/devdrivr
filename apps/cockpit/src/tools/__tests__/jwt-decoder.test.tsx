@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
-import { renderTool } from './test-utils'
-import JwtDecoder from '../jwt-decoder/JwtDecoder'
+import { renderTool } from '@/tools/__tests__/test-utils'
+import JwtDecoder from '@/tools/jwt-decoder/JwtDecoder'
 
 const TEST_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiZXhwIjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+const NULL_PAYLOAD_JWT = 'eyJhbGciOiJub25lIn0.bnVsbA.'
 
 describe('JwtDecoder', () => {
   it('renders input area', () => {
@@ -37,6 +38,15 @@ describe('JwtDecoder', () => {
     fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
       target: { value: 'not.a.jwt' },
     })
+    expect(screen.getByText(/invalid jwt/i)).toBeInTheDocument()
+  })
+
+  it('treats non-object payloads as invalid instead of crashing', () => {
+    renderTool(JwtDecoder)
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: NULL_PAYLOAD_JWT },
+    })
+
     expect(screen.getByText(/invalid jwt/i)).toBeInTheDocument()
   })
 

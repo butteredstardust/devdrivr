@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, fireEvent, render } from '@testing-library/react'
-import { renderTool } from './test-utils'
-import MermaidEditor from '../mermaid-editor/MermaidEditor'
+import { renderTool } from '@/tools/__tests__/test-utils'
+import MermaidEditor from '@/tools/mermaid-editor/MermaidEditor'
 import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 
@@ -113,6 +113,20 @@ describe('MermaidEditor', () => {
       theme: 'default',
     })
   })
+
+  it('keeps the rendered preview interactive instead of disabling pointer events', async () => {
+    vi.useFakeTimers()
+    mermaidMock.render.mockResolvedValue({ svg: '<svg><a href="#node">Node</a></svg>' })
+
+    renderTool(MermaidEditor)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    expect(screen.getByTestId('mermaid-preview-content').parentElement).not.toHaveStyle({
+      pointerEvents: 'none',
+    })
+  })
 })
 
 describe('MermaidEditor — Templates dropdown', () => {
@@ -141,6 +155,18 @@ describe('MermaidEditor — Templates dropdown', () => {
     expect(screen.getByText('flowchart')).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByTestId('outside'))
     expect(screen.queryByText('flowchart')).toBeNull()
+  })
+
+  it('opens from the keyboard and closes with Escape', () => {
+    renderTool(MermaidEditor)
+    const button = screen.getByRole('button', { name: 'Templates' })
+
+    fireEvent.keyDown(button, { key: 'ArrowDown' })
+    expect(screen.getByRole('menu', { name: 'Mermaid templates' })).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Mermaid templates' }), { key: 'Escape' })
+    expect(screen.queryByRole('menu', { name: 'Mermaid templates' })).toBeNull()
+    expect(button).toHaveFocus()
   })
 })
 
@@ -196,5 +222,19 @@ describe('MermaidEditor — Export dropdown', () => {
     expect(screen.getByText('Copy SVG')).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByTestId('outside'))
     expect(screen.queryByText('Copy SVG')).toBeNull()
+  })
+
+  it('opens the export menu from the keyboard and closes it with Escape', () => {
+    renderTool(MermaidEditor)
+    const button = screen.getByRole('button', { name: 'Export' })
+
+    fireEvent.keyDown(button, { key: 'ArrowDown' })
+    expect(screen.getByRole('menu', { name: 'Mermaid export actions' })).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Mermaid export actions' }), {
+      key: 'Escape',
+    })
+    expect(screen.queryByRole('menu', { name: 'Mermaid export actions' })).toBeNull()
+    expect(button).toHaveFocus()
   })
 })

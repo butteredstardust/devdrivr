@@ -8,8 +8,6 @@ export function parseYaml(input: string): ParseResult {
   if (!input.trim()) return { ok: false, data: null, error: 'Input is empty' }
   try {
     const data = yaml.load(input)
-    if (data === null || data === undefined)
-      return { ok: false, data: null, error: 'Document resolves to null or empty' }
     return { ok: true, data, error: null }
   } catch (e) {
     return { ok: false, data: null, error: e instanceof Error ? e.message : String(e) }
@@ -32,9 +30,6 @@ export function jsonToYaml(jsonInput: string): string {
   }
   try {
     const data: unknown = JSON.parse(jsonInput)
-    if (data === null || data === undefined) {
-      throw new Error('JSON resolves to null or empty')
-    }
     return stringifyYaml(data)
   } catch (e) {
     if (e instanceof SyntaxError) {

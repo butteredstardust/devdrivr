@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
-import { renderTool } from './test-utils'
-import JsonTools from '../json-tools/JsonTools'
+import { renderTool } from '@/tools/__tests__/test-utils'
+import JsonTools, { isTabularJsonArray } from '@/tools/json-tools/JsonTools'
 
 describe('JsonTools', () => {
   it('renders editor', () => {
@@ -31,5 +31,20 @@ describe('JsonTools', () => {
     expect(screen.getByText('Lint & Format')).toBeInTheDocument()
     expect(screen.getByText('Tree View')).toBeInTheDocument()
     expect(screen.getByText('Table View')).toBeInTheDocument()
+  })
+
+  it('treats only arrays of objects as table-compatible data', () => {
+    expect(isTabularJsonArray([{ id: 1 }, { id: 2 }])).toBe(true)
+    expect(isTabularJsonArray([1, 2, 3])).toBe(false)
+    expect(isTabularJsonArray([{ id: 1 }, null])).toBe(false)
+  })
+
+  it('shows guidance instead of an empty grid for primitive arrays', () => {
+    renderTool(JsonTools)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '[1,2,3]' } })
+    fireEvent.click(screen.getByText('Table View'))
+
+    expect(screen.getByText('Table view requires a JSON array of objects')).toBeInTheDocument()
   })
 })
