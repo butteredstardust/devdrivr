@@ -28,4 +28,15 @@ describe('ColorConverter', () => {
     renderTool(ColorConverter)
     expect(screen.getByText(/contrast/i)).toBeInTheDocument()
   })
+
+  it('rejects out-of-range RGB and HSL values', () => {
+    renderTool(ColorConverter)
+    const input = screen.getByPlaceholderText(/#39ff14/)
+
+    fireEvent.change(input, { target: { value: 'rgb(999, 0, 0)' } })
+    expect(screen.queryByText(/rgb\(999/i)).not.toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'hsl(120, 150%, 50%)' } })
+    expect(screen.queryByText(/hsl\(120, 150%/i)).not.toBeInTheDocument()
+  })
 })

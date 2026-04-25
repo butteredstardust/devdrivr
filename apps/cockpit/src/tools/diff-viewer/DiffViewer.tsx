@@ -74,23 +74,34 @@ export default function DiffViewer() {
   const [rawPatch, setRawPatch] = useState<string>('')
   const [isComparing, setIsComparing] = useState(false)
   const comparingRef = useRef(false)
+  const pendingCompareRef = useRef(false)
+  const stateRef = useRef(state)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   const stats = useMemo(() => (rawPatch ? parseDiffStats(rawPatch) : null), [rawPatch])
 
   const computeDiff = useCallback(async () => {
-    if (!worker || comparingRef.current) return
-    if (!state.left.trim() && !state.right.trim()) return
+    if (!worker) return
+    if (comparingRef.current) {
+      pendingCompareRef.current = true
+      return
+    }
+    const current = stateRef.current
+    if (!current.left.trim() && !current.right.trim()) return
     comparingRef.current = true
     setIsComparing(true)
     try {
-      const patch = await worker.computeDiff(state.left, state.right, {
-        ignoreWhitespace: state.ignoreWhitespace,
-        jsonMode: state.jsonMode,
+      const patch = await worker.computeDiff(current.left, current.right, {
+        ignoreWhitespace: current.ignoreWhitespace,
+        jsonMode: current.jsonMode,
       })
       setRawPatch(patch)
       const rendered = diff2htmlRender(patch, {
-        outputFormat: state.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
+        outputFormat: current.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
         drawFileList: false,
       })
       setDiffHtml(rendered)
@@ -102,18 +113,12 @@ export default function DiffViewer() {
     } finally {
       comparingRef.current = false
       setIsComparing(false)
+      if (pendingCompareRef.current) {
+        pendingCompareRef.current = false
+        setTimeout(() => void computeDiff(), 0)
+      }
     }
-  }, [
-    worker,
-    state.left,
-    state.right,
-    state.ignoreWhitespace,
-    state.jsonMode,
-    state.mode,
-    setLastAction,
-    setDiffHtml,
-    setRawPatch,
-  ])
+  }, [worker, setLastAction, setDiffHtml, setRawPatch])
 
   // Auto-compare with debounce when both sides have content
   useEffect(() => {
@@ -131,7 +136,12 @@ export default function DiffViewer() {
     }
   }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
 
-  useKeyboardShortcut({ key: 'Enter', mod: true }, computeDiff)
+  useKeyboardShortcut(
+    { key: 'Enter', mod: true },
+    useCallback(() => {
+      void computeDiff()
+    }, [computeDiff])
+  )
 
   const handleSwap = useCallback(() => {
     updateState({ left: state.right, right: state.left })
@@ -319,7 +329,7 @@ export default function DiffViewer() {
                 theme={monacoTheme}
                 language={state.language}
                 value={state.right}
-                onChange={(v) => updateState({ right: String(v) })}
+                onChange={(v) => updateState({ right: v ?? '' })}
                 options={{ ...monacoOptions, wordWrap: 'off' }}
               />
             </div>

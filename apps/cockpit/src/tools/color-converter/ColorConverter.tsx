@@ -203,13 +203,25 @@ function parseColor(input: string): RGB | null {
   // rgb(r, g, b) or rgba(r, g, b, a) — also modern space syntax
   const rgbMatch = trimmed.match(/rgba?\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)/)
   if (rgbMatch) {
-    return { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]) }
+    const rgb = { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]) }
+    if (
+      [rgb.r, rgb.g, rgb.b].every(
+        (channel) => Number.isInteger(channel) && channel >= 0 && channel <= 255
+      )
+    ) {
+      return rgb
+    }
+    return null
   }
 
   // hsl(h, s%, l%) — also modern space syntax
   const hslMatch = trimmed.match(/hsla?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%/)
   if (hslMatch) {
-    return hslToRgb({ h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) })
+    const hsl = { h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) }
+    if (Number.isFinite(hsl.h) && hsl.s >= 0 && hsl.s <= 100 && hsl.l >= 0 && hsl.l <= 100) {
+      return hslToRgb(hsl)
+    }
+    return null
   }
 
   // oklch(L C H) — parse and convert

@@ -188,6 +188,7 @@ export default function XmlTools() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
   const [xpathResults, setXpathResults] = useState<string[]>([])
+  const [xpathQueried, setXpathQueried] = useState(false)
   const [jsonOutput, setJsonOutput] = useState<string>('')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [stats, setStats] = useState<{
@@ -229,59 +230,82 @@ export default function XmlTools() {
     setJsonOutput('')
     setJsonError(null)
     setXpathResults([])
+    setXpathQueried(false)
   }, [state.input])
 
   useEffect(() => {
     setXpathResults([])
+    setXpathQueried(false)
   }, [state.xpathQuery])
 
   const handleFormat = useCallback(async () => {
     if (!worker || !state.input.trim()) return
-    const result = await worker.format(state.input, state.indent)
-    if (result.valid && result.formatted) {
-      updateState({ input: result.formatted })
-      setError(null)
-      setLastAction('Formatted XML', 'success')
-    } else {
-      setError(result.errors.join('\n'))
-      setLastAction(`${result.errors.length} error(s)`, 'error')
+    try {
+      const result = await worker.format(state.input, state.indent)
+      if (result.valid && result.formatted) {
+        updateState({ input: result.formatted })
+        setError(null)
+        setLastAction('Formatted XML', 'success')
+      } else {
+        setError(result.errors.join('\n'))
+        setLastAction(`${result.errors.length} error(s)`, 'error')
+      }
+    } catch (e) {
+      setError((e as Error).message)
+      setLastAction('Format failed', 'error')
     }
   }, [worker, state.input, state.indent, updateState, setLastAction])
 
   const handleMinify = useCallback(async () => {
     if (!worker || !state.input.trim()) return
-    const result = await worker.minify(state.input)
-    if (result.valid && result.formatted) {
-      updateState({ input: result.formatted })
-      setError(null)
-      setLastAction('Minified XML', 'success')
-    } else {
-      setError(result.errors.join('\n'))
-      setLastAction(`${result.errors.length} error(s)`, 'error')
+    try {
+      const result = await worker.minify(state.input)
+      if (result.valid && result.formatted) {
+        updateState({ input: result.formatted })
+        setError(null)
+        setLastAction('Minified XML', 'success')
+      } else {
+        setError(result.errors.join('\n'))
+        setLastAction(`${result.errors.length} error(s)`, 'error')
+      }
+    } catch (e) {
+      setError((e as Error).message)
+      setLastAction('Minify failed', 'error')
     }
   }, [worker, state.input, updateState, setLastAction])
 
   const handleValidate = useCallback(async () => {
     if (!worker || !state.input.trim()) return
-    const result = await worker.validate(state.input)
-    if (result.valid) {
-      setError(null)
-      setLastAction('Valid XML', 'success')
-    } else {
-      setError(result.errors.join('\n'))
-      setLastAction(`${result.errors.length} error(s)`, 'error')
+    try {
+      const result = await worker.validate(state.input)
+      if (result.valid) {
+        setError(null)
+        setLastAction('Valid XML', 'success')
+      } else {
+        setError(result.errors.join('\n'))
+        setLastAction(`${result.errors.length} error(s)`, 'error')
+      }
+    } catch (e) {
+      setError((e as Error).message)
+      setLastAction('Validation failed', 'error')
     }
   }, [worker, state.input, setLastAction])
 
   const handleToJson = useCallback(async () => {
     if (!worker || !state.input.trim()) return
-    const result = await worker.toJson(state.input)
-    if (result.valid && result.json) {
-      setJsonOutput(result.json)
-      setJsonError(null)
-      setLastAction('Converted to JSON', 'success')
-    } else {
-      setJsonError(result.error ?? 'Conversion failed')
+    try {
+      const result = await worker.toJson(state.input)
+      if (result.valid && result.json) {
+        setJsonOutput(result.json)
+        setJsonError(null)
+        setLastAction('Converted to JSON', 'success')
+      } else {
+        setJsonError(result.error ?? 'Conversion failed')
+        setJsonOutput('')
+        setLastAction('Conversion failed', 'error')
+      }
+    } catch (e) {
+      setJsonError((e as Error).message)
       setJsonOutput('')
       setLastAction('Conversion failed', 'error')
     }
@@ -290,11 +314,19 @@ export default function XmlTools() {
   const handleXPath = useCallback(async () => {
     if (!worker || !state.input.trim() || !state.xpathQuery.trim()) {
       setXpathResults([])
+      setXpathQueried(false)
       return
     }
-    const result = await worker.queryXPath(state.input, state.xpathQuery)
-    setXpathResults(result.matches)
-    setLastAction(`${result.count} match(es)`, result.count > 0 ? 'success' : 'info')
+    try {
+      const result = await worker.queryXPath(state.input, state.xpathQuery)
+      setXpathResults(result.matches)
+      setXpathQueried(true)
+      setLastAction(`${result.count} match(es)`, result.count > 0 ? 'success' : 'info')
+    } catch (e) {
+      setXpathResults([])
+      setXpathQueried(true)
+      setLastAction((e as Error).message || 'XPath query failed', 'error')
+    }
   }, [worker, state.input, state.xpathQuery, setLastAction])
 
   const tree = useMemo(() => {
@@ -325,13 +357,13 @@ export default function XmlTools() {
         {state.activeTab === 'lint' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button variant="primary" size="sm" onClick={handleFormat}>
+              <Button variant="primary" size="sm" onClick={() => void handleFormat()}>
                 Format
               </Button>
-              <Button variant="secondary" size="sm" onClick={handleMinify}>
+              <Button variant="secondary" size="sm" onClick={() => void handleMinify()}>
                 Minify
               </Button>
-              <Button variant="secondary" size="sm" onClick={handleValidate}>
+              <Button variant="secondary" size="sm" onClick={() => void handleValidate()}>
                 Validate
               </Button>
               <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
@@ -389,7 +421,7 @@ export default function XmlTools() {
         {state.activeTab === 'json' && (
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button variant="primary" size="sm" onClick={handleToJson}>
+              <Button variant="primary" size="sm" onClick={() => void handleToJson()}>
                 Convert
               </Button>
               {jsonOutput && <CopyButton text={jsonOutput} label="Copy JSON" />}
@@ -432,7 +464,7 @@ export default function XmlTools() {
                   if (e.key === 'Enter') void handleXPath()
                 }}
               />
-              <Button variant="primary" size="sm" onClick={handleXPath}>
+              <Button variant="primary" size="sm" onClick={() => void handleXPath()}>
                 Query
               </Button>
             </div>
@@ -454,6 +486,8 @@ export default function XmlTools() {
                     </div>
                   ))}
                 </div>
+              ) : xpathQueried ? (
+                <div className="text-sm text-[var(--color-text-muted)]">No matches</div>
               ) : (
                 <div className="text-sm text-[var(--color-text-muted)]">
                   Enter an XPath expression and click Query (or press Enter)

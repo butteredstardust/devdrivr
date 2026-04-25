@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import Base64Tool from '../base64/Base64Tool'
 
 describe('Base64Tool', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+  })
+
   it('renders encode mode by default', () => {
     renderTool(Base64Tool)
     expect(screen.getByText('Encode →')).toBeInTheDocument()
@@ -61,5 +68,17 @@ describe('Base64Tool', () => {
     expect(screen.getByTitle('Encode a file to Base64')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Encode →')) // switch to decode
     expect(screen.queryByTitle('Encode a file to Base64')).not.toBeInTheDocument()
+  })
+
+  it('copies standard base64 in data URIs when URL-safe mode is enabled', () => {
+    renderTool(Base64Tool)
+    fireEvent.click(screen.getByLabelText('URL-safe'))
+    const input = screen.getByPlaceholderText(/enter text to encode/i)
+    fireEvent.change(input, { target: { value: '🤐' } })
+
+    expect(screen.getByText('8J-kkA')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Copy data URI'))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('data:text/plain;base64,8J+kkA==')
   })
 })
