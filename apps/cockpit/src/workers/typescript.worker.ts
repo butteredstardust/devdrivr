@@ -29,6 +29,38 @@ const MODULE_MAP: Record<string, ts.ModuleKind> = {
   None: ts.ModuleKind.None,
 }
 
+const SOURCE_FILE = 'input.tsx'
+
+function collectDiagnostics(
+  code: string,
+  compilerOptions: ts.CompilerOptions
+): readonly ts.Diagnostic[] {
+  const sourceFile = ts.createSourceFile(
+    SOURCE_FILE,
+    code,
+    compilerOptions.target ?? ts.ScriptTarget.ESNext,
+    true,
+    ts.ScriptKind.TSX
+  )
+  const host: ts.CompilerHost = {
+    fileExists: (fileName) => fileName === SOURCE_FILE,
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => '',
+    getDefaultLibFileName: () => 'lib.d.ts',
+    getDirectories: () => [],
+    getNewLine: () => '\n',
+    getSourceFile: (fileName) => (fileName === SOURCE_FILE ? sourceFile : undefined),
+    readFile: (fileName) => (fileName === SOURCE_FILE ? code : undefined),
+    useCaseSensitiveFileNames: () => true,
+    writeFile: () => {},
+  }
+  const program = ts.createProgram([SOURCE_FILE], { ...compilerOptions, noLib: true }, host)
+  return [
+    ...program.getSyntacticDiagnostics(sourceFile),
+    ...program.getSemanticDiagnostics(sourceFile),
+  ]
+}
+
 const api = {
   transpile(code: string, options: TranspileOptions = {}): TranspileResult {
     const compilerOptions: ts.CompilerOptions = {
@@ -45,7 +77,7 @@ const api = {
       reportDiagnostics: true,
     })
 
-    const diagnostics = (result.diagnostics ?? []).map((d) => {
+    const diagnostics = collectDiagnostics(code, compilerOptions).map((d) => {
       const pos =
         d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : undefined
       const entry: { message: string; line?: number; column?: number } = {

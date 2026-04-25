@@ -41,6 +41,13 @@ function isValidBase64(str: string): boolean {
   }
 }
 
+function encodeTextBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
 function toUrlSafe(b64: string): string {
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
@@ -246,10 +253,7 @@ export default function Base64Tool() {
     if (!state.input.trim()) return { text: '', error: null }
     try {
       if (state.mode === 'encode') {
-        const bytes = new TextEncoder().encode(state.input)
-        let binary = ''
-        for (const byte of bytes) binary += String.fromCharCode(byte)
-        let encoded = btoa(binary)
+        let encoded = encodeTextBase64(state.input)
         if (state.urlSafe) encoded = toUrlSafe(encoded)
         if (state.lineWrap) encoded = wrapLines(encoded, 76)
         return { text: encoded, error: null }
@@ -295,10 +299,9 @@ export default function Base64Tool() {
 
   // Data URI builder for text encode output
   const dataUri = useMemo(() => {
-    if (state.mode !== 'encode' || !output.text) return null
-    const raw = output.text.replace(/\n/g, '')
-    return `data:text/plain;base64,${raw}`
-  }, [state.mode, output.text])
+    if (state.mode !== 'encode' || !state.input.trim() || output.error) return null
+    return `data:text/plain;base64,${encodeTextBase64(state.input)}`
+  }, [state.mode, state.input, output.error])
 
   // Unified image source: file encode takes priority
   const activeImage = droppedFile?.dataUri ?? imagePreview

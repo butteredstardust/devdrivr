@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
@@ -157,6 +157,12 @@ export default function JsonTools() {
       updateState({ input: result })
       setError(null)
       setLastAction('Formatted JSON', 'success')
+      record({
+        input: `JSON: ${state.input.slice(0, 300)}${state.input.length > 300 ? '...' : ''}`,
+        output: result.slice(0, 1000),
+        subTab: state.activeTab,
+        success: true,
+      })
     } catch (e) {
       const msg = (e as Error).message
       setError(msg)
@@ -165,14 +171,20 @@ export default function JsonTools() {
       formattingRef.current = false
       setIsFormatting(false)
     }
-  }, [formatter, state.input, updateState, setLastAction])
+  }, [formatter, state.input, state.activeTab, updateState, setLastAction, record])
 
   const handleMinify = useCallback(() => {
     if (!parsed.ok || parsed.data === null || parsed.data === undefined) return
     updateState({ input: JSON.stringify(parsed.data) })
     setError(null)
     setLastAction('Minified JSON', 'success')
-  }, [parsed, updateState, setLastAction])
+    record({
+      input: `JSON: ${state.input.slice(0, 300)}${state.input.length > 300 ? '...' : ''}`,
+      output: JSON.stringify(parsed.data).slice(0, 1000),
+      subTab: state.activeTab,
+      success: true,
+    })
+  }, [parsed, state.input, state.activeTab, updateState, setLastAction, record])
 
   const handleSortKeys = useCallback(() => {
     if (!parsed.ok || parsed.data === null || parsed.data === undefined) return
@@ -180,19 +192,13 @@ export default function JsonTools() {
     updateState({ input: JSON.stringify(sorted, null, 2) })
     setError(null)
     setLastAction('Keys sorted', 'success')
-  }, [parsed, updateState, setLastAction])
-
-  // Record history when JSON is successfully parsed and has content
-  useEffect(() => {
-    if (state.input.trim() && parsed.ok) {
-      record({
-        input: `JSON${state.query ? ` (query: ${state.query})` : ''}: ${state.input.slice(0, 300)}${state.input.length > 300 ? '...' : ''}`,
-        output: JSON.stringify(parsed.data, null, 2).slice(0, 1000),
-        subTab: state.activeTab,
-        success: true,
-      })
-    }
-  }, [state.input, state.activeTab, state.query, parsed.ok, parsed.data, record])
+    record({
+      input: `JSON: ${state.input.slice(0, 300)}${state.input.length > 300 ? '...' : ''}`,
+      output: JSON.stringify(sorted, null, 2).slice(0, 1000),
+      subTab: state.activeTab,
+      success: true,
+    })
+  }, [parsed, state.input, state.activeTab, updateState, setLastAction, record])
 
   return (
     <div className="flex h-full flex-col">
@@ -508,11 +514,11 @@ function JsonTable({ data }: { data: Record<string, unknown>[] }) {
   }, [data])
 
   const copyCell = useCallback(
-    (value: unknown) => {
+    async (value: unknown) => {
       try {
         const text =
           typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '')
-        navigator.clipboard.writeText(text)
+        await navigator.clipboard.writeText(text)
         setLastAction('Copied cell', 'success')
       } catch {
         setLastAction('Failed to copy cell', 'error')
@@ -555,7 +561,7 @@ function JsonTable({ data }: { data: Record<string, unknown>[] }) {
                 return (
                   <td
                     key={col}
-                    onClick={() => copyCell(value)}
+                    onClick={() => void copyCell(value)}
                     className="cursor-pointer border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)] hover:bg-[var(--color-surface)]"
                     title="Click to copy"
                   >

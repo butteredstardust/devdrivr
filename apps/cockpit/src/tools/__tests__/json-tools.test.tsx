@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import JsonTools, { isTabularJsonArray } from '@/tools/json-tools/JsonTools'
 
+const recordMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/hooks/useToolHistory', () => ({
+  useToolHistory: () => ({ record: recordMock }),
+}))
+
 describe('JsonTools', () => {
+  beforeEach(() => {
+    recordMock.mockClear()
+  })
+
   it('renders editor', () => {
     renderTool(JsonTools)
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()
@@ -46,5 +56,13 @@ describe('JsonTools', () => {
     fireEvent.click(screen.getByText('Table View'))
 
     expect(screen.getByText('Table view requires a JSON array of objects')).toBeInTheDocument()
+  })
+
+  it('does not record history just because valid JSON was edited', () => {
+    renderTool(JsonTools)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '{"a": 1}' } })
+
+    expect(recordMock).not.toHaveBeenCalled()
   })
 })

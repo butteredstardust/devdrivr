@@ -21,7 +21,7 @@ import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
 import { importApiSpec } from '@/lib/api-import'
 import type { ApiImportResult, ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
-import { BracketsCurlyIcon, CopyIcon } from '@phosphor-icons/react'
+import { BracketsCurlyIcon, CopyIcon, XIcon } from '@phosphor-icons/react'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -155,6 +155,30 @@ function createDefaultDraft(
     bodyMode: BODY_METHODS.has(method) ? 'json' : 'none',
     auth: { type: 'none' },
     ...patch,
+  }
+}
+
+function applyMethodDefaults(
+  draft: ApiClientState['draft'],
+  nextMethod: string
+): ApiClientState['draft'] {
+  const nextSupportsBody = BODY_METHODS.has(nextMethod)
+  const currentSupportsBody = BODY_METHODS.has(draft.method)
+
+  if (!nextSupportsBody) {
+    return { ...draft, method: nextMethod, bodyMode: 'none' }
+  }
+
+  if (currentSupportsBody) return { ...draft, method: nextMethod }
+
+  const hasContentType = draft.headers.some((h) => h.key.toLowerCase() === 'content-type')
+  return {
+    ...draft,
+    method: nextMethod,
+    bodyMode: draft.bodyMode === 'none' ? 'json' : draft.bodyMode,
+    headers: hasContentType
+      ? draft.headers
+      : [{ key: 'Content-Type', value: 'application/json', enabled: true }, ...draft.headers],
   }
 }
 
@@ -523,7 +547,12 @@ export default function ApiClient() {
     }
   })
 
-  useKeyboardShortcut({ key: 'Enter', mod: true }, handleSend)
+  useKeyboardShortcut(
+    { key: 'Enter', mod: true },
+    useCallback(() => {
+      void handleSend()
+    }, [handleSend])
+  )
 
   const handleExport = useCallback(async () => {
     try {
@@ -582,6 +611,13 @@ export default function ApiClient() {
       updateDraft({ headers: headers.filter((_, i) => i !== index) })
     },
     [headers, updateDraft]
+  )
+
+  const handleMethodChange = useCallback(
+    (nextMethod: string) => {
+      updateState({ draft: applyMethodDefaults(state.draft, nextMethod) })
+    },
+    [state.draft, updateState]
   )
 
   // ---------------------------------------------------------------------------
@@ -684,7 +720,7 @@ export default function ApiClient() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={handleExport}
+              onClick={() => void handleExport()}
               title="Export all requests to clipboard (JSON)"
             >
               Export
@@ -696,7 +732,7 @@ export default function ApiClient() {
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
           <select
             value={method}
-            onChange={(e) => updateDraft({ method: e.target.value })}
+            onChange={(e) => handleMethodChange(e.target.value)}
             className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-mono text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
           >
             {METHODS.map((m) => (
@@ -712,10 +748,10 @@ export default function ApiClient() {
             size="md"
             className="flex-1"
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSend()
+              if (e.key === 'Enter') void handleSend()
             }}
           />
-          <Button variant="primary" size="sm" onClick={handleSend} disabled={loading}>
+          <Button variant="primary" size="sm" onClick={() => void handleSend()} disabled={loading}>
             {loading ? 'Sending…' : 'Send'}
           </Button>
           <Button
@@ -772,9 +808,10 @@ export default function ApiClient() {
                         />
                         <button
                           onClick={() => removeParam(i)}
+                          aria-label="Remove query parameter"
                           className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
                         >
-                          ×
+                          <XIcon size={14} aria-hidden />
                         </button>
                       </div>
                     ))}
@@ -827,9 +864,10 @@ export default function ApiClient() {
                       />
                       <button
                         onClick={() => removeHeader(i)}
+                        aria-label="Remove header"
                         className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
                       >
-                        ×
+                        <XIcon size={14} aria-hidden />
                       </button>
                     </div>
                   ))}

@@ -77,6 +77,20 @@ describe('ApiClient', () => {
     expect(screen.getByText('Body')).toBeInTheDocument()
   })
 
+  it('enables a JSON body and content type when switching GET to POST', () => {
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByText('Body'))
+
+    expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()
+    expect(screen.queryByText('Body is disabled')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Headers'))
+    expect(screen.getByDisplayValue('Content-Type')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('application/json')).toBeInTheDocument()
+  })
+
   it('starts with the response pane collapsed and lets users reveal it', () => {
     renderTool(ApiClient)
     const emptyResponse = screen.getByText('Send a request to see the response')

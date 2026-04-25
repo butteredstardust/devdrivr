@@ -84,13 +84,25 @@ export default function CodeFormatter() {
 
   const handleAutoDetect = useCallback(async () => {
     if (!formatter || !state.input.trim()) return
-    const detected = await formatter.detectLanguage(state.input)
-    updateState({ language: detected })
-    setLastAction(`Detected: ${detected}`, 'info')
+    try {
+      const detected = await formatter.detectLanguage(state.input)
+      setError(null)
+      updateState({ language: detected })
+      setLastAction(`Detected: ${detected}`, 'info')
+    } catch (e) {
+      const msg = (e as Error).message
+      setError(msg)
+      setLastAction('Auto-detect failed', 'error')
+    }
   }, [formatter, state.input, updateState, setLastAction])
 
   // Cmd/Ctrl+Enter to format
-  useKeyboardShortcut({ key: 'Enter', mod: true }, handleFormat)
+  useKeyboardShortcut(
+    { key: 'Enter', mod: true },
+    useCallback(() => {
+      void handleFormat()
+    }, [handleFormat])
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -98,7 +110,7 @@ export default function CodeFormatter() {
         <Button
           variant="primary"
           size="sm"
-          onClick={handleFormat}
+          onClick={() => void handleFormat()}
           disabled={isFormatting || !state.input.trim()}
         >
           {isFormatting ? 'Formatting…' : 'Format'}
@@ -111,7 +123,7 @@ export default function CodeFormatter() {
             </option>
           ))}
         </Select>
-        <Button variant="ghost" size="sm" onClick={handleAutoDetect}>
+        <Button variant="ghost" size="sm" onClick={() => void handleAutoDetect()}>
           Auto-detect
         </Button>
         <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />

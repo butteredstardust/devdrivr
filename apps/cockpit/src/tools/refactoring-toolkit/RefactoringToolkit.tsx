@@ -41,6 +41,7 @@ export default function RefactoringToolkit() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [preview, setPreview] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewRequestRef = useRef(0)
 
   // Filter transforms by selected language
   const availableTransforms = useMemo(
@@ -55,12 +56,20 @@ export default function RefactoringToolkit() {
       setPreview(null)
       return
     }
+    setPreview(null)
+    const requestId = ++previewRequestRef.current
     debounceRef.current = setTimeout(() => {
       const parser = state.language === 'typescript' ? 'tsx' : 'babel'
       worker
         .applyTransforms(state.input, state.selectedTransforms, parser)
-        .then((result) => setPreview(result))
-        .catch((err: Error) => setLastAction(err.message, 'error'))
+        .then((result) => {
+          if (requestId === previewRequestRef.current) setPreview(result)
+        })
+        .catch((err: Error) => {
+          if (requestId !== previewRequestRef.current) return
+          setPreview(null)
+          setLastAction(err.message, 'error')
+        })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)

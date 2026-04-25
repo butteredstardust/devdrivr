@@ -133,9 +133,14 @@ export default function TimestampConverter() {
   const parsed = useMemo(() => {
     const date = parseInput(state.input)
     if (!date) return null
-    return { date, formats: computeFormats(date) }
+    return { date }
+  }, [state.input])
+
+  const formats = useMemo(() => {
+    if (!parsed) return []
+    return computeFormats(parsed.date)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.input, tick])
+  }, [parsed, tick])
 
   const handlePreset = useCallback(
     (preset: Preset) => {
@@ -210,7 +215,7 @@ export default function TimestampConverter() {
       <div className="flex-1 overflow-auto p-4">
         {parsed ? (
           <div className="flex flex-col gap-2">
-            {parsed.formats.map((f) => (
+            {formats.map((f) => (
               <div
                 key={f.label}
                 className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
