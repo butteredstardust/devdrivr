@@ -120,4 +120,23 @@ describe('SettingsPanel', () => {
     expect(addToast).toHaveBeenCalledWith('MCP port must be between 1024 and 65535', 'error')
     expect(updateSettings).not.toHaveBeenCalled()
   })
+
+  it('imports settings that use newer registered themes', async () => {
+    const addToast = useUiStore.getState().addToast
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: vi.fn().mockResolvedValue(JSON.stringify({ theme: 'github-light' })),
+        writeText: vi.fn(),
+      },
+    })
+
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import from Clipboard' }))
+
+    await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))
+    expect(addToast).toHaveBeenCalledWith('Settings imported', 'success')
+  })
 })
