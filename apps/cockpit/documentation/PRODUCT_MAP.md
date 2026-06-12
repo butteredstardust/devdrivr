@@ -8,7 +8,7 @@
 
 A **local-first, keyboard-driven developer utility workspace** built as a native desktop app (Tauri 2 + React 19). It runs entirely on your machine — no cloud, no accounts, no network required (except the API Client tool). All state is persisted to a local SQLite database.
 
-Think of it as a developer's Swiss Army knife: 28 tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
+Think of it as a developer's Swiss Army knife: 30 registered tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
 
 ---
 
@@ -17,7 +17,7 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | Area                    | Status        | Notes                                                    |
 | ----------------------- | ------------- | -------------------------------------------------------- |
 | Core shell              | ✅ Stable     | Sidebar, notes drawer, command palette, status bar       |
-| All 28 tools            | ✅ Functional | See tool inventory below                                 |
+| Registered tools        | ✅ Functional | 30 tools across 7 groups; see inventory below            |
 | Worker-based tools      | ✅ Fixed      | Custom RPC replaces Comlink (WebKit Proxy bug)           |
 | Notes drawer resize     | ✅ Done       | Drag handle, persisted width                             |
 | Settings panel          | ✅ Stable     | Theme, font size, keybindings, history retention         |
@@ -25,11 +25,11 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Windows cross-build     | 🔲 Planned    | GitHub Actions CI/CD planned                             |
-| Unit tests              | ✅ 252 tests  | Platform, theme, keybindings, registry, notes store      |
+| Unit tests              | ✅ 513 tests  | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
-## Tool Inventory (27 Tools)
+## Tool Inventory (30 Tools)
 
 ### Code Group
 
@@ -42,12 +42,12 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 
 ### Data Group
 
-| Tool                  | ID                      | What It Does                                                    |
-| --------------------- | ----------------------- | --------------------------------------------------------------- |
-| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                         |
-| XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                             |
-| YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON |
-| JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)             |
+| Tool                  | ID                      | What It Does                                                                    |
+| --------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                                         |
+| XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                                             |
+| YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON                 |
+| JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)                             |
 | CSV Tools             | `csv-tools`             | View, edit, convert with JSON, analyze stats, and generate schemas for CSV data |
 
 ### Web Group
@@ -71,6 +71,7 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 | cURL → Fetch        | `curl-to-fetch`       | Convert cURL commands to fetch / axios / ky                                                  |
 | UUID Generator      | `uuid-generator`      | Generate & validate UUIDs v4 (crypto.randomUUID)                                             |
 | Hash Generator      | `hash-generator`      | MD5 (js-md5), SHA-1/256/512 (crypto.subtle)                                                  |
+| Image Tool          | `image-tool`          | Resize, crop, compress, and convert images (JPEG, PNG, WebP)                                 |
 
 ### Test Group
 
@@ -88,11 +89,12 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 
 ### Write Group
 
-| Tool            | ID                | What It Does                                                  |
-| --------------- | ----------------- | ------------------------------------------------------------- |
-| Markdown Editor | `markdown-editor` | Split-pane edit + preview; GFM; Mermaid diagrams; HTML export |
-| Mermaid Editor  | `mermaid-editor`  | Edit & preview Mermaid diagrams; SVG/PNG export; 7 templates  |
-| Snippets        | `snippets`        | CRUD code snippets with tags, fuzzy search, import/export     |
+| Tool             | ID                 | What It Does                                                        |
+| ---------------- | ------------------ | ------------------------------------------------------------------- |
+| Markdown Editor  | `markdown-editor`  | Split-pane edit + preview; GFM; Mermaid diagrams; HTML export       |
+| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; SVG/PNG export; 7 templates        |
+| Snippets         | `snippets`         | CRUD code snippets with tags, fuzzy search, import/export           |
+| Prompt Templates | `prompt-templates` | Fill curated AI prompt templates with variables and token estimates |
 
 ---
 
@@ -100,16 +102,17 @@ Think of it as a developer's Swiss Army knife: 28 tools covering formatting, con
 
 Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.db`:
 
-| Table              | Contains                                                                  |
-| ------------------ | ------------------------------------------------------------------------- |
-| `settings`         | All app preferences (theme, window bounds, active tool, etc.)             |
-| `tool_state`       | Per-tool UI state (restores between sessions)                             |
-| `notes`            | Sticky notes with colors, pin state, size, and tags (added migration 003) |
-| `snippets`         | Code snippets with tags                                                   |
-| `history`          | Tool execution history (input/output pairs)                               |
-| `api_environments` | API Client saved environments (base URL, headers)                         |
-| `api_collections`  | API Client request collections                                            |
-| `api_requests`     | Saved API requests with method, URL, headers, body                        |
+| Table                   | Contains                                                                  |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `settings`              | All app preferences (theme, window bounds, active tool, etc.)             |
+| `tool_state`            | Per-tool UI state (restores between sessions)                             |
+| `notes`                 | Sticky notes with colors, pin state, size, and tags (added migration 003) |
+| `snippets`              | Code snippets with tags                                                   |
+| `history`               | Tool execution history (input/output pairs)                               |
+| `api_environments`      | API Client saved environments (base URL, headers)                         |
+| `api_collections`       | API Client request collections                                            |
+| `api_requests`          | Saved API requests with method, URL, headers, body                        |
+| `user_prompt_templates` | Built-in and user-created prompt templates                                |
 
 ---
 
