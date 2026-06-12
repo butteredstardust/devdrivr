@@ -82,7 +82,7 @@ When asked to "open a PR" or "commit and push", the full sequence is implied —
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
 - **Build**: Vite 7 + Bun (package manager)
-- **29 tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **30 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
 - **No cloud, no accounts** — everything runs locally
 
 ---

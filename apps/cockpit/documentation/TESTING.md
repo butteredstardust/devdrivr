@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 252 tests across 42 test suites, covering various components and utilities.
+The application currently has 1022 tests across 125 test files, covering core stores, shared utilities, shell components, and tool-specific behavior.
 
 ## Testing Strategy
 
@@ -28,7 +28,7 @@ The application currently has 252 tests across 42 test suites, covering various 
 - Path alias: `@/` → `src/`
 - CSS disabled (avoids CSS variable resolution issues in jsdom)
 
-## Current Test Coverage Details
+## Representative Test Coverage Details
 
 ### `src/lib/__tests__/theme.test.ts` (4 tests)
 
@@ -152,15 +152,14 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 
 ## What Is NOT Covered (Known Gaps)
 
-| Area               | Gap                                                | Priority |
-| ------------------ | -------------------------------------------------- | -------- |
-| Worker tools       | No tests for `handleRpc` / `useWorker` round-trips | High     |
-| Tool components    | No rendering tests for any of the 27 tools         | Medium   |
-| `useToolState`     | No tests for cache + debounce behaviour            | Medium   |
-| Settings store     | No tests for `init()` or `update()`                | Medium   |
-| DB helpers         | No tests for `getDb()`, `getSetting()`, etc.       | Medium   |
-| Keyboard shortcuts | `useGlobalShortcuts` is untested                   | Low      |
-| Theme application  | `applyTheme()` DOM side-effects are untested       | Low      |
+| Area               | Gap                                                                        | Priority |
+| ------------------ | -------------------------------------------------------------------------- | -------- |
+| Worker tools       | No tests for `handleRpc` / `useWorker` round-trips                         | High     |
+| Worker tools       | No full worker-thread integration tests for every worker-backed tool       | High     |
+| Tool components    | Rendering coverage is broad but not yet complete for every registered tool | Medium   |
+| DB helpers         | Limited direct tests for SQLite helper behavior outside mocked store paths | Medium   |
+| Keyboard shortcuts | `useGlobalShortcuts` still needs direct shortcut dispatch coverage         | Low      |
+| Release smoke      | No automated Tauri launch smoke test across macOS, Windows, and Linux      | Medium   |
 
 ## How to Add a Test
 
@@ -273,4 +272,4 @@ Tests run automatically on every push and PR via GitHub Actions (`.github/workfl
 3. Runs `npx tsc --noEmit` (type check)
 4. Runs `bun run test` (must exit 0)
 
-A PR cannot be merged if tests fail. All 252 tests **must all pass** before submitting any change.
+A PR cannot be merged if tests fail. The full Vitest suite **must pass** before submitting any change.

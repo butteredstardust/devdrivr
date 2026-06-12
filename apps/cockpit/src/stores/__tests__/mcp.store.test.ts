@@ -31,7 +31,7 @@ describe('useMcpStore', () => {
     })
   })
 
-  it('generates default settings and starts the server on init', async () => {
+  it('generates disabled default settings and checks server status on init', async () => {
     mocks.getSetting.mockResolvedValue(null)
     const { useMcpStore } = await import('@/stores/mcp.store')
 
@@ -39,12 +39,12 @@ describe('useMcpStore', () => {
 
     const state = useMcpStore.getState()
     expect(state.initialized).toBe(true)
-    expect(state.settings.enabled).toBe(true)
+    expect(state.settings.enabled).toBe(false)
     expect(state.settings.permissions.notes.read).toBe(true)
     expect(state.settings.permissions.notes.create).toBe(false)
     expect(state.settings.apiKey).not.toEqual('')
     expect(mocks.setSetting).toHaveBeenCalledWith('mcpSettings', state.settings)
-    expect(mocks.invoke).toHaveBeenCalledWith('mcp_start', { settings: state.settings })
+    expect(mocks.invoke).toHaveBeenCalledWith('mcp_status', { settings: state.settings })
   })
 
   it('persists permission changes and applies them to the running server', async () => {

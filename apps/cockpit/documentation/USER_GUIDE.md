@@ -62,7 +62,7 @@ The sidebar is organized into tool groups:
 
 ### Tool System
 
-The application provides 27+ tools organized by function. Each tool is designed to be self-contained and focused on a specific developer task.
+The application provides registered tools organized by function. Each tool is designed to be self-contained and focused on a specific developer task.
 
 ### State Persistence
 

@@ -32,7 +32,7 @@ The project follows Semantic Versioning (SemVer) for version numbering:
 3. **Testing**
    - Run full test suite locally
    - Manual testing of critical user flows
-   - Verify cross-platform compatibility (if applicable)
+   - Run the cross-platform [release smoke tests](RELEASE_SMOKE_TESTS.md)
 
 ### Deployment Steps
 
@@ -62,36 +62,17 @@ The project follows Semantic Versioning (SemVer) for version numbering:
    - Update documentation if needed
    - Announce release in appropriate channels
 
-## GitHub Actions Workflow
+## GitHub Actions Workflows
 
 The deployment process is automated through GitHub Actions:
 
-```yaml
-name: Release
+| Workflow                           | Purpose                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------- |
+| `.github/workflows/cockpit-ci.yml` | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy  |
+| `.github/workflows/tauri.yml`      | Release build matrix for macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64 |
 
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  test:
-    # Runs test suite on multiple OSes
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-  build:
-    # Builds the application for distribution
-    needs: test
-    runs-on: ubuntu-latest
-
-  release:
-    # Creates GitHub release with assets
-    needs: build
-    runs-on: ubuntu-latest
-```
+The release workflow also verifies expected release assets before publishing `latest.json`
+for the in-app updater.
 
 ## Environment Setup
 
@@ -129,8 +110,8 @@ jobs:
 
 - Unit tests: `bun run test`
 - Type checking: `npx tsc --noEmit`
-- E2E tests: Playwright (when configured)
-- Performance tests: Lighthouse (when configured)
+- Rust checks: `cargo check` and `cargo clippy -- -D warnings`
+- Release smoke: manual platform checklist in [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md)
 
 ## Troubleshooting
 
@@ -200,4 +181,4 @@ All production releases are signed:
 
 - [GitHub Releases Documentation](https://docs.github.com/en/github/administering-a-repository/releasing-projects-on-github)
 - [Semantic Versioning](https://semver.org/)
-- [Tauri Build Documentation](https://tauri.app/v1/guides/building/)
+- [Tauri Distribute Documentation](https://tauri.app/distribute/)

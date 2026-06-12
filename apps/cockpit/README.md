@@ -3,7 +3,7 @@
 # devdrivr cockpit
 
 **A local-first, keyboard-driven developer workspace.**
-**27 tools. One app. No browser, no cloud, no latency.**
+**30 registered tools. One app. No browser, no cloud, no latency.**
 
 [![Release](https://img.shields.io/github/v/release/butteredstardust/devdrivr?style=for-the-badge&logo=github&color=181717)](https://github.com/butteredstardust/devdrivr/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/butteredstardust/devdrivr/cockpit-ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/butteredstardust/devdrivr/actions/workflows/cockpit-ci.yml)
@@ -22,15 +22,15 @@
 
 Everything you reach for during a coding session — in one keyboard-driven app.
 
-| Group       | Tools                                                                                                                      |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                 |
-| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator                                                                |
-| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                          |
-| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash |
-| **Test**    | Regex Tester · JWT Decoder                                                                                                 |
-| **Network** | API Client · Docs Browser                                                                                                  |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager                                                                        |
+| Group       | Tools                                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                              |
+| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator · CSV Tools                                                                 |
+| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                                       |
+| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
+| **Test**    | Regex Tester · JWT Decoder                                                                                                              |
+| **Network** | API Client · Docs Browser                                                                                                               |
+| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                                  |
 
 ### Shell features
 
@@ -39,7 +39,7 @@ Everything you reach for during a coding session — in one keyboard-driven app.
 - **Per-tool history** — inputs and outputs are saved automatically
 - **Snippets library** — tagged code snippets accessible from any tool
 - **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
-- **Themes** — 7 built-in themes including dark, light, and system
+- **Themes** — system mode plus 22 built-in themes
 - **Always-on-top** — pin the window over your editor or browser
 - **Window state persistence** — remembers size and position across launches
 - **Auto-updater** — checks GitHub releases and prompts you when a new version is available
@@ -116,15 +116,13 @@ bun run tauri build
 
 ## Themes
 
-| Theme            | Description                    |
-| ---------------- | ------------------------------ |
-| `system`         | Follows OS light/dark setting  |
-| `midnight`       | Deep dark — default dark theme |
-| `warm-terminal`  | Amber tones on dark            |
-| `neon-brutalist` | High contrast, vivid accents   |
-| `earth-code`     | Muted greens and browns        |
-| `cyber-luxe`     | Purple and gold on dark        |
-| `soft-focus`     | Soft light theme               |
+| Theme family          | Options                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| System                | `system`                                                                                                        |
+| Cockpit originals     | `midnight`, `warm-terminal`, `neon-brutalist`, `earth-code`, `cyber-luxe`, `soft-focus`                         |
+| Popular editor themes | `tokyo-night`, `tokyo-night-light`, `dracula`, `monokai`, `nord`, `night-owl`, `oceanic-next`, `tomorrow-night` |
+| Catppuccin            | `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`                             |
+| GitHub and Solarized  | `github-dark`, `github-light`, `solarized-dark`, `solarized-light`                                              |
 
 Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
 
@@ -133,7 +131,7 @@ Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
 ## MCP server
 
 cockpit includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
-When enabled in Settings, it starts with the app and exposes authenticated tools for
+It is disabled by default. When enabled in Settings, it starts with the app and exposes authenticated tools for
 notes, snippets, prompt templates, saved API client requests, search, schema
 introspection, and topic-based help.
 
@@ -158,7 +156,7 @@ apps/cockpit/
 │   ├── app/
 │   │   ├── App.tsx               # Root layout (Sidebar + Workspace + overlays)
 │   │   ├── providers.tsx         # Bootstrap: stores, window geometry, theme, update check
-│   │   ├── tool-registry.ts      # All 27 tools (lazy imports + metadata)
+│   │   ├── tool-registry.ts      # Registered tools (lazy imports + metadata)
 │   │   └── tool-groups.tsx       # Sidebar group definitions with Phosphor icons
 │   ├── components/
 │   │   ├── shell/                # Layout chrome (Sidebar, Workspace, SettingsPanel, etc.)
@@ -222,6 +220,7 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
 | [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
+| [`documentation/RELEASE_SMOKE_TESTS.md`](documentation/RELEASE_SMOKE_TESTS.md)                                     | Cross-platform release validation checklist     |
 | [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
 | [`documentation/TESTING.md`](documentation/TESTING.md)                                                             | Test strategy and coverage map                  |
 | [`documentation/DESIGN_SYSTEM.md`](documentation/DESIGN_SYSTEM.md)                                                 | Color tokens, typography, component patterns    |

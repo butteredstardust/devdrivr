@@ -74,7 +74,7 @@ function mergePermissions(saved: Partial<McpPermissions> | undefined): McpPermis
 
 function normalizeSettings(saved: Partial<McpSettings> | null): McpSettings {
   return {
-    enabled: saved?.enabled ?? true,
+    enabled: saved?.enabled ?? false,
     host: '127.0.0.1',
     port: normalizePort(saved?.port ?? DEFAULT_MCP_PORT),
     apiKey: saved?.apiKey || generateApiKey(),

@@ -458,15 +458,7 @@ function DataTab() {
   }, [addToast])
 
   const handleImportSettings = useCallback(async () => {
-    const validThemes = new Set<Theme>([
-      'system',
-      'midnight',
-      'warm-terminal',
-      'neon-brutalist',
-      'earth-code',
-      'cyber-luxe',
-      'soft-focus',
-    ])
+    const validThemes = new Set<Theme>(['system', ...ALL_THEMES])
     const validKeybindings = new Set<AppSettings['editorKeybindingMode']>(['standard'])
     const validGroups = new Set<AppSettings['collapsedSidebarGroups'][number]>([
       'code',
