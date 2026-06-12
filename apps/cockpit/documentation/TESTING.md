@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 513 tests across 63 test files, covering core stores, shared utilities, shell components, and tool-specific behavior.
+The application currently has 1022 tests across 125 test files, covering core stores, shared utilities, shell components, and tool-specific behavior.
 
 ## Testing Strategy
 
