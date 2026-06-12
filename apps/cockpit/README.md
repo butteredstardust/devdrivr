@@ -131,7 +131,7 @@ Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
 ## MCP server
 
 cockpit includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
-When enabled in Settings, it starts with the app and exposes authenticated tools for
+It is disabled by default. When enabled in Settings, it starts with the app and exposes authenticated tools for
 notes, snippets, prompt templates, saved API client requests, search, schema
 introspection, and topic-based help.
 

@@ -7,6 +7,7 @@ The MCP server is local-first:
 
 - It binds to `127.0.0.1` only.
 - It uses bearer-token authentication.
+- It is disabled by default on first run.
 - It starts automatically when Cockpit starts if MCP is enabled.
 - It reads and writes the same local SQLite database as the desktop app.
 - It never sends data to a cloud service by itself.
@@ -36,14 +37,14 @@ The server also exposes discovery tools:
 
 Open **Settings > MCP** in Cockpit.
 
-| Setting                    | Description                                                     |
-| -------------------------- | --------------------------------------------------------------- |
-| Enabled                    | Starts the MCP server automatically when Cockpit starts         |
-| Host                       | Local bind host. MVP supports `127.0.0.1` only                  |
-| Port                       | Local MCP port. Default is `17347`; valid range is `1024-65535` |
-| API key                    | Bearer token required by MCP clients                            |
-| Permissions                | Per-resource read/create/update/delete access                   |
-| Expose API request secrets | Controls whether saved API request auth secrets are returned    |
+| Setting                    | Description                                                      |
+| -------------------------- | ---------------------------------------------------------------- |
+| Enabled                    | Off by default; starts the MCP server automatically when enabled |
+| Host                       | Local bind host. MVP supports `127.0.0.1` only                   |
+| Port                       | Local MCP port. Default is `17347`; valid range is `1024-65535`  |
+| API key                    | Bearer token required by MCP clients                             |
+| Permissions                | Per-resource read/create/update/delete access                    |
+| Expose API request secrets | Controls whether saved API request auth secrets are returned     |
 
 The settings panel also supports server status, start, stop, restart, key copy, and
 key rotation.
