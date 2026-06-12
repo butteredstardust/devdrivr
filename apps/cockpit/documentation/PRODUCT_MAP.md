@@ -24,7 +24,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Keyboard shortcuts      | ✅ Stable     | Full shortcut set, tool-local dispatch                   |
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
-| Windows cross-build     | 🔲 Planned    | GitHub Actions CI/CD planned                             |
+| Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
 | Unit tests              | ✅ 513 tests  | Stores, tools, shell components, theme, keybindings      |
 
 ---
@@ -141,8 +141,8 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 
 ## Platform Support
 
-| Platform        | Status                              |
-| --------------- | ----------------------------------- |
-| macOS (primary) | ✅ Fully tested                     |
-| Windows         | 🔲 Planned (cross-build CI pending) |
-| Linux           | 🔲 Untested                         |
+| Platform        | Status                                                         |
+| --------------- | -------------------------------------------------------------- |
+| macOS (primary) | ✅ Primary development and release target                      |
+| Windows         | ✅ Release build configured; manual smoke required per release |
+| Linux           | ✅ Release build configured; manual smoke required per release |

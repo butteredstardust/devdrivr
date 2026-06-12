@@ -6,16 +6,17 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 
 1. [API_COMPONENTS.md](API_COMPONENTS.md) - Comprehensive API documentation for all core components, hooks, libraries, and types
 2. [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment and release process documentation
-3. [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns and best practices
-4. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
-5. [TESTING.md](TESTING.md) - Testing documentation and best practices
-6. [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines for the project
-7. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
-8. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-9. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
-10. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
-11. [tools/](tools/) - Tool-specific documentation
-12. [infrastructure/](infrastructure/) - Core infrastructure documentation
+3. [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md) - Cross-platform release validation checklist
+4. [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns and best practices
+5. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
+6. [TESTING.md](TESTING.md) - Testing documentation and best practices
+7. [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines for the project
+8. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
+9. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
+10. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
+11. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
+12. [tools/](tools/) - Tool-specific documentation
+13. [infrastructure/](infrastructure/) - Core infrastructure documentation
 
 ## Overview
 
