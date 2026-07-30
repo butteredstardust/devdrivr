@@ -219,6 +219,7 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 | Doc                                                                                                                | Description                                     |
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
+| [`documentation/TODO.md`](documentation/TODO.md)                                                                   | Quality, bug-fix, and reliability backlog       |
 | [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
 | [`documentation/RELEASE_SMOKE_TESTS.md`](documentation/RELEASE_SMOKE_TESTS.md)                                     | Cross-platform release validation checklist     |
 | [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |

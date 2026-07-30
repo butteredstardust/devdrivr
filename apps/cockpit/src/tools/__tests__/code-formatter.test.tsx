@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import CodeFormatter from '../code-formatter/CodeFormatter'
+import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
 
 describe('CodeFormatter', () => {
+  it('declares every formatter worker API method', () => {
+    expect(FORMATTER_WORKER_METHODS).toEqual(['format', 'detectLanguage', 'getSupportedLanguages'])
+  })
+
   it('renders format button', () => {
     renderTool(CodeFormatter)
     expect(screen.getByText('Format')).toBeInTheDocument()

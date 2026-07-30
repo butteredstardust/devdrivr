@@ -11,6 +11,7 @@ import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
+import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
 
 const LANGUAGES = [
   'javascript',
@@ -50,7 +51,7 @@ export default function CodeFormatter() {
 
   const formatter = useWorker<FormatterWorker>(
     () => new FormatterWorkerFactory(),
-    ['format', 'detectLanguage', 'getSupportedLanguages']
+    FORMATTER_WORKER_METHODS
   )
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)

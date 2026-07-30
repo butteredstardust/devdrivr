@@ -25,7 +25,7 @@ let nextId = 1
 
 export function useWorker<T>(
   factory: () => Worker,
-  methods: (keyof T & string)[]
+  methods: readonly (keyof T & string)[]
 ): WorkerRpc<T> | null {
   const [rpc, setRpc] = useState<WorkerRpc<T> | null>(null)
   const workerRef = useRef<Worker | null>(null)
@@ -35,6 +35,13 @@ export function useWorker<T>(
     workerRef.current = worker
 
     const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+
+    const rejectPending = (error: Error) => {
+      for (const entry of pending.values()) {
+        entry.reject(error)
+      }
+      pending.clear()
+    }
 
     worker.onmessage = (ev: MessageEvent) => {
       const { id, result, error } = ev.data as { id: number; result?: unknown; error?: string }
@@ -47,6 +54,7 @@ export function useWorker<T>(
 
     worker.onerror = (ev) => {
       console.error('[useWorker] Worker error:', ev)
+      rejectPending(new Error(ev.message || 'Worker execution failed'))
     }
 
     // Build RPC object with real function properties — no Proxy.
@@ -64,10 +72,9 @@ export function useWorker<T>(
     setRpc(obj as WorkerRpc<T>)
 
     return () => {
+      rejectPending(new Error('Worker terminated'))
       worker.terminate()
       workerRef.current = null
-      pending.clear()
-      setRpc(null)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
