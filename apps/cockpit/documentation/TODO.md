@@ -778,26 +778,30 @@ Completed 2026-07-30:
 
 ## P2 - Quality Ratchets and Maintainability
 
-### [ ] Repair the `lint` package script
+### [x] Repair the `lint` package script
 
 Area: quality gates / tooling
 
-Problem: `"lint": "eslint src --ext ..."` in `package.json` invokes a bare `eslint`, which does not
-resolve under the minimal shell PATH. `bun run lint` exits 127 with `eslint: command not found`. The
-documented lint gate has therefore not been runnable locally, and any local "lint passing" claim made
-via that script was vacuous. `bunx eslint src --ext .ts,.tsx,.js,.jsx` works and currently reports
-zero warnings, so this is a script defect, not lint debt.
+Problem: `bun run lint` exited 127 with `eslint: command not found`, so the documented lint gate was
+not runnable locally and any local "lint passing" claim made via that script was vacuous. The same
+applied to `bun run build` (`vite: command not found`) and `bun run tauri build`
+(`tauri: command not found`) — every package script that calls a local binary by bare name.
 
-Expected outcome: The documented command actually runs the linter.
+Expected outcome: The documented commands actually run.
 
-Acceptance criteria:
+Completed 2026-07-30:
 
-- The script uses `bunx eslint` (or otherwise resolves the local binary) and exits 0.
-- Confirm whether CI invokes this script; if so, establish why CI has been reporting green and
-  whether the gate has been passing for the right reason.
-- Update `AGENTS.md` and `CLAUDE.md` command tables to match the working invocation.
-- Fold into the ESLint ratchet item below, since `--max-warnings` is meaningless until the script
-  runs.
+- Root cause was not in this repo. The agent harness sets `BASH_ENV=~/.claude/bash_env.sh`, which
+  bash sources for every non-interactive shell, and that file did a hard `export PATH=...`. Because
+  it runs _after_ the environment is assembled, it discarded both the `node_modules/.bin` entry that
+  `bun run` prepends for exactly this purpose and any inline `PATH="..." cmd` prefix from the caller.
+  So the scripts were correct and the shell was lying to them.
+- `bash_env.sh` now appends only the directories that are missing instead of assigning, which
+  preserves caller precedence. It also adds `$HOME/.cargo/bin`, so `cargo` no longer needs a prefix.
+- Verified after the change with no PATH prefix at all: `bun run lint` exits 0, `bun run build`
+  succeeds, and `bun run tauri build` produces both the `.app` and the `.dmg`. Previously-prefixed
+  invocations still work unchanged — 78 files / 650 tests pass either way.
+- No `package.json` script was modified; none was broken.
 
 ### [ ] Re-examine the five worker mocks that were never active
 
