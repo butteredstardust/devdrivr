@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                       |
 | ----------- | ------------------------------------------------- | ---------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                      |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 78 files, 648 tests |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 78 files, 650 tests |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bunx eslint src`  | Passing with zero warnings   |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                      |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                      |
@@ -114,6 +114,11 @@ Completed 2026-07-30:
 - A key over pattern/flags/text/replacement short-circuits repeat evaluation, so a persisted
   timed-out pattern is never re-evaluated on launch — only after the user edits an input.
 - Removed roughly 170 lines of main-thread regex code from `RegexTester.tsx`.
+- Found in pre-merge review: the timeout path set `status: 'timeout'` but never retired the request
+  id, so a reply queued just before `terminate()` still passed both staleness guards and flipped the
+  pane back to `ready` — while the input stayed in `timedOutKeysRef`, wedging it as permanently
+  timed-out on the next visit. The timeout now bumps `requestIdRef`. Regression test added and
+  confirmed to fail against the pre-fix hook.
 - Caveat: the timeout regression test drives a wedged-worker stub with fake timers, not a genuinely
   catastrophic regex. A real pathological pattern cannot be executed under Vitest because the mock
   worker runs on the test thread and would hang the runner exactly as the bug hung the app. The test
@@ -195,6 +200,14 @@ Completed 2026-07-30:
   correct `immediate` flag, no JS-driven `BEGIN`/`COMMIT` reaching the plugin pool, failure
   propagation, and an empty batch skipping the invoke. The prior rollback tests mocked a single
   connection and structurally could not observe this failure mode.
+- Found in pre-merge review: the first cut hand-wrote `BEGIN`/`COMMIT`/`ROLLBACK` as raw SQL on a
+  pooled connection. sqlx has no idea a transaction is open when it is driven that way, and the
+  `COMMIT`-failure path returned without attempting a rollback — so on a full disk or lock timeout
+  the connection went back to a `max_connections(1)` pool still inside a transaction, and every
+  later batch would fail with "cannot start a transaction within a transaction" until relaunch.
+  That is a worse failure than the one being fixed. Rewritten to use `pool.begin()` /
+  `pool.begin_with("BEGIN IMMEDIATE")`, so sqlx tracks the transaction and rolls back on `Drop` for
+  every early return.
 
 ### [x] Fix `useToolState` cold-start races that discard user input
 
@@ -819,6 +832,44 @@ Area: test organisation
 `src/tools/__tests__/useToolState.test.ts` covers a hook, not a tool, and belongs in
 `src/hooks/__tests__/`. Left in place during the P0 fix to keep that diff scoped. Move it and confirm
 no other test files sit in the wrong directory.
+
+### [ ] Narrow the re-allowed `className` in the markdown sanitize schema
+
+Area: markdown rendering / defense in depth
+
+`markdownSanitizeSchema` re-allows `className` on `code` and `span` as an unrestricted string, where
+`defaultSchema` restricts it to `/^language-./`. The widening is needed for the `hljs-*` classes
+rehype-highlight emits, but it is broader than required — a prefix restriction such as
+`/^(hljs|language)-/` plus the bare `hljs` would cover the real output. Likewise `input` `type` is
+allowed as any value where only `checkbox` is ever produced.
+
+Not currently exploitable: both pipelines run `remarkRehype` with `allowDangerousHtml: false` and
+neither uses `rehype-raw`, so no user-controlled string can reach a `className` or `type` attribute —
+those elements can only be produced by remark/rehype-highlight/remark-gfm themselves. The risk is
+future: adding a raw-HTML pass without re-auditing this schema would turn it into a live CSS/class
+injection surface on user-authored notes. Tighten it while the reason is still fresh, and keep the
+`hljs` highlighting test as the guard.
+
+### [ ] Use the `void` prefix on async click handlers in the export paths
+
+Area: convention consistency
+
+`onClick={handleDownload}` in `ImageTool.tsx`, `SnippetsManager.tsx`, `MarkdownEditor.tsx`, and
+`MermaidEditor.tsx` (two sites) passes an async function directly. Harmless today — every one of
+those handlers catches internally and surfaces the failure through `setLastAction` — but `CLAUDE.md`
+documents `void handler()` for async handlers, and the current form would silently produce an
+unhandled rejection if any of them ever grows a throw outside its `try`.
+
+### [ ] Cover init-rejection recovery for the other six stores
+
+Area: test parity
+
+The P1 bootstrap fix applied a textually identical `initPromise = null` rejection clear to seven
+stores, but only `settings.store.test.ts` has a regression test for it. `snippets.store.test.ts` and
+`prompt-templates.store.test.ts` do not exist at all; the `notes`, `history`, `api`, and `mcp` test
+files exist but do not cover this path. Functional risk is low because the code is identical, but
+nothing stops one of them being refactored back. A shared helper asserting the failed-then-retried
+sequence, applied to all seven, would be cheap.
 
 ### [ ] Give `getDb()` the same rejection recovery the stores got
 

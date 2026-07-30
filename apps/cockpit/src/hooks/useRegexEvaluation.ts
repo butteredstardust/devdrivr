@@ -134,6 +134,12 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
     timerRef.current = setTimeout(() => {
       if (requestIdRef.current !== requestId) return
       timerRef.current = null
+      // Retire this request id before terminating. `terminate()` does not cancel a reply
+      // already queued as a task on this thread, so without this a match that finished
+      // just under the wire would still be delivered and flip the pane back to `ready` —
+      // while the key stays in `timedOutKeysRef`, wedging that input as permanently
+      // timed-out the next time the user returns to it.
+      requestIdRef.current++
       timedOutKeysRef.current.add(key)
       // The worker is wedged inside exec(); terminate is the only way out.
       workerRef.current?.terminate()

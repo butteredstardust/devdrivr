@@ -154,6 +154,29 @@ describe('useRegexEvaluation', () => {
     expect(result.current.status).toBe('evaluating')
   })
 
+  it('ignores a reply that lands after its own request timed out', () => {
+    const { result } = renderHook(() => useRegexEvaluation(CATASTROPHIC))
+    const worker = WedgedWorker.instances[0]
+    const requestId = (worker?.postMessage.mock.calls[0]?.[0] as { id: number }).id
+
+    act(() => {
+      vi.advanceTimersByTime(REGEX_TIMEOUT_MS)
+    })
+    expect(result.current.status).toBe('timeout')
+
+    // `terminate()` does not cancel a reply already queued as a task on this thread, so a
+    // match that finished just under the wire can still be delivered afterwards. It must
+    // not resurrect a `ready` state for an input now recorded as timed out.
+    act(() => {
+      worker?.onmessage?.({
+        data: { id: requestId, result: { matches: [{ full: 'late' }] } },
+      } as MessageEvent)
+    })
+
+    expect(result.current.status).toBe('timeout')
+    expect(result.current.result).toBeNull()
+  })
+
   it('terminates the worker on unmount', () => {
     const { unmount } = renderHook(() => useRegexEvaluation(CATASTROPHIC))
     const worker = WedgedWorker.instances[0]

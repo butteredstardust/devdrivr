@@ -11,10 +11,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use sqlx::{
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions},
-    Executor,
-};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::Mutex;
 
@@ -108,17 +105,18 @@ pub async fn db_execute_batch(
     }
 
     let pool = db.pool(&app).await?;
-    let mut conn = pool
-        .acquire()
-        .await
-        .map_err(|err| format!("Failed to acquire batch connection: {err}"))?;
 
-    conn.execute(if immediate {
-        "BEGIN IMMEDIATE"
+    // A sqlx `Transaction` rather than hand-written BEGIN/COMMIT/ROLLBACK strings. sqlx
+    // tracks the transaction on the connection and rolls back on `Drop`, so every early
+    // return below — including a failed `COMMIT` — releases the connection clean. Raw SQL
+    // would leave sqlx unaware a transaction was open, and since this pool is
+    // `max_connections(1)`, one leaked transaction would poison every later batch with
+    // "cannot start a transaction within a transaction".
+    let mut tx = if immediate {
+        pool.begin_with("BEGIN IMMEDIATE").await
     } else {
-        "BEGIN"
-    })
-    .await
+        pool.begin().await
+    }
     .map_err(|err| format!("Failed to begin batch transaction: {err}"))?;
 
     for statement in &statements {
@@ -126,19 +124,13 @@ pub async fn db_execute_batch(
         for param in &statement.params {
             query = bind_param(query, param);
         }
-        if let Err(err) = query.execute(&mut *conn).await {
-            // Same connection, so the rollback is guaranteed to target this transaction.
-            let rollback = conn.execute("ROLLBACK").await;
-            if let Err(rollback_err) = rollback {
-                return Err(format!(
-                    "Batch statement failed ({err}); rollback also failed ({rollback_err})"
-                ));
-            }
-            return Err(format!("Batch statement failed: {err}"));
-        }
+        query
+            .execute(&mut *tx)
+            .await
+            .map_err(|err| format!("Batch statement failed: {err}"))?;
     }
 
-    conn.execute("COMMIT")
+    tx.commit()
         .await
         .map_err(|err| format!("Failed to commit batch transaction: {err}"))?;
 

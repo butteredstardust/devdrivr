@@ -27,6 +27,15 @@ describe('processMarkdown', () => {
     expect(html).toContain('checked')
   })
 
+  it('keeps syntax highlighting classes on fenced code', async () => {
+    // `defaultSchema` restricts `code` className to `language-*`, which would strip the
+    // `hljs-*` classes rehype-highlight emits. The schema re-allows className on `code`
+    // and `span` specifically to prevent that; this pins it.
+    const html = await processMarkdown('```js\nconst a = 1\n```\n')
+    expect(html).toContain('hljs')
+    expect(html).toContain('<span class="hljs-keyword">const</span>')
+  })
+
   it('strips javascript: hrefs', async () => {
     const html = await processMarkdown('[click](javascript:alert(1))')
     expect(html).not.toContain('javascript:')
