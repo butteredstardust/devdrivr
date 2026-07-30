@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 546 tests  | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 549 tests  | Stores, tools, shell components, theme, keybindings      |
 
 ---
 

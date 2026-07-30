@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 69 files, 546 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 70 files, 549 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -22,8 +22,7 @@ Known context:
 
 - Cockpit is the active app in this monorepo.
 - The product map lists 30 registered tools across 7 groups.
-- Remaining documented gaps include native worker/SQLite integration, release smoke automation,
-  and complete tool render coverage.
+- Remaining documented gaps include native worker/SQLite integration and release smoke automation.
 - CI already runs frontend lint/typecheck/tests plus Rust `cargo check` and `cargo clippy`.
 
 ## How To Use This Backlog
@@ -229,7 +228,7 @@ Completed 2026-07-30:
 - Verified the hook/component slice (12 files, 59 tests), focused shortcut/action coverage (4 files,
   30 tests), the full suite (69 files, 546 tests), TypeScript, and ESLint.
 
-### [ ] Complete registered-tool render smoke coverage
+### [x] Complete registered-tool render smoke coverage
 
 Area: tool components / regression safety
 
@@ -253,6 +252,17 @@ Verification:
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/app src/tools/__tests__
 ```
+
+Completed 2026-07-30:
+
+- Added a registry-driven coverage manifest that maps every registered tool ID to a focused test and
+  verifies that each mapped test file exists.
+- Added missing root-shell render coverage for CSV Tools and YAML Tools using the shared Monaco,
+  worker, and tool-state test setup.
+- Verified all 30 registered tools have focused render or utility coverage in the established
+  `src/tools/__tests__/` location.
+- Verified the app/tool slice (42 files, 375 tests), focused registry/CSV/YAML coverage (3 files, 13
+  tests), the full suite (70 files, 549 tests), TypeScript, and ESLint.
 
 ### [ ] Add focused API Client persistence and import/export coverage
 

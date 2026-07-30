@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 546 tests across 69 test files, covering core stores, database and
+The application currently has 549 tests across 70 test files, covering core stores, database and
 migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
 tool-specific behavior.
 
@@ -154,12 +154,11 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 
 ## What Is NOT Covered (Known Gaps)
 
-| Area            | Gap                                                                        | Priority |
-| --------------- | -------------------------------------------------------------------------- | -------- |
-| Worker tools    | No full worker-thread integration tests for every worker-backed tool       | High     |
-| Tool components | Rendering coverage is broad but not yet complete for every registered tool | Medium   |
-| DB helpers      | No native SQLite integration harness for executing migrations end-to-end   | Medium   |
-| Release smoke   | Artifact-bound runtime reports remain manual on each supported platform    | Medium   |
+| Area          | Gap                                                                      | Priority |
+| ------------- | ------------------------------------------------------------------------ | -------- |
+| Worker tools  | No full worker-thread integration tests for every worker-backed tool     | High     |
+| DB helpers    | No native SQLite integration harness for executing migrations end-to-end | Medium   |
+| Release smoke | Artifact-bound runtime reports remain manual on each supported platform  | Medium   |
 
 ## How to Add a Test
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { TOOLS, getToolById, getToolsByGroup } from '../tool-registry'
+import { TOOLS, getToolById, getToolsByGroup } from '@/app/tool-registry'
+
+const TOOL_SMOKE_TEST_MODULES = import.meta.glob('../../tools/__tests__/*.test.tsx')
 
 describe('TOOLS registry', () => {
   it('has no duplicate IDs', () => {
@@ -21,6 +23,16 @@ describe('TOOLS registry', () => {
     const knownGroups = ['code', 'data', 'web', 'convert', 'test', 'network', 'write']
     for (const tool of TOOLS) {
       expect(knownGroups).toContain(tool.group)
+    }
+  })
+
+  it('requires a convention-matched smoke test for every registered tool', () => {
+    for (const tool of TOOLS) {
+      const testFile = `../../tools/__tests__/${tool.id}.test.tsx`
+      expect(
+        TOOL_SMOKE_TEST_MODULES,
+        `${tool.id} requires a corresponding smoke test at ${testFile}`
+      ).toHaveProperty(testFile)
     }
   })
 })
