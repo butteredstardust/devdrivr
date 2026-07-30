@@ -42,7 +42,12 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       initPromise = (async () => {
         const snippets = await loadSnippets()
         set({ snippets, initialized: true })
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a later call retries
+        // instead of latching a transient error for the process lifetime.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

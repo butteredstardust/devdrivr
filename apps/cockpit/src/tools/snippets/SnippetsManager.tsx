@@ -21,6 +21,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
+import { buildExportFilename, exportFile } from '@/lib/file-io'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -525,18 +526,16 @@ export default function SnippetsManager() {
     }
   }, [addSnippet, setLastAction])
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!selected) return
     const ext = LANG_EXTENSIONS[selected.language] ?? selected.language
-    const filename = (selected.title || 'snippet').replace(/[^a-zA-Z0-9_-]/g, '_') + '.' + ext
-    const blob = new Blob([selected.content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-    setLastAction(`Downloaded ${filename}`, 'success')
+    const filename = buildExportFilename(selected.title || 'snippet', ext)
+    try {
+      const path = await exportFile(selected.content, filename)
+      if (path) setLastAction(`Downloaded ${filename}`, 'success')
+    } catch {
+      setLastAction('Download failed', 'error')
+    }
   }, [selected, setLastAction])
 
   // ─── Shortcuts ───────────────────────────────────────────────────

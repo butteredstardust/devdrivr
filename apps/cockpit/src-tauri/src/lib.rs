@@ -1,3 +1,4 @@
+mod batch;
 mod mcp;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -79,8 +80,10 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(mcp::McpManager::default())
+        .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
+            batch::db_execute_batch,
             mcp::mcp_apply_settings,
             mcp::mcp_rotate_key,
             mcp::mcp_restart,

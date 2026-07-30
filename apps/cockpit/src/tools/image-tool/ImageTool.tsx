@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
+import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { TabBar } from '@/components/shared/TabBar'
 import {
@@ -481,30 +482,24 @@ export default function ImageTool() {
 
   // ── Export ─────────────────────────────────────────────────────
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     const canvas = outputCanvasRef.current
     if (!canvas) return
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
     const ext = state.format
     try {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            setLastAction('Image export failed', 'error')
-            return
-          }
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `${fileName.replace(/\.[^.]+$/, '')}.${ext}`
-          a.click()
-          URL.revokeObjectURL(url)
-          setLastAction(`Saved as ${ext.toUpperCase()} (${formatBytes(blob.size)})`, 'success')
-        },
-        mimeType,
-        state.quality / 100
-      )
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, mimeType, state.quality / 100)
+      })
+      if (!blob) {
+        setLastAction('Image export failed', 'error')
+        return
+      }
+      const filename = buildExportFilename(fileName.replace(/\.[^.]+$/, ''), ext)
+      const path = await exportFile(blob, filename)
+      if (path)
+        setLastAction(`Saved as ${ext.toUpperCase()} (${formatBytes(blob.size)})`, 'success')
     } catch {
       setLastAction('Image export failed', 'error')
     }

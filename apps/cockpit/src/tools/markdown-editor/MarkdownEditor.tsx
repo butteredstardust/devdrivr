@@ -7,7 +7,7 @@ import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
-import { saveFileDialog } from '@/lib/file-io'
+import { exportFile, saveFileDialog } from '@/lib/file-io'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { MarkdownPreview } from './MarkdownPreview'
@@ -37,7 +37,8 @@ import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import rehypeHighlight from 'rehype-highlight'
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+import rehypeSanitize from 'rehype-sanitize'
+import { markdownSanitizeSchema } from '@/lib/markdown'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -403,23 +404,11 @@ const PRINT_STYLES = '@media print{body{margin:0}}' + BASE_EXPORT_STYLES
 
 // ─── Processor ───────────────────────────────────────────────────────
 
-const sanitizeSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    a: [...(defaultSchema.attributes?.['a'] ?? []), 'target', 'rel'],
-    code: [...(defaultSchema.attributes?.['code'] ?? []), 'className'],
-    span: [...(defaultSchema.attributes?.['span'] ?? []), 'className'],
-    input: [...(defaultSchema.attributes?.['input'] ?? []), 'type', 'checked', 'disabled'],
-  },
-  tagNames: [...(defaultSchema.tagNames ?? []), 'input'],
-}
-
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
   .use(remarkRehype, { allowDangerousHtml: false })
-  .use(rehypeSanitize, sanitizeSchema)
+  .use(rehypeSanitize, markdownSanitizeSchema)
   .use(rehypeHighlight, { detect: true })
   .use(rehypeStringify)
 
@@ -755,16 +744,12 @@ export default function MarkdownEditor() {
     async (format: 'md' | 'html') => {
       const content =
         format === 'md' ? state.content : await buildCurrentExportHtml(BASE_EXPORT_STYLES)
-      const blob = new Blob([content], {
-        type: format === 'md' ? 'text/markdown' : 'text/html',
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `document.${format}`
-      a.click()
-      URL.revokeObjectURL(url)
-      setLastAction(`Downloaded as .${format}`, 'success')
+      try {
+        const path = await exportFile(content, `document.${format}`)
+        if (path) setLastAction(`Downloaded as .${format}`, 'success')
+      } catch {
+        setLastAction('Download failed', 'error')
+      }
       setShowExport(false)
     },
     [buildCurrentExportHtml, state.content, setLastAction]

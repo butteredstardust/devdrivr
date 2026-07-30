@@ -9,20 +9,31 @@ export default defineConfig({
     css: false,
   },
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-      '@monaco-editor/react': resolve(__dirname, './src/__mocks__/monaco-editor-react.tsx'),
-      '@tauri-apps/api/webviewWindow': resolve(
-        __dirname,
-        './src/__mocks__/tauri-webview-window.ts'
-      ),
-      '@tauri-apps/plugin-sql': resolve(__dirname, './src/__mocks__/tauri-plugin-sql.ts'),
-      // Add worker mocks
-      '@/workers/typescript.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
-      '@/workers/formatter.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
-      '@/workers/refactoring.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
-      '@/workers/diff.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
-      '@/workers/xml.worker?worker': resolve(__dirname, './src/__mocks__/worker.ts'),
-    },
+    // Order matters: Vite picks the first matching alias, and the bare '@' entry matches
+    // every '@/...' specifier. The worker mocks must therefore be listed before it.
+    alias: [
+      {
+        // Runs the real evaluation instead of no-oping, so regex tester tests are meaningful.
+        find: '@/workers/regex.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/regex-worker.ts'),
+      },
+      {
+        find: /^@\/workers\/(typescript|formatter|refactoring|diff|xml)\.worker\?worker$/,
+        replacement: resolve(__dirname, './src/__mocks__/worker.ts'),
+      },
+      { find: '@', replacement: resolve(__dirname, './src') },
+      {
+        find: '@monaco-editor/react',
+        replacement: resolve(__dirname, './src/__mocks__/monaco-editor-react.tsx'),
+      },
+      {
+        find: '@tauri-apps/api/webviewWindow',
+        replacement: resolve(__dirname, './src/__mocks__/tauri-webview-window.ts'),
+      },
+      {
+        find: '@tauri-apps/plugin-sql',
+        replacement: resolve(__dirname, './src/__mocks__/tauri-plugin-sql.ts'),
+      },
+    ],
   },
 })

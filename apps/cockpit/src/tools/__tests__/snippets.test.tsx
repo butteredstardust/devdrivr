@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import { useSnippetsStore } from '@/stores/snippets.store'
+import { useUiStore } from '@/stores/ui.store'
+import { exportFile } from '@/lib/file-io'
 import SnippetsManager from '../snippets/SnippetsManager'
+
+vi.mock('@/lib/file-io', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
+  return { ...actual, exportFile: vi.fn() }
+})
 
 describe('SnippetsManager', () => {
   it('renders search input and new button', () => {
@@ -439,5 +446,57 @@ describe('SnippetsManager — tag autocomplete', () => {
     expect(screen.getByTestId('tag-suggestions')).toBeInTheDocument()
     fireEvent.change(tagInput, { target: { value: '' } })
     expect(screen.queryByTestId('tag-suggestions')).not.toBeInTheDocument()
+  })
+
+  describe('download', () => {
+    beforeEach(() => {
+      vi.mocked(exportFile).mockReset()
+      useSnippetsStore.setState({
+        snippets: [
+          {
+            id: '1',
+            title: 'my snippet',
+            content: 'console.log("hi")',
+            language: 'javascript',
+            tags: [],
+            folder: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+        ],
+        initialized: true,
+      })
+      useUiStore.setState({ lastAction: null })
+    })
+
+    it('saves through exportFile and reports success', async () => {
+      vi.mocked(exportFile).mockResolvedValue('/tmp/my_snippet.js')
+      renderTool(SnippetsManager)
+      fireEvent.click(screen.getByText('my snippet').closest('button')!)
+      fireEvent.click(screen.getByTitle('Download as file'))
+
+      await waitFor(() => expect(useUiStore.getState().lastAction?.message).toMatch(/Downloaded/))
+      expect(exportFile).toHaveBeenCalledWith('console.log("hi")', 'my_snippet.js')
+    })
+
+    it('reports cancellation without an error state', async () => {
+      vi.mocked(exportFile).mockResolvedValue(null)
+      renderTool(SnippetsManager)
+      fireEvent.click(screen.getByText('my snippet').closest('button')!)
+      fireEvent.click(screen.getByTitle('Download as file'))
+
+      await waitFor(() => expect(exportFile).toHaveBeenCalled())
+      expect(useUiStore.getState().lastAction).toBeNull()
+    })
+
+    it('reports a write failure', async () => {
+      vi.mocked(exportFile).mockRejectedValue(new Error('disk full'))
+      renderTool(SnippetsManager)
+      fireEvent.click(screen.getByText('my snippet').closest('button')!)
+      fireEvent.click(screen.getByTitle('Download as file'))
+
+      await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Download failed'))
+      expect(useUiStore.getState().lastAction?.type).toBe('error')
+    })
   })
 })

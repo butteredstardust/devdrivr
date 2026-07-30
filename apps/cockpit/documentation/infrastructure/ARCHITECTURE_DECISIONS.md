@@ -352,3 +352,68 @@ Tools persist their UI state (input text, selected options, output) so that swit
 - Tool state is always current in memory (no read-from-DB on switch if cache is populated).
 - A crash within the 2-second debounce window could lose the last keystrokes — acceptable trade-off.
 - The `toolId` passed to `useToolState` **must exactly match** the `id` in `tool-registry.ts`, or state will not be found in the cache on switch-back.
+
+---
+
+## ADR-013: Atomic batch writes go through a Rust command, not JS `BEGIN`/`COMMIT`
+
+**Status:** Accepted
+**Date:** 2026
+
+### Context
+
+`runTransaction` in `src/lib/db.ts` used to issue `BEGIN`, the caller's statements, and `COMMIT` as
+separate `conn.execute()` calls and claimed atomicity for `saveNotesOrder`,
+`saveUserPromptTemplates`, `seedBuiltinPromptTemplates`, and `saveApiImport`.
+
+That claim was false. `tauri-plugin-sql` 2.3.2 holds a `DbPool::Sqlite(Pool<Sqlite>)` created with
+`Pool::connect(...)` — the sqlx default of **10 max connections** — and runs every statement via
+`pool.execute(query)` (`src/wrapper.rs`), acquiring a connection from the pool per statement. Nothing
+pins `BEGIN`, the writes, and `COMMIT` to one connection. When they land on different connections:
+
+- the writes auto-commit individually, so a batch can persist partial results;
+- `COMMIT` on a connection with no open transaction errors, and the catch-block `ROLLBACK` silently
+  no-ops on a connection that never began one;
+- worst case an open `BEGIN IMMEDIATE` is stranded on a pooled connection, and every later write
+  routed to it fails with "cannot start a transaction within a transaction" until the app restarts.
+
+The JS-side `writeQueue` serializes writes, which usually makes the pool hand back the
+most-recently-released connection. That is why the bug was latent rather than observed. The Rust MCP
+service already sidesteps the same problem by opening its own pool with `max_connections(1)`.
+
+### Decision
+
+Batch writes move behind a Tauri command, `db_execute_batch` (`src-tauri/src/batch.rs`), which owns a
+dedicated `max_connections(1)` SQLite pool (WAL, 5s busy timeout — the same configuration as the MCP
+service) and runs the whole batch inside one transaction on one connection. Statements are sent as
+`{ sql, params }` pairs; JSON parameters are bound with sqlx using the same scalar mapping the plugin
+uses. An `immediate` flag selects `BEGIN IMMEDIATE` (used by `saveNotesOrder`) over `BEGIN`.
+
+On the JS side `runTransaction` is replaced by `runBatch(statements, immediate)`, which still goes
+through `enqueueWrite` so batches stay ordered against single-statement plugin writes, and so that
+`getDb()` has opened the database and applied migrations before the Rust pool touches the file.
+
+Rejected alternatives:
+
+- **Single multi-statement SQL string.** `conn.execute` is parameterised per statement; concatenating
+  batch upserts would mean inlining user content into SQL. Not worth the injection surface.
+- **Drop the wrapper and make batches idempotent.** All four batches already use idempotent upserts,
+  but "partially applied reorder" and "half an imported collection" are still user-visible wrong
+  states, and nothing would re-run the batch.
+
+### Consequences
+
+- Batch writes are genuinely all-or-nothing; a failure surfaces as a rejected promise with the Rust
+  error text and leaves no partial rows.
+- JS never emits `BEGIN`/`COMMIT`/`ROLLBACK`. If a future batch writer is added it must use
+  `runBatch`, not hand-rolled transaction statements.
+- Two pools now write to `cockpit.db` (the plugin's and the batch pool), as was already the case with
+  the MCP service. WAL plus the 5s busy timeout covers the contention, and `writeQueue` keeps the
+  app's own writes serialized.
+- Single-record writers (`saveUserPromptTemplate`, `saveApiCollection`, `saveApiRequest`) still go
+  through the plugin pool: one statement is atomic on its own. They now share the SQL builders with
+  the batch path instead of duplicating it.
+- Reads (`getSetting`, `loadNotes`, `loadSnippets`, `loadHistory`, `loadToolState`, the API loaders)
+  remain on the plugin pool. Each is a single `SELECT` and so needs no cross-statement connection
+  affinity. They are not snapshot-consistent with each other, but no caller depends on that — stores
+  load each table independently at boot.

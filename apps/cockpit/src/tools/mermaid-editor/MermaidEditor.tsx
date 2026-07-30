@@ -8,6 +8,7 @@ import { Button } from '@/components/shared/Button'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import { exportFile } from '@/lib/file-io'
 import { CaretDownIcon } from '@phosphor-icons/react'
 
 type MermaidEditorState = {
@@ -323,16 +324,14 @@ export default function MermaidEditor() {
     setShowExport(false)
   }, [svgHtml, setLastAction])
 
-  const handleDownloadSvg = useCallback(() => {
+  const handleDownloadSvg = useCallback(async () => {
     if (!svgHtml) return
-    const blob = new Blob([svgHtml], { type: 'image/svg+xml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'diagram.svg'
-    a.click()
-    URL.revokeObjectURL(url)
-    setLastAction('SVG downloaded', 'success')
+    try {
+      const path = await exportFile(svgHtml, 'diagram.svg')
+      if (path) setLastAction('SVG downloaded', 'success')
+    } catch {
+      setLastAction('Export failed', 'error')
+    }
     setShowExport(false)
   }, [svgHtml, setLastAction])
 
@@ -380,13 +379,8 @@ export default function MermaidEditor() {
   const handleDownloadPng = useCallback(async () => {
     try {
       const blob = await renderPngBlob(exportScale)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `diagram-${exportScale}x.png`
-      a.click()
-      URL.revokeObjectURL(url)
-      setLastAction(`PNG (${exportScale}×) downloaded`, 'success')
+      const path = await exportFile(blob, `diagram-${exportScale}x.png`)
+      if (path) setLastAction(`PNG (${exportScale}×) downloaded`, 'success')
     } catch {
       setLastAction('Export failed', 'error')
     }

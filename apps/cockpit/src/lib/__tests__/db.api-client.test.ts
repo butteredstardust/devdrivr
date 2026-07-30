@@ -13,6 +13,11 @@ vi.mock('@tauri-apps/plugin-sql', () => ({
   },
 }))
 
+const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
+
+type BatchPayload = { statements: Array<{ sql: string; params: unknown[] }>; immediate: boolean }
+
 const environment: ApiEnvironment = {
   id: 'env-1',
   name: 'Production',
@@ -46,6 +51,7 @@ describe('API Client DB helpers', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    coreMock.invoke.mockResolvedValue(undefined)
     sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
     sqlMock.load.mockResolvedValue({
       execute: sqlMock.execute,
@@ -122,33 +128,43 @@ describe('API Client DB helpers', () => {
     await expect(loadApiRequests()).resolves.toEqual([request])
   })
 
-  it('saves imports atomically with collections before their related requests', async () => {
+  it('saves imports through the atomic batch command, collections before requests', async () => {
     const { saveApiImport } = await import('@/lib/db')
 
     await saveApiImport([collection], [request])
 
-    const statements = sqlMock.execute.mock.calls.map(([sql]) => String(sql).trim())
-    expect(statements).toEqual([
-      'PRAGMA journal_mode=WAL',
-      'PRAGMA busy_timeout=5000',
-      'BEGIN TRANSACTION',
+    // The whole import is one command invocation, so the Rust side can wrap it in a
+    // single transaction on a single connection. Nothing is written via the plugin pool.
+    expect(coreMock.invoke).toHaveBeenCalledTimes(1)
+    const [command, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
+    expect(command).toBe('db_execute_batch')
+    expect(payload.immediate).toBe(false)
+    expect(payload.statements.map((s) => s.sql.trim())).toEqual([
       expect.stringContaining('INSERT INTO api_collections'),
       expect.stringContaining('INSERT INTO api_requests'),
-      'COMMIT',
     ])
+    expect(payload.statements[1]?.params[1]).toBe(collection.id)
+
+    const pluginStatements = sqlMock.execute.mock.calls.map(([sql]) => String(sql).trim())
+    expect(pluginStatements).not.toContain('BEGIN TRANSACTION')
+    expect(pluginStatements).not.toContain('COMMIT')
   })
 
-  it('rolls back the complete import when a request cannot be persisted', async () => {
-    sqlMock.execute.mockImplementation((sql: string) => {
-      if (sql.includes('INSERT INTO api_requests')) {
-        return Promise.reject(new Error('request write failed'))
-      }
-      return Promise.resolve({ rowsAffected: 0, lastInsertId: 0 })
-    })
+  it('propagates a failed import batch instead of leaving partial state claims', async () => {
+    coreMock.invoke.mockRejectedValueOnce(new Error('Batch statement failed: request write failed'))
     const { saveApiImport } = await import('@/lib/db')
 
     await expect(saveApiImport([collection], [request])).rejects.toThrow('request write failed')
-    expect(sqlMock.execute).toHaveBeenCalledWith('ROLLBACK')
-    expect(sqlMock.execute).not.toHaveBeenCalledWith('COMMIT')
+    // Rollback is the Rust transaction's job — JS must not emit ROLLBACK on a pooled
+    // connection that may never have had a transaction open on it.
+    expect(sqlMock.execute).not.toHaveBeenCalledWith('ROLLBACK')
+  })
+
+  it('does not invoke the batch command for an empty import', async () => {
+    const { saveApiImport } = await import('@/lib/db')
+
+    await saveApiImport([], [])
+
+    expect(coreMock.invoke).not.toHaveBeenCalled()
   })
 })

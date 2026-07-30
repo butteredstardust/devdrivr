@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import {
-  isLikelyBinaryText,
+  buildExportFilename,
+  exportFile,
   filenameFromPath,
+  isLikelyBinaryText,
   openFileDialog,
   readSupportedTextFile,
+  sanitizeExportBasename,
   saveFileDialog,
 } from '@/lib/file-io'
 
@@ -17,6 +20,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
+  writeFile: vi.fn(),
 }))
 
 describe('file I/O', () => {
@@ -24,6 +28,7 @@ describe('file I/O', () => {
     vi.clearAllMocks()
     vi.mocked(readTextFile).mockResolvedValue('hello')
     vi.mocked(writeTextFile).mockResolvedValue()
+    vi.mocked(writeFile).mockResolvedValue()
   })
 
   it('returns null without reading when open is cancelled', async () => {
@@ -84,5 +89,60 @@ describe('file I/O', () => {
     vi.mocked(writeTextFile).mockRejectedValue(new Error('disk full'))
 
     await expect(saveFileDialog('content')).rejects.toThrow('disk full')
+  })
+
+  describe('sanitizeExportBasename / buildExportFilename', () => {
+    it('replaces filesystem-illegal characters with underscores', () => {
+      expect(sanitizeExportBasename('my/weird:name?')).toBe('my_weird_name_')
+    })
+
+    it('falls back to a generic name when nothing usable remains', () => {
+      expect(sanitizeExportBasename('///')).toBe('export')
+    })
+
+    it('joins a sanitized base with an extension', () => {
+      expect(buildExportFilename('my snippet!', 'ts')).toBe('my_snippet_.ts')
+    })
+
+    it('strips a leading dot from the extension', () => {
+      expect(buildExportFilename('name', '.svg')).toBe('name.svg')
+    })
+  })
+
+  describe('exportFile', () => {
+    it('returns null without writing when the save dialog is cancelled', async () => {
+      vi.mocked(save).mockResolvedValue(null)
+
+      await expect(exportFile('content', 'file.txt')).resolves.toBeNull()
+      expect(writeTextFile).not.toHaveBeenCalled()
+      expect(writeFile).not.toHaveBeenCalled()
+    })
+
+    it('writes text content through writeTextFile and returns the path', async () => {
+      vi.mocked(save).mockResolvedValue('/tmp/file.txt')
+
+      await expect(exportFile('hello world', 'file.txt')).resolves.toBe('/tmp/file.txt')
+      expect(writeTextFile).toHaveBeenCalledWith('/tmp/file.txt', 'hello world')
+      expect(writeFile).not.toHaveBeenCalled()
+    })
+
+    it('writes blob content through writeFile as bytes', async () => {
+      vi.mocked(save).mockResolvedValue('/tmp/image.png')
+      const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
+
+      await expect(exportFile(blob, 'image.png')).resolves.toBe('/tmp/image.png')
+      expect(writeFile).toHaveBeenCalledTimes(1)
+      const [path, bytes] = vi.mocked(writeFile).mock.calls[0] as [string, Uint8Array]
+      expect(path).toBe('/tmp/image.png')
+      expect(Array.from(bytes)).toEqual([1, 2, 3])
+      expect(writeTextFile).not.toHaveBeenCalled()
+    })
+
+    it('propagates write failures for user feedback', async () => {
+      vi.mocked(save).mockResolvedValue('/tmp/file.txt')
+      vi.mocked(writeTextFile).mockRejectedValue(new Error('disk full'))
+
+      await expect(exportFile('content', 'file.txt')).rejects.toThrow('disk full')
+    })
   })
 })
