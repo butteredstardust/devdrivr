@@ -6,6 +6,8 @@ import { TabBar } from '@/components/shared/TabBar'
 import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
+import { useToolAction } from '@/hooks/useToolAction'
+import { saveFileDialog } from '@/lib/file-io'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { MarkdownPreview } from './MarkdownPreview'
@@ -41,6 +43,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 
 type MarkdownEditorState = {
   content: string
+  fileName: string | null
   mode: string
   showToc: boolean
   scrollSync: boolean
@@ -469,6 +472,7 @@ export default function MarkdownEditor() {
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
     content: '',
+    fileName: null,
     mode: 'split',
     showToc: false,
     scrollSync: true,
@@ -765,6 +769,20 @@ export default function MarkdownEditor() {
     },
     [buildCurrentExportHtml, state.content, setLastAction]
   )
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ content: action.content, fileName: action.filename })
+    }
+    if (action.type === 'save-file') {
+      void saveFileDialog(state.content, state.fileName ?? 'document.md').then(
+        (path) =>
+          setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+        (err: unknown) =>
+          setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      )
+    }
+  })
 
   const handleExportPdf = useCallback(async () => {
     const fullHtml = await buildCurrentExportHtml(PRINT_STYLES)

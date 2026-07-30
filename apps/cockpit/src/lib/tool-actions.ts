@@ -13,6 +13,19 @@ export type ToolAction =
 
 type Listener = (action: ToolAction) => void
 
+const OPEN_FILE_TOOLS = new Set([
+  'api-client',
+  'code-formatter',
+  'csv-tools',
+  'json-tools',
+  'markdown-editor',
+])
+const SAVE_FILE_TOOLS = new Set(['code-formatter', 'json-tools', 'markdown-editor'])
+
+export function supportsToolFileAction(toolId: string, action: 'open-file' | 'save-file'): boolean {
+  return (action === 'open-file' ? OPEN_FILE_TOOLS : SAVE_FILE_TOOLS).has(toolId)
+}
+
 const listeners = new Set<Listener>()
 
 export function subscribeToolAction(listener: Listener): () => void {

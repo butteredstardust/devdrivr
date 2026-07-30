@@ -6,7 +6,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
-import { dispatchToolAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
@@ -383,6 +383,10 @@ export function CommandPalette() {
           break
         }
         case 'action:open-file':
+          if (!supportsToolFileAction(activeTool, 'open-file')) {
+            addToast('Open File is not supported by the active tool', 'error')
+            break
+          }
           openFileDialog()
             .then((result) => {
               if (result) {
@@ -394,9 +398,15 @@ export function CommandPalette() {
                 addToast(`Opened ${result.filename}`, 'success')
               }
             })
-            .catch(() => {})
+            .catch((err: unknown) =>
+              addToast(err instanceof Error ? err.message : String(err), 'error')
+            )
           break
         case 'action:save-file':
+          if (!supportsToolFileAction(activeTool, 'save-file')) {
+            addToast('Save Output is not supported by the active tool', 'error')
+            break
+          }
           dispatchToolAction({ type: 'save-file' })
           break
         case 'action:next-tool': {

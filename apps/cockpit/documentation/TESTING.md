@@ -8,12 +8,14 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 567 tests across 72 test files, covering core stores, database and
+The application currently has 589 tests across 74 test files, covering core stores, database and
 migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
 tool-specific behavior. API Client coverage includes persistence CRUD, atomic imports, export/import
 round trips, relationship preservation, and secret-redacted MCP serialization. MCP coverage includes
 least-privilege defaults, lifecycle/settings rollback, non-blocking failures, loopback enforcement,
 bearer-key rotation, and secret exposure controls.
+Filesystem coverage includes dialog open/save success and cancellation, binary rejection, native
+drop listeners, tool action dispatch, write failures, and image input/export errors.
 
 ## Testing Strategy
 

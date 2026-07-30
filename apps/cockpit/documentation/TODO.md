@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 72 files, 567 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 74 files, 589 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -347,7 +347,7 @@ Completed 2026-07-30:
 - Verified the MCP frontend focus (2 files, 15 tests), full Vitest suite (72 files, 567 tests), all
   22 Rust tests, TypeScript, ESLint, Cargo formatting/check, and strict Clippy.
 
-### [ ] Expand file open, file drop, and save-output tests
+### [x] Expand file open, file drop, and save-output tests
 
 Area: filesystem flows / user workflows
 
@@ -372,6 +372,21 @@ Verification:
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/hooks src/components src/tools/__tests__
 ```
+
+Completed 2026-07-30:
+
+- Added direct file-dialog coverage for open/save success, cancellation, read/write failures,
+  filename extraction, and binary/control-heavy content rejection.
+- File drops now use the same guarded text reader as the open dialog and surface unsupported or
+  unreadable file errors through workspace feedback instead of logging them only.
+- Wired global open/save actions into Code Formatter, JSON Tools, and Markdown Editor, with focused
+  coverage for loaded content, save success, cancellation, and write-error feedback.
+- Added Image Tool coverage for rejected non-image drops and canvas export failures.
+- Verified global shortcut error handling and drop-listener cleanup.
+- Kept `src-tauri/capabilities/default.json` unchanged; filesystem access remains limited to the
+  existing dialog-selected text/image workflows and scoped write permissions.
+- Verified the focused filesystem slice (7 files, 87 tests), full suite (74 files, 589 tests),
+  TypeScript, and ESLint.
 
 ## P2 - Quality Ratchets and Maintainability
 

@@ -3,7 +3,7 @@ import { useKeyboardShortcut } from './useKeyboardShortcut'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
-import { dispatchToolAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
@@ -125,16 +125,32 @@ export function useGlobalShortcuts(): void {
   }, [activeTabId, closeTab])
 
   const openFile = useCallback(async () => {
-    const result = await openFileDialog()
-    if (result) {
-      dispatchToolAction({ type: 'open-file', content: result.content, filename: result.filename })
-      addToast(`Opened ${result.filename}`, 'success')
+    if (!supportsToolFileAction(activeTool, 'open-file')) {
+      addToast('Open File is not supported by the active tool', 'error')
+      return
     }
-  }, [addToast])
+    try {
+      const result = await openFileDialog()
+      if (result) {
+        dispatchToolAction({
+          type: 'open-file',
+          content: result.content,
+          filename: result.filename,
+        })
+        addToast(`Opened ${result.filename}`, 'success')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [activeTool, addToast])
 
   const saveFile = useCallback(() => {
+    if (!supportsToolFileAction(activeTool, 'save-file')) {
+      addToast('Save Output is not supported by the active tool', 'error')
+      return
+    }
     dispatchToolAction({ type: 'save-file' })
-  }, [])
+  }, [activeTool, addToast])
 
   const toggleAlwaysOnTop = useCallback(() => {
     const win = getCurrentWindow()

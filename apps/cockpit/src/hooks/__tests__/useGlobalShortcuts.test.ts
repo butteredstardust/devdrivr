@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   toggleTheme: vi.fn(),
   update: vi.fn(),
   dispatchToolAction: vi.fn(),
+  supportsToolFileAction: vi.fn(),
   openFileDialog: vi.fn(),
   setAlwaysOnTop: vi.fn(),
   uiState: {
@@ -73,6 +74,7 @@ vi.mock('@/app/tool-registry', () => ({
 
 vi.mock('@/lib/tool-actions', () => ({
   dispatchToolAction: mocks.dispatchToolAction,
+  supportsToolFileAction: mocks.supportsToolFileAction,
 }))
 
 vi.mock('@/lib/file-io', () => ({
@@ -111,6 +113,7 @@ describe('useGlobalShortcuts', () => {
     mocks.toggleTheme.mockResolvedValue(undefined)
     mocks.setAlwaysOnTop.mockResolvedValue(undefined)
     mocks.openFileDialog.mockResolvedValue(null)
+    mocks.supportsToolFileAction.mockReturnValue(true)
   })
 
   function renderShortcuts() {
@@ -219,5 +222,38 @@ describe('useGlobalShortcuts', () => {
 
     expect(mocks.dispatchToolAction).not.toHaveBeenCalled()
     expect(mocks.addToast).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported file errors without dispatching content', async () => {
+    mocks.openFileDialog.mockRejectedValue(new Error('Unsupported binary file'))
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('o').handler()
+    })
+
+    expect(mocks.dispatchToolAction).not.toHaveBeenCalled()
+    expect(mocks.addToast).toHaveBeenCalledWith('Unsupported binary file', 'error')
+  })
+
+  it('does not open or save files for unsupported tools', async () => {
+    mocks.supportsToolFileAction.mockReturnValue(false)
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('o').handler()
+      findShortcut('s').handler()
+    })
+
+    expect(mocks.openFileDialog).not.toHaveBeenCalled()
+    expect(mocks.dispatchToolAction).not.toHaveBeenCalled()
+    expect(mocks.addToast).toHaveBeenCalledWith(
+      'Open File is not supported by the active tool',
+      'error'
+    )
+    expect(mocks.addToast).toHaveBeenCalledWith(
+      'Save Output is not supported by the active tool',
+      'error'
+    )
   })
 })

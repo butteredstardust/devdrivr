@@ -10,11 +10,14 @@ import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { Input } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
+import { useToolAction } from '@/hooks/useToolAction'
+import { saveFileDialog } from '@/lib/file-io'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
 type JsonToolsState = {
   input: string
+  fileName: string | null
   activeTab: string
   query: string
 }
@@ -98,6 +101,7 @@ export default function JsonTools() {
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<JsonToolsState>('json-tools', {
     input: '',
+    fileName: null,
     activeTab: 'lint',
     query: '',
   })
@@ -199,6 +203,20 @@ export default function JsonTools() {
       success: true,
     })
   }, [parsed, state.input, state.activeTab, updateState, setLastAction, record])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ input: action.content, fileName: action.filename, activeTab: 'lint' })
+    }
+    if (action.type === 'save-file') {
+      void saveFileDialog(state.input, state.fileName ?? 'data.json').then(
+        (path) =>
+          setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+        (err: unknown) =>
+          setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      )
+    }
+  })
 
   return (
     <div className="flex h-full flex-col">

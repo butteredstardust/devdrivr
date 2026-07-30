@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import MarkdownEditor, { prefixMarkdownLines } from '@/tools/markdown-editor/MarkdownEditor'
 import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
@@ -9,6 +9,8 @@ import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
 import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { saveFileDialog } from '@/lib/file-io'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -17,6 +19,10 @@ const mermaidMock = vi.hoisted(() => ({
 
 vi.mock('mermaid', () => ({
   default: mermaidMock,
+}))
+
+vi.mock('@/lib/file-io', () => ({
+  saveFileDialog: vi.fn(),
 }))
 
 function deferred<T>() {
@@ -53,6 +59,25 @@ describe('MarkdownEditor', () => {
   it('renders editor', () => {
     renderTool(MarkdownEditor)
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()
+  })
+
+  it('opens markdown from a global file action and saves it', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/document.md')
+    renderTool(MarkdownEditor)
+
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: '# Opened document',
+        filename: 'opened.md',
+      })
+    })
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('# Opened document')
+
+    act(() => dispatchToolAction({ type: 'save-file' }))
+    await waitFor(() =>
+      expect(saveFileDialog).toHaveBeenCalledWith('# Opened document', 'opened.md')
+    )
   })
 
   it('shows word count stats', () => {

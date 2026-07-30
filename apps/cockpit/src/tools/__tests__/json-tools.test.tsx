@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { act, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import JsonTools, { isTabularJsonArray } from '@/tools/json-tools/JsonTools'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { saveFileDialog } from '@/lib/file-io'
+import { useUiStore } from '@/stores/ui.store'
 
 const recordMock = vi.hoisted(() => vi.fn())
 
@@ -9,9 +12,14 @@ vi.mock('@/hooks/useToolHistory', () => ({
   useToolHistory: () => ({ record: recordMock }),
 }))
 
+vi.mock('@/lib/file-io', () => ({
+  saveFileDialog: vi.fn(),
+}))
+
 describe('JsonTools', () => {
   beforeEach(() => {
     recordMock.mockClear()
+    vi.mocked(saveFileDialog).mockReset()
   })
 
   it('renders editor', () => {
@@ -64,5 +72,41 @@ describe('JsonTools', () => {
     fireEvent.change(editor, { target: { value: '{"a": 1}' } })
 
     expect(recordMock).not.toHaveBeenCalled()
+  })
+
+  it('opens dropped JSON and saves the current editor content', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/data.json')
+    renderTool(JsonTools)
+
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: '{"opened":true}',
+        filename: 'opened.json',
+      })
+    })
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('{"opened":true}')
+
+    act(() => dispatchToolAction({ type: 'save-file' }))
+    await waitFor(() =>
+      expect(saveFileDialog).toHaveBeenCalledWith('{"opened":true}', 'opened.json')
+    )
+  })
+
+  it('surfaces save failures without clearing JSON input', async () => {
+    vi.mocked(saveFileDialog).mockRejectedValue(new Error('disk full'))
+    renderTool(JsonTools)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '{"safe":true}' },
+    })
+
+    act(() => dispatchToolAction({ type: 'save-file' }))
+
+    await waitFor(() => expect(saveFileDialog).toHaveBeenCalledOnce())
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('{"safe":true}')
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Save failed: disk full',
+      type: 'error',
+    })
   })
 })

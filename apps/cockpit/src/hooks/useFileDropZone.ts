@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { readTextFile } from '@tauri-apps/plugin-fs'
+import { filenameFromPath, readSupportedTextFile } from '@/lib/file-io'
 
-export function useFileDropZone(onDrop: (content: string, filename: string) => void) {
+export function useFileDropZone(
+  onDrop: (content: string, filename: string) => void,
+  onError?: (message: string) => void,
+  enabled = true
+) {
   const [isDragging, setIsDragging] = useState(false)
   const onDropRef = useRef(onDrop)
   onDropRef.current = onDrop
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
 
   useEffect(() => {
     let cancelled = false
@@ -14,22 +20,29 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
     getCurrentWebviewWindow()
       .onDragDropEvent((event) => {
         if (event.payload.type === 'over') {
-          setIsDragging(true)
+          setIsDragging(enabled)
         } else if (event.payload.type === 'leave') {
           setIsDragging(false)
         } else if (event.payload.type === 'drop') {
           setIsDragging(false)
+          if (!enabled) {
+            onErrorRef.current?.('File drop is not supported by the active tool')
+            return
+          }
           const paths = event.payload.paths
           if (paths.length > 0) {
             const filePath = paths[0] ?? ''
             if (!filePath) return
-            const filename = filePath.split('/').pop() ?? filePath.split('\\').pop() ?? filePath
-            readTextFile(filePath)
+            const filename = filenameFromPath(filePath)
+            readSupportedTextFile(filePath)
               .then((content) => {
+                if (cancelled) return
                 onDropRef.current(content, filename)
               })
               .catch((err) => {
+                if (cancelled) return
                 console.error('Failed to read dropped file:', err)
+                onErrorRef.current?.(err instanceof Error ? err.message : String(err))
               })
           }
         }
@@ -42,12 +55,19 @@ export function useFileDropZone(onDrop: (content: string, filename: string) => v
           unlisten = fn
         }
       })
+      .catch((err) => {
+        if (!cancelled) {
+          onErrorRef.current?.(
+            `Failed to initialize file drop: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
+      })
 
     return () => {
       cancelled = true
       unlisten?.()
     }
-  }, [])
+  }, [enabled])
 
   return { isDragging }
 }
