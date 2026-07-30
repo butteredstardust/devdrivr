@@ -57,7 +57,7 @@ Decision owner: _Not recorded_
 | RUN-12 | Image Tool imports, resizes, and exports a small image                         | No       | Not run |          |
 | RUN-13 | Prompt Templates fills variables and copies generated output                   | No       | Not run |          |
 | RUN-14 | Fresh profile starts with MCP disabled and no unexpected server process        | Yes      | Not run |          |
-| RUN-15 | MCP enable/start/status/copy credentials/stop lifecycle succeeds               | Yes      | Not run |          |
+| RUN-15 | MCP localhost/auth/key/permissions/redaction/restart/stop lifecycle succeeds   | Yes      | Not run |          |
 | RUN-16 | Manual updater check returns clear, non-blocking success/error feedback        | Yes      | Not run |          |
 | RUN-17 | Final restart retains settings, tabs, notes, and snippets without data loss    | Yes      | Not run |          |
 

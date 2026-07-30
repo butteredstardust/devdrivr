@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 72 files, 561 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 72 files, 567 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -302,7 +302,7 @@ Completed 2026-07-30:
 - Verified the focused frontend slice (4 files, 37 tests), the full suite (72 files, 561 tests),
   TypeScript, ESLint, and the focused Rust MCP test.
 
-### [ ] Harden MCP server security and lifecycle coverage
+### [x] Harden MCP server security and lifecycle coverage
 
 Area: MCP server / local agent access
 
@@ -329,6 +329,23 @@ cargo clippy -- -D warnings
 ```
 
 Also run the MCP section of `documentation/RELEASE_SMOKE_TESTS.md`.
+
+Completed 2026-07-30:
+
+- Expanded frontend coverage for disabled-by-default startup, read-only defaults across every
+  resource, explicit auto-start, start/stop/restart, permission changes, port changes, and key
+  rotation.
+- Failed native lifecycle/settings calls now reapply and repersist the last accepted settings
+  instead of leaving auto-start, port, API key, or the running endpoint out of sync.
+- MCP initialization failures, including settings persistence failures, now leave the app usable
+  with stopped/error status and non-blocking toast feedback.
+- Added Rust authorization checks for missing, malformed, wrong, current, and rotated bearer keys,
+  plus loopback-only validation, an actual loopback listener bind smoke, and key-generation checks.
+- Retained API request auth-secret redaction coverage with exposure disabled and explicitly enabled.
+- Expanded the release smoke path to verify localhost binding, authentication/key rotation,
+  least-privilege changes, redaction, restart/port changes, stop behavior, and safe failure feedback.
+- Verified the MCP frontend focus (2 files, 15 tests), full Vitest suite (72 files, 567 tests), all
+  22 Rust tests, TypeScript, ESLint, Cargo formatting/check, and strict Clippy.
 
 ### [ ] Expand file open, file drop, and save-output tests
 

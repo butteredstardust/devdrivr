@@ -121,6 +121,39 @@ describe('SettingsPanel', () => {
     expect(updateSettings).not.toHaveBeenCalled()
   })
 
+  it('surfaces MCP lifecycle failures without closing settings', async () => {
+    const addToast = useUiStore.getState().addToast
+    const start = vi.fn().mockRejectedValue(new Error('port unavailable'))
+    useMcpStore.setState({ start })
+
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'MCP' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+
+    await waitFor(() => expect(start).toHaveBeenCalledOnce())
+    expect(addToast).toHaveBeenCalledWith('port unavailable', 'error')
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+  })
+
+  it('renders unexpected MCP shutdown errors as non-blocking status feedback', () => {
+    useMcpStore.setState({
+      status: {
+        running: false,
+        host: '127.0.0.1',
+        port: 17347,
+        url: 'http://127.0.0.1:17347/mcp',
+        lastError: 'MCP server stopped unexpectedly',
+      },
+    })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'MCP' }))
+
+    expect(screen.getByText('MCP server stopped unexpectedly')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled()
+  })
+
   it('imports settings that use newer registered themes', async () => {
     const addToast = useUiStore.getState().addToast
     Object.defineProperty(navigator, 'clipboard', {

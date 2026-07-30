@@ -77,9 +77,21 @@ Run this checklist independently on each platform:
     - Image Tool: load, resize, and export a small image.
     - Prompt Templates: fill variables and copy generated output.
 11. Open Settings > MCP and confirm MCP is disabled by default on a fresh profile.
-12. Enable MCP, start the server, copy URL/key, then stop the server and confirm status updates.
-13. Trigger a manual update check and confirm success/error feedback is non-blocking.
-14. Restart the app once more and confirm local data is still available.
+12. Enable MCP and start the server. Confirm the displayed URL uses `127.0.0.1` (not `0.0.0.0`,
+    a LAN address, or an IPv6 wildcard) and that the status changes to running.
+13. Exercise MCP authentication and settings:
+    - A request without a bearer key and a request with the wrong key both return unauthorized.
+    - The copied current key authenticates successfully.
+    - Rotate the key; confirm the old key is rejected and the new key succeeds.
+    - Keep one resource read-only and confirm a write is denied; enable that exact permission and
+      confirm the setting applies without exposing other write actions.
+    - With API request secret exposure disabled, confirm bearer tokens/basic passwords are redacted.
+    - Change the port or restart the server and confirm the new status/URL is usable.
+14. Stop MCP and confirm status updates. Trigger one safe failure, such as attempting to start on an
+    occupied port, and confirm the error is visible without closing Settings or blocking the app.
+15. Trigger a manual update check and confirm success/error feedback is non-blocking.
+16. Restart the app once more and confirm local data is still available and MCP remains stopped
+    unless auto-start was explicitly enabled.
 
 ## Failure Handling
 
