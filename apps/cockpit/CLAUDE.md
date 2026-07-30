@@ -36,13 +36,12 @@ chore(release): bump version to 0.1.37 [skip ci]
 
 Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `cockpit`.
 
-### Commits need HUSKY_PATH
+### Commits
 
-The pre-commit hook calls `bunx`. Bun lives in `/opt/homebrew/bin`, which isn't on the minimal shell PATH. Always prefix:
-
-```bash
-HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
-```
+Plain `git commit -m "..."` works. The pre-commit hook calls `bunx`, which resolves normally now that
+`~/.claude/bash_env.sh` extends PATH instead of overwriting it (see PATH note below). The older
+`HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit` form is still harmless if
+you see it in old notes, just unnecessary.
 
 ### PRs
 
@@ -91,44 +90,58 @@ Full canonical docs live in [`documentation/`](./documentation/):
 
 - **Package manager:** Bun only. Never use npm or yarn.
 - **Run commands from:** `apps/cockpit/` — never the monorepo root.
-- **PATH prefix required:** Bun and other Homebrew tools are in `/opt/homebrew/bin`, which is not on the default shell PATH. Every command below needs the prefix.
+- **PATH prefixes are no longer needed.** They used to be, and older notes still show them. See the PATH note below.
 
 ## Commands
 
-All commands must be run from `apps/cockpit/` with the PATH prefix. Running from the monorepo root will silently use the wrong config or fail to find binaries.
+All commands must be run from `apps/cockpit/`. Running from the monorepo root will silently use the
+wrong config or fail to find binaries.
 
 ```bash
 # Typecheck — must be zero errors before committing
-PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+npx tsc --noEmit
 
-# Tests — use bunx, NOT bun run test (bun can't resolve the vitest binary directly)
-PATH="/opt/homebrew/bin:$PATH" bunx vitest run        # run once
-PATH="/opt/homebrew/bin:$PATH" bunx vitest            # watch mode
+# Tests
+bunx vitest run        # run once
+bunx vitest            # watch mode
 
 # Lint — ESLint across src/
-PATH="/opt/homebrew/bin:$PATH" bun run lint
+bun run lint
 
 # Dev server — starts Vite + Tauri hot-reload
-PATH="/opt/homebrew/bin:$PATH" bun run tauri dev
+bun run tauri dev
 
-# Production build
-PATH="/opt/homebrew/bin:$PATH" bun run tauri build
+# Production build — emits .app and .dmg under src-tauri/target/release/bundle/
+bun run tauri build
 
 # Install / restore dependencies
-PATH="/opt/homebrew/bin:$PATH" bun install
+bun install
 
 # Clean build artifacts and node_modules
-PATH="/opt/homebrew/bin:$PATH" bun run clean
+bun run clean
 ```
+
+### The PATH prefix, and why you'll see it in old notes
+
+`~/.claude/bash_env.sh` is sourced by every non-interactive bash the agent harness spawns. It used to
+do a hard `export PATH=...`, which ran _after_ the environment was assembled and therefore discarded
+both the `node_modules/.bin` entry `bun run` prepends and any inline `PATH="..." cmd` prefix. That is
+why `bun run lint`, `bun run build`, and `bun run tauri build` all failed with "command not found",
+and why every documented command carried a `PATH="/opt/homebrew/bin:$PATH"` prefix as a workaround.
+
+Fixed 2026-07-30: that file now appends only missing directories instead of assigning, so caller
+precedence is preserved, and it includes `$HOME/.cargo/bin` so `cargo` resolves too. Prefixed
+commands still work identically — the prefix is now redundant, not wrong.
 
 ### Common mistakes
 
-| Wrong                      | Right                                | Why                                                             |
-| -------------------------- | ------------------------------------ | --------------------------------------------------------------- |
-| Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules         |
-| `bun run test`             | `bunx vitest run`                    | bun resolves scripts but can't find the `vitest` binary in PATH |
-| `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager here                       |
-| No PATH prefix             | `PATH="/opt/homebrew/bin:$PATH" ...` | Homebrew tools not on default shell PATH                        |
+| Wrong                      | Right                    | Why                                                     |
+| -------------------------- | ------------------------ | ------------------------------------------------------- |
+| Run from monorepo root     | Run from `apps/cockpit/` | Wrong tsconfig, wrong vitest config, wrong node_modules |
+| `npm run ...` / `yarn ...` | `bun run ...`            | npm/yarn are not the package manager here               |
+
+`bun run test` and `bun run test:watch` also work now; older notes say they don't, which was the
+PATH bug above rather than anything about the scripts.
 
 ## Architecture
 
@@ -440,8 +453,8 @@ return () => observer.disconnect()
 ## Running the Test Suite
 
 ```bash
-bunx vitest run       # run once (bun run test fails — shell can't resolve vitest binary)
-bunx vitest           # watch mode
+bunx vitest run       # run once (or `bun run test`)
+bunx vitest           # watch mode (or `bun run test:watch`)
 ```
 
 Tests live in `src/**/__tests__/*.test.tsx` for tool tests and `src/**/*.test.ts` for unit tests.

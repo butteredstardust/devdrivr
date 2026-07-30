@@ -10,13 +10,17 @@ evidence, an expected outcome, acceptance criteria, and a verification path.
 
 Verified locally from `apps/cockpit` on 2026-07-30:
 
-| Gate        | Command                                           | Result                       |
-| ----------- | ------------------------------------------------- | ---------------------------- |
-| TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                      |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 78 files, 650 tests |
-| ESLint      | `PATH="/opt/homebrew/bin:$PATH" bunx eslint src`  | Passing with zero warnings   |
-| Rust check  | `cargo check` from `src-tauri`                    | Passing                      |
-| Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                      |
+| Gate        | Command                                        | Result                          |
+| ----------- | ---------------------------------------------- | ------------------------------- |
+| TypeScript  | `npx tsc --noEmit`                             | Passing                         |
+| Tests       | `bunx vitest run`                              | Passing: 78 files, 650 tests    |
+| ESLint      | `bun run lint`                                 | Passing with zero warnings      |
+| Rust check  | `cargo check` from `src-tauri`                 | Passing                         |
+| Rust clippy | `cargo clippy -- -D warnings` from `src-tauri` | Passing                         |
+| Release     | `bun run tauri build`                          | Passing: builds `.app` + `.dmg` |
+
+Commands no longer need a `PATH="/opt/homebrew/bin:$PATH"` prefix; older entries in this file still
+show one. See the PATH section in `CLAUDE.md` for what changed.
 
 Known context:
 
@@ -48,8 +52,9 @@ Newly filed from that audit:
 | Tool capabilities duplicated across 3 id sets | P2       | Registry drift risk                      | Open   |
 | `settings.store` hand-rolls persisted object  | P2       | Silent setting loss on future fields     | Open   |
 
-Two further defects surfaced while fixing the P0 items, both filed in P2 below: the `lint` package
-script has never been runnable locally, and five worker mocks had never been wired up.
+Two further defects surfaced while fixing the P0 items, both filed in P2 below: `bun run lint` was
+not runnable locally (root-caused to the agent harness overwriting PATH, now fixed), and five worker
+mocks had never been wired up.
 
 ## How To Use This Backlog
 
@@ -778,26 +783,30 @@ Completed 2026-07-30:
 
 ## P2 - Quality Ratchets and Maintainability
 
-### [ ] Repair the `lint` package script
+### [x] Repair the `lint` package script
 
 Area: quality gates / tooling
 
-Problem: `"lint": "eslint src --ext ..."` in `package.json` invokes a bare `eslint`, which does not
-resolve under the minimal shell PATH. `bun run lint` exits 127 with `eslint: command not found`. The
-documented lint gate has therefore not been runnable locally, and any local "lint passing" claim made
-via that script was vacuous. `bunx eslint src --ext .ts,.tsx,.js,.jsx` works and currently reports
-zero warnings, so this is a script defect, not lint debt.
+Problem: `bun run lint` exited 127 with `eslint: command not found`, so the documented lint gate was
+not runnable locally and any local "lint passing" claim made via that script was vacuous. The same
+applied to `bun run build` (`vite: command not found`) and `bun run tauri build`
+(`tauri: command not found`) — every package script that calls a local binary by bare name.
 
-Expected outcome: The documented command actually runs the linter.
+Expected outcome: The documented commands actually run.
 
-Acceptance criteria:
+Completed 2026-07-30:
 
-- The script uses `bunx eslint` (or otherwise resolves the local binary) and exits 0.
-- Confirm whether CI invokes this script; if so, establish why CI has been reporting green and
-  whether the gate has been passing for the right reason.
-- Update `AGENTS.md` and `CLAUDE.md` command tables to match the working invocation.
-- Fold into the ESLint ratchet item below, since `--max-warnings` is meaningless until the script
-  runs.
+- Root cause was not in this repo. The agent harness sets `BASH_ENV=~/.claude/bash_env.sh`, which
+  bash sources for every non-interactive shell, and that file did a hard `export PATH=...`. Because
+  it runs _after_ the environment is assembled, it discarded both the `node_modules/.bin` entry that
+  `bun run` prepends for exactly this purpose and any inline `PATH="..." cmd` prefix from the caller.
+  So the scripts were correct and the shell was lying to them.
+- `bash_env.sh` now appends only the directories that are missing instead of assigning, which
+  preserves caller precedence. It also adds `$HOME/.cargo/bin`, so `cargo` no longer needs a prefix.
+- Verified after the change with no PATH prefix at all: `bun run lint` exits 0, `bun run build`
+  succeeds, and `bun run tauri build` produces both the `.app` and the `.dmg`. Previously-prefixed
+  invocations still work unchanged — 78 files / 650 tests pass either way.
+- No `package.json` script was modified; none was broken.
 
 ### [ ] Re-examine the five worker mocks that were never active
 
