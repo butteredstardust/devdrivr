@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 67 files, 529 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 69 files, 546 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -22,8 +22,8 @@ Known context:
 
 - Cockpit is the active app in this monorepo.
 - The product map lists 30 registered tools across 7 groups.
-- Remaining documented gaps include native worker/SQLite integration, keyboard shortcut coverage,
-  release smoke automation, and complete tool render coverage.
+- Remaining documented gaps include native worker/SQLite integration, release smoke automation,
+  and complete tool render coverage.
 - CI already runs frontend lint/typecheck/tests plus Rust `cargo check` and `cargo clippy`.
 
 ## How To Use This Backlog
@@ -193,7 +193,7 @@ Completed 2026-07-30:
 
 ## P1 - High-Value Regression Coverage
 
-### [ ] Add direct `useGlobalShortcuts` dispatch coverage
+### [x] Add direct `useGlobalShortcuts` dispatch coverage
 
 Area: keyboard-driven shell
 
@@ -216,6 +216,18 @@ Verification:
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/hooks src/components
 ```
+
+Completed 2026-07-30:
+
+- Added direct coverage for command palette, sidebar, notes drawer, settings, theme, shortcuts
+  reference, always-on-top, tool navigation, workspace tabs, close tab, execute, copy output, open
+  file, cancelled open, and save-file dispatch paths.
+- Added real DOM listener coverage proving modifier shortcuts remain available inside inputs,
+  textareas, contenteditable regions, and Monaco while non-modifier shortcuts are suppressed.
+- Verified unmount cleanup prevents duplicate shortcut dispatch across repeated mounts.
+- Explicitly discard fire-and-forget shortcut promises as required by the event-handler convention.
+- Verified the hook/component slice (12 files, 59 tests), focused shortcut/action coverage (4 files,
+  30 tests), the full suite (69 files, 546 tests), TypeScript, and ESLint.
 
 ### [ ] Complete registered-tool render smoke coverage
 

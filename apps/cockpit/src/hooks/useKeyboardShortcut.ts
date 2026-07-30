@@ -13,14 +13,14 @@ export function useKeyboardShortcut(combo: KeyCombo, handler: () => void): void 
       const isEditable =
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.getAttribute('contenteditable') === 'true' ||
+        target.closest('[contenteditable="true"]') !== null ||
         target.closest('.monaco-editor') !== null
 
       if (isEditable && !comboRef.current.mod) return
 
       if (matchesCombo(event, comboRef.current)) {
         event.preventDefault()
-        handlerRef.current()
+        void handlerRef.current()
       }
     }
     window.addEventListener('keydown', onKeyDown)

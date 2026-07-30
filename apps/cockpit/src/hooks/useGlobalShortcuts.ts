@@ -139,8 +139,8 @@ export function useGlobalShortcuts(): void {
   const toggleAlwaysOnTop = useCallback(() => {
     const win = getCurrentWindow()
     const next = !alwaysOnTop
-    win.setAlwaysOnTop(next)
-    update('alwaysOnTop', next)
+    void win.setAlwaysOnTop(next)
+    void update('alwaysOnTop', next)
   }, [alwaysOnTop, update])
 
   useKeyboardShortcut(comboK, toggleCommandPalette)

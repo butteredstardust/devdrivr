@@ -12,7 +12,7 @@ The current quality gates pass:
 | Gate                 | Result                                        |
 | -------------------- | --------------------------------------------- |
 | TypeScript           | `npx tsc --noEmit` passed                     |
-| Unit/component tests | `bunx vitest run` passed: 67 files, 529 tests |
+| Unit/component tests | `bunx vitest run` passed: 69 files, 546 tests |
 | Lint                 | `bun run lint` passed                         |
 
 The next work should not start with broad rewrites. The highest-value sequence is: fix small product correctness bugs, align documentation with the actual app, harden security/release posture, then invest in cross-platform readiness and higher-confidence end-to-end coverage.
