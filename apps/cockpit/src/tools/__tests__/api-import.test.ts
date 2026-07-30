@@ -340,6 +340,59 @@ type User {
     })
   })
 
+  it('groups cockpit exports into multiple collections without trusting persisted IDs', () => {
+    const result = importApiSpec({
+      content: JSON.stringify([
+        {
+          id: 'conflicting-request-id',
+          collectionId: 'conflicting-collection-id',
+          collectionKey: 'export-1',
+          collectionName: 'Users',
+          name: 'Create user',
+          method: 'POST',
+          url: '{{baseUrl}}/users',
+          headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+          body: '{"name":"Ada"}',
+          bodyMode: 'json',
+          auth: { type: 'bearer', token: '{{token}}' },
+        },
+        {
+          id: 'conflicting-request-id',
+          collectionId: 'conflicting-collection-id',
+          collectionKey: 'export-2',
+          collectionName: 'Billing',
+          name: 'Create invoice',
+          method: 'POST',
+          url: '{{baseUrl}}/invoices',
+          headers: [],
+          body: 'amount=100',
+          bodyMode: 'text',
+          auth: { type: 'basic', username: '{{user}}', password: '{{password}}' },
+        },
+      ]),
+    })
+
+    expect(result.collections).toEqual([
+      { key: 'export-1', name: 'Users' },
+      { key: 'export-2', name: 'Billing' },
+    ])
+    expect(result.requests).toEqual([
+      expect.objectContaining({
+        collectionKey: 'export-1',
+        headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+        bodyMode: 'json',
+        auth: { type: 'bearer', token: '{{token}}' },
+      }),
+      expect.objectContaining({
+        collectionKey: 'export-2',
+        bodyMode: 'text',
+        auth: { type: 'basic', username: '{{user}}', password: '{{password}}' },
+      }),
+    ])
+    expect(result.requests[0]).not.toHaveProperty('id')
+    expect(result.requests[0]).not.toHaveProperty('collectionId')
+  })
+
   it('detects protobuf and GraphQL by filename', () => {
     expect(detectApiImportFormat('service Test {}', 'test.proto')).toBe('protobuf')
     expect(detectApiImportFormat('type Query { viewer: User }', 'schema.gql')).toBe('graphql')

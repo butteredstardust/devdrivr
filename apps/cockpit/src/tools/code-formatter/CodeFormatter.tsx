@@ -7,10 +7,13 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useToolAction } from '@/hooks/useToolAction'
+import { saveFileDialog } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
+import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
 
 const LANGUAGES = [
   'javascript',
@@ -26,9 +29,17 @@ const LANGUAGES = [
   'sql',
   'graphql',
 ]
+const LANGUAGE_EXTENSIONS: Record<string, string> = {
+  javascript: 'js',
+  typescript: 'ts',
+  markdown: 'md',
+  yaml: 'yml',
+  graphql: 'graphql',
+}
 
 type CodeFormatterState = {
   input: string
+  fileName: string | null
   language: string
   tabWidth: number
   singleQuote: boolean
@@ -41,6 +52,7 @@ export default function CodeFormatter() {
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
+    fileName: null,
     language: 'javascript',
     tabWidth: 2,
     singleQuote: true,
@@ -50,7 +62,7 @@ export default function CodeFormatter() {
 
   const formatter = useWorker<FormatterWorker>(
     () => new FormatterWorkerFactory(),
-    ['format', 'detectLanguage', 'getSupportedLanguages']
+    FORMATTER_WORKER_METHODS
   )
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +107,28 @@ export default function CodeFormatter() {
       setLastAction('Auto-detect failed', 'error')
     }
   }, [formatter, state.input, updateState, setLastAction])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ input: action.content, fileName: action.filename })
+      if (formatter) {
+        void formatter
+          .detectLanguage(action.content)
+          .then((language) => updateState({ language }))
+          .catch(() => setLastAction(`Opened ${action.filename}`, 'success'))
+      }
+    }
+    if (action.type === 'save-file') {
+      const extension = LANGUAGE_EXTENSIONS[state.language] ?? state.language
+      const defaultName = state.fileName ?? `formatted.${extension}`
+      void saveFileDialog(state.input, defaultName).then(
+        (path) =>
+          setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+        (err: unknown) =>
+          setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      )
+    }
+  })
 
   // Cmd/Ctrl+Enter to format
   useKeyboardShortcut(

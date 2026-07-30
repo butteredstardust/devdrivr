@@ -156,6 +156,7 @@ export const useApiStore = create<ApiStore>((set) => ({
     await deleteApiCollection(id)
     set((state) => ({
       collections: state.collections.filter((c) => c.id !== id),
+      requests: state.requests.filter((request) => request.collectionId !== id),
     }))
   },
 

@@ -211,7 +211,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       onClick={(e) => {
                         e.stopPropagation()
                         if (confirm(`Delete collection "${col.name}"?`)) {
-                          deleteCollection(col.id)
+                          void deleteCollection(col.id)
                         }
                       }}
                       className="text-[10px] text-[var(--color-error)] hover:underline"

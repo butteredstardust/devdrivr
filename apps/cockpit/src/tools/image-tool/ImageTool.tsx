@@ -156,6 +156,8 @@ export default function ImageTool() {
         return
       }
       const reader = new FileReader()
+      reader.onerror = () => setLastAction('Failed to read image file', 'error')
+      reader.onabort = () => setLastAction('Image open cancelled', 'info')
       reader.onload = (e) => {
         const src = e.target?.result as string
         const img = new Image()
@@ -180,7 +182,11 @@ export default function ImageTool() {
         img.onerror = () => setLastAction('Failed to load image', 'error')
         img.src = src
       }
-      reader.readAsDataURL(file)
+      try {
+        reader.readAsDataURL(file)
+      } catch {
+        setLastAction('Failed to read image file', 'error')
+      }
     },
     [updateState, setLastAction]
   )
@@ -481,20 +487,27 @@ export default function ImageTool() {
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
     const ext = state.format
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${fileName.replace(/\.[^.]+$/, '')}.${ext}`
-        a.click()
-        URL.revokeObjectURL(url)
-        setLastAction(`Saved as ${ext.toUpperCase()} (${formatBytes(blob.size)})`, 'success')
-      },
-      mimeType,
-      state.quality / 100
-    )
+    try {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            setLastAction('Image export failed', 'error')
+            return
+          }
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `${fileName.replace(/\.[^.]+$/, '')}.${ext}`
+          a.click()
+          URL.revokeObjectURL(url)
+          setLastAction(`Saved as ${ext.toUpperCase()} (${formatBytes(blob.size)})`, 'success')
+        },
+        mimeType,
+        state.quality / 100
+      )
+    } catch {
+      setLastAction('Image export failed', 'error')
+    }
   }, [state.format, state.quality, fileName, setLastAction])
 
   const handleCopyImage = useCallback(async () => {

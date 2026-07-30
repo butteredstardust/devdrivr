@@ -3,7 +3,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
-import { dispatchToolAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { ToolboxIcon } from '@phosphor-icons/react'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
 
@@ -31,6 +31,7 @@ export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
   const tool = getToolById(activeTool)
   const usesMonaco = MONACO_TOOL_IDS.has(activeTool)
+  const supportsFileDrop = supportsToolFileAction(activeTool, 'open-file')
   const addToast = useUiStore((s) => s.addToast)
   const errorBoundaryRef = useRef<ErrorBoundary>(null)
 
@@ -41,12 +42,22 @@ export function Workspace() {
 
   const handleFileDrop = useCallback(
     (content: string, filename: string) => {
+      if (!supportsToolFileAction(activeTool, 'open-file')) {
+        addToast('File drop is not supported by the active tool', 'error')
+        return
+      }
       dispatchToolAction({ type: 'open-file', content, filename })
       addToast(`Loaded ${filename}`, 'success')
     },
+    [activeTool, addToast]
+  )
+  const handleFileDropError = useCallback(
+    (message: string) => {
+      addToast(message, 'error')
+    },
     [addToast]
   )
-  const { isDragging } = useFileDropZone(handleFileDrop)
+  const { isDragging } = useFileDropZone(handleFileDrop, handleFileDropError, supportsFileDrop)
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">

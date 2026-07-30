@@ -104,6 +104,24 @@ async function persistSettings(settings: McpSettings): Promise<void> {
   await setSetting(MCP_SETTINGS_KEY, settings)
 }
 
+async function restoreAppliedSettings(
+  settings: McpSettings
+): Promise<{ status: McpStatus | null; error: string | null }> {
+  const errors: string[] = []
+  try {
+    await persistSettings(settings)
+  } catch (err) {
+    errors.push(`settings persistence: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  try {
+    const status = await invoke<McpStatus>('mcp_apply_settings', { settings })
+    return { status, error: errors.length > 0 ? errors.join('; ') : null }
+  } catch (err) {
+    errors.push(`native settings: ${err instanceof Error ? err.message : String(err)}`)
+    return { status: null, error: errors.join('; ') }
+  }
+}
+
 async function invokeStatus(settings: McpSettings): Promise<McpStatus> {
   return invoke<McpStatus>('mcp_status', { settings })
 }
@@ -117,20 +135,25 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const saved = await getSetting<Partial<McpSettings> | null>(MCP_SETTINGS_KEY, null)
-        const settings = normalizeSettings(saved)
-        await persistSettings(settings)
-        set({ settings, status: emptyStatus(settings), initialized: true })
-
+        let settings = normalizeSettings(null)
         try {
+          const saved = await getSetting<Partial<McpSettings> | null>(MCP_SETTINGS_KEY, null)
+          settings = normalizeSettings(saved)
+          await persistSettings(settings)
+          set({ settings, status: emptyStatus(settings), initialized: true })
+
           const status = settings.enabled
             ? await invoke<McpStatus>('mcp_start', { settings })
             : await invokeStatus(settings)
           set({ status })
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          set({ status: { ...emptyStatus(settings), lastError: msg } })
-          useUiStore.getState().addToast('Failed to start MCP server: ' + msg, 'error')
+          set({
+            settings,
+            initialized: true,
+            status: { ...emptyStatus(settings), lastError: msg },
+          })
+          useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
         }
       })()
     }
@@ -149,48 +172,108 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
   },
 
   start: async () => {
-    const settings = { ...get().settings, enabled: true }
+    const previous = get().settings
+    const settings = { ...previous, enabled: true }
     set({ pending: true, settings })
     try {
       await persistSettings(settings)
       const status = await invoke<McpStatus>('mcp_start', { settings })
       set({ status })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const restored = await restoreAppliedSettings(previous)
+      const lastError = restored.error
+        ? `${msg}; failed to fully restore MCP settings: ${restored.error}`
+        : msg
+      set({
+        settings: previous,
+        status: restored.status
+          ? { ...restored.status, lastError }
+          : { ...get().status, running: false, lastError },
+      })
+      if (restored.error) throw new Error(lastError, { cause: err })
+      throw err
     } finally {
       set({ pending: false })
     }
   },
 
   stop: async () => {
-    const settings = { ...get().settings, enabled: false }
+    const previous = get().settings
+    const settings = { ...previous, enabled: false }
     set({ pending: true, settings })
     try {
       await persistSettings(settings)
       const status = await invoke<McpStatus>('mcp_stop', { settings })
       set({ status })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const restored = await restoreAppliedSettings(previous)
+      const lastError = restored.error
+        ? `${msg}; failed to fully restore MCP settings: ${restored.error}`
+        : msg
+      set({
+        settings: previous,
+        status: restored.status
+          ? { ...restored.status, lastError }
+          : { ...get().status, running: false, lastError },
+      })
+      if (restored.error) throw new Error(lastError, { cause: err })
+      throw err
     } finally {
       set({ pending: false })
     }
   },
 
   restart: async () => {
-    const settings = { ...get().settings, enabled: true }
+    const previous = get().settings
+    const settings = { ...previous, enabled: true }
     set({ pending: true, settings })
     try {
       await persistSettings(settings)
       const status = await invoke<McpStatus>('mcp_restart', { settings })
       set({ status })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const restored = await restoreAppliedSettings(previous)
+      const lastError = restored.error
+        ? `${msg}; failed to fully restore MCP settings: ${restored.error}`
+        : msg
+      set({
+        settings: previous,
+        status: restored.status
+          ? { ...restored.status, lastError }
+          : { ...get().status, running: false, lastError },
+      })
+      if (restored.error) throw new Error(lastError, { cause: err })
+      throw err
     } finally {
       set({ pending: false })
     }
   },
 
   updateSettings: async (patch) => {
-    const next = normalizeSettings({ ...get().settings, ...patch })
+    const previous = get().settings
+    const next = normalizeSettings({ ...previous, ...patch })
     set({ pending: true, settings: next })
     try {
       await persistSettings(next)
       const status = await invoke<McpStatus>('mcp_apply_settings', { settings: next })
       set({ status })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const restored = await restoreAppliedSettings(previous)
+      const lastError = restored.error
+        ? `${msg}; failed to fully restore MCP settings: ${restored.error}`
+        : msg
+      set({
+        settings: previous,
+        status: restored.status
+          ? { ...restored.status, lastError }
+          : { ...get().status, running: false, lastError },
+      })
+      if (restored.error) throw new Error(lastError, { cause: err })
+      throw err
     } finally {
       set({ pending: false })
     }

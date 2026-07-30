@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import ImageTool from '../image-tool/ImageTool'
+import { useUiStore } from '@/stores/ui.store'
 
 const originalFileReader = globalThis.FileReader
 const originalImage = globalThis.Image
@@ -172,6 +173,22 @@ describe('ImageTool', () => {
     expect(screen.getByText(/open an image or drop it anywhere/i)).toBeInTheDocument()
   })
 
+  it('rejects non-image drops with clear feedback', () => {
+    renderTool(ImageTool)
+    const preview = screen.getByTestId('image-preview')
+
+    fireEvent.drop(preview, {
+      dataTransfer: {
+        files: [new File(['plain text'], 'notes.txt', { type: 'text/plain' })],
+      },
+    })
+
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'File is not an image',
+      type: 'error',
+    })
+  })
+
   // ── Tab structure ────────────────────────────────────────────────
 
   it('renders all three tabs', () => {
@@ -254,6 +271,44 @@ describe('ImageTool', () => {
     renderTool(ImageTool)
     fireEvent.click(screen.getByText('Export'))
     expect(screen.getByText(/open an image to get started/i)).toBeInTheDocument()
+  })
+
+  it('reports image export failures when canvas encoding returns no blob', async () => {
+    await loadMockImage()
+    Object.defineProperty(window.HTMLCanvasElement.prototype, 'toBlob', {
+      configurable: true,
+      value(callback: BlobCallback) {
+        callback(null)
+      },
+    })
+
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Image export failed',
+        type: 'error',
+      })
+    )
+  })
+
+  it('reports synchronous canvas export failures', async () => {
+    await loadMockImage()
+    Object.defineProperty(window.HTMLCanvasElement.prototype, 'toBlob', {
+      configurable: true,
+      value() {
+        throw new Error('canvas unavailable')
+      },
+    })
+
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
+
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Image export failed',
+      type: 'error',
+    })
   })
 
   // ── Drag over state ──────────────────────────────────────────────

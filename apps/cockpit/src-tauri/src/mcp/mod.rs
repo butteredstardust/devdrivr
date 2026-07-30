@@ -103,16 +103,25 @@ fn secure_eq(left: &str, right: &str) -> bool {
     diff == 0
 }
 
+fn bearer_is_authorized(headers: &HeaderMap, expected: &str) -> bool {
+    extract_bearer_token(headers).is_some_and(|token| secure_eq(token, expected))
+}
+
+async fn shared_bearer_is_authorized(settings: &SharedSettings, headers: &HeaderMap) -> bool {
+    let expected = settings.read().await.api_key.clone();
+    bearer_is_authorized(headers, &expected)
+}
+
 async fn auth_middleware(
     State(settings): State<SharedSettings>,
     headers: HeaderMap,
     request: axum::extract::Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let expected = settings.read().await.api_key.clone();
-    match extract_bearer_token(&headers) {
-        Some(token) if secure_eq(token, &expected) => Ok(next.run(request).await),
-        _ => Err(StatusCode::UNAUTHORIZED),
+    if shared_bearer_is_authorized(&settings, &headers).await {
+        Ok(next.run(request).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
 
@@ -142,12 +151,7 @@ async fn start_server(
     manager: &McpManager,
     settings: McpSettings,
 ) -> Result<McpStatus, String> {
-    if settings.host != "127.0.0.1" {
-        return Err("MCP server only supports 127.0.0.1 for the MVP".to_string());
-    }
-    if settings.api_key.trim().is_empty() {
-        return Err("MCP API key is required".to_string());
-    }
+    validate_server_settings(&settings)?;
 
     let running_to_shutdown = {
         let mut guard = manager.running.lock().await;
@@ -248,6 +252,16 @@ async fn start_server(
     Ok(status)
 }
 
+fn validate_server_settings(settings: &McpSettings) -> Result<(), String> {
+    if settings.host != "127.0.0.1" {
+        return Err("MCP server only supports 127.0.0.1 for the MVP".to_string());
+    }
+    if settings.api_key.trim().is_empty() {
+        return Err("MCP API key is required".to_string());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn mcp_start(
     app: AppHandle,
@@ -343,6 +357,32 @@ pub fn mcp_rotate_key() -> String {
 mod tests {
     use super::*;
     use axum::http::header::AUTHORIZATION;
+    use types::{McpPermissions, ResourcePermissions};
+
+    fn read_only_permissions() -> ResourcePermissions {
+        ResourcePermissions {
+            read: true,
+            create: false,
+            update: false,
+            delete: false,
+        }
+    }
+
+    fn test_settings() -> McpSettings {
+        McpSettings {
+            enabled: false,
+            host: "127.0.0.1".to_string(),
+            port: 17347,
+            api_key: "current-key".to_string(),
+            permissions: McpPermissions {
+                notes: read_only_permissions(),
+                snippets: read_only_permissions(),
+                prompt_templates: read_only_permissions(),
+                api_requests: read_only_permissions(),
+            },
+            api_requests_expose_secrets: false,
+        }
+    }
 
     #[test]
     fn extracts_bearer_token_case_insensitively() {
@@ -358,5 +398,71 @@ mod tests {
         headers.insert(AUTHORIZATION, "Bearer   ".parse().unwrap());
 
         assert_eq!(extract_bearer_token(&headers), None);
+    }
+
+    #[test]
+    fn bearer_authorization_rejects_missing_malformed_and_wrong_keys() {
+        let headers = HeaderMap::new();
+        assert!(!bearer_is_authorized(&headers, "current-key"));
+
+        for value in ["Basic current-key", "Bearer wrong-key", "Bearer"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(AUTHORIZATION, value.parse().unwrap());
+            assert!(!bearer_is_authorized(&headers, "current-key"));
+        }
+    }
+
+    #[tokio::test]
+    async fn bearer_authorization_uses_live_shared_settings_after_key_rotation() {
+        let settings = Arc::new(RwLock::new(test_settings()));
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, "Bearer current-key".parse().unwrap());
+        assert!(shared_bearer_is_authorized(&settings, &headers).await);
+
+        settings.write().await.api_key = "rotated-key".to_string();
+        assert!(!shared_bearer_is_authorized(&settings, &headers).await);
+
+        headers.insert(AUTHORIZATION, "Bearer rotated-key".parse().unwrap());
+        assert!(shared_bearer_is_authorized(&settings, &headers).await);
+    }
+
+    #[test]
+    fn server_settings_require_loopback_and_a_non_empty_key() {
+        let settings = test_settings();
+        assert!(validate_server_settings(&settings).is_ok());
+
+        let mut public = settings.clone();
+        public.host = "0.0.0.0".to_string();
+        assert!(validate_server_settings(&public)
+            .expect_err("public bind should be rejected")
+            .contains("127.0.0.1"));
+
+        let mut missing_key = settings;
+        missing_key.api_key = "   ".to_string();
+        assert!(validate_server_settings(&missing_key)
+            .expect_err("empty key should be rejected")
+            .contains("API key"));
+    }
+
+    #[tokio::test]
+    async fn listener_smoke_binds_to_ipv4_loopback() {
+        let listener = bind_listener_with_retries("127.0.0.1:0".parse().unwrap())
+            .await
+            .expect("loopback listener should bind");
+
+        let address = listener
+            .local_addr()
+            .expect("listener should have an address");
+        assert!(address.ip().is_loopback());
+    }
+
+    #[test]
+    fn rotated_keys_are_unique_64_character_hex_values() {
+        let first = mcp_rotate_key();
+        let second = mcp_rotate_key();
+
+        assert_eq!(first.len(), 64);
+        assert!(first.chars().all(|character| character.is_ascii_hexdigit()));
+        assert_ne!(first, second);
     }
 }

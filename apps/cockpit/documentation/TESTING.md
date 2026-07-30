@@ -8,7 +8,14 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 1022 tests across 125 test files, covering core stores, shared utilities, shell components, and tool-specific behavior.
+The application currently has 593 tests across 74 test files, covering core stores, database and
+migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
+tool-specific behavior. API Client coverage includes persistence CRUD, atomic imports, export/import
+round trips, relationship preservation, and secret-redacted MCP serialization. MCP coverage includes
+least-privilege defaults, lifecycle/settings rollback, non-blocking failures, loopback enforcement,
+bearer-key rotation, and secret exposure controls.
+Filesystem coverage includes dialog open/save success and cancellation, binary rejection, native
+drop listeners, tool action dispatch, write failures, and image input/export errors.
 
 ## Testing Strategy
 
@@ -152,14 +159,11 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 
 ## What Is NOT Covered (Known Gaps)
 
-| Area               | Gap                                                                        | Priority |
-| ------------------ | -------------------------------------------------------------------------- | -------- |
-| Worker tools       | No tests for `handleRpc` / `useWorker` round-trips                         | High     |
-| Worker tools       | No full worker-thread integration tests for every worker-backed tool       | High     |
-| Tool components    | Rendering coverage is broad but not yet complete for every registered tool | Medium   |
-| DB helpers         | Limited direct tests for SQLite helper behavior outside mocked store paths | Medium   |
-| Keyboard shortcuts | `useGlobalShortcuts` still needs direct shortcut dispatch coverage         | Low      |
-| Release smoke      | No automated Tauri launch smoke test across macOS, Windows, and Linux      | Medium   |
+| Area          | Gap                                                                      | Priority |
+| ------------- | ------------------------------------------------------------------------ | -------- |
+| Worker tools  | No full worker-thread integration tests for every worker-backed tool     | High     |
+| DB helpers    | No native SQLite integration harness for executing migrations end-to-end | Medium   |
+| Release smoke | Artifact-bound runtime reports remain manual on each supported platform  | Medium   |
 
 ## How to Add a Test
 

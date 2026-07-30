@@ -2288,6 +2288,44 @@ impl ServerHandler for CockpitMcpService {
 mod tests {
     use super::*;
 
+    fn api_request_with_auth(auth: Value) -> ApiRequestRow {
+        ApiRequestRow {
+            id: "request-1".to_string(),
+            collection_id: Some("collection-1".to_string()),
+            name: "Create user".to_string(),
+            method: "POST".to_string(),
+            url: "{{baseUrl}}/users".to_string(),
+            headers: json!([{ "key": "X-Trace", "value": "{{traceId}}", "enabled": true }])
+                .to_string(),
+            body: r#"{"name":"Ada"}"#.to_string(),
+            body_mode: "json".to_string(),
+            auth: auth.to_string(),
+            created_at: 1,
+            updated_at: 2,
+        }
+    }
+
+    #[test]
+    fn api_request_json_redacts_auth_secrets_unless_explicitly_exposed() {
+        let auth = json!({
+            "type": "basic",
+            "username": "ada",
+            "password": "super-secret"
+        });
+
+        let redacted = api_request_to_json(api_request_with_auth(auth.clone()), false);
+        assert_eq!(redacted["collectionId"], "collection-1");
+        assert_eq!(redacted["headers"][0]["key"], "X-Trace");
+        assert_eq!(redacted["bodyMode"], "json");
+        assert_eq!(redacted["auth"]["username"], "ada");
+        assert_eq!(redacted["auth"]["password"], REDACTED_AUTH_VALUE);
+        assert_eq!(redacted["auth"]["__cockpitRedacted"], true);
+
+        let exposed = api_request_to_json(api_request_with_auth(auth), true);
+        assert_eq!(exposed["auth"]["password"], "super-secret");
+        assert_eq!(exposed["auth"].get("__cockpitRedacted"), None);
+    }
+
     #[test]
     fn redacted_basic_auth_preserves_only_password() {
         let current = json!({

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
+import { importApiSpec } from '@/lib/api-import'
 import ApiClient, { buildUrlWithParams, parseQueryParams } from '@/tools/api-client/ApiClient'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 
 const fetchMock = vi.hoisted(() => vi.fn())
+const clipboardWriteText = vi.fn()
 
 vi.mock('@tauri-apps/plugin-http', () => ({
   fetch: fetchMock,
@@ -40,6 +42,12 @@ describe('api-client URL helpers', () => {
 describe('ApiClient', () => {
   beforeEach(() => {
     fetchMock.mockReset()
+    clipboardWriteText.mockReset()
+    clipboardWriteText.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    })
     fetchMock.mockResolvedValue(new Response('ok', { status: 200, statusText: 'OK' }))
     useApiStore.setState({
       environments: [],
@@ -68,6 +76,115 @@ describe('ApiClient', () => {
   it('renders import button', () => {
     renderTool(ApiClient)
     expect(screen.getByText('Import...')).toBeInTheDocument()
+  })
+
+  it('exports requests in a format that preserves collections and request metadata on import', async () => {
+    useApiStore.setState({
+      collections: [
+        {
+          id: 'collection-1',
+          name: 'Accounts',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+      requests: [
+        {
+          id: 'request-1',
+          collectionId: 'collection-1',
+          name: 'Create account',
+          method: 'POST',
+          url: '{{baseUrl}}/accounts',
+          headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+          body: '{"enabled":true}',
+          bodyMode: 'json',
+          auth: { type: 'bearer', token: '{{apiToken}}' },
+          createdAt: 3,
+          updatedAt: 4,
+        },
+      ],
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByText('Export'))
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
+    const exported = clipboardWriteText.mock.calls[0]?.[0]
+    expect(exported).toBeTypeOf('string')
+    expect(JSON.parse(exported as string)).toEqual([
+      {
+        name: 'Create account',
+        method: 'POST',
+        url: '{{baseUrl}}/accounts',
+        headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+        body: '{"enabled":true}',
+        bodyMode: 'json',
+        auth: { type: 'bearer', token: '{{apiToken}}' },
+        collectionKey: 'collection-1',
+        collectionName: 'Accounts',
+      },
+    ])
+
+    const imported = importApiSpec({ content: exported as string })
+    expect(imported.collections).toEqual([{ key: 'collection-1', name: 'Accounts' }])
+    expect(imported.requests[0]).toMatchObject({
+      collectionKey: 'collection-1',
+      headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+      body: '{"enabled":true}',
+      bodyMode: 'json',
+      auth: { type: 'bearer', token: '{{apiToken}}' },
+    })
+  })
+
+  it('round-trips distinct collections with duplicate names using export-local keys', async () => {
+    useApiStore.setState({
+      collections: [
+        { id: 'collection-1', name: 'Users', createdAt: 1, updatedAt: 1 },
+        { id: 'collection-2', name: 'users', createdAt: 2, updatedAt: 2 },
+      ],
+      requests: [
+        {
+          id: 'request-1',
+          collectionId: 'collection-1',
+          name: 'List users',
+          method: 'GET',
+          url: '{{baseUrl}}/users',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+          createdAt: 3,
+          updatedAt: 3,
+        },
+        {
+          id: 'request-2',
+          collectionId: 'collection-2',
+          name: 'List legacy users',
+          method: 'GET',
+          url: '{{legacyUrl}}/users',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+          createdAt: 4,
+          updatedAt: 4,
+        },
+      ],
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByText('Export'))
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
+    const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })
+    expect(imported.collections).toEqual([
+      { key: 'collection-1', name: 'Users' },
+      { key: 'collection-2', name: 'users' },
+    ])
+    expect(imported.requests.map((request) => request.collectionKey)).toEqual([
+      'collection-1',
+      'collection-2',
+    ])
   })
 
   it('renders request tabs', () => {
@@ -232,6 +349,46 @@ describe('ApiClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
 
     expect(onSelect).toHaveBeenCalledWith(request)
+  })
+
+  it('resets a loaded request when its collection deletion removes it from the store', async () => {
+    const request = {
+      id: 'req-active',
+      collectionId: 'collection-active',
+      name: 'Get active user',
+      method: 'GET',
+      url: 'https://example.com/active-user',
+      headers: [],
+      body: '',
+      bodyMode: 'none',
+      auth: { type: 'none' as const },
+      createdAt: 1,
+      updatedAt: 2,
+    }
+    useApiStore.setState({
+      collections: [
+        {
+          id: 'collection-active',
+          name: 'Active',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+      requests: [request],
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByText('Active'))
+    fireEvent.click(screen.getByRole('button', { name: 'Get active user' }))
+    expect(screen.getByDisplayValue('https://example.com/active-user')).toBeInTheDocument()
+
+    act(() => {
+      useApiStore.setState({ collections: [], requests: [] })
+    })
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)).toHaveValue('')
+    )
   })
 
   it('renders history rows as restore buttons', () => {

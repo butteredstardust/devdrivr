@@ -3,7 +3,7 @@ import { useKeyboardShortcut } from './useKeyboardShortcut'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
-import { dispatchToolAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
@@ -48,15 +48,13 @@ export function useGlobalShortcuts(): void {
   const comboSlash = useMemo(() => ({ key: '/', mod: true }) as const, [])
   const comboW = useMemo(() => ({ key: 'w', mod: true }) as const, [])
 
-  const toggleSidebar = useCallback(
-    () => update('sidebarCollapsed', !sidebarCollapsed),
-    [update, sidebarCollapsed]
-  )
+  const toggleSidebar = useCallback(async () => {
+    await update('sidebarCollapsed', !sidebarCollapsed)
+  }, [update, sidebarCollapsed])
 
-  const toggleDrawer = useCallback(
-    () => update('notesDrawerOpen', !notesDrawerOpen),
-    [update, notesDrawerOpen]
-  )
+  const toggleDrawer = useCallback(async () => {
+    await update('notesDrawerOpen', !notesDrawerOpen)
+  }, [update, notesDrawerOpen])
 
   const nextTool = useCallback(() => {
     if (!activeTool) return
@@ -125,23 +123,52 @@ export function useGlobalShortcuts(): void {
   }, [activeTabId, closeTab])
 
   const openFile = useCallback(async () => {
-    const result = await openFileDialog()
-    if (result) {
-      dispatchToolAction({ type: 'open-file', content: result.content, filename: result.filename })
-      addToast(`Opened ${result.filename}`, 'success')
+    if (!supportsToolFileAction(activeTool, 'open-file')) {
+      addToast('Open File is not supported by the active tool', 'error')
+      return
     }
-  }, [addToast])
+    try {
+      const result = await openFileDialog()
+      if (result) {
+        dispatchToolAction({
+          type: 'open-file',
+          content: result.content,
+          filename: result.filename,
+        })
+        addToast(`Opened ${result.filename}`, 'success')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [activeTool, addToast])
 
   const saveFile = useCallback(() => {
+    if (!supportsToolFileAction(activeTool, 'save-file')) {
+      addToast('Save Output is not supported by the active tool', 'error')
+      return
+    }
     dispatchToolAction({ type: 'save-file' })
-  }, [])
+  }, [activeTool, addToast])
 
-  const toggleAlwaysOnTop = useCallback(() => {
+  const toggleAlwaysOnTop = useCallback(async () => {
     const win = getCurrentWindow()
     const next = !alwaysOnTop
-    win.setAlwaysOnTop(next)
-    update('alwaysOnTop', next)
-  }, [alwaysOnTop, update])
+    try {
+      await win.setAlwaysOnTop(next)
+    } catch {
+      addToast('Failed to update window pin state', 'error')
+      return
+    }
+
+    const persisted = await update('alwaysOnTop', next)
+    if (!persisted) {
+      try {
+        await win.setAlwaysOnTop(alwaysOnTop)
+      } catch {
+        // Best-effort rollback; the settings store already reports the persistence failure.
+      }
+    }
+  }, [alwaysOnTop, update, addToast])
 
   useKeyboardShortcut(comboK, toggleCommandPalette)
   useKeyboardShortcut(comboB, toggleSidebar)

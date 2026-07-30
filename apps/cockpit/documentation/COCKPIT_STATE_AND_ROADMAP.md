@@ -9,11 +9,11 @@ Cockpit is in a healthy implementation state. The app has a clear local-first pr
 
 The current quality gates pass:
 
-| Gate                 | Result                                          |
-| -------------------- | ----------------------------------------------- |
-| TypeScript           | `npx tsc --noEmit` passed                       |
-| Unit/component tests | `bunx vitest run` passed: 125 files, 1022 tests |
-| Lint                 | `bun run lint` passed                           |
+| Gate                 | Result                                        |
+| -------------------- | --------------------------------------------- |
+| TypeScript           | `npx tsc --noEmit` passed                     |
+| Unit/component tests | `bunx vitest run` passed: 74 files, 593 tests |
+| Lint                 | `bun run lint` passed                         |
 
 The next work should not start with broad rewrites. The highest-value sequence is: fix small product correctness bugs, align documentation with the actual app, harden security/release posture, then invest in cross-platform readiness and higher-confidence end-to-end coverage.
 
