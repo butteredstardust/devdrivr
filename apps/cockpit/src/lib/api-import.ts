@@ -122,7 +122,9 @@ function importCockpitJson(content: string): ApiImportResult {
 
     let collectionKey: string | null = null
     const collectionName = asString(obj['collectionName'])
-    if (collectionName) collectionKey = addCollection(builder, collectionName)
+    if (collectionName) {
+      collectionKey = addCollection(builder, collectionName, asString(obj['collectionKey']))
+    }
 
     builder.requests.push({
       name,
@@ -450,9 +452,19 @@ function finishBuilder(builder: ImportBuilder): ApiImportResult {
   }
 }
 
-function addCollection(builder: ImportBuilder, rawName: string): string {
+function addCollection(
+  builder: ImportBuilder,
+  rawName: string,
+  preferredKey?: string | null
+): string {
   const name = rawName.trim() || builder.sourceTitle
-  const key = name.toLowerCase()
+  const baseKey = preferredKey?.trim() || name.toLowerCase()
+  let key = baseKey
+  let suffix = 2
+  while (builder.collections.has(key) && builder.collections.get(key)?.name !== name) {
+    key = `${baseKey}-${suffix}`
+    suffix++
+  }
   if (!builder.collections.has(key)) {
     builder.collections.set(key, { key, name })
   }

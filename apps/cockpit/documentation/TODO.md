@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 70 files, 549 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 72 files, 561 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -264,7 +264,7 @@ Completed 2026-07-30:
 - Verified the app/tool slice (42 files, 375 tests), focused registry/CSV/YAML coverage (3 files, 13
   tests), the full suite (70 files, 549 tests), TypeScript, and ESLint.
 
-### [ ] Add focused API Client persistence and import/export coverage
+### [x] Add focused API Client persistence and import/export coverage
 
 Area: Network tools / saved user data
 
@@ -286,6 +286,21 @@ Verification:
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/tools/__tests__/api-client.test.tsx src/lib src/stores
 ```
+
+Completed 2026-07-30:
+
+- Added store coverage for loading, saving, updating, and deleting environments, collections, and
+  requests, including the SQLite cascade reflected immediately in local request state.
+- Added direct DB coverage for complete JSON serialization, relationship restoration, ordered
+  transactional imports, and rollback after a failed request write.
+- Cockpit JSON exports now use collection names understood by the importer, preserving collection
+  relationships across export/import instead of persisting installation-specific IDs.
+- Added multi-collection import coverage proving conflicting source IDs are ignored while headers,
+  JSON/text body modes, bearer/basic auth metadata, and fresh collection relationships survive.
+- Added a Rust MCP regression test proving saved API request secrets remain redacted unless explicit
+  secret exposure is enabled.
+- Verified the focused frontend slice (4 files, 37 tests), the full suite (72 files, 561 tests),
+  TypeScript, ESLint, and the focused Rust MCP test.
 
 ### [ ] Harden MCP server security and lifecycle coverage
 

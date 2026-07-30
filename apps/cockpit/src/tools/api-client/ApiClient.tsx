@@ -200,8 +200,15 @@ export default function ApiClient() {
   const updateRequest = useApiStore((s) => s.updateRequest)
   const importApiData = useApiStore((s) => s.importApiData)
   const addRequestHistory = useApiStore((s) => s.addRequestHistory)
+  const [apiInitialized, setApiInitialized] = useState(false)
   useEffect(() => {
-    init()
+    let cancelled = false
+    void init().then(() => {
+      if (!cancelled) setApiInitialized(true)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [init])
 
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
@@ -439,6 +446,16 @@ export default function ApiClient() {
     setError(null)
   }, [updateState])
 
+  useEffect(() => {
+    if (
+      apiInitialized &&
+      state.activeRequestId &&
+      !requests.some((request) => request.id === state.activeRequestId)
+    ) {
+      handleNewRequest()
+    }
+  }, [apiInitialized, handleNewRequest, requests, state.activeRequestId])
+
   // ---------------------------------------------------------------------------
   // Save Request logic
   // ---------------------------------------------------------------------------
@@ -556,22 +573,32 @@ export default function ApiClient() {
 
   const handleExport = useCallback(async () => {
     try {
-      const exportData = requests.map((r) => ({
-        name: r.name,
-        method: r.method,
-        url: r.url,
-        headers: r.headers,
-        body: r.body,
-        bodyMode: r.bodyMode,
-        auth: r.auth,
-        collectionId: r.collectionId,
-      }))
+      const exportCollectionById = new Map(
+        collections.map((collection, index) => [
+          collection.id,
+          { key: `collection-${index + 1}`, name: collection.name },
+        ])
+      )
+      const exportData = requests.map((r) => {
+        const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
+        return {
+          name: r.name,
+          method: r.method,
+          url: r.url,
+          headers: r.headers,
+          body: r.body,
+          bodyMode: r.bodyMode,
+          auth: r.auth,
+          collectionKey: collection?.key ?? null,
+          collectionName: collection?.name ?? null,
+        }
+      })
       await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
       setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
     } catch {
       setLastAction('Export failed — clipboard unavailable', 'error')
     }
-  }, [requests, setLastAction])
+  }, [collections, requests, setLastAction])
 
   const handleSelectLoadedRequest = (req: ApiRequest) => {
     updateState({
