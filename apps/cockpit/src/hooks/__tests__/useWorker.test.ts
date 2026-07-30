@@ -56,7 +56,7 @@ describe('useWorker', () => {
     const rejection = expect(response).rejects.toThrow('worker crashed')
 
     act(() => {
-      worker.onerror?.(new ErrorEvent('error', { message: 'worker crashed' }))
+      worker.onerror?.({ message: 'worker crashed' } as ErrorEvent)
     })
 
     await rejection
