@@ -10,7 +10,7 @@ describe('RegexTester (component)', () => {
     expect(screen.getByPlaceholderText(/enter text to test/i)).toBeInTheDocument()
   })
 
-  it('shows match count when pattern matches', () => {
+  it('shows match count when pattern matches', async () => {
     renderTool(RegexTester)
     fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), {
       target: { value: '\\d+' },
@@ -18,7 +18,7 @@ describe('RegexTester (component)', () => {
     fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), {
       target: { value: 'abc 123 def 456' },
     })
-    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(await screen.findByText('2')).toBeInTheDocument()
   })
 
   it('exposes regex flag toggle pressed state', () => {
@@ -112,7 +112,7 @@ describe('RegexTester (component)', () => {
     expect(screen.getByText(/chars/i)).toBeInTheDocument()
   })
 
-  it('keeps unnamed capture groups when named groups are also present', () => {
+  it('keeps unnamed capture groups when named groups are also present', async () => {
     renderTool(RegexTester)
     fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), {
       target: { value: '([A-Z])(?<digits>\\d+)' },
@@ -121,13 +121,13 @@ describe('RegexTester (component)', () => {
       target: { value: 'A12' },
     })
 
-    expect(screen.getByText('$1')).toBeInTheDocument()
+    expect(await screen.findByText('$1')).toBeInTheDocument()
     expect(screen.getByText('digits')).toBeInTheDocument()
     expect(screen.getByText('A')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
   })
 
-  it('warns when only the first 1000 matches are shown', () => {
+  it('warns when only the first 1000 matches are shown', async () => {
     renderTool(RegexTester)
     fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), {
       target: { value: '.' },
@@ -136,7 +136,7 @@ describe('RegexTester (component)', () => {
       target: { value: 'a'.repeat(1205) },
     })
 
-    expect(screen.getByText('1000+')).toBeInTheDocument()
+    expect(await screen.findByText('1000+')).toBeInTheDocument()
     expect(screen.getByText('Showing first 1000 matches')).toBeInTheDocument()
     expect(screen.getByText(/First 1000 matches/)).toBeInTheDocument()
   })

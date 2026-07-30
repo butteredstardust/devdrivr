@@ -12,6 +12,10 @@ import { useToolStateCache } from '@/stores/tool-state.store'
  * to the cache immediately, which eliminates the race condition where a rapid
  * switch-away-and-back could load stale state from SQLite before the unmount
  * save completes.
+ *
+ * On the cold path the user can type before the read resolves. Local edits always win:
+ * a resolving load is dropped once the state is dirty, and the unmount save runs for
+ * dirty state even if the read never resolved.
  */
 export function useToolState<T extends Record<string, unknown>>(
   toolId: string,
@@ -29,6 +33,9 @@ export function useToolState<T extends Record<string, unknown>>(
   const stateRef = useRef(state)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedRef = useRef(!!cacheGet(toolId))
+  // True once the user has changed state via update(). Guards the cold-start race
+  // where a slow loadToolState() resolves after the user has already typed.
+  const dirtyRef = useRef(false)
 
   // Load from SQLite on mount only if no cached value
   useEffect(() => {
@@ -36,6 +43,15 @@ export function useToolState<T extends Record<string, unknown>>(
     let cancelled = false
     loadToolState(toolId).then((saved) => {
       if (cancelled) return
+      // The user edited while the read was in flight — drop the load entirely rather
+      // than merging untouched keys. Tool state fields are interdependent (e.g. a regex
+      // pattern and its flags, or a request body and its content-type header), so a
+      // partial merge would splice last session's values into the state the user is
+      // actively editing and produce a combination that never existed. Live input wins.
+      if (dirtyRef.current) {
+        loadedRef.current = true
+        return
+      }
       if (saved) {
         const merged = { ...defaultState, ...saved } as T
         setState(merged)
@@ -55,6 +71,7 @@ export function useToolState<T extends Record<string, unknown>>(
   // Debounced save to SQLite (cache is updated synchronously)
   const update = useCallback(
     (patch: Partial<T>) => {
+      dirtyRef.current = true
       setState((prev) => {
         const next = { ...prev, ...patch }
         stateRef.current = next
@@ -70,11 +87,13 @@ export function useToolState<T extends Record<string, unknown>>(
     [toolId, cacheSet]
   )
 
-  // Save immediately on unmount (cache already up to date)
+  // Save immediately on unmount (cache already up to date).
+  // `dirtyRef` is checked alongside `loadedRef` so edits made while the initial read
+  // was still in flight are persisted instead of being silently discarded.
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
-      if (loadedRef.current) {
+      if (loadedRef.current || dirtyRef.current) {
         saveToolState(toolId, stateRef.current)
       }
     }

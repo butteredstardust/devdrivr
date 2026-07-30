@@ -204,6 +204,79 @@ describe('useToolState', () => {
     expect(saveToolState).toHaveBeenCalledTimes(1)
   })
 
+  it('edit during a pending load keeps the edit and drops the resolved load', async () => {
+    let resolveDb: (val: any) => void = () => {}
+    vi.mocked(loadToolState).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDb = resolve
+      })
+    )
+
+    const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    // User types while the SQLite read is still in flight
+    act(() => {
+      result.current[1]({ value: 'typed-while-loading' })
+    })
+
+    await act(async () => {
+      resolveDb({ value: 'stale-sqlite-data' })
+    })
+
+    expect(result.current[0]).toEqual({ value: 'typed-while-loading' })
+    expect(cacheStore[TOOL_ID]).toEqual({ value: 'typed-while-loading' })
+  })
+
+  it('unmount during a pending load still persists the edit', async () => {
+    vi.mocked(loadToolState).mockReturnValue(new Promise(() => {})) // never resolves
+
+    const { result, unmount } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    act(() => {
+      result.current[1]({ value: 'edited-before-load' })
+    })
+
+    act(() => {
+      unmount()
+    })
+
+    expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, { value: 'edited-before-load' })
+  })
+
+  it('untouched cold path still restores saved state after the load resolves', async () => {
+    let resolveDb: (val: any) => void = () => {}
+    vi.mocked(loadToolState).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDb = resolve
+      })
+    )
+
+    const { result, unmount } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    await act(async () => {
+      resolveDb({ value: 'restored' })
+    })
+
+    expect(result.current[0]).toEqual({ value: 'restored' })
+    expect(cacheStore[TOOL_ID]).toEqual({ value: 'restored' })
+
+    act(() => {
+      unmount()
+    })
+    expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, { value: 'restored' })
+  })
+
+  it('unmount without any edit or completed load does not write', () => {
+    vi.mocked(loadToolState).mockReturnValue(new Promise(() => {})) // never resolves
+
+    const { unmount } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+    act(() => {
+      unmount()
+    })
+
+    expect(saveToolState).not.toHaveBeenCalled()
+  })
+
   it('cancelled load: if component unmounts before SQLite load resolves, state is not updated', async () => {
     let resolveDb: (val: any) => void = () => {}
     vi.mocked(loadToolState).mockReturnValue(

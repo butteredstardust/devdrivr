@@ -5,19 +5,14 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { TabBar } from '@/components/shared/TabBar'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
+import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
+import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 
 type RegexTesterState = {
   pattern: string
   flags: string
   testString: string
   replacePattern: string
-}
-
-type Match = {
-  full: string
-  index: number
-  length: number
-  groups: Array<{ index: number; name: string | null; value: string }>
 }
 
 // ── Reference data ─────────────────────────────────────────────────
@@ -86,173 +81,7 @@ const MODE_TABS = [
   { id: 'replace', label: 'Replace' },
 ]
 
-const MAX_REGEX_MATCHES = 1000
-
-// ── Matching logic ─────────────────────────────────────────────────
-
-export function extractCaptureGroupNames(pattern: string): Array<string | null> {
-  const names: Array<string | null> = []
-  let inClass = false
-
-  for (let i = 0; i < pattern.length; i++) {
-    const char = pattern[i]
-    if (!char) break
-
-    if (char === '\\') {
-      i++
-      continue
-    }
-
-    if (char === '[') {
-      inClass = true
-      continue
-    }
-
-    if (char === ']' && inClass) {
-      inClass = false
-      continue
-    }
-
-    if (inClass || char !== '(') continue
-
-    const next = pattern[i + 1]
-    if (next !== '?') {
-      names.push(null)
-      continue
-    }
-
-    if (
-      pattern.startsWith('(?:', i) ||
-      pattern.startsWith('(?=', i) ||
-      pattern.startsWith('(?!', i)
-    ) {
-      continue
-    }
-
-    if (pattern.startsWith('(?<=', i) || pattern.startsWith('(?<!', i)) {
-      continue
-    }
-
-    if (pattern.startsWith('(?<', i)) {
-      const end = pattern.indexOf('>', i + 3)
-      if (end !== -1) {
-        names.push(pattern.slice(i + 3, end))
-      }
-    }
-  }
-
-  return names
-}
-
-function findMatches(
-  pattern: string,
-  flags: string,
-  text: string
-): { matches: Match[]; error: string | null; truncated: boolean } {
-  if (!pattern) return { matches: [], error: null, truncated: false }
-  try {
-    const re = new RegExp(pattern, flags)
-    const matches: Match[] = []
-    const captureGroupNames = extractCaptureGroupNames(pattern)
-
-    function buildGroups(m: RegExpExecArray): Match['groups'] {
-      const groups: Match['groups'] = []
-      for (let i = 1; i < m.length; i++) {
-        groups.push({
-          index: i,
-          name: captureGroupNames[i - 1] ?? null,
-          value: m[i] ?? '',
-        })
-      }
-      return groups
-    }
-
-    let truncated = false
-    if (flags.includes('g')) {
-      let m: RegExpExecArray | null
-      while ((m = re.exec(text)) !== null) {
-        if (matches.length >= MAX_REGEX_MATCHES) {
-          truncated = true
-          break
-        }
-        matches.push({ full: m[0], index: m.index, length: m[0].length, groups: buildGroups(m) })
-        if (m[0] === '') re.lastIndex++
-      }
-    } else {
-      const m = re.exec(text)
-      if (m) {
-        matches.push({ full: m[0], index: m.index, length: m[0].length, groups: buildGroups(m) })
-      }
-    }
-
-    return { matches, error: null, truncated }
-  } catch (e) {
-    return { matches: [], error: (e as Error).message, truncated: false }
-  }
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-const MATCH_COLORS = [
-  { bg: 'var(--color-accent)', text: 'var(--color-bg)' },
-  { bg: 'var(--color-info)', text: 'var(--color-bg)' },
-]
-
-function highlightMatches(
-  text: string,
-  pattern: string,
-  flags: string
-): { html: string; truncated: boolean } {
-  if (!pattern || !text) return { html: '', truncated: false }
-  try {
-    const re = new RegExp(pattern, flags.includes('g') ? flags : flags + 'g')
-    const parts: string[] = []
-    let lastIndex = 0
-    let m: RegExpExecArray | null
-    let colorIdx = 0
-    let truncated = false
-    while ((m = re.exec(text)) !== null) {
-      if (colorIdx >= MAX_REGEX_MATCHES) {
-        truncated = true
-        break
-      }
-      parts.push(escapeHtml(text.slice(lastIndex, m.index)))
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const c = MATCH_COLORS[colorIdx % MATCH_COLORS.length]! // safe: modulo keeps index in bounds
-      parts.push(
-        `<mark style="background:${c.bg};color:${c.text};border-radius:2px;padding:0 2px">${escapeHtml(m[0])}</mark>`
-      )
-      colorIdx++
-      lastIndex = m.index + m[0].length
-      if (m[0] === '') re.lastIndex++
-    }
-    parts.push(escapeHtml(text.slice(lastIndex)))
-    return { html: parts.join(''), truncated }
-  } catch {
-    return { html: escapeHtml(text), truncated: false }
-  }
-}
-
-function computeReplace(
-  text: string,
-  pattern: string,
-  flags: string,
-  replacement: string
-): { result: string; error: string | null } {
-  if (!pattern || !text) return { result: text, error: null }
-  try {
-    const re = new RegExp(pattern, flags)
-    return { result: text.replace(re, replacement), error: null }
-  } catch (e) {
-    return { result: text, error: (e as Error).message }
-  }
-}
+const TIMEOUT_MESSAGE = `Pattern timed out after ${REGEX_TIMEOUT_MS}ms — likely catastrophic backtracking. Edit the pattern or the test string to retry.`
 
 // ── Component ──────────────────────────────────────────────────────
 
@@ -269,27 +98,30 @@ export default function RegexTester() {
   const [showDiff, setShowDiff] = useState(false)
   const patternRef = useRef<HTMLInputElement>(null)
 
-  const result = useMemo(
-    () => findMatches(state.pattern, state.flags, state.testString),
-    [state.pattern, state.flags, state.testString]
-  )
+  // Evaluation runs in a terminable worker — a user pattern must never touch this thread.
+  const evaluation = useRegexEvaluation({
+    pattern: state.pattern,
+    flags: state.flags,
+    text: state.testString,
+    replacement: state.replacePattern,
+  })
 
-  const highlighted = useMemo(
-    () => highlightMatches(state.testString, state.pattern, state.flags),
-    [state.testString, state.pattern, state.flags]
-  )
-
-  const replaceResult = useMemo(
-    () => computeReplace(state.testString, state.pattern, state.flags, state.replacePattern),
-    [state.testString, state.pattern, state.flags, state.replacePattern]
-  )
+  const timedOut = evaluation.status === 'timeout'
+  const evaluated = evaluation.result
+  // Memoised so the `?? []` fallback does not produce a new array identity on every
+  // render and invalidate the copy callback below.
+  const matches = useMemo(() => evaluated?.matches ?? [], [evaluated])
+  const truncated = evaluated?.truncated ?? false
+  const matchError = timedOut ? TIMEOUT_MESSAGE : (evaluated?.matchError ?? null)
+  const replaceValue = evaluated?.replaceResult ?? state.testString
+  const replaceError = timedOut ? TIMEOUT_MESSAGE : (evaluated?.replaceError ?? null)
 
   // Character-level diff between source and substituted text (only computed when needed)
   const charDiff = useMemo(() => {
     if (!showDiff || mode !== 'replace') return null
-    if (replaceResult.error || !state.pattern || !state.testString) return null
-    return diffChars(state.testString, replaceResult.result)
-  }, [showDiff, mode, replaceResult.result, replaceResult.error, state.pattern, state.testString])
+    if (replaceError || !state.pattern || !state.testString) return null
+    return diffChars(state.testString, replaceValue)
+  }, [showDiff, mode, replaceValue, replaceError, state.pattern, state.testString])
 
   const diffStats = useMemo(() => {
     if (!charDiff) return null
@@ -335,11 +167,11 @@ export default function RegexTester() {
 
   const exportMatches = useCallback(
     async (format: 'lines' | 'json') => {
-      if (result.matches.length === 0) return
+      if (matches.length === 0) return
       const text =
         format === 'json'
           ? JSON.stringify(
-              result.matches.map((m) => ({
+              matches.map((m) => ({
                 match: m.full,
                 index: m.index,
                 length: m.length,
@@ -348,22 +180,22 @@ export default function RegexTester() {
               null,
               2
             )
-          : result.matches.map((m) => m.full).join('\n')
+          : matches.map((m) => m.full).join('\n')
       try {
         await navigator.clipboard.writeText(text)
         setLastAction(
-          `Copied ${result.truncated ? `first ${result.matches.length}` : result.matches.length} match${result.matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
+          `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
           'success'
         )
       } catch {
         setLastAction('Failed to copy', 'error')
       }
     },
-    [result.matches, result.truncated, setLastAction]
+    [matches, truncated, setLastAction]
   )
 
-  const matchCount = result.matches.length
-  const hasGroups = result.matches.some((m) => m.groups.length > 0)
+  const matchCount = matches.length
+  const hasGroups = matches.some((m) => m.groups.length > 0)
 
   return (
     <div className="flex h-full">
@@ -403,15 +235,13 @@ export default function RegexTester() {
           >
             {showRef ? 'Hide' : 'Ref'}
           </button>
-          {result.error && (
-            <span className="text-xs text-[var(--color-error)]">{result.error}</span>
-          )}
-          {!result.error && matchCount > 0 && (
+          {matchError && <span className="text-xs text-[var(--color-error)]">{matchError}</span>}
+          {!matchError && matchCount > 0 && (
             <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
-              {result.truncated ? `${matchCount}+` : matchCount}
+              {truncated ? `${matchCount}+` : matchCount}
             </span>
           )}
-          {!result.error && result.truncated && (
+          {!matchError && truncated && (
             <span className="text-xs text-[var(--color-warning)]">
               Showing first {MAX_REGEX_MATCHES} matches
             </span>
@@ -429,7 +259,7 @@ export default function RegexTester() {
                 placeholder="Replacement pattern ($1, $2, $<name>)..."
                 className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
               />
-              <CopyButton text={replaceResult.result} label="Copy result" />
+              <CopyButton text={replaceValue} label="Copy result" />
             </div>
           )}
           {mode === 'match' && matchCount > 0 && (
@@ -462,7 +292,7 @@ export default function RegexTester() {
               <span className="text-xs text-[var(--color-text-muted)]">
                 {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
               </span>
-              {mode === 'replace' && state.pattern && state.testString && !replaceResult.error && (
+              {mode === 'replace' && state.pattern && state.testString && !replaceError && (
                 <div className="flex items-center gap-2">
                   {diffStats && (
                     <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
@@ -484,8 +314,8 @@ export default function RegexTester() {
             </div>
             {mode === 'replace' ? (
               <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
-                {replaceResult.error ? (
-                  <span className="text-[var(--color-error)]">{replaceResult.error}</span>
+                {replaceError ? (
+                  <span className="text-[var(--color-error)]">{replaceError}</span>
                 ) : !state.pattern || !state.testString ? (
                   <span className="text-[var(--color-text-muted)]">
                     Replace preview will appear here
@@ -512,15 +342,19 @@ export default function RegexTester() {
                     </span>
                   ))
                 ) : (
-                  <span className="text-[var(--color-text)]">{replaceResult.result}</span>
+                  <span className="text-[var(--color-text)]">{replaceValue}</span>
                 )}
+              </div>
+            ) : timedOut ? (
+              <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
+                <span className="text-[var(--color-error)]">{TIMEOUT_MESSAGE}</span>
               </div>
             ) : (
               <div
                 className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]"
                 dangerouslySetInnerHTML={{
                   __html:
-                    highlighted.html ||
+                    evaluated?.highlightHtml ||
                     '<span style="color:var(--color-text-muted)">Matches will be highlighted here</span>',
                 }}
               />
@@ -533,14 +367,12 @@ export default function RegexTester() {
           <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
             <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
               <span>
-                {result.truncated ? `First ${matchCount}` : matchCount} match
+                {truncated ? `First ${matchCount}` : matchCount} match
                 {matchCount !== 1 ? 'es' : ''}
-                {hasGroups
-                  ? ` · ${result.matches.reduce((n, m) => n + m.groups.length, 0)} groups`
-                  : ''}
+                {hasGroups ? ` · ${matches.reduce((n, m) => n + m.groups.length, 0)} groups` : ''}
               </span>
             </div>
-            {result.matches.map((m, i) => (
+            {matches.map((m, i) => (
               <div
                 key={i}
                 className="mb-1.5 flex items-start gap-3 rounded p-1 text-xs hover:bg-[var(--color-surface-hover)]"

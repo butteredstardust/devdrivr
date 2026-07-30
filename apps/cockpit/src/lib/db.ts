@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql'
+import { invoke } from '@tauri-apps/api/core'
 import type {
   Note,
   Snippet,
@@ -46,24 +47,29 @@ function enqueueWrite<T>(operation: (conn: Database) => Promise<T>): Promise<T> 
   return run
 }
 
-function runTransaction<T>(
-  mode: 'TRANSACTION' | 'IMMEDIATE',
-  operation: (conn: Database) => Promise<T>
-): Promise<T> {
-  return enqueueWrite(async (conn) => {
-    await conn.execute(mode === 'IMMEDIATE' ? 'BEGIN IMMEDIATE' : 'BEGIN TRANSACTION')
-    try {
-      const result = await operation(conn)
-      await conn.execute('COMMIT')
-      return result
-    } catch (err) {
-      try {
-        await conn.execute('ROLLBACK')
-      } catch (rollbackErr) {
-        console.warn('[db] transaction rollback failed', rollbackErr)
-      }
-      throw err
-    }
+/** A parameterised statement destined for the atomic batch command. */
+export type BatchStatement = { sql: string; params: unknown[] }
+
+/**
+ * Runs a group of statements atomically.
+ *
+ * These cannot be driven from JS with `BEGIN` / `COMMIT` through
+ * `@tauri-apps/plugin-sql`: the plugin executes every statement via `pool.execute(...)`
+ * on a multi-connection pool, so the statements of a "transaction" can land on different
+ * connections — auto-committing individually, erroring on `COMMIT`, or stranding an open
+ * transaction on a pooled connection. The `db_execute_batch` Tauri command owns a
+ * dedicated single-connection pool and wraps the batch in a real sqlx transaction.
+ * See ADR-013 in documentation/infrastructure/ARCHITECTURE_DECISIONS.md.
+ *
+ * Still routed through `writeQueue` so batches stay ordered against single-statement
+ * writes going through the plugin pool.
+ */
+function runBatch(statements: BatchStatement[], immediate = false): Promise<void> {
+  if (statements.length === 0) return Promise.resolve()
+  // enqueueWrite awaits getDb() first, which guarantees the plugin has opened the
+  // database and applied migrations before the Rust pool touches the same file.
+  return enqueueWrite(async () => {
+    await invoke('db_execute_batch', { statements, immediate })
   })
 }
 
@@ -183,14 +189,13 @@ export async function saveNote(note: Note): Promise<void> {
 
 export async function saveNotesOrder(notes: Pick<Note, 'id' | 'sortOrder'>[]): Promise<void> {
   if (notes.length === 0) return
-  await runTransaction('IMMEDIATE', async (conn) => {
-    for (const note of notes) {
-      await conn.execute('UPDATE notes SET sort_order = $1 WHERE id = $2', [
-        note.sortOrder,
-        note.id,
-      ])
-    }
-  })
+  await runBatch(
+    notes.map((note) => ({
+      sql: 'UPDATE notes SET sort_order = $1 WHERE id = $2',
+      params: [note.sortOrder, note.id],
+    })),
+    true
+  )
 }
 
 export async function deleteNote(id: string): Promise<void> {
@@ -287,18 +292,15 @@ export async function loadUserPromptTemplates(): Promise<PromptTemplate[]> {
     .filter((template): template is PromptTemplate => template !== null)
 }
 
-async function executeSaveUserPromptTemplate(
-  conn: Database,
-  template: PromptTemplate
-): Promise<void> {
-  await conn.execute(
-    `INSERT INTO user_prompt_templates
+function buildSaveUserPromptTemplate(template: PromptTemplate): BatchStatement {
+  return {
+    sql: `INSERT INTO user_prompt_templates
       (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      ON CONFLICT(id) DO UPDATE SET
       name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
       estimated_tokens=$8, optimized_for=$9, author=$10, version=$11, tips=$12, updated_at=$14`,
-    [
+    params: [
       template.id,
       template.name,
       template.description,
@@ -313,23 +315,20 @@ async function executeSaveUserPromptTemplate(
       JSON.stringify(template.tips ?? []),
       template.createdAt ?? Date.now(),
       template.updatedAt ?? Date.now(),
-    ]
-  )
+    ],
+  }
 }
 
-async function executeSeedBuiltinPromptTemplate(
-  conn: Database,
-  template: PromptTemplate
-): Promise<void> {
-  await conn.execute(
-    `INSERT INTO user_prompt_templates
+function buildSeedBuiltinPromptTemplate(template: PromptTemplate): BatchStatement {
+  return {
+    sql: `INSERT INTO user_prompt_templates
       (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'builtin', $10, $11, $12, $13)
      ON CONFLICT(id) DO UPDATE SET
       name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
       estimated_tokens=$8, optimized_for=$9, author='builtin', version=$10, tips=$11, updated_at=$13
      WHERE author = 'builtin'`,
-    [
+    params: [
       template.id,
       template.name,
       template.description,
@@ -343,21 +342,17 @@ async function executeSeedBuiltinPromptTemplate(
       JSON.stringify(template.tips ?? []),
       template.createdAt ?? Date.now(),
       template.updatedAt ?? Date.now(),
-    ]
-  )
+    ],
+  }
 }
 
 export async function saveUserPromptTemplate(template: PromptTemplate): Promise<void> {
-  await enqueueWrite((conn) => executeSaveUserPromptTemplate(conn, template))
+  const statement = buildSaveUserPromptTemplate(template)
+  await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
 }
 
 export async function saveUserPromptTemplates(templates: PromptTemplate[]): Promise<void> {
-  if (templates.length === 0) return
-  await runTransaction('TRANSACTION', async (conn) => {
-    for (const template of templates) {
-      await executeSaveUserPromptTemplate(conn, template)
-    }
-  })
+  await runBatch(templates.map(buildSaveUserPromptTemplate))
 }
 
 export async function deleteUserPromptTemplate(id: string): Promise<void> {
@@ -367,12 +362,7 @@ export async function deleteUserPromptTemplate(id: string): Promise<void> {
 }
 
 export async function seedBuiltinPromptTemplates(templates: PromptTemplate[]): Promise<void> {
-  if (templates.length === 0) return
-  await runTransaction('TRANSACTION', async (conn) => {
-    for (const template of templates) {
-      await executeSeedBuiltinPromptTemplate(conn, template)
-    }
-  })
+  await runBatch(templates.map(buildSeedBuiltinPromptTemplate))
 }
 
 // --- History ---
@@ -517,24 +507,18 @@ export async function loadApiCollections(): Promise<ApiCollection[]> {
     .filter((x): x is ApiCollection => x !== null)
 }
 
-export async function saveApiCollection(col: ApiCollection): Promise<void> {
-  await enqueueWrite((conn) =>
-    conn.execute(
-      `INSERT INTO api_collections (id, name, created_at, updated_at)
+function buildSaveApiCollection(col: ApiCollection): BatchStatement {
+  return {
+    sql: `INSERT INTO api_collections (id, name, created_at, updated_at)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
-      [col.id, col.name, col.createdAt, col.updatedAt]
-    )
-  )
+    params: [col.id, col.name, col.createdAt, col.updatedAt],
+  }
 }
 
-async function executeSaveApiCollection(conn: Database, col: ApiCollection): Promise<void> {
-  await conn.execute(
-    `INSERT INTO api_collections (id, name, created_at, updated_at)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
-    [col.id, col.name, col.createdAt, col.updatedAt]
-  )
+export async function saveApiCollection(col: ApiCollection): Promise<void> {
+  const statement = buildSaveApiCollection(col)
+  await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
 }
 
 export async function deleteApiCollection(id: string): Promise<void> {
@@ -558,35 +542,12 @@ export async function loadApiRequests(): Promise<ApiRequest[]> {
     .filter((x): x is ApiRequest => x !== null)
 }
 
-export async function saveApiRequest(req: ApiRequest): Promise<void> {
-  await enqueueWrite((conn) =>
-    conn.execute(
-      `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
+function buildSaveApiRequest(req: ApiRequest): BatchStatement {
+  return {
+    sql: `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
-      [
-        req.id,
-        req.collectionId,
-        req.name,
-        req.method,
-        req.url,
-        JSON.stringify(req.headers),
-        req.body,
-        req.bodyMode,
-        JSON.stringify(req.auth),
-        req.createdAt,
-        req.updatedAt,
-      ]
-    )
-  )
-}
-
-async function executeSaveApiRequest(conn: Database, req: ApiRequest): Promise<void> {
-  await conn.execute(
-    `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
-    [
+    params: [
       req.id,
       req.collectionId,
       req.name,
@@ -598,23 +559,21 @@ async function executeSaveApiRequest(conn: Database, req: ApiRequest): Promise<v
       JSON.stringify(req.auth),
       req.createdAt,
       req.updatedAt,
-    ]
-  )
+    ],
+  }
+}
+
+export async function saveApiRequest(req: ApiRequest): Promise<void> {
+  const statement = buildSaveApiRequest(req)
+  await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
 }
 
 export async function saveApiImport(
   collections: ApiCollection[],
   requests: ApiRequest[]
 ): Promise<void> {
-  if (collections.length === 0 && requests.length === 0) return
-  await runTransaction('TRANSACTION', async (conn) => {
-    for (const collection of collections) {
-      await executeSaveApiCollection(conn, collection)
-    }
-    for (const request of requests) {
-      await executeSaveApiRequest(conn, request)
-    }
-  })
+  // Collections first: api_requests.collection_id references them.
+  await runBatch([...collections.map(buildSaveApiCollection), ...requests.map(buildSaveApiRequest)])
 }
 
 export async function deleteApiRequest(id: string): Promise<void> {
