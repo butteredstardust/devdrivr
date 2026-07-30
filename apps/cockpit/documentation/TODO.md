@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 65 files, 520 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 67 files, 529 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -22,7 +22,7 @@ Known context:
 
 - Cockpit is the active app in this monorepo.
 - The product map lists 30 registered tools across 7 groups.
-- Existing docs call out gaps in worker RPC tests, DB helper coverage, keyboard shortcut coverage,
+- Remaining documented gaps include native worker/SQLite integration, keyboard shortcut coverage,
   release smoke automation, and complete tool render coverage.
 - CI already runs frontend lint/typecheck/tests plus Rust `cargo check` and `cargo clippy`.
 
@@ -107,7 +107,7 @@ Completed 2026-07-30:
 - Verified the worker/tool slice (42 files, 371 tests), the full clean-source suite (65 files, 520
   tests), TypeScript, and ESLint.
 
-### [ ] Harden database helper and migration regression tests
+### [x] Harden database helper and migration regression tests
 
 Area: SQLite persistence / data safety
 
@@ -133,6 +133,19 @@ cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/lib src/stores
 PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
+
+Completed 2026-07-30:
+
+- Added direct coverage for concurrent `getDb()` singleton initialization, WAL/busy-timeout setup,
+  failed-write queue recovery, malformed settings/tool-state JSON, and invalid note/snippet rows.
+- Retained focused coverage for serialized note-order writes and transaction rollback on failed
+  prompt-template batches.
+- Added migration 009 to backfill note tags and history flags without changing the checksums of
+  already-applied migrations.
+- Added migration contract tests for every defaulted column backfill and Tauri registration of the
+  corrective migration.
+- Verified the persistence slice (13 files, 88 tests), the full suite (67 files, 529 tests),
+  TypeScript, ESLint, Cargo check, and strict Clippy.
 
 ### [ ] Define a release-blocking smoke path for app launch and persistence
 

@@ -61,6 +61,12 @@ pub fn run() {
             sql: include_str!("../migrations/008_notes_sort_order.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "backfill nullable persistence columns",
+            sql: include_str!("../migrations/009_persistence_backfills.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

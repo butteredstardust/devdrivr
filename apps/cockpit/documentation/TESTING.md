@@ -8,7 +8,9 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 1022 tests across 125 test files, covering core stores, shared utilities, shell components, and tool-specific behavior.
+The application currently has 529 tests across 67 test files, covering core stores, database and
+migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
+tool-specific behavior.
 
 ## Testing Strategy
 
@@ -154,10 +156,9 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 
 | Area               | Gap                                                                        | Priority |
 | ------------------ | -------------------------------------------------------------------------- | -------- |
-| Worker tools       | No tests for `handleRpc` / `useWorker` round-trips                         | High     |
 | Worker tools       | No full worker-thread integration tests for every worker-backed tool       | High     |
 | Tool components    | Rendering coverage is broad but not yet complete for every registered tool | Medium   |
-| DB helpers         | Limited direct tests for SQLite helper behavior outside mocked store paths | Medium   |
+| DB helpers         | No native SQLite integration harness for executing migrations end-to-end   | Medium   |
 | Keyboard shortcuts | `useGlobalShortcuts` still needs direct shortcut dispatch coverage         | Low      |
 | Release smoke      | No automated Tauri launch smoke test across macOS, Windows, and Linux      | Medium   |
 
