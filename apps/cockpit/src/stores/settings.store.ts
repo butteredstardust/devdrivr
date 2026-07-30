@@ -27,7 +27,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         if (merged.editorKeybindingMode !== 'standard') merged.editorKeybindingMode = 'standard'
         set({ ...merged, initialized: true })
         applyTheme(merged.theme)
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a transient error (e.g. a
+        // locked database at launch) doesn't latch the app in a broken state
+        // for the rest of the process lifetime — a later init() call retries.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

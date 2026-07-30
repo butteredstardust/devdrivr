@@ -73,7 +73,12 @@ export const useApiStore = create<ApiStore>((set) => ({
           // Could restore this from settings later
           activeEnvironmentId: envs[0]?.id ?? null,
         })
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a later call retries
+        // instead of latching a transient error for the process lifetime.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

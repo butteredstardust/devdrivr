@@ -75,7 +75,12 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
         await seedBuiltinPromptTemplates(BUILTIN_PROMPT_TEMPLATES)
         const userTemplates = await loadUserPromptTemplates()
         set({ userTemplates, initialized: true })
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a later call retries
+        // instead of latching a transient error for the process lifetime.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

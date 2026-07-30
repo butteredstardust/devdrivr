@@ -155,7 +155,13 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
           })
           useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
         }
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a transient error doesn't
+        // latch the app in a broken state for the rest of the process
+        // lifetime — a later init() call retries.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

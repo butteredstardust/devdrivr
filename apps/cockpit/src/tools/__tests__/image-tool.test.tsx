@@ -1,8 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import ImageTool from '../image-tool/ImageTool'
 import { useUiStore } from '@/stores/ui.store'
+import { exportFile } from '@/lib/file-io'
+
+vi.mock('@/lib/file-io', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
+  return { ...actual, exportFile: vi.fn() }
+})
 
 const originalFileReader = globalThis.FileReader
 const originalImage = globalThis.Image
@@ -140,6 +146,11 @@ async function loadMockImage() {
   await waitFor(() => expect(screen.getByText('sample.png')).toBeInTheDocument())
   return preview
 }
+
+beforeEach(() => {
+  vi.mocked(exportFile).mockReset()
+  useUiStore.setState({ lastAction: null })
+})
 
 afterEach(() => {
   restoreImageMocks()
@@ -305,10 +316,54 @@ describe('ImageTool', () => {
     fireEvent.click(screen.getByText('Export'))
     fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
 
-    expect(useUiStore.getState().lastAction).toMatchObject({
-      message: 'Image export failed',
-      type: 'error',
-    })
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Image export failed',
+        type: 'error',
+      })
+    )
+  })
+
+  it('saves through exportFile and reports success', async () => {
+    vi.mocked(exportFile).mockResolvedValue('/tmp/sample.png')
+    await loadMockImage()
+    useUiStore.setState({ lastAction: null })
+
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
+
+    await waitFor(() => expect(useUiStore.getState().lastAction?.message).toMatch(/^Saved as PNG/))
+    expect(exportFile).toHaveBeenCalledTimes(1)
+    const [blob, filename] = vi.mocked(exportFile).mock.calls[0] as [Blob, string]
+    expect(blob).toBeInstanceOf(Blob)
+    expect(filename).toBe('sample.png')
+  })
+
+  it('does not report success when the save dialog is cancelled', async () => {
+    vi.mocked(exportFile).mockResolvedValue(null)
+    await loadMockImage()
+    useUiStore.setState({ lastAction: null })
+
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
+
+    await waitFor(() => expect(exportFile).toHaveBeenCalled())
+    expect(useUiStore.getState().lastAction).toBeNull()
+  })
+
+  it('reports a write failure from exportFile', async () => {
+    vi.mocked(exportFile).mockRejectedValue(new Error('disk full'))
+    await loadMockImage()
+
+    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: /Download PNG/i }))
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Image export failed',
+        type: 'error',
+      })
+    )
   })
 
   // ── Drag over state ──────────────────────────────────────────────

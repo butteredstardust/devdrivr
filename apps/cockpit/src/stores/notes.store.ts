@@ -44,7 +44,12 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       initPromise = (async () => {
         const notes = await loadNotes()
         set({ notes, initialized: true })
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a later call retries
+        // instead of latching a transient error for the process lifetime.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },

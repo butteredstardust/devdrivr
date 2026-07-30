@@ -1,5 +1,5 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 export function isLikelyBinaryText(content: string): boolean {
   if (content.includes('\0')) return true
@@ -79,5 +79,40 @@ export async function saveFileDialog(
   })
   if (!path) return null
   await writeTextFile(path, content)
+  return path
+}
+
+/**
+ * Sanitizes a user-provided base filename (no extension) so it is safe to use
+ * across platforms — strips path separators and other filesystem-illegal
+ * characters, falling back to a generic name if nothing usable remains.
+ */
+export function sanitizeExportBasename(name: string): string {
+  const cleaned = name.trim().replace(/[^a-zA-Z0-9_.-]/g, '_')
+  return /[a-zA-Z0-9]/.test(cleaned) ? cleaned : 'export'
+}
+
+/** Builds a sanitized `<basename>.<extension>` filename for exports. */
+export function buildExportFilename(base: string, extension: string): string {
+  return `${sanitizeExportBasename(base)}.${extension.replace(/^\./, '')}`
+}
+
+/**
+ * Shared export helper for tool "download" actions. Opens the native save
+ * dialog (same mechanism as the global save shortcut) and writes either text
+ * or binary (Blob) content to the chosen path — no detached `<a download>`
+ * anchors or `URL.createObjectURL`/`revokeObjectURL` calls required.
+ *
+ * Returns the saved path, or `null` if the user cancelled the dialog.
+ */
+export async function exportFile(data: string | Blob, defaultName: string): Promise<string | null> {
+  const path = await save({ defaultPath: defaultName })
+  if (!path) return null
+  if (typeof data === 'string') {
+    await writeTextFile(path, data)
+  } else {
+    const bytes = new Uint8Array(await data.arrayBuffer())
+    await writeFile(path, bytes)
+  }
   return path
 }

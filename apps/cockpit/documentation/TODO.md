@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                       |
 | ----------- | ------------------------------------------------- | ---------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                      |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 76 files, 623 tests |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 78 files, 648 tests |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bunx eslint src`  | Passing with zero warnings   |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                      |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                      |
@@ -41,10 +41,10 @@ Newly filed from that audit:
 | Regex Tester freezes the app on backtracking  | P0       | Reproduced: unrecoverable hang           | Fixed  |
 | `runTransaction` has no atomicity guarantee   | P0       | `tauri-plugin-sql` pool semantics        | Fixed  |
 | `useToolState` cold-start races lose edits    | P0       | Code path in `src/hooks/useToolState.ts` | Fixed  |
-| Notes preview drops tables, images, strikes   | P1       | Reproduced against the real pipeline     | Open   |
-| Blob downloads bypass the Tauri save dialog   | P1       | 5 call sites                             | Open   |
-| Bootstrap leaks listeners on early unmount    | P1       | Code path in `src/app/providers.tsx`     | Open   |
-| Failed store `init()` is cached permanently   | P1       | Shared promise-guard pattern             | Open   |
+| Notes preview drops tables, images, strikes   | P1       | Reproduced against the real pipeline     | Fixed  |
+| Blob downloads bypass the Tauri save dialog   | P1       | 5 call sites                             | Fixed  |
+| Bootstrap leaks listeners on early unmount    | P1       | Code path in `src/app/providers.tsx`     | Fixed  |
+| Failed store `init()` is cached permanently   | P1       | Shared promise-guard pattern             | Fixed  |
 | Tool capabilities duplicated across 3 id sets | P2       | Registry drift risk                      | Open   |
 | `settings.store` hand-rolls persisted object  | P2       | Silent setting loss on future fields     | Open   |
 
@@ -404,7 +404,7 @@ Completed 2026-07-30:
 
 ## P1 - High-Value Regression Coverage
 
-### [ ] Fix the Notes markdown pipeline silently destroying content
+### [x] Fix the Notes markdown pipeline silently destroying content
 
 Area: notes / markdown rendering
 
@@ -444,7 +444,20 @@ PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/lib src/components/shell
 PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-### [ ] Route file downloads through the Tauri save dialog
+Completed 2026-07-30:
+
+- `src/lib/markdown.ts` now exports a single `markdownSanitizeSchema` that extends `defaultSchema`
+  and registers `remarkGfm`. `MarkdownEditor.tsx` imports that schema instead of maintaining its own
+  copy, so the two markdown surfaces can no longer drift apart.
+- New `src/lib/__tests__/markdown.test.ts` (7 tests) covers tables, images, strikethrough, and task
+  list checkboxes surviving, plus `javascript:` and `data:` hrefs still being stripped while
+  `https:` survives.
+- Syntax highlighting was a regression risk here: `defaultSchema` restricts `code` `className` to
+  `language-*`, which would have stripped the `hljs-*` classes `rehypeHighlight` emits. The schema
+  explicitly re-allows `className` on `code` and `span`; verified by running the real pipeline
+  against a fenced code block and confirming `hljs` classes survive.
+
+### [x] Route file downloads through the Tauri save dialog
 
 Area: cross-platform file export
 
@@ -481,7 +494,25 @@ PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/tools src/lib
 PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-### [ ] Make bootstrap cleanup leak-free and store init recoverable
+Completed 2026-07-30:
+
+- `src/lib/file-io.ts` gained `exportFile(data, defaultName)` — one helper handling both text and
+  `Blob` payloads through the same `save()` dialog the global save shortcut uses — plus
+  `sanitizeExportBasename` / `buildExportFilename`, so filename derivation lives in one place rather
+  than being re-implemented per tool.
+- All five `<a download>` sites now call it: `SnippetsManager`, `ImageTool`, `MermaidEditor` (SVG and
+  PNG), `MarkdownEditor`.
+- One `URL.createObjectURL` remains, in `MermaidEditor.renderPngBlob` — it rasterizes the SVG into an
+  `Image` for canvas rather than triggering a download, and it already revokes in `onload`/`onerror`
+  rather than synchronously. That is the deferred-revocation case the criteria allow.
+- `src-tauri/capabilities/default.json` was not modified. `fs:allow-write-file` was already scoped to
+  `$DOWNLOAD/**` and `$HOME/**`, which covers the new binary writes.
+- Tests: 8 unit tests on the helper in `src/lib/__tests__/file-io.test.ts`, plus save-success,
+  user-cancellation, and write-failure coverage for two tools (`snippets.test.tsx`,
+  `image-tool.test.tsx`). One pre-existing image-tool assertion was wrapped in `waitFor` because the
+  handler is now async.
+
+### [x] Make bootstrap cleanup leak-free and store init recoverable
 
 Area: app bootstrap / lifecycle
 
@@ -517,6 +548,24 @@ cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bunx vitest run src/app src/stores
 PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
+
+Completed 2026-07-30:
+
+- `providers.tsx` now re-checks `cancelled` immediately after every `await` that creates a resource
+  and tears that resource down on the spot rather than pushing it onto an already-drained `cleanups`
+  array. Covers `unlistenMcpChanged`, `onMoved`, `onResized`, and the debounce timer.
+- All seven stores with the promise-guard pattern — `settings`, `mcp`, `api`, `notes`,
+  `prompt-templates`, `history`, `snippets` — clear `initPromise` on rejection before rethrowing. The
+  success-path guard is untouched, so double-mount idempotency still holds.
+- The `Providers` error screen has a Retry button that re-runs bootstrap instead of requiring a
+  relaunch.
+- New `src/app/__tests__/providers.test.tsx` (3 tests): unmount while awaiting `listen()`, unmount
+  while awaiting `onMoved()`, and failed-then-retried `init()`. All three were confirmed to fail
+  against the pre-fix `providers.tsx`, so they pin the actual defects rather than passing vacuously.
+  A store-level test in `settings.store.test.ts` covers the rejection-clearing behavior in isolation.
+- Out of scope but noted: `getDb()` in `src/lib/db.ts` has the same unguarded-singleton shape and
+  never clears `dbPromise` on rejection. It is not a store, so it was left alone; worth a follow-up
+  if a DB-open failure is ever seen to latch.
 
 ### [x] Add direct `useGlobalShortcuts` dispatch coverage
 
@@ -770,6 +819,17 @@ Area: test organisation
 `src/tools/__tests__/useToolState.test.ts` covers a hook, not a tool, and belongs in
 `src/hooks/__tests__/`. Left in place during the P0 fix to keep that diff scoped. Move it and confirm
 no other test files sit in the wrong directory.
+
+### [ ] Give `getDb()` the same rejection recovery the stores got
+
+Area: SQLite / lifecycle
+
+`getDb()` in `src/lib/db.ts` caches `dbPromise` and never clears it on rejection — the same defect
+fixed in all seven Zustand stores under the P1 bootstrap item. A transient `Database.load()` failure
+latches for the process lifetime and every subsequent DB call fails. It was left alone during that
+fix because it is a documented singleton rather than a store, and no failure has been observed in
+practice. Apply the same `.catch(() => { dbPromise = null; throw err })` treatment and add a
+failed-then-successful test.
 
 ### [ ] Move tool capability flags into the tool registry
 

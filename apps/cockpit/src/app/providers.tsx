@@ -19,6 +19,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const init = useSettingsStore((s) => s.init)
   const initialized = useSettingsStore((s) => s.initialized)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
   const geometryRestored = useRef(false)
 
   useEffect(() => {
@@ -80,6 +81,14 @@ export function Providers({ children }: { children: ReactNode }) {
           void useApiStore.getState().refresh()
         }
       })
+      // Register (or, if unmount already happened while we were awaiting
+      // `listen()`, immediately tear down) right at the moment the listener
+      // is created — pushing to `cleanups` after the effect's own cleanup
+      // function has already run would leak the listener forever.
+      if (cancelled) {
+        unlistenMcpChanged()
+        return
+      }
       cleanups.push(unlistenMcpChanged)
 
       await useMcpStore.getState().init()
@@ -151,20 +160,38 @@ export function Providers({ children }: { children: ReactNode }) {
         }, 2000)
       }
       const unlistenMoved = await win.onMoved(persistBounds)
+      if (cancelled) {
+        unlistenMoved()
+        clearTimeout(saveTimer)
+        return
+      }
       const unlistenResized = await win.onResized(persistBounds)
+      if (cancelled) {
+        unlistenMoved()
+        unlistenResized()
+        clearTimeout(saveTimer)
+        return
+      }
       cleanups.push(unlistenMoved, unlistenResized, () => clearTimeout(saveTimer))
     }
 
-    bootstrap().catch((err) => {
-      console.error('Failed to initialize:', err)
-      setError(String(err))
-    })
+    bootstrap()
+      .then(() => setError(null))
+      .catch((err) => {
+        console.error('Failed to initialize:', err)
+        setError(String(err))
+      })
 
     return () => {
       cancelled = true
       cleanups.forEach((fn) => fn())
     }
-  }, [init])
+  }, [init, retryCount])
+
+  const handleRetry = () => {
+    setError(null)
+    setRetryCount((count) => count + 1)
+  }
 
   // Warm up heavy modules during browser idle time after app init.
   // Fallback to setTimeout if requestIdleCallback is not available (e.g., Tauri WebView).
@@ -188,8 +215,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center p-8">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
         <div className="text-[var(--color-error)]">Failed to initialize: {error}</div>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)]"
+        >
+          Retry
+        </button>
       </div>
     )
   }

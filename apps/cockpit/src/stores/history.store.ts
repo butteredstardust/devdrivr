@@ -35,7 +35,12 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
       initPromise = (async () => {
         const entries = await loadHistory(undefined, 200)
         set({ entries, initialized: true })
-      })()
+      })().catch((err: unknown) => {
+        // Clear the cached promise on failure so a later call retries
+        // instead of latching a transient error for the process lifetime.
+        initPromise = null
+        throw err
+      })
     }
     return initPromise
   },
