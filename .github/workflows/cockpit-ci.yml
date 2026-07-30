@@ -4,11 +4,19 @@ on:
   pull_request:
     paths:
       - 'apps/cockpit/**'
+      - 'bun.lock'
+      - 'package.json'
+      - '.github/scripts/waive-bun-audit*.mjs'
+      - '.github/workflows/cockpit-ci.yml'
   push:
     branches:
       - main
     paths:
       - 'apps/cockpit/**'
+      - 'bun.lock'
+      - 'package.json'
+      - '.github/scripts/waive-bun-audit*.mjs'
+      - '.github/workflows/cockpit-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,6 +43,8 @@ jobs:
 
       - name: Security audit
         run: |
+          node --test .github/scripts/waive-bun-audit.test.mjs
+
           set +e
           bun audit --audit-level=critical 2>&1 | tee audit.log
           audit_status=${PIPESTATUS[0]}

@@ -109,7 +109,7 @@ describe('useGlobalShortcuts', () => {
     mocks.settingsState.sidebarCollapsed = false
     mocks.settingsState.notesDrawerOpen = false
     mocks.settingsState.alwaysOnTop = false
-    mocks.update.mockResolvedValue(undefined)
+    mocks.update.mockResolvedValue(true)
     mocks.toggleTheme.mockResolvedValue(undefined)
     mocks.setAlwaysOnTop.mockResolvedValue(undefined)
     mocks.openFileDialog.mockResolvedValue(null)
@@ -120,17 +120,17 @@ describe('useGlobalShortcuts', () => {
     return renderHook(() => useGlobalShortcuts())
   }
 
-  it('dispatches shell overlay and persisted setting shortcuts', () => {
+  it('dispatches shell overlay and persisted setting shortcuts', async () => {
     renderShortcuts()
 
-    act(() => {
+    await act(async () => {
       findShortcut('k').handler()
       findShortcut('b').handler()
       findShortcut('n', true).handler()
       findShortcut('t', true).handler()
       findShortcut(',').handler()
       findShortcut('/').handler()
-      findShortcut('p', true).handler()
+      await findShortcut('p', true).handler()
     })
 
     expect(mocks.toggleCommandPalette).toHaveBeenCalledOnce()
@@ -141,6 +141,31 @@ describe('useGlobalShortcuts', () => {
     expect(mocks.toggleShortcutsModal).toHaveBeenCalledOnce()
     expect(mocks.setAlwaysOnTop).toHaveBeenCalledWith(true)
     expect(mocks.update).toHaveBeenCalledWith('alwaysOnTop', true)
+  })
+
+  it('does not persist window pin state when the native update fails', async () => {
+    mocks.setAlwaysOnTop.mockRejectedValueOnce(new Error('native failure'))
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('p', true).handler()
+    })
+
+    expect(mocks.update).not.toHaveBeenCalledWith('alwaysOnTop', true)
+    expect(mocks.addToast).toHaveBeenCalledWith('Failed to update window pin state', 'error')
+  })
+
+  it('rolls back native window pin state when persistence fails', async () => {
+    mocks.update.mockResolvedValueOnce(false)
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('p', true).handler()
+    })
+
+    expect(mocks.setAlwaysOnTop).toHaveBeenNthCalledWith(1, true)
+    expect(mocks.setAlwaysOnTop).toHaveBeenNthCalledWith(2, false)
+    expect(mocks.addToast).not.toHaveBeenCalled()
   })
 
   it('navigates tools forward and backward with wraparound support', () => {

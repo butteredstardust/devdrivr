@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 
@@ -113,5 +113,24 @@ describe('useKeyboardShortcut', () => {
 
     expect(firstHandler).not.toHaveBeenCalled()
     expect(secondHandler).toHaveBeenCalledOnce()
+  })
+
+  it('handles rejected async shortcut handlers without an unhandled rejection', async () => {
+    const error = new Error('shortcut failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderHook(() =>
+      useKeyboardShortcut({ key: 'k', mod: true }, async () => {
+        throw error
+      })
+    )
+
+    dispatchKey(document.body, { key: 'k', metaKey: true })
+
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        '[useKeyboardShortcut] Shortcut handler failed:',
+        error
+      )
+    )
   })
 })

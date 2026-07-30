@@ -13,7 +13,7 @@ Verified locally from `apps/cockpit` on 2026-07-30:
 | Gate        | Command                                           | Result                                            |
 | ----------- | ------------------------------------------------- | ------------------------------------------------- |
 | TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                                           |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 74 files, 589 tests                      |
+| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 74 files, 593 tests                      |
 | ESLint      | `PATH="/opt/homebrew/bin:$PATH" bun run lint`     | Passing under current `--max-warnings 100` policy |
 | Rust check  | `cargo check` from `src-tauri`                    | Passing                                           |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                                           |
@@ -385,7 +385,7 @@ Completed 2026-07-30:
 - Verified global shortcut error handling and drop-listener cleanup.
 - Kept `src-tauri/capabilities/default.json` unchanged; filesystem access remains limited to the
   existing dialog-selected text/image workflows and scoped write permissions.
-- Verified the focused filesystem slice (7 files, 87 tests), full suite (74 files, 589 tests),
+- Verified the focused filesystem slice (7 files, 87 tests), full suite (74 files, 593 tests),
   TypeScript, and ESLint.
 
 ## P2 - Quality Ratchets and Maintainability

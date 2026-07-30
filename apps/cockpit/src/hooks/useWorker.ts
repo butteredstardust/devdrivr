@@ -64,7 +64,12 @@ export function useWorker<T>(
         return new Promise((resolve, reject) => {
           const id = nextId++
           pending.set(id, { resolve, reject })
-          worker.postMessage({ id, method, args })
+          try {
+            worker.postMessage({ id, method, args })
+          } catch (error) {
+            pending.delete(id)
+            reject(error instanceof Error ? error : new Error(String(error)))
+          }
         })
       }
     }

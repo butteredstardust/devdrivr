@@ -75,4 +75,18 @@ describe('useWorker', () => {
     await rejection
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
+
+  it('rejects immediately when posting a worker request throws', async () => {
+    const worker = new ControllableWorker()
+    worker.postMessage.mockImplementation(() => {
+      throw new Error('clone failed')
+    })
+    const { result, unmount } = renderWorkerHook(worker)
+    await waitFor(() => expect(result.current).not.toBeNull())
+
+    await expect(result.current?.echo('hello')).rejects.toThrow('clone failed')
+    unmount()
+
+    expect(worker.terminate).toHaveBeenCalledOnce()
+  })
 })

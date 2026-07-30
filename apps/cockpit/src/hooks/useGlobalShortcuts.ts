@@ -48,15 +48,13 @@ export function useGlobalShortcuts(): void {
   const comboSlash = useMemo(() => ({ key: '/', mod: true }) as const, [])
   const comboW = useMemo(() => ({ key: 'w', mod: true }) as const, [])
 
-  const toggleSidebar = useCallback(
-    () => update('sidebarCollapsed', !sidebarCollapsed),
-    [update, sidebarCollapsed]
-  )
+  const toggleSidebar = useCallback(async () => {
+    await update('sidebarCollapsed', !sidebarCollapsed)
+  }, [update, sidebarCollapsed])
 
-  const toggleDrawer = useCallback(
-    () => update('notesDrawerOpen', !notesDrawerOpen),
-    [update, notesDrawerOpen]
-  )
+  const toggleDrawer = useCallback(async () => {
+    await update('notesDrawerOpen', !notesDrawerOpen)
+  }, [update, notesDrawerOpen])
 
   const nextTool = useCallback(() => {
     if (!activeTool) return
@@ -152,12 +150,25 @@ export function useGlobalShortcuts(): void {
     dispatchToolAction({ type: 'save-file' })
   }, [activeTool, addToast])
 
-  const toggleAlwaysOnTop = useCallback(() => {
+  const toggleAlwaysOnTop = useCallback(async () => {
     const win = getCurrentWindow()
     const next = !alwaysOnTop
-    void win.setAlwaysOnTop(next)
-    void update('alwaysOnTop', next)
-  }, [alwaysOnTop, update])
+    try {
+      await win.setAlwaysOnTop(next)
+    } catch {
+      addToast('Failed to update window pin state', 'error')
+      return
+    }
+
+    const persisted = await update('alwaysOnTop', next)
+    if (!persisted) {
+      try {
+        await win.setAlwaysOnTop(alwaysOnTop)
+      } catch {
+        // Best-effort rollback; the settings store already reports the persistence failure.
+      }
+    }
+  }, [alwaysOnTop, update, addToast])
 
   useKeyboardShortcut(comboK, toggleCommandPalette)
   useKeyboardShortcut(comboB, toggleSidebar)

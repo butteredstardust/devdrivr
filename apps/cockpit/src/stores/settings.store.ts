@@ -7,7 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 type SettingsStore = AppSettings & {
   initialized: boolean
   init: () => Promise<void>
-  update: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>
+  update: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<boolean>
   toggleTheme: () => Promise<void>
 }
 
@@ -61,6 +61,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     }
     try {
       await setSetting('appSettings', settings)
+      return true
     } catch (err) {
       // Revert optimistic update
       set({ [key]: previousValue } as Partial<SettingsStore>)
@@ -69,6 +70,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       }
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to save setting: ' + msg, 'error')
+      return false
     }
   },
 

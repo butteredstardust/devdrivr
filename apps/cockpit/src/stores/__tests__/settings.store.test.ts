@@ -80,7 +80,7 @@ describe('settings store updates', () => {
   it('update() persists full AppSettings object to setSetting', async () => {
     ;(setSetting as any).mockResolvedValue(undefined)
 
-    await useSettingsStore.getState().update('editorFontSize', 18)
+    const persisted = await useSettingsStore.getState().update('editorFontSize', 18)
 
     expect(setSetting).toHaveBeenCalledWith('appSettings', {
       theme: DEFAULT_SETTINGS.theme,
@@ -102,6 +102,7 @@ describe('settings store updates', () => {
       downloadUpdatesAutomatically: DEFAULT_SETTINGS.downloadUpdatesAutomatically,
       notifyWhenUpdateAvailable: DEFAULT_SETTINGS.notifyWhenUpdateAvailable,
     })
+    expect(persisted).toBe(true)
   })
 
   it("update('theme', value) calls applyTheme with the new theme", async () => {
@@ -119,11 +120,12 @@ describe('settings store updates', () => {
 
     const previousSize = useSettingsStore.getState().editorFontSize
 
-    await useSettingsStore.getState().update('editorFontSize', 18)
+    const persisted = await useSettingsStore.getState().update('editorFontSize', 18)
 
     // State should be reverted
     expect(useSettingsStore.getState().editorFontSize).toBe(previousSize)
     expect(mockAddToast).toHaveBeenCalledWith('Failed to save setting: DB Error', 'error')
+    expect(persisted).toBe(false)
   })
 
   it('update() reverts theme and calls applyTheme with previous theme when setSetting throws', async () => {
