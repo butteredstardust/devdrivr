@@ -147,7 +147,7 @@ Completed 2026-07-30:
 - Verified the persistence slice (13 files, 88 tests), the full suite (67 files, 529 tests),
   TypeScript, ESLint, Cargo check, and strict Clippy.
 
-### [ ] Define a release-blocking smoke path for app launch and persistence
+### [x] Define a release-blocking smoke path for app launch and persistence
 
 Area: release reliability / cross-platform runtime
 
@@ -175,6 +175,21 @@ PATH="/opt/homebrew/bin:$PATH" bun run tauri build
 ```
 
 Then run the documented smoke path against release artifacts, not local build output.
+
+Completed 2026-07-30:
+
+- Added `bun run smoke:report` to create one artifact-bound evidence report per supported platform.
+- The generator validates release artifact naming and host platform, rejects local Rust build
+  output, records artifact size/SHA-256 plus OS/environment/tester metadata, and only overwrites
+  recognized smoke reports without following aliases to protected files.
+- Added a structured report covering launch, restart/window restore, settings, notes, snippets,
+  representative tools, MCP disabled-by-default/lifecycle behavior, updater feedback, and final
+  persistence.
+- Documented that promotion requires passing reports for all four platform artifacts and is blocked
+  by any incomplete blocking check, installer/launch failure, blank window, data loss, missing
+  asset, unexpected MCP startup, or startup-blocking updater failure.
+- Verified report generation and overwrite protection with a fixture; actual reports remain
+  release-time evidence generated from downloaded GitHub Release artifacts.
 
 ## P1 - High-Value Regression Coverage
 

@@ -221,7 +221,7 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 | [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
 | [`documentation/TODO.md`](documentation/TODO.md)                                                                   | Quality, bug-fix, and reliability backlog       |
 | [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
-| [`documentation/RELEASE_SMOKE_TESTS.md`](documentation/RELEASE_SMOKE_TESTS.md)                                     | Cross-platform release validation checklist     |
+| [`documentation/RELEASE_SMOKE_TESTS.md`](documentation/RELEASE_SMOKE_TESTS.md)                                     | Release-blocking smoke reports and validation   |
 | [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
 | [`documentation/TESTING.md`](documentation/TESTING.md)                                                             | Test strategy and coverage map                  |
 | [`documentation/DESIGN_SYSTEM.md`](documentation/DESIGN_SYSTEM.md)                                                 | Color tokens, typography, component patterns    |

@@ -160,7 +160,7 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 | Tool components    | Rendering coverage is broad but not yet complete for every registered tool | Medium   |
 | DB helpers         | No native SQLite integration harness for executing migrations end-to-end   | Medium   |
 | Keyboard shortcuts | `useGlobalShortcuts` still needs direct shortcut dispatch coverage         | Low      |
-| Release smoke      | No automated Tauri launch smoke test across macOS, Windows, and Linux      | Medium   |
+| Release smoke      | Artifact-bound runtime reports remain manual on each supported platform    | Medium   |
 
 ## How to Add a Test
 

@@ -22,6 +22,40 @@ the runtime behavior that CI cannot prove from builds alone.
 4. Confirm `latest.json` exists on the release and maps all supported platform keys:
    `darwin-aarch64`, `darwin-x86_64`, `windows-x86_64`, `linux-x86_64`.
 5. Download artifacts from GitHub Releases, not local build output.
+6. Use a disposable OS account or VM with clean Cockpit app data. Do not delete or overwrite a
+   validator's personal Cockpit profile.
+
+## Create the Evidence Report
+
+Create one report on the machine that will validate each platform artifact:
+
+```bash
+PATH="/opt/homebrew/bin:$PATH" bun run smoke:report -- \
+  --version 0.1.52 \
+  --platform darwin-aarch64 \
+  --artifact /path/to/devdrivr_0.1.52_aarch64.dmg \
+  --tester "Release validator" \
+  --environment "Native Apple Silicon hardware"
+```
+
+Supported platform keys are `darwin-aarch64`, `darwin-x86_64`, `windows-x86_64`, and
+`linux-x86_64`. The command:
+
+- requires the exact release artifact name for the selected version and platform;
+- requires the report runtime OS and process architecture to match the selected platform key;
+- rejects artifacts under local Rust build-output directories;
+- records artifact size and SHA-256 plus the runtime OS/architecture, native/VM/emulation details,
+  tester, and timestamp;
+- refuses to overwrite an existing report unless `--force` is passed and the target is an existing
+  Cockpit smoke report;
+- writes to `documentation/release-smoke-results/<version>-<platform>.md` by default.
+
+Use `--output <path>` when evidence is stored outside the repository. Complete every result and
+evidence cell in the generated report while following the runtime path below.
+
+Compatibility environments such as Rosetta, Windows-on-ARM x64 emulation, or virtual machines are
+allowed when they represent the artifact's supported runtime. Record them explicitly with
+`--environment`; the generated OS/process architecture alone does not prove native hardware.
 
 ## Runtime Smoke
 
@@ -49,6 +83,8 @@ Run this checklist independently on each platform:
 
 ## Failure Handling
 
+- Release promotion requires one completed, passing report for every supported platform artifact.
+- Any `Fail`, `Not run`, or `Blocked` status on a blocking report row blocks promotion.
 - Block promotion for launch failures, data loss, installer failures, missing release assets,
   blank windows, broken persistence, or MCP starting unexpectedly on a fresh profile.
 - Log platform-specific defects with artifact name, OS version, reproduction steps, and screenshots.
