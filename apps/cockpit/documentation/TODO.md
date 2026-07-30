@@ -10,13 +10,17 @@ evidence, an expected outcome, acceptance criteria, and a verification path.
 
 Verified locally from `apps/cockpit` on 2026-07-30:
 
-| Gate        | Command                                           | Result                       |
-| ----------- | ------------------------------------------------- | ---------------------------- |
-| TypeScript  | `PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit` | Passing                      |
-| Tests       | `PATH="/opt/homebrew/bin:$PATH" bunx vitest run`  | Passing: 78 files, 650 tests |
-| ESLint      | `PATH="/opt/homebrew/bin:$PATH" bunx eslint src`  | Passing with zero warnings   |
-| Rust check  | `cargo check` from `src-tauri`                    | Passing                      |
-| Rust clippy | `cargo clippy -- -D warnings` from `src-tauri`    | Passing                      |
+| Gate        | Command                                        | Result                          |
+| ----------- | ---------------------------------------------- | ------------------------------- |
+| TypeScript  | `npx tsc --noEmit`                             | Passing                         |
+| Tests       | `bunx vitest run`                              | Passing: 78 files, 650 tests    |
+| ESLint      | `bun run lint`                                 | Passing with zero warnings      |
+| Rust check  | `cargo check` from `src-tauri`                 | Passing                         |
+| Rust clippy | `cargo clippy -- -D warnings` from `src-tauri` | Passing                         |
+| Release     | `bun run tauri build`                          | Passing: builds `.app` + `.dmg` |
+
+Commands no longer need a `PATH="/opt/homebrew/bin:$PATH"` prefix; older entries in this file still
+show one. See the PATH section in `CLAUDE.md` for what changed.
 
 Known context:
 
@@ -48,8 +52,9 @@ Newly filed from that audit:
 | Tool capabilities duplicated across 3 id sets | P2       | Registry drift risk                      | Open   |
 | `settings.store` hand-rolls persisted object  | P2       | Silent setting loss on future fields     | Open   |
 
-Two further defects surfaced while fixing the P0 items, both filed in P2 below: the `lint` package
-script has never been runnable locally, and five worker mocks had never been wired up.
+Two further defects surfaced while fixing the P0 items, both filed in P2 below: `bun run lint` was
+not runnable locally (root-caused to the agent harness overwriting PATH, now fixed), and five worker
+mocks had never been wired up.
 
 ## How To Use This Backlog
 
