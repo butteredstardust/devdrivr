@@ -6,6 +6,11 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { DEFAULT_SETTINGS, type Note } from '@/types/models'
+import { processMarkdown } from '@/lib/markdown'
+
+vi.mock('@/lib/markdown', () => ({
+  processMarkdown: vi.fn().mockResolvedValue('<p>rendered</p>'),
+}))
 
 const testNote: Note = {
   id: 'note-1',
@@ -31,6 +36,7 @@ const secondNote: Note = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  ;(processMarkdown as ReturnType<typeof vi.fn>).mockResolvedValue('<p>rendered</p>')
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, notesDrawerOpen: true, notesDrawerWidth: 320 })
   useNotesStore.setState({
     notes: [testNote],
@@ -135,5 +141,54 @@ describe('NotesDrawer', () => {
     expect(reorder).toHaveBeenCalledWith('note-1', 'note-2', 'after')
     expect(screen.getByRole('button', { name: 'Move Test note up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move Second note down' })).toBeDisabled()
+  })
+
+  it('does not set state after unmount while markdown processing is still pending', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let resolvePending: (html: string) => void = () => {}
+    ;(processMarkdown as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise((resolve) => {
+        resolvePending = resolve
+      })
+    )
+
+    const { unmount } = render(<NotesDrawer />)
+    unmount()
+
+    // Resolve after unmount — if the effect didn't guard with a cancelled flag,
+    // this would call setState on an unmounted component (React warning/error).
+    resolvePending('<p>too late</p>')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const reactSetStateWarning = consoleError.mock.calls.some((call) =>
+      String(call[0]).includes("Can't perform a React state update")
+    )
+    expect(reactSetStateWarning).toBe(false)
+  })
+
+  it('renders the latest markdown result when an earlier request resolves out of order', async () => {
+    let resolveFirst: (html: string) => void = () => {}
+    const firstCall = new Promise<string>((resolve) => {
+      resolveFirst = resolve
+    })
+    ;(processMarkdown as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(firstCall)
+      .mockResolvedValueOnce('<p>second</p>')
+
+    const { rerender } = render(<NotesDrawer />)
+
+    // Trigger a second processMarkdown call (content change) before the first resolves.
+    useNotesStore.setState({ notes: [{ ...testNote, content: 'Updated content' }] })
+    rerender(<NotesDrawer />)
+
+    await waitFor(() => expect(processMarkdown).toHaveBeenCalledTimes(2))
+
+    // The stale first call resolves last — it must not clobber the second result.
+    resolveFirst('<p>stale first</p>')
+
+    await waitFor(() => {
+      expect(document.querySelector('.prose')?.innerHTML).toBe('<p>second</p>')
+    })
   })
 })

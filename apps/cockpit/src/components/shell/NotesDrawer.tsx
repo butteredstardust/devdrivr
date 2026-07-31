@@ -78,7 +78,17 @@ function MarkdownRenderer({ content }: { content: string }) {
   const [html, setHtml] = useState('')
 
   useEffect(() => {
-    processMarkdown(content).then(setHtml)
+    let cancelled = false
+    processMarkdown(content)
+      .then((result) => {
+        if (!cancelled) setHtml(result)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) console.error('[MarkdownRenderer] Failed to process markdown:', error)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [content])
 
   return (
