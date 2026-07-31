@@ -9,12 +9,21 @@ export function useKeyboardShortcut(combo: KeyCombo, handler: () => void | Promi
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement
+      const target = event.target
+      // event.target is an EventTarget and may not be an Element at all (e.g. window
+      // or document itself dispatches with the target set to something without
+      // .closest), so duck-type the methods/properties we need rather than assuming.
+      const isElementTarget =
+        !!target &&
+        typeof (target as Partial<Element>).closest === 'function' &&
+        typeof (target as Partial<Element>).tagName === 'string'
+      const element = isElementTarget ? (target as Element) : null
       const isEditable =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.closest('[contenteditable="true"]') !== null ||
-        target.closest('.monaco-editor') !== null
+        element !== null &&
+        (element.tagName === 'INPUT' ||
+          element.tagName === 'TEXTAREA' ||
+          element.closest('[contenteditable="true"]') !== null ||
+          element.closest('.monaco-editor') !== null)
 
       if (isEditable && !comboRef.current.mod) return
 
