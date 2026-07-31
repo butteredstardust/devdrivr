@@ -49,6 +49,32 @@ describe('core DB helpers', () => {
     ])
   })
 
+  it('clears the cached connection promise when Database.load() rejects, so a later getDb() call retries', async () => {
+    sqlMock.load.mockRejectedValueOnce(new Error('db locked'))
+    const { getDb } = await import('@/lib/db')
+
+    await expect(getDb()).rejects.toThrow('db locked')
+
+    sqlMock.load.mockResolvedValueOnce(createConnection())
+    await expect(getDb()).resolves.toBeDefined()
+
+    expect(sqlMock.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears the cached connection promise when a PRAGMA execute() call rejects, so a later getDb() call retries', async () => {
+    sqlMock.load.mockResolvedValueOnce(createConnection())
+    sqlMock.execute.mockRejectedValueOnce(new Error('pragma failed'))
+    const { getDb } = await import('@/lib/db')
+
+    await expect(getDb()).rejects.toThrow('pragma failed')
+
+    sqlMock.load.mockResolvedValueOnce(createConnection())
+    sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
+    await expect(getDb()).resolves.toBeDefined()
+
+    expect(sqlMock.load).toHaveBeenCalledTimes(2)
+  })
+
   it('continues queued writes after an earlier write fails', async () => {
     sqlMock.execute.mockImplementation((sql: string, params?: unknown[]) => {
       if (sql.startsWith('INSERT INTO settings') && params?.[0] === 'first') {

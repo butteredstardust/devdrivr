@@ -1058,7 +1058,7 @@ Completed 2026-07-31:
   reload cleanly via `vi.resetModules()` + dynamic import.
 - Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
 
-### [ ] Give `getDb()` the same rejection recovery the stores got
+### [x] Give `getDb()` the same rejection recovery the stores got
 
 Area: SQLite / lifecycle
 
@@ -1068,6 +1068,20 @@ latches for the process lifetime and every subsequent DB call fails. It was left
 fix because it is a documented singleton rather than a store, and no failure has been observed in
 practice. Apply the same `.catch(() => { dbPromise = null; throw err })` treatment and add a
 failed-then-successful test.
+
+Completed 2026-07-31:
+
+- `getDb()` now chains `.catch((err) => { dbPromise = null; throw err })` after the `Database.load()`
+  `.then(...)` that also runs the two `PRAGMA` statements, so the cache clears whether `Database.load()`
+  itself rejects or one of the two `conn.execute()` PRAGMA calls inside the `.then` does.
+- Added two tests to `src/lib/__tests__/db.core.test.ts` rather than creating a new `db.test.ts`: that
+  file already locally `vi.mock`s `@tauri-apps/plugin-sql` with a `vi.hoisted` `load: vi.fn()`
+  (independent of the static `src/__mocks__/tauri-plugin-sql.ts` used elsewhere via the vitest alias),
+  so it was the natural home and required no changes to the shared static mock — every other test
+  using that mock is unaffected. One test rejects `Database.load()` itself and retries; the other
+  makes the connection load successfully but the first `PRAGMA` `execute()` reject, confirming the
+  cache clears on that path too, not just the `Database.load()` path.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
 
 ### [ ] Move tool capability flags into the tool registry
 
