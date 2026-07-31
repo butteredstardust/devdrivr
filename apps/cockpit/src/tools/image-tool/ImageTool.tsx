@@ -1183,11 +1183,23 @@ function ExportPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Button variant="primary" size="sm" onClick={onDownload}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            void onDownload()
+          }}
+        >
           <DownloadSimpleIcon size={13} />
           Download {format.toUpperCase()}
         </Button>
-        <Button variant="secondary" size="sm" onClick={onCopy}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            void onCopy()
+          }}
+        >
           <CopyIcon size={13} />
           Copy as PNG
         </Button>

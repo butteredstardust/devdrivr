@@ -799,7 +799,9 @@ export default function CssValidator() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleFormat}
+          onClick={() => {
+            void handleFormat()
+          }}
           disabled={isFormatting || !state.input.trim()}
           className="text-[10px]"
         >

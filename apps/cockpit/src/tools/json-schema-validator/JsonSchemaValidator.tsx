@@ -444,7 +444,9 @@ export default function JsonSchemaValidator() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={loadSchemaFromUrl}
+                onClick={() => {
+                  void loadSchemaFromUrl()
+                }}
                 disabled={loadingUrl}
               >
                 {loadingUrl ? 'Loading…' : 'Load'}

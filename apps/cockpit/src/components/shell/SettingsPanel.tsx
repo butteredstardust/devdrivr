@@ -211,7 +211,9 @@ function DangerButton({
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => {
+        void handleClick()
+      }}
       disabled={pending}
       className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors ${
         confirming
@@ -656,7 +658,9 @@ function DataTab() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleExportSettings}
+            onClick={() => {
+              void handleExportSettings()
+            }}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             <DownloadSimpleIcon size={12} />
@@ -664,7 +668,9 @@ function DataTab() {
           </button>
           <button
             type="button"
-            onClick={handleImportSettings}
+            onClick={() => {
+              void handleImportSettings()
+            }}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             <UploadSimpleIcon size={12} />
