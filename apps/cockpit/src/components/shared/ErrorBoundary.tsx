@@ -16,6 +16,13 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('Tool error:', error, info.componentStack)
   }
 
+  // Public imperative API for callers that need to clear a caught error from
+  // outside (e.g. Workspace resetting the boundary when the active tool changes).
+  // Prefer this over reaching into setState directly from another component.
+  reset(): void {
+    this.setState({ hasError: false, error: null })
+  }
+
   render() {
     if (this.state.hasError) {
       return (
@@ -25,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.error?.message}
           </pre>
           <button
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => this.reset()}
             className="rounded border border-[var(--color-border)] px-3 py-1 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
           >
             Try Again

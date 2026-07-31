@@ -17,7 +17,7 @@ export function Workspace() {
 
   // Reset error boundary when switching tools (instead of using key= which forces full remount)
   useEffect(() => {
-    errorBoundaryRef.current?.setState({ hasError: false, error: null })
+    errorBoundaryRef.current?.reset()
   }, [activeTool])
 
   const handleFileDrop = useCallback(
