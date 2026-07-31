@@ -82,6 +82,7 @@ describe('API store persistence', () => {
     vi.mocked(deleteApiRequest).mockResolvedValue()
     vi.mocked(addHistoryEntry).mockResolvedValue()
     useApiStore.setState({
+      initialized: false,
       environments: [],
       collections: [],
       requests: [],
@@ -297,12 +298,15 @@ describe('API store initialization', () => {
       },
       rejectMessage: 'db locked',
       assertAfterFailure: () => {
-        // ApiStore has no `initialized` flag; a rejected Promise.all means `set()`
-        // was never called, so state is untouched from its module-fresh defaults.
+        // A rejected Promise.all means `set()` was never called, so state is
+        // untouched from its module-fresh defaults — unlike mcp.store, api.store's
+        // init() does not set `initialized: true` on failure, only on success.
         expect(freshStore.getState().environments).toEqual([])
+        expect(freshStore.getState().initialized).toBe(false)
       },
       assertAfterSuccess: () => {
         expect(freshStore.getState().environments).toEqual([persistedEnvironment])
+        expect(freshStore.getState().initialized).toBe(true)
       },
       getCallCount: () => vi.mocked(loadApiEnvironments).mock.calls.length,
     })

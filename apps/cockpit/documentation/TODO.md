@@ -1463,7 +1463,7 @@ rehypeStringify`. `processMarkdown()` now just calls `markdownProcessor.process(
 - `bunx vitest run src/lib/__tests__/markdown.test.ts src/tools/__tests__/markdown-editor.test.tsx` —
   45/45 passing (14 + 31, up from 12 + 31 baseline — 2 new tests).
 
-### [ ] Add an `initialized` field to api.store for consistency with other stores
+### [x] Add an `initialized` field to api.store for consistency with other stores
 
 Area: state management / store consistency
 
@@ -1483,6 +1483,20 @@ Acceptance criteria:
   not required to land in the same change).
 
 Judged priority: P2 — cosmetic/consistency; no observed bug from its absence today.
+
+Completed 2026-07-31:
+
+- Added `initialized: boolean` to `ApiStore` in `src/stores/api.store.ts`, defaulting to `false`.
+- Set to `true` only inside the `set()` call on the success path of `init()`'s `Promise.all` load —
+  matching `settings.store`'s pattern, **not** `mcp.store`'s. Unlike mcp.store's deliberately
+  degraded-mode design (see the mcp.store item above), a failed api.store `init()` leaves `initialized`
+  at its default `false` since the `catch` never calls `set()`.
+- Did not go hunting for UI call sites inferring readiness from array emptiness, per the TODO's own
+  "optional" carve-out — none were found during recon either.
+- Extended `src/stores/__tests__/api.store.test.ts`'s existing `expectInitRejectionRecovers` rejection
+  test to assert `initialized` stays `false` after the failed `init()` call and flips to `true` after
+  the retried, successful one.
+- `bunx vitest run src/stores/__tests__/api.store.test.ts` — 5/5 passing.
 
 ### [ ] Add a no-regression audit for cockpit non-negotiables
 
