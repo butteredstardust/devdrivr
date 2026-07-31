@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useKeyboardShortcut } from './useKeyboardShortcut'
+import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
@@ -32,15 +33,11 @@ export function useGlobalShortcuts(): void {
   const comboPrev = useMemo(() => ({ key: '[', mod: true }) as const, [])
   const comboEnter = useMemo(() => ({ key: 'Enter', mod: true }) as const, [])
   const comboShiftC = useMemo(() => ({ key: 'c', mod: true, shift: true }) as const, [])
-  const combo1 = useMemo(() => ({ key: '1', mod: true }) as const, [])
-  const combo2 = useMemo(() => ({ key: '2', mod: true }) as const, [])
-  const combo3 = useMemo(() => ({ key: '3', mod: true }) as const, [])
-  const combo4 = useMemo(() => ({ key: '4', mod: true }) as const, [])
-  const combo5 = useMemo(() => ({ key: '5', mod: true }) as const, [])
-  const combo6 = useMemo(() => ({ key: '6', mod: true }) as const, [])
-  const combo7 = useMemo(() => ({ key: '7', mod: true }) as const, [])
-  const combo8 = useMemo(() => ({ key: '8', mod: true }) as const, [])
-  const combo9 = useMemo(() => ({ key: '9', mod: true }) as const, [])
+  // Digit 1-9 combos for switching workspace tabs, generated rather than hand-listed.
+  const digitCombos = useMemo<KeyCombo[]>(
+    () => Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), mod: true })),
+    []
+  )
   const comboComma = useMemo(() => ({ key: ',', mod: true }) as const, [])
   const comboShiftP = useMemo(() => ({ key: 'p', mod: true, shift: true }) as const, [])
   const comboO = useMemo(() => ({ key: 'o', mod: true }) as const, [])
@@ -73,50 +70,13 @@ export function useGlobalShortcuts(): void {
   const execute = useCallback(() => dispatchToolAction({ type: 'execute' }), [])
   const copyOutput = useCallback(() => dispatchToolAction({ type: 'copy-output' }), [])
 
-  const switchWorkspaceTab1 = useCallback(() => {
-    const tab = tabs[0]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab2 = useCallback(() => {
-    const tab = tabs[1]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab3 = useCallback(() => {
-    const tab = tabs[2]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab4 = useCallback(() => {
-    const tab = tabs[3]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab5 = useCallback(() => {
-    const tab = tabs[4]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab6 = useCallback(() => {
-    const tab = tabs[5]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab7 = useCallback(() => {
-    const tab = tabs[6]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab8 = useCallback(() => {
-    const tab = tabs[7]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
-
-  const switchWorkspaceTab9 = useCallback(() => {
-    const tab = tabs[8]
-    if (tab) setActiveTab(tab.id)
-  }, [tabs, setActiveTab])
+  const switchWorkspaceTabAt = useCallback(
+    (index: number) => {
+      const tab = tabs[index]
+      if (tab) setActiveTab(tab.id)
+    },
+    [tabs, setActiveTab]
+  )
 
   const closeCurrentTab = useCallback(() => {
     if (activeTabId) closeTab(activeTabId)
@@ -178,15 +138,13 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboPrev, prevTool)
   useKeyboardShortcut(comboEnter, execute)
   useKeyboardShortcut(comboShiftC, copyOutput)
-  useKeyboardShortcut(combo1, switchWorkspaceTab1)
-  useKeyboardShortcut(combo2, switchWorkspaceTab2)
-  useKeyboardShortcut(combo3, switchWorkspaceTab3)
-  useKeyboardShortcut(combo4, switchWorkspaceTab4)
-  useKeyboardShortcut(combo5, switchWorkspaceTab5)
-  useKeyboardShortcut(combo6, switchWorkspaceTab6)
-  useKeyboardShortcut(combo7, switchWorkspaceTab7)
-  useKeyboardShortcut(combo8, switchWorkspaceTab8)
-  useKeyboardShortcut(combo9, switchWorkspaceTab9)
+  // Fixed-length loop over a constant-size array (always 9 elements, built by
+  // Array.from above) — the number and order of hook calls is stable across
+  // renders, so an unconditional loop here is safe despite the rules-of-hooks lint.
+  for (let i = 0; i < 9; i++) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks, @typescript-eslint/no-non-null-assertion -- fixed-length loop (always 9 entries), safe
+    useKeyboardShortcut(digitCombos[i]!, () => switchWorkspaceTabAt(i))
+  }
   useKeyboardShortcut(comboW, closeCurrentTab)
   useKeyboardShortcut(comboComma, toggleSettingsPanel)
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
