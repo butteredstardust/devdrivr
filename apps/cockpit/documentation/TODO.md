@@ -895,7 +895,7 @@ Completed 2026-07-31:
 - Left open: none. All acceptance criteria met — round-trip assertions added, alias-shadowing guard
   added, P0 cross-check done and annotated.
 
-### [ ] Relocate `useToolState` tests to the documented location
+### [x] Relocate `useToolState` tests to the documented location
 
 Area: test organisation
 
@@ -903,7 +903,23 @@ Area: test organisation
 `src/hooks/__tests__/`. Left in place during the P0 fix to keep that diff scoped. Move it and confirm
 no other test files sit in the wrong directory.
 
-### [ ] Narrow the re-allowed `className` in the markdown sanitize schema
+Completed 2026-07-31:
+
+- `git mv`'d `src/tools/__tests__/useToolState.test.ts` → `src/hooks/__tests__/useToolState.test.ts`.
+  Uses `@/` alias imports throughout, so no import changes were needed.
+- The sweep for other misplaced files found a second one: `src/tools/__tests__/sidebar.test.tsx`
+  tests `SidebarItem`, `SidebarGroup`, `SidebarPinned`, and `SidebarCollapsedGroup` from
+  `src/components/shell/` — components, not a tool. Moved it to
+  `src/components/shell/__tests__/sidebar.test.tsx`, alongside the other shell component tests
+  already living there (`CommandPalette.test.tsx`, `NotesDrawer.test.tsx`, etc.).
+- Checked every remaining file in `src/tools/__tests__/` against its imports; all import from
+  `@/tools/<id>/...` or tool-scoped test utilities and are correctly placed. `test-setup.ts` and
+  `test-utils.tsx` are shared fixtures, not tests, and stay where `vitest.config.ts` and the other
+  tool tests expect them.
+- Both moved files pass in their new locations; full suite still green (79 files / 664 tests,
+  unchanged from before the move).
+
+### [x] Narrow the re-allowed `className` in the markdown sanitize schema
 
 Area: markdown rendering / defense in depth
 
@@ -920,7 +936,45 @@ future: adding a raw-HTML pass without re-auditing this schema would turn it int
 injection surface on user-authored notes. Tighten it while the reason is still fresh, and keep the
 `hljs` highlighting test as the guard.
 
-### [ ] Use the `void` prefix on async click handlers in the export paths
+Completed 2026-07-31:
+
+- Restricted `code`/`span` `className` to hast-util-sanitize's tuple/regex syntax:
+  `['className', /^hljs-/, /^language-/, 'hljs']`. Restricted `input`'s `type` to
+  `['type', 'checkbox']` and `disabled` to `['disabled', true]`, explicitly, rather than relying on
+  `defaultSchema`'s own (currently equivalent) restriction.
+- Verified against the installed `hast-util-sanitize@5.0.2` by sanitizing hand-built hast trees
+  directly (both before and after the change): `findDefinition` picks the _first_ array entry
+  matching a given property name, so the new restrictive tuples must be listed before any spread of
+  `defaultSchema`'s own entries for the same property, or they are silently never consulted. Got this
+  wrong on the first pass (spread first, tuple second — the tuple was dead code) and caught it with
+  that direct check before it shipped.
+- That same check showed the pre-existing code was _not_ actually exploitable for `input`'s
+  `type`/`disabled` — `defaultSchema`'s own restrictive entries for `input` already won under the
+  first-match rule, so the unrestricted strings added alongside them were dead code. `span`'s
+  `className` genuinely was exploitable: `defaultSchema` has no entry for `span` at all, so the
+  unrestricted addition was the only definition and any class value passed through untouched.
+  `code`'s widening was also dead code (same first-match reason, in the other direction — the
+  default's restrictive `code` entry came first).
+- **Pipeline-ordering observation, not fixed here:** `src/lib/markdown.ts` runs `rehypeHighlight`
+  before `rehypeSanitize`, so the narrowed schema is load-bearing there. `MarkdownEditor.tsx` runs
+  `rehypeSanitize` before `rehypeHighlight`, so rehype-highlight's classes are added _after_
+  sanitization and are never sanitized at all in that pipeline — the schema is inert for `className`
+  in that order (though still meaningful for `input`/`type`, which comes from GFM task lists parsed
+  earlier). Not reordering either pipeline as part of this change; flagging for a follow-up.
+- Since neither pipeline uses `rehype-raw`, markdown source can't inject raw HTML to reach `code`,
+  `span`, or `input` through `processMarkdown()` directly (confirmed empirically — raw HTML tags in
+  markdown source are dropped entirely, not parsed as elements). The new tests therefore exercise
+  `markdownSanitizeSchema` directly against hand-built hast trees via rehype-sanitize's transform,
+  rather than through `processMarkdown()`, to test the schema's actual guarantee rather than what the
+  current pipeline happens to produce.
+- Added four tests: arbitrary `className` stripped from `code` (keeping `hljs`/`language-js`),
+  arbitrary `className` stripped from `span` (keeping `hljs-keyword`), non-`checkbox` `input` `type`
+  stripped and defaulted back to `checkbox`, and a `checkbox` `input`'s `type`/`checked` preserved.
+  All prior tests (including the `hljs` highlighting guard and the `javascript:`/`data:` href tests)
+  still pass.
+- Verified `npx tsc --noEmit`, `bun run lint`, `bunx vitest run` (79 files / 668 tests, up from 664).
+
+### [x] Use the `void` prefix on async click handlers in the export paths
 
 Area: convention consistency
 
@@ -929,6 +983,33 @@ Area: convention consistency
 those handlers catches internally and surfaces the failure through `setLastAction` — but `CLAUDE.md`
 documents `void handler()` for async handlers, and the current form would silently produce an
 unhandled rejection if any of them ever grows a throw outside its `try`.
+
+Completed 2026-07-31:
+
+- The TODO's file list was partly stale: `MarkdownEditor.tsx` was already fully compliant (lines
+  922-949 already use `void handleX()`) — nothing to do there. `MermaidEditor.tsx` had four sites, not
+  two: `handleCopySvg`, `handleDownloadSvg`, `handleCopyPng`, `handleDownloadPng`.
+- Widened the scope repo-wide rather than fixing only the four named files: re-swept every
+  `onClick={handleX}` and `onClick={() => handleX(...)}` in `src/**/*.tsx` against handlers defined
+  `async`, found ~28 sites across 11 files (larger than the ~22/9 estimate handed off — the estimate
+  missed `CopyButton.tsx`'s `handleCopy`, `NotesDrawer`/`SnippetsManager`'s `handleRemoveTag`, and
+  three sites in `CollectionsSidebar.tsx`'s context menus). Fixed all of them: same one-line change,
+  and leaving known violations in unnamed files would have applied the convention half-way.
+- Files touched: `SettingsPanel.tsx`, `CollectionsSidebar.tsx`, `EnvironmentModal.tsx`,
+  `CssValidator.tsx`, `JsonSchemaValidator.tsx`, `JsonTools.tsx`, `ImageModal.tsx`,
+  `MermaidEditor.tsx`, `SnippetsManager.tsx`, `YamlTools.tsx`, `ImageTool.tsx`, `CopyButton.tsx`.
+- `ImageTool.tsx`'s `handleDownload`/`handleCopyImage` are passed to `ExportPanel` as
+  `onDownload`/`onCopy` props (typed `() => void`); wrapped at the consuming `onClick` inside
+  `ExportPanel` rather than at the prop definition, keeping the prop's fire-and-forget contract
+  explicit at the call site.
+- Confirmed via a second, independent regex sweep after the edits that no `onClick={asyncHandler}` or
+  `onClick={() => asyncHandler(...)}` site remains unwrapped anywhere in `src/**/*.tsx`.
+- `handleToggleFavorite` and `handleDuplicate` in `SnippetsManager.tsx` have no internal `try`/`catch`
+  — the `void` prefix suppresses the unhandled-rejection warning but does not give the user any
+  feedback if the underlying store call fails. Flagging as follow-up candidates for real error
+  handling; not redesigned in this pass.
+- Verified `npx tsc --noEmit`, `bun run lint`, `bunx vitest run` (79 files / 668 tests, unchanged by
+  this item — it's a behavior-preserving refactor).
 
 ### [ ] Cover init-rejection recovery for the other six stores
 
