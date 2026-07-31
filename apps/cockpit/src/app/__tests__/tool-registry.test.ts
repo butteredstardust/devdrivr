@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { TOOLS, getToolById, getToolsByGroup } from '@/app/tool-registry'
+import {
+  TOOLS,
+  getToolById,
+  getToolsByGroup,
+  OPEN_FILE_TOOL_IDS,
+  SAVE_FILE_TOOL_IDS,
+  MONACO_TOOL_IDS,
+} from '@/app/tool-registry'
 
 const TOOL_SMOKE_TEST_MODULES = import.meta.glob('../../tools/__tests__/*.test.tsx')
 
@@ -34,6 +41,58 @@ describe('TOOLS registry', () => {
         `${tool.id} requires a corresponding smoke test at ${testFile}`
       ).toHaveProperty(testFile)
     }
+  })
+})
+
+describe('tool capability flags', () => {
+  const toolIds = new Set(TOOLS.map((t) => t.id))
+
+  // Once flags live directly on the registry entries they derive from, "every
+  // capability flag refers to a registered tool id" is close to tautological — the
+  // sets are built by filtering TOOLS itself, so this can only fail if a filter is
+  // typo'd. The real regression this guards against is a mass-deletion or bad merge
+  // silently dropping tools' flags (e.g. `usesMonaco` disappearing from JSON Tools
+  // would flip its overflow mode with no type error). So beyond membership, assert
+  // the exact expected size and contents for each derived set — pinned to the
+  // audited values from documentation/TODO.md (5 / 3 / 17).
+  it('every capability flag set only contains registered tool ids', () => {
+    for (const id of OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
+    for (const id of SAVE_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
+    for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
+  })
+
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 5', () => {
+    expect(OPEN_FILE_TOOL_IDS).toEqual(
+      new Set(['api-client', 'code-formatter', 'csv-tools', 'json-tools', 'markdown-editor'])
+    )
+  })
+
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 3', () => {
+    expect(SAVE_FILE_TOOL_IDS).toEqual(new Set(['code-formatter', 'json-tools', 'markdown-editor']))
+  })
+
+  it('MONACO_TOOL_IDS matches the audited set of 17', () => {
+    expect(MONACO_TOOL_IDS).toEqual(
+      new Set([
+        'api-client',
+        'code-formatter',
+        'css-to-tailwind',
+        'css-validator',
+        'csv-tools',
+        'curl-to-fetch',
+        'diff-viewer',
+        'html-validator',
+        'json-schema-validator',
+        'json-tools',
+        'markdown-editor',
+        'mermaid-editor',
+        'refactoring-toolkit',
+        'snippets',
+        'ts-playground',
+        'xml-tools',
+        'yaml-tools',
+      ])
+    )
   })
 })
 

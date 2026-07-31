@@ -30,6 +30,10 @@ vi.mock('@/app/tool-registry', () => ({
       component: MockTool,
     }
   },
+  // Mirrors the real registry's derived sets for the two tool ids these tests use.
+  MONACO_TOOL_IDS: new Set(['json-tools']),
+  OPEN_FILE_TOOL_IDS: new Set(['json-tools']),
+  SAVE_FILE_TOOL_IDS: new Set(['json-tools']),
 }))
 
 beforeEach(() => {

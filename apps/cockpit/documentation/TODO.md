@@ -1083,7 +1083,7 @@ Completed 2026-07-31:
   cache clears on that path too, not just the `Database.load()` path.
 - Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
 
-### [ ] Move tool capability flags into the tool registry
+### [x] Move tool capability flags into the tool registry
 
 Area: tool registry / drift prevention
 
@@ -1105,6 +1105,47 @@ Acceptance criteria:
 - `supportsOpenFile`, `supportsSaveFile`, and `usesMonaco` become fields on the registry entry type.
 - `tool-actions.ts` and `Workspace.tsx` read from the registry; the three id sets are deleted.
 - A test asserts every capability flag refers to a registered tool id.
+
+Completed 2026-07-31:
+
+- Added `supportsOpenFile?: boolean`, `supportsSaveFile?: boolean`, and `usesMonaco?: boolean` to
+  `ToolDefinition` in `src/types/tools.ts`, all optional. Chose optional over an exhaustive
+  `Record<keyof ...>`-style required trio deliberately: 25 of 30 tools need at least one `false`, and
+  most need all three, so making every entry spell out three `false`s would add noise disproportionate
+  to the benefit — only the tools that actually opt in carry the field. Tradeoff versus a
+  compile-time-exhaustive shape: adding a new capability flag later still requires remembering to opt
+  tools in by hand, same as before, just declared next to each tool instead of in a separate `Set`.
+- Migrated all 25 flag placements from the three deleted `Set`s onto the matching `TOOLS` entries in
+  `src/app/tool-registry.ts`, preserving the exact existing capability assignment (verified by diffing
+  against the original sets, not by re-deriving from scratch): `supportsOpenFile` on 5 tools
+  (`api-client`, `code-formatter`, `csv-tools`, `json-tools`, `markdown-editor`), `supportsSaveFile` on
+  3 (`code-formatter`, `json-tools`, `markdown-editor`), `usesMonaco` on 17 (`api-client`,
+  `code-formatter`, `css-to-tailwind`, `css-validator`, `csv-tools`, `curl-to-fetch`, `diff-viewer`,
+  `html-validator`, `json-schema-validator`, `json-tools`, `markdown-editor`, `mermaid-editor`,
+  `refactoring-toolkit`, `snippets`, `ts-playground`, `xml-tools`, `yaml-tools`).
+- Added `OPEN_FILE_TOOL_IDS`, `SAVE_FILE_TOOL_IDS`, and `MONACO_TOOL_IDS` to `tool-registry.ts`,
+  each derived from `TOOLS.filter(...)` rather than hand-listed, and deleted the three original `Set`s
+  from `tool-actions.ts` and `Workspace.tsx`. Both now import the derived sets from the registry.
+- Checked for the import-cycle risk called out in the brief: `tool-actions.ts` and `Workspace.tsx` now
+  statically import from `@/app/tool-registry`, which itself only statically imports
+  `@/types/tools`, Phosphor icons, and React — every tool component import is behind `React.lazy()`,
+  so no tool component module is pulled in at `tool-registry.ts` evaluation time. `tsc --noEmit`, the
+  full Vitest run, and manual inspection of `tool-registry.ts`'s imports confirm there is no cycle;
+  a separate lightweight capabilities export was not needed.
+- Updated `Workspace.test.tsx`'s `vi.mock('@/app/tool-registry', ...)` to also export
+  `MONACO_TOOL_IDS`, `OPEN_FILE_TOOL_IDS`, and `SAVE_FILE_TOOL_IDS` (scoped to the two tool ids that
+  test actually renders) — the mock previously only exported `getToolById`, and importing the derived
+  sets in `Workspace.tsx`/`tool-actions.ts` made that mock incomplete, which surfaced immediately as
+  two failing tests rather than a silent gap.
+- Extended `src/app/__tests__/tool-registry.test.ts` (rather than duplicating a new file) with a
+  `describe('tool capability flags', ...)` block. Per the brief's own observation, "every flag refers
+  to a registered tool id" is close to tautological once the sets are `TOOLS.filter(...)` outputs — it
+  can only fail on a typo'd filter predicate. Noting that explicitly in the test file's comment. To
+  make the guard actually earn its keep, the tests also pin the exact expected membership (5 / 3 / 17,
+  listing every id) against the audited values above, so a mass-deletion or bad merge that silently
+  drops a tool's flags fails loudly instead of passing vacuously.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite: 81 files / 682 tests, up from the
+  79 files / 668 tests baseline (added by this item and the two above it).
 
 ### [ ] Derive the persisted settings object instead of hand-listing keys
 
