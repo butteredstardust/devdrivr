@@ -4,6 +4,7 @@ import { getSetting, setSetting } from '@/lib/db'
 import { applyTheme } from '@/lib/theme'
 import { useUiStore } from '@/stores/ui.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
+import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   getSetting: vi.fn(),
@@ -67,15 +68,24 @@ describe('settings store initialization', () => {
   it('init() clears the cached promise on rejection so a later call retries', async () => {
     const { useSettingsStore } = await import('../settings.store')
     useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: false })
-    ;(getSetting as any).mockRejectedValueOnce(new Error('db locked'))
 
-    await expect(useSettingsStore.getState().init()).rejects.toThrow('db locked')
-    expect(useSettingsStore.getState().initialized).toBe(false)
-    ;(getSetting as any).mockResolvedValueOnce({ editorFontSize: 16 })
-    await useSettingsStore.getState().init()
-
-    expect(useSettingsStore.getState().initialized).toBe(true)
-    expect(getSetting).toHaveBeenCalledTimes(2)
+    await expectInitRejectionRecovers({
+      runInit: () => useSettingsStore.getState().init(),
+      arrangeFailure: () => {
+        ;(getSetting as any).mockRejectedValueOnce(new Error('db locked'))
+      },
+      arrangeSuccess: () => {
+        ;(getSetting as any).mockResolvedValueOnce({ editorFontSize: 16 })
+      },
+      rejectMessage: 'db locked',
+      assertAfterFailure: () => {
+        expect(useSettingsStore.getState().initialized).toBe(false)
+      },
+      assertAfterSuccess: () => {
+        expect(useSettingsStore.getState().initialized).toBe(true)
+      },
+      getCallCount: () => (getSetting as any).mock.calls.length,
+    })
   })
 })
 

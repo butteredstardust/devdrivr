@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
 import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
+import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
@@ -145,5 +146,33 @@ describe('notes store', () => {
 
     pending.resolve()
     await reorderPromise
+  })
+})
+
+describe('notes store initialization', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('init() clears the cached promise on rejection so a later call retries', async () => {
+    const { useNotesStore: freshStore } = await import('../notes.store')
+
+    await expectInitRejectionRecovers({
+      runInit: () => freshStore.getState().init(),
+      arrangeFailure: () => {
+        ;(loadNotes as any).mockRejectedValueOnce(new Error('db locked'))
+      },
+      arrangeSuccess: () => {
+        ;(loadNotes as any).mockResolvedValueOnce([])
+      },
+      rejectMessage: 'db locked',
+      assertAfterFailure: () => {
+        expect(freshStore.getState().initialized).toBe(false)
+      },
+      assertAfterSuccess: () => {
+        expect(freshStore.getState().initialized).toBe(true)
+      },
+      getCallCount: () => (loadNotes as any).mock.calls.length,
+    })
   })
 })

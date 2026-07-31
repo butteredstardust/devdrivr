@@ -1011,7 +1011,7 @@ Completed 2026-07-31:
 - Verified `npx tsc --noEmit`, `bun run lint`, `bunx vitest run` (79 files / 668 tests, unchanged by
   this item — it's a behavior-preserving refactor).
 
-### [ ] Cover init-rejection recovery for the other six stores
+### [x] Cover init-rejection recovery for the other six stores
 
 Area: test parity
 
@@ -1021,6 +1021,42 @@ stores, but only `settings.store.test.ts` has a regression test for it. `snippet
 files exist but do not cover this path. Functional risk is low because the code is identical, but
 nothing stops one of them being refactored back. A shared helper asserting the failed-then-retried
 sequence, applied to all seven, would be cheap.
+
+Completed 2026-07-31:
+
+- Added `src/stores/__tests__/init-rejection-helper.ts` — a shared, non-test `.ts` module (mirrors
+  `src/tools/__tests__/test-utils.tsx`, which is likewise a fixture rather than a suite; neither
+  matches vitest's `*.test.ts(x)` glob) exporting `expectInitRejectionRecovers()`. It takes closures
+  for arranging the failing/succeeding call, running `init()`, and asserting state before/after, so
+  each store's differing state shape (see below) can plug in without the helper needing to know it.
+- Refactored `settings.store.test.ts`'s existing rejection test onto the helper — one implementation,
+  not eight copies.
+- Applied it to `api`, `mcp`, `notes`, `history` (existing files, new nested `describe` blocks using
+  `vi.resetModules()` + dynamic `await import(...)`, matching the existing settings/mcp pattern) and
+  created `snippets.store.test.ts` / `prompt-templates.store.test.ts` from scratch, scoped to only the
+  init-rejection path as directed — no broader coverage added for those two stores in this pass.
+- Module-level `initPromise` leaks across tests sharing one module instance, which is why every new
+  test does `vi.resetModules()` in `beforeEach` and dynamically imports the store fresh inside the
+  test body rather than relying on the file's top-level static import. Documented this requirement in
+  the helper's docstring since it is easy to silently get wrong (a test would just never observe a
+  rejection because a prior test already latched a resolved `initPromise`).
+- `api.store` has no `initialized` field, so its assertion checks that `environments` stays at its
+  module-fresh default (`set()` never ran) instead.
+- `mcp.store` needed a different failure-injection strategy, found by reading the code rather than
+  assuming the template generalized: its `init()` wraps `getSetting`/`persistSettings`/`invoke` in an
+  _internal_ try/catch that swallows every realistic failure and never rethrows (confirmed by the
+  existing "keeps initialization non-blocking..." test in the same file) — so a plain
+  `getSetting` rejection never reaches the outer `.catch(() => { initPromise = null; throw err })`
+  guard at all, and the P1 fix's rejection-clearing code is otherwise unreachable for mcp.store. The
+  only path that does reach it is `useUiStore.getState().addToast()` throwing from inside the internal
+  catch block (not itself wrapped in a nested try), which the new test uses deliberately, with a
+  comment explaining why. This also surfaced a genuine asymmetry, documented in the test rather than
+  smoothed over: because `set({ initialized: true, ... })` already ran before `addToast()` throws, a
+  rejected mcp.store `init()` call leaves `initialized: true` — unlike the other six stores, which
+  leave it `false`.
+- Did not need to report any store as unable to cleanly reset module state — all seven store modules
+  reload cleanly via `vi.resetModules()` + dynamic import.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
 
 ### [ ] Give `getDb()` the same rejection recovery the stores got
 
