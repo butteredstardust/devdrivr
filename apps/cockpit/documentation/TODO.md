@@ -1147,7 +1147,7 @@ Completed 2026-07-31:
 - Verified `npx tsc --noEmit`, `bun run lint`, and the full suite: 81 files / 682 tests, up from the
   79 files / 668 tests baseline (added by this item and the two above it).
 
-### [ ] Derive the persisted settings object instead of hand-listing keys
+### [x] Derive the persisted settings object instead of hand-listing keys
 
 Area: settings persistence / silent data loss
 
@@ -1165,7 +1165,27 @@ Acceptance criteria:
   `Record<keyof AppSettings, true>` key map.
 - A test asserts every `AppSettings` key round-trips through `update()` and `init()`.
 
-### [ ] Tidy shell-level React and shortcut patterns
+Completed 2026-07-31:
+
+- Added an exhaustive `APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true>` in
+  `src/stores/settings.store.ts`, plus `APP_SETTINGS_KEYS = Object.keys(APP_SETTINGS_KEY_MAP) as
+(keyof AppSettings)[]`. `update()` now builds the persisted object via a `pickAppSettings()` helper
+  that loops over `APP_SETTINGS_KEYS` instead of restating all eighteen fields. A generic
+  `assignAppSettingsKey<K extends keyof AppSettings>(target, source, key: K)` helper binds the key
+  type per call to avoid TypeScript widening the indexed assignment to `never` inside the loop.
+- Verified the exhaustiveness mechanism directly: temporarily added a 19th field
+  (`_tempTestField19: boolean`) to both the `AppSettings` type and `DEFAULT_SETTINGS` in
+  `src/types/models.ts`, ran `npx tsc --noEmit`, and confirmed it failed with `TS2741: Property
+'_tempTestField19' is missing in type '{ ... }' but required in type 'Record<keyof AppSettings,
+true>'` at `settings.store.ts`'s key map — i.e. the `Record<keyof AppSettings, true>` map is the
+  mechanism that turns a forgotten field into a compile error, not just a runtime gap. Reverted both
+  temporary additions afterward.
+- Added a test asserting the persisted object's keys exactly match `DEFAULT_SETTINGS`'s keys (no
+  field silently dropped), and a round-trip test that drives every `AppSettings` key through
+  `update()` then `init()` and asserts each comes back unchanged (`editorKeybindingMode` excluded from
+  the driven set since `init()` force-normalizes it to `'standard'` by design).
+
+### [x] Tidy shell-level React and shortcut patterns
 
 Area: shell / code quality
 
@@ -1186,6 +1206,50 @@ Small cleanups found while auditing; none is user-visible on its own.
   `package.json` are at `0.1.51`. Cosmetic today because `getVersion()` reads the Tauri config, but
   it makes crate metadata misleading.
 
+Completed 2026-07-31:
+
+- Replaced `useGlobalShortcuts.ts`'s nine `comboN` memos and nine `switchWorkspaceTabN` callbacks with
+  a single `digitCombos = useMemo(() => Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1),
+mod: true })), [])`, one `switchWorkspaceTabAt(index)` callback, and a fixed-length `for` loop
+  calling `useKeyboardShortcut(digitCombos[i]!, () => switchWorkspaceTabAt(i))`. The loop is
+  fixed-length (always 9 iterations, never conditional or data-length-dependent), so it does not
+  violate rules-of-hooks in practice; ESLint's `react-hooks/rules-of-hooks` still flags it statically,
+  so it carries a scoped `eslint-disable-next-line` with a comment explaining why it's safe.
+  `useGlobalShortcuts.test.ts` (10 tests) passed unmodified — it asserts by registered combo, not by
+  call-site shape.
+- Evaluated consolidating the ~28 `useKeyboardShortcut` call sites onto one shared `window` listener
+  and judged it worth doing (not abandoned): the public `useKeyboardShortcut(combo, handler)` API
+  didn't need to change, so the entire risk was containable to one file
+  (`src/hooks/useKeyboardShortcut.ts`). Rewrote it around a module-level `Set` of registrations (combo
+  - handler refs); a single `window.addEventListener('keydown', ...)` attaches when the first
+    registration is added and detaches when the last is removed, and dispatch iterates the set,
+    preserving per-registration behavior: the editable-target filter, sync and async handler error
+    handling (`try`/`catch` plus a `.catch()` on the returned promise), cleanup on unmount, and
+    independence from registration order. All 28 existing call sites and their test suites (including
+    `useKeyboardShortcut.test.ts`, `useGlobalShortcuts.test.ts`, and consumer tests across
+    `base64`, `api-client`, `diff-viewer`, `url-codec`, `code-formatter`) passed unmodified — they
+    exercise the hook's public behavior, not its internals.
+- Fixed the unchecked `event.target as HTMLElement` cast in `useKeyboardShortcut.ts`. `target
+instanceof Element` was tried first but throws at runtime in this project's test environment —
+  `vitest.config.ts` uses `environment: 'node'` with a hand-built `jsdom` window in
+  `src/test-setup.ts`, which doesn't expose a global `Element` constructor. Replaced it with duck
+  typing (`typeof target.closest === 'function' && typeof target.tagName === 'string'`), which works
+  regardless of what global constructors exist. Added a test dispatching a keydown with `window` itself
+  as the event target, asserting it doesn't throw and the shortcut still fires.
+- Added a public `reset(): void` method to `ErrorBoundary` (`src/components/shell/ErrorBoundary.tsx`)
+  that calls `this.setState({ hasError: false, error: null })`, and switched both the boundary's own
+  "Try Again" button and `Workspace.tsx`'s `errorBoundaryRef.current?.setState(...)` call to
+  `errorBoundaryRef.current?.reset()`.
+- Rewrote `NotesDrawer`'s `MarkdownRenderer` effect to track a `cancelled` flag, only calling `setHtml`
+  if the effect hasn't been cleaned up by the time `processMarkdown` resolves. Added tests for
+  no-setState-after-unmount while a render is pending, and for an earlier in-flight request resolving
+  after a later one without clobbering the latest result.
+- Bumped `src-tauri/Cargo.toml`'s `version` from `0.1.0` to `0.1.54` to match `tauri.conf.json` and
+  `package.json`. Confirmed `scripts/bump-version.mjs` only touches `package.json` and
+  `tauri.conf.json`, never `Cargo.toml`, so this won't be fought by release automation. Ran
+  `cargo check`; it passed and only updated the `cockpit` package's own `version` field in
+  `Cargo.lock`.
+
 Verification for all three P2 items above:
 
 ```bash
@@ -1195,7 +1259,7 @@ PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
 
-### [ ] Ratchet ESLint warnings toward zero
+### [x] Ratchet ESLint warnings toward zero
 
 Area: static analysis / maintainability
 
@@ -1212,12 +1276,139 @@ Acceptance criteria:
 - Revisit disabled or relaxed rules such as `@typescript-eslint/no-misused-promises` only after the
   current warnings are under control.
 
+Completed 2026-07-31:
+
+- The recon claim of zero warnings was confirmed accurate: `bun run lint` was already clean (0
+  warnings) against the `100` ceiling before this item started, so the staged 100→25→10→0 reduction
+  had no intermediate warnings to fix — collapsed it directly to `--max-warnings 0` in
+  `package.json`'s `lint` script rather than landing three no-op intermediate commits.
+- Attempted enabling `@typescript-eslint/no-misused-promises` (previously `'off'`) per the decision
+  tree: full-strength first, which surfaced 35 warnings; narrowed to `checksVoidReturn: { attributes:
+true, arguments: false, properties: false }` (JSX event-handler props only — the exact class of bug
+  the branch's earlier commit `092994e` had already fixed by hand via `void`-prefixing), which brought
+  it down to 25, all genuine (async handlers passed where a `() => void` prop was expected). Judged 25
+  a "handful of genuine issues" per the task's own threshold and fixed all of them — mostly wrapping
+  `onChange`/`onClick`/`onBlur`/`onSave`/`onDownload`/`onCopy` handlers in `void (...)` at the JSX call
+  site — across `SettingsPanel.tsx` (13), `Sidebar.tsx` and `SidebarFooter.tsx` (2 each, via their
+  shared toggle definitions), `ApiClient.tsx`, `CollectionsSidebar.tsx`, `ImageTool.tsx` (2), and
+  `SnippetsManager.tsx` (4). Left the rule at `'warn'` (not `'error'`) since every other rule in this
+  config uses `'warn'` and `--max-warnings 0` already makes any warning fail the script.
+  `no-misused-promises` was never left on while raising `--max-warnings` to accommodate it — the two
+  changes landed together with the ceiling at 0 throughout.
+- Before/after: 0 warnings under the old `--max-warnings 100` ceiling before this item; 35 warnings
+  once `no-misused-promises` was turned on at full strength (not shipped); 25 warnings once narrowed
+  to `checksVoidReturn: { attributes: true }` (not shipped, all fixed instead); 0 warnings in the
+  final state, shipped with `--max-warnings 0`.
+- Checked whether root-level config files (`eslint.config.js`, `vitest.config.ts`) are linted at all,
+  without changing scope: no. `eslint.config.js`'s own `ignores` block excludes `*.config.js` and
+  `*.config.ts` (and the `files` glob for the main rule block is scoped to `src/**/*.{ts,tsx}` in the
+  first place), so both files run outside ESLint entirely — a syntax or lint issue in either would go
+  undetected by `bun run lint`. Left as-is; not in scope for this item.
+
 Verification:
 
 ```bash
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
+
+### [ ] Fix mcp.store init() error handling that never actually retries
+
+Area: state management / error recovery
+
+Problem: `init()` in `src/stores/mcp.store.ts` wraps its body in its own `try`/`catch` that already
+sets error state and shows a toast on failure, then never rethrows. The outer
+`.catch((err) => { initPromise = null; throw err })` attached to that same IIFE was written to clear
+the cached promise so a later `init()` call retries after a transient failure — but because the inner
+catch swallows the error first, the IIFE always resolves successfully, so the outer `.catch` is dead
+code and `initPromise` is never cleared on failure. A transient MCP init failure (e.g. a locked
+setting read) latches the store in its error state for the rest of the process lifetime; calling
+`init()` again just returns the already-resolved promise instead of retrying.
+
+Expected outcome: A failed MCP init can be retried by a later `init()` call, matching the comment's
+stated intent and the pattern used elsewhere (e.g. `api.store.ts`'s `init()`, which rethrows).
+
+Acceptance criteria:
+
+- Either let the inner catch rethrow after setting error state (so the outer `.catch` actually runs),
+  or drop the outer `.catch` and clear `initPromise` directly in the inner catch.
+- A test confirms a failed `init()` allows a subsequent `init()` call to retry rather than reusing the
+  stale error-state promise.
+
+Judged priority: P2 — not user-visible today (MCP init failures are rare and already surfaced via
+toast), but it silently defeats a retry mechanism the code believes it has.
+
+### [ ] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
+
+Area: snippets tool / error handling consistency
+
+Problem: In `src/tools/snippets/SnippetsManager.tsx`, `handleDelete` is wrapped by its caller
+(`handleDeleteClick`) with `.catch(() => {})`, but the sibling handlers `handleDuplicate` (line ~416)
+and `handleToggleFavorite` (line ~449) have no error handling at all — their `await addSnippet(...)`
+/ `await updateSnippet(...)` calls can reject (e.g. DB write failure), and both are invoked from JSX
+as `void handleDuplicate()` / `void handleToggleFavorite()`, so a rejection becomes an unhandled
+promise rejection with no user feedback, unlike every other mutating action in the file.
+
+Expected outcome: Every snippet mutation handler fails visibly (toast) instead of silently or as an
+unhandled rejection.
+
+Acceptance criteria:
+
+- Wrap `handleDuplicate` and `handleToggleFavorite` bodies in `try`/`catch`, surfacing failures via
+  `setLastAction(..., 'error')` (the pattern already used elsewhere in this file).
+- A test forces `addSnippet`/`updateSnippet` to reject and asserts the failure is surfaced rather than
+  thrown as an unhandled rejection.
+
+Judged priority: P2 — inconsistent error handling within one file, not a reliability blocker.
+
+### [ ] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
+
+Area: markdown rendering / sanitize-vs-highlight ordering
+
+Problem: `src/lib/markdown.ts` (used by `NotesDrawer`'s `MarkdownRenderer`) runs
+`.use(rehypeHighlight).use(rehypeSanitize, markdownSanitizeSchema)` — highlight before sanitize. Its
+tool counterpart, `src/tools/markdown-editor/MarkdownEditor.tsx`, runs the same two plugins in the
+opposite order: `.use(rehypeSanitize, markdownSanitizeSchema).use(rehypeHighlight, { detect: true })`.
+Sanitizing after highlighting means the sanitize schema must explicitly allow whatever
+classes/attributes `rehypeHighlight` injects or highlighting is silently stripped; sanitizing before
+highlighting (the editor's order) avoids that class but means the sanitizer never sees
+highlight-injected markup. The two renderers can visibly disagree on the same input, and one of the
+two orderings is likely unintentional rather than a deliberate choice.
+
+Expected outcome: Notes and the Markdown Editor tool render syntax-highlighted, sanitized code blocks
+identically, and the chosen order is deliberate rather than incidental.
+
+Acceptance criteria:
+
+- Decide the correct order (sanitize-then-highlight is the safer default) and make both pipelines
+  match, or document why they must differ.
+- A test renders a fenced code block containing an XSS-shaped payload through both pipelines and
+  asserts identical, safe output.
+
+Judged priority: P2 — no known exploit today since `markdownSanitizeSchema` still runs either way, but
+divergent behavior between two markdown surfaces is exactly the kind of drift that becomes a bug once
+either pipeline changes independently.
+
+### [ ] Add an `initialized` field to api.store for consistency with other stores
+
+Area: state management / store consistency
+
+Problem: `settings.store.ts` and `mcp.store.ts` both expose an `initialized: boolean` field so
+consumers can distinguish "not yet loaded" from "loaded and empty." `src/stores/api.store.ts` has the
+same idempotent `init()` promise-guard pattern but no `initialized` field, so API Client UI code has
+no store-level way to know whether the initial DB load has completed versus genuinely having zero
+environments/collections/requests.
+
+Expected outcome: `api.store.ts` matches the established pattern used by the other stores.
+
+Acceptance criteria:
+
+- Add `initialized: boolean` to `ApiStore`, defaulting to `false` and set to `true` once `init()`'s
+  initial load (success or failure) completes.
+- Any UI currently guessing readiness from array emptiness can use the new field instead (optional,
+  not required to land in the same change).
+
+Judged priority: P2 — cosmetic/consistency; no observed bug from its absence today.
 
 ### [ ] Add a no-regression audit for cockpit non-negotiables
 
@@ -1343,6 +1534,7 @@ Before cutting or promoting a cockpit release, confirm:
 - Do not add new npm packages for quality work unless platform APIs and existing tools are
   insufficient.
 - New tests should follow established locations: tool tests in `src/tools/__tests__/`, library tests
-  in `src/lib/__tests__/`, store tests in `src/stores/__tests__/`, and component tests in
-  `src/components/__tests__/`.
+  in `src/lib/__tests__/`, store tests in `src/stores/__tests__/`, and component tests colocated per
+  subdirectory in `src/components/<subdir>/__tests__/` (e.g. `src/components/shell/__tests__/`,
+  `src/components/shared/__tests__/`) — there is no single flat `src/components/__tests__/`.
 - Keep commands Bun-first and run cockpit commands from `apps/cockpit`.
