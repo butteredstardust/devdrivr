@@ -845,8 +845,8 @@ export default function ImageTool() {
               estimatedBytes={estimatedBytes}
               onFormatChange={(f) => updateState({ format: f as ImageToolState['format'] })}
               onQualityChange={(q) => updateState({ quality: q })}
-              onDownload={handleDownload}
-              onCopy={handleCopyImage}
+              onDownload={() => void handleDownload()}
+              onCopy={() => void handleCopyImage()}
             />
           )}
         </div>

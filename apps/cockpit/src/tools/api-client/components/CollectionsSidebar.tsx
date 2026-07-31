@@ -182,7 +182,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       ref={renameInputRef}
                       value={editingColName}
                       onChange={(e) => setEditingColName(e.target.value)}
-                      onBlur={() => commitRename(col)}
+                      onBlur={() => void commitRename(col)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') commitRename(col)
                         if (e.key === 'Escape') cancelRename()

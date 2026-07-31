@@ -798,7 +798,7 @@ export default function SnippetsManager() {
               <input
                 ref={titleInputRef}
                 value={selected.title}
-                onChange={(e) => updateSnippet(selected.id, { title: e.target.value })}
+                onChange={(e) => void updateSnippet(selected.id, { title: e.target.value })}
                 placeholder="Snippet title"
                 className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
               />
@@ -820,7 +820,7 @@ export default function SnippetsManager() {
                 theme={monacoTheme}
                 language={selected.language}
                 value={selected.content}
-                onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
+                onChange={(v) => void updateSnippet(selected.id, { content: v ?? '' })}
                 options={{
                   ...monacoOptions,
                   minimap: { enabled: false },
@@ -852,7 +852,7 @@ export default function SnippetsManager() {
                 </div>
                 <input
                   value={selected.folder}
-                  onChange={(e) => updateSnippet(selected.id, { folder: e.target.value })}
+                  onChange={(e) => void updateSnippet(selected.id, { folder: e.target.value })}
                   placeholder="e.g. work, personal"
                   list="snippet-folders"
                   className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
@@ -871,7 +871,7 @@ export default function SnippetsManager() {
                 </div>
                 <Select
                   value={selected.language}
-                  onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
+                  onChange={(e) => void updateSnippet(selected.id, { language: e.target.value })}
                   className="w-full"
                 >
                   {LANGUAGES.map((l) => (

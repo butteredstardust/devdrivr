@@ -14,7 +14,9 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const hasNotes = useNotesStore((s) => s.notes.length > 0)
 
-  const toggleNotes = () => update('notesDrawerOpen', !notesDrawerOpen)
+  const toggleNotes = () => {
+    void update('notesDrawerOpen', !notesDrawerOpen)
+  }
 
   const buttonClass =
     'flex items-center justify-center rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors'

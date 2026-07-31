@@ -21,7 +21,9 @@ export function Sidebar() {
     return tool?.group ?? ''
   }, [activeTool])
 
-  const toggleCollapsed = () => update('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
+  const toggleCollapsed = () => {
+    void update('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
+  }
 
   // Arrow-key navigation for the expanded tool list.
   // Collects all focusable sidebar items and group headers in DOM order,
