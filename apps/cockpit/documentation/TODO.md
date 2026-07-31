@@ -1400,7 +1400,7 @@ Completed 2026-07-31:
   `useUiStore`'s `lastAction` instead of throwing.
 - `bunx vitest run src/tools/__tests__/snippets.test.tsx` — 27/27 passing (24 existing + 3 new).
 
-### [ ] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
+### [x] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
 
 Area: markdown rendering / sanitize-vs-highlight ordering
 
@@ -1427,6 +1427,41 @@ Acceptance criteria:
 Judged priority: P2 — no known exploit today since `markdownSanitizeSchema` still runs either way, but
 divergent behavior between two markdown surfaces is exactly the kind of drift that becomes a bug once
 either pipeline changes independently.
+
+Completed 2026-07-31:
+
+- **Overriding the TODO's stated preference, deliberately:** the acceptance criteria above suggested
+  "sanitize-then-highlight is the safer default." That is backwards. Unified on
+  **highlight → sanitize** instead — the order already used by `src/lib/markdown.ts` — so the
+  sanitizer is the last thing to touch the tree before output, which is the standard rehype posture.
+  `markdownSanitizeSchema` already explicitly allows the `hljs-`/`language-` classes highlighting
+  emits and has a passing test (`keeps syntax highlighting classes on fenced code`) pinning that, so
+  nothing is lost by sanitizing last.
+- Extracted one shared `markdownProcessor` (a `unified()` instance) into `src/lib/markdown.ts`, built
+  with `remarkParse → remarkGfm → remarkRehype → rehypeHighlight({ detect: true }) → rehypeSanitize →
+rehypeStringify`. `processMarkdown()` now just calls `markdownProcessor.process()`, unchanged from
+  the outside for `NotesDrawer`. `MarkdownEditor.tsx` deleted its local, differently-ordered `unified()`
+  chain and imports `markdownProcessor` directly; its own `renderMarkdownContent()` wrapper (HTML-escaped
+  error reporting) is preserved and now just delegates processing to the shared processor. The two
+  surfaces can no longer drift apart because there is only one processor.
+- Dropped `remarkRehype`'s explicit `{ allowDangerousHtml: false }` option from the editor's old chain
+  — it was already the library default and thus a no-op; the shared processor doesn't pass it either.
+- **Visible rendering change for Notes, not a no-op:** the unified pipeline uses `detect: true`
+  (matching the editor's prior behavior), so unlabelled code fences in Notes are now
+  syntax-highlighted where they previously rendered as plain text. This is an intentional improvement
+  and brings Notes in line with the editor, but it is a real behavior change worth calling out.
+- `renderMarkdownContent` was exported from `MarkdownEditor.tsx` (previously module-private) so tests
+  can exercise it directly rather than only indirectly through component rendering.
+- New tests in `src/lib/__tests__/markdown.test.ts`: one confirms unlabelled fences now get
+  highlighted (the visible Notes change above), and one renders a fenced code block containing an
+  XSS-shaped payload (`<script>`, an `onerror`-bearing `<img>`, and a `javascript:` link, all inside
+  the fence) through both `processMarkdown()` and `renderMarkdownContent()` and asserts byte-identical,
+  safe output — plus a follow-up assertion that a real (non-fenced) `javascript:` link is still
+  stripped by the sanitizer.
+- All existing tests in `markdown.test.ts` (GFM tables/images/strikethrough/task-lists,
+  `javascript:`/`data:` href stripping) and in `markdown-editor.test.tsx` remain green, unmodified.
+- `bunx vitest run src/lib/__tests__/markdown.test.ts src/tools/__tests__/markdown-editor.test.tsx` —
+  45/45 passing (14 + 31, up from 12 + 31 baseline — 2 new tests).
 
 ### [ ] Add an `initialized` field to api.store for consistency with other stores
 

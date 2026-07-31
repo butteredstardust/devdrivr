@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import rehypeSanitize from 'rehype-sanitize'
 import { processMarkdown, markdownSanitizeSchema } from '@/lib/markdown'
+import { renderMarkdownContent } from '@/tools/markdown-editor/MarkdownEditor'
 
 // `hast` types aren't a direct dependency here (only pulled in transitively by
 // rehype/remark packages), so define the minimal shape this test needs rather than
@@ -64,6 +65,41 @@ describe('processMarkdown', () => {
   it('keeps https: hrefs', async () => {
     const html = await processMarkdown('[click](https://example.com)')
     expect(html).toContain('href="https://example.com"')
+  })
+
+  it('detects the language of an unlabelled fenced code block', async () => {
+    // Unified pipeline decision: highlight runs with `detect: true`, matching the
+    // editor's prior behavior. This is a visible change for Notes — unlabelled
+    // fences are now syntax-highlighted where they previously were not.
+    const html = await processMarkdown('```\nconst a = 1\n```\n')
+    expect(html).toContain('hljs')
+  })
+})
+
+describe('markdown pipeline reconciliation', () => {
+  // src/lib/markdown.ts (NotesDrawer) and MarkdownEditor.tsx now share the exact
+  // same `markdownProcessor` instance, so both entry points must render an
+  // XSS-shaped payload inside a fenced code block identically and safely: the
+  // `<script>` text is highlighted/escaped as inert text content, never as a
+  // live tag, and no `onerror`/`javascript:` attribute survives sanitization.
+  const xssPayload =
+    '```html\n<script>alert(1)</script>\n<img src=x onerror="alert(2)">\n[click](javascript:alert(3))\n```\n'
+
+  it('renders identical, safe output through processMarkdown and MarkdownEditor', async () => {
+    const fromNotes = await processMarkdown(xssPayload)
+    const fromEditor = await renderMarkdownContent(xssPayload)
+
+    // The two entry points must never diverge again.
+    expect(fromEditor).toBe(fromNotes)
+    // Inside a fenced code block the payload is rendered as inert, highlighted
+    // text — not as a live <script> element or an onerror-bearing <img> — so
+    // there is no unescaped script tag in the output.
+    expect(fromNotes).not.toContain('<script>alert')
+    expect(fromNotes).toContain('&#x3C;') // hljs-escaped angle bracket, inert text
+
+    // A real (non-fenced) dangerous href is still stripped by the sanitizer.
+    const withRealLink = await processMarkdown('[click](javascript:alert(1))')
+    expect(withRealLink).not.toContain('javascript:')
   })
 })
 

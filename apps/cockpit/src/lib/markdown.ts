@@ -43,15 +43,24 @@ export const markdownSanitizeSchema = {
   tagNames: [...(defaultSchema.tagNames ?? []), 'input'],
 }
 
-export async function processMarkdown(content: string): Promise<string> {
-  const file = await unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkRehype)
-    .use(rehypeHighlight)
-    .use(rehypeSanitize, markdownSanitizeSchema)
-    .use(rehypeStringify)
-    .process(content)
+/**
+ * Single shared markdown pipeline used by every rendering surface (Notes drawer,
+ * Markdown Editor). Plugin order is deliberate: `rehypeHighlight` runs *before*
+ * `rehypeSanitize` so the sanitizer is the last thing to touch the tree — nothing
+ * should reach output after it. `markdownSanitizeSchema` above explicitly allows
+ * the `hljs-`/`language-` classes highlighting emits, so nothing is lost by
+ * sanitizing last. `detect: true` lets unlabelled code fences get a best-guess
+ * language instead of rendering as plain, unhighlighted text.
+ */
+export const markdownProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype)
+  .use(rehypeHighlight, { detect: true })
+  .use(rehypeSanitize, markdownSanitizeSchema)
+  .use(rehypeStringify)
 
+export async function processMarkdown(content: string): Promise<string> {
+  const file = await markdownProcessor.process(content)
   return String(file)
 }
