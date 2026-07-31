@@ -134,6 +134,7 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
 
   init: async () => {
     if (!initPromise) {
+      let failed = false
       initPromise = (async () => {
         let settings = normalizeSettings(null)
         try {
@@ -153,14 +154,7 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
             initialized: true,
             status: { ...emptyStatus(settings), lastError: msg },
           })
-          // Clear the cached promise so a transient error doesn't latch the
-          // app in a broken state for the rest of the process lifetime — a
-          // later init() call retries. This assignment happens on the async
-          // continuation after the `await` calls above, which runs strictly
-          // after `initPromise = (async () => {...})()` has already
-          // completed synchronously below, so it is not immediately
-          // clobbered by that assignment.
-          initPromise = null
+          failed = true
           // MCP is an optional, disabled-by-default feature. init() must
           // never reject: providers.tsx awaits it during bootstrap, and a
           // rejection there sends the whole app to the startup error
@@ -173,7 +167,17 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
             // Swallow — see comment above.
           }
         }
-      })()
+      })().then(() => {
+        // Clear the cached promise on failure so a transient error doesn't latch
+        // the app in a broken state for the rest of the process lifetime — a later
+        // init() call retries. This must happen in a `.then()` rather than inside
+        // the catch above: a *synchronous* throw from getSetting() runs that catch
+        // during the IIFE's synchronous prologue, i.e. before the
+        // `initPromise = ...` assignment completes, so clearing there would be
+        // immediately clobbered and the retry would never happen. A `.then()`
+        // callback is always a later microtask, so the assignment has landed.
+        if (failed) initPromise = null
+      })
     }
     return initPromise
   },

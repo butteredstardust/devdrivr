@@ -1340,12 +1340,16 @@ toast), but it silently defeats a retry mechanism the code believes it has.
 
 Completed 2026-07-31:
 
-- Dropped the outer `.catch((err) => { initPromise = null; throw err })` entirely and clear
-  `initPromise = null` directly inside the inner catch instead. Verified the ordering is safe: the
-  inner catch only runs on the async continuation _after_ an `await` (the first is `getSetting`),
-  which is scheduled as a microtask — by the time it runs, the synchronous
-  `initPromise = (async () => {...})()` assignment has already completed, so clearing it there is not
-  immediately clobbered by that assignment.
+- Dropped the outer `.catch((err) => { initPromise = null; throw err })` entirely. The inner catch now
+  sets a `failed` flag, and `initPromise = null` happens in a `.then()` chained onto the IIFE.
+- **Clearing from inside the inner catch is _not_ safe, contrary to a first reading.** It works for a
+  rejected promise (the catch runs on a microtask continuation, after the synchronous
+  `initPromise = (async () => {...})()` assignment has landed), but it silently breaks if `getSetting`
+  throws _synchronously_: that catch then runs during the IIFE's synchronous prologue, before the
+  assignment completes, so the assignment immediately clobbers the clear and the retry never happens.
+  Confirmed empirically, then guarded by a dedicated regression test — reverting the clear back into
+  the catch fails that test and only that test. A `.then()` callback is always a later microtask, so
+  the assignment is guaranteed to have landed.
 - **Deliberate decision — not in the TODO's own acceptance criteria:** did _not_ make the inner catch
   rethrow. `useMcpStore.init()` has exactly one call site — `providers.tsx`'s bootstrap sequence,
   which `await`s it — and MCP is an optional, disabled-by-default feature. Making init() reject would
@@ -1358,8 +1362,8 @@ Completed 2026-07-31:
   throw just to reach the now-deleted outer catch, and asserted the broken behavior). The new test
   calls `init()`, fails it via a rejected `getSetting`, asserts `initialized: true` /
   `status.lastError` are set, then calls `init()` again and asserts `getSetting` was called a second
-  time — proving the retry actually happens.
-- `bunx vitest run src/stores/__tests__/mcp.store.test.ts` — 11/11 passing.
+  time — proving the retry actually happens. A second test covers the synchronous-throw path above.
+- `bunx vitest run src/stores/__tests__/mcp.store.test.ts` — 12/12 passing.
 
 ### [x] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
 

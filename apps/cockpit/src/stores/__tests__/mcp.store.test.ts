@@ -258,4 +258,29 @@ describe('useMcpStore', () => {
     expect(successState.initialized).toBe(true)
     expect(successState.status.lastError).toBeNull()
   })
+
+  // Regression guard for the subtler half of the same bug: a *synchronous* throw
+  // from getSetting() runs init()'s catch block during the IIFE's synchronous
+  // prologue, before `initPromise = ...` has finished assigning. Clearing
+  // `initPromise` from inside that catch is therefore immediately clobbered by the
+  // assignment and the retry silently never happens — the async-rejection test
+  // above passes either way and does not catch it. The clear lives in a `.then()`
+  // precisely so this case works too.
+  it('init() retries after a synchronous throw, not just a rejected promise', async () => {
+    const { useMcpStore: freshStore } = await import('@/stores/mcp.store')
+
+    mocks.getSetting.mockImplementationOnce(() => {
+      throw new Error('sync boom')
+    })
+    await expect(freshStore.getState().init()).resolves.toBeUndefined()
+
+    expect(freshStore.getState().status.lastError).toBe('sync boom')
+    expect(mocks.getSetting).toHaveBeenCalledTimes(1)
+
+    mocks.getSetting.mockResolvedValueOnce(null)
+    await freshStore.getState().init()
+
+    expect(mocks.getSetting).toHaveBeenCalledTimes(2)
+    expect(freshStore.getState().status.lastError).toBeNull()
+  })
 })
