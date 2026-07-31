@@ -1,47 +1,89 @@
 import { useEffect, useRef } from 'react'
 import { matchesCombo, type KeyCombo } from '@/lib/keybindings'
 
-export function useKeyboardShortcut(combo: KeyCombo, handler: () => void | Promise<void>): void {
+type ShortcutHandler = () => void | Promise<void>
+
+type Registration = {
+  comboRef: { current: KeyCombo }
+  handlerRef: { current: ShortcutHandler }
+}
+
+// Every useKeyboardShortcut() call used to register its own `window` keydown
+// listener (28 call sites at last count). Instead, all instances share a single
+// listener and a registry of active registrations — the public API and per-call
+// semantics (combo/handler read fresh via refs, editable-target filter, sync/async
+// error handling, cleanup on unmount) are unchanged; only the number of listeners is.
+const registrations = new Set<Registration>()
+let sharedListenerAttached = false
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  // event.target is an EventTarget and may not be an Element at all (e.g. window
+  // or document itself dispatches with the target set to something without
+  // .closest), so duck-type the methods/properties we need rather than assuming.
+  const isElementTarget =
+    !!target &&
+    typeof (target as Partial<Element>).closest === 'function' &&
+    typeof (target as Partial<Element>).tagName === 'string'
+  if (!isElementTarget) return false
+  const element = target as Element
+  return (
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.closest('[contenteditable="true"]') !== null ||
+    element.closest('.monaco-editor') !== null
+  )
+}
+
+function handleSharedKeyDown(event: KeyboardEvent): void {
+  const isEditable = isEditableTarget(event.target)
+
+  // Set preserves insertion order, matching the dispatch order the browser used to
+  // give independent per-hook listeners registered in mount order.
+  for (const registration of registrations) {
+    const combo = registration.comboRef.current
+
+    if (isEditable && !combo.mod) continue
+    if (!matchesCombo(event, combo)) continue
+
+    event.preventDefault()
+    try {
+      const result = registration.handlerRef.current()
+      if (result) {
+        void result.catch((error: unknown) => {
+          console.error('[useKeyboardShortcut] Shortcut handler failed:', error)
+        })
+      }
+    } catch (error) {
+      console.error('[useKeyboardShortcut] Shortcut handler failed:', error)
+    }
+  }
+}
+
+function attachSharedListener(): void {
+  if (sharedListenerAttached) return
+  window.addEventListener('keydown', handleSharedKeyDown)
+  sharedListenerAttached = true
+}
+
+function detachSharedListenerIfIdle(): void {
+  if (!sharedListenerAttached || registrations.size > 0) return
+  window.removeEventListener('keydown', handleSharedKeyDown)
+  sharedListenerAttached = false
+}
+
+export function useKeyboardShortcut(combo: KeyCombo, handler: ShortcutHandler): void {
   const comboRef = useRef(combo)
   const handlerRef = useRef(handler)
   comboRef.current = combo
   handlerRef.current = handler
 
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      const target = event.target
-      // event.target is an EventTarget and may not be an Element at all (e.g. window
-      // or document itself dispatches with the target set to something without
-      // .closest), so duck-type the methods/properties we need rather than assuming.
-      const isElementTarget =
-        !!target &&
-        typeof (target as Partial<Element>).closest === 'function' &&
-        typeof (target as Partial<Element>).tagName === 'string'
-      const element = isElementTarget ? (target as Element) : null
-      const isEditable =
-        element !== null &&
-        (element.tagName === 'INPUT' ||
-          element.tagName === 'TEXTAREA' ||
-          element.closest('[contenteditable="true"]') !== null ||
-          element.closest('.monaco-editor') !== null)
-
-      if (isEditable && !comboRef.current.mod) return
-
-      if (matchesCombo(event, comboRef.current)) {
-        event.preventDefault()
-        try {
-          const result = handlerRef.current()
-          if (result) {
-            void result.catch((error: unknown) => {
-              console.error('[useKeyboardShortcut] Shortcut handler failed:', error)
-            })
-          }
-        } catch (error) {
-          console.error('[useKeyboardShortcut] Shortcut handler failed:', error)
-        }
-      }
+    const registration: Registration = { comboRef, handlerRef }
+    registrations.add(registration)
+    attachSharedListener()
+    return () => {
+      registrations.delete(registration)
+      detachSharedListenerIfIdle()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 }
