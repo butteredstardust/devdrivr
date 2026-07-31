@@ -336,6 +336,18 @@ Completed 2026-07-30:
 - Verified the worker/tool slice (42 files, 371 tests), the full clean-source suite (65 files, 520
   tests), TypeScript, and ESLint.
 
+Correction 2026-07-31: `src/workers/__tests__/rpc.test.ts` — the "direct `handleRpc` coverage" claimed
+above — tests `handleRpc` in isolation against a toy `{ add }` API, not any real worker. It is real
+coverage of the RPC envelope (message shape, unknown-method errors, thrown-error serialization), but
+it is not round-trip coverage of any actual worker's logic. At the time this item was completed, five
+of the six workers (`typescript`, `formatter`, `refactoring`, `diff`, `xml`) were additionally routed
+through a no-op mock in tests (see the P2 item below), so none of their tool tests exercised real
+worker output either — only the regex worker had a live mock. The P2 item "Re-examine the five worker
+mocks that were never active" below supplied the missing round-trip coverage: real per-worker mocks
+plus tests that fail if any of them reverts to a no-op. Leaving this item checked because the RPC
+envelope coverage it describes is accurate and still valid; the gap was in what the surrounding tool
+tests could prove, not in this item's own claims.
+
 ### [x] Harden database helper and migration regression tests
 
 Area: SQLite persistence / data safety
@@ -808,7 +820,7 @@ Completed 2026-07-30:
   invocations still work unchanged — 78 files / 650 tests pass either way.
 - No `package.json` script was modified; none was broken.
 
-### [ ] Re-examine the five worker mocks that were never active
+### [x] Re-examine the five worker mocks that were never active
 
 Area: test integrity
 
@@ -833,6 +845,55 @@ Acceptance criteria:
   mock, or a comment plus ordering check in the config.
 - Cross-check the completed "Add worker RPC round-trip regression coverage" P0 item above; part of
   its claimed coverage ran against a stub.
+
+Completed 2026-07-31:
+
+- Confirmed the mocks were live, not vacuous — the retrospective concern in the Problem statement
+  above was worse than stated. The five workers weren't matching a benign "Vite no-op worker stub";
+  `src/__mocks__/worker.ts` was a hand-written `postMessage()` that discarded the message and never
+  called `onmessage`, so every call from `typescript`, `formatter`, `refactoring`, `diff`, and `xml`
+  returned a promise that never settled. Formatter/diff/xml/typescript/refactoring tool tests were
+  entirely render/UI assertions plus direct unit calls into pure helpers — not one asserted on actual
+  worker output, so nothing could have failed even though the mock was silently broken.
+- Extracted each worker's pure logic into a sibling `*.api.ts` module (`typescript.api.ts`,
+  `formatter.api.ts`, `diff.api.ts`, `xml.api.ts`, `refactoring.api.ts`) that both the real
+  `*.worker.ts` (now just `handleRpc(api)` over the extracted functions) and a new mock import —
+  mirroring the existing `regex.api.ts` / `regex-worker.ts` split. No logic is duplicated between the
+  real worker and its mock.
+- Added five real per-worker mocks (`src/__mocks__/{typescript,formatter,diff,xml,refactoring}-worker.ts`)
+  that parse the real `{id, method, args}` RPC request, run the real extracted logic, and reply via
+  `queueMicrotask` with `{id, result}` or `{id, error}` — the same pattern as `regex-worker.ts`.
+  Verified all five dependencies (TypeScript compiler, Prettier standalone + sql-formatter, the `diff`
+  package, `@xmldom/xmldom`, and `jscodeshift`) are pure JS/npm packages with no `self`-only or real
+  `Worker`-only API dependency, so all five run correctly in-process under Vitest/Node — no worker
+  needed a stub-with-a-comment fallback.
+- Updated `vitest.config.ts` to map each of the five `@/workers/*.worker?worker` specifiers to its own
+  live mock, ahead of the bare `'@'` entry (order-matters comment retained). Deleted the now-unused
+  `src/__mocks__/worker.ts` no-op stub — nothing else referenced it.
+- Added worker round-trip tests to all five affected tool test files
+  (`code-formatter.test.tsx`, `diff-viewer.test.tsx`, `xml-tools.test.tsx`, `ts-playground.test.tsx`,
+  `refactoring-toolkit.test.tsx`) that drive the component through the UI and assert on output that
+  only the real worker logic can produce: Prettier reformatting messy JS and a real parse-error
+  message, a real unified diff patch swapping in the diff view, a real `@xmldom/xmldom` validation
+  error and reformatted XML, TypeScript-to-JS transpilation output plus a real type-checker
+  diagnostic, and a real jscodeshift `var` → `const` transform applied through the Apply button.
+  json-tools and yaml-tools share the formatter worker and benefit from the same live mock without
+  additional changes.
+- Added `src/workers/__tests__/worker-mock-aliases.test.ts`, which dynamically imports each of the
+  five `@/workers/*.worker?worker` specifiers, instantiates the factory, and drives a real RPC call
+  end-to-end — proving the specifier resolves to a live mock and not the bare `@/...` fallback or a
+  no-op. This is a stronger guard than inspecting config text: an alias-ordering regression makes
+  these tests time out waiting for `onmessage`, or throw at import time.
+- Verified all 13 new tests fail as expected: temporarily repointed the five aliases at a no-op stub,
+  confirmed every new round-trip and alias-guard test failed (timeouts on `onmessage`), then restored
+  `vitest.config.ts` from the working version and re-ran the full suite to confirm it was back to
+  passing.
+- Cross-checked "Add worker RPC round-trip regression coverage" (P0, above) — confirmed and annotated
+  with a correction note in place: its `handleRpc` coverage is real but only exercises a toy `{ add }`
+  API, not any actual worker, so the round-trip gap this item closes was real and is now closed.
+- Verified the full suite (79 files / 664 tests, up from 78 files / 650), TypeScript, and ESLint.
+- Left open: none. All acceptance criteria met — round-trip assertions added, alias-shadowing guard
+  added, P0 cross-check done and annotated.
 
 ### [ ] Relocate `useToolState` tests to the documented location
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import CodeFormatter from '../code-formatter/CodeFormatter'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
@@ -67,6 +67,57 @@ describe('CodeFormatter', () => {
     expect(useUiStore.getState().lastAction).toMatchObject({
       message: 'Save cancelled',
       type: 'info',
+    })
+  })
+
+  // ── Worker round-trip ────────────────────────────────────────────
+  // These only pass if the format button actually drives the real prettier
+  // worker logic through the RPC mock — a no-op worker mock never resolves
+  // and the editor value would never change.
+
+  it('reformats messy JS into prettier output via the real formatter worker', async () => {
+    renderTool(CodeFormatter)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: 'const   x={a:1,b:2}' } })
+    fireEvent.click(screen.getByText('Format'))
+
+    await waitFor(() => {
+      expect(editor).toHaveValue('const x = { a: 1, b: 2 }\n')
+    })
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Formatted',
+      type: 'success',
+    })
+  })
+
+  it('surfaces a real parse error from the formatter worker', async () => {
+    renderTool(CodeFormatter)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: 'const x = {' } })
+    fireEvent.click(screen.getByText('Format'))
+
+    await waitFor(() => {
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Format error',
+        type: 'error',
+      })
+    })
+  })
+
+  it('auto-detects JSON via the real formatter worker', async () => {
+    renderTool(CodeFormatter)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: '{"a":1}' } })
+    fireEvent.click(screen.getByText('Auto-detect'))
+
+    await waitFor(() => {
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Detected: json',
+        type: 'info',
+      })
     })
   })
 })

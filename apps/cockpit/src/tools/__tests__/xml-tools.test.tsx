@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import XmlTools from '@/tools/xml-tools/XmlTools'
@@ -53,5 +53,34 @@ describe('XmlTools', () => {
     )
 
     expect(matches).toEqual(['<child>1</child>'])
+  })
+
+  // ── Worker round-trip ────────────────────────────────────────────
+  // A no-op worker mock never resolves validate()/format(), so the error
+  // banner or the reformatted editor value never appears — these only pass
+  // against the real @xmldom/xmldom-backed worker logic via the RPC mock.
+
+  it('reports a real parser error for malformed XML via Validate', async () => {
+    renderTool(XmlTools)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: '<root><unclosed></root>' } })
+    fireEvent.click(screen.getByText('Validate'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/tag mismatch/i)).toBeInTheDocument()
+    })
+  })
+
+  it('reformats XML into indented output via the real worker', async () => {
+    renderTool(XmlTools)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: '<root><a>1</a></root>' } })
+    fireEvent.click(screen.getByText('Format'))
+
+    await waitFor(() => {
+      expect(editor).toHaveValue('<root>\n  <a>1</a>\n</root>')
+    })
   })
 })

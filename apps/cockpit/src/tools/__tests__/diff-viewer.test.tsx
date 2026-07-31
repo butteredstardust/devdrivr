@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import DiffViewer from '../diff-viewer/DiffViewer'
 
@@ -28,5 +28,25 @@ describe('DiffViewer', () => {
   it('renders mode selector', () => {
     renderTool(DiffViewer)
     expect(screen.getByDisplayValue('Side by Side')).toBeInTheDocument()
+  })
+
+  // ── Worker round-trip ────────────────────────────────────────────
+  // A no-op worker mock never resolves computeDiff, so diffHtml/rawPatch
+  // never populate and the editors never disappear — this only passes
+  // against the real `diff` package output via the RPC mock.
+
+  it('computes a real unified patch and swaps to the diff view', async () => {
+    renderTool(DiffViewer)
+    const [left, right] = screen.getAllByTestId('monaco-editor')
+
+    fireEvent.change(left!, { target: { value: 'line one\nline two\n' } })
+    fireEvent.change(right!, { target: { value: 'line one\nline TWO\n' } })
+    fireEvent.click(screen.getByText('Compare'))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Left (original)')).not.toBeInTheDocument()
+    })
+    // Only set once rawPatch holds real output from the worker's computeDiff call.
+    expect(screen.getByText('Copy patch')).toBeInTheDocument()
   })
 })
