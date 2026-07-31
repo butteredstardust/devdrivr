@@ -1361,7 +1361,7 @@ Completed 2026-07-31:
   time — proving the retry actually happens.
 - `bunx vitest run src/stores/__tests__/mcp.store.test.ts` — 11/11 passing.
 
-### [ ] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
+### [x] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
 
 Area: snippets tool / error handling consistency
 
@@ -1383,6 +1383,22 @@ Acceptance criteria:
   thrown as an unhandled rejection.
 
 Judged priority: P2 — inconsistent error handling within one file, not a reliability blocker.
+
+Completed 2026-07-31:
+
+- `handleDuplicate` and `handleToggleFavorite` in `src/tools/snippets/SnippetsManager.tsx` now wrap
+  their bodies in `try`/`catch`, surfacing failures via `setLastAction('...', 'error')` — the same
+  idiom already used by `handleExport`/`handleDownload` in this file.
+- **Extended beyond the letter of the TODO, per explicit instruction:** `handleDeleteClick`'s
+  `.catch(() => {})` around `handleDelete()` swallowed delete failures with zero user feedback — same
+  class of defect as the two handlers named in the TODO. Changed it to
+  `.catch(() => setLastAction('Delete failed', 'error'))`.
+- Added a new `describe('SnippetsManager — mutation error handling')` block in
+  `src/tools/__tests__/snippets.test.tsx` that overrides `add`/`update`/`remove` on the live
+  `useSnippetsStore` with rejecting mocks (captured and restored via `afterEach` since the store is a
+  shared module instance across the test file) and asserts each failure surfaces through
+  `useUiStore`'s `lastAction` instead of throwing.
+- `bunx vitest run src/tools/__tests__/snippets.test.tsx` — 27/27 passing (24 existing + 3 new).
 
 ### [ ] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
 

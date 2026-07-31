@@ -415,15 +415,19 @@ export default function SnippetsManager() {
 
   const handleDuplicate = useCallback(async () => {
     if (!selected) return
-    const snippet = await addSnippet(
-      selected.title + ' (copy)',
-      selected.content,
-      selected.language,
-      visibleTags(selected.tags),
-      selected.folder
-    )
-    setSelectedId(snippet.id)
-    setLastAction('Snippet duplicated', 'success')
+    try {
+      const snippet = await addSnippet(
+        selected.title + ' (copy)',
+        selected.content,
+        selected.language,
+        visibleTags(selected.tags),
+        selected.folder
+      )
+      setSelectedId(snippet.id)
+      setLastAction('Snippet duplicated', 'success')
+    } catch {
+      setLastAction('Duplicate failed', 'error')
+    }
   }, [selected, addSnippet, setLastAction])
 
   const handleDelete = useCallback(async () => {
@@ -438,22 +442,26 @@ export default function SnippetsManager() {
     if (confirmDeleteId === selectedId) {
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
       setConfirmDeleteId(null)
-      handleDelete().catch(() => {})
+      handleDelete().catch(() => setLastAction('Delete failed', 'error'))
     } else {
       setConfirmDeleteId(selectedId)
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
       confirmTimeoutRef.current = setTimeout(() => setConfirmDeleteId(null), 2500)
     }
-  }, [selectedId, confirmDeleteId, handleDelete])
+  }, [selectedId, confirmDeleteId, handleDelete, setLastAction])
 
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
-    if (isFavorite(selected.tags)) {
-      await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== FAVORITE_TAG) })
-    } else {
-      await updateSnippet(selected.id, { tags: [...selected.tags, FAVORITE_TAG] })
+    try {
+      if (isFavorite(selected.tags)) {
+        await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== FAVORITE_TAG) })
+      } else {
+        await updateSnippet(selected.id, { tags: [...selected.tags, FAVORITE_TAG] })
+      }
+    } catch {
+      setLastAction('Failed to update favorite', 'error')
     }
-  }, [selected, updateSnippet])
+  }, [selected, updateSnippet, setLastAction])
 
   const handleAddTag = useCallback(async () => {
     if (!selected || !tagInput.trim()) return
