@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 const mocks = vi.hoisted(() => ({
   getSetting: vi.fn(),
@@ -226,47 +225,37 @@ describe('useMcpStore', () => {
     })
   })
 
-  // Unlike the other six stores with this pattern, init()'s business logic wraps
-  // getSetting/persistSettings/invoke in its own internal try/catch that swallows
-  // failures (see the "keeps initialization non-blocking..." test above) and never
-  // rethrows — the outer `.catch(() => { initPromise = null; throw err })` guard is
-  // therefore only reachable if something throws *inside* that internal catch block
-  // itself, which is not covered by a plain getSetting/invoke rejection. The only
-  // reachable path is the addToast() call at the end of the catch branch: if it
-  // throws, that throw is not caught by the same try/catch and propagates to the
-  // outer guard. Using that (rather than faking a false pass) to genuinely exercise
-  // the rejection-clearing code — see the assertion below that `initialized` is
-  // already `true` after the "rejected" call, which does not match the other six
-  // stores and is a real behavioral asymmetry, not a test artifact.
-  it('init() clears the cached promise on rejection so a later call retries', async () => {
+  // Unlike the other six stores with this pattern, mcp.store's init() must never
+  // reject: it is the only store awaited directly in providers.tsx's bootstrap
+  // sequence, and MCP is an optional, disabled-by-default feature — a rejection
+  // there would turn a degraded MCP server into a full app-startup failure. So
+  // init()'s internal try/catch swallows failures, sets `initialized: true` (so
+  // the UI shows a degraded MCP rather than a permanent spinner), and resolves
+  // successfully. The bug this test guards against: that inner catch used to
+  // never clear the cached `initPromise`, so a later init() call returned the
+  // same already-resolved promise instead of genuinely retrying. We prove the
+  // fix by calling init() twice and asserting getSetting was invoked both times.
+  it('init() clears the cached promise on failure so a later call retries', async () => {
     const { useMcpStore: freshStore } = await import('@/stores/mcp.store')
 
-    await expectInitRejectionRecovers({
-      runInit: () => freshStore.getState().init(),
-      arrangeFailure: () => {
-        mocks.getSetting.mockRejectedValueOnce(new Error('db locked'))
-        mocks.addToast.mockImplementationOnce(() => {
-          throw new Error('notify failed')
-        })
-      },
-      arrangeSuccess: () => {
-        mocks.getSetting.mockResolvedValueOnce(null)
-      },
-      rejectMessage: 'notify failed',
-      assertAfterFailure: () => {
-        const state = freshStore.getState()
-        // set() already ran (with initialized: true) before addToast threw, so
-        // — unlike settings/notes/history/snippets/prompt-templates/api — a
-        // rejected mcp.store init() leaves `initialized` true, not false.
-        expect(state.initialized).toBe(true)
-        expect(state.status.lastError).toBe('db locked')
-      },
-      assertAfterSuccess: () => {
-        const state = freshStore.getState()
-        expect(state.initialized).toBe(true)
-        expect(state.status.lastError).toBeNull()
-      },
-      getCallCount: () => mocks.getSetting.mock.calls.length,
-    })
+    mocks.getSetting.mockRejectedValueOnce(new Error('db locked'))
+    await expect(freshStore.getState().init()).resolves.toBeUndefined()
+
+    const failedState = freshStore.getState()
+    expect(failedState.initialized).toBe(true)
+    expect(failedState.status.lastError).toBe('db locked')
+    expect(mocks.addToast).toHaveBeenCalledWith(
+      'Failed to initialize MCP server: db locked',
+      'error'
+    )
+    expect(mocks.getSetting).toHaveBeenCalledTimes(1)
+
+    mocks.getSetting.mockResolvedValueOnce(null)
+    await freshStore.getState().init()
+
+    expect(mocks.getSetting).toHaveBeenCalledTimes(2)
+    const successState = freshStore.getState()
+    expect(successState.initialized).toBe(true)
+    expect(successState.status.lastError).toBeNull()
   })
 })

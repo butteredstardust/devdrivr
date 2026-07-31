@@ -1312,7 +1312,7 @@ cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
 
-### [ ] Fix mcp.store init() error handling that never actually retries
+### [x] Fix mcp.store init() error handling that never actually retries
 
 Area: state management / error recovery
 
@@ -1337,6 +1337,29 @@ Acceptance criteria:
 
 Judged priority: P2 — not user-visible today (MCP init failures are rare and already surfaced via
 toast), but it silently defeats a retry mechanism the code believes it has.
+
+Completed 2026-07-31:
+
+- Dropped the outer `.catch((err) => { initPromise = null; throw err })` entirely and clear
+  `initPromise = null` directly inside the inner catch instead. Verified the ordering is safe: the
+  inner catch only runs on the async continuation _after_ an `await` (the first is `getSetting`),
+  which is scheduled as a microtask — by the time it runs, the synchronous
+  `initPromise = (async () => {...})()` assignment has already completed, so clearing it there is not
+  immediately clobbered by that assignment.
+- **Deliberate decision — not in the TODO's own acceptance criteria:** did _not_ make the inner catch
+  rethrow. `useMcpStore.init()` has exactly one call site — `providers.tsx`'s bootstrap sequence,
+  which `await`s it — and MCP is an optional, disabled-by-default feature. Making init() reject would
+  turn a degraded MCP server into a full app-startup failure screen, which is strictly worse than the
+  bug being fixed. `init()` still resolves on failure, still sets `initialized: true` (so the UI shows
+  a degraded MCP rather than a permanent spinner), and now also clears `initPromise` so a later call
+  genuinely retries. The `addToast` call is additionally wrapped in its own `try`/`catch` so even an
+  unexpected toast failure can't turn this into an unhandled rejection.
+- Rewrote `src/stores/__tests__/mcp.store.test.ts`'s rejection test (previously forced `addToast` to
+  throw just to reach the now-deleted outer catch, and asserted the broken behavior). The new test
+  calls `init()`, fails it via a rejected `getSetting`, asserts `initialized: true` /
+  `status.lastError` are set, then calls `init()` again and asserts `getSetting` was called a second
+  time — proving the retry actually happens.
+- `bunx vitest run src/stores/__tests__/mcp.store.test.ts` — 11/11 passing.
 
 ### [ ] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
 

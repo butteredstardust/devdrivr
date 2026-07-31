@@ -153,15 +153,27 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
             initialized: true,
             status: { ...emptyStatus(settings), lastError: msg },
           })
-          useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
+          // Clear the cached promise so a transient error doesn't latch the
+          // app in a broken state for the rest of the process lifetime — a
+          // later init() call retries. This assignment happens on the async
+          // continuation after the `await` calls above, which runs strictly
+          // after `initPromise = (async () => {...})()` has already
+          // completed synchronously below, so it is not immediately
+          // clobbered by that assignment.
+          initPromise = null
+          // MCP is an optional, disabled-by-default feature. init() must
+          // never reject: providers.tsx awaits it during bootstrap, and a
+          // rejection there sends the whole app to the startup error
+          // screen — strictly worse than a degraded MCP server. Guard the
+          // toast call too, so even an unexpected addToast failure can't
+          // turn this into an unhandled rejection.
+          try {
+            useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
+          } catch {
+            // Swallow — see comment above.
+          }
         }
-      })().catch((err: unknown) => {
-        // Clear the cached promise on failure so a transient error doesn't
-        // latch the app in a broken state for the rest of the process
-        // lifetime — a later init() call retries.
-        initPromise = null
-        throw err
-      })
+      })()
     }
     return initPromise
   },
