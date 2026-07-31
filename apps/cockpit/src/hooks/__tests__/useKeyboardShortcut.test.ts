@@ -99,6 +99,19 @@ describe('useKeyboardShortcut', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('does not throw and still fires when the event target is not an Element', () => {
+    const handler = vi.fn()
+    renderHook(() => useKeyboardShortcut({ key: 'k', mod: true }, handler))
+
+    expect(() => {
+      // window itself is a valid EventTarget but not an Element — target.closest
+      // would be undefined here if the handler didn't guard for it.
+      dispatchKey(window as unknown as HTMLElement, { key: 'k', metaKey: true })
+    }).not.toThrow()
+
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
   it('removes its listener on unmount so repeated mounts do not duplicate dispatch', () => {
     const firstHandler = vi.fn()
     const first = renderHook(() => useKeyboardShortcut({ key: 'k', mod: true }, firstHandler))

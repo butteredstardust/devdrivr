@@ -152,7 +152,9 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-3">
         <span className="font-mono text-xs text-[var(--color-text-muted)]">Collections</span>
         <button
-          onClick={handleCreateCollection}
+          onClick={() => {
+            void handleCreateCollection()
+          }}
           className="text-xs text-[var(--color-accent)] hover:underline"
           title="New Collection"
         >
@@ -180,7 +182,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       ref={renameInputRef}
                       value={editingColName}
                       onChange={(e) => setEditingColName(e.target.value)}
-                      onBlur={() => commitRename(col)}
+                      onBlur={() => void commitRename(col)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') commitRename(col)
                         if (e.key === 'Escape') cancelRename()
@@ -323,14 +325,18 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
               </button>
               <button
                 className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-                onClick={() => handleDuplicate(contextMenu.reqId)}
+                onClick={() => {
+                  void handleDuplicate(contextMenu.reqId)
+                }}
               >
                 Duplicate
               </button>
               <div className="my-1 border-t border-[var(--color-border)]" />
               <button
                 className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-error)] hover:bg-[var(--color-surface-hover)]"
-                onClick={() => handleDeleteRequest(contextMenu.reqId)}
+                onClick={() => {
+                  void handleDeleteRequest(contextMenu.reqId)
+                }}
               >
                 Delete
               </button>
@@ -343,7 +349,9 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
             >
               <button
                 className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-                onClick={() => handleAssignCollection(moveMenu.reqId, null)}
+                onClick={() => {
+                  void handleAssignCollection(moveMenu.reqId, null)
+                }}
               >
                 (Unassigned)
               </button>
@@ -351,7 +359,9 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                 <button
                   key={col.id}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-                  onClick={() => handleAssignCollection(moveMenu.reqId, col.id)}
+                  onClick={() => {
+                    void handleAssignCollection(moveMenu.reqId, col.id)
+                  }}
                 >
                   {col.name}
                 </button>

@@ -1027,7 +1027,9 @@ export default function ApiClient() {
           initialName={name}
           initialCollectionId={saveModalInitialCollectionId}
           collections={collections}
-          onSave={handleSaveModalSubmit}
+          onSave={(reqName, collectionIdOrNewName, isNew) => {
+            void handleSaveModalSubmit(reqName, collectionIdOrNewName, isNew)
+          }}
           onClose={() => setShowSaveModal(false)}
         />
       )}

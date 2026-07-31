@@ -231,7 +231,14 @@ export default function JsonTools() {
           <div className="flex h-full flex-col">
             {/* Toolbar */}
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button variant="primary" size="sm" onClick={handleFormat} disabled={isFormatting}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  void handleFormat()
+                }}
+                disabled={isFormatting}
+              >
                 {isFormatting ? 'Formatting…' : 'Format'}
               </Button>
               <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>

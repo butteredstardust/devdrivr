@@ -76,6 +76,9 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(CodeBlockIcon),
     description: 'Format and beautify code (JS, TS, CSS, HTML, SQL, Python)',
     component: CodeFormatter,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
+    usesMonaco: true,
   },
   {
     id: 'ts-playground',
@@ -84,6 +87,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(FileTsIcon),
     description: 'Transpile TypeScript to JavaScript',
     component: TsPlayground,
+    usesMonaco: true,
   },
   {
     id: 'diff-viewer',
@@ -92,6 +96,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(GitDiffIcon),
     description: 'Compare text with syntax highlighting, auto-diff, stats, and patch export',
     component: DiffViewer,
+    usesMonaco: true,
   },
   {
     id: 'refactoring-toolkit',
@@ -100,6 +105,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(ArrowsClockwiseIcon),
     description: 'Regex code transforms with diff preview (12 transforms, JS/TS)',
     component: RefactoringToolkit,
+    usesMonaco: true,
   },
   // --- Data ---
   {
@@ -109,6 +115,9 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(BracketsCurlyIcon),
     description: 'Validate, format, minify, sort keys, path query, and tree view for JSON',
     component: JsonTools,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
+    usesMonaco: true,
   },
   {
     id: 'xml-tools',
@@ -117,6 +126,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(BracketsAngleIcon),
     description: 'Validate, format, minify XML with tree view, JSON conversion, XPath, and stats',
     component: XmlTools,
+    usesMonaco: true,
   },
   {
     id: 'yaml-tools',
@@ -125,6 +135,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(TreeStructureIcon),
     description: 'Validate, format, sort keys, tree view, and convert YAML ↔ JSON',
     component: YamlTools,
+    usesMonaco: true,
   },
   {
     id: 'json-schema-validator',
@@ -134,6 +145,7 @@ export const TOOLS: ToolDefinition[] = [
     description:
       'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode',
     component: JsonSchemaValidator,
+    usesMonaco: true,
   },
   {
     id: 'csv-tools',
@@ -142,6 +154,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(FileCsvIcon),
     description: 'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
     component: CsvTools,
+    supportsOpenFile: true,
+    usesMonaco: true,
   },
   // --- Web ---
   {
@@ -151,6 +165,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(FileCssIcon),
     description: 'Validate CSS syntax',
     component: CssValidator,
+    usesMonaco: true,
   },
   {
     id: 'html-validator',
@@ -160,6 +175,7 @@ export const TOOLS: ToolDefinition[] = [
     description:
       'Validate HTML with live preview, configurable rules, heading outline, and starter templates',
     component: HtmlValidator,
+    usesMonaco: true,
   },
   {
     id: 'css-specificity',
@@ -177,6 +193,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(WindIcon),
     description: 'Convert CSS rules to Tailwind classes',
     component: CssToTailwind,
+    usesMonaco: true,
   },
   // --- Convert ---
   {
@@ -227,6 +244,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(TerminalWindowIcon),
     description: 'Convert cURL to fetch, axios, ky, XHR, Node.js with syntax highlighting',
     component: CurlToFetch,
+    usesMonaco: true,
   },
   {
     id: 'uuid-generator',
@@ -277,6 +295,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(PaperPlaneTiltIcon),
     description: 'HTTP client with params editor, body modes, and response inspector',
     component: ApiClient,
+    supportsOpenFile: true,
+    usesMonaco: true,
   },
   {
     id: 'docs-browser',
@@ -294,6 +314,9 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(MarkdownLogoIcon),
     description: 'Edit markdown with toolbar, templates, TOC, reading time, and download export',
     component: MarkdownEditor,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
+    usesMonaco: true,
   },
   {
     id: 'mermaid-editor',
@@ -302,6 +325,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(GraphIcon),
     description: 'Edit and preview Mermaid diagrams',
     component: MermaidEditor,
+    usesMonaco: true,
   },
   {
     id: 'snippets',
@@ -310,6 +334,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(ScissorsIcon),
     description: 'Manage snippets with favorites, tag filters, sort, duplicate, and download',
     component: SnippetsManager,
+    usesMonaco: true,
   },
   {
     id: 'prompt-templates',
@@ -328,3 +353,9 @@ export function getToolById(id: string): ToolDefinition | undefined {
 export function getToolsByGroup(group: string): ToolDefinition[] {
   return TOOLS.filter((t) => t.group === group)
 }
+
+// Derived from each tool's capability flags rather than hand-maintained lists —
+// see documentation/TODO.md "Move tool capability flags into the tool registry".
+export const OPEN_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsOpenFile).map((t) => t.id))
+export const SAVE_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsSaveFile).map((t) => t.id))
+export const MONACO_TOOL_IDS = new Set(TOOLS.filter((t) => t.usesMonaco).map((t) => t.id))

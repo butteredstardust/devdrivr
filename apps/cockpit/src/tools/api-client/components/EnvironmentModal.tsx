@@ -78,7 +78,14 @@ export function EnvironmentModal({ onClose }: Props) {
         {/* Left Sidebar: Env List */}
         <div className="w-1/3 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] flex overflow-hidden">
           <div className="p-2">
-            <Button variant="secondary" size="sm" onClick={handleAdd} className="w-full mb-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void handleAdd()
+              }}
+              className="w-full mb-2"
+            >
               + Create Environment
             </Button>
           </div>

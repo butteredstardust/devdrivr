@@ -15,6 +15,7 @@ import {
 } from '@/lib/db'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
+import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   addHistoryEntry: vi.fn(),
@@ -272,5 +273,38 @@ describe('API store persistence', () => {
     expect(
       new Set(useApiStore.getState().collections.map((collection) => collection.id)).size
     ).toBe(3)
+  })
+})
+
+describe('API store initialization', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('init() clears the cached promise on rejection so a later call retries', async () => {
+    const { useApiStore: freshStore } = await import('@/stores/api.store')
+    vi.mocked(loadApiCollections).mockResolvedValue([])
+    vi.mocked(loadApiRequests).mockResolvedValue([])
+    vi.mocked(loadHistory).mockResolvedValue([])
+
+    await expectInitRejectionRecovers({
+      runInit: () => freshStore.getState().init(),
+      arrangeFailure: () => {
+        vi.mocked(loadApiEnvironments).mockRejectedValueOnce(new Error('db locked'))
+      },
+      arrangeSuccess: () => {
+        vi.mocked(loadApiEnvironments).mockResolvedValueOnce([persistedEnvironment])
+      },
+      rejectMessage: 'db locked',
+      assertAfterFailure: () => {
+        // ApiStore has no `initialized` flag; a rejected Promise.all means `set()`
+        // was never called, so state is untouched from its module-fresh defaults.
+        expect(freshStore.getState().environments).toEqual([])
+      },
+      assertAfterSuccess: () => {
+        expect(freshStore.getState().environments).toEqual([persistedEnvironment])
+      },
+      getCallCount: () => vi.mocked(loadApiEnvironments).mock.calls.length,
+    })
   })
 })

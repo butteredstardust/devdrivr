@@ -787,7 +787,9 @@ export default function SnippetsManager() {
             {/* Title + controls */}
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
               <button
-                onClick={handleToggleFavorite}
+                onClick={() => {
+                  void handleToggleFavorite()
+                }}
                 className={`rounded p-1 transition-colors ${isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-warning)]'}`}
                 title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
               >
@@ -796,13 +798,15 @@ export default function SnippetsManager() {
               <input
                 ref={titleInputRef}
                 value={selected.title}
-                onChange={(e) => updateSnippet(selected.id, { title: e.target.value })}
+                onChange={(e) => void updateSnippet(selected.id, { title: e.target.value })}
                 placeholder="Snippet title"
                 className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
               />
               <CopyButton text={selected.content} />
               <button
-                onClick={handleDownload}
+                onClick={() => {
+                  void handleDownload()
+                }}
                 className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                 title="Download as file"
               >
@@ -816,7 +820,7 @@ export default function SnippetsManager() {
                 theme={monacoTheme}
                 language={selected.language}
                 value={selected.content}
-                onChange={(v) => updateSnippet(selected.id, { content: v ?? '' })}
+                onChange={(v) => void updateSnippet(selected.id, { content: v ?? '' })}
                 options={{
                   ...monacoOptions,
                   minimap: { enabled: false },
@@ -848,7 +852,7 @@ export default function SnippetsManager() {
                 </div>
                 <input
                   value={selected.folder}
-                  onChange={(e) => updateSnippet(selected.id, { folder: e.target.value })}
+                  onChange={(e) => void updateSnippet(selected.id, { folder: e.target.value })}
                   placeholder="e.g. work, personal"
                   list="snippet-folders"
                   className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
@@ -867,7 +871,7 @@ export default function SnippetsManager() {
                 </div>
                 <Select
                   value={selected.language}
-                  onChange={(e) => updateSnippet(selected.id, { language: e.target.value })}
+                  onChange={(e) => void updateSnippet(selected.id, { language: e.target.value })}
                   className="w-full"
                 >
                   {LANGUAGES.map((l) => (
@@ -891,7 +895,9 @@ export default function SnippetsManager() {
                     >
                       <span className="truncate">{tag}</span>
                       <button
-                        onClick={() => handleRemoveTag(tag)}
+                        onClick={() => {
+                          void handleRemoveTag(tag)
+                        }}
                         className="shrink-0 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-error)]"
                       >
                         <XIcon size={10} />
@@ -1020,13 +1026,17 @@ export default function SnippetsManager() {
       <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
         <div className="flex items-center gap-1">
           <button
-            onClick={handleNew}
+            onClick={() => {
+              void handleNew()
+            }}
             className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F5: NEW]
           </button>
           <button
-            onClick={handleDuplicate}
+            onClick={() => {
+              void handleDuplicate()
+            }}
             disabled={!selected}
             className={`rounded px-2 py-0.5 transition-colors ${selected ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]' : 'cursor-not-allowed opacity-30'}`}
           >
@@ -1046,13 +1056,17 @@ export default function SnippetsManager() {
             {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
           </button>
           <button
-            onClick={handleExport}
+            onClick={() => {
+              void handleExport()
+            }}
             className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F9: EXP]
           </button>
           <button
-            onClick={handleImport}
+            onClick={() => {
+              void handleImport()
+            }}
             className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
           >
             [F10: IMP]

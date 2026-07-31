@@ -26,11 +26,20 @@ let writeQueue: Promise<void> = Promise.resolve()
 
 export function getDb(): Promise<Database> {
   if (!dbPromise) {
-    dbPromise = Database.load('sqlite:cockpit.db').then(async (conn) => {
-      await conn.execute('PRAGMA journal_mode=WAL')
-      await conn.execute('PRAGMA busy_timeout=5000')
-      return conn
-    })
+    dbPromise = Database.load('sqlite:cockpit.db')
+      .then(async (conn) => {
+        await conn.execute('PRAGMA journal_mode=WAL')
+        await conn.execute('PRAGMA busy_timeout=5000')
+        return conn
+      })
+      .catch((err: unknown) => {
+        // Clear the cached promise on failure — whether Database.load() itself
+        // rejected or one of the PRAGMA statements did — so a transient failure
+        // (e.g. a locked database at launch) doesn't latch every later getDb()
+        // call for the rest of the process lifetime. A later call retries.
+        dbPromise = null
+        throw err
+      })
   }
   return dbPromise
 }

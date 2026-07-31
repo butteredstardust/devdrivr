@@ -1,31 +1,11 @@
 import { Suspense, useCallback, useEffect, useRef } from 'react'
 import { useUiStore } from '@/stores/ui.store'
-import { getToolById } from '@/app/tool-registry'
+import { getToolById, MONACO_TOOL_IDS } from '@/app/tool-registry'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { ToolboxIcon } from '@phosphor-icons/react'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
-
-const MONACO_TOOL_IDS = new Set([
-  'api-client',
-  'code-formatter',
-  'css-to-tailwind',
-  'css-validator',
-  'csv-tools',
-  'curl-to-fetch',
-  'diff-viewer',
-  'html-validator',
-  'json-schema-validator',
-  'json-tools',
-  'markdown-editor',
-  'mermaid-editor',
-  'refactoring-toolkit',
-  'snippets',
-  'ts-playground',
-  'xml-tools',
-  'yaml-tools',
-])
 
 export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
@@ -37,7 +17,7 @@ export function Workspace() {
 
   // Reset error boundary when switching tools (instead of using key= which forces full remount)
   useEffect(() => {
-    errorBoundaryRef.current?.setState({ hasError: false, error: null })
+    errorBoundaryRef.current?.reset()
   }, [activeTool])
 
   const handleFileDrop = useCallback(

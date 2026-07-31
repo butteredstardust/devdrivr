@@ -211,7 +211,9 @@ function DangerButton({
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => {
+        void handleClick()
+      }}
       disabled={pending}
       className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors ${
         confirming
@@ -275,7 +277,7 @@ function GeneralTab() {
         <SettingRow label="Theme" hint="Appearance mode for the app">
           <SelectInput
             value={theme}
-            onChange={(v) => update('theme', v as Theme).catch(() => {})}
+            onChange={(v) => void update('theme', v as Theme).catch(() => {})}
             options={THEME_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
           />
         </SettingRow>
@@ -285,7 +287,7 @@ function GeneralTab() {
         <SettingRow label="Sidebar Collapsed" hint="Start with sidebar collapsed">
           <Toggle
             checked={sidebarCollapsed}
-            onChange={(v) => update('sidebarCollapsed', v).catch(() => {})}
+            onChange={(v) => void update('sidebarCollapsed', v).catch(() => {})}
           />
         </SettingRow>
       </div>
@@ -300,7 +302,7 @@ function GeneralTab() {
           <SettingRow label="Check for updates automatically" hint="Check on every app launch">
             <Toggle
               checked={checkForUpdatesAutomatically}
-              onChange={(v) => update('checkForUpdatesAutomatically', v).catch(() => {})}
+              onChange={(v) => void update('checkForUpdatesAutomatically', v).catch(() => {})}
             />
           </SettingRow>
           <SettingRow
@@ -309,13 +311,13 @@ function GeneralTab() {
           >
             <Toggle
               checked={downloadUpdatesAutomatically}
-              onChange={(v) => update('downloadUpdatesAutomatically', v).catch(() => {})}
+              onChange={(v) => void update('downloadUpdatesAutomatically', v).catch(() => {})}
             />
           </SettingRow>
           <SettingRow label="Notify when update is available" hint="Show banner at top of app">
             <Toggle
               checked={notifyWhenUpdateAvailable}
-              onChange={(v) => update('notifyWhenUpdateAvailable', v).catch(() => {})}
+              onChange={(v) => void update('notifyWhenUpdateAvailable', v).catch(() => {})}
             />
           </SettingRow>
         </div>
@@ -367,28 +369,32 @@ function EditorTab() {
       <SettingRow label="Font Family" hint="Monaco editor font family">
         <SelectInput
           value={editorFont}
-          onChange={(v) => update('editorFont', v as AppSettings['editorFont']).catch(() => {})}
+          onChange={(v) =>
+            void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
+          }
           options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
         />
       </SettingRow>
       <SettingRow label="Font Size" hint="Monaco editor font size">
         <SelectInput
           value={editorFontSize}
-          onChange={(v) => update('editorFontSize', Number(v)).catch(() => {})}
+          onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
           options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
         />
       </SettingRow>
       <SettingRow label="Indent Size" hint="Spaces per indent level">
         <SelectInput
           value={defaultIndentSize}
-          onChange={(v) => update('defaultIndentSize', Number(v)).catch(() => {})}
+          onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
           options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
         />
       </SettingRow>
       <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
         <SelectInput
           value={editorTheme}
-          onChange={(v) => update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})}
+          onChange={(v) =>
+            void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
+          }
           options={EDITOR_THEME_OPTIONS}
         />
       </SettingRow>
@@ -396,7 +402,9 @@ function EditorTab() {
         <SelectInput
           value={editorKeybindingMode}
           onChange={(v) =>
-            update('editorKeybindingMode', v as AppSettings['editorKeybindingMode']).catch(() => {})
+            void update('editorKeybindingMode', v as AppSettings['editorKeybindingMode']).catch(
+              () => {}
+            )
           }
           options={KEYBINDING_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
         />
@@ -404,7 +412,7 @@ function EditorTab() {
       <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
         <Toggle
           checked={formatOnPaste}
-          onChange={(v) => update('formatOnPaste', v).catch(() => {})}
+          onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
         />
       </SettingRow>
     </div>
@@ -581,7 +589,7 @@ function DataTab() {
             type="number"
             value={historyRetentionPerTool}
             onChange={(e) =>
-              update(
+              void update(
                 'historyRetentionPerTool',
                 Math.min(5000, Math.max(10, Number(e.target.value)))
               ).catch(() => {})
@@ -594,7 +602,7 @@ function DataTab() {
         <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
           <SelectInput
             value={defaultTimezone}
-            onChange={(v) => update('defaultTimezone', v).catch(() => {})}
+            onChange={(v) => void update('defaultTimezone', v).catch(() => {})}
             options={tzOptions}
           />
         </SettingRow>
@@ -656,7 +664,9 @@ function DataTab() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleExportSettings}
+            onClick={() => {
+              void handleExportSettings()
+            }}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             <DownloadSimpleIcon size={12} />
@@ -664,7 +674,9 @@ function DataTab() {
           </button>
           <button
             type="button"
-            onClick={handleImportSettings}
+            onClick={() => {
+              void handleImportSettings()
+            }}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             <UploadSimpleIcon size={12} />

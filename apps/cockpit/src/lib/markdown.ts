@@ -17,9 +17,28 @@ export const markdownSanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     a: [...(defaultSchema.attributes?.['a'] ?? []), 'target', 'rel'],
-    code: [...(defaultSchema.attributes?.['code'] ?? []), 'className'],
-    span: [...(defaultSchema.attributes?.['span'] ?? []), 'className'],
-    input: [...(defaultSchema.attributes?.['input'] ?? []), 'type', 'checked', 'disabled'],
+    // Only allow rehype-highlight's own class naming scheme, not arbitrary strings.
+    // hast-util-sanitize's `findDefinition` uses the *first* matching entry for a
+    // given property name, so this tuple must come before the spread of
+    // `defaultSchema.attributes.code` (which also defines `className`) or it will
+    // never be consulted.
+    code: [
+      ['className', /^hljs-/, /^language-/, 'hljs'] as [string, ...Array<string | RegExp>],
+      ...(defaultSchema.attributes?.['code'] ?? []),
+    ],
+    span: [
+      ['className', /^hljs-/, /^language-/, 'hljs'] as [string, ...Array<string | RegExp>],
+      ...(defaultSchema.attributes?.['span'] ?? []),
+    ],
+    // `input` is only ever emitted for GFM task-list checkboxes. `type`/`disabled`
+    // are listed explicitly (and first, for the same first-match reason as above)
+    // so the restriction holds even if `defaultSchema`'s own input handling changes.
+    input: [
+      ['type', 'checkbox'] as [string, ...Array<string | boolean>],
+      ['disabled', true] as [string, ...Array<string | boolean>],
+      ...(defaultSchema.attributes?.['input'] ?? []),
+      'checked',
+    ],
   },
   tagNames: [...(defaultSchema.tagNames ?? []), 'input'],
 }

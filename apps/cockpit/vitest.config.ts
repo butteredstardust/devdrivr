@@ -18,8 +18,27 @@ export default defineConfig({
         replacement: resolve(__dirname, './src/__mocks__/regex-worker.ts'),
       },
       {
-        find: /^@\/workers\/(typescript|formatter|refactoring|diff|xml)\.worker\?worker$/,
-        replacement: resolve(__dirname, './src/__mocks__/worker.ts'),
+        // Each of these runs the real worker logic (imported from the sibling *.api.ts
+        // module) over the real RPC message shape, so formatter/diff/xml/typescript/
+        // refactoring tool tests exercise real worker round-trips instead of no-oping.
+        find: '@/workers/typescript.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/typescript-worker.ts'),
+      },
+      {
+        find: '@/workers/formatter.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/formatter-worker.ts'),
+      },
+      {
+        find: '@/workers/refactoring.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/refactoring-worker.ts'),
+      },
+      {
+        find: '@/workers/diff.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/diff-worker.ts'),
+      },
+      {
+        find: '@/workers/xml.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/xml-worker.ts'),
       },
       { find: '@', replacement: resolve(__dirname, './src') },
       {

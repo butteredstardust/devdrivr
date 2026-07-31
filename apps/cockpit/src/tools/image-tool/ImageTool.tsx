@@ -845,8 +845,8 @@ export default function ImageTool() {
               estimatedBytes={estimatedBytes}
               onFormatChange={(f) => updateState({ format: f as ImageToolState['format'] })}
               onQualityChange={(q) => updateState({ quality: q })}
-              onDownload={handleDownload}
-              onCopy={handleCopyImage}
+              onDownload={() => void handleDownload()}
+              onCopy={() => void handleCopyImage()}
             />
           )}
         </div>
@@ -1183,11 +1183,23 @@ function ExportPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Button variant="primary" size="sm" onClick={onDownload}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            void onDownload()
+          }}
+        >
           <DownloadSimpleIcon size={13} />
           Download {format.toUpperCase()}
         </Button>
-        <Button variant="secondary" size="sm" onClick={onCopy}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            void onCopy()
+          }}
+        >
           <CopyIcon size={13} />
           Copy as PNG
         </Button>

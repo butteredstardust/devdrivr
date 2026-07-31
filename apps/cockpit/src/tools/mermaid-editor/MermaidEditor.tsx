@@ -519,7 +519,9 @@ export default function MermaidEditor() {
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  onClick={handleCopySvg}
+                  onClick={() => {
+                    void handleCopySvg()
+                  }}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 >
@@ -529,7 +531,9 @@ export default function MermaidEditor() {
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  onClick={handleDownloadSvg}
+                  onClick={() => {
+                    void handleDownloadSvg()
+                  }}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 >
@@ -565,7 +569,9 @@ export default function MermaidEditor() {
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  onClick={handleCopyPng}
+                  onClick={() => {
+                    void handleCopyPng()
+                  }}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 >
@@ -575,7 +581,9 @@ export default function MermaidEditor() {
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  onClick={handleDownloadPng}
+                  onClick={() => {
+                    void handleDownloadPng()
+                  }}
                   disabled={!svgHtml}
                   className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 >

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useHistoryStore } from '../history.store'
 import { loadHistory, addHistoryEntry, pruneHistory, clearAllHistory } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
+import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   loadHistory: vi.fn(),
@@ -119,5 +120,33 @@ describe('history store', () => {
 
     expect(clearAllHistory).toHaveBeenCalledOnce()
     expect(useHistoryStore.getState().entries).toEqual([])
+  })
+})
+
+describe('history store initialization', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('init() clears the cached promise on rejection so a later call retries', async () => {
+    const { useHistoryStore: freshStore } = await import('../history.store')
+
+    await expectInitRejectionRecovers({
+      runInit: () => freshStore.getState().init(),
+      arrangeFailure: () => {
+        ;(loadHistory as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db locked'))
+      },
+      arrangeSuccess: () => {
+        ;(loadHistory as ReturnType<typeof vi.fn>).mockResolvedValueOnce([])
+      },
+      rejectMessage: 'db locked',
+      assertAfterFailure: () => {
+        expect(freshStore.getState().initialized).toBe(false)
+      },
+      assertAfterSuccess: () => {
+        expect(freshStore.getState().initialized).toBe(true)
+      },
+      getCallCount: () => (loadHistory as ReturnType<typeof vi.fn>).mock.calls.length,
+    })
   })
 })

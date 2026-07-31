@@ -87,7 +87,9 @@ export function ImageModal({ onInsert, onClose }: Props) {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={handlePaste}
+                onClick={() => {
+                  void handlePaste()
+                }}
                 title="Paste image from clipboard"
               >
                 Paste

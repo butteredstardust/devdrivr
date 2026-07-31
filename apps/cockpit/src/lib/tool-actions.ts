@@ -1,3 +1,5 @@
+import { OPEN_FILE_TOOL_IDS, SAVE_FILE_TOOL_IDS } from '@/app/tool-registry'
+
 /**
  * Lightweight pub/sub for shell→tool communication.
  * Shell dispatches actions via keyboard shortcuts;
@@ -13,17 +15,8 @@ export type ToolAction =
 
 type Listener = (action: ToolAction) => void
 
-const OPEN_FILE_TOOLS = new Set([
-  'api-client',
-  'code-formatter',
-  'csv-tools',
-  'json-tools',
-  'markdown-editor',
-])
-const SAVE_FILE_TOOLS = new Set(['code-formatter', 'json-tools', 'markdown-editor'])
-
 export function supportsToolFileAction(toolId: string, action: 'open-file' | 'save-file'): boolean {
-  return (action === 'open-file' ? OPEN_FILE_TOOLS : SAVE_FILE_TOOLS).has(toolId)
+  return (action === 'open-file' ? OPEN_FILE_TOOL_IDS : SAVE_FILE_TOOL_IDS).has(toolId)
 }
 
 const listeners = new Set<Listener>()

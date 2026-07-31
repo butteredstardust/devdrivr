@@ -1,7 +1,7 @@
-import js from '@eslint/js';
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
-import reactHooks from 'eslint-plugin-react-hooks';
+import js from '@eslint/js'
+import tseslint from '@typescript-eslint/eslint-plugin'
+import tsparser from '@typescript-eslint/parser'
+import reactHooks from 'eslint-plugin-react-hooks'
 
 export default [
   js.configs.recommended,
@@ -14,8 +14,8 @@ export default [
         sourceType: 'module',
         project: './tsconfig.json',
         ecmaFeatures: {
-          jsx: true
-        }
+          jsx: true,
+        },
       },
       globals: {
         console: 'readonly',
@@ -48,12 +48,12 @@ export default [
         confirm: 'readonly',
         alert: 'readonly',
         Image: 'readonly',
-        self: 'readonly'
-      }
+        self: 'readonly',
+      },
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      'react-hooks': reactHooks
+      'react-hooks': reactHooks,
     },
     rules: {
       ...tseslint.configs.recommended.rules,
@@ -63,15 +63,28 @@ export default [
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-      '@typescript-eslint/no-misused-promises': 'off', // Common in React event handlers
+      '@typescript-eslint/no-misused-promises': [
+        'warn',
+        { checksVoidReturn: { attributes: true, arguments: false, properties: false } },
+      ],
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       'no-empty': 'warn',
       'no-useless-assignment': 'warn',
-      'preserve-caught-error': 'warn'
-    }
+      'preserve-caught-error': 'warn',
+    },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'src-tauri/', '*.config.js', '*.config.ts', 'src/__mocks__/', '**/*.js', '**/*.test.ts', '**/*.test.tsx']
-  }
-];
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'src-tauri/',
+      '*.config.js',
+      '*.config.ts',
+      'src/__mocks__/',
+      '**/*.js',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+    ],
+  },
+]

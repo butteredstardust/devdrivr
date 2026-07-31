@@ -336,6 +336,18 @@ Completed 2026-07-30:
 - Verified the worker/tool slice (42 files, 371 tests), the full clean-source suite (65 files, 520
   tests), TypeScript, and ESLint.
 
+Correction 2026-07-31: `src/workers/__tests__/rpc.test.ts` — the "direct `handleRpc` coverage" claimed
+above — tests `handleRpc` in isolation against a toy `{ add }` API, not any real worker. It is real
+coverage of the RPC envelope (message shape, unknown-method errors, thrown-error serialization), but
+it is not round-trip coverage of any actual worker's logic. At the time this item was completed, five
+of the six workers (`typescript`, `formatter`, `refactoring`, `diff`, `xml`) were additionally routed
+through a no-op mock in tests (see the P2 item below), so none of their tool tests exercised real
+worker output either — only the regex worker had a live mock. The P2 item "Re-examine the five worker
+mocks that were never active" below supplied the missing round-trip coverage: real per-worker mocks
+plus tests that fail if any of them reverts to a no-op. Leaving this item checked because the RPC
+envelope coverage it describes is accurate and still valid; the gap was in what the surrounding tool
+tests could prove, not in this item's own claims.
+
 ### [x] Harden database helper and migration regression tests
 
 Area: SQLite persistence / data safety
@@ -808,7 +820,7 @@ Completed 2026-07-30:
   invocations still work unchanged — 78 files / 650 tests pass either way.
 - No `package.json` script was modified; none was broken.
 
-### [ ] Re-examine the five worker mocks that were never active
+### [x] Re-examine the five worker mocks that were never active
 
 Area: test integrity
 
@@ -834,7 +846,56 @@ Acceptance criteria:
 - Cross-check the completed "Add worker RPC round-trip regression coverage" P0 item above; part of
   its claimed coverage ran against a stub.
 
-### [ ] Relocate `useToolState` tests to the documented location
+Completed 2026-07-31:
+
+- Confirmed the mocks were live, not vacuous — the retrospective concern in the Problem statement
+  above was worse than stated. The five workers weren't matching a benign "Vite no-op worker stub";
+  `src/__mocks__/worker.ts` was a hand-written `postMessage()` that discarded the message and never
+  called `onmessage`, so every call from `typescript`, `formatter`, `refactoring`, `diff`, and `xml`
+  returned a promise that never settled. Formatter/diff/xml/typescript/refactoring tool tests were
+  entirely render/UI assertions plus direct unit calls into pure helpers — not one asserted on actual
+  worker output, so nothing could have failed even though the mock was silently broken.
+- Extracted each worker's pure logic into a sibling `*.api.ts` module (`typescript.api.ts`,
+  `formatter.api.ts`, `diff.api.ts`, `xml.api.ts`, `refactoring.api.ts`) that both the real
+  `*.worker.ts` (now just `handleRpc(api)` over the extracted functions) and a new mock import —
+  mirroring the existing `regex.api.ts` / `regex-worker.ts` split. No logic is duplicated between the
+  real worker and its mock.
+- Added five real per-worker mocks (`src/__mocks__/{typescript,formatter,diff,xml,refactoring}-worker.ts`)
+  that parse the real `{id, method, args}` RPC request, run the real extracted logic, and reply via
+  `queueMicrotask` with `{id, result}` or `{id, error}` — the same pattern as `regex-worker.ts`.
+  Verified all five dependencies (TypeScript compiler, Prettier standalone + sql-formatter, the `diff`
+  package, `@xmldom/xmldom`, and `jscodeshift`) are pure JS/npm packages with no `self`-only or real
+  `Worker`-only API dependency, so all five run correctly in-process under Vitest/Node — no worker
+  needed a stub-with-a-comment fallback.
+- Updated `vitest.config.ts` to map each of the five `@/workers/*.worker?worker` specifiers to its own
+  live mock, ahead of the bare `'@'` entry (order-matters comment retained). Deleted the now-unused
+  `src/__mocks__/worker.ts` no-op stub — nothing else referenced it.
+- Added worker round-trip tests to all five affected tool test files
+  (`code-formatter.test.tsx`, `diff-viewer.test.tsx`, `xml-tools.test.tsx`, `ts-playground.test.tsx`,
+  `refactoring-toolkit.test.tsx`) that drive the component through the UI and assert on output that
+  only the real worker logic can produce: Prettier reformatting messy JS and a real parse-error
+  message, a real unified diff patch swapping in the diff view, a real `@xmldom/xmldom` validation
+  error and reformatted XML, TypeScript-to-JS transpilation output plus a real type-checker
+  diagnostic, and a real jscodeshift `var` → `const` transform applied through the Apply button.
+  json-tools and yaml-tools share the formatter worker and benefit from the same live mock without
+  additional changes.
+- Added `src/workers/__tests__/worker-mock-aliases.test.ts`, which dynamically imports each of the
+  five `@/workers/*.worker?worker` specifiers, instantiates the factory, and drives a real RPC call
+  end-to-end — proving the specifier resolves to a live mock and not the bare `@/...` fallback or a
+  no-op. This is a stronger guard than inspecting config text: an alias-ordering regression makes
+  these tests time out waiting for `onmessage`, or throw at import time.
+- Verified all 13 new tests fail as expected: temporarily repointed the five aliases at a no-op stub,
+  confirmed every new round-trip and alias-guard test failed (timeouts on `onmessage`), then restored
+  `vitest.config.ts` from the working version and re-ran the full suite to confirm it was back to
+  passing.
+- Cross-checked "Add worker RPC round-trip regression coverage" (P0, above) — confirmed and annotated
+  with a correction note in place: its `handleRpc` coverage is real but only exercises a toy `{ add }`
+  API, not any actual worker, so the round-trip gap this item closes was real and is now closed.
+- Verified the full suite (79 files / 664 tests, up from 78 files / 650), TypeScript, and ESLint.
+- Left open: none. All acceptance criteria met — round-trip assertions added, alias-shadowing guard
+  added, P0 cross-check done and annotated.
+
+### [x] Relocate `useToolState` tests to the documented location
 
 Area: test organisation
 
@@ -842,7 +903,23 @@ Area: test organisation
 `src/hooks/__tests__/`. Left in place during the P0 fix to keep that diff scoped. Move it and confirm
 no other test files sit in the wrong directory.
 
-### [ ] Narrow the re-allowed `className` in the markdown sanitize schema
+Completed 2026-07-31:
+
+- `git mv`'d `src/tools/__tests__/useToolState.test.ts` → `src/hooks/__tests__/useToolState.test.ts`.
+  Uses `@/` alias imports throughout, so no import changes were needed.
+- The sweep for other misplaced files found a second one: `src/tools/__tests__/sidebar.test.tsx`
+  tests `SidebarItem`, `SidebarGroup`, `SidebarPinned`, and `SidebarCollapsedGroup` from
+  `src/components/shell/` — components, not a tool. Moved it to
+  `src/components/shell/__tests__/sidebar.test.tsx`, alongside the other shell component tests
+  already living there (`CommandPalette.test.tsx`, `NotesDrawer.test.tsx`, etc.).
+- Checked every remaining file in `src/tools/__tests__/` against its imports; all import from
+  `@/tools/<id>/...` or tool-scoped test utilities and are correctly placed. `test-setup.ts` and
+  `test-utils.tsx` are shared fixtures, not tests, and stay where `vitest.config.ts` and the other
+  tool tests expect them.
+- Both moved files pass in their new locations; full suite still green (79 files / 664 tests,
+  unchanged from before the move).
+
+### [x] Narrow the re-allowed `className` in the markdown sanitize schema
 
 Area: markdown rendering / defense in depth
 
@@ -859,7 +936,45 @@ future: adding a raw-HTML pass without re-auditing this schema would turn it int
 injection surface on user-authored notes. Tighten it while the reason is still fresh, and keep the
 `hljs` highlighting test as the guard.
 
-### [ ] Use the `void` prefix on async click handlers in the export paths
+Completed 2026-07-31:
+
+- Restricted `code`/`span` `className` to hast-util-sanitize's tuple/regex syntax:
+  `['className', /^hljs-/, /^language-/, 'hljs']`. Restricted `input`'s `type` to
+  `['type', 'checkbox']` and `disabled` to `['disabled', true]`, explicitly, rather than relying on
+  `defaultSchema`'s own (currently equivalent) restriction.
+- Verified against the installed `hast-util-sanitize@5.0.2` by sanitizing hand-built hast trees
+  directly (both before and after the change): `findDefinition` picks the _first_ array entry
+  matching a given property name, so the new restrictive tuples must be listed before any spread of
+  `defaultSchema`'s own entries for the same property, or they are silently never consulted. Got this
+  wrong on the first pass (spread first, tuple second — the tuple was dead code) and caught it with
+  that direct check before it shipped.
+- That same check showed the pre-existing code was _not_ actually exploitable for `input`'s
+  `type`/`disabled` — `defaultSchema`'s own restrictive entries for `input` already won under the
+  first-match rule, so the unrestricted strings added alongside them were dead code. `span`'s
+  `className` genuinely was exploitable: `defaultSchema` has no entry for `span` at all, so the
+  unrestricted addition was the only definition and any class value passed through untouched.
+  `code`'s widening was also dead code (same first-match reason, in the other direction — the
+  default's restrictive `code` entry came first).
+- **Pipeline-ordering observation, not fixed here:** `src/lib/markdown.ts` runs `rehypeHighlight`
+  before `rehypeSanitize`, so the narrowed schema is load-bearing there. `MarkdownEditor.tsx` runs
+  `rehypeSanitize` before `rehypeHighlight`, so rehype-highlight's classes are added _after_
+  sanitization and are never sanitized at all in that pipeline — the schema is inert for `className`
+  in that order (though still meaningful for `input`/`type`, which comes from GFM task lists parsed
+  earlier). Not reordering either pipeline as part of this change; flagging for a follow-up.
+- Since neither pipeline uses `rehype-raw`, markdown source can't inject raw HTML to reach `code`,
+  `span`, or `input` through `processMarkdown()` directly (confirmed empirically — raw HTML tags in
+  markdown source are dropped entirely, not parsed as elements). The new tests therefore exercise
+  `markdownSanitizeSchema` directly against hand-built hast trees via rehype-sanitize's transform,
+  rather than through `processMarkdown()`, to test the schema's actual guarantee rather than what the
+  current pipeline happens to produce.
+- Added four tests: arbitrary `className` stripped from `code` (keeping `hljs`/`language-js`),
+  arbitrary `className` stripped from `span` (keeping `hljs-keyword`), non-`checkbox` `input` `type`
+  stripped and defaulted back to `checkbox`, and a `checkbox` `input`'s `type`/`checked` preserved.
+  All prior tests (including the `hljs` highlighting guard and the `javascript:`/`data:` href tests)
+  still pass.
+- Verified `npx tsc --noEmit`, `bun run lint`, `bunx vitest run` (79 files / 668 tests, up from 664).
+
+### [x] Use the `void` prefix on async click handlers in the export paths
 
 Area: convention consistency
 
@@ -869,7 +984,34 @@ those handlers catches internally and surfaces the failure through `setLastActio
 documents `void handler()` for async handlers, and the current form would silently produce an
 unhandled rejection if any of them ever grows a throw outside its `try`.
 
-### [ ] Cover init-rejection recovery for the other six stores
+Completed 2026-07-31:
+
+- The TODO's file list was partly stale: `MarkdownEditor.tsx` was already fully compliant (lines
+  922-949 already use `void handleX()`) — nothing to do there. `MermaidEditor.tsx` had four sites, not
+  two: `handleCopySvg`, `handleDownloadSvg`, `handleCopyPng`, `handleDownloadPng`.
+- Widened the scope repo-wide rather than fixing only the four named files: re-swept every
+  `onClick={handleX}` and `onClick={() => handleX(...)}` in `src/**/*.tsx` against handlers defined
+  `async`, found ~28 sites across 11 files (larger than the ~22/9 estimate handed off — the estimate
+  missed `CopyButton.tsx`'s `handleCopy`, `NotesDrawer`/`SnippetsManager`'s `handleRemoveTag`, and
+  three sites in `CollectionsSidebar.tsx`'s context menus). Fixed all of them: same one-line change,
+  and leaving known violations in unnamed files would have applied the convention half-way.
+- Files touched: `SettingsPanel.tsx`, `CollectionsSidebar.tsx`, `EnvironmentModal.tsx`,
+  `CssValidator.tsx`, `JsonSchemaValidator.tsx`, `JsonTools.tsx`, `ImageModal.tsx`,
+  `MermaidEditor.tsx`, `SnippetsManager.tsx`, `YamlTools.tsx`, `ImageTool.tsx`, `CopyButton.tsx`.
+- `ImageTool.tsx`'s `handleDownload`/`handleCopyImage` are passed to `ExportPanel` as
+  `onDownload`/`onCopy` props (typed `() => void`); wrapped at the consuming `onClick` inside
+  `ExportPanel` rather than at the prop definition, keeping the prop's fire-and-forget contract
+  explicit at the call site.
+- Confirmed via a second, independent regex sweep after the edits that no `onClick={asyncHandler}` or
+  `onClick={() => asyncHandler(...)}` site remains unwrapped anywhere in `src/**/*.tsx`.
+- `handleToggleFavorite` and `handleDuplicate` in `SnippetsManager.tsx` have no internal `try`/`catch`
+  — the `void` prefix suppresses the unhandled-rejection warning but does not give the user any
+  feedback if the underlying store call fails. Flagging as follow-up candidates for real error
+  handling; not redesigned in this pass.
+- Verified `npx tsc --noEmit`, `bun run lint`, `bunx vitest run` (79 files / 668 tests, unchanged by
+  this item — it's a behavior-preserving refactor).
+
+### [x] Cover init-rejection recovery for the other six stores
 
 Area: test parity
 
@@ -880,7 +1022,43 @@ files exist but do not cover this path. Functional risk is low because the code 
 nothing stops one of them being refactored back. A shared helper asserting the failed-then-retried
 sequence, applied to all seven, would be cheap.
 
-### [ ] Give `getDb()` the same rejection recovery the stores got
+Completed 2026-07-31:
+
+- Added `src/stores/__tests__/init-rejection-helper.ts` — a shared, non-test `.ts` module (mirrors
+  `src/tools/__tests__/test-utils.tsx`, which is likewise a fixture rather than a suite; neither
+  matches vitest's `*.test.ts(x)` glob) exporting `expectInitRejectionRecovers()`. It takes closures
+  for arranging the failing/succeeding call, running `init()`, and asserting state before/after, so
+  each store's differing state shape (see below) can plug in without the helper needing to know it.
+- Refactored `settings.store.test.ts`'s existing rejection test onto the helper — one implementation,
+  not eight copies.
+- Applied it to `api`, `mcp`, `notes`, `history` (existing files, new nested `describe` blocks using
+  `vi.resetModules()` + dynamic `await import(...)`, matching the existing settings/mcp pattern) and
+  created `snippets.store.test.ts` / `prompt-templates.store.test.ts` from scratch, scoped to only the
+  init-rejection path as directed — no broader coverage added for those two stores in this pass.
+- Module-level `initPromise` leaks across tests sharing one module instance, which is why every new
+  test does `vi.resetModules()` in `beforeEach` and dynamically imports the store fresh inside the
+  test body rather than relying on the file's top-level static import. Documented this requirement in
+  the helper's docstring since it is easy to silently get wrong (a test would just never observe a
+  rejection because a prior test already latched a resolved `initPromise`).
+- `api.store` has no `initialized` field, so its assertion checks that `environments` stays at its
+  module-fresh default (`set()` never ran) instead.
+- `mcp.store` needed a different failure-injection strategy, found by reading the code rather than
+  assuming the template generalized: its `init()` wraps `getSetting`/`persistSettings`/`invoke` in an
+  _internal_ try/catch that swallows every realistic failure and never rethrows (confirmed by the
+  existing "keeps initialization non-blocking..." test in the same file) — so a plain
+  `getSetting` rejection never reaches the outer `.catch(() => { initPromise = null; throw err })`
+  guard at all, and the P1 fix's rejection-clearing code is otherwise unreachable for mcp.store. The
+  only path that does reach it is `useUiStore.getState().addToast()` throwing from inside the internal
+  catch block (not itself wrapped in a nested try), which the new test uses deliberately, with a
+  comment explaining why. This also surfaced a genuine asymmetry, documented in the test rather than
+  smoothed over: because `set({ initialized: true, ... })` already ran before `addToast()` throws, a
+  rejected mcp.store `init()` call leaves `initialized: true` — unlike the other six stores, which
+  leave it `false`.
+- Did not need to report any store as unable to cleanly reset module state — all seven store modules
+  reload cleanly via `vi.resetModules()` + dynamic import.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
+
+### [x] Give `getDb()` the same rejection recovery the stores got
 
 Area: SQLite / lifecycle
 
@@ -891,7 +1069,21 @@ fix because it is a documented singleton rather than a store, and no failure has
 practice. Apply the same `.catch(() => { dbPromise = null; throw err })` treatment and add a
 failed-then-successful test.
 
-### [ ] Move tool capability flags into the tool registry
+Completed 2026-07-31:
+
+- `getDb()` now chains `.catch((err) => { dbPromise = null; throw err })` after the `Database.load()`
+  `.then(...)` that also runs the two `PRAGMA` statements, so the cache clears whether `Database.load()`
+  itself rejects or one of the two `conn.execute()` PRAGMA calls inside the `.then` does.
+- Added two tests to `src/lib/__tests__/db.core.test.ts` rather than creating a new `db.test.ts`: that
+  file already locally `vi.mock`s `@tauri-apps/plugin-sql` with a `vi.hoisted` `load: vi.fn()`
+  (independent of the static `src/__mocks__/tauri-plugin-sql.ts` used elsewhere via the vitest alias),
+  so it was the natural home and required no changes to the shared static mock — every other test
+  using that mock is unaffected. One test rejects `Database.load()` itself and retries; the other
+  makes the connection load successfully but the first `PRAGMA` `execute()` reject, confirming the
+  cache clears on that path too, not just the `Database.load()` path.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite (see final verification below).
+
+### [x] Move tool capability flags into the tool registry
 
 Area: tool registry / drift prevention
 
@@ -914,7 +1106,48 @@ Acceptance criteria:
 - `tool-actions.ts` and `Workspace.tsx` read from the registry; the three id sets are deleted.
 - A test asserts every capability flag refers to a registered tool id.
 
-### [ ] Derive the persisted settings object instead of hand-listing keys
+Completed 2026-07-31:
+
+- Added `supportsOpenFile?: boolean`, `supportsSaveFile?: boolean`, and `usesMonaco?: boolean` to
+  `ToolDefinition` in `src/types/tools.ts`, all optional. Chose optional over an exhaustive
+  `Record<keyof ...>`-style required trio deliberately: 25 of 30 tools need at least one `false`, and
+  most need all three, so making every entry spell out three `false`s would add noise disproportionate
+  to the benefit — only the tools that actually opt in carry the field. Tradeoff versus a
+  compile-time-exhaustive shape: adding a new capability flag later still requires remembering to opt
+  tools in by hand, same as before, just declared next to each tool instead of in a separate `Set`.
+- Migrated all 25 flag placements from the three deleted `Set`s onto the matching `TOOLS` entries in
+  `src/app/tool-registry.ts`, preserving the exact existing capability assignment (verified by diffing
+  against the original sets, not by re-deriving from scratch): `supportsOpenFile` on 5 tools
+  (`api-client`, `code-formatter`, `csv-tools`, `json-tools`, `markdown-editor`), `supportsSaveFile` on
+  3 (`code-formatter`, `json-tools`, `markdown-editor`), `usesMonaco` on 17 (`api-client`,
+  `code-formatter`, `css-to-tailwind`, `css-validator`, `csv-tools`, `curl-to-fetch`, `diff-viewer`,
+  `html-validator`, `json-schema-validator`, `json-tools`, `markdown-editor`, `mermaid-editor`,
+  `refactoring-toolkit`, `snippets`, `ts-playground`, `xml-tools`, `yaml-tools`).
+- Added `OPEN_FILE_TOOL_IDS`, `SAVE_FILE_TOOL_IDS`, and `MONACO_TOOL_IDS` to `tool-registry.ts`,
+  each derived from `TOOLS.filter(...)` rather than hand-listed, and deleted the three original `Set`s
+  from `tool-actions.ts` and `Workspace.tsx`. Both now import the derived sets from the registry.
+- Checked for the import-cycle risk called out in the brief: `tool-actions.ts` and `Workspace.tsx` now
+  statically import from `@/app/tool-registry`, which itself only statically imports
+  `@/types/tools`, Phosphor icons, and React — every tool component import is behind `React.lazy()`,
+  so no tool component module is pulled in at `tool-registry.ts` evaluation time. `tsc --noEmit`, the
+  full Vitest run, and manual inspection of `tool-registry.ts`'s imports confirm there is no cycle;
+  a separate lightweight capabilities export was not needed.
+- Updated `Workspace.test.tsx`'s `vi.mock('@/app/tool-registry', ...)` to also export
+  `MONACO_TOOL_IDS`, `OPEN_FILE_TOOL_IDS`, and `SAVE_FILE_TOOL_IDS` (scoped to the two tool ids that
+  test actually renders) — the mock previously only exported `getToolById`, and importing the derived
+  sets in `Workspace.tsx`/`tool-actions.ts` made that mock incomplete, which surfaced immediately as
+  two failing tests rather than a silent gap.
+- Extended `src/app/__tests__/tool-registry.test.ts` (rather than duplicating a new file) with a
+  `describe('tool capability flags', ...)` block. Per the brief's own observation, "every flag refers
+  to a registered tool id" is close to tautological once the sets are `TOOLS.filter(...)` outputs — it
+  can only fail on a typo'd filter predicate. Noting that explicitly in the test file's comment. To
+  make the guard actually earn its keep, the tests also pin the exact expected membership (5 / 3 / 17,
+  listing every id) against the audited values above, so a mass-deletion or bad merge that silently
+  drops a tool's flags fails loudly instead of passing vacuously.
+- Verified `npx tsc --noEmit`, `bun run lint`, and the full suite: 81 files / 682 tests, up from the
+  79 files / 668 tests baseline (added by this item and the two above it).
+
+### [x] Derive the persisted settings object instead of hand-listing keys
 
 Area: settings persistence / silent data loss
 
@@ -932,7 +1165,27 @@ Acceptance criteria:
   `Record<keyof AppSettings, true>` key map.
 - A test asserts every `AppSettings` key round-trips through `update()` and `init()`.
 
-### [ ] Tidy shell-level React and shortcut patterns
+Completed 2026-07-31:
+
+- Added an exhaustive `APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true>` in
+  `src/stores/settings.store.ts`, plus `APP_SETTINGS_KEYS = Object.keys(APP_SETTINGS_KEY_MAP) as
+(keyof AppSettings)[]`. `update()` now builds the persisted object via a `pickAppSettings()` helper
+  that loops over `APP_SETTINGS_KEYS` instead of restating all eighteen fields. A generic
+  `assignAppSettingsKey<K extends keyof AppSettings>(target, source, key: K)` helper binds the key
+  type per call to avoid TypeScript widening the indexed assignment to `never` inside the loop.
+- Verified the exhaustiveness mechanism directly: temporarily added a 19th field
+  (`_tempTestField19: boolean`) to both the `AppSettings` type and `DEFAULT_SETTINGS` in
+  `src/types/models.ts`, ran `npx tsc --noEmit`, and confirmed it failed with `TS2741: Property
+'_tempTestField19' is missing in type '{ ... }' but required in type 'Record<keyof AppSettings,
+true>'` at `settings.store.ts`'s key map — i.e. the `Record<keyof AppSettings, true>` map is the
+  mechanism that turns a forgotten field into a compile error, not just a runtime gap. Reverted both
+  temporary additions afterward.
+- Added a test asserting the persisted object's keys exactly match `DEFAULT_SETTINGS`'s keys (no
+  field silently dropped), and a round-trip test that drives every `AppSettings` key through
+  `update()` then `init()` and asserts each comes back unchanged (`editorKeybindingMode` excluded from
+  the driven set since `init()` force-normalizes it to `'standard'` by design).
+
+### [x] Tidy shell-level React and shortcut patterns
 
 Area: shell / code quality
 
@@ -953,6 +1206,50 @@ Small cleanups found while auditing; none is user-visible on its own.
   `package.json` are at `0.1.51`. Cosmetic today because `getVersion()` reads the Tauri config, but
   it makes crate metadata misleading.
 
+Completed 2026-07-31:
+
+- Replaced `useGlobalShortcuts.ts`'s nine `comboN` memos and nine `switchWorkspaceTabN` callbacks with
+  a single `digitCombos = useMemo(() => Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1),
+mod: true })), [])`, one `switchWorkspaceTabAt(index)` callback, and a fixed-length `for` loop
+  calling `useKeyboardShortcut(digitCombos[i]!, () => switchWorkspaceTabAt(i))`. The loop is
+  fixed-length (always 9 iterations, never conditional or data-length-dependent), so it does not
+  violate rules-of-hooks in practice; ESLint's `react-hooks/rules-of-hooks` still flags it statically,
+  so it carries a scoped `eslint-disable-next-line` with a comment explaining why it's safe.
+  `useGlobalShortcuts.test.ts` (10 tests) passed unmodified — it asserts by registered combo, not by
+  call-site shape.
+- Evaluated consolidating the ~28 `useKeyboardShortcut` call sites onto one shared `window` listener
+  and judged it worth doing (not abandoned): the public `useKeyboardShortcut(combo, handler)` API
+  didn't need to change, so the entire risk was containable to one file
+  (`src/hooks/useKeyboardShortcut.ts`). Rewrote it around a module-level `Set` of registrations (combo
+  - handler refs); a single `window.addEventListener('keydown', ...)` attaches when the first
+    registration is added and detaches when the last is removed, and dispatch iterates the set,
+    preserving per-registration behavior: the editable-target filter, sync and async handler error
+    handling (`try`/`catch` plus a `.catch()` on the returned promise), cleanup on unmount, and
+    independence from registration order. All 28 existing call sites and their test suites (including
+    `useKeyboardShortcut.test.ts`, `useGlobalShortcuts.test.ts`, and consumer tests across
+    `base64`, `api-client`, `diff-viewer`, `url-codec`, `code-formatter`) passed unmodified — they
+    exercise the hook's public behavior, not its internals.
+- Fixed the unchecked `event.target as HTMLElement` cast in `useKeyboardShortcut.ts`. `target
+instanceof Element` was tried first but throws at runtime in this project's test environment —
+  `vitest.config.ts` uses `environment: 'node'` with a hand-built `jsdom` window in
+  `src/test-setup.ts`, which doesn't expose a global `Element` constructor. Replaced it with duck
+  typing (`typeof target.closest === 'function' && typeof target.tagName === 'string'`), which works
+  regardless of what global constructors exist. Added a test dispatching a keydown with `window` itself
+  as the event target, asserting it doesn't throw and the shortcut still fires.
+- Added a public `reset(): void` method to `ErrorBoundary` (`src/components/shell/ErrorBoundary.tsx`)
+  that calls `this.setState({ hasError: false, error: null })`, and switched both the boundary's own
+  "Try Again" button and `Workspace.tsx`'s `errorBoundaryRef.current?.setState(...)` call to
+  `errorBoundaryRef.current?.reset()`.
+- Rewrote `NotesDrawer`'s `MarkdownRenderer` effect to track a `cancelled` flag, only calling `setHtml`
+  if the effect hasn't been cleaned up by the time `processMarkdown` resolves. Added tests for
+  no-setState-after-unmount while a render is pending, and for an earlier in-flight request resolving
+  after a later one without clobbering the latest result.
+- Bumped `src-tauri/Cargo.toml`'s `version` from `0.1.0` to `0.1.54` to match `tauri.conf.json` and
+  `package.json`. Confirmed `scripts/bump-version.mjs` only touches `package.json` and
+  `tauri.conf.json`, never `Cargo.toml`, so this won't be fought by release automation. Ran
+  `cargo check`; it passed and only updated the `cockpit` package's own `version` field in
+  `Cargo.lock`.
+
 Verification for all three P2 items above:
 
 ```bash
@@ -962,7 +1259,7 @@ PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
 
-### [ ] Ratchet ESLint warnings toward zero
+### [x] Ratchet ESLint warnings toward zero
 
 Area: static analysis / maintainability
 
@@ -979,12 +1276,139 @@ Acceptance criteria:
 - Revisit disabled or relaxed rules such as `@typescript-eslint/no-misused-promises` only after the
   current warnings are under control.
 
+Completed 2026-07-31:
+
+- The recon claim of zero warnings was confirmed accurate: `bun run lint` was already clean (0
+  warnings) against the `100` ceiling before this item started, so the staged 100→25→10→0 reduction
+  had no intermediate warnings to fix — collapsed it directly to `--max-warnings 0` in
+  `package.json`'s `lint` script rather than landing three no-op intermediate commits.
+- Attempted enabling `@typescript-eslint/no-misused-promises` (previously `'off'`) per the decision
+  tree: full-strength first, which surfaced 35 warnings; narrowed to `checksVoidReturn: { attributes:
+true, arguments: false, properties: false }` (JSX event-handler props only — the exact class of bug
+  the branch's earlier commit `092994e` had already fixed by hand via `void`-prefixing), which brought
+  it down to 25, all genuine (async handlers passed where a `() => void` prop was expected). Judged 25
+  a "handful of genuine issues" per the task's own threshold and fixed all of them — mostly wrapping
+  `onChange`/`onClick`/`onBlur`/`onSave`/`onDownload`/`onCopy` handlers in `void (...)` at the JSX call
+  site — across `SettingsPanel.tsx` (13), `Sidebar.tsx` and `SidebarFooter.tsx` (2 each, via their
+  shared toggle definitions), `ApiClient.tsx`, `CollectionsSidebar.tsx`, `ImageTool.tsx` (2), and
+  `SnippetsManager.tsx` (4). Left the rule at `'warn'` (not `'error'`) since every other rule in this
+  config uses `'warn'` and `--max-warnings 0` already makes any warning fail the script.
+  `no-misused-promises` was never left on while raising `--max-warnings` to accommodate it — the two
+  changes landed together with the ceiling at 0 throughout.
+- Before/after: 0 warnings under the old `--max-warnings 100` ceiling before this item; 35 warnings
+  once `no-misused-promises` was turned on at full strength (not shipped); 25 warnings once narrowed
+  to `checksVoidReturn: { attributes: true }` (not shipped, all fixed instead); 0 warnings in the
+  final state, shipped with `--max-warnings 0`.
+- Checked whether root-level config files (`eslint.config.js`, `vitest.config.ts`) are linted at all,
+  without changing scope: no. `eslint.config.js`'s own `ignores` block excludes `*.config.js` and
+  `*.config.ts` (and the `files` glob for the main rule block is scoped to `src/**/*.{ts,tsx}` in the
+  first place), so both files run outside ESLint entirely — a syntax or lint issue in either would go
+  undetected by `bun run lint`. Left as-is; not in scope for this item.
+
 Verification:
 
 ```bash
 cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
+
+### [ ] Fix mcp.store init() error handling that never actually retries
+
+Area: state management / error recovery
+
+Problem: `init()` in `src/stores/mcp.store.ts` wraps its body in its own `try`/`catch` that already
+sets error state and shows a toast on failure, then never rethrows. The outer
+`.catch((err) => { initPromise = null; throw err })` attached to that same IIFE was written to clear
+the cached promise so a later `init()` call retries after a transient failure — but because the inner
+catch swallows the error first, the IIFE always resolves successfully, so the outer `.catch` is dead
+code and `initPromise` is never cleared on failure. A transient MCP init failure (e.g. a locked
+setting read) latches the store in its error state for the rest of the process lifetime; calling
+`init()` again just returns the already-resolved promise instead of retrying.
+
+Expected outcome: A failed MCP init can be retried by a later `init()` call, matching the comment's
+stated intent and the pattern used elsewhere (e.g. `api.store.ts`'s `init()`, which rethrows).
+
+Acceptance criteria:
+
+- Either let the inner catch rethrow after setting error state (so the outer `.catch` actually runs),
+  or drop the outer `.catch` and clear `initPromise` directly in the inner catch.
+- A test confirms a failed `init()` allows a subsequent `init()` call to retry rather than reusing the
+  stale error-state promise.
+
+Judged priority: P2 — not user-visible today (MCP init failures are rare and already surfaced via
+toast), but it silently defeats a retry mechanism the code believes it has.
+
+### [ ] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
+
+Area: snippets tool / error handling consistency
+
+Problem: In `src/tools/snippets/SnippetsManager.tsx`, `handleDelete` is wrapped by its caller
+(`handleDeleteClick`) with `.catch(() => {})`, but the sibling handlers `handleDuplicate` (line ~416)
+and `handleToggleFavorite` (line ~449) have no error handling at all — their `await addSnippet(...)`
+/ `await updateSnippet(...)` calls can reject (e.g. DB write failure), and both are invoked from JSX
+as `void handleDuplicate()` / `void handleToggleFavorite()`, so a rejection becomes an unhandled
+promise rejection with no user feedback, unlike every other mutating action in the file.
+
+Expected outcome: Every snippet mutation handler fails visibly (toast) instead of silently or as an
+unhandled rejection.
+
+Acceptance criteria:
+
+- Wrap `handleDuplicate` and `handleToggleFavorite` bodies in `try`/`catch`, surfacing failures via
+  `setLastAction(..., 'error')` (the pattern already used elsewhere in this file).
+- A test forces `addSnippet`/`updateSnippet` to reject and asserts the failure is surfaced rather than
+  thrown as an unhandled rejection.
+
+Judged priority: P2 — inconsistent error handling within one file, not a reliability blocker.
+
+### [ ] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
+
+Area: markdown rendering / sanitize-vs-highlight ordering
+
+Problem: `src/lib/markdown.ts` (used by `NotesDrawer`'s `MarkdownRenderer`) runs
+`.use(rehypeHighlight).use(rehypeSanitize, markdownSanitizeSchema)` — highlight before sanitize. Its
+tool counterpart, `src/tools/markdown-editor/MarkdownEditor.tsx`, runs the same two plugins in the
+opposite order: `.use(rehypeSanitize, markdownSanitizeSchema).use(rehypeHighlight, { detect: true })`.
+Sanitizing after highlighting means the sanitize schema must explicitly allow whatever
+classes/attributes `rehypeHighlight` injects or highlighting is silently stripped; sanitizing before
+highlighting (the editor's order) avoids that class but means the sanitizer never sees
+highlight-injected markup. The two renderers can visibly disagree on the same input, and one of the
+two orderings is likely unintentional rather than a deliberate choice.
+
+Expected outcome: Notes and the Markdown Editor tool render syntax-highlighted, sanitized code blocks
+identically, and the chosen order is deliberate rather than incidental.
+
+Acceptance criteria:
+
+- Decide the correct order (sanitize-then-highlight is the safer default) and make both pipelines
+  match, or document why they must differ.
+- A test renders a fenced code block containing an XSS-shaped payload through both pipelines and
+  asserts identical, safe output.
+
+Judged priority: P2 — no known exploit today since `markdownSanitizeSchema` still runs either way, but
+divergent behavior between two markdown surfaces is exactly the kind of drift that becomes a bug once
+either pipeline changes independently.
+
+### [ ] Add an `initialized` field to api.store for consistency with other stores
+
+Area: state management / store consistency
+
+Problem: `settings.store.ts` and `mcp.store.ts` both expose an `initialized: boolean` field so
+consumers can distinguish "not yet loaded" from "loaded and empty." `src/stores/api.store.ts` has the
+same idempotent `init()` promise-guard pattern but no `initialized` field, so API Client UI code has
+no store-level way to know whether the initial DB load has completed versus genuinely having zero
+environments/collections/requests.
+
+Expected outcome: `api.store.ts` matches the established pattern used by the other stores.
+
+Acceptance criteria:
+
+- Add `initialized: boolean` to `ApiStore`, defaulting to `false` and set to `true` once `init()`'s
+  initial load (success or failure) completes.
+- Any UI currently guessing readiness from array emptiness can use the new field instead (optional,
+  not required to land in the same change).
+
+Judged priority: P2 — cosmetic/consistency; no observed bug from its absence today.
 
 ### [ ] Add a no-regression audit for cockpit non-negotiables
 
@@ -1110,6 +1534,7 @@ Before cutting or promoting a cockpit release, confirm:
 - Do not add new npm packages for quality work unless platform APIs and existing tools are
   insufficient.
 - New tests should follow established locations: tool tests in `src/tools/__tests__/`, library tests
-  in `src/lib/__tests__/`, store tests in `src/stores/__tests__/`, and component tests in
-  `src/components/__tests__/`.
+  in `src/lib/__tests__/`, store tests in `src/stores/__tests__/`, and component tests colocated per
+  subdirectory in `src/components/<subdir>/__tests__/` (e.g. `src/components/shell/__tests__/`,
+  `src/components/shared/__tests__/`) — there is no single flat `src/components/__tests__/`.
 - Keep commands Bun-first and run cockpit commands from `apps/cockpit`.
