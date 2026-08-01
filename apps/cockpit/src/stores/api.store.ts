@@ -20,6 +20,7 @@ const API_CLIENT_HISTORY_TOOL = 'api-client'
 const API_CLIENT_HISTORY_LIMIT = 30
 
 type ApiStore = {
+  initialized: boolean
   environments: ApiEnvironment[]
   collections: ApiCollection[]
   requests: ApiRequest[]
@@ -50,6 +51,7 @@ type ApiStore = {
 let initPromise: Promise<void> | null = null
 
 export const useApiStore = create<ApiStore>((set) => ({
+  initialized: false,
   environments: [],
   collections: [],
   requests: [],
@@ -66,6 +68,7 @@ export const useApiStore = create<ApiStore>((set) => ({
           loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
         ])
         set({
+          initialized: true,
           environments: envs,
           collections: cols,
           requests: reqs,

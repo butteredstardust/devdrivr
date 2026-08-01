@@ -1312,7 +1312,7 @@ cd apps/cockpit
 PATH="/opt/homebrew/bin:$PATH" bun run lint
 ```
 
-### [ ] Fix mcp.store init() error handling that never actually retries
+### [x] Fix mcp.store init() error handling that never actually retries
 
 Area: state management / error recovery
 
@@ -1338,7 +1338,34 @@ Acceptance criteria:
 Judged priority: P2 — not user-visible today (MCP init failures are rare and already surfaced via
 toast), but it silently defeats a retry mechanism the code believes it has.
 
-### [ ] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
+Completed 2026-07-31:
+
+- Dropped the outer `.catch((err) => { initPromise = null; throw err })` entirely. The inner catch now
+  sets a `failed` flag, and `initPromise = null` happens in a `.then()` chained onto the IIFE.
+- **Clearing from inside the inner catch is _not_ safe, contrary to a first reading.** It works for a
+  rejected promise (the catch runs on a microtask continuation, after the synchronous
+  `initPromise = (async () => {...})()` assignment has landed), but it silently breaks if `getSetting`
+  throws _synchronously_: that catch then runs during the IIFE's synchronous prologue, before the
+  assignment completes, so the assignment immediately clobbers the clear and the retry never happens.
+  Confirmed empirically, then guarded by a dedicated regression test — reverting the clear back into
+  the catch fails that test and only that test. A `.then()` callback is always a later microtask, so
+  the assignment is guaranteed to have landed.
+- **Deliberate decision — not in the TODO's own acceptance criteria:** did _not_ make the inner catch
+  rethrow. `useMcpStore.init()` has exactly one call site — `providers.tsx`'s bootstrap sequence,
+  which `await`s it — and MCP is an optional, disabled-by-default feature. Making init() reject would
+  turn a degraded MCP server into a full app-startup failure screen, which is strictly worse than the
+  bug being fixed. `init()` still resolves on failure, still sets `initialized: true` (so the UI shows
+  a degraded MCP rather than a permanent spinner), and now also clears `initPromise` so a later call
+  genuinely retries. The `addToast` call is additionally wrapped in its own `try`/`catch` so even an
+  unexpected toast failure can't turn this into an unhandled rejection.
+- Rewrote `src/stores/__tests__/mcp.store.test.ts`'s rejection test (previously forced `addToast` to
+  throw just to reach the now-deleted outer catch, and asserted the broken behavior). The new test
+  calls `init()`, fails it via a rejected `getSetting`, asserts `initialized: true` /
+  `status.lastError` are set, then calls `init()` again and asserts `getSetting` was called a second
+  time — proving the retry actually happens. A second test covers the synchronous-throw path above.
+- `bunx vitest run src/stores/__tests__/mcp.store.test.ts` — 12/12 passing.
+
+### [x] Add error handling to SnippetsManager's handleDuplicate and handleToggleFavorite
 
 Area: snippets tool / error handling consistency
 
@@ -1361,7 +1388,23 @@ Acceptance criteria:
 
 Judged priority: P2 — inconsistent error handling within one file, not a reliability blocker.
 
-### [ ] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
+Completed 2026-07-31:
+
+- `handleDuplicate` and `handleToggleFavorite` in `src/tools/snippets/SnippetsManager.tsx` now wrap
+  their bodies in `try`/`catch`, surfacing failures via `setLastAction('...', 'error')` — the same
+  idiom already used by `handleExport`/`handleDownload` in this file.
+- **Extended beyond the letter of the TODO, per explicit instruction:** `handleDeleteClick`'s
+  `.catch(() => {})` around `handleDelete()` swallowed delete failures with zero user feedback — same
+  class of defect as the two handlers named in the TODO. Changed it to
+  `.catch(() => setLastAction('Delete failed', 'error'))`.
+- Added a new `describe('SnippetsManager — mutation error handling')` block in
+  `src/tools/__tests__/snippets.test.tsx` that overrides `add`/`update`/`remove` on the live
+  `useSnippetsStore` with rejecting mocks (captured and restored via `afterEach` since the store is a
+  shared module instance across the test file) and asserts each failure surfaces through
+  `useUiStore`'s `lastAction` instead of throwing.
+- `bunx vitest run src/tools/__tests__/snippets.test.tsx` — 27/27 passing (24 existing + 3 new).
+
+### [x] Reconcile markdown rehype plugin order between src/lib/markdown.ts and MarkdownEditor.tsx
 
 Area: markdown rendering / sanitize-vs-highlight ordering
 
@@ -1389,7 +1432,42 @@ Judged priority: P2 — no known exploit today since `markdownSanitizeSchema` st
 divergent behavior between two markdown surfaces is exactly the kind of drift that becomes a bug once
 either pipeline changes independently.
 
-### [ ] Add an `initialized` field to api.store for consistency with other stores
+Completed 2026-07-31:
+
+- **Overriding the TODO's stated preference, deliberately:** the acceptance criteria above suggested
+  "sanitize-then-highlight is the safer default." That is backwards. Unified on
+  **highlight → sanitize** instead — the order already used by `src/lib/markdown.ts` — so the
+  sanitizer is the last thing to touch the tree before output, which is the standard rehype posture.
+  `markdownSanitizeSchema` already explicitly allows the `hljs-`/`language-` classes highlighting
+  emits and has a passing test (`keeps syntax highlighting classes on fenced code`) pinning that, so
+  nothing is lost by sanitizing last.
+- Extracted one shared `markdownProcessor` (a `unified()` instance) into `src/lib/markdown.ts`, built
+  with `remarkParse → remarkGfm → remarkRehype → rehypeHighlight({ detect: true }) → rehypeSanitize →
+rehypeStringify`. `processMarkdown()` now just calls `markdownProcessor.process()`, unchanged from
+  the outside for `NotesDrawer`. `MarkdownEditor.tsx` deleted its local, differently-ordered `unified()`
+  chain and imports `markdownProcessor` directly; its own `renderMarkdownContent()` wrapper (HTML-escaped
+  error reporting) is preserved and now just delegates processing to the shared processor. The two
+  surfaces can no longer drift apart because there is only one processor.
+- Dropped `remarkRehype`'s explicit `{ allowDangerousHtml: false }` option from the editor's old chain
+  — it was already the library default and thus a no-op; the shared processor doesn't pass it either.
+- **Visible rendering change for Notes, not a no-op:** the unified pipeline uses `detect: true`
+  (matching the editor's prior behavior), so unlabelled code fences in Notes are now
+  syntax-highlighted where they previously rendered as plain text. This is an intentional improvement
+  and brings Notes in line with the editor, but it is a real behavior change worth calling out.
+- `renderMarkdownContent` was exported from `MarkdownEditor.tsx` (previously module-private) so tests
+  can exercise it directly rather than only indirectly through component rendering.
+- New tests in `src/lib/__tests__/markdown.test.ts`: one confirms unlabelled fences now get
+  highlighted (the visible Notes change above), and one renders a fenced code block containing an
+  XSS-shaped payload (`<script>`, an `onerror`-bearing `<img>`, and a `javascript:` link, all inside
+  the fence) through both `processMarkdown()` and `renderMarkdownContent()` and asserts byte-identical,
+  safe output — plus a follow-up assertion that a real (non-fenced) `javascript:` link is still
+  stripped by the sanitizer.
+- All existing tests in `markdown.test.ts` (GFM tables/images/strikethrough/task-lists,
+  `javascript:`/`data:` href stripping) and in `markdown-editor.test.tsx` remain green, unmodified.
+- `bunx vitest run src/lib/__tests__/markdown.test.ts src/tools/__tests__/markdown-editor.test.tsx` —
+  45/45 passing (14 + 31, up from 12 + 31 baseline — 2 new tests).
+
+### [x] Add an `initialized` field to api.store for consistency with other stores
 
 Area: state management / store consistency
 
@@ -1409,6 +1487,20 @@ Acceptance criteria:
   not required to land in the same change).
 
 Judged priority: P2 — cosmetic/consistency; no observed bug from its absence today.
+
+Completed 2026-07-31:
+
+- Added `initialized: boolean` to `ApiStore` in `src/stores/api.store.ts`, defaulting to `false`.
+- Set to `true` only inside the `set()` call on the success path of `init()`'s `Promise.all` load —
+  matching `settings.store`'s pattern, **not** `mcp.store`'s. Unlike mcp.store's deliberately
+  degraded-mode design (see the mcp.store item above), a failed api.store `init()` leaves `initialized`
+  at its default `false` since the `catch` never calls `set()`.
+- Did not go hunting for UI call sites inferring readiness from array emptiness, per the TODO's own
+  "optional" carve-out — none were found during recon either.
+- Extended `src/stores/__tests__/api.store.test.ts`'s existing `expectInitRejectionRecovers` rejection
+  test to assert `initialized` stays `false` after the failed `init()` call and flips to `true` after
+  the retried, successful one.
+- `bunx vitest run src/stores/__tests__/api.store.test.ts` — 5/5 passing.
 
 ### [ ] Add a no-regression audit for cockpit non-negotiables
 

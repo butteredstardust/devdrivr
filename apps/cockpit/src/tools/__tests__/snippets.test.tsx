@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -498,5 +498,69 @@ describe('SnippetsManager — tag autocomplete', () => {
       await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Download failed'))
       expect(useUiStore.getState().lastAction?.type).toBe('error')
     })
+  })
+})
+
+describe('SnippetsManager — mutation error handling', () => {
+  // Capture the real store actions once, before any test overrides them, so
+  // each rejection test can restore the store to a working state afterward.
+  const realAdd = useSnippetsStore.getState().add
+  const realUpdate = useSnippetsStore.getState().update
+  const realRemove = useSnippetsStore.getState().remove
+
+  beforeEach(() => {
+    useUiStore.setState({ lastAction: null })
+    useSnippetsStore.setState({
+      snippets: [
+        {
+          id: '1',
+          title: 'Snippet A',
+          content: 'console.log("hi")',
+          language: 'javascript',
+          tags: [],
+          folder: '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ],
+      initialized: true,
+    })
+  })
+
+  afterEach(() => {
+    useSnippetsStore.setState({ add: realAdd, update: realUpdate, remove: realRemove })
+  })
+
+  it('surfaces a failure when duplicating a snippet fails', async () => {
+    useSnippetsStore.setState({ add: vi.fn().mockRejectedValue(new Error('db locked')) })
+    renderTool(SnippetsManager)
+    fireEvent.click(screen.getByText('Snippet A').closest('button')!)
+    fireEvent.click(screen.getByText('[F6: DUP]'))
+
+    await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Duplicate failed'))
+    expect(useUiStore.getState().lastAction?.type).toBe('error')
+  })
+
+  it('surfaces a failure when toggling favorite fails', async () => {
+    useSnippetsStore.setState({ update: vi.fn().mockRejectedValue(new Error('db locked')) })
+    renderTool(SnippetsManager)
+    fireEvent.click(screen.getByText('Snippet A').closest('button')!)
+    fireEvent.click(screen.getByTitle('Add to favorites'))
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe('Failed to update favorite')
+    )
+    expect(useUiStore.getState().lastAction?.type).toBe('error')
+  })
+
+  it('surfaces a failure when deleting a snippet fails', async () => {
+    useSnippetsStore.setState({ remove: vi.fn().mockRejectedValue(new Error('db locked')) })
+    renderTool(SnippetsManager)
+    fireEvent.click(screen.getByText('Snippet A').closest('button')!)
+    fireEvent.click(screen.getByText('[F8: DEL]'))
+    fireEvent.click(screen.getByText('[CONFIRM?]'))
+
+    await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Delete failed'))
+    expect(useUiStore.getState().lastAction?.type).toBe('error')
   })
 })

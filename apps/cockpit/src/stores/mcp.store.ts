@@ -134,6 +134,7 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
 
   init: async () => {
     if (!initPromise) {
+      let failed = false
       initPromise = (async () => {
         let settings = normalizeSettings(null)
         try {
@@ -153,14 +154,29 @@ export const useMcpStore = create<McpStore>()((set, get) => ({
             initialized: true,
             status: { ...emptyStatus(settings), lastError: msg },
           })
-          useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
+          failed = true
+          // MCP is an optional, disabled-by-default feature. init() must
+          // never reject: providers.tsx awaits it during bootstrap, and a
+          // rejection there sends the whole app to the startup error
+          // screen — strictly worse than a degraded MCP server. Guard the
+          // toast call too, so even an unexpected addToast failure can't
+          // turn this into an unhandled rejection.
+          try {
+            useUiStore.getState().addToast('Failed to initialize MCP server: ' + msg, 'error')
+          } catch {
+            // Swallow — see comment above.
+          }
         }
-      })().catch((err: unknown) => {
-        // Clear the cached promise on failure so a transient error doesn't
-        // latch the app in a broken state for the rest of the process
-        // lifetime — a later init() call retries.
-        initPromise = null
-        throw err
+      })().then(() => {
+        // Clear the cached promise on failure so a transient error doesn't latch
+        // the app in a broken state for the rest of the process lifetime — a later
+        // init() call retries. This must happen in a `.then()` rather than inside
+        // the catch above: a *synchronous* throw from getSetting() runs that catch
+        // during the IIFE's synchronous prologue, i.e. before the
+        // `initPromise = ...` assignment completes, so clearing there would be
+        // immediately clobbered and the retry would never happen. A `.then()`
+        // callback is always a later microtask, so the assignment has landed.
+        if (failed) initPromise = null
       })
     }
     return initPromise

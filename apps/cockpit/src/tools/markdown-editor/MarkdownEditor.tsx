@@ -30,15 +30,10 @@ import {
   TextItalicIcon,
 } from '@phosphor-icons/react'
 
-// Markdown pipeline imports
-import { unified } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkGfm from 'remark-gfm'
-import remarkRehype from 'remark-rehype'
-import rehypeStringify from 'rehype-stringify'
-import rehypeHighlight from 'rehype-highlight'
-import rehypeSanitize from 'rehype-sanitize'
-import { markdownSanitizeSchema } from '@/lib/markdown'
+// Shared markdown pipeline — see src/lib/markdown.ts for plugin order rationale.
+// Both this tool and the Notes drawer render through the same processor so they
+// cannot drift apart again.
+import { markdownProcessor } from '@/lib/markdown'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -402,16 +397,6 @@ const BASE_EXPORT_STYLES =
 
 const PRINT_STYLES = '@media print{body{margin:0}}' + BASE_EXPORT_STYLES
 
-// ─── Processor ───────────────────────────────────────────────────────
-
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkRehype, { allowDangerousHtml: false })
-  .use(rehypeSanitize, markdownSanitizeSchema)
-  .use(rehypeHighlight, { detect: true })
-  .use(rehypeStringify)
-
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function extractToc(html: string): TocEntry[] {
@@ -440,10 +425,13 @@ export function prefixMarkdownLines(text: string, prefix: string): string {
     .join('\n')
 }
 
-async function renderMarkdownContent(content: string): Promise<string> {
+// Exported for tests only — proves this entry point and processMarkdown()
+// (used by NotesDrawer) render identically since both call the same
+// `markdownProcessor` from src/lib/markdown.ts.
+export async function renderMarkdownContent(content: string): Promise<string> {
   if (!content.trim()) return ''
   try {
-    const result = await processor.process(content)
+    const result = await markdownProcessor.process(content)
     return String(result)
   } catch (e) {
     const msg = (e as Error).message
