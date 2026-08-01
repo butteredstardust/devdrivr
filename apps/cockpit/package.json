@@ -1,7 +1,7 @@
 {
   "name": "cockpit",
   "private": true,
-  "version": "0.1.55",
+  "version": "0.1.56",
   "type": "module",
   "scripts": {
     "dev": "bun run clean-js && vite",
