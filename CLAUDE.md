@@ -8,24 +8,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > For cockpit-specific guidance see [`apps/cockpit/CLAUDE.md`](apps/cockpit/CLAUDE.md) (Claude) and [`apps/cockpit/AGENTS.md`](apps/cockpit/AGENTS.md) (other agents).
 
-The broader monorepo is the **T4 Stack** for building universal TypeScript apps (iOS, Android, Web, Desktop) targeting Cloudflare's edge platform.
+The rest of the monorepo (`apps/next`, `apps/tauri`, `apps/expo`, `apps/docs`, `apps/cli`, `apps/vscode`,
+`packages/api`, `packages/app`, `packages/ui`) is inherited [T4 Stack](https://github.com/timothymiller/t4-app)
+template scaffolding for building universal TypeScript apps (iOS, Android, Web, Desktop) targeting
+Cloudflare's edge platform. It receives at most dependency security patches — see the status table
+below and [`AGENTS.md`](AGENTS.md) for details. Do not treat it as representative of current practice.
 
 ## Package Manager & Build System
 
-- **Package manager:** Bun (`bun.lockb` is the lockfile — never use npm/yarn)
+- **Package manager:** Bun (`bun.lock` is the lockfile — never use npm/yarn). Note: the `clean`
+  script still runs `rm bun.lockb`, a leftover from before the lockfile format changed; harmless
+  since that file no longer exists, but worth knowing if `bun run clean` looks like it's the wrong
+  filename.
 - **Build orchestration:** Turborepo (`turbo.json`)
 
 ## Common Commands
 
 ```bash
-# Start all dev servers (Next.js + API in parallel)
+# Cockpit — the active app (see apps/cockpit/CLAUDE.md for the full command set)
+bun run cockpit       # turbo run dev --filter=cockpit
+bun run cockpit:build # turbo run build --filter=cockpit
+
+# Start legacy dev servers (Next.js + API in parallel)
 bun run dev
 
-# Individual apps
+# Individual legacy apps
 bun run web          # Next.js web app
 bun run api          # Hono API (Cloudflare Workers)
 bun run native       # Expo dev
-bun run desktop      # Tauri desktop
+bun run desktop      # apps/tauri (legacy Tauri 1.4 shell — NOT cockpit)
 bun run notes        # Nextra docs site
 
 # Type checking
@@ -52,17 +63,23 @@ bun run clean        # Remove node_modules & lockfile
 
 ```
 apps/
-  next/       # Web — Next.js 13.5 (Pages Router, not App Router)
-  expo/       # Mobile — Expo 49 / React Native 0.72
-  tauri/      # Desktop — Tauri 1.4 (wraps Next.js)
-  docs/       # Documentation — Nextra
-  cli/        # create-t4-app CLI scaffolder
-  vscode/     # T4 App Tools VSCode extension
+  cockpit/    # Desktop — Tauri 2 + React 19 (ACTIVE — see apps/cockpit/CLAUDE.md / AGENTS.md)
+  next/       # Web — Next.js 13.5 (Pages Router, not App Router) — legacy, unmaintained beyond dep patches
+  expo/       # Mobile — Expo 49 / React Native 0.72 — legacy, untouched since initial import
+  tauri/      # Desktop — Tauri 1.4, wraps the apps/next pages — legacy, unmaintained beyond dep patches
+  docs/       # Documentation — Nextra — legacy, unmaintained beyond dep patches
+  cli/        # create-t4-app CLI scaffolder — legacy, untouched since initial import
+  vscode/     # T4 App Tools VSCode extension — legacy, untouched since initial import
 packages/
-  api/        # Backend — Hono on Cloudflare Workers, Drizzle ORM, D1 SQLite
-  app/        # Shared cross-platform screens and logic
-  ui/         # Shared Tamagui component library
+  api/        # Backend — Hono on Cloudflare Workers, Drizzle ORM, D1 SQLite — legacy, unmaintained beyond dep patches
+  app/        # Shared cross-platform screens and logic — legacy, untouched since initial import
+  ui/         # Shared Tamagui component library — legacy, untouched since initial import
 ```
+
+"Legacy" here means: part of the original T4 Stack template import, receiving at most dependency
+security patches, with no ongoing feature development in this repo's history. `apps/cockpit` is
+the only actively developed app — see [`AGENTS.md`](AGENTS.md) for the full status breakdown and
+rationale.
 
 ## Architecture
 

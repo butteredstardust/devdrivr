@@ -2,10 +2,6 @@
 
 Welcome to the devdrivr cockpit contribution guidelines! We're excited to have you contribute to our project. This document outlines the process and standards for contributing to the devdrivr cockpit application.
 
-## Code of Conduct
-
-Please note that this project is released with a Contributor Code of Conduct. By participating in this project, you agree to abide by its terms. Please see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
-
 ## How to Contribute
 
 There are many ways to contribute to devdrivr cockpit:
@@ -51,9 +47,11 @@ When submitting a bug report, please include:
 ### Development Setup
 
 1. Install dependencies: `bun install`
-2. Start development server: `bun run dev`
+2. Start the desktop app (Vite + Tauri hot-reload): `bun run tauri dev`
+   - `bun run dev` only starts the Vite web preview (no Tauri/native APIs) — use it for quick UI
+     iteration, but `bun run tauri dev` is what you need to see the actual cockpit app.
 3. Run tests: `bun run test`
-4. Check types: `npx tsc --noEmit`
+4. Check types: `npx tsc --noEmit` (also runs automatically as part of `bun run build`)
 
 ### Pull Request Process
 
@@ -89,7 +87,9 @@ Use conventional commit messages:
 - Ensure existing tests pass
 - Write unit tests for pure functions
 - Test edge cases and error conditions
-- Use the existing test patterns in `src/__tests__/`
+- Use the existing test patterns colocated per area: `src/tools/__tests__/`, `src/hooks/__tests__/`,
+  `src/lib/__tests__/`, `src/stores/__tests__/`, `src/components/<subdir>/__tests__/`,
+  `src/app/__tests__/`, `src/workers/__tests__/` — there is no single flat `src/__tests__/`
 
 ### Documentation
 

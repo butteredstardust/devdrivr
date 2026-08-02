@@ -2,7 +2,7 @@
 
 # devdrivr
 
-**27 developer tools. One desktop app. No browser, no cloud, no latency.**
+**30 developer tools. One desktop app. No browser, no cloud, no latency.**
 
 [![Release](https://img.shields.io/github/v/release/butteredstardust/devdrivr?style=for-the-badge&logo=github&color=181717)](https://github.com/butteredstardust/devdrivr/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/butteredstardust/devdrivr/cockpit-ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/butteredstardust/devdrivr/actions/workflows/cockpit-ci.yml)
@@ -24,12 +24,12 @@ The **cockpit** app is the heart of devdrivr — a local-first, keyboard-driven 
 | Group       | Tools                                                                                                           |
 |-------------|----------------------------------------------------------------------------------------------------------------|
 | **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                     |
-| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator                                                    |
+| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator · CSV Tools                                        |
 | **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                              |
-| **Convert** | Case Converter · Color Converter · Timestamp · Base64 · URL Encode/Decode · cURL → Fetch · UUID · Hash        |
+| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
 | **Test**    | Regex Tester · JWT Decoder                                                                                     |
 | **Network** | API Client · Docs Browser                                                                                      |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager                                                            |
+| **Write**   | Markdown Editor · Mermaid Editor · Snippets · Prompt Templates                                                 |
 
 ---
 
@@ -51,26 +51,32 @@ See [`apps/cockpit/README.md`](apps/cockpit/README.md) for the full developer gu
 
 ## Monorepo structure
 
-This repo is a [T4 Stack](https://t4stack.com) Turborepo. Active development is on `apps/cockpit`.
+This repo started from the [T4 Stack](https://github.com/timothymiller/t4-app) Turborepo template.
+`apps/cockpit` is the only actively developed app; everything else is inherited scaffolding kept at
+most dependency-patched. See [`AGENTS.md`](AGENTS.md) for the full per-app status breakdown.
 
 ```
 apps/
-  cockpit/    # Desktop — Tauri 2 + React 19 (active)
-  next/       # Web — Next.js
-  expo/       # Mobile — Expo / React Native
-  docs/       # Documentation — Nextra
+  cockpit/    # Desktop — Tauri 2 + React 19 (active — this is devdrivr)
+  next/       # Web — Next.js (legacy scaffold)
+  tauri/      # Desktop — Tauri 1.4, wraps apps/next (legacy scaffold)
+  expo/       # Mobile — Expo / React Native (legacy scaffold)
+  docs/       # Documentation — Nextra (legacy scaffold)
+  cli/        # create-t4-app scaffolder CLI (legacy scaffold)
+  vscode/     # T4 App Tools VS Code extension (legacy scaffold)
 packages/
-  api/        # Backend — Hono + Drizzle + Cloudflare D1
-  ui/         # Shared — Tamagui component library
-  app/        # Shared — cross-platform screens
+  api/        # Backend — Hono + Drizzle + Cloudflare D1 (legacy scaffold)
+  ui/         # Shared — Tamagui component library (legacy scaffold)
+  app/        # Shared — cross-platform screens (legacy scaffold)
 ```
 
 | App | Description |
 |-----|-------------|
-| [`apps/cockpit`](apps/cockpit) | Desktop app — Tauri 2 + React 19 |
-| [`apps/next`](apps/next) | Web app — Next.js |
-| [`apps/expo`](apps/expo) | Mobile app — Expo / React Native |
-| [`packages/api`](packages/api) | Backend — Hono on Cloudflare Workers + D1 |
+| [`apps/cockpit`](apps/cockpit) | **Active.** Desktop app — Tauri 2 + React 19. This is devdrivr. |
+| [`apps/next`](apps/next) | Legacy — Web app, Next.js |
+| [`apps/tauri`](apps/tauri) | Legacy — Tauri 1.4 shell wrapping `apps/next` |
+| [`apps/expo`](apps/expo) | Legacy — Mobile app, Expo / React Native |
+| [`packages/api`](packages/api) | Legacy — Backend, Hono on Cloudflare Workers + D1 |
 
 ```bash
 bun run dev          # Start web + API dev servers

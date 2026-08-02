@@ -1,5 +1,13 @@
 # Developer Cockpit — Product Requirements Document
 
+> **Historical spec, dated 2026-03-21.** This is the original product/design document written
+> before the tool set was fully built out. It predates several shipped tools (CSV Tools, Image
+> Tool, Prompt Templates) and some counts/details below reflect the original plan rather than the
+> current app. For **current, verified state** — the real tool inventory, shortcuts, and persisted
+> data — see [`PRODUCT_MAP.md`](./PRODUCT_MAP.md) and [`../README.md`](../README.md). This
+> document is kept for the design rationale, data model, and performance targets that aren't
+> restated elsewhere.
+
 ## 1. Summary
 
 A Tauri 2 desktop application (macOS + Windows) that consolidates common developer tools into a single keyboard-driven workspace. Replaces daily use of jsonlint, beautifier.io, xmllint, convertcase, devdocs, Postman, Typora, StackEdit, and desktop sticky notes. Design inspired by [pxlkit.xyz](https://pxlkit.xyz) — retro pixel-art aesthetic, dark/light theme, sub-50ms interactions.
@@ -178,17 +186,14 @@ apps/cockpit/
 
 ### 5.2 Sidebar Tool Groups
 
-| Group | Icon | Tools |
-|---|---|---|
-| **Code** | `</>` | Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit |
-| **Data** | `{}` | JSON Tools, XML Tools, JSON Schema Validator |
-| **Web** | `◈` | CSS Validator, HTML Validator, CSS Specificity Calc, CSS→Tailwind |
-| **Convert** | `⇄` | Case Converter, Color Converter, Timestamp Converter, Base64, URL Encode/Decode, cURL→Fetch, UUID Generator, Hash Generator |
-| **Test** | `✓` | Regex Tester, JWT Decoder |
-| **Network** | `↗` | API Client, Docs Browser |
-| **Write** | `✎` | Markdown Editor, Mermaid Editor, Snippets |
+Superseded by the actual tool inventory — see [`PRODUCT_MAP.md` § Tool Inventory](./PRODUCT_MAP.md#tool-inventory-30-tools)
+for the current 30-tool / 7-group list (this section originally planned 27 tools and predates
+CSV Tools, Image Tool, and Prompt Templates).
 
 ### 5.3 Keyboard Shortcuts
+
+> As originally planned. See [`PRODUCT_MAP.md` § Keyboard Shortcuts](./PRODUCT_MAP.md#keyboard-shortcuts-global)
+> for the current, shipped shortcut set (which also adds `Cmd+W` and `Cmd+/`).
 
 All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 

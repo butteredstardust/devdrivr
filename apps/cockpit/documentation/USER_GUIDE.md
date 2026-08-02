@@ -33,7 +33,7 @@ devdrivr cockpit is a powerful, local-first developer utility workspace that pro
 
 1. Ensure you have Rust and cargo-cp-artifact installed
 2. Install Bun v1.0+ from [bun.sh](https://bun.sh)
-3. Clone the repository: `git clone https://github.com/your-username/devdrivr.git`
+3. Clone the repository: `git clone https://github.com/butteredstardust/devdrivr.git`
 4. Install dependencies: `bun install`
 5. Start the application: `bun run tauri dev`
 
@@ -250,22 +250,23 @@ If you encounter persistent issues:
 
 ## Advanced Usage
 
-### Command Line Interface
+### Local development commands
 
-Use the CLI for advanced operations:
+Cockpit doesn't ship a separate CLI — these are the same `bun run` scripts used for local
+development:
 
 ```bash
-# Format files from command line
-bun run format file.js
-
 # Run tests
 bun run test
 
 # Build for production
 bun run build
 
-# Check types
-bun run check-types
+# Check types (also runs automatically as part of `bun run build`)
+npx tsc --noEmit
+
+# Lint
+bun run lint
 ```
 
 ### Custom Shortcuts
@@ -315,21 +316,17 @@ Adjust the interface to your preferences:
 
 ## Resources
 
-- [Documentation](./documentation/)
-- [GitHub Repository](https://github.com/your-username/devdrivr)
-- [Community Discord](https://discord.gg/devdrivr)
-- [API Documentation](https://api.devdrivr.com)
-- [Contribution Guide](CONTRIBUTING.md)
+- [Documentation index](README.md)
+- [GitHub Repository](https://github.com/butteredstardust/devdrivr)
+- [Contribution Guide](../CONTRIBUTING.md)
 
 ## Feedback and Support
 
 For issues, suggestions, or questions:
 
 1. Check the documentation
-2. Search existing issues
-3. Join our community Discord
-4. Submit a GitHub issue
-5. Contact support
+2. Search [existing issues](https://github.com/butteredstardust/devdrivr/issues)
+3. Submit a [GitHub issue](https://github.com/butteredstardust/devdrivr/issues/new)
 
 ## Glossary
 

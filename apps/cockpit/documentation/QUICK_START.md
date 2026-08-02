@@ -37,7 +37,7 @@ curl -fsSL https://bun.sh/install | bash
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/devdrivr.git
+git clone https://github.com/butteredstardust/devdrivr.git
 cd devdrivr
 
 # Install dependencies
@@ -186,28 +186,28 @@ Store and organize code snippets:
 ### Getting Help
 
 1. **Documentation**: Check the documentation in `documentation/`
-2. **Community**: Join our Discord for support
-3. **Issues**: Report bugs on GitHub
-4. **Contributing**: See `CONTRIBUTING.md`
+2. **Issues**: Report bugs on [GitHub Issues](https://github.com/butteredstardust/devdrivr/issues)
+3. **Contributing**: See [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
 
 ## Advanced Features
 
-### Command Line Interface
+### Local development commands
 
-Use the CLI for advanced operations:
+Cockpit doesn't ship a separate CLI — these are the same `bun run` scripts used for local
+development:
 
 ```bash
-# Format files from command line
-bun run format file.js
-
 # Run tests
 bun run test
 
 # Build for production
 bun run build
 
-# Check types
-bun run check-types
+# Check types (also runs automatically as part of `bun run build`)
+npx tsc --noEmit
+
+# Lint
+bun run lint
 ```
 
 ### Custom Shortcuts
@@ -235,7 +235,7 @@ client.get('/api/data').then((response) => {
 
 ## Contributing
 
-We welcome contributions! See `CONTRIBUTING.md` for details on:
+We welcome contributions! See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for details on:
 
 1. **Reporting Issues**: How to file bug reports
 2. **Code Contributions**: Guidelines for submitting code
@@ -248,8 +248,11 @@ We welcome contributions! See `CONTRIBUTING.md` for details on:
 # Install dependencies
 bun install
 
-# Run development server
-bun run dev
+# Run the desktop app (Vite + Tauri hot-reload)
+bun run tauri dev
+# `bun run dev` only starts the Vite web preview (no Tauri/native APIs) —
+# useful for quick UI iteration, but `bun run tauri dev` is what shows the
+# actual cockpit app.
 
 # Run tests
 bun run test
@@ -281,8 +284,6 @@ npx tsc --noEmit
 
 ## Resources
 
-- [Documentation](./documentation/)
-- [GitHub Repository](https://github.com/your-username/devdrivr)
-- [Community Discord](https://discord.gg/devdrivr)
-- [API Documentation](https://api.devdrivr.com)
-- [Contribution Guide](CONTRIBUTING.md)
+- [Documentation index](README.md)
+- [GitHub Repository](https://github.com/butteredstardust/devdrivr)
+- [Contribution Guide](../CONTRIBUTING.md)

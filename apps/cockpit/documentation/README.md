@@ -4,19 +4,24 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 
 ## Table of Contents
 
-1. [API_COMPONENTS.md](API_COMPONENTS.md) - Comprehensive API documentation for all core components, hooks, libraries, and types
-2. [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment and release process documentation
-3. [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md) - Cross-platform release validation checklist
-4. [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns and best practices
-5. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
-6. [TESTING.md](TESTING.md) - Testing documentation and best practices
-7. [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines for the project
-8. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
-9. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-10. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
-11. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
-12. [tools/](tools/) - Tool-specific documentation
-13. [infrastructure/](infrastructure/) - Core infrastructure documentation
+1. [PRODUCT_MAP.md](PRODUCT_MAP.md) - Current, authoritative tool inventory, shortcuts, and persisted data
+2. [PRODUCT_SPECIFICATION.md](PRODUCT_SPECIFICATION.md) - Historical product/design spec (data model, performance targets, design rationale)
+3. [API_COMPONENTS.md](API_COMPONENTS.md) - Comprehensive API documentation for all core components, hooks, libraries, and types
+4. [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment and release process documentation
+5. [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md) - Cross-platform release validation checklist
+6. [RELEASE_SMOKE_REPORT_TEMPLATE.md](RELEASE_SMOKE_REPORT_TEMPLATE.md) - Template used by `bun run smoke:report`
+7. [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns and best practices
+8. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
+9. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) - Visual design language, theming, and CSS tokens
+10. [TESTING.md](TESTING.md) - Testing documentation and best practices
+11. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `apps/cockpit/CONTRIBUTING.md`)
+12. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
+13. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
+14. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
+15. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
+16. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
+17. [COCKPIT_STATE_AND_ROADMAP.md](COCKPIT_STATE_AND_ROADMAP.md) - Historical state review and roadmap (2026-06-12; see TODO.md for current status)
+18. [infrastructure/](infrastructure/) - Core infrastructure documentation
 
 ## Overview
 
@@ -28,25 +33,21 @@ For new developers, we recommend starting with:
 
 1. [QUICK_START.md](QUICK_START.md) - Get up and running quickly
 2. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive guide to using the application
-3. [CONTRIBUTING.md](CONTRIBUTING.md) - Guidelines for contributing to the project
+3. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Guidelines for contributing to the project
 4. [MCP_SERVER.md](MCP_SERVER.md) - Connect CLI agents to local Cockpit data
 
 ## Development Resources
 
-- [ONBOARDING.md](infrastructure/ONBOARDING.md) - First-time setup and development environment
-- [ARCHITECTURE_DECISIONS.md](infrastructure/ARCHITECTURE_DECISIONS.md) - Why things are the way they are
-- [DIRECTORY_MAP.md](infrastructure/DIRECTORY_MAP.md) - Finding any file fast
-- [TROUBLESHOOTING.md](infrastructure/TROUBLESHOOTING.md) - When something breaks
-
-## Tool Documentation
-
-- [JSON_TOOLS.md](tools/JSON_TOOLS.md) - JSON processing tools
-- [CODE_FORMATTER.md](tools/CODE_FORMATTER.md) - Multi-language code formatting
-- [YAML_TOOLS.md](tools/YAML_TOOLS.md) - YAML processing tools
+- [../AGENTS.md](../AGENTS.md) - Canonical coding rules, file map, and non-negotiables (also see `../CLAUDE.md` / `../GEMINI.md` for short tool-specific pointers)
+- [ONBOARDING.md](ONBOARDING.md) - First-time setup and development environment
+- [infrastructure/ARCHITECTURE_DECISIONS.md](infrastructure/ARCHITECTURE_DECISIONS.md) - Why things are the way they are
+- [infrastructure/DIRECTORY_MAP.md](infrastructure/DIRECTORY_MAP.md) - Finding any file fast
+- [infrastructure/CODING_PATTERNS.md](infrastructure/CODING_PATTERNS.md) - Conventions for adding tools, stores, and workers
+- [infrastructure/TROUBLESHOOTING.md](infrastructure/TROUBLESHOOTING.md) - When something breaks
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
+See [../CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on how to contribute to the project.
 
 ## License
 

@@ -28,7 +28,7 @@ src/tools/<your-tool-id>/YourTool.tsx
 // src/app/tool-registry.ts
 {
   id: 'your-tool-id',
-  label: 'Your Tool',
+  name: 'Your Tool',
   group: 'convert',           // must match a group id in tool-groups.tsx
   component: React.lazy(() => import('@/tools/your-tool-id/YourTool')),
   keywords: ['keyword1'],     // used by command palette

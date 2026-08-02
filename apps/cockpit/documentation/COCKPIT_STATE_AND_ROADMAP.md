@@ -3,6 +3,13 @@
 Date: 2026-06-12
 Audience: product, engineering, QA, and release owners
 
+> **Historical snapshot.** Written 2026-06-12. Most items in "Confirmed Bugfixes and Improvements"
+> below — documentation count drift, the settings-import theme list, and others — were completed
+> during the 2026-07-30/07-31 work recorded in [`TODO.md`](./TODO.md), which is the current,
+> actively maintained backlog. Tool/test counts and gate results on this page reflect the state at
+> review time, not today. Kept for the roadmap sequencing and risk register, which are still useful
+> context; check `TODO.md` before treating any specific item here as still open.
+
 ## Executive Summary
 
 Cockpit is in a healthy implementation state. The app has a clear local-first product position, a stable Tauri 2 + React 19 architecture, SQLite-backed persistence, a mature keyboard-driven shell, MCP agent access, auto-update checks, and 30 registered tools across 7 groups.

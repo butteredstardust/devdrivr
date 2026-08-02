@@ -30,7 +30,7 @@ the runtime behavior that CI cannot prove from builds alone.
 Create one report on the machine that will validate each platform artifact:
 
 ```bash
-PATH="/opt/homebrew/bin:$PATH" bun run smoke:report -- \
+bun run smoke:report -- \
   --version 0.1.52 \
   --platform darwin-aarch64 \
   --artifact /path/to/devdrivr_0.1.52_aarch64.dmg \

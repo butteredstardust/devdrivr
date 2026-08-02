@@ -52,15 +52,22 @@ fix(cockpit): resolve tag filter losing focus on blur
 docs(cockpit): update AGENTS.md with git workflow
 ```
 
-### Commits need HUSKY_PATH
+### Commits run a `bunx` pre-commit hook
 
-The pre-commit hook calls `bunx`. Bun lives in `/opt/homebrew/bin`, which is not on the minimal shell PATH. Every commit must be prefixed:
+The pre-commit hook calls `bunx`, so `bun` must be resolvable from the environment your git client
+runs hooks in. Normally `git commit -m "..."` just works.
+
+If a commit fails with `command not found: bunx`, your hook shell has a minimal PATH that doesn't
+include Bun's install directory. Add it for that invocation — on macOS with a Homebrew-installed
+Bun that is `/opt/homebrew/bin`:
 
 ```bash
 HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
 ```
 
-Omitting this causes `command not found: bunx` and the commit fails.
+Substitute the output of `dirname "$(which bun)"` if your install lives elsewhere. This prefix is a
+workaround for a local environment gap, not a project requirement — if you never hit the error, you
+never need it.
 
 ### PRs
 
@@ -89,31 +96,38 @@ When asked to "open a PR" or "commit and push", the full sequence is implied —
 
 ## Commands
 
-**All commands must be run from `apps/cockpit/`** with the PATH prefix shown. Running from the monorepo root will use the wrong config or fail to find binaries entirely.
+**All commands must be run from `apps/cockpit/`.** Running from the monorepo root will use the
+wrong config or fail to find binaries entirely.
 
 ```bash
 # Typecheck — zero errors required before every commit
-PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+bunx tsc --noEmit
 
-# Tests — bunx ONLY; bun run test cannot resolve the vitest binary
-PATH="/opt/homebrew/bin:$PATH" bunx vitest run        # run once
-PATH="/opt/homebrew/bin:$PATH" bunx vitest            # watch mode
+# Tests — invoke vitest through bunx
+bunx vitest run        # run once
+bunx vitest            # watch mode
 
 # Lint
-PATH="/opt/homebrew/bin:$PATH" bun run lint
+bun run lint
 
-# Dev server (Vite + Tauri hot-reload)
-PATH="/opt/homebrew/bin:$PATH" bun run tauri dev
+# Dev server (Vite + Tauri hot-reload) — this is what opens the desktop app
+bun run tauri dev
+
+# Vite-only web preview (no Tauri shell, no native APIs)
+bun run dev
 
 # Production build
-PATH="/opt/homebrew/bin:$PATH" bun run tauri build
+bun run tauri build
 
 # Install / restore dependencies
-PATH="/opt/homebrew/bin:$PATH" bun install
+bun install
 
 # Clean build artifacts and node_modules
-PATH="/opt/homebrew/bin:$PATH" bun run clean
+bun run clean
 ```
+
+If any of these fail with `command not found`, see the PATH note under
+[Commits run a `bunx` pre-commit hook](#commits-run-a-bunx-pre-commit-hook).
 
 ### Common mistakes
 
@@ -122,7 +136,7 @@ PATH="/opt/homebrew/bin:$PATH" bun run clean
 | Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules |
 | `bun run test`             | `bunx vitest run`                    | bun can't resolve the vitest binary directly            |
 | `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager                    |
-| No PATH prefix             | `PATH="/opt/homebrew/bin:$PATH" ...` | Homebrew tools not on default shell PATH                |
+| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH — see § Commits |
 
 ---
 
