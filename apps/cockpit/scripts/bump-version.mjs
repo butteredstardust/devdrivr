@@ -31,7 +31,9 @@ try {
   console.log(`Bumping tauri.conf.json: ${oldVersion} -> ${newVersion}`);
 
   // Output for CI
-  console.log(`::set-output name=new_version::${newVersion}`);
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `new_version=${newVersion}\n`);
+  }
 } catch (err) {
   console.error('Failed to bump version:', err);
   process.exit(1);
