@@ -269,11 +269,22 @@ Note: Full worker round-trip tests are complex in jsdom. Prefer testing the pure
 
 ## CI
 
-Tests run automatically on every push and PR via GitHub Actions (`.github/workflows/ci.yml`). The pipeline:
+GitHub Actions runs `.github/workflows/cockpit-ci.yml` on every PR, and on pushes to `main`, whenever
+`apps/cockpit/**`, `bun.lock`, `package.json`, or the workflow itself changes. It has two jobs:
+
+**`lint-and-test`** (ubuntu-latest)
 
 1. Sets up Bun
-2. Runs `bun install`
-3. Runs `npx tsc --noEmit` (type check)
-4. Runs `bun run test` (must exit 0)
+2. `bun install` (repo root)
+3. Security audit — `bun audit --audit-level=critical`, with waivers applied by `.github/scripts/waive-bun-audit.mjs`
+4. `bun run lint`
+5. `npx tsc --noEmit` (type check)
+6. `bun run test` (must exit 0)
 
-A PR cannot be merged if tests fail. The full Vitest suite **must pass** before submitting any change.
+**`rust-check`** (ubuntu-22.04)
+
+1. Installs the Rust stable toolchain and the GTK/WebKit system libraries Tauri needs
+2. `cargo check` in `apps/cockpit/src-tauri`
+3. `cargo clippy -- -D warnings` — any warning fails the build
+
+A PR cannot be merged if either job fails. The full Vitest suite **must pass** before submitting any change.
