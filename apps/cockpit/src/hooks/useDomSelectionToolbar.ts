@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { SelectionToolbarState } from '@/components/shared/SelectionContextToolbar'
 
 export function useDomSelectionToolbar(
@@ -6,6 +6,7 @@ export function useDomSelectionToolbar(
   enabled: boolean
 ) {
   const [selection, setSelection] = useState<SelectionToolbarState | null>(null)
+  const rafRef = useRef<number | null>(null)
 
   const clearSelection = useCallback(() => {
     window.getSelection()?.removeAllRanges()
@@ -46,6 +47,17 @@ export function useDomSelectionToolbar(
     setSelection({ text, rect })
   }, [containerRef, enabled])
 
+  // Scroll/resize must only reposition the toolbar from the live selection —
+  // never destroy the user's actual DOM selection (removeAllRanges). Throttled
+  // via requestAnimationFrame since scroll/resize can fire at high frequency.
+  const repositionSelection = useCallback(() => {
+    if (rafRef.current !== null) return
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null
+      updateSelection()
+    })
+  }, [updateSelection])
+
   useEffect(() => {
     if (!enabled) {
       setSelection(null)
@@ -55,17 +67,21 @@ export function useDomSelectionToolbar(
     document.addEventListener('selectionchange', updateSelection)
     document.addEventListener('mouseup', updateSelection)
     document.addEventListener('keyup', updateSelection)
-    window.addEventListener('scroll', clearSelection, true)
-    window.addEventListener('resize', clearSelection)
+    window.addEventListener('scroll', repositionSelection, true)
+    window.addEventListener('resize', repositionSelection)
 
     return () => {
       document.removeEventListener('selectionchange', updateSelection)
       document.removeEventListener('mouseup', updateSelection)
       document.removeEventListener('keyup', updateSelection)
-      window.removeEventListener('scroll', clearSelection, true)
-      window.removeEventListener('resize', clearSelection)
+      window.removeEventListener('scroll', repositionSelection, true)
+      window.removeEventListener('resize', repositionSelection)
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
     }
-  }, [clearSelection, enabled, updateSelection])
+  }, [enabled, repositionSelection, updateSelection])
 
   return { selection, clearSelection }
 }

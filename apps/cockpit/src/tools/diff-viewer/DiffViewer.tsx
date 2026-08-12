@@ -39,6 +39,41 @@ const LANGUAGES = [
   { id: 'xml', label: 'XML' },
 ]
 
+const DIFF_SANITIZE_CONFIG = {
+  ALLOWED_TAGS: [
+    'div',
+    'span',
+    'code',
+    'pre',
+    'del',
+    'ins',
+    'br',
+    'hr',
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
+    'svg',
+    'path',
+    'label',
+    'input',
+    'a',
+  ],
+  ALLOWED_ATTR: [
+    'class',
+    'style',
+    'data-diffline',
+    'data-diffpath',
+    'type',
+    'checked',
+    'disabled',
+    'title',
+  ],
+  FORCE_BODY: true,
+}
+
 type DiffStats = { additions: number; deletions: number }
 
 function parseDiffStats(patch: string): DiffStats {
@@ -83,6 +118,16 @@ export default function DiffViewer() {
   }, [state])
 
   const stats = useMemo(() => (rawPatch ? parseDiffStats(rawPatch) : null), [rawPatch])
+
+  // Stable object identity is load-bearing: React 19 compares
+  // `dangerouslySetInnerHTML` by object identity, not by the `__html` string, so
+  // an inline literal re-writes innerHTML on every render — rebuilding the whole
+  // subtree and destroying any text selection the user has made in the diff.
+  // Memoising also keeps the (non-trivial) sanitize pass off the render path.
+  const sanitizedDiffProp = useMemo(
+    () => ({ __html: sanitize(diffHtml, DIFF_SANITIZE_CONFIG) }),
+    [diffHtml]
+  )
 
   const computeDiff = useCallback(async () => {
     if (!worker) return
@@ -267,42 +312,7 @@ export default function DiffViewer() {
             ['--d2h-info-bg-color' as string]: 'var(--color-surface)',
             ['--d2h-info-border-color' as string]: 'var(--color-border)',
           }}
-          dangerouslySetInnerHTML={{
-            __html: sanitize(diffHtml, {
-              ALLOWED_TAGS: [
-                'div',
-                'span',
-                'code',
-                'pre',
-                'del',
-                'ins',
-                'br',
-                'hr',
-                'table',
-                'thead',
-                'tbody',
-                'tr',
-                'th',
-                'td',
-                'svg',
-                'path',
-                'label',
-                'input',
-                'a',
-              ],
-              ALLOWED_ATTR: [
-                'class',
-                'style',
-                'data-diffline',
-                'data-diffpath',
-                'type',
-                'checked',
-                'disabled',
-                'title',
-              ],
-              FORCE_BODY: true,
-            }),
-          }}
+          dangerouslySetInnerHTML={sanitizedDiffProp}
         />
       ) : (
         <div className="flex min-h-0 flex-1 gap-px overflow-hidden bg-[var(--color-border)]">

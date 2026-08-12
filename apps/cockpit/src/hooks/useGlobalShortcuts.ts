@@ -94,6 +94,7 @@ export function useGlobalShortcuts(): void {
           type: 'open-file',
           content: result.content,
           filename: result.filename,
+          path: result.path,
         })
         addToast(`Opened ${result.filename}`, 'success')
       }

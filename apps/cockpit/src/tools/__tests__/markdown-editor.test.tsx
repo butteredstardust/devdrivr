@@ -10,7 +10,18 @@ import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 import { dispatchToolAction } from '@/lib/tool-actions'
-import { saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
+import {
+  parseListMarker,
+  isMarkerContentEmpty,
+  nextLineMarker,
+  indentLine,
+  outdentLine,
+  renumberOrderedListAround,
+  renumberAroundIndex,
+} from '@/tools/markdown-editor/list-editing'
+import { toggleTaskAtIndex, countTasks } from '@/tools/markdown-editor/task-list'
+import { isUrl, tsvToMarkdownTable } from '@/tools/markdown-editor/paste-helpers'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -23,6 +34,9 @@ vi.mock('mermaid', () => ({
 
 vi.mock('@/lib/file-io', () => ({
   saveFileDialog: vi.fn(),
+  saveFileToPath: vi.fn(),
+  openFileDialog: vi.fn(),
+  filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
 }))
 
 function deferred<T>() {
@@ -78,6 +92,89 @@ describe('MarkdownEditor', () => {
     await waitFor(() =>
       expect(saveFileDialog).toHaveBeenCalledWith('# Opened document', 'opened.md')
     )
+  })
+
+  it('File dropdown renders Open, Save, and Save As entries', () => {
+    renderTool(MarkdownEditor)
+    fireEvent.click(screen.getByText('File'))
+    expect(screen.getByText('Open…')).toBeInTheDocument()
+    expect(screen.getByText('Save')).toBeInTheDocument()
+    expect(screen.getByText('Save As…')).toBeInTheDocument()
+  })
+
+  it('File > Open… populates content, fileName, and filePath', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+    expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
+  })
+
+  it('File > Save writes directly to a known filePath without opening the save dialog', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    vi.mocked(saveFileToPath).mockResolvedValue(undefined)
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(saveFileToPath).toHaveBeenCalledWith('/tmp/notes.md', '# From disk'))
+    expect(saveFileDialog).not.toHaveBeenCalled()
+  })
+
+  it('File > Save falls back to the Save As dialog when no filePath is known', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/document.md')
+    renderTool(MarkdownEditor)
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Untitled' },
+    })
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('# Untitled', 'document.md'))
+    expect(saveFileToPath).not.toHaveBeenCalled()
+  })
+
+  it('shows a dirty indicator after editing and clears it after saving', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    vi.mocked(saveFileToPath).mockResolvedValue(undefined)
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+    expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('file-name').textContent).not.toContain('•')
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Edited' },
+    })
+    await waitFor(() => expect(screen.getByTestId('file-name').textContent).toContain('•'))
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(screen.getByTestId('file-name').textContent).not.toContain('•'))
   })
 
   it('shows word count stats', () => {
@@ -220,6 +317,22 @@ describe('MarkdownEditor', () => {
 
     expect(container.innerHTML).toContain('new diagram')
     expect(container.innerHTML).not.toContain('old diagram')
+  })
+
+  // Regression: React 19 compares `dangerouslySetInnerHTML` by object identity,
+  // so an inline `{ __html }` literal made it rewrite innerHTML on every render
+  // and tear down the subtree — destroying any text selection the user had made
+  // in the preview. The rendered nodes must survive re-renders that don't change
+  // the markup.
+  it('preserves preview DOM nodes across re-renders when the html is unchanged', () => {
+    const html = '<p>selectable paragraph</p>'
+    const { container, rerender } = render(<MarkdownPreview html={html} showToc={false} toc={[]} />)
+    const paragraph = container.querySelector('p')
+    expect(paragraph).not.toBeNull()
+
+    rerender(<MarkdownPreview html={html} showToc={false} toc={[]} onToggleTask={() => {}} />)
+
+    expect(container.querySelector('p')).toBe(paragraph)
   })
 
   it('uses the light Mermaid theme in preview when the app theme is light', async () => {
@@ -422,5 +535,326 @@ describe('MarkdownEditor modal integration', () => {
     renderTool(MarkdownEditor)
     fireEvent.click(screen.getByTitle('Table'))
     await waitFor(() => expect(screen.getByText('Insert Table')).toBeInTheDocument())
+  })
+})
+
+describe('list-editing: parseListMarker', () => {
+  it('parses a bullet item', () => {
+    expect(parseListMarker('- item')).toEqual({
+      kind: 'bullet',
+      indent: '',
+      bulletChar: '-',
+      content: 'item',
+    })
+  })
+
+  it('parses * and + bullets', () => {
+    expect(parseListMarker('* item')?.bulletChar).toBe('*')
+    expect(parseListMarker('+ item')?.bulletChar).toBe('+')
+  })
+
+  it('parses indented bullets', () => {
+    expect(parseListMarker('    - item')).toMatchObject({ indent: '    ', content: 'item' })
+  })
+
+  it('parses an unchecked task item', () => {
+    expect(parseListMarker('- [ ] task')).toEqual({
+      kind: 'task',
+      indent: '',
+      bulletChar: '-',
+      checked: false,
+      content: 'task',
+    })
+  })
+
+  it('parses a checked task item, including uppercase X', () => {
+    expect(parseListMarker('- [x] task')).toMatchObject({ kind: 'task', checked: true })
+    expect(parseListMarker('- [X] task')).toMatchObject({ kind: 'task', checked: true })
+  })
+
+  it('parses an ordered item with . or ) delimiter', () => {
+    expect(parseListMarker('1. item')).toEqual({
+      kind: 'ordered',
+      indent: '',
+      number: 1,
+      delimiter: '.',
+      content: 'item',
+    })
+    expect(parseListMarker('2) item')).toMatchObject({ number: 2, delimiter: ')' })
+  })
+
+  it('parses a blockquote, including nested >>', () => {
+    expect(parseListMarker('> quote')).toEqual({
+      kind: 'quote',
+      indent: '',
+      quotePrefix: '>',
+      content: 'quote',
+    })
+    expect(parseListMarker('>> nested')).toMatchObject({ quotePrefix: '>>' })
+  })
+
+  it('parses empty markers (no content)', () => {
+    expect(parseListMarker('- ')).toMatchObject({ kind: 'bullet', content: '' })
+    expect(parseListMarker('1. ')).toMatchObject({ kind: 'ordered', content: '' })
+    expect(parseListMarker('> ')).toMatchObject({ kind: 'quote', content: '' })
+    expect(parseListMarker('- [ ] ')).toMatchObject({ kind: 'task', content: '' })
+  })
+
+  it('returns null for non-list lines', () => {
+    expect(parseListMarker('plain paragraph text')).toBeNull()
+    expect(parseListMarker('')).toBeNull()
+    expect(parseListMarker('# Heading')).toBeNull()
+  })
+})
+
+describe('list-editing: isMarkerContentEmpty', () => {
+  it('is true for a bare marker and false when content is present', () => {
+    expect(isMarkerContentEmpty(parseListMarker('- ')!)).toBe(true)
+    expect(isMarkerContentEmpty(parseListMarker('-   ')!)).toBe(true)
+    expect(isMarkerContentEmpty(parseListMarker('- x')!)).toBe(false)
+  })
+})
+
+describe('list-editing: nextLineMarker', () => {
+  it('repeats the bullet character', () => {
+    expect(nextLineMarker(parseListMarker('- item')!)).toBe('- ')
+    expect(nextLineMarker(parseListMarker('  * item')!)).toBe('  * ')
+  })
+
+  it('always continues a task item unchecked, even from a checked one', () => {
+    expect(nextLineMarker(parseListMarker('- [x] done')!)).toBe('- [ ] ')
+    expect(nextLineMarker(parseListMarker('- [ ] todo')!)).toBe('- [ ] ')
+  })
+
+  it('advances the ordered number by one', () => {
+    expect(nextLineMarker(parseListMarker('1. item')!)).toBe('2. ')
+    expect(nextLineMarker(parseListMarker('9) item')!)).toBe('10) ')
+  })
+
+  it('repeats the quote prefix', () => {
+    expect(nextLineMarker(parseListMarker('> quote')!)).toBe('> ')
+    expect(nextLineMarker(parseListMarker('>> nested')!)).toBe('>> ')
+  })
+})
+
+describe('list-editing: indentLine / outdentLine', () => {
+  it('indents with spaces when insertSpaces is true', () => {
+    expect(indentLine('- item', true, 2)).toBe('  - item')
+  })
+
+  it('indents with a tab when insertSpaces is false', () => {
+    expect(indentLine('- item', false, 4)).toBe('\t- item')
+  })
+
+  it('outdents a leading tab regardless of insertSpaces', () => {
+    expect(outdentLine('\t- item', true, 2)).toBe('- item')
+    expect(outdentLine('\t- item', false, 2)).toBe('- item')
+  })
+
+  it('outdents up to tabSize leading spaces', () => {
+    expect(outdentLine('    - item', true, 2)).toBe('  - item')
+    expect(outdentLine('  - item', true, 2)).toBe('- item')
+  })
+
+  it('is a no-op when there is no leading whitespace to remove', () => {
+    expect(outdentLine('- item', true, 2)).toBe('- item')
+  })
+})
+
+describe('list-editing: renumberOrderedListAround', () => {
+  it('renumbers a contiguous run after a new item is spliced in', () => {
+    const lines = ['1. a', '2. ', '2. b', '3. c']
+    expect(renumberOrderedListAround(lines, 1, '')).toEqual(['1. a', '2. ', '3. b', '4. c'])
+  })
+
+  it('is a no-op when the anchor line is not an ordered item at the given indent', () => {
+    const lines = ['- a', '1. b']
+    expect(renumberOrderedListAround(lines, 0, '')).toEqual(lines)
+  })
+
+  it('only renumbers the run at the matching indent, not nested sub-lists', () => {
+    const lines = ['1. a', '  1. nested', '  2. nested2', '2. b']
+    expect(renumberOrderedListAround(lines, 1, '  ')).toEqual(lines)
+  })
+
+  it('preserves the run start number rather than resetting to 1', () => {
+    const lines = ['5. a', '6. ', '6. b']
+    expect(renumberOrderedListAround(lines, 1, '')).toEqual(['5. a', '6. ', '7. b'])
+  })
+})
+
+describe('list-editing: renumberAroundIndex', () => {
+  it('renumbers the run on each side of a line that was just re-indented away', () => {
+    // Simulates line 1 having just been indented (moved out of the "" run,
+    // which leaves the run below it internally mis-numbered).
+    const lines = ['1. a', '  1. removed', '5. b', '5. c']
+    expect(renumberAroundIndex(lines, 1, '')).toEqual(['1. a', '  1. removed', '5. b', '6. c'])
+  })
+
+  it('is a no-op when neither neighbour is an ordered item at the given indent', () => {
+    const lines = ['- a', '  1. b', '- c']
+    expect(renumberAroundIndex(lines, 1, '')).toEqual(lines)
+  })
+})
+
+describe('task-list: toggleTaskAtIndex', () => {
+  it('toggles unchecked to checked', () => {
+    expect(toggleTaskAtIndex('- [ ] one', 0)).toBe('- [x] one')
+  })
+
+  it('toggles checked to unchecked', () => {
+    expect(toggleTaskAtIndex('- [x] one', 0)).toBe('- [ ] one')
+  })
+
+  it('handles uppercase X as checked', () => {
+    expect(toggleTaskAtIndex('- [X] one', 0)).toBe('- [ ] one')
+  })
+
+  it('toggles nested/indented tasks', () => {
+    const content = '- [ ] parent\n  - [ ] child'
+    expect(toggleTaskAtIndex(content, 1)).toBe('- [ ] parent\n  - [x] child')
+  })
+
+  it('toggles by source-order index across multiple tasks', () => {
+    const content = '- [ ] one\n- [ ] two\n- [x] three'
+    expect(toggleTaskAtIndex(content, 1)).toBe('- [ ] one\n- [x] two\n- [x] three')
+    expect(toggleTaskAtIndex(content, 2)).toBe('- [ ] one\n- [ ] two\n- [ ] three')
+  })
+
+  it('ignores task-like text inside fenced code blocks', () => {
+    const content = '- [ ] real task\n```\n- [ ] fake task\n```\n- [ ] another real task'
+    // Index 1 should hit "another real task", not the one inside the fence.
+    expect(toggleTaskAtIndex(content, 1)).toBe(
+      '- [ ] real task\n```\n- [ ] fake task\n```\n- [x] another real task'
+    )
+  })
+
+  it('does not touch a checkbox-shaped string inside inline code', () => {
+    const content = '- `[ ]` not a task\n- [ ] real task'
+    expect(toggleTaskAtIndex(content, 0)).toBe('- `[ ]` not a task\n- [x] real task')
+  })
+
+  it('leaves content unchanged for an out-of-range index', () => {
+    const content = '- [ ] one'
+    expect(toggleTaskAtIndex(content, 5)).toBe(content)
+    expect(toggleTaskAtIndex(content, -1)).toBe(content)
+  })
+})
+
+describe('task-list: countTasks', () => {
+  it('counts task items and excludes fenced code blocks', () => {
+    const content = '- [ ] one\n```\n- [ ] fake\n```\n- [x] two'
+    expect(countTasks(content)).toBe(2)
+  })
+
+  it('returns 0 when there are no task items', () => {
+    expect(countTasks('- bullet\n1. ordered\n> quote')).toBe(0)
+  })
+})
+
+describe('paste-helpers: isUrl', () => {
+  it('accepts bare http/https URLs', () => {
+    expect(isUrl('https://example.com')).toBe(true)
+    expect(isUrl('http://example.com/path?query=1')).toBe(true)
+  })
+
+  it('tolerates surrounding whitespace', () => {
+    expect(isUrl('  https://example.com  ')).toBe(true)
+  })
+
+  it('rejects non-URL text and unsupported protocols', () => {
+    expect(isUrl('not a url')).toBe(false)
+    expect(isUrl('ftp://example.com')).toBe(false)
+    expect(isUrl('https://example.com has trailing text')).toBe(false)
+    expect(isUrl('')).toBe(false)
+  })
+})
+
+describe('paste-helpers: tsvToMarkdownTable', () => {
+  it('converts a 2x2 TSV grid into a GFM table with a header', () => {
+    expect(tsvToMarkdownTable('Name\tAge\nAlice\t30\nBob\t25')).toBe(
+      '| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |'
+    )
+  })
+
+  it('escapes pipe characters in cell content', () => {
+    expect(tsvToMarkdownTable('A|B\tC\n1\t2|3')).toBe('| A\\|B | C |\n| --- | --- |\n| 1 | 2\\|3 |')
+  })
+
+  it('returns null for a single row (no data)', () => {
+    expect(tsvToMarkdownTable('Name\tAge')).toBeNull()
+  })
+
+  it('returns null for single-column data', () => {
+    expect(tsvToMarkdownTable('Name\nAlice\nBob')).toBeNull()
+  })
+
+  it('returns null for ragged rows with inconsistent column counts', () => {
+    expect(tsvToMarkdownTable('Name\tAge\nAlice\t30\tExtra')).toBeNull()
+  })
+
+  it('returns null for a lone URL / plain single-line text', () => {
+    expect(tsvToMarkdownTable('https://example.com')).toBeNull()
+  })
+})
+
+describe('MarkdownPreview task checkbox interaction', () => {
+  it('renders checkboxes enabled (not disabled) so they are clickable', () => {
+    render(
+      <MarkdownPreview
+        html={'<ul><li><input type="checkbox"> task</li></ul>'}
+        showToc={false}
+        toc={[]}
+      />
+    )
+    expect(screen.getByRole('checkbox')).not.toBeDisabled()
+  })
+
+  it('calls onToggleTask with the source-order index when a checkbox is clicked', () => {
+    const onToggleTask = vi.fn()
+    render(
+      <MarkdownPreview
+        html={
+          '<ul><li><input type="checkbox"> one</li>' +
+          '<li><input type="checkbox" checked> two</li></ul>'
+        }
+        showToc={false}
+        toc={[]}
+        onToggleTask={onToggleTask}
+      />
+    )
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[1]!)
+    expect(onToggleTask).toHaveBeenCalledWith(1)
+  })
+
+  it('toggles via Enter for keyboard accessibility', () => {
+    const onToggleTask = vi.fn()
+    render(
+      <MarkdownPreview
+        html={'<ul><li><input type="checkbox"> task</li></ul>'}
+        showToc={false}
+        toc={[]}
+        onToggleTask={onToggleTask}
+      />
+    )
+    fireEvent.keyDown(screen.getByRole('checkbox'), { key: 'Enter' })
+    expect(onToggleTask).toHaveBeenCalledWith(0)
+  })
+})
+
+describe('MarkdownEditor task checkbox end-to-end', () => {
+  it('clicking a checkbox in the preview toggles it in the source content', async () => {
+    renderTool(MarkdownEditor)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '- [ ] one\n- [ ] two' },
+    })
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.click(screen.getAllByRole('checkbox')[1]!)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('monaco-editor')).toHaveValue('- [ ] one\n- [x] two')
+    )
   })
 })

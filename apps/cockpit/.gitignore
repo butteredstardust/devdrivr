@@ -31,3 +31,6 @@ dist-ssr
 # Vite config emit
 /vite.config.js
 /vite.config.d.ts
+
+# Playwright MCP scratch output (browser harness — see documentation/BROWSER_HARNESS.md)
+.playwright-mcp/

@@ -91,10 +91,15 @@ function MarkdownRenderer({ content }: { content: string }) {
     }
   }, [content])
 
+  // Stable identity — React 19 compares `dangerouslySetInnerHTML` by object
+  // identity, not by the `__html` string, so an inline literal re-writes
+  // innerHTML on every render and wipes any text selection inside the note.
+  const htmlProp = useMemo(() => ({ __html: html }), [html])
+
   return (
     <div
       className="prose prose-xs max-w-none overflow-hidden text-xs text-[var(--color-text)]"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={htmlProp}
     />
   )
 }

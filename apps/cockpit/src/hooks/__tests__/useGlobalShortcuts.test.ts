@@ -223,6 +223,7 @@ describe('useGlobalShortcuts', () => {
     mocks.openFileDialog.mockResolvedValue({
       content: '{"valid":true}',
       filename: 'example.json',
+      path: '/tmp/example.json',
     })
     renderShortcuts()
 
@@ -234,6 +235,7 @@ describe('useGlobalShortcuts', () => {
       type: 'open-file',
       content: '{"valid":true}',
       filename: 'example.json',
+      path: '/tmp/example.json',
     })
     expect(mocks.addToast).toHaveBeenCalledWith('Opened example.json', 'success')
   })

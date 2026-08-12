@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import rehypeSanitize from 'rehype-sanitize'
-import { processMarkdown, markdownSanitizeSchema } from '@/lib/markdown'
+import { processMarkdown, markdownSanitizeSchema, markdownEditorProcessor } from '@/lib/markdown'
 import { renderMarkdownContent } from '@/tools/markdown-editor/MarkdownEditor'
 
 // `hast` types aren't a direct dependency here (only pulled in transitively by
@@ -189,5 +189,31 @@ describe('markdownSanitizeSchema', () => {
     expect(el?.type).toBe('element')
     expect(el?.type === 'element' && el.properties.type).toBe('checkbox')
     expect(el?.type === 'element' && el.properties.checked).toBe(true)
+  })
+})
+
+describe('markdownEditorProcessor', () => {
+  const TASKS = '- [ ] one\n- [x] two\n'
+
+  // Browsers do not dispatch click events from disabled form controls, so a
+  // `disabled` checkbox is unclickable in the real app — but `fireEvent.click`
+  // in jsdom fires on one regardless. These assertions pin the rendered
+  // attribute itself, which is the only thing that actually decides whether the
+  // preview's task-toggle feature works.
+  it('renders task-list checkboxes enabled so the preview can toggle them', async () => {
+    const html = String(await markdownEditorProcessor.process(TASKS))
+    expect(html).toContain('<input type="checkbox">')
+    expect(html).toContain('<input type="checkbox" checked>')
+    expect(html).not.toContain('disabled')
+  })
+
+  it('leaves the shared pipeline rendering disabled checkboxes', async () => {
+    const html = await processMarkdown(TASKS)
+    expect(html).toContain('disabled')
+  })
+
+  it('still restricts inputs to checkboxes', async () => {
+    const html = String(await markdownEditorProcessor.process(TASKS))
+    expect(html).not.toContain('type="text"')
   })
 })

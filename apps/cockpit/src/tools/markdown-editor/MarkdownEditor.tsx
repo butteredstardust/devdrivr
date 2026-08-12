@@ -7,12 +7,20 @@ import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
-import { exportFile, saveFileDialog } from '@/lib/file-io'
+import {
+  exportFile,
+  filenameFromPath,
+  openFileDialog,
+  saveFileDialog,
+  saveFileToPath,
+} from '@/lib/file-io'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { MarkdownPreview } from './MarkdownPreview'
 import { useScrollSync } from './hooks/useScrollSync'
 import { useImageDrop } from './hooks/useImageDrop'
+import { useMarkdownListEditing } from './hooks/useMarkdownListEditing'
+import { useMarkdownSmartPaste } from './hooks/useMarkdownSmartPaste'
 import { LinkModal } from './modals/LinkModal'
 import { CodeBlockModal } from './modals/CodeBlockModal'
 import { ImageModal } from './modals/ImageModal'
@@ -31,15 +39,21 @@ import {
 } from '@phosphor-icons/react'
 
 // Shared markdown pipeline — see src/lib/markdown.ts for plugin order rationale.
-// Both this tool and the Notes drawer render through the same processor so they
-// cannot drift apart again.
-import { markdownProcessor } from '@/lib/markdown'
+// This tool renders through `markdownEditorProcessor`, which is identical to the
+// Notes drawer's `markdownProcessor` except that GFM task-list checkboxes are left
+// enabled (not `disabled`) so the preview can toggle them — see the sanitize schema
+// comment in src/lib/markdown.ts for why that variant exists instead of loosening
+// the shared schema for every surface.
+import { markdownEditorProcessor } from '@/lib/markdown'
+import { toggleTaskAtIndex } from './task-list'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 type MarkdownEditorState = {
   content: string
   fileName: string | null
+  filePath: string | null
+  savedContent: string
   mode: string
   showToc: boolean
   scrollSync: boolean
@@ -431,7 +445,7 @@ export function prefixMarkdownLines(text: string, prefix: string): string {
 export async function renderMarkdownContent(content: string): Promise<string> {
   if (!content.trim()) return ''
   try {
-    const result = await markdownProcessor.process(content)
+    const result = await markdownEditorProcessor.process(content)
     return String(result)
   } catch (e) {
     const msg = (e as Error).message
@@ -450,6 +464,8 @@ export default function MarkdownEditor() {
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
     content: '',
     fileName: null,
+    filePath: null,
+    savedContent: '',
     mode: 'split',
     showToc: false,
     scrollSync: true,
@@ -464,9 +480,11 @@ export default function MarkdownEditor() {
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
+  const [showFileMenu, setShowFileMenu] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -475,6 +493,8 @@ export default function MarkdownEditor() {
 
   useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
+  useMarkdownListEditing(mountedEditor)
+  useMarkdownSmartPaste(mountedEditor)
   const editorSelectionToolbar = useMonacoSelectionToolbar(mountedEditor, showEditor, state.content)
   const previewSelectionToolbar = useDomSelectionToolbar(previewRef, showPreview)
 
@@ -546,6 +566,17 @@ export default function MarkdownEditor() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showExport])
+
+  useEffect(() => {
+    if (!showFileMenu) return
+    const handler = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setShowFileMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showFileMenu])
 
   // ─── Formatting insertion ────────────────────────────────────────
 
@@ -743,17 +774,66 @@ export default function MarkdownEditor() {
     [buildCurrentExportHtml, state.content, setLastAction]
   )
 
+  // ─── Open / Save ──────────────────────────────────────────────────
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const result = await openFileDialog()
+      if (result) {
+        updateState({
+          content: result.content,
+          fileName: result.filename,
+          filePath: result.path,
+          savedContent: result.content,
+        })
+        setLastAction(`Opened ${result.filename}`, 'success')
+      }
+    } catch (err) {
+      setLastAction(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [updateState, setLastAction])
+
+  const handleSaveAs = useCallback(async () => {
+    try {
+      const path = await saveFileDialog(state.content, state.fileName ?? 'document.md')
+      if (path) {
+        const fileName = filenameFromPath(path)
+        updateState({ filePath: path, fileName, savedContent: state.content })
+        setLastAction(`Saved ${fileName}`, 'success')
+      } else {
+        setLastAction('Save cancelled', 'info')
+      }
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.content, state.fileName, updateState, setLastAction])
+
+  // Shared by the File > Save menu item and the ⌘S shortcut so they cannot drift.
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, state.content)
+      updateState({ savedContent: state.content })
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.content, state.fileName, updateState, setLastAction, handleSaveAs])
+
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ content: action.content, fileName: action.filename })
+      updateState({
+        content: action.content,
+        fileName: action.filename,
+        filePath: action.path ?? null,
+        savedContent: action.content,
+      })
     }
     if (action.type === 'save-file') {
-      void saveFileDialog(state.content, state.fileName ?? 'document.md').then(
-        (path) =>
-          setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-        (err: unknown) =>
-          setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-      )
+      void handleSave()
     }
   })
 
@@ -787,6 +867,13 @@ export default function MarkdownEditor() {
     setShowExport(false)
   }, [buildCurrentExportHtml, setLastAction])
 
+  const handleToggleTask = useCallback(
+    (index: number) => {
+      updateState({ content: toggleTaskAtIndex(state.content, index) })
+    },
+    [state.content, updateState]
+  )
+
   const handleTemplateSelect = useCallback(
     (content: string) => {
       updateState({ content })
@@ -807,6 +894,19 @@ export default function MarkdownEditor() {
           noBorder
         />
         <div className="ml-auto flex items-center gap-3 py-2">
+          {state.fileName && (
+            <span
+              data-testid="file-name"
+              className="text-[10px] text-[var(--color-text-muted)]"
+              title={state.filePath ?? state.fileName}
+            >
+              {state.fileName}
+              {state.content !== state.savedContent && (
+                <span className="text-[var(--color-accent)]"> •</span>
+              )}
+            </span>
+          )}
+
           {stats && (
             <span
               className="text-[10px] text-[var(--color-text-muted)]"
@@ -849,6 +949,53 @@ export default function MarkdownEditor() {
               TOC
             </Button>
           )}
+
+          {/* File dropdown — Open / Save / Save As */}
+          <div ref={fileMenuRef} className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFileMenu(!showFileMenu)}
+              className={
+                showFileMenu ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+              }
+              aria-expanded={showFileMenu}
+              aria-haspopup="menu"
+            >
+              File
+            </Button>
+            {showFileMenu && (
+              <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+                <button
+                  onClick={() => {
+                    void handleOpen()
+                    setShowFileMenu(false)
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Open…
+                </button>
+                <button
+                  onClick={() => {
+                    void handleSave()
+                    setShowFileMenu(false)
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    void handleSaveAs()
+                    setShowFileMenu(false)
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                >
+                  Save As…
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Templates dropdown */}
           <div ref={templatesRef} className="relative">
@@ -1011,7 +1158,13 @@ export default function MarkdownEditor() {
         {/* Preview */}
         {showPreview && (
           <div className={showEditor ? 'w-1/2' : 'w-full'}>
-            <MarkdownPreview ref={previewRef} html={html} showToc={state.showToc} toc={toc} />
+            <MarkdownPreview
+              ref={previewRef}
+              html={html}
+              showToc={state.showToc}
+              toc={toc}
+              onToggleTask={handleToggleTask}
+            />
           </div>
         )}
       </div>

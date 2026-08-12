@@ -10,6 +10,7 @@ import {
   readSupportedTextFile,
   sanitizeExportBasename,
   saveFileDialog,
+  saveFileToPath,
 } from '@/lib/file-io'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -45,6 +46,7 @@ describe('file I/O', () => {
     await expect(openFileDialog()).resolves.toEqual({
       content: '{"ok":true}',
       filename: 'example.json',
+      path: '/tmp/example.json',
     })
   })
 
@@ -89,6 +91,21 @@ describe('file I/O', () => {
     vi.mocked(writeTextFile).mockRejectedValue(new Error('disk full'))
 
     await expect(saveFileDialog('content')).rejects.toThrow('disk full')
+  })
+
+  describe('saveFileToPath', () => {
+    it('writes content directly to the given path without a dialog', async () => {
+      await saveFileToPath('/tmp/existing.md', '# hello')
+
+      expect(save).not.toHaveBeenCalled()
+      expect(writeTextFile).toHaveBeenCalledWith('/tmp/existing.md', '# hello')
+    })
+
+    it('propagates write errors to callers for user feedback', async () => {
+      vi.mocked(writeTextFile).mockRejectedValue(new Error('disk full'))
+
+      await expect(saveFileToPath('/tmp/existing.md', 'content')).rejects.toThrow('disk full')
+    })
   })
 
   describe('sanitizeExportBasename / buildExportFilename', () => {

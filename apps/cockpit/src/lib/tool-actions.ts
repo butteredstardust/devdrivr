@@ -9,7 +9,7 @@ export type ToolAction =
   | { type: 'execute' }
   | { type: 'copy-output' }
   | { type: 'switch-tab'; tab: number }
-  | { type: 'open-file'; content: string; filename: string }
+  | { type: 'open-file'; content: string; filename: string; path?: string }
   | { type: 'save-file' }
   | { type: 'send-to'; content: string }
 

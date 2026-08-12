@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
@@ -138,6 +138,10 @@ export default function MermaidEditor() {
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [svgHtml, setSvgHtml] = useState('')
+  // Stable identity — React 19 compares `dangerouslySetInnerHTML` by object
+  // identity, not by the `__html` string, so an inline literal re-writes
+  // innerHTML on every render. Here that also resets the rendered SVG mid-pan.
+  const svgProp = useMemo(() => ({ __html: svgHtml }), [svgHtml])
   const [error, setError] = useState<string | null>(null)
   const [isRendering, setIsRendering] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
@@ -661,10 +665,7 @@ export default function MermaidEditor() {
               }}
             >
               {svgHtml ? (
-                <div
-                  data-testid="mermaid-preview-content"
-                  dangerouslySetInnerHTML={{ __html: svgHtml }}
-                />
+                <div data-testid="mermaid-preview-content" dangerouslySetInnerHTML={svgProp} />
               ) : (
                 <div className="select-none text-center text-sm text-[var(--color-text-muted)]">
                   {isRendering ? (
