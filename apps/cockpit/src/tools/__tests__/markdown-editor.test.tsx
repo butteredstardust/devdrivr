@@ -11,6 +11,15 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
+import {
+  parseListMarker,
+  isMarkerContentEmpty,
+  nextLineMarker,
+  indentLine,
+  outdentLine,
+  renumberOrderedListAround,
+  renumberAroundIndex,
+} from '@/tools/markdown-editor/list-editing'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -508,5 +517,164 @@ describe('MarkdownEditor modal integration', () => {
     renderTool(MarkdownEditor)
     fireEvent.click(screen.getByTitle('Table'))
     await waitFor(() => expect(screen.getByText('Insert Table')).toBeInTheDocument())
+  })
+})
+
+describe('list-editing: parseListMarker', () => {
+  it('parses a bullet item', () => {
+    expect(parseListMarker('- item')).toEqual({
+      kind: 'bullet',
+      indent: '',
+      bulletChar: '-',
+      content: 'item',
+    })
+  })
+
+  it('parses * and + bullets', () => {
+    expect(parseListMarker('* item')?.bulletChar).toBe('*')
+    expect(parseListMarker('+ item')?.bulletChar).toBe('+')
+  })
+
+  it('parses indented bullets', () => {
+    expect(parseListMarker('    - item')).toMatchObject({ indent: '    ', content: 'item' })
+  })
+
+  it('parses an unchecked task item', () => {
+    expect(parseListMarker('- [ ] task')).toEqual({
+      kind: 'task',
+      indent: '',
+      bulletChar: '-',
+      checked: false,
+      content: 'task',
+    })
+  })
+
+  it('parses a checked task item, including uppercase X', () => {
+    expect(parseListMarker('- [x] task')).toMatchObject({ kind: 'task', checked: true })
+    expect(parseListMarker('- [X] task')).toMatchObject({ kind: 'task', checked: true })
+  })
+
+  it('parses an ordered item with . or ) delimiter', () => {
+    expect(parseListMarker('1. item')).toEqual({
+      kind: 'ordered',
+      indent: '',
+      number: 1,
+      delimiter: '.',
+      content: 'item',
+    })
+    expect(parseListMarker('2) item')).toMatchObject({ number: 2, delimiter: ')' })
+  })
+
+  it('parses a blockquote, including nested >>', () => {
+    expect(parseListMarker('> quote')).toEqual({
+      kind: 'quote',
+      indent: '',
+      quotePrefix: '>',
+      content: 'quote',
+    })
+    expect(parseListMarker('>> nested')).toMatchObject({ quotePrefix: '>>' })
+  })
+
+  it('parses empty markers (no content)', () => {
+    expect(parseListMarker('- ')).toMatchObject({ kind: 'bullet', content: '' })
+    expect(parseListMarker('1. ')).toMatchObject({ kind: 'ordered', content: '' })
+    expect(parseListMarker('> ')).toMatchObject({ kind: 'quote', content: '' })
+    expect(parseListMarker('- [ ] ')).toMatchObject({ kind: 'task', content: '' })
+  })
+
+  it('returns null for non-list lines', () => {
+    expect(parseListMarker('plain paragraph text')).toBeNull()
+    expect(parseListMarker('')).toBeNull()
+    expect(parseListMarker('# Heading')).toBeNull()
+  })
+})
+
+describe('list-editing: isMarkerContentEmpty', () => {
+  it('is true for a bare marker and false when content is present', () => {
+    expect(isMarkerContentEmpty(parseListMarker('- ')!)).toBe(true)
+    expect(isMarkerContentEmpty(parseListMarker('-   ')!)).toBe(true)
+    expect(isMarkerContentEmpty(parseListMarker('- x')!)).toBe(false)
+  })
+})
+
+describe('list-editing: nextLineMarker', () => {
+  it('repeats the bullet character', () => {
+    expect(nextLineMarker(parseListMarker('- item')!)).toBe('- ')
+    expect(nextLineMarker(parseListMarker('  * item')!)).toBe('  * ')
+  })
+
+  it('always continues a task item unchecked, even from a checked one', () => {
+    expect(nextLineMarker(parseListMarker('- [x] done')!)).toBe('- [ ] ')
+    expect(nextLineMarker(parseListMarker('- [ ] todo')!)).toBe('- [ ] ')
+  })
+
+  it('advances the ordered number by one', () => {
+    expect(nextLineMarker(parseListMarker('1. item')!)).toBe('2. ')
+    expect(nextLineMarker(parseListMarker('9) item')!)).toBe('10) ')
+  })
+
+  it('repeats the quote prefix', () => {
+    expect(nextLineMarker(parseListMarker('> quote')!)).toBe('> ')
+    expect(nextLineMarker(parseListMarker('>> nested')!)).toBe('>> ')
+  })
+})
+
+describe('list-editing: indentLine / outdentLine', () => {
+  it('indents with spaces when insertSpaces is true', () => {
+    expect(indentLine('- item', true, 2)).toBe('  - item')
+  })
+
+  it('indents with a tab when insertSpaces is false', () => {
+    expect(indentLine('- item', false, 4)).toBe('\t- item')
+  })
+
+  it('outdents a leading tab regardless of insertSpaces', () => {
+    expect(outdentLine('\t- item', true, 2)).toBe('- item')
+    expect(outdentLine('\t- item', false, 2)).toBe('- item')
+  })
+
+  it('outdents up to tabSize leading spaces', () => {
+    expect(outdentLine('    - item', true, 2)).toBe('  - item')
+    expect(outdentLine('  - item', true, 2)).toBe('- item')
+  })
+
+  it('is a no-op when there is no leading whitespace to remove', () => {
+    expect(outdentLine('- item', true, 2)).toBe('- item')
+  })
+})
+
+describe('list-editing: renumberOrderedListAround', () => {
+  it('renumbers a contiguous run after a new item is spliced in', () => {
+    const lines = ['1. a', '2. ', '2. b', '3. c']
+    expect(renumberOrderedListAround(lines, 1, '')).toEqual(['1. a', '2. ', '3. b', '4. c'])
+  })
+
+  it('is a no-op when the anchor line is not an ordered item at the given indent', () => {
+    const lines = ['- a', '1. b']
+    expect(renumberOrderedListAround(lines, 0, '')).toEqual(lines)
+  })
+
+  it('only renumbers the run at the matching indent, not nested sub-lists', () => {
+    const lines = ['1. a', '  1. nested', '  2. nested2', '2. b']
+    expect(renumberOrderedListAround(lines, 1, '  ')).toEqual(lines)
+  })
+
+  it('preserves the run start number rather than resetting to 1', () => {
+    const lines = ['5. a', '6. ', '6. b']
+    expect(renumberOrderedListAround(lines, 1, '')).toEqual(['5. a', '6. ', '7. b'])
+  })
+})
+
+describe('list-editing: renumberAroundIndex', () => {
+  it('renumbers the run on each side of a line that was just re-indented away', () => {
+    // Simulates line 1 having just been indented (moved out of the "" run,
+    // which leaves the run below it internally mis-numbered).
+    const lines = ['1. a', '  1. removed', '5. b', '5. c']
+    expect(renumberAroundIndex(lines, 1, '')).toEqual(['1. a', '  1. removed', '5. b', '6. c'])
+  })
+
+  it('is a no-op when neither neighbour is an ordered item at the given indent', () => {
+    const lines = ['- a', '  1. b', '- c']
+    expect(renumberAroundIndex(lines, 1, '')).toEqual(lines)
   })
 })
