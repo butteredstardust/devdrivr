@@ -19,6 +19,8 @@ import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { MarkdownPreview } from './MarkdownPreview'
 import { useScrollSync } from './hooks/useScrollSync'
 import { useImageDrop } from './hooks/useImageDrop'
+import { useMarkdownListEditing } from './hooks/useMarkdownListEditing'
+import { useMarkdownSmartPaste } from './hooks/useMarkdownSmartPaste'
 import { LinkModal } from './modals/LinkModal'
 import { CodeBlockModal } from './modals/CodeBlockModal'
 import { ImageModal } from './modals/ImageModal'
@@ -491,6 +493,8 @@ export default function MarkdownEditor() {
 
   useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
+  useMarkdownListEditing(mountedEditor)
+  useMarkdownSmartPaste(mountedEditor)
   const editorSelectionToolbar = useMonacoSelectionToolbar(mountedEditor, showEditor, state.content)
   const previewSelectionToolbar = useDomSelectionToolbar(previewRef, showPreview)
 

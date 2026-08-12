@@ -21,6 +21,7 @@ import {
   renumberAroundIndex,
 } from '@/tools/markdown-editor/list-editing'
 import { toggleTaskAtIndex, countTasks } from '@/tools/markdown-editor/task-list'
+import { isUrl, tsvToMarkdownTable } from '@/tools/markdown-editor/paste-helpers'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -732,6 +733,52 @@ describe('task-list: countTasks', () => {
 
   it('returns 0 when there are no task items', () => {
     expect(countTasks('- bullet\n1. ordered\n> quote')).toBe(0)
+  })
+})
+
+describe('paste-helpers: isUrl', () => {
+  it('accepts bare http/https URLs', () => {
+    expect(isUrl('https://example.com')).toBe(true)
+    expect(isUrl('http://example.com/path?query=1')).toBe(true)
+  })
+
+  it('tolerates surrounding whitespace', () => {
+    expect(isUrl('  https://example.com  ')).toBe(true)
+  })
+
+  it('rejects non-URL text and unsupported protocols', () => {
+    expect(isUrl('not a url')).toBe(false)
+    expect(isUrl('ftp://example.com')).toBe(false)
+    expect(isUrl('https://example.com has trailing text')).toBe(false)
+    expect(isUrl('')).toBe(false)
+  })
+})
+
+describe('paste-helpers: tsvToMarkdownTable', () => {
+  it('converts a 2x2 TSV grid into a GFM table with a header', () => {
+    expect(tsvToMarkdownTable('Name\tAge\nAlice\t30\nBob\t25')).toBe(
+      '| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |'
+    )
+  })
+
+  it('escapes pipe characters in cell content', () => {
+    expect(tsvToMarkdownTable('A|B\tC\n1\t2|3')).toBe('| A\\|B | C |\n| --- | --- |\n| 1 | 2\\|3 |')
+  })
+
+  it('returns null for a single row (no data)', () => {
+    expect(tsvToMarkdownTable('Name\tAge')).toBeNull()
+  })
+
+  it('returns null for single-column data', () => {
+    expect(tsvToMarkdownTable('Name\nAlice\nBob')).toBeNull()
+  })
+
+  it('returns null for ragged rows with inconsistent column counts', () => {
+    expect(tsvToMarkdownTable('Name\tAge\nAlice\t30\tExtra')).toBeNull()
+  })
+
+  it('returns null for a lone URL / plain single-line text', () => {
+    expect(tsvToMarkdownTable('https://example.com')).toBeNull()
   })
 })
 
