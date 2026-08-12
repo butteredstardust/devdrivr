@@ -64,3 +64,38 @@ export async function processMarkdown(content: string): Promise<string> {
   const file = await markdownProcessor.process(content)
   return String(file)
 }
+
+/**
+ * Editor-only variant of `markdownSanitizeSchema` that drops the
+ * `['disabled', true]` allowlist entry for GFM task-list checkboxes, so the
+ * `disabled` attribute remark-gfm always emits gets stripped by the
+ * sanitizer instead of surviving. This deliberately does NOT touch
+ * `markdownSanitizeSchema`/`markdownProcessor` — the Notes drawer (and any
+ * other future surface) keeps rendering dead, disabled checkboxes via the
+ * shared pipeline above. Only the Markdown Editor preview, which needs
+ * clickable checkboxes that write back to the source, uses this variant.
+ */
+export const markdownEditorSanitizeSchema = {
+  ...markdownSanitizeSchema,
+  attributes: {
+    ...markdownSanitizeSchema.attributes,
+    input: [
+      ['type', 'checkbox'] as [string, ...Array<string | boolean>],
+      ...(defaultSchema.attributes?.['input'] ?? []),
+      'checked',
+    ],
+  },
+}
+
+export const markdownEditorProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype)
+  .use(rehypeHighlight, { detect: true })
+  .use(rehypeSanitize, markdownEditorSanitizeSchema)
+  .use(rehypeStringify)
+
+export async function processMarkdownForEditor(content: string): Promise<string> {
+  const file = await markdownEditorProcessor.process(content)
+  return String(file)
+}

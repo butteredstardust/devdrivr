@@ -20,6 +20,7 @@ import {
   renumberOrderedListAround,
   renumberAroundIndex,
 } from '@/tools/markdown-editor/list-editing'
+import { toggleTaskAtIndex, countTasks } from '@/tools/markdown-editor/task-list'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -676,5 +677,121 @@ describe('list-editing: renumberAroundIndex', () => {
   it('is a no-op when neither neighbour is an ordered item at the given indent', () => {
     const lines = ['- a', '  1. b', '- c']
     expect(renumberAroundIndex(lines, 1, '')).toEqual(lines)
+  })
+})
+
+describe('task-list: toggleTaskAtIndex', () => {
+  it('toggles unchecked to checked', () => {
+    expect(toggleTaskAtIndex('- [ ] one', 0)).toBe('- [x] one')
+  })
+
+  it('toggles checked to unchecked', () => {
+    expect(toggleTaskAtIndex('- [x] one', 0)).toBe('- [ ] one')
+  })
+
+  it('handles uppercase X as checked', () => {
+    expect(toggleTaskAtIndex('- [X] one', 0)).toBe('- [ ] one')
+  })
+
+  it('toggles nested/indented tasks', () => {
+    const content = '- [ ] parent\n  - [ ] child'
+    expect(toggleTaskAtIndex(content, 1)).toBe('- [ ] parent\n  - [x] child')
+  })
+
+  it('toggles by source-order index across multiple tasks', () => {
+    const content = '- [ ] one\n- [ ] two\n- [x] three'
+    expect(toggleTaskAtIndex(content, 1)).toBe('- [ ] one\n- [x] two\n- [x] three')
+    expect(toggleTaskAtIndex(content, 2)).toBe('- [ ] one\n- [ ] two\n- [ ] three')
+  })
+
+  it('ignores task-like text inside fenced code blocks', () => {
+    const content = '- [ ] real task\n```\n- [ ] fake task\n```\n- [ ] another real task'
+    // Index 1 should hit "another real task", not the one inside the fence.
+    expect(toggleTaskAtIndex(content, 1)).toBe(
+      '- [ ] real task\n```\n- [ ] fake task\n```\n- [x] another real task'
+    )
+  })
+
+  it('does not touch a checkbox-shaped string inside inline code', () => {
+    const content = '- `[ ]` not a task\n- [ ] real task'
+    expect(toggleTaskAtIndex(content, 0)).toBe('- `[ ]` not a task\n- [x] real task')
+  })
+
+  it('leaves content unchanged for an out-of-range index', () => {
+    const content = '- [ ] one'
+    expect(toggleTaskAtIndex(content, 5)).toBe(content)
+    expect(toggleTaskAtIndex(content, -1)).toBe(content)
+  })
+})
+
+describe('task-list: countTasks', () => {
+  it('counts task items and excludes fenced code blocks', () => {
+    const content = '- [ ] one\n```\n- [ ] fake\n```\n- [x] two'
+    expect(countTasks(content)).toBe(2)
+  })
+
+  it('returns 0 when there are no task items', () => {
+    expect(countTasks('- bullet\n1. ordered\n> quote')).toBe(0)
+  })
+})
+
+describe('MarkdownPreview task checkbox interaction', () => {
+  it('renders checkboxes enabled (not disabled) so they are clickable', () => {
+    render(
+      <MarkdownPreview
+        html={'<ul><li><input type="checkbox"> task</li></ul>'}
+        showToc={false}
+        toc={[]}
+      />
+    )
+    expect(screen.getByRole('checkbox')).not.toBeDisabled()
+  })
+
+  it('calls onToggleTask with the source-order index when a checkbox is clicked', () => {
+    const onToggleTask = vi.fn()
+    render(
+      <MarkdownPreview
+        html={
+          '<ul><li><input type="checkbox"> one</li>' +
+          '<li><input type="checkbox" checked> two</li></ul>'
+        }
+        showToc={false}
+        toc={[]}
+        onToggleTask={onToggleTask}
+      />
+    )
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[1]!)
+    expect(onToggleTask).toHaveBeenCalledWith(1)
+  })
+
+  it('toggles via Enter for keyboard accessibility', () => {
+    const onToggleTask = vi.fn()
+    render(
+      <MarkdownPreview
+        html={'<ul><li><input type="checkbox"> task</li></ul>'}
+        showToc={false}
+        toc={[]}
+        onToggleTask={onToggleTask}
+      />
+    )
+    fireEvent.keyDown(screen.getByRole('checkbox'), { key: 'Enter' })
+    expect(onToggleTask).toHaveBeenCalledWith(0)
+  })
+})
+
+describe('MarkdownEditor task checkbox end-to-end', () => {
+  it('clicking a checkbox in the preview toggles it in the source content', async () => {
+    renderTool(MarkdownEditor)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '- [ ] one\n- [ ] two' },
+    })
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.click(screen.getAllByRole('checkbox')[1]!)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('monaco-editor')).toHaveValue('- [ ] one\n- [x] two')
+    )
   })
 })

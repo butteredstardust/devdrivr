@@ -37,9 +37,13 @@ import {
 } from '@phosphor-icons/react'
 
 // Shared markdown pipeline — see src/lib/markdown.ts for plugin order rationale.
-// Both this tool and the Notes drawer render through the same processor so they
-// cannot drift apart again.
-import { markdownProcessor } from '@/lib/markdown'
+// This tool renders through `markdownEditorProcessor`, which is identical to the
+// Notes drawer's `markdownProcessor` except that GFM task-list checkboxes are left
+// enabled (not `disabled`) so the preview can toggle them — see the sanitize schema
+// comment in src/lib/markdown.ts for why that variant exists instead of loosening
+// the shared schema for every surface.
+import { markdownEditorProcessor } from '@/lib/markdown'
+import { toggleTaskAtIndex } from './task-list'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -439,7 +443,7 @@ export function prefixMarkdownLines(text: string, prefix: string): string {
 export async function renderMarkdownContent(content: string): Promise<string> {
   if (!content.trim()) return ''
   try {
-    const result = await markdownProcessor.process(content)
+    const result = await markdownEditorProcessor.process(content)
     return String(result)
   } catch (e) {
     const msg = (e as Error).message
@@ -859,6 +863,13 @@ export default function MarkdownEditor() {
     setShowExport(false)
   }, [buildCurrentExportHtml, setLastAction])
 
+  const handleToggleTask = useCallback(
+    (index: number) => {
+      updateState({ content: toggleTaskAtIndex(state.content, index) })
+    },
+    [state.content, updateState]
+  )
+
   const handleTemplateSelect = useCallback(
     (content: string) => {
       updateState({ content })
@@ -1143,7 +1154,13 @@ export default function MarkdownEditor() {
         {/* Preview */}
         {showPreview && (
           <div className={showEditor ? 'w-1/2' : 'w-full'}>
-            <MarkdownPreview ref={previewRef} html={html} showToc={state.showToc} toc={toc} />
+            <MarkdownPreview
+              ref={previewRef}
+              html={html}
+              showToc={state.showToc}
+              toc={toc}
+              onToggleTask={handleToggleTask}
+            />
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { nextHeadingId } from './heading-ids'
@@ -13,6 +13,8 @@ type MarkdownPreviewProps = {
   html: string
   showToc: boolean
   toc: TocEntry[]
+  /** Called with the source-order index of a GFM task-list checkbox that was toggled. */
+  onToggleTask?: (index: number) => void
 }
 
 // ─── Preview Styles (extracted + polished) ──────────────────────────
@@ -84,10 +86,40 @@ const PREVIEW_STYLES = [
 // ─── Component ──────────────────────────────────────────────────────
 
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
-  function MarkdownPreview({ html, showToc, toc }, ref) {
+  function MarkdownPreview({ html, showToc, toc, onToggleTask }, ref) {
     const innerRef = useRef<HTMLDivElement>(null)
     const mermaidRenderSeqRef = useRef(0)
     const theme = useSettingsStore((s) => s.theme)
+
+    // ─── Task checkbox interaction (click + Enter; Space reaches here via the
+    // native click a focused checkbox fires) ──────────────────────────────
+    const toggleFromEventTarget = useCallback(
+      (target: EventTarget | null) => {
+        if (!onToggleTask || !innerRef.current) return false
+        if (!(target instanceof window.HTMLInputElement) || target.type !== 'checkbox') return false
+        const checkboxes = innerRef.current.querySelectorAll('input[type="checkbox"]')
+        const index = Array.prototype.indexOf.call(checkboxes, target)
+        if (index === -1) return false
+        onToggleTask(index)
+        return true
+      },
+      [onToggleTask]
+    )
+
+    const handlePreviewClick = useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        if (toggleFromEventTarget(e.target)) e.preventDefault()
+      },
+      [toggleFromEventTarget]
+    )
+
+    const handlePreviewKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key !== 'Enter') return
+        if (toggleFromEventTarget(e.target)) e.preventDefault()
+      },
+      [toggleFromEventTarget]
+    )
 
     // Expose the inner div via forwarded ref for scroll sync
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -171,6 +203,8 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           ref={innerRef}
           className="flex-1 overflow-auto p-6"
           data-selection-surface="markdown-preview"
+          onClick={handlePreviewClick}
+          onKeyDown={handlePreviewKeyDown}
         >
           {html ? (
             <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={{ __html: html }} />
