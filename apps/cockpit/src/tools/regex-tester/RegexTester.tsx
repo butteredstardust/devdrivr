@@ -116,6 +116,18 @@ export default function RegexTester() {
   const replaceValue = evaluated?.replaceResult ?? state.testString
   const replaceError = timedOut ? TIMEOUT_MESSAGE : (evaluated?.replaceError ?? null)
 
+  // Stable identity — React 19 compares `dangerouslySetInnerHTML` by object
+  // identity, not by the `__html` string, so an inline literal re-writes
+  // innerHTML on every render and wipes any selection in the highlight pane.
+  const highlightProp = useMemo(
+    () => ({
+      __html:
+        evaluated?.highlightHtml ||
+        '<span style="color:var(--color-text-muted)">Matches will be highlighted here</span>',
+    }),
+    [evaluated]
+  )
+
   // Character-level diff between source and substituted text (only computed when needed)
   const charDiff = useMemo(() => {
     if (!showDiff || mode !== 'replace') return null
@@ -352,11 +364,7 @@ export default function RegexTester() {
             ) : (
               <div
                 className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]"
-                dangerouslySetInnerHTML={{
-                  __html:
-                    evaluated?.highlightHtml ||
-                    '<span style="color:var(--color-text-muted)">Matches will be highlighted here</span>',
-                }}
+                dangerouslySetInnerHTML={highlightProp}
               />
             )}
           </div>

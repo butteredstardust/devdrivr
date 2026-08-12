@@ -14,14 +14,15 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 8. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
 9. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) - Visual design language, theming, and CSS tokens
 10. [TESTING.md](TESTING.md) - Testing documentation and best practices
-11. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `apps/cockpit/CONTRIBUTING.md`)
-12. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
-13. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-14. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
-15. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
-16. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
-17. [COCKPIT_STATE_AND_ROADMAP.md](COCKPIT_STATE_AND_ROADMAP.md) - Historical state review and roadmap (2026-06-12; see TODO.md for current status)
-18. [infrastructure/](infrastructure/) - Core infrastructure documentation
+11. [BROWSER_HARNESS.md](BROWSER_HARNESS.md) - Running the UI in Chromium for DOM-level debugging
+12. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `apps/cockpit/CONTRIBUTING.md`)
+13. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
+14. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
+15. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
+16. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
+17. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
+18. [COCKPIT_STATE_AND_ROADMAP.md](COCKPIT_STATE_AND_ROADMAP.md) - Historical state review and roadmap (2026-06-12; see TODO.md for current status)
+19. [infrastructure/](infrastructure/) - Core infrastructure documentation
 
 ## Overview
 
