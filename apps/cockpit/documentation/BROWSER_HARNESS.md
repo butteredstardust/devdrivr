@@ -26,14 +26,14 @@ mounts. [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js) prov
 stub to get past that.
 
 ```bash
-bun run dev   # from apps/cockpit — serves on http://localhost:5173
+bun run dev   # from apps/cockpit — serves on http://localhost:1420
 ```
 
 ```js
 import { installTauriStub } from './scripts/tauri-browser-stub.js'
 
 await page.addInitScript(installTauriStub) // must precede any page script
-await page.goto('http://localhost:5173')
+await page.goto('http://localhost:1420')
 ```
 
 Every SQL read returns empty, so stores start blank and nothing persists across a reload. Seed
@@ -44,8 +44,14 @@ state through the UI.
 - **Monaco needs time to settle.** Switching a tool into Split mode reflows the pane for a while
   after the DOM looks ready. Measuring immediately produced a false "still broken" reading;
   ~1800ms of settle time made Split, Preview, and back-to-Split all behave identically.
-- **Use `page.mouse` drags, not `dblclick`, to select prose.** A double-click landing on container
-  padding selects `"\n"` and looks like a failure. Drag across a paragraph's bounding box instead.
+- **Aim drags near the top of a paragraph's box, not its vertical centre.** `prose` line-height and
+  margins make a one-line `<p>` report a box roughly twice the height of its text, so `y + height/2`
+  lands in empty space below the line and selects nothing — which reads exactly like "the selection
+  bug is back". `y + 12` works. Cross-check with `page.mouse.dblclick`, which is less sensitive to
+  this (though a double-click on container padding selects `"\n"` and looks like its own failure).
+- **Confirm the DOM can hold a selection at all** before believing a negative result: set a `Range`
+  programmatically and re-read it after a delay. If that holds but your synthetic input doesn't, the
+  bug is in your coordinates, not in the app.
 - **Toolbar buttons collide by name.** `getByRole('button', { name: 'Templates' })` matched three
   elements; pass `{ exact: true }`.
 

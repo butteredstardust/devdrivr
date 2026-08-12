@@ -1,3 +1,0 @@
-- generic [ref=e3]:
-  - generic [ref=e4]: "Failed to initialize: TypeError: Cannot read properties of undefined (reading 'metadata')"
-  - button "Retry" [ref=e5]
