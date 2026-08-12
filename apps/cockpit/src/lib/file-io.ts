@@ -31,7 +31,11 @@ export async function readSupportedTextFile(filePath: string): Promise<string> {
   return content
 }
 
-export async function openFileDialog(): Promise<{ content: string; filename: string } | null> {
+export async function openFileDialog(): Promise<{
+  content: string
+  filename: string
+  path: string
+} | null> {
   const path = await open({
     multiple: false,
     filters: [
@@ -63,7 +67,12 @@ export async function openFileDialog(): Promise<{ content: string; filename: str
   const filePath = typeof path === 'string' ? path : path[0]
   if (!filePath) return null
   const content = await readSupportedTextFile(filePath)
-  return { content, filename: filenameFromPath(filePath) }
+  return { content, filename: filenameFromPath(filePath), path: filePath }
+}
+
+/** Writes content directly to a known absolute path — no dialog shown. */
+export async function saveFileToPath(path: string, content: string): Promise<void> {
+  await writeTextFile(path, content)
 }
 
 export async function saveFileDialog(

@@ -10,7 +10,7 @@ import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { useSettingsStore } from '@/stores/settings.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 import { dispatchToolAction } from '@/lib/tool-actions'
-import { saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -23,6 +23,9 @@ vi.mock('mermaid', () => ({
 
 vi.mock('@/lib/file-io', () => ({
   saveFileDialog: vi.fn(),
+  saveFileToPath: vi.fn(),
+  openFileDialog: vi.fn(),
+  filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
 }))
 
 function deferred<T>() {
@@ -78,6 +81,89 @@ describe('MarkdownEditor', () => {
     await waitFor(() =>
       expect(saveFileDialog).toHaveBeenCalledWith('# Opened document', 'opened.md')
     )
+  })
+
+  it('File dropdown renders Open, Save, and Save As entries', () => {
+    renderTool(MarkdownEditor)
+    fireEvent.click(screen.getByText('File'))
+    expect(screen.getByText('Open…')).toBeInTheDocument()
+    expect(screen.getByText('Save')).toBeInTheDocument()
+    expect(screen.getByText('Save As…')).toBeInTheDocument()
+  })
+
+  it('File > Open… populates content, fileName, and filePath', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+    expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
+  })
+
+  it('File > Save writes directly to a known filePath without opening the save dialog', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    vi.mocked(saveFileToPath).mockResolvedValue(undefined)
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(saveFileToPath).toHaveBeenCalledWith('/tmp/notes.md', '# From disk'))
+    expect(saveFileDialog).not.toHaveBeenCalled()
+  })
+
+  it('File > Save falls back to the Save As dialog when no filePath is known', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/document.md')
+    renderTool(MarkdownEditor)
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Untitled' },
+    })
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('# Untitled', 'document.md'))
+    expect(saveFileToPath).not.toHaveBeenCalled()
+  })
+
+  it('shows a dirty indicator after editing and clears it after saving', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '# From disk',
+      filename: 'notes.md',
+      path: '/tmp/notes.md',
+    })
+    vi.mocked(saveFileToPath).mockResolvedValue(undefined)
+    renderTool(MarkdownEditor)
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Open…'))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
+    expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('file-name').textContent).not.toContain('•')
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Edited' },
+    })
+    await waitFor(() => expect(screen.getByTestId('file-name').textContent).toContain('•'))
+
+    fireEvent.click(screen.getByText('File'))
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(screen.getByTestId('file-name').textContent).not.toContain('•'))
   })
 
   it('shows word count stats', () => {

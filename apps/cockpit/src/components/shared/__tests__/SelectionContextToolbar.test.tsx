@@ -76,6 +76,19 @@ function MonacoSelectionHarness({ onSelect }: { onSelect: (text: string) => void
 
 beforeEach(() => {
   window.getSelection()?.removeAllRanges()
+  // jsdom has no rAF — run the callback synchronously so scroll/resize
+  // repositioning in useDomSelectionToolbar can be asserted without a real frame.
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    configurable: true,
+    value: (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    },
+  })
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+    configurable: true,
+    value: () => {},
+  })
 })
 
 describe('SelectionContextToolbar', () => {
@@ -136,5 +149,38 @@ describe('SelectionContextToolbar', () => {
     await waitFor(() =>
       expect(screen.queryByRole('toolbar', { name: 'Selection actions' })).not.toBeInTheDocument()
     )
+  })
+
+  it('keeps the live DOM selection across scroll/resize but drops it on explicit dismiss', async () => {
+    const onSelect = vi.fn()
+    render(<SelectionHarness onSelect={onSelect} />)
+
+    const textNode = screen.getByTestId('selectable-text').firstChild
+    expect(textNode).not.toBeNull()
+
+    const range = document.createRange()
+    range.selectNodeContents(textNode!)
+    range.getBoundingClientRect = () => new window.DOMRect(100, 100, 140, 18)
+
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    fireEvent.mouseUp(document)
+
+    await screen.findByRole('toolbar', { name: 'Selection actions' })
+    expect(window.getSelection()?.rangeCount).toBe(1)
+
+    act(() => {
+      fireEvent.scroll(window, { target: { scrollY: 100 } })
+    })
+    expect(window.getSelection()?.rangeCount).toBe(1)
+
+    act(() => {
+      fireEvent.resize(window)
+    })
+    expect(window.getSelection()?.rangeCount).toBe(1)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(window.getSelection()?.rangeCount).toBe(0))
   })
 })
