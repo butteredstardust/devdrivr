@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { nextHeadingId } from './heading-ids'
@@ -121,6 +121,18 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       [toggleFromEventTarget]
     )
 
+    // ─── Rendered HTML payload ────────────────────────────────────
+    // Memoised deliberately. React 19's `updateProperties` compares
+    // `dangerouslySetInnerHTML` by *object identity*, not by the `__html` string
+    // inside it (React 18 compared the string). An inline `{ __html: html }`
+    // literal is a new object on every render, so React re-set innerHTML on each
+    // one — tearing down and rebuilding the whole subtree even when the markup
+    // was byte-identical. That destroyed any text selection the user had made in
+    // the preview: selecting text updates the selection-toolbar state, which
+    // re-renders this component, which wiped the very selection being tracked.
+    // Keeping the object stable makes React skip the write entirely.
+    const htmlProp = useMemo(() => ({ __html: html }), [html])
+
     // Expose the inner div via forwarded ref for scroll sync
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     useImperativeHandle(ref, () => innerRef.current!, []) // safe: called after mount, ref is populated
@@ -207,7 +219,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           onKeyDown={handlePreviewKeyDown}
         >
           {html ? (
-            <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={{ __html: html }} />
+            <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={htmlProp} />
           ) : (
             <div className="text-sm text-[var(--color-text-muted)]">
               Start typing markdown in the editor...

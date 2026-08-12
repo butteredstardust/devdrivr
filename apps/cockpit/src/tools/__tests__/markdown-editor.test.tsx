@@ -319,6 +319,22 @@ describe('MarkdownEditor', () => {
     expect(container.innerHTML).not.toContain('old diagram')
   })
 
+  // Regression: React 19 compares `dangerouslySetInnerHTML` by object identity,
+  // so an inline `{ __html }` literal made it rewrite innerHTML on every render
+  // and tear down the subtree — destroying any text selection the user had made
+  // in the preview. The rendered nodes must survive re-renders that don't change
+  // the markup.
+  it('preserves preview DOM nodes across re-renders when the html is unchanged', () => {
+    const html = '<p>selectable paragraph</p>'
+    const { container, rerender } = render(<MarkdownPreview html={html} showToc={false} toc={[]} />)
+    const paragraph = container.querySelector('p')
+    expect(paragraph).not.toBeNull()
+
+    rerender(<MarkdownPreview html={html} showToc={false} toc={[]} onToggleTask={() => {}} />)
+
+    expect(container.querySelector('p')).toBe(paragraph)
+  })
+
   it('uses the light Mermaid theme in preview when the app theme is light', async () => {
     useSettingsStore.setState({ ...DEFAULT_SETTINGS, theme: 'github-light' })
     mermaidMock.render.mockResolvedValue({ svg: '<svg><text>diagram</text></svg>' })
