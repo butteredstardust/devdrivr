@@ -5,6 +5,7 @@ import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 
 type JwtDecoderState = {
@@ -148,7 +149,7 @@ export default function JwtDecoder() {
   }, [state.input])
 
   return (
-    <div className="flex h-full flex-col">
+    <ToolLayout fullBleed>
       {/* Token input */}
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
@@ -304,6 +305,6 @@ export default function JwtDecoder() {
           />
         )}
       </div>
-    </div>
+    </ToolLayout>
   )
 }

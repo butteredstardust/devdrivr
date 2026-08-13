@@ -5,6 +5,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 
@@ -212,240 +213,240 @@ export default function RegexTester() {
   const hasGroups = matches.some((m) => m.groups.length > 0)
 
   return (
-    <div className="flex h-full">
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Pattern bar */}
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-          <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-          <input
-            ref={patternRef}
-            value={state.pattern}
-            onChange={(e) => updateState({ pattern: e.target.value })}
-            placeholder="Enter regex pattern..."
-            className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
-          />
-          <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-          <div className="flex gap-1">
-            {FLAG_OPTIONS.map((flag) => (
-              <button
-                key={flag}
-                onClick={() => toggleFlag(flag)}
-                title={FLAG_TITLES[flag]}
-                aria-label={`${FLAG_TITLES[flag]} flag`}
-                aria-pressed={state.flags.includes(flag)}
-                className={`h-6 w-6 rounded text-xs font-bold ${
-                  state.flags.includes(flag)
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-                }`}
-              >
-                {flag}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setShowRef(!showRef)}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          >
-            {showRef ? 'Hide' : 'Ref'}
-          </button>
-          {matchError && <span className="text-xs text-[var(--color-error)]">{matchError}</span>}
-          {!matchError && matchCount > 0 && (
-            <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
-              {truncated ? `${matchCount}+` : matchCount}
-            </span>
-          )}
-          {!matchError && truncated && (
-            <span className="text-xs text-[var(--color-warning)]">
-              Showing first {MAX_REGEX_MATCHES} matches
-            </span>
-          )}
-        </div>
-
-        {/* Mode toggle + replace input */}
-        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-          <SegmentedControl
-            aria-label="Regex mode"
-            options={MODE_OPTIONS}
-            value={mode}
-            onChange={setMode}
-          />
-          {mode === 'replace' && (
-            <div className="flex flex-1 items-center gap-2 px-3">
-              <input
-                value={state.replacePattern}
-                onChange={(e) => updateState({ replacePattern: e.target.value })}
-                placeholder="Replacement pattern ($1, $2, $<name>)..."
-                className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
-              />
-              <CopyButton text={replaceValue} label="Copy result" />
-            </div>
-          )}
-          {mode === 'match' && matchCount > 0 && (
-            <div className="ml-auto flex items-center gap-1 pr-3">
-              <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
-                Copy lines
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
-                Copy JSON
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Main panels */}
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-              Test String
-            </div>
-            <textarea
-              value={state.testString}
-              onChange={(e) => updateState({ testString: e.target.value })}
-              placeholder="Enter text to test against..."
-              className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+    <ToolLayout fullBleed>
+      <div className="flex h-full">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Pattern bar */}
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
+            <input
+              ref={patternRef}
+              value={state.pattern}
+              onChange={(e) => updateState({ pattern: e.target.value })}
+              placeholder="Enter regex pattern..."
+              className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
             />
-          </div>
-          <div className="flex w-1/2 flex-col">
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-              <span className="text-xs text-[var(--color-text-muted)]">
-                {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
-              </span>
-              {mode === 'replace' && state.pattern && state.testString && !replaceError && (
-                <div className="flex items-center gap-2">
-                  {diffStats && (
-                    <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
-                      <span className="text-[var(--color-success)]">+{diffStats.added}</span>
-                      {' / '}
-                      <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
-                      {' chars'}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setShowDiff((v) => !v)}
-                    title={showDiff ? 'Show plain result' : 'Show diff between source and result'}
-                    className={`text-xs transition-colors ${showDiff ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
-                  >
-                    Diff
-                  </button>
-                </div>
-              )}
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
+            <div className="flex gap-1">
+              {FLAG_OPTIONS.map((flag) => (
+                <Button
+                  key={flag}
+                  variant={state.flags.includes(flag) ? 'primary' : 'ghost'}
+                  size="xs"
+                  onClick={() => toggleFlag(flag)}
+                  title={FLAG_TITLES[flag]}
+                  aria-label={`${FLAG_TITLES[flag]} flag`}
+                  aria-pressed={state.flags.includes(flag)}
+                  className="h-6 w-6 font-bold"
+                >
+                  {flag}
+                </Button>
+              ))}
             </div>
-            {mode === 'replace' ? (
-              <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
-                {replaceError ? (
-                  <span className="text-[var(--color-error)]">{replaceError}</span>
-                ) : !state.pattern || !state.testString ? (
-                  <span className="text-[var(--color-text-muted)]">
-                    Replace preview will appear here
-                  </span>
-                ) : charDiff ? (
-                  charDiff.map((part, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        background: part.added
-                          ? 'color-mix(in srgb, var(--color-success) 20%, transparent)'
-                          : part.removed
-                            ? 'color-mix(in srgb, var(--color-error) 20%, transparent)'
-                            : undefined,
-                        color: part.added
-                          ? 'var(--color-success)'
-                          : part.removed
-                            ? 'var(--color-error)'
-                            : 'var(--color-text)',
-                        textDecoration: part.removed ? 'line-through' : undefined,
-                      }}
-                    >
-                      {part.value}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[var(--color-text)]">{replaceValue}</span>
-                )}
-              </div>
-            ) : timedOut ? (
-              <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
-                <span className="text-[var(--color-error)]">{TIMEOUT_MESSAGE}</span>
-              </div>
-            ) : (
-              <div
-                className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]"
-                dangerouslySetInnerHTML={highlightProp}
-              />
+            <Button variant="ghost" size="sm" onClick={() => setShowRef(!showRef)}>
+              {showRef ? 'Hide' : 'Ref'}
+            </Button>
+            {matchError && <span className="text-xs text-[var(--color-error)]">{matchError}</span>}
+            {!matchError && matchCount > 0 && (
+              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
+                {truncated ? `${matchCount}+` : matchCount}
+              </span>
+            )}
+            {!matchError && truncated && (
+              <span className="text-xs text-[var(--color-warning)]">
+                Showing first {MAX_REGEX_MATCHES} matches
+              </span>
             )}
           </div>
+
+          {/* Mode toggle + replace input */}
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+            <SegmentedControl
+              aria-label="Regex mode"
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={setMode}
+            />
+            {mode === 'replace' && (
+              <div className="flex flex-1 items-center gap-2 px-3">
+                <input
+                  value={state.replacePattern}
+                  onChange={(e) => updateState({ replacePattern: e.target.value })}
+                  placeholder="Replacement pattern ($1, $2, $<name>)..."
+                  className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+                />
+                <CopyButton text={replaceValue} label="Copy result" />
+              </div>
+            )}
+            {mode === 'match' && matchCount > 0 && (
+              <div className="ml-auto flex items-center gap-1 pr-3">
+                <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
+                  Copy lines
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
+                  Copy JSON
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Main panels */}
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
+                Test String
+              </div>
+              <textarea
+                value={state.testString}
+                onChange={(e) => updateState({ testString: e.target.value })}
+                placeholder="Enter text to test against..."
+                className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+              />
+            </div>
+            <div className="flex w-1/2 flex-col">
+              <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
+                </span>
+                {mode === 'replace' && state.pattern && state.testString && !replaceError && (
+                  <div className="flex items-center gap-2">
+                    {diffStats && (
+                      <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                        <span className="text-[var(--color-success)]">+{diffStats.added}</span>
+                        {' / '}
+                        <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
+                        {' chars'}
+                      </span>
+                    )}
+                    <Button
+                      variant={showDiff ? 'secondary' : 'ghost'}
+                      size="xs"
+                      onClick={() => setShowDiff((v) => !v)}
+                      title={showDiff ? 'Show plain result' : 'Show diff between source and result'}
+                    >
+                      Diff
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {mode === 'replace' ? (
+                <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
+                  {replaceError ? (
+                    <span className="text-[var(--color-error)]">{replaceError}</span>
+                  ) : !state.pattern || !state.testString ? (
+                    <span className="text-[var(--color-text-muted)]">
+                      Replace preview will appear here
+                    </span>
+                  ) : charDiff ? (
+                    charDiff.map((part, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          background: part.added
+                            ? 'color-mix(in srgb, var(--color-success) 20%, transparent)'
+                            : part.removed
+                              ? 'color-mix(in srgb, var(--color-error) 20%, transparent)'
+                              : undefined,
+                          color: part.added
+                            ? 'var(--color-success)'
+                            : part.removed
+                              ? 'var(--color-error)'
+                              : 'var(--color-text)',
+                          textDecoration: part.removed ? 'line-through' : undefined,
+                        }}
+                      >
+                        {part.value}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[var(--color-text)]">{replaceValue}</span>
+                  )}
+                </div>
+              ) : timedOut ? (
+                <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
+                  <span className="text-[var(--color-error)]">{TIMEOUT_MESSAGE}</span>
+                </div>
+              ) : (
+                <div
+                  className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm text-[var(--color-text)]"
+                  dangerouslySetInnerHTML={highlightProp}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Match details */}
+          {matchCount > 0 && (
+            <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
+                <span>
+                  {truncated ? `First ${matchCount}` : matchCount} match
+                  {matchCount !== 1 ? 'es' : ''}
+                  {hasGroups ? ` · ${matches.reduce((n, m) => n + m.groups.length, 0)} groups` : ''}
+                </span>
+              </div>
+              {matches.map((m, i) => (
+                <div
+                  key={i}
+                  className="mb-1.5 flex items-start gap-3 rounded p-1 text-xs hover:bg-[var(--color-surface-hover)]"
+                >
+                  <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
+                    #{i + 1}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
+                    {m.index}–{m.index + m.length}
+                  </span>
+                  <code className="font-bold text-[var(--color-accent)]">{m.full}</code>
+                  {m.groups.length > 0 && (
+                    <span className="flex flex-wrap gap-x-2 text-[var(--color-text-muted)]">
+                      {m.groups.map((g, j) => (
+                        <span key={j}>
+                          {g.name ? (
+                            <span className="text-[var(--color-info)]">{g.name}</span>
+                          ) : (
+                            <span className="opacity-60">${g.index}</span>
+                          )}
+                          {'='}
+                          <code className="text-[var(--color-text)]">{g.value}</code>
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  <CopyButton text={m.full} label="Copy" className="ml-auto shrink-0" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Match details */}
-        {matchCount > 0 && (
-          <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-            <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
-              <span>
-                {truncated ? `First ${matchCount}` : matchCount} match
-                {matchCount !== 1 ? 'es' : ''}
-                {hasGroups ? ` · ${matches.reduce((n, m) => n + m.groups.length, 0)} groups` : ''}
-              </span>
+        {/* Reference sidebar */}
+        {showRef && (
+          <div className="w-56 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+            <div className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
+              Reference · click to insert
             </div>
-            {matches.map((m, i) => (
-              <div
-                key={i}
-                className="mb-1.5 flex items-start gap-3 rounded p-1 text-xs hover:bg-[var(--color-surface-hover)]"
-              >
-                <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
-                  #{i + 1}
-                </span>
-                <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
-                  {m.index}–{m.index + m.length}
-                </span>
-                <code className="font-bold text-[var(--color-accent)]">{m.full}</code>
-                {m.groups.length > 0 && (
-                  <span className="flex flex-wrap gap-x-2 text-[var(--color-text-muted)]">
-                    {m.groups.map((g, j) => (
-                      <span key={j}>
-                        {g.name ? (
-                          <span className="text-[var(--color-info)]">{g.name}</span>
-                        ) : (
-                          <span className="opacity-60">${g.index}</span>
-                        )}
-                        {'='}
-                        <code className="text-[var(--color-text)]">{g.value}</code>
-                      </span>
-                    ))}
-                  </span>
-                )}
-                <CopyButton text={m.full} label="Copy" className="ml-auto shrink-0" />
+            {REFERENCE_CATEGORIES.map((cat) => (
+              <div key={cat.label} className="mb-3">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  {cat.label}
+                </div>
+                {cat.items.map((r) => (
+                  <Button
+                    key={r.pattern}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => insertPattern(r.pattern)}
+                    className="mb-0.5 w-full items-start justify-start gap-1.5 text-left"
+                  >
+                    <code className="shrink-0 text-[var(--color-accent)]">{r.pattern}</code>
+                    <span className="text-[var(--color-text-muted)]">{r.desc}</span>
+                  </Button>
+                ))}
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Reference sidebar */}
-      {showRef && (
-        <div className="w-56 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          <div className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
-            Reference · click to insert
-          </div>
-          {REFERENCE_CATEGORIES.map((cat) => (
-            <div key={cat.label} className="mb-3">
-              <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                {cat.label}
-              </div>
-              {cat.items.map((r) => (
-                <button
-                  key={r.pattern}
-                  onClick={() => insertPattern(r.pattern)}
-                  className="mb-0.5 flex w-full items-start gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)]"
-                >
-                  <code className="shrink-0 text-[var(--color-accent)]">{r.pattern}</code>
-                  <span className="text-[var(--color-text-muted)]">{r.desc}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </ToolLayout>
   )
 }
