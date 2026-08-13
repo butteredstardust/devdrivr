@@ -6,6 +6,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useWorker } from '@/hooks/useWorker'
 import type { RefactoringWorker } from '@/workers/refactoring.worker'
 import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
@@ -118,53 +119,55 @@ export default function RefactoringToolkit() {
   const noChanges = preview !== null && preview === state.input
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        {preview !== null && !noChanges && (
-          <button
-            onClick={handleApply}
-            className={`rounded border px-3 py-1 font-mono text-xs hover:opacity-80 ${
-              hasDestructive
-                ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
-                : 'border-[var(--color-success)] text-[var(--color-success)]'
-            }`}
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          {preview !== null && !noChanges && (
+            <button
+              onClick={handleApply}
+              className={`rounded border px-3 py-1 font-mono text-xs hover:opacity-80 ${
+                hasDestructive
+                  ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
+                  : 'border-[var(--color-success)] text-[var(--color-success)]'
+              }`}
+            >
+              {hasDestructive ? 'Apply (destructive)' : 'Apply'}
+            </button>
+          )}
+          {noChanges && (
+            <span className="text-xs text-[var(--color-text-muted)]">No changes to apply</span>
+          )}
+          {selectedCount > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => updateState({ selectedTransforms: [] })}
+            >
+              Clear
+            </Button>
+          )}
+          <Select
+            value={state.language}
+            onChange={(e) => updateState({ language: e.target.value, selectedTransforms: [] })}
           >
-            {hasDestructive ? 'Apply (destructive)' : 'Apply'}
-          </button>
-        )}
-        {noChanges && (
-          <span className="text-xs text-[var(--color-text-muted)]">No changes to apply</span>
-        )}
-        {selectedCount > 0 && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => updateState({ selectedTransforms: [] })}
-          >
-            Clear
-          </Button>
-        )}
-        <Select
-          value={state.language}
-          onChange={(e) => updateState({ language: e.target.value, selectedTransforms: [] })}
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.label}
-            </option>
-          ))}
-        </Select>
-        {selectedCount > 0 && (
-          <span className="text-xs text-[var(--color-text-muted)]">
-            {selectedCount} transform{selectedCount !== 1 ? 's' : ''}
-          </span>
-        )}
-        <div className="ml-auto">
-          <CopyButton text={preview ?? state.input} />
+            {LANGUAGES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </Select>
+          {selectedCount > 0 && (
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {selectedCount} transform{selectedCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          <div className="ml-auto">
+            <CopyButton text={preview ?? state.input} />
+          </div>
         </div>
-      </div>
-
+      }
+    >
       <div className="flex flex-1 overflow-hidden">
         {/* Transforms sidebar */}
         <div className="w-64 shrink-0 overflow-auto border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3">
@@ -240,6 +243,6 @@ export default function RefactoringToolkit() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }

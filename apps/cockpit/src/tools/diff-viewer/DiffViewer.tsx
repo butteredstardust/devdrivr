@@ -11,6 +11,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
@@ -196,97 +197,102 @@ export default function DiffViewer() {
   const identical = state.left === state.right && state.left.trim().length > 0
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => void computeDiff()}
-          disabled={isComparing}
-        >
-          {isComparing ? 'Comparing…' : 'Compare'}
-        </Button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-
-        {diffHtml && !identical && (
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
-            onClick={() => {
-              setDiffHtml('')
-              setRawPatch('')
-            }}
+            onClick={() => void computeDiff()}
+            loading={isComparing}
           >
-            ← Editors
+            Compare
           </Button>
-        )}
+          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
 
-        <Button variant="secondary" size="sm" onClick={handleSwap} title="Swap left and right">
-          ⇄ Swap
-        </Button>
-
-        {!state.left.trim() && !state.right.trim() && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
-            }
-          >
-            Load Sample
-          </Button>
-        )}
-
-        <Select
-          value={state.mode}
-          onChange={(e) => updateState({ mode: e.target.value as DiffViewerState['mode'] })}
-        >
-          <option value="side-by-side">Side by Side</option>
-          <option value="inline">Inline</option>
-        </Select>
-
-        <Select value={state.language} onChange={(e) => updateState({ language: e.target.value })}>
-          {LANGUAGES.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.label}
-            </option>
-          ))}
-        </Select>
-
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.ignoreWhitespace}
-            onChange={(e) => updateState({ ignoreWhitespace: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          Ignore WS
-        </label>
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.jsonMode}
-            onChange={(e) => updateState({ jsonMode: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          JSON
-        </label>
-
-        {/* Stats + export on the right */}
-        <div className="ml-auto flex items-center gap-2">
-          {stats && !identical && (
-            <span className="text-xs tabular-nums">
-              <span className="text-[var(--color-success)]">+{stats.additions}</span>
-              {' / '}
-              <span className="text-[var(--color-error)]">−{stats.deletions}</span>
-            </span>
+          {diffHtml && !identical && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setDiffHtml('')
+                setRawPatch('')
+              }}
+            >
+              ← Editors
+            </Button>
           )}
-          {identical && <span className="text-xs text-[var(--color-success)]">Identical</span>}
-          {rawPatch && <CopyButton text={rawPatch} label="Copy patch" />}
-        </div>
-      </div>
 
+          <Button variant="secondary" size="sm" onClick={handleSwap} title="Swap left and right">
+            ⇄ Swap
+          </Button>
+
+          {!state.left.trim() && !state.right.trim() && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
+              }
+            >
+              Load Sample
+            </Button>
+          )}
+
+          <Select
+            value={state.mode}
+            onChange={(e) => updateState({ mode: e.target.value as DiffViewerState['mode'] })}
+          >
+            <option value="side-by-side">Side by Side</option>
+            <option value="inline">Inline</option>
+          </Select>
+
+          <Select
+            value={state.language}
+            onChange={(e) => updateState({ language: e.target.value })}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </Select>
+
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.ignoreWhitespace}
+              onChange={(e) => updateState({ ignoreWhitespace: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            Ignore WS
+          </label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.jsonMode}
+              onChange={(e) => updateState({ jsonMode: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            JSON
+          </label>
+
+          {/* Stats + export on the right */}
+          <div className="ml-auto flex items-center gap-2">
+            {stats && !identical && (
+              <span className="text-xs tabular-nums">
+                <span className="text-[var(--color-success)]">+{stats.additions}</span>
+                {' / '}
+                <span className="text-[var(--color-error)]">−{stats.deletions}</span>
+              </span>
+            )}
+            {identical && <span className="text-xs text-[var(--color-success)]">Identical</span>}
+            {rawPatch && <CopyButton text={rawPatch} label="Copy patch" />}
+          </div>
+        </div>
+      }
+    >
       {/* Diff output or editors */}
       {diffHtml && !identical ? (
         <div
@@ -359,6 +365,6 @@ export default function DiffViewer() {
           </div>
         </div>
       )}
-    </div>
+    </ToolLayout>
   )
 }

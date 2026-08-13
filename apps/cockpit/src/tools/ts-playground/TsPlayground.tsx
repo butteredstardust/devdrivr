@@ -5,6 +5,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
@@ -89,38 +90,42 @@ export default function TsPlayground() {
   }, [worker, state.input, state.target, state.module, state.strict, handleTranspile])
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          Target
-          <Select value={state.target} onChange={(e) => updateState({ target: e.target.value })}>
-            <option value="ES5">ES5</option>
-            <option value="ES2015">ES2015</option>
-            <option value="ES2020">ES2020</option>
-            <option value="ESNext">ESNext</option>
-          </Select>
-        </label>
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          Module
-          <Select value={state.module} onChange={(e) => updateState({ module: e.target.value })}>
-            <option value="ESNext">ESNext</option>
-            <option value="CommonJS">CommonJS</option>
-            <option value="None">None</option>
-          </Select>
-        </label>
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.strict}
-            onChange={(e) => updateState({ strict: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          Strict
-        </label>
-        <div className="ml-auto flex items-center gap-2">
-          <CopyButton text={output} label="Copy Output" />
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            Target
+            <Select value={state.target} onChange={(e) => updateState({ target: e.target.value })}>
+              <option value="ES5">ES5</option>
+              <option value="ES2015">ES2015</option>
+              <option value="ES2020">ES2020</option>
+              <option value="ESNext">ESNext</option>
+            </Select>
+          </label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            Module
+            <Select value={state.module} onChange={(e) => updateState({ module: e.target.value })}>
+              <option value="ESNext">ESNext</option>
+              <option value="CommonJS">CommonJS</option>
+              <option value="None">None</option>
+            </Select>
+          </label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.strict}
+              onChange={(e) => updateState({ strict: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            Strict
+          </label>
+          <div className="ml-auto flex items-center gap-2">
+            <CopyButton text={output} label="Copy Output" />
+          </div>
         </div>
-      </div>
+      }
+    >
       {diagnostics.length > 0 && (
         <div className="max-h-20 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
           {diagnostics.map((d, i) => (
@@ -150,6 +155,6 @@ export default function TsPlayground() {
           />
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
