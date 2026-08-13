@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -177,63 +179,61 @@ export default function CssSpecificity() {
   }, [results])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <button
-          onClick={() => setSorted(!sorted)}
-          className={`rounded border px-3 py-1 text-xs ${
-            sorted
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-          }`}
-        >
-          Sort by specificity
-        </button>
-        <button
-          onClick={() => setShowBreakdown(!showBreakdown)}
-          className={`rounded border px-3 py-1 text-xs ${
-            showBreakdown
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-          }`}
-        >
-          Breakdown
-        </button>
-        {results.length > 0 && (
-          <>
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {results.length} selector(s)
-            </span>
-            <CopyButton text={exportText} label="Export" />
-          </>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {EXAMPLES.map((ex) => (
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
             <Button
-              key={ex.label}
-              variant="secondary"
+              variant={sorted ? 'secondary' : 'ghost'}
               size="sm"
-              onClick={() => updateState({ input: ex.selectors })}
+              onClick={() => setSorted(!sorted)}
             >
-              {ex.label}
+              Sort by specificity
             </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">
-        {Object.values(TYPE_COLORS).map((tc) => (
-          <div key={tc.label} className="flex items-center gap-1">
-            <div className="h-2 w-4 rounded" style={{ backgroundColor: tc.bar }} />
-            <span className="text-[10px]" style={{ color: tc.text }}>
-              {tc.label}
-            </span>
+            <Button
+              variant={showBreakdown ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowBreakdown(!showBreakdown)}
+            >
+              Breakdown
+            </Button>
+            {results.length > 0 && (
+              <>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {results.length} selector(s)
+                </span>
+                <CopyButton text={exportText} label="Export" />
+              </>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {EXAMPLES.map((ex) => (
+                <Button
+                  key={ex.label}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => updateState({ input: ex.selectors })}
+                >
+                  {ex.label}
+                </Button>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
 
+          {/* Legend */}
+          <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">
+            {Object.values(TYPE_COLORS).map((tc) => (
+              <div key={tc.label} className="flex items-center gap-1">
+                <div className="h-2 w-4 rounded" style={{ backgroundColor: tc.bar }} />
+                <span className="text-[10px]" style={{ color: tc.text }}>
+                  {tc.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      }
+    >
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Input */}
@@ -354,12 +354,10 @@ export default function CssSpecificity() {
               })}
             </div>
           ) : (
-            <div className="text-sm text-[var(--color-text-muted)]">
-              Enter CSS selectors on the left — try one of the examples above
-            </div>
+            <EmptyState title="Enter CSS selectors on the left — try one of the examples above" />
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }

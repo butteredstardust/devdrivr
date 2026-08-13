@@ -3,6 +3,8 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 type CssToTailwindState = {
   input: string
@@ -328,7 +330,7 @@ export default function CssToTailwind() {
   const classString = result?.classes.join(' ') ?? ''
 
   return (
-    <div className="flex h-full flex-col">
+    <ToolLayout fullBleed>
       <div className="flex flex-1 overflow-hidden">
         <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
@@ -389,13 +391,11 @@ export default function CssToTailwind() {
                 )}
               </div>
             ) : (
-              <div className="text-sm text-[var(--color-text-muted)]">
-                Enter CSS on the left to convert
-              </div>
+              <EmptyState title="Enter CSS on the left to convert" />
             )}
           </div>
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
