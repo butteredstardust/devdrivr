@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactElement } from 'react'
 import { PushPinIcon } from '@phosphor-icons/react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -18,6 +18,18 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
   const isActive = activeTool === id
   const isPinned = pinnedToolIds.includes(id)
 
+  // The row is a fixed width at all times it's mounted (SidebarItem only
+  // renders in the 218px expanded tree; the collapsed tree uses
+  // SidebarCollapsedGroup instead), so one measurement per mount is enough —
+  // no ResizeObserver needed to keep this in sync on every render.
+  const labelRef = useRef<HTMLSpanElement>(null)
+  const [isTruncated, setIsTruncated] = useState(false)
+  useLayoutEffect(() => {
+    const el = labelRef.current
+    if (!el) return
+    setIsTruncated(el.scrollWidth > el.clientWidth)
+  }, [name])
+
   const togglePinned = () => {
     const next = isPinned ? pinnedToolIds.filter((toolId) => toolId !== id) : [id, ...pinnedToolIds]
     void update('pinnedToolIds', next)
@@ -27,7 +39,6 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
     <div className="group flex h-8 w-full items-center gap-1">
       <button
         onClick={() => setActiveTool(id)}
-        title={name}
         aria-label={name}
         aria-current={isActive ? 'page' : undefined}
         tabIndex={tabIndex}
@@ -39,7 +50,13 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
         }`}
       >
         <span className="flex w-5 shrink-0 items-center justify-center">{icon}</span>
-        <span className="truncate">{name}</span>
+        {/* title only when the label is actually clipped — measured once per
+            mount (see labelRef effect above), so untruncated names don't get
+            a redundant hover tooltip. The full name is always reachable via
+            aria-label regardless of truncation. */}
+        <span ref={labelRef} className="truncate" title={isTruncated ? name : undefined}>
+          {name}
+        </span>
       </button>
       <button
         onClick={togglePinned}
