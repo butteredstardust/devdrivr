@@ -209,7 +209,7 @@ bun run lint
 
 ## P1 - Design tokens
 
-### [ ] Split `index.css` and add the missing scales
+### [x] Split `index.css` and add the missing scales
 
 Area: theming / CSS architecture
 
