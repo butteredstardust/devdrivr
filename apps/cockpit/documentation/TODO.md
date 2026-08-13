@@ -185,7 +185,7 @@ bunx vitest run src/hooks
 npx tsc --noEmit
 ```
 
-### [ ] Honour `prefers-reduced-motion`
+### [x] Honour `prefers-reduced-motion`
 
 Area: accessibility
 

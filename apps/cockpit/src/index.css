@@ -992,3 +992,30 @@ body,
 .soft-focus .hljs-strong {
   font-weight: bold;
 }
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────────
+   Users who ask the OS for reduced motion get a still interface. This
+   collapses every CSS transition/animation duration app-wide (sidebar
+   collapse, tab transitions, toasts, dialog fade-in, status-bar fade, etc.)
+   without deleting the underlying transition declarations in components —
+   they stay in place for users who don't opt into reduced motion.
+
+   Exception: .animate-spin (loading spinners) stops rotating but stays fully
+   visible. A user who asked for less motion still needs to know something is
+   loading, so the spinner degrades to a static, fully opaque glyph rather
+   than vanishing.  */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation: none !important;
+    opacity: 1;
+  }
+}
