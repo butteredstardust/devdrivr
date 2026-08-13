@@ -137,6 +137,14 @@ export function WorkspaceTabStrip() {
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
+              {tool && (
+                <span
+                  aria-hidden="true"
+                  className="flex shrink-0 items-center [&_svg]:h-3.5 [&_svg]:w-3.5"
+                >
+                  {tool.icon}
+                </span>
+              )}
               <span className="flex-1 truncate text-[10px]">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
@@ -153,6 +161,7 @@ export function WorkspaceTabStrip() {
               {isActive && (
                 <span
                   aria-hidden="true"
+                  data-testid="tab-pill"
                   className="pointer-events-none absolute bottom-0 left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-t-full bg-[var(--color-accent)]"
                 />
               )}

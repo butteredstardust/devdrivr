@@ -16,7 +16,13 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/app/tool-registry', () => ({
-  getToolById: (id: string) => ({ id, name: id, toolId: id, icon: '•', description: '' }),
+  getToolById: (id: string) => ({
+    id,
+    name: id,
+    toolId: id,
+    icon: <svg data-testid={`icon-${id}`} />,
+    description: '',
+  }),
   TOOLS: [],
 }))
 
@@ -45,7 +51,7 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
     // The active tab div contains a span with the bottom pill classes
     const pill = document
       .querySelector(`[data-tab-id="${activeTab!.id}"]`)
-      ?.querySelector('[aria-hidden="true"]')
+      ?.querySelector('[data-testid="tab-pill"]')
 
     expect(pill).not.toBeNull()
     expect(pill!.className).toContain('bottom-0')
@@ -58,7 +64,7 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     const pill = document
       .querySelector(`[data-tab-id="${inactiveTab!.id}"]`)
-      ?.querySelector('[aria-hidden="true"]')
+      ?.querySelector('[data-testid="tab-pill"]')
 
     expect(pill).toBeNull()
   })
@@ -72,10 +78,10 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     const pillOnFirst = document
       .querySelector(`[data-tab-id="${firstTab!.id}"]`)
-      ?.querySelector('[aria-hidden="true"]')
+      ?.querySelector('[data-testid="tab-pill"]')
     const pillOnSecond = document
       .querySelector(`[data-tab-id="${secondTab!.id}"]`)
-      ?.querySelector('[aria-hidden="true"]')
+      ?.querySelector('[data-testid="tab-pill"]')
 
     expect(pillOnFirst).toBeNull()
     expect(pillOnSecond).not.toBeNull()
@@ -189,5 +195,41 @@ describe('WorkspaceTabStrip — context menu', () => {
 
     fireEvent.mouseDown(screen.getByTestId('outside'))
     expect(screen.queryByText('Close')).toBeNull()
+  })
+})
+
+// ── Tool icons ─────────────────────────────────────────────────────
+
+describe('WorkspaceTabStrip — tool icons', () => {
+  it("renders each tab's registry icon before its label", () => {
+    seedTabs(['json-tools', 'base64'])
+    render(<WorkspaceTabStrip />)
+
+    expect(screen.getByTestId('icon-json-tools')).toBeInTheDocument()
+    expect(screen.getByTestId('icon-base64')).toBeInTheDocument()
+  })
+
+  it('marks the icon as decorative so it is excluded from the accessible name', () => {
+    seedTabs(['json-tools'])
+    render(<WorkspaceTabStrip />)
+
+    const icon = screen.getByTestId('icon-json-tools')
+    const wrapper = icon.closest('[aria-hidden="true"]')
+    expect(wrapper).not.toBeNull()
+
+    const tab = screen.getByRole('tab')
+    expect(tab).toHaveAccessibleName('json-tools')
+  })
+
+  it('still renders and truncates all tabs with icons when six or more are open', () => {
+    const toolIds = ['json-tools', 'base64', 'hash-generator', 'url-codec', 'jwt-decoder', 'nord']
+    seedTabs(toolIds)
+    render(<WorkspaceTabStrip />)
+
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs).toHaveLength(6)
+    for (const id of toolIds) {
+      expect(screen.getByTestId(`icon-${id}`)).toBeInTheDocument()
+    }
   })
 })
