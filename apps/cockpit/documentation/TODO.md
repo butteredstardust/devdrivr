@@ -281,11 +281,45 @@ Acceptance criteria:
   body with consistent padding, a `max-w` for form-style tools, and a full-bleed opt-out for
   editor-style tools.
 - Tools migrate one group per PR, starting with CONVERT (9 tools, simplest markup).
-  - [x] CONVERT (9 tools) — done; `ToolLayout` itself is built and tested.
-  - [ ] CODE, DATA, WEB, and the remaining groups.
-  - Ratchet standing after CONVERT: raw `<button>` in `src/tools` 121, arbitrary Tailwind values 1551. Both only come down once the componentisation passes land with the later groups.
-- Ratchet target once the migration completes: raw `<button>` in `src/tools` under 30, arbitrary
-  Tailwind values under 400.
+  - [x] CONVERT (9 tools) — `ToolLayout` itself is built and tested.
+  - [x] CODE (4), DATA (5), WEB (4), TEST (2), NETWORK (2), WRITE (4).
+
+Migration complete. Two structural exemptions, both deliberate:
+
+- **Snippets and Prompt Templates** keep their own grid roots. Both are three-column layouts with a
+  command bar spanning all columns; `ToolLayout`'s single-column header/toolbar/body contract cannot
+  express that without redesigning them. They did adopt the shared `Button`/`Select`.
+- **Tree views** (JSON/YAML/XML) keep raw `<button>` for leaves and chevrons — the content is custom
+  inline JSX that no `Button` variant fits.
+
+### Ratchet — corrected
+
+The arbitrary-value figure previously recorded here (1551, later re-measured as 1635) was an artifact
+of a bad command: `grep -o "\[[^]]*\]"` counts every bracket pair in the file, so JS dependency
+arrays (`[state, updateState]`), regex character classes (`[0-9a-f]`) and empty arrays (`[]`) were
+all being counted as Tailwind. Use this instead, which matches a utility with an arbitrary value and
+ignores `var()` token references:
+
+```bash
+grep -rhoP '[a-zA-Z][a-zA-Z0-9:_-]*-\[(?!var\()[^\]]+\]' --include='*.tsx' src/tools | wc -l
+```
+
+| Metric                        | Target | Before migration | Now |
+| ----------------------------- | ------ | ---------------- | --- |
+| raw `<button>` in `src/tools` | < 30   | 125              | 26  |
+| arbitrary Tailwind values     | < 400  | 202              | 202 |
+
+Raw buttons met the target. Arbitrary values were already under it once measured correctly, and this
+migration did not move them, because **142 of the remaining 202 are `text-[10px]`** — the smallest
+`--text-*` token is `--text-xs` at 12px, so there is nothing to migrate them to. Closing that gap is
+a design decision, not a mechanical one: either add a `--text-2xs: 0.625rem` token and sweep, or
+decide 10px chrome text should become 12px. Do not "fix" it by rounding tools up to `text-xs` piecemeal
+— that silently enlarges dense toolbars one file at a time.
+
+### [ ] Remaining: Image Tool
+
+`src/tools/image-tool/ImageTool.tsx` still holds 6 raw buttons and never got its `ToolLayout` pass —
+it was missed in the CONVERT sweep and not picked up since.
 
 ## P3 - Shell UX
 
