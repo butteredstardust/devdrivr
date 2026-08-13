@@ -56,7 +56,7 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
   return (
     <div
       ref={menuRef}
-      className="animate-fade-in fixed z-50 w-56 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+      className="animate-fade-in fixed z-[var(--z-popover)] w-56 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
       style={{ left: adjustedLeft, top: adjustedTop }}
     >
       <div className="border-b border-[var(--color-border)] p-2">

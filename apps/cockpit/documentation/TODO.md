@@ -105,23 +105,44 @@ bunx vitest run src/components/shell
 npx tsc --noEmit
 ```
 
-### [ ] Give overlays a scrim, centring, and elevation
+### [x] Make overlay scrims actually visible, and give overlays one stacking order
 
 Area: shell / modals
 
-Problem: the Settings panel and the ⌘K command palette render as bare bordered panels floating over
-fully-legible content, offset up and to the left of centre, with no backdrop and no shadow beyond a
-1px border. In `ui-audit-08-settings.png` the Color Converter rows read straight through beside the
-modal; it looks like a rendering fault rather than a layer.
+Problem: overlays _do_ have scrims — the first version of this item said they did not, which was
+wrong. The scrims are simply invisible in half the themes. `Dialog.tsx` and `CommandPalette.tsx` both
+paint their backdrop with `color-mix(in srgb, var(--color-shadow) 50%, transparent)`, and
+`--color-shadow` is a **box-shadow** colour, not a scrim colour. Light themes set it faint by design:
+`soft-focus` uses `rgba(0, 0, 0, 0.05)`, so after the 50% mix the scrim computes to
+`color(srgb 0 0 0 / 0.0254902)` — 2.5% black, measured in the running app. `catppuccin-latte`,
+`github-light`, `solarized-light`, and `tokyo-night-light` are in the same range (0.05-0.1 before the
+mix). Dark themes land at 20-30%, which reads correctly. So the layer disappears in exactly the
+themes where a scrim matters most, which is why `ui-audit-08-settings.png` looks like a rendering
+fault.
 
-Expected outcome: overlays read as a layer above the app.
+Positioning is fine and should not be changed: the palette is `fixed left-1/2 top-[15%]` with
+`-translate-x-1/2` (measured centred at x=720 in a 1440px viewport) and `Dialog` centres both axes.
+
+Secondary problem: stacking is ad-hoc. Values in use are `z-40` (palette backdrop, file-drop
+overlay), `z-50` (Dialog, Toast, SendToMenu, 4 markdown modals, 2 prompt-template modals, HTML
+validator preview), `z-[70]` (SelectionContextToolbar), `z-[9999]` (tab-strip context menu, sidebar
+flyout and tooltip), and inline `zIndex: 100` / `101` (API client context menu and submenu). Nothing
+documents which should sit above which.
+
+Expected outcome: overlays read as a layer above the app in every theme, and there is one documented
+stacking order.
 
 Acceptance criteria:
 
-- `src/components/shared/Dialog.tsx`, `SettingsPanel.tsx`, and `CommandPalette.tsx` share one scrim
-  (semi-transparent backdrop) and one elevation treatment.
-- The palette is horizontally centred and anchored near the top (roughly 15-20vh); dialogs are
-  centred both ways.
+- A dedicated `--color-scrim` token per theme, independent of `--color-shadow`, tuned so the scrim is
+  visibly dimming in all 22 themes (target roughly 30-50% effective alpha; verify in at least one
+  light and one dark theme by measuring the computed value, not by eye).
+- `Dialog.tsx` and `CommandPalette.tsx` consume it; the 4 markdown-editor modals and the 2
+  prompt-templates modals — which hand-roll `bg-black/50` and `bg-[var(--color-bg)]/80` — use the
+  same token. Migrating those six onto `Dialog` outright is preferred if it does not regress their
+  focus traps; if it does, just unify the scrim and say so.
+- A documented z-index scale (tokens or a short comment block listing the layers) replacing the
+  ad-hoc values above. The `zIndex: 100/101` inline styles in `CollectionsSidebar.tsx` join it.
 - Existing focus-trap, Esc-to-close, and click-outside behaviour is preserved, and the scrim does not
   swallow the events those depend on.
 - The scrim respects the reduced-motion item below (no fade when reduced motion is requested).

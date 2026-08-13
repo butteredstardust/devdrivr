@@ -188,7 +188,7 @@ export function WorkspaceTabStrip() {
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}
-          className="z-[9999] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+          className="z-[var(--z-popover)] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
         >
           <button
             onClick={() => {

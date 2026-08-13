@@ -40,7 +40,31 @@
   --color-error: #ef4444;
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
+}
+
+/* ─── Stacking order ─────────────────────────────────────────────────────
+   One documented z-index scale for every overlay in the app. Same value
+   across all themes — layering is not a theme concern. Higher tiers sit
+   above lower ones regardless of DOM position.
+
+     --z-scrim    40  Backdrop behind a modal/palette — dims the app
+     --z-modal    50  Dialog panels, command palette, hand-rolled modals
+     --z-popover  60  Context menus, dropdowns, flyouts
+     --z-tooltip  70  Hover tooltips
+     --z-toast    80  Toast notifications — always the topmost layer
+
+   Use `z-[var(--z-modal)]` (Tailwind arbitrary value) in className, or
+   `style={{ zIndex: 'var(--z-popover)' }}` where a menu needs to stack a
+   submenu one layer above its parent via `calc(var(--z-popover) + 1)`.
+   ────────────────────────────────────────────────────────────────────── */
+:root {
+  --z-scrim: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-tooltip: 70;
+  --z-toast: 80;
 }
 
 .midnight {
@@ -57,6 +81,7 @@
   --color-warning: #f59e0b;
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f59e0b;
   --note-green: #10b981;
@@ -82,6 +107,7 @@
   --color-warning: #f59e0b;
   --color-success: #06d6a0;
   --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #ffd166;
   --note-green: #06d6a0;
@@ -107,6 +133,7 @@
   --color-warning: #f59e0b;
   --color-success: #8338ec;
   --color-shadow: rgba(255, 0, 110, 0.2);
+  --color-scrim: rgba(255, 0, 110, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #ffbe0b;
   --note-green: #3a86ff;
@@ -132,6 +159,7 @@
   --color-warning: #f59e0b;
   --color-success: #00b894;
   --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #fdcb6e;
   --note-green: #00b894;
@@ -157,6 +185,7 @@
   --color-warning: #f59e0b;
   --color-error: #e94560;
   --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
@@ -185,6 +214,7 @@
   --color-error: #f7768e;
   --color-success: #9ece6a;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e0af68;
   --note-green: #9ece6a;
@@ -227,6 +257,7 @@
   --color-error: #8c4351;
   --color-success: #385f0d;
   --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #8f5e15;
   --note-green: #385f0d;
@@ -255,6 +286,7 @@
   --color-error: #f38ba8;
   --color-success: #a6e3a1;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f9e2af;
   --note-green: #a6e3a1;
@@ -281,6 +313,7 @@
   --color-error: #ed8796;
   --color-success: #a6da95;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #eed49f;
   --note-green: #a6da95;
@@ -307,6 +340,7 @@
   --color-error: #e78284;
   --color-success: #a6d189;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e5c890;
   --note-green: #a6d189;
@@ -333,6 +367,7 @@
   --color-error: #d20f39;
   --color-success: #40a02b;
   --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #df8e1d;
   --note-green: #40a02b;
@@ -449,6 +484,7 @@
   --color-error: #fd79a8;
   --color-success: #16a34a;
   --color-shadow: rgba(0, 0, 0, 0.05);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
@@ -477,6 +513,7 @@
   --color-error: #ff5555;
   --color-success: #50fa7b;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #f1fa8c;
   --note-green: #50fa7b;
   --note-blue: #8be9fd;
@@ -502,6 +539,7 @@
   --color-error: #f92672;
   --color-success: #a6e22e;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #e6db74;
   --note-green: #a6e22e;
   --note-blue: #66d9ef;
@@ -527,6 +565,7 @@
   --color-error: #bf616a;
   --color-success: #a3be8c;
   --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #ebcb8b;
   --note-green: #a3be8c;
   --note-blue: #81a1c1;
@@ -552,6 +591,7 @@
   --color-error: #ef5350;
   --color-success: #addb67;
   --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #ecc48d;
   --note-green: #addb67;
   --note-blue: #82aaff;
@@ -577,6 +617,7 @@
   --color-error: #ea4a5a;
   --color-success: #34d058;
   --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #ffea7f;
   --note-green: #34d058;
   --note-blue: #79b8ff;
@@ -602,6 +643,7 @@
   --color-error: #d73a49;
   --color-success: #28a745;
   --color-shadow: rgba(0, 0, 0, 0.06);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #b08800;
   --note-green: #28a745;
   --note-blue: #0366d6;
@@ -627,6 +669,7 @@
   --color-error: #dc322f;
   --color-success: #859900;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #b58900;
   --note-green: #859900;
   --note-blue: #268bd2;
@@ -652,6 +695,7 @@
   --color-error: #dc322f;
   --color-success: #859900;
   --color-shadow: rgba(0, 0, 0, 0.06);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #b58900;
   --note-green: #859900;
   --note-blue: #268bd2;
@@ -677,6 +721,7 @@
   --color-error: #cc6666;
   --color-success: #b5bd68;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #f0c674;
   --note-green: #b5bd68;
   --note-blue: #81a2be;
@@ -702,6 +747,7 @@
   --color-error: #ec5f67;
   --color-success: #99c794;
   --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --note-yellow: #fac863;
   --note-green: #99c794;
   --note-blue: #6699cc;

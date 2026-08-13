@@ -98,7 +98,7 @@ export function SelectionContextToolbar({
       ref={toolbarRef}
       role="toolbar"
       aria-label="Selection actions"
-      className="fixed z-[70] flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-1.5 py-1 shadow-lg"
+      className="fixed z-[var(--z-popover)] flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-1.5 py-1 shadow-lg"
       style={{ left, top }}
       onMouseDown={(event) => event.preventDefault()}
       onKeyDown={handleToolbarKeyDown}

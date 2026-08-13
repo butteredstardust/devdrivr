@@ -261,7 +261,8 @@ function QuickFillModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/80 p-6"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6"
+      style={{ backgroundColor: 'var(--color-scrim)' }}
       role="presentation"
     >
       <div
@@ -447,7 +448,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/80 p-6"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6"
+      style={{ backgroundColor: 'var(--color-scrim)' }}
       role="presentation"
     >
       <div

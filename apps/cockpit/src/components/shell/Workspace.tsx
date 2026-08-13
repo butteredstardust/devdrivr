@@ -42,7 +42,7 @@ export function Workspace() {
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">
       {isDragging && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-[var(--color-bg)]/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[var(--z-scrim)] flex items-center justify-center bg-[var(--color-bg)]/80 backdrop-blur-sm">
           <div className="rounded border-2 border-dashed border-[var(--color-accent)] px-8 py-4 font-mono text-sm text-[var(--color-accent)]">
             Drop file here
           </div>

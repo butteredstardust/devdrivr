@@ -39,7 +39,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
       position: 'fixed',
       left: rect.right + 4,
       ...(flipUp ? { bottom: window.innerHeight - rect.bottom } : { top: rect.top }),
-      zIndex: 9999,
+      zIndex: 'var(--z-popover)',
     })
   }, [flyoutOpen, tools.length])
 
@@ -55,7 +55,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
       left: rect.right + 8,
       top: rect.top + rect.height / 2,
       transform: 'translateY(-50%)',
-      zIndex: 9999,
+      zIndex: 'var(--z-tooltip)',
     })
     setTooltipVisible(true)
   }, [])
@@ -157,9 +157,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
                       : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
                   }`}
                 >
-                  <span className="flex w-4 shrink-0 items-center justify-center">
-                    {tool.icon}
-                  </span>
+                  <span className="flex w-4 shrink-0 items-center justify-center">{tool.icon}</span>
                   <span className="truncate">{tool.name}</span>
                 </button>
               )

@@ -101,8 +101,8 @@ export function Dialog({
     <>
       <div
         role="presentation"
-        className="fixed inset-0 z-50"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--color-shadow) 50%, transparent)' }}
+        className="fixed inset-0 z-[var(--z-scrim)]"
+        style={{ backgroundColor: 'var(--color-scrim)' }}
         onClick={onClose}
       />
       <div
@@ -112,7 +112,7 @@ export function Dialog({
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`animate-fade-in fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
+        className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2

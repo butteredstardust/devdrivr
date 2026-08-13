@@ -594,7 +594,7 @@ export default function HtmlValidator() {
           role="dialog"
           aria-modal="true"
           aria-label="Full-size HTML preview"
-          className="fixed inset-0 z-50 flex flex-col bg-[var(--color-bg)]"
+          className="fixed inset-0 z-[var(--z-modal)] flex flex-col bg-[var(--color-bg)]"
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
             <span className="text-xs text-[var(--color-text-muted)]">HTML Preview</span>

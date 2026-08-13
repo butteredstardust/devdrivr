@@ -314,7 +314,12 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
         <div ref={contextMenuRef}>
           {contextMenu && (
             <div
-              style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
+              style={{
+                position: 'fixed',
+                top: contextMenu.y,
+                left: contextMenu.x,
+                zIndex: 'var(--z-popover)',
+              }}
               className="min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
             >
               <button
@@ -344,7 +349,12 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
           )}
           {moveMenu && (
             <div
-              style={{ position: 'fixed', top: moveMenu.y, left: moveMenu.x, zIndex: 101 }}
+              style={{
+                position: 'fixed',
+                top: moveMenu.y,
+                left: moveMenu.x,
+                zIndex: 'calc(var(--z-popover) + 1)',
+              }}
               className="min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
             >
               <button
