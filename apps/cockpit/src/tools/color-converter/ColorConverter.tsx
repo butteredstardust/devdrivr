@@ -614,10 +614,11 @@ export default function ColorConverter() {
             <div className="mt-2 flex items-center gap-1.5">
               <span className="text-xs text-[var(--color-text-muted)]">Recent:</span>
               {state.history.map((hex) => (
-                <button
+                <Button
                   key={hex}
+                  variant="icon"
                   onClick={() => updateState({ input: hex })}
-                  className="h-5 w-5 rounded border border-[var(--color-border)] transition-transform hover:scale-125"
+                  className="h-5 w-5 rounded border border-[var(--color-border)] p-0 transition-transform hover:scale-125 hover:bg-transparent"
                   style={{ backgroundColor: hex }}
                   title={hex}
                 />
@@ -661,10 +662,11 @@ export default function ColorConverter() {
               <section>
                 <div className="flex flex-wrap gap-2">
                   {scale.map((step) => (
-                    <button
+                    <Button
                       key={step.label}
+                      variant="icon"
                       onClick={() => updateState({ input: step.hex })}
-                      className="group flex flex-col items-center gap-1"
+                      className="group flex flex-col items-center gap-1 p-0 hover:bg-transparent"
                       title={step.hex}
                     >
                       <div
@@ -677,7 +679,7 @@ export default function ColorConverter() {
                       <span className="text-[10px] font-mono text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity">
                         {step.hex}
                       </span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </section>

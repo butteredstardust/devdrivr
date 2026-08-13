@@ -400,14 +400,16 @@ export default function Base64Tool() {
             </span>
             {state.mode === 'encode' && !droppedFile && (
               <>
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => fileInputRef.current?.click()}
                   title="Encode a file to Base64"
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
                   <UploadSimpleIcon size={11} />
                   Encode File
-                </button>
+                </Button>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -417,13 +419,15 @@ export default function Base64Tool() {
               </>
             )}
             {droppedFile && (
-              <button
+              <Button
+                variant="icon"
+                size="xs"
                 onClick={() => setDroppedFile(null)}
                 title="Clear file"
-                className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
+                className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
               >
                 <XIcon size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
@@ -440,13 +444,15 @@ export default function Base64Tool() {
                   {droppedFile.mimeType ? ` · ${droppedFile.mimeType}` : ''}
                 </div>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 <UploadSimpleIcon size={12} />
                 Drop another file
-              </button>
+              </Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -642,8 +648,10 @@ function ZoomBadge({
     <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
       <span>{Math.round(scale * 100)}%</span>
       {!isDefault && (
-        <button
-          className="pointer-events-auto ml-0.5 hover:text-[var(--color-text)]"
+        <Button
+          variant="icon"
+          size="xs"
+          className="pointer-events-auto ml-0.5 p-0 hover:bg-transparent hover:text-[var(--color-text)]"
           title="Reset view"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -652,7 +660,7 @@ function ZoomBadge({
           }}
         >
           ↺
-        </button>
+        </Button>
       )}
     </div>
   )
