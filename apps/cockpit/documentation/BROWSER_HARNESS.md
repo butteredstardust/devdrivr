@@ -122,3 +122,53 @@ const paragraph = container.querySelector('p')
 rerender(<MarkdownPreview html={html} /* ...changed sibling prop... */ />)
 expect(container.querySelector('p')).toBe(paragraph)
 ```
+
+## Measuring token contrast across every theme
+
+The themes are CSS classes on `<html>`, so all 22 can be measured in one pass without reloading:
+apply each class, read the computed value of the tokens off a probe element, then flatten the
+foreground's alpha against the backdrop before computing the WCAG ratio. Skipping that flatten step
+is the easy mistake — most `--color-text-muted` tokens carry `α0.6`, and comparing the raw `rgba`
+against the surface reports a contrast the user never sees.
+
+```js
+await page.evaluate(() => {
+  const themes = [
+    /* ALL_THEMES from src/lib/theme.ts */
+  ]
+  const html = document.documentElement
+  const original = html.className
+  const probe = document.body.appendChild(document.createElement('div'))
+  const parse = (c) => {
+    const m = c.match(/rgba?\(([^)]+)\)/)
+    const p = m[1].split(',').map(Number)
+    return [p[0], p[1], p[2], p[3] ?? 1]
+  }
+  const lum = ([r, g, b]) => {
+    const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+  }
+  const over = (fg, bg) => [0, 1, 2].map((i) => fg[i] * fg[3] + bg[i] * (1 - fg[3]))
+  const ratio = (a, b) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  const get = (n) => {
+    probe.style.color = `var(${n})`
+    return parse(getComputedStyle(probe).color)
+  }
+  const out = themes.map((t) => {
+    html.className = t
+    const fg = get('--color-text-muted')
+    const surface = get('--color-surface')
+    return { t, onSurface: +ratio(over(fg, surface), surface).toFixed(2) }
+  })
+  html.className = original
+  probe.remove()
+  return out.sort((a, b) => a.onSurface - b.onSurface)
+})
+```
+
+Take the theme list from `ALL_THEMES` in `src/lib/theme.ts` rather than typing it out — a name that
+doesn't match a real class silently falls back to `:root`, and the run reports the default theme's
+numbers under 20 different labels instead of failing.

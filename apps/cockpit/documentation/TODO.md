@@ -450,8 +450,33 @@ button).
 
 ### [ ] Contrast pass across all 22 themes
 
-Check `--color-text-muted` on `--color-surface` for every theme. The app ships a WCAG contrast
-checker in Color Converter; point it at cockpit's own tokens.
+Measured, not yet fixed. Ratios below are `--color-text-muted` composited over `--color-surface`
+and over `--color-bg`, taken live in Chromium by applying each theme class to `<html>` and reading
+computed values (the alpha in most tokens has to be flattened against the backdrop first — comparing
+the raw `rgba` against the surface overstates every dark theme).
+
+Five themes fail WCAG AA for normal text (4.5:1) on surface:
+
+| Theme               | muted token             | on surface | on bg |
+| ------------------- | ----------------------- | ---------- | ----- |
+| `solarized-light`   | `rgb(88,110,117)` α0.6  | **2.23**   | 2.37  |
+| `solarized-dark`    | `rgb(131,148,150)` α0.6 | **2.59**   | 2.79  |
+| `tokyo-night-light` | `rgb(108,110,117)`      | **3.48**   | 4.13  |
+| `soft-focus`        | `rgb(45,52,54)` α0.6    | **3.49**   | 3.65  |
+| `github-light`      | `rgb(36,41,46)` α0.6    | **3.96**   | 4.05  |
+
+Borderline (AA for large text only, and `--color-text-muted` is used at 10–12px throughout):
+`catppuccin-latte` 4.06, `earth-code` 4.07, `tomorrow-night` 4.41, `nord` 4.42, `oceanic-next` 4.48.
+The remaining 12 clear 5:1.
+
+Both Solarized themes are the real problem — their muted token is Solarized's own base01/base1
+comment colour at 60% opacity, which halves an already low-contrast pairing. `soft-focus` is the
+default light theme, so its 3.49 is the one users hit first. Fix by raising the alpha (or dropping
+it entirely, as `tokyo-night` and the Catppuccin variants already do) rather than by shifting hue,
+so each theme keeps its palette identity.
+
+Re-measure with the snippet in `documentation/BROWSER_HARNESS.md` after any token change; the
+in-app WCAG checker in Color Converter can confirm individual pairs by hand.
 
 ---
 
