@@ -155,7 +155,7 @@ bunx vitest run src/components
 npx tsc --noEmit
 ```
 
-### [ ] Give the 12 cockpit-native themes real Monaco token rules
+### [x] Give the 12 cockpit-native themes real Monaco token rules
 
 Area: editors / theming
 
