@@ -15,6 +15,8 @@ import { SidebarItem } from '@/components/shell/SidebarItem'
 import { SidebarGroup } from '@/components/shell/SidebarGroup'
 import { SidebarPinned } from '@/components/shell/SidebarPinned'
 import { SidebarCollapsedGroup } from '@/components/shell/SidebarCollapsedGroup'
+import { Sidebar } from '@/components/shell/Sidebar'
+import { TOOLS as ALL_TOOLS } from '@/app/tool-registry'
 import type { ToolGroupMeta, ToolDefinition } from '@/types/tools'
 
 vi.mock('@/lib/db', () => ({
@@ -288,5 +290,38 @@ describe('SidebarGroup keyboard nav — focus-outside-list edge case', () => {
 
     // Last item should be Tool C (index 2 in 3-item list)
     expect(prev).toHaveAttribute('data-sidebar-item', 'tool-c')
+  })
+})
+
+// ── Sidebar — single live tree per state ────────────────────────────
+// Regression test: the collapsed and expanded trees used to both stay
+// mounted and cross-fade via CSS opacity. The hidden tree kept real
+// geometry, real focus order, and real hit-testing — so screen readers
+// announced every tool twice, Tab walked an invisible copy of the
+// sidebar, and the footer could be unclickable depending on which tree
+// happened to be on top. Only one tree should ever be present in the DOM.
+
+describe('Sidebar — only one tree is live at a time', () => {
+  it('renders exactly one "Open settings" button and one node per tool id when expanded', () => {
+    useSettingsStore.setState({ sidebarCollapsed: false })
+    render(<Sidebar />)
+
+    expect(screen.getAllByLabelText('Open settings')).toHaveLength(1)
+    for (const tool of ALL_TOOLS) {
+      expect(document.querySelectorAll(`[data-sidebar-item="${tool.id}"]`)).toHaveLength(1)
+    }
+  })
+
+  it('renders exactly one "Open settings" button when collapsed, and no leftover expanded-tree tool nodes', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true })
+    render(<Sidebar />)
+
+    expect(screen.getAllByLabelText('Open settings')).toHaveLength(1)
+    // The collapsed layout doesn't render per-tool nodes at all (tools only
+    // appear in a group's flyout on demand) — so the expanded tree's
+    // data-sidebar-item nodes must be fully absent, not just invisible.
+    for (const tool of ALL_TOOLS) {
+      expect(document.querySelectorAll(`[data-sidebar-item="${tool.id}"]`)).toHaveLength(0)
+    }
   })
 })
