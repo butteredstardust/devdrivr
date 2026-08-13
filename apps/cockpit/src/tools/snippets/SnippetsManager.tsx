@@ -18,6 +18,7 @@ import {
 } from '@phosphor-icons/react'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Input, Select } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
@@ -231,34 +232,40 @@ function TagFilterBar({
         style={{ maxHeight: expanded || !overflows ? 'none' : TAG_BAR_COLLAPSED_HEIGHT }}
       >
         {filterTag && (
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => onFilterTag(null)}
-            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-xs text-[var(--color-error)]"
+            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-xs text-[var(--color-error)] hover:bg-[var(--color-error)]/20"
           >
             ✕ Clear
-          </button>
+          </Button>
         )}
         {tags.map((tag) => (
-          <button
+          <Button
             key={tag}
+            variant="ghost"
+            size="xs"
             onClick={() => onFilterTag(filterTag === tag ? null : tag)}
             className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
               filterTag === tag
-                ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
                 : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
             }`}
           >
             {tag}
-          </button>
+          </Button>
         ))}
       </div>
       {overflows && (
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          className="mt-1 text-xs text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-accent)]"
         >
           {expanded ? '▲ Show less' : `▼ ${tags.length} tags…`}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -610,26 +617,30 @@ export default function SnippetsManager() {
         {/* Sort */}
         <div className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-1">
           {SORT_OPTIONS.map((opt) => (
-            <button
+            <Button
               key={opt.id}
+              variant="ghost"
+              size="xs"
               onClick={() => setSortMode(opt.id)}
               className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                 sortMode === opt.id
-                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
               {opt.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Folder filter — collapsible */}
         {allFolders.length > 0 && (
           <div className="border-b border-[var(--color-border)]">
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => setFoldersCollapsed(!foldersCollapsed)}
-              className="flex w-full items-center gap-1.5 px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
               aria-expanded={!foldersCollapsed}
             >
               {foldersCollapsed ? (
@@ -638,34 +649,38 @@ export default function SnippetsManager() {
                 <CaretDownIcon size={9} weight="bold" />
               )}
               FOLDERS
-            </button>
+            </Button>
             <div
               className={`grid transition-[grid-template-rows] duration-150 ${foldersCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
             >
               <div className="overflow-hidden">
                 <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setActiveFolder('')}
                     className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                       activeFolder === ''
-                        ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                        ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
                         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
                     }`}
                   >
                     All
-                  </button>
+                  </Button>
                   {allFolders.map((folder) => (
-                    <button
+                    <Button
                       key={folder}
+                      variant="ghost"
+                      size="xs"
                       onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
                       className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                         activeFolder === folder
-                          ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                          ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
                           : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
                       }`}
                     >
                       {folder}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -676,9 +691,11 @@ export default function SnippetsManager() {
         {/* Tag filter — collapsible */}
         {allTags.length > 0 && (
           <div className="border-b border-[var(--color-border)]">
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => setTagsCollapsed(!tagsCollapsed)}
-              className="flex w-full items-center gap-1.5 px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
               aria-expanded={!tagsCollapsed}
             >
               {tagsCollapsed ? (
@@ -687,7 +704,7 @@ export default function SnippetsManager() {
                 <CaretDownIcon size={9} weight="bold" />
               )}
               TAGS
-            </button>
+            </Button>
             <div
               className={`grid transition-[grid-template-rows] duration-150 ${tagsCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
             >
@@ -705,12 +722,13 @@ export default function SnippetsManager() {
             const matches = isSelected ? undefined : matchMap.get(snippet.id)
             const langTone = LANG_TONES[snippet.language] ?? 'accent'
             return (
-              <button
+              <Button
                 key={snippet.id}
+                variant="ghost"
                 onClick={() => setSelectedId(snippet.id)}
-                className={`flex w-full flex-col border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
+                className={`flex w-full flex-col items-start justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
                   isSelected
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
                     : 'hover:bg-[var(--color-surface-hover)]'
                 }`}
               >
@@ -764,7 +782,7 @@ export default function SnippetsManager() {
                     ))}
                   </div>
                 )}
-              </button>
+              </Button>
             )
           })}
           {filtered.length === 0 && (
@@ -794,15 +812,17 @@ export default function SnippetsManager() {
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Title + controls */}
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-              <button
+              <Button
+                variant="icon"
+                size="xs"
                 onClick={() => {
                   void handleToggleFavorite()
                 }}
-                className={`rounded p-1 transition-colors ${isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-warning)]'}`}
+                className={`rounded p-1 transition-colors ${isFavorite(selected.tags) ? 'text-[var(--color-warning)] hover:text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-warning)]'}`}
                 title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
               >
                 <StarIcon size={14} weight={isFavorite(selected.tags) ? 'fill' : 'regular'} />
-              </button>
+              </Button>
               <input
                 ref={titleInputRef}
                 value={selected.title}
@@ -811,15 +831,17 @@ export default function SnippetsManager() {
                 className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
               />
               <CopyButton text={selected.content} />
-              <button
+              <Button
+                variant="icon"
+                size="xs"
                 onClick={() => {
                   void handleDownload()
                 }}
-                className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 title="Download as file"
               >
                 <DownloadSimpleIcon size={14} />
-              </button>
+              </Button>
             </div>
 
             {/* Monaco editor */}
@@ -902,14 +924,16 @@ export default function SnippetsManager() {
                       className="flex items-center justify-between gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
                     >
                       <span className="truncate">{tag}</span>
-                      <button
+                      <Button
+                        variant="icon"
+                        size="xs"
                         onClick={() => {
                           void handleRemoveTag(tag)
                         }}
-                        className="shrink-0 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-error)]"
+                        className="shrink-0 p-0 text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-error)]"
                       >
                         <XIcon size={10} />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -969,8 +993,10 @@ export default function SnippetsManager() {
                       data-testid="tag-suggestions"
                     >
                       {tagSuggestions.map((suggestion, i) => (
-                        <button
+                        <Button
                           key={suggestion}
+                          variant="ghost"
+                          size="xs"
                           id={`tag-suggestion-${i}`}
                           role="option"
                           aria-selected={i === suggestionIndex}
@@ -978,14 +1004,14 @@ export default function SnippetsManager() {
                             e.preventDefault()
                             void handleAddTagFromSuggestion(suggestion)
                           }}
-                          className={`flex w-full items-center px-2 py-1 text-left text-xs text-[var(--color-text)] transition-colors ${
+                          className={`flex w-full items-center justify-start rounded-none px-2 py-1 text-left text-xs text-[var(--color-text)] ${
                             i === suggestionIndex
                               ? 'bg-[var(--color-surface-hover)]'
                               : 'hover:bg-[var(--color-surface-hover)]'
                           }`}
                         >
                           {suggestion}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )}
@@ -1033,52 +1059,60 @@ export default function SnippetsManager() {
       {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
       <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
         <div className="flex items-center gap-1">
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => {
               void handleNew()
             }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F5: NEW]
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => {
               void handleDuplicate()
             }}
             disabled={!selected}
-            className={`rounded px-2 py-0.5 transition-colors ${selected ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]' : 'cursor-not-allowed opacity-30'}`}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           >
             [F6: DUP]
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={handleDeleteClick}
             disabled={!selected}
-            className={`rounded px-2 py-0.5 transition-colors ${
+            className={`rounded px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
               selectedId && confirmDeleteId === selectedId
-                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)]'
-                : selected
-                  ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]'
-                  : 'cursor-not-allowed opacity-30'
+                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)] hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
             }`}
           >
             {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => {
               void handleExport()
             }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F9: EXP]
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => {
               void handleImport()
             }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F10: IMP]
-          </button>
+          </Button>
         </div>
 
         <div className="ml-auto flex items-center gap-4">

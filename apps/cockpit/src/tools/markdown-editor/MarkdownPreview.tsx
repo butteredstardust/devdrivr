@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import { Button } from '@/components/shared/Button'
 import { nextHeadingId } from './heading-ids'
 
 type TocEntry = {
@@ -197,15 +198,17 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
               Contents
             </div>
             {toc.map((entry, i) => (
-              <button
+              <Button
                 key={`${entry.id}-${i}`}
+                variant="ghost"
+                size="xs"
                 onClick={() => scrollToHeading(entry.id)}
-                className="block w-full truncate text-left text-[11px] leading-relaxed text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+                className="block w-full truncate rounded-none p-0 text-left text-[11px] leading-relaxed text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-accent)]"
                 style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
                 title={entry.text}
               >
                 {entry.text}
-              </button>
+              </Button>
             ))}
           </div>
         )}

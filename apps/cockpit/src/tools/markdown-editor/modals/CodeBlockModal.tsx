@@ -88,17 +88,19 @@ export function CodeBlockModal({ onInsert, onClose }: Props) {
             <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No match</p>
           ) : (
             filtered.map((lang) => (
-              <button
+              <Button
                 key={lang}
+                variant="ghost"
+                size="xs"
                 onClick={() => setSelected(lang)}
-                className={`block w-full px-3 py-1.5 text-left font-mono text-xs transition-colors ${
+                className={`block w-full rounded-none px-3 py-1.5 text-left font-mono text-xs transition-colors ${
                   selected === lang
-                    ? 'bg-[var(--color-accent)] text-white'
+                    ? 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]'
                     : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
                 }`}
               >
                 {lang}
-              </button>
+              </Button>
             ))
           )}
         </div>

@@ -5,6 +5,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
@@ -400,7 +401,7 @@ export default function MermaidEditor() {
   }, [state.content, setLastAction])
 
   return (
-    <div className="flex h-full flex-col">
+    <ToolLayout fullBleed>
       {/* ─── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2">
         <TabBar
@@ -456,9 +457,10 @@ export default function MermaidEditor() {
                 className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
               >
                 {Object.keys(TEMPLATES).map((name) => (
-                  <button
+                  <Button
                     key={name}
-                    type="button"
+                    variant="ghost"
+                    size="sm"
                     role="menuitem"
                     tabIndex={-1}
                     onClick={() => {
@@ -466,10 +468,10 @@ export default function MermaidEditor() {
                       setShowTemplates(false)
                       templatesButtonRef.current?.focus()
                     }}
-                    className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                    className="w-full justify-start text-left hover:text-[var(--color-text)]"
                   >
                     {name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -519,30 +521,32 @@ export default function MermaidEditor() {
                 }}
                 className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
               >
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
                     void handleCopySvg()
                   }}
                   disabled={!svgHtml}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)] disabled:hover:bg-transparent"
                 >
                   Copy SVG
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
                     void handleDownloadSvg()
                   }}
                   disabled={!svgHtml}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)] disabled:hover:bg-transparent"
                 >
                   Download SVG
-                </button>
+                </Button>
 
                 <div className="my-1 border-t border-[var(--color-border)]" />
 
@@ -551,60 +555,64 @@ export default function MermaidEditor() {
                   <span className="text-[10px] text-[var(--color-text-muted)]">PNG res:</span>
                   <div className="flex items-center rounded border border-[var(--color-border)]">
                     {EXPORT_SCALES.map((s) => (
-                      <button
+                      <Button
                         key={s}
-                        type="button"
+                        variant="ghost"
+                        size="xs"
                         role="menuitem"
                         tabIndex={-1}
                         onClick={() => updateState({ exportScale: s })}
                         title={`Export PNG at ${s}× resolution`}
-                        className={`px-1.5 py-0.5 text-[10px] transition-colors first:rounded-l last:rounded-r ${
+                        className={`rounded-none text-[10px] first:rounded-l last:rounded-r ${
                           exportScale === s
-                            ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                            : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+                            ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/15'
+                            : 'hover:text-[var(--color-text)]'
                         }`}
                       >
                         {s}×
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
                     void handleCopyPng()
                   }}
                   disabled={!svgHtml}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)] disabled:hover:bg-transparent"
                 >
                   Copy PNG ({exportScale}×)
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
                     void handleDownloadPng()
                   }}
                   disabled={!svgHtml}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)] disabled:hover:bg-transparent"
                 >
                   Download PNG ({exportScale}×)
-                </button>
+                </Button>
 
                 <div className="my-1 border-t border-[var(--color-border)]" />
 
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={handleCopySource}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Copy Source
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -692,9 +700,11 @@ export default function MermaidEditor() {
                 </span>
               )}
               <span>{Math.round(transform.scale * 100)}%</span>
-              <button
-                className={`pointer-events-auto ml-0.5 transition-colors ${
-                  isViewDefault ? 'cursor-default opacity-30' : 'hover:text-[var(--color-text)]'
+              <Button
+                variant="icon"
+                size="xs"
+                className={`pointer-events-auto ml-0.5 p-0 ${
+                  isViewDefault ? 'cursor-default opacity-30' : ''
                 }`}
                 title="Reset view (or double-click)"
                 onMouseDown={(e) => e.stopPropagation()}
@@ -706,11 +716,11 @@ export default function MermaidEditor() {
                 aria-label="Reset view"
               >
                 ↺
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </ToolLayout>
   )
 }

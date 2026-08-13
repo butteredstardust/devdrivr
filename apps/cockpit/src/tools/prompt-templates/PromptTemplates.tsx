@@ -285,14 +285,16 @@ function QuickFillModal({
                 Fill variables, then press Cmd+Enter to copy.
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              variant="icon"
+              size="xs"
               onClick={onClose}
-              className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               aria-label="Close quick fill"
             >
               <XIcon size={16} />
-            </button>
+            </Button>
           </div>
           <div ref={fieldRootRef} className="min-h-0 flex-1 overflow-auto p-4">
             <VariableForm template={template} values={values} onChange={onChange} />
@@ -471,14 +473,16 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
               Use placeholders like {'{{code}}'}. Variables are synced automatically.
             </p>
           </div>
-          <button
+          <Button
             type="button"
+            variant="icon"
+            size="xs"
             onClick={onClose}
-            className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             aria-label="Close template editor"
           >
             <XIcon size={16} />
-          </button>
+          </Button>
         </div>
 
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden">
@@ -966,14 +970,16 @@ export default function PromptTemplates() {
         <div className="border-b border-[var(--color-border)] p-2">
           <div className="flex flex-wrap gap-1">
             {FILTERS.map((filter) => (
-              <button
+              <Button
                 key={filter.id}
                 type="button"
+                variant="ghost"
+                size="xs"
                 aria-pressed={state.category === filter.id}
                 onClick={() => updateState({ category: filter.id })}
                 className={`rounded px-2 py-0.5 text-xs transition-colors ${
                   state.category === filter.id
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
                     : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
                 }`}
               >
@@ -981,7 +987,7 @@ export default function PromptTemplates() {
                 <span className="font-mono text-[10px]">
                   {categoryCount(filter.id, allTemplates)}
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -989,9 +995,10 @@ export default function PromptTemplates() {
           {filteredTemplates.map((template) => {
             const selected = template.id === selectedTemplate.id
             return (
-              <button
+              <Button
                 key={template.id}
                 type="button"
+                variant="ghost"
                 role="option"
                 aria-selected={selected}
                 onClick={() => selectTemplate(template)}
@@ -999,9 +1006,9 @@ export default function PromptTemplates() {
                   selectTemplate(template)
                   setModalOpen(true)
                 }}
-                className={`flex w-full flex-col gap-1 border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
+                className={`flex w-full flex-col items-start justify-start gap-1 rounded-none border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
                   selected
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
                     : 'hover:bg-[var(--color-surface-hover)]'
                 }`}
               >
@@ -1025,7 +1032,7 @@ export default function PromptTemplates() {
                   {CATEGORY_LABELS[template.category]} / {template.optimizedFor} /{' '}
                   {template.author === 'user' ? 'CUSTOM' : 'BUILT-IN'}
                 </span>
-              </button>
+              </Button>
             )
           })}
           {filteredTemplates.length === 0 && (
@@ -1116,83 +1123,95 @@ export default function PromptTemplates() {
 
       <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => setEditorState({ mode: 'create' })}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F5: NEW]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F6: DUP]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             disabled={selectedTemplate.author !== 'user'}
             onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-            className={`rounded px-2 py-0.5 transition-colors ${
-              selectedTemplate.author === 'user'
-                ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]'
-                : 'cursor-not-allowed opacity-30'
-            }`}
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           >
             [F7: EDIT]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             disabled={selectedTemplate.author !== 'user'}
             onClick={() => void handleDeleteTemplate()}
-            className={`rounded px-2 py-0.5 transition-colors ${
+            className={`rounded px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
               selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
-                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)]'
-                : selectedTemplate.author === 'user'
-                  ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]'
-                  : 'cursor-not-allowed opacity-30'
+                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)] hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
             }`}
           >
             {selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
               ? '[CONFIRM?]'
               : '[F8: DEL]'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => void handleExport()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F9: EXP]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => void handleImport()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [F10: IMP]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => setModalOpen(true)}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [ENTER: QUICK FILL]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => void copyRenderedPrompt()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [CMD+ENTER: COPY]
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => searchRef.current?.focus()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
           >
             [CMD+F: SEARCH]
-          </button>
+          </Button>
         </div>
         <div className="ml-auto flex items-center gap-3 text-[var(--color-text-muted)]">
           {savingTemplates && <span className="text-[var(--color-accent)]">[SAVING...]</span>}

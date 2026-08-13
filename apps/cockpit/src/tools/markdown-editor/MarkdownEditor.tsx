@@ -5,6 +5,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import {
@@ -886,7 +887,7 @@ export default function MarkdownEditor() {
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <ToolLayout fullBleed>
       {/* ─── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2 py-1.5">
         <SegmentedControl
@@ -920,21 +921,19 @@ export default function MarkdownEditor() {
 
           {/* Scroll sync toggle — icon button, split mode only */}
           {state.mode === 'split' && (
-            <button
+            <Button
+              variant="icon"
+              size="xs"
               onClick={() => updateState({ scrollSync: !state.scrollSync })}
               title={
                 state.scrollSync
                   ? 'Scroll sync on (click to disable)'
                   : 'Scroll sync off (click to enable)'
               }
-              className={`flex items-center justify-center rounded p-0.5 transition-colors ${
-                state.scrollSync
-                  ? 'text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
+              className={state.scrollSync ? 'text-[var(--color-accent)]' : ''}
             >
               <ArrowsClockwiseIcon size={13} weight={state.scrollSync ? 'bold' : 'regular'} />
-            </button>
+            </Button>
           )}
 
           {toc.length > 0 && (
@@ -968,33 +967,39 @@ export default function MarkdownEditor() {
             </Button>
             {showFileMenu && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleOpen()
                     setShowFileMenu(false)
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Open…
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleSave()
                     setShowFileMenu(false)
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Save
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleSaveAs()
                     setShowFileMenu(false)
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Save As…
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -1016,13 +1021,15 @@ export default function MarkdownEditor() {
             {showTemplates && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 {TEMPLATES.map((t) => (
-                  <button
+                  <Button
                     key={t.label}
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleTemplateSelect(t.content)}
-                    className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                    className="w-full justify-start text-left hover:text-[var(--color-text)]"
                   >
                     {t.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -1043,7 +1050,9 @@ export default function MarkdownEditor() {
             </Button>
             {showExport && (
               <div className="absolute right-0 top-full z-10 mt-1 min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     navigator.clipboard
                       .writeText(state.content)
@@ -1051,43 +1060,51 @@ export default function MarkdownEditor() {
                       .catch(() => setLastAction('Failed to copy to clipboard', 'error'))
                     setShowExport(false)
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Copy Markdown
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleCopyHtml()
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Copy HTML
-                </button>
+                </Button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleDownload('md')
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Download .md
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleDownload('html')
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Download .html
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void handleExportPdf()
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Print / PDF
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -1106,7 +1123,9 @@ export default function MarkdownEditor() {
                 {showSep && (
                   <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--color-border)]" />
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => {
                     if ('modal' in action && action.modal) {
                       setActiveModal(action.modal)
@@ -1120,10 +1139,10 @@ export default function MarkdownEditor() {
                     }
                   }}
                   title={action.title}
-                  className="flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="hover:text-[var(--color-text)]"
                 >
                   {Icon ? <Icon size={12} /> : action.label}
-                </button>
+                </Button>
               </Fragment>
             )
           })}
@@ -1197,6 +1216,6 @@ export default function MarkdownEditor() {
         actions={previewSelectionActions}
         onDismiss={previewSelectionToolbar.clearSelection}
       />
-    </div>
+    </ToolLayout>
   )
 }
