@@ -71,7 +71,7 @@ From `apps/cockpit/src`, excluding tests, on 2026-08-13:
 
 ## P0 - Broken behaviour
 
-### [ ] Unmount the inactive sidebar variant instead of fading it to `opacity: 0`
+### [x] Unmount the inactive sidebar variant instead of fading it to `opacity: 0`
 
 Area: shell / accessibility / hit-testing
 
@@ -104,6 +104,11 @@ cd apps/cockpit
 bunx vitest run src/components/shell
 npx tsc --noEmit
 ```
+
+Done in `9f04c4d` — only one variant is rendered at a time, keyed so the fade still reads as a
+transition. `sidebar.test.tsx` pins one `Open settings` button and one node per tool id in both
+states. Re-confirmed in the running app on 2026-08-14: one match when expanded (x=44) and one when
+collapsed (x=6), with no `opacity: 0` ancestor and no duplicate tool buttons in either state.
 
 ### [x] Make overlay scrims actually visible, and give overlays one stacking order
 
