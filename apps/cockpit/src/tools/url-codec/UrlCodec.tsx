@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 type UrlCodecState = {
   input: string
@@ -143,45 +144,47 @@ export default function UrlCodec() {
   const noChange = state.input.trim() && output.text === state.input
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button variant="primary" size="sm" onClick={handleToggle}>
-          {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
-          ⇄ Swap
-        </Button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-        <Select
-          value={state.encodeMode}
-          onChange={(e) =>
-            updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
-          }
-        >
-          <option value="component">Component</option>
-          <option value="full">Full URL</option>
-        </Select>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Button variant="primary" size="sm" onClick={handleToggle}>
+            {state.mode === 'encode' ? 'Encode →' : '← Decode'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
+            ⇄ Swap
+          </Button>
+          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+          <Select
+            value={state.encodeMode}
+            onChange={(e) =>
+              updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
+            }
+          >
+            <option value="component">Component</option>
+            <option value="full">Full URL</option>
+          </Select>
 
-        {/* Status badges */}
-        <div className="ml-auto flex items-center gap-2">
-          {doubleEncoded && (
-            <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--color-warning)]">
-              Double-encoded?
-            </span>
-          )}
-          {noChange && (
-            <span className="text-[10px] text-[var(--color-text-muted)]">No change</span>
-          )}
-          {encodedCount > 0 && !noChange && (
-            <span className="text-[10px] tabular-nums text-[var(--color-text-muted)]">
-              {encodedCount} char{encodedCount !== 1 ? 's' : ''}{' '}
-              {state.mode === 'encode' ? 'encoded' : 'decoded'}
-            </span>
-          )}
+          {/* Status badges */}
+          <div className="ml-auto flex items-center gap-2">
+            {doubleEncoded && (
+              <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--color-warning)]">
+                Double-encoded?
+              </span>
+            )}
+            {noChange && (
+              <span className="text-[10px] text-[var(--color-text-muted)]">No change</span>
+            )}
+            {encodedCount > 0 && !noChange && (
+              <span className="text-[10px] tabular-nums text-[var(--color-text-muted)]">
+                {encodedCount} char{encodedCount !== 1 ? 's' : ''}{' '}
+                {state.mode === 'encode' ? 'encoded' : 'decoded'}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
+      }
+    >
       {/* Input / Output panels */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
@@ -242,6 +245,6 @@ export default function UrlCodec() {
           )}
         </div>
       )}
-    </div>
+    </ToolLayout>
   )
 }

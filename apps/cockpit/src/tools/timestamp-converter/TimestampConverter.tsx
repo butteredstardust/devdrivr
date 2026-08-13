@@ -6,6 +6,7 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 type TimestampState = {
   input: string
@@ -181,73 +182,72 @@ export default function TimestampConverter() {
   }, [state.input, parsed, record])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        {PRESETS.map((p) => (
-          <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
-            {p.label}
-          </Button>
-        ))}
-        <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
-          {getTimezoneLabel()} ({getUtcOffset(new Date())})
-        </span>
-      </div>
-
-      {/* Input area */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
-        <Input
-          value={state.input}
-          onChange={(e) => updateState({ input: e.target.value })}
-          placeholder="Unix timestamp, ISO 8601, or any date string..."
-          size="md"
-          className="flex-1 font-mono"
-        />
-        <Input
-          type="datetime-local"
-          step="1"
-          value={dateTimeValue}
-          onChange={(e) => handleDateTimeChange(e.target.value)}
-        />
-      </div>
-
-      {/* Format rows */}
-      <div className="flex-1 overflow-auto p-4">
-        {parsed ? (
-          <div className="flex flex-col gap-2">
-            {formats.map((f) => (
-              <div
-                key={f.label}
-                className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                    {f.label}
-                    {f.live && (
-                      <span
-                        className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]"
-                        title="Live — updates every second"
-                      />
-                    )}
-                  </div>
-                  <div
-                    className={`font-mono text-sm ${f.muted ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}
-                  >
-                    {f.value}
-                  </div>
-                </div>
-                <CopyButton text={f.value} className="ml-2 shrink-0" />
-              </div>
+    <ToolLayout
+      toolbar={
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            {PRESETS.map((p) => (
+              <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
+                {p.label}
+              </Button>
             ))}
+            <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+              {getTimezoneLabel()} ({getUtcOffset(new Date())})
+            </span>
           </div>
-        ) : state.input.trim() ? (
-          <Alert variant="error">Could not parse input as a date or timestamp</Alert>
-        ) : (
-          <div className="text-sm text-[var(--color-text-muted)]">
-            Enter a timestamp or date string above, or use a preset
+
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
+            <Input
+              value={state.input}
+              onChange={(e) => updateState({ input: e.target.value })}
+              placeholder="Unix timestamp, ISO 8601, or any date string..."
+              size="md"
+              className="flex-1 font-mono"
+            />
+            <Input
+              type="datetime-local"
+              step="1"
+              value={dateTimeValue}
+              onChange={(e) => handleDateTimeChange(e.target.value)}
+            />
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      }
+    >
+      {parsed ? (
+        <div className="flex flex-col gap-2">
+          {formats.map((f) => (
+            <div
+              key={f.label}
+              className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                  {f.label}
+                  {f.live && (
+                    <span
+                      className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]"
+                      title="Live — updates every second"
+                    />
+                  )}
+                </div>
+                <div
+                  className={`font-mono text-sm ${f.muted ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}
+                >
+                  {f.value}
+                </div>
+              </div>
+              <CopyButton text={f.value} className="ml-2 shrink-0" />
+            </div>
+          ))}
+        </div>
+      ) : state.input.trim() ? (
+        <Alert variant="error">Could not parse input as a date or timestamp</Alert>
+      ) : (
+        <div className="text-sm text-[var(--color-text-muted)]">
+          Enter a timestamp or date string above, or use a preset
+        </div>
+      )}
+    </ToolLayout>
   )
 }

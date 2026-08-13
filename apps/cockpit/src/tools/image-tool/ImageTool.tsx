@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { TabBar } from '@/components/shared/TabBar'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import {
   ImageIcon,
   UploadSimpleIcon,
@@ -563,66 +564,68 @@ export default function ImageTool() {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
-          <UploadSimpleIcon size={13} />
-          Open Image
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileInputChange}
-        />
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <UploadSimpleIcon size={13} />
+              Open Image
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
 
-        {originalImg ? (
-          <>
-            <span
-              className="max-w-48 truncate font-mono text-xs text-[var(--color-text-muted)]"
-              title={fileName}
-            >
-              {fileName}
-            </span>
-            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-              {originalImg.naturalWidth} × {originalImg.naturalHeight}px
-            </span>
-            {originalFileSize > 0 && (
-              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-                {formatBytes(originalFileSize)}
+            {originalImg ? (
+              <>
+                <span
+                  className="max-w-48 truncate font-mono text-xs text-[var(--color-text-muted)]"
+                  title={fileName}
+                >
+                  {fileName}
+                </span>
+                <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                  {originalImg.naturalWidth} × {originalImg.naturalHeight}px
+                </span>
+                {originalFileSize > 0 && (
+                  <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                    {formatBytes(originalFileSize)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Open an image or drop it anywhere
               </span>
             )}
-          </>
-        ) : (
-          <span className="text-xs text-[var(--color-text-muted)]">
-            Open an image or drop it anywhere
-          </span>
-        )}
 
-        {originalImg && (
-          <button
-            onClick={handleResetAll}
-            title="Reset all settings"
-            className="ml-auto flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          >
-            <ArrowCounterClockwiseIcon size={13} />
-            Reset
-          </button>
-        )}
-      </div>
+            {originalImg && (
+              <button
+                onClick={handleResetAll}
+                title="Reset all settings"
+                className="ml-auto flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                <ArrowCounterClockwiseIcon size={13} />
+                Reset
+              </button>
+            )}
+          </div>
 
-      {/* ── Tab bar ──────────────────────────────────────────────── */}
-      <div className="border-b border-[var(--color-border)]">
-        <TabBar
-          tabs={TABS}
-          activeTab={state.activeTab}
-          onTabChange={(id) => updateState({ activeTab: id })}
-        />
-      </div>
-
-      {/* ── Main body ────────────────────────────────────────────── */}
+          <div className="border-b border-[var(--color-border)]">
+            <TabBar
+              tabs={TABS}
+              activeTab={state.activeTab}
+              onTabChange={(id) => updateState({ activeTab: id })}
+            />
+          </div>
+        </>
+      }
+    >
       <div className="flex flex-1 overflow-hidden">
         {/* Preview panel */}
         <div
@@ -851,7 +854,7 @@ export default function ImageTool() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
 

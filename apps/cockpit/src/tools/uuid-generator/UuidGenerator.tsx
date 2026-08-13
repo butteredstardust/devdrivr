@@ -5,6 +5,7 @@ import { useToolHistory } from '@/hooks/useToolHistory'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 // ── UUID Generation ──────────────────────────────────────────────────
 
@@ -231,137 +232,139 @@ export default function UuidGenerator() {
   }, [state.validateInput, parsed, record])
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-4">
-      {/* ── Generate ─────────────────────────────────────── */}
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm text-[var(--color-text)]">Generate</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Select
-            value={state.version}
-            onChange={(e) => updateState({ version: e.target.value as UuidVersion })}
-          >
-            {(Object.keys(VERSION_LABELS) as UuidVersion[]).map((v) => (
-              <option key={v} value={v}>
-                {VERSION_LABELS[v]}
-              </option>
-            ))}
-          </Select>
-          <Button variant="primary" size="md" onClick={generate}>
-            Generate UUID
-          </Button>
-          {state.lastGenerated && (
-            <div className="flex items-center gap-2">
-              <code className="rounded bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
-                {state.lastGenerated}
-              </code>
-              <CopyButton text={state.lastGenerated} />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── Constants ────────────────────────────────────── */}
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm text-[var(--color-text)]">Constants</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
-              {NIL_UUID}
-            </code>
-            <span className="text-xs text-[var(--color-text-muted)]">Nil</span>
-            <CopyButton text={NIL_UUID} />
-          </div>
-          <div className="flex items-center gap-2">
-            <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
-              {MAX_UUID}
-            </code>
-            <span className="text-xs text-[var(--color-text-muted)]">Max</span>
-            <CopyButton text={MAX_UUID} />
-          </div>
-        </div>
-      </section>
-
-      {/* ── Bulk Generate ────────────────────────────────── */}
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm text-[var(--color-text)]">Bulk Generate</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            type="number"
-            min={1}
-            max={100}
-            value={state.bulkCount}
-            onChange={(e) => updateState({ bulkCount: parseInt(e.target.value) || 1 })}
-            size="md"
-            className="w-20"
-          />
-          <Select
-            value={state.bulkFormat}
-            onChange={(e) => updateState({ bulkFormat: e.target.value as BulkFormat })}
-          >
-            <option value="lines">One per line</option>
-            <option value="json">JSON array</option>
-            <option value="csv">CSV</option>
-          </Select>
-          <Button variant="primary" size="md" onClick={generateBulk}>
-            Generate
-          </Button>
-          {bulkUuids.length > 0 && <CopyButton text={bulkOutput} label="Copy All" />}
-        </div>
-        {bulkOutput && (
-          <pre className="max-h-60 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
-            {bulkOutput}
-          </pre>
-        )}
-      </section>
-
-      {/* ── Validate & Parse ─────────────────────────────── */}
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm text-[var(--color-text)]">Validate & Parse</h2>
-        <Input
-          type="text"
-          value={state.validateInput}
-          onChange={(e) => updateState({ validateInput: e.target.value })}
-          placeholder="Paste a UUID to validate and parse..."
-          size="md"
-          className="w-full max-w-xl font-mono"
-        />
-        {parsed && (
-          <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-            {parsed.valid ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--color-success)]">✓ Valid UUID</span>
-                  <span className="rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]">
-                    {parsed.version === 0 ? parsed.variant : `Version ${parsed.version}`}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-                  {parsed.version > 0 && (
-                    <>
-                      <span className="text-[var(--color-text-muted)]">Variant</span>
-                      <span className="text-[var(--color-text)]">{parsed.variant}</span>
-                    </>
-                  )}
-                  {parsed.timestamp && (
-                    <>
-                      <span className="text-[var(--color-text-muted)]">Timestamp</span>
-                      <span className="text-[var(--color-info)]">{parsed.timestamp}</span>
-                    </>
-                  )}
-                  {parsed.node && (
-                    <>
-                      <span className="text-[var(--color-text-muted)]">Node</span>
-                      <span className="font-mono text-[var(--color-text)]">{parsed.node}</span>
-                    </>
-                  )}
-                </div>
+    <ToolLayout maxWidth="max-w-4xl">
+      <div className="flex flex-col gap-4">
+        {/* ── Generate ─────────────────────────────────────── */}
+        <section className="flex flex-col gap-3">
+          <h2 className="font-mono text-sm text-[var(--color-text)]">Generate</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select
+              value={state.version}
+              onChange={(e) => updateState({ version: e.target.value as UuidVersion })}
+            >
+              {(Object.keys(VERSION_LABELS) as UuidVersion[]).map((v) => (
+                <option key={v} value={v}>
+                  {VERSION_LABELS[v]}
+                </option>
+              ))}
+            </Select>
+            <Button variant="primary" size="md" onClick={generate}>
+              Generate UUID
+            </Button>
+            {state.lastGenerated && (
+              <div className="flex items-center gap-2">
+                <code className="rounded bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
+                  {state.lastGenerated}
+                </code>
+                <CopyButton text={state.lastGenerated} />
               </div>
-            ) : (
-              <span className="text-sm text-[var(--color-error)]">✗ {parsed.message}</span>
             )}
           </div>
-        )}
-      </section>
-    </div>
+        </section>
+
+        {/* ── Constants ────────────────────────────────────── */}
+        <section className="flex flex-col gap-3">
+          <h2 className="font-mono text-sm text-[var(--color-text)]">Constants</h2>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
+                {NIL_UUID}
+              </code>
+              <span className="text-xs text-[var(--color-text-muted)]">Nil</span>
+              <CopyButton text={NIL_UUID} />
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
+                {MAX_UUID}
+              </code>
+              <span className="text-xs text-[var(--color-text-muted)]">Max</span>
+              <CopyButton text={MAX_UUID} />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Bulk Generate ────────────────────────────────── */}
+        <section className="flex flex-col gap-3">
+          <h2 className="font-mono text-sm text-[var(--color-text)]">Bulk Generate</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={state.bulkCount}
+              onChange={(e) => updateState({ bulkCount: parseInt(e.target.value) || 1 })}
+              size="md"
+              className="w-20"
+            />
+            <Select
+              value={state.bulkFormat}
+              onChange={(e) => updateState({ bulkFormat: e.target.value as BulkFormat })}
+            >
+              <option value="lines">One per line</option>
+              <option value="json">JSON array</option>
+              <option value="csv">CSV</option>
+            </Select>
+            <Button variant="primary" size="md" onClick={generateBulk}>
+              Generate
+            </Button>
+            {bulkUuids.length > 0 && <CopyButton text={bulkOutput} label="Copy All" />}
+          </div>
+          {bulkOutput && (
+            <pre className="max-h-60 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
+              {bulkOutput}
+            </pre>
+          )}
+        </section>
+
+        {/* ── Validate & Parse ─────────────────────────────── */}
+        <section className="flex flex-col gap-3">
+          <h2 className="font-mono text-sm text-[var(--color-text)]">Validate & Parse</h2>
+          <Input
+            type="text"
+            value={state.validateInput}
+            onChange={(e) => updateState({ validateInput: e.target.value })}
+            placeholder="Paste a UUID to validate and parse..."
+            size="md"
+            className="w-full max-w-xl font-mono"
+          />
+          {parsed && (
+            <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              {parsed.valid ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-[var(--color-success)]">✓ Valid UUID</span>
+                    <span className="rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]">
+                      {parsed.version === 0 ? parsed.variant : `Version ${parsed.version}`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                    {parsed.version > 0 && (
+                      <>
+                        <span className="text-[var(--color-text-muted)]">Variant</span>
+                        <span className="text-[var(--color-text)]">{parsed.variant}</span>
+                      </>
+                    )}
+                    {parsed.timestamp && (
+                      <>
+                        <span className="text-[var(--color-text-muted)]">Timestamp</span>
+                        <span className="text-[var(--color-info)]">{parsed.timestamp}</span>
+                      </>
+                    )}
+                    {parsed.node && (
+                      <>
+                        <span className="text-[var(--color-text-muted)]">Node</span>
+                        <span className="font-mono text-[var(--color-text)]">{parsed.node}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-sm text-[var(--color-error)]">✗ {parsed.message}</span>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    </ToolLayout>
   )
 }

@@ -6,6 +6,7 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { UploadSimpleIcon, FileIcon, XIcon } from '@phosphor-icons/react'
 
 type Base64State = {
@@ -334,59 +335,61 @@ export default function Base64Tool() {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Toolbar ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button variant="primary" size="sm" onClick={handleToggle}>
-          {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
-          ⇄ Swap
-        </Button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Button variant="primary" size="sm" onClick={handleToggle}>
+            {state.mode === 'encode' ? 'Encode →' : '← Decode'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
+            ⇄ Swap
+          </Button>
+          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
 
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.urlSafe}
-            onChange={(e) => updateState({ urlSafe: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          URL-safe
-        </label>
-        {state.mode === 'encode' && !droppedFile && (
           <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
             <input
               type="checkbox"
-              checked={state.lineWrap}
-              onChange={(e) => updateState({ lineWrap: e.target.checked })}
+              checked={state.urlSafe}
+              onChange={(e) => updateState({ urlSafe: e.target.checked })}
               className="accent-[var(--color-accent)]"
             />
-            Wrap 76
+            URL-safe
           </label>
-        )}
-
-        {autoDetect && !droppedFile && (
-          <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
-          {!droppedFile && state.input.trim() && (
-            <>
-              <span>{formatSize(inputBytes)}</span>
-              <span>→</span>
-              <span>{formatSize(outputBytes)}</span>
-              {ratio && <span>({ratio}×)</span>}
-            </>
+          {state.mode === 'encode' && !droppedFile && (
+            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              <input
+                type="checkbox"
+                checked={state.lineWrap}
+                onChange={(e) => updateState({ lineWrap: e.target.checked })}
+                className="accent-[var(--color-accent)]"
+              />
+              Wrap 76
+            </label>
           )}
-          {droppedFile && (
-            <span>
-              {formatSize(droppedFile.size)} → {formatSize(droppedFile.dataUri.length)}
-            </span>
+
+          {autoDetect && !droppedFile && (
+            <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
           )}
+
+          <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
+            {!droppedFile && state.input.trim() && (
+              <>
+                <span>{formatSize(inputBytes)}</span>
+                <span>→</span>
+                <span>{formatSize(outputBytes)}</span>
+                {ratio && <span>({ratio}×)</span>}
+              </>
+            )}
+            {droppedFile && (
+              <span>
+                {formatSize(droppedFile.size)} → {formatSize(droppedFile.dataUri.length)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
+      }
+    >
       {/* ── Panels ────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── Input panel ─────────────────────────────────────────── */}
@@ -620,7 +623,7 @@ export default function Base64Tool() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
 
