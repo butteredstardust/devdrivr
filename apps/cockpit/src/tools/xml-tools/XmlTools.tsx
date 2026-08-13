@@ -131,6 +131,8 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
   return (
     <div>
+      {/* eslint-disable-next-line no-restricted-syntax -- tree node row: full-width, indented
+          by a computed paddingLeft, and disabled on leaves; it's a disclosure, not a control. */}
       <button
         type="button"
         style={{ paddingLeft: indent }}

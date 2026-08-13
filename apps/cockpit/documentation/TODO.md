@@ -311,8 +311,13 @@ grep -rhoP '[a-zA-Z][a-zA-Z0-9:_-]*-\[(?!var\()[^\]]+\]' --include='*.tsx' src/t
 
 | Metric                        | Target | Before migration | Now |
 | ----------------------------- | ------ | ---------------- | --- |
-| raw `<button>` in `src/tools` | < 30   | 125              | 26  |
+| raw `<button>` in `src/tools` | < 30   | 125              | 20  |
 | arbitrary Tailwind values     | < 400  | 202              | 202 |
+
+Count raw buttons with `grep -rc '<button' src/tools --include='*.tsx'` minus the four in
+`src/tools/__tests__/` (lint-ignored) and the one in `HtmlValidator.tsx`, which is HTML sample data
+inside a template string, not JSX. All 20 that remain carry an `eslint-disable-next-line` with a
+stated reason — the rule below now holds the line.
 
 Raw buttons met the target. Arbitrary values were already under it once measured correctly, and this
 migration did not move them, because **142 of the remaining 202 are `text-[10px]`** — the smallest
@@ -323,8 +328,11 @@ decide 10px chrome text should become 12px. Do not "fix" it by rounding tools up
 
 ### [ ] Remaining: Image Tool
 
-`src/tools/image-tool/ImageTool.tsx` still holds 6 raw buttons and never got its `ToolLayout` pass —
-it was missed in the CONVERT sweep and not picked up since.
+`src/tools/image-tool/ImageTool.tsx` was missed in the CONVERT sweep. Its Reset and aspect-lock
+controls are now shared `Button`s (verified live: lock flips `aria-pressed`/title and stops height
+tracking width; Reset restores 64 × 64), but the tool still has no `ToolLayout` pass. The four raw
+buttons left are exempted by category, not oversight: two 10px underlabels, the 10px preset chip
+grid, and the crop switch.
 
 ## P3 - Shell UX
 
@@ -396,16 +404,49 @@ At the current 218px sidebar width, several tool names truncate mid-word with no
 
 ## P4 - Guardrails
 
-### [ ] Keep the browser harness
+### [x] Keep the browser harness
 
 Check in the Playwright init script that stubs `__TAURI_INTERNALS__` (see "How the audit was run"
 above) plus a small script that boots the dev server and captures the shell. This is the basis for
 screenshot review and, later, visual regression. It must not ship in the app bundle.
 
-### [ ] Lint rule against raw form elements in `src/tools`
+Done — `scripts/tauri-browser-stub.js` exports `installTauriStub()`, documented in
+`documentation/BROWSER_HARNESS.md` alongside `bun run dev` (port 1420) usage. It stubs
+`metadata.currentWindow`/`currentWebview`, and returns array/tuple shapes the callers destructure
+(`plugin:sql|select` → `[]`, `plugin:sql|execute` → `[0, 0]`, `plugin:sql|load` → an id). It also
+sets `window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} }`, which
+`@tauri-apps/api/event`'s `_unlisten()` reads directly (`node_modules/@tauri-apps/api/event.js`) —
+without it, every listener teardown (`useFileDropZone`'s 4 drag-event listeners included) throws
+`Cannot read properties of undefined (reading 'unregisterListener')`. Verified live in Chromium via
+the Playwright MCP tool: with the field stubbed out, switching between an open-file tool and a
+non-open-file tool (retriggering `useFileDropZone`'s effect) throws 20 of those errors across 5
+switches; with the checked-in stub, the same sequence plus several more tool switches produces zero
+console errors. Not reachable from the production bundle — nothing under `src/` imports it, and it
+lives outside `index.html`'s module graph.
 
-Once the primitive migration lands, add `react/forbid-elements` for `button`, `input`, and `select`
-under `src/tools`, with a documented escape hatch for genuine one-offs.
+### [x] Lint rule against raw form elements in `src/tools`
+
+Landed as a flat-config `no-restricted-syntax` block in `eslint.config.js` scoped to
+`src/tools/**/*.tsx`, with `JSXOpeningElement[name.name="button"]` and `…="select"` selectors.
+`react/forbid-elements` was not used: `eslint-plugin-react` is not a dependency of this project (it
+appears in `bun.lock` only transitively via `eslint-config-next` for the legacy `apps/next`, and is
+not resolvable from `apps/cockpit`), and `AGENTS.md` says to reach for what's already available
+before adding one. `no-restricted-syntax` is built into ESLint and needs nothing new.
+
+`input` is deliberately not covered: there is no shared `Input` primitive to point violators at.
+
+Escape hatch: a per-line `// eslint-disable-next-line no-restricted-syntax -- <reason>` immediately
+above the element. **The directive must be the last line of the comment** — with stacked `//` lines
+ESLint applies it to the following comment line, not to the JSX, so it silently no-ops and reports
+an unused-directive warning. Keep the reason on that one line, or use a `{/* … */}` block comment.
+
+The 25 sites the rule first flagged resolved as: 3 migrated (`ImageTool`'s Reset and aspect-lock to
+`Button`, `CurlToFetch`'s "Test in API Client" to `Button`), 2 replaced by `SegmentedControl`
+(`YamlTools`' YAML→JSON / JSON→YAML direction toggle), and 20 exempted in five categories —
+tree disclosure rows, inline click-to-copy tokens inside syntax-highlighted output, accordion panel
+headers, 10px chips and underlabels with no token below `text-xs`, and controls whose colour is
+state (`--color-warning`/`--color-success` borders, the crop switch, the decorative colour-mockup
+button).
 
 ### [ ] Contrast pass across all 22 themes
 

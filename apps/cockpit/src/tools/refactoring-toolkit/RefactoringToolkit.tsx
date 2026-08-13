@@ -124,6 +124,7 @@ export default function RefactoringToolkit() {
       toolbar={
         <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
           {preview !== null && !noChanges && (
+            // eslint-disable-next-line no-restricted-syntax -- severity-coloured border that flips warning/success with the transform selection; Button has no variant on those two tokens (danger is --color-error) and className can't reliably beat the variant's own border colour.
             <button
               onClick={handleApply}
               className={`rounded border px-3 py-1 font-mono text-xs hover:opacity-80 ${
@@ -177,6 +178,9 @@ export default function RefactoringToolkit() {
             const allSelected = catTransforms.every((t) => state.selectedTransforms.includes(t.id))
             return (
               <div key={cat.id} className="mb-4">
+                {/* eslint-disable-next-line no-restricted-syntax -- full-width category header
+                    row that select-alls its group; it wraps a checkbox as its state indicator,
+                    which no Button variant models. */}
                 <button
                   onClick={() => toggleCategory(cat.id)}
                   className="mb-2 flex w-full items-center gap-2 font-mono text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"

@@ -350,6 +350,7 @@ export default function JsonSchemaValidator() {
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
           <span className="font-mono text-xs text-[var(--color-text-muted)]">Templates:</span>
           {Object.entries(TEMPLATES).map(([key, tmpl]) => (
+            // eslint-disable-next-line no-restricted-syntax -- 10px template chip sitting inline in the toolbar text row; Button's smallest size is text-xs and would out-weigh the "Templates:" label it follows.
             <button
               key={key}
               onClick={() => loadTemplate(key)}
@@ -375,6 +376,9 @@ export default function JsonSchemaValidator() {
           >
             Generate Sample
           </Button>
+          {/* eslint-disable-next-line no-restricted-syntax -- 10px on/off toggle whose border
+              flips to --color-warning when engaged; no Button variant carries that token, and
+              nothing below text-xs exists. */}
           <button
             onClick={() => updateState({ strict: !state.strict })}
             className={`rounded border px-2 py-0.5 text-[10px] ${

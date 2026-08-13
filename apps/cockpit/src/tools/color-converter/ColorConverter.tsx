@@ -783,6 +783,9 @@ export default function ColorConverter() {
                       surface
                     </div>
                     {/* Button */}
+                    {/* eslint-disable-next-line no-restricted-syntax -- decorative sample in the
+                        UI-mockup panel: it has no onClick and exists to show the picked colour
+                        as a button fill, so it must not inherit the app's own button styling. */}
                     <button
                       className="rounded px-3 py-1.5 text-xs font-bold"
                       style={{

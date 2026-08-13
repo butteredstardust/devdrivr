@@ -6,6 +6,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { ToolLayout } from '@/components/shared/ToolLayout'
@@ -20,6 +21,13 @@ import {
   yamlToJson,
   jsonToYaml,
 } from '@/tools/yaml-tools/yaml-helpers'
+
+type ConvertDirection = 'yaml-to-json' | 'json-to-yaml'
+
+const CONVERT_DIRECTIONS: { value: ConvertDirection; label: string }[] = [
+  { value: 'yaml-to-json', label: 'YAML → JSON' },
+  { value: 'json-to-yaml', label: 'JSON → YAML' },
+]
 
 type YamlToolsState = {
   input: string
@@ -74,6 +82,7 @@ function TreeValueButton({
   onClick: () => void
 }) {
   return (
+    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
     <button
       type="button"
       onClick={onClick}
@@ -107,9 +116,7 @@ export default function YamlTools() {
 
   const [convertError, setConvertError] = useState<string | null>(null)
   const [convertOutput, setConvertOutput] = useState('')
-  const [convertDirection, setConvertDirection] = useState<'yaml-to-json' | 'json-to-yaml'>(
-    'yaml-to-json'
-  )
+  const [convertDirection, setConvertDirection] = useState<ConvertDirection>('yaml-to-json')
 
   // Cleanup worker on unmount
   useEffect(() => {
@@ -293,32 +300,12 @@ export default function YamlTools() {
           {/* ── JSON ↔ YAML toolbar ───────────────────────────── */}
           {state.activeTab === 'convert' && (
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setConvertDirection('yaml-to-json')
-                }}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  convertDirection === 'yaml-to-json'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                YAML → JSON
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConvertDirection('json-to-yaml')
-                }}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  convertDirection === 'json-to-yaml'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                JSON → YAML
-              </button>
+              <SegmentedControl
+                aria-label="Conversion direction"
+                value={convertDirection}
+                onChange={setConvertDirection}
+                options={CONVERT_DIRECTIONS}
+              />
               <Button
                 variant="primary"
                 size="sm"
@@ -487,6 +474,8 @@ function YamlTree({
   if (Array.isArray(data)) {
     return (
       <div className="ml-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -510,6 +499,8 @@ function YamlTree({
     const entries = Object.entries(data as Record<string, unknown>)
     return (
       <div className="ml-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}

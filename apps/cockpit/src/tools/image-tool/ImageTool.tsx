@@ -605,14 +605,16 @@ export default function ImageTool() {
             )}
 
             {originalImg && (
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={handleResetAll}
                 title="Reset all settings"
-                className="ml-auto flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                className="ml-auto gap-1"
               >
                 <ArrowCounterClockwiseIcon size={13} />
                 Reset
-              </button>
+              </Button>
             )}
           </div>
 
@@ -905,13 +907,16 @@ function ResizePanel({
             />
           </div>
 
-          <button
+          <Button
+            variant="icon"
+            size="xs"
             onClick={onLockToggle}
+            aria-pressed={lockAspect}
             title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-            className="mt-4 shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="mt-4 shrink-0"
           >
             {lockAspect ? <LockSimpleIcon size={14} /> : <LockSimpleOpenIcon size={14} />}
-          </button>
+          </Button>
 
           <div className="flex flex-1 flex-col gap-1">
             <label className="text-[10px] text-[var(--color-text-muted)]">Height (px)</label>
@@ -926,6 +931,9 @@ function ResizePanel({
           </div>
         </div>
 
+        {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
+            dimension inputs; Button's smallest size is text-xs (12px), which would outweigh
+            the fields it annotates. */}
         <button
           onClick={onReset}
           className="mt-2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
@@ -940,6 +948,7 @@ function ResizePanel({
         </div>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_SIZES.map(({ label, w, h }) => (
+            // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
             <button
               key={label}
               onClick={() => onPreset(w, h)}
@@ -993,6 +1002,8 @@ function CropPanel({
     <div className="flex flex-col gap-4">
       {/* Enable toggle */}
       <div className="flex items-center gap-2">
+        {/* eslint-disable-next-line no-restricted-syntax -- switch: a track-and-thumb toggle
+            whose whole appearance is the state indicator, with no Button variant equivalent. */}
         <button
           type="button"
           onClick={onToggle}
@@ -1069,6 +1080,9 @@ function CropPanel({
           </div>
         </div>
 
+        {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
+            crop inputs; Button's smallest size is text-xs (12px), which would outweigh the
+            fields it annotates. */}
         <button
           onClick={onReset}
           disabled={!enabled}

@@ -75,6 +75,33 @@ export default [
     },
   },
   {
+    // Tools must build their chrome from the shared primitives, so a tool can't
+    // quietly reintroduce its own button or select styling. Expressed with the
+    // built-in no-restricted-syntax rather than react/forbid-elements, because
+    // eslint-plugin-react isn't a dependency here and AGENTS.md says to reach
+    // for what's already available before adding one.
+    //
+    // Exemptions are per-line `eslint-disable-next-line no-restricted-syntax`
+    // comments with a stated reason — see the P2 section of documentation/TODO.md
+    // for the categories that legitimately survive.
+    files: ['src/tools/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXOpeningElement[name.name="button"]',
+          message:
+            'Use the shared Button from @/components/shared/Button. If no variant fits, keep the raw <button> and add an eslint-disable-next-line with the reason.',
+        },
+        {
+          selector: 'JSXOpeningElement[name.name="select"]',
+          message:
+            'Use the shared Select from @/components/shared/Select. If it genuinely does not fit, add an eslint-disable-next-line with the reason.',
+        },
+      ],
+    },
+  },
+  {
     ignores: [
       'dist/',
       'node_modules/',

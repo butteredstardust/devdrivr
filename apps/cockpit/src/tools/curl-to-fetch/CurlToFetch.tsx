@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
@@ -310,14 +311,16 @@ export default function CurlToFetch() {
                 body: {parsed.body.length} chars
               </span>
             )}
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={handleTestInApiClient}
               title="Open this request in API Client"
-              className="ml-auto flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+              className="ml-auto shrink-0 gap-1"
             >
               <PlayIcon size={11} />
               Test in API Client
-            </button>
+            </Button>
           </div>
         )
       }

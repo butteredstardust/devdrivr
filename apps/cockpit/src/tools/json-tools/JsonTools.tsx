@@ -404,6 +404,7 @@ function TreeValueButton({
   onClick: () => void
 }) {
   return (
+    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
     <button
       type="button"
       onClick={onClick}
@@ -475,6 +476,8 @@ function JsonTree({
     return (
       <div className="ml-4">
         <div className="flex items-center gap-1">
+          {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+              ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
           <button
             type="button"
             onClick={() => hasChildren && setExpanded(!expanded)}
@@ -484,6 +487,8 @@ function JsonTree({
           >
             {hasChildren ? (expanded ? '▼' : '▶') : '•'}
           </button>
+          {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+              rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
           <button
             type="button"
             className="text-xs text-[var(--color-text-muted)] hover:underline"
@@ -510,6 +515,8 @@ function JsonTree({
     return (
       <div className="ml-4">
         <div className="flex items-center gap-1">
+          {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+              ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
           <button
             type="button"
             onClick={() => hasChildren && setExpanded(!expanded)}
@@ -519,6 +526,8 @@ function JsonTree({
           >
             {hasChildren ? (expanded ? '▼' : '▶') : '•'}
           </button>
+          {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+              rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
           <button
             type="button"
             className="text-xs text-[var(--color-text-muted)] hover:underline"
