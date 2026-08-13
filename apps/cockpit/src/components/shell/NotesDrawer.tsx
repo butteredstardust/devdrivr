@@ -5,6 +5,7 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { TabBar } from '@/components/shared/TabBar'
+import { Select } from '@/components/shared/Select'
 import {
   PushPinIcon,
   TrashIcon,
@@ -695,10 +696,10 @@ export function NotesDrawer() {
       {activeTab === 'history' && (
         <>
           <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-            <select
+            <Select
               value={historyFilter}
               onChange={(e) => setHistoryFilter(e.target.value)}
-              className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+              className="flex-1 bg-[var(--color-bg)]"
             >
               <option value="">All tools</option>
               {Array.from(new Set(historyEntries.map((e) => e.tool))).map((tool) => (
@@ -706,7 +707,7 @@ export function NotesDrawer() {
                   {tool}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="flex-1 overflow-auto p-2">
             {filteredHistory.length === 0 && (

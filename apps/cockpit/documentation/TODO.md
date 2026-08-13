@@ -248,7 +248,7 @@ Acceptance criteria:
 
 ## P2 - Shared primitives
 
-### [ ] Extend the primitive set
+### [x] Extend the primitive set
 
 Area: `src/components/shared`
 

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { TabBar } from '@/components/shared/TabBar'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
@@ -76,9 +76,11 @@ const FLAG_TITLES: Record<string, string> = {
   u: 'Unicode mode',
 }
 
-const MODE_TABS = [
-  { id: 'match', label: 'Match' },
-  { id: 'replace', label: 'Replace' },
+type RegexMode = 'match' | 'replace'
+
+const MODE_OPTIONS: { value: RegexMode; label: string }[] = [
+  { value: 'match', label: 'Match' },
+  { value: 'replace', label: 'Replace' },
 ]
 
 const TIMEOUT_MESSAGE = `Pattern timed out after ${REGEX_TIMEOUT_MS}ms — likely catastrophic backtracking. Edit the pattern or the test string to retry.`
@@ -94,7 +96,7 @@ export default function RegexTester() {
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [showRef, setShowRef] = useState(false)
-  const [mode, setMode] = useState('match')
+  const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
   const patternRef = useRef<HTMLInputElement>(null)
 
@@ -260,9 +262,14 @@ export default function RegexTester() {
           )}
         </div>
 
-        {/* Mode tabs + replace input */}
-        <div className="flex items-center border-b border-[var(--color-border)]">
-          <TabBar tabs={MODE_TABS} activeTab={mode} onTabChange={setMode} />
+        {/* Mode toggle + replace input */}
+        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+          <SegmentedControl
+            aria-label="Regex mode"
+            options={MODE_OPTIONS}
+            value={mode}
+            onChange={setMode}
+          />
           {mode === 'replace' && (
             <div className="flex flex-1 items-center gap-2 px-3">
               <input

@@ -6,6 +6,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
+import { Select } from '@/components/shared/Select'
 import CsvTable from './CsvTable'
 import CsvConvert from './CsvConvert'
 import CsvAnalyze from './CsvAnalyze'
@@ -105,17 +106,16 @@ export default function CsvTools() {
     <div className="flex h-full flex-col">
       {/* Global toolbar */}
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <select
+        <Select
           value={state.delimiter}
           onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
         >
           <option value="auto">Auto-detect</option>
           <option value=",">Comma</option>
           <option value="&#9;">Tab</option>
           <option value="|">Pipe</option>
           <option value=";">Semicolon</option>
-        </select>
+        </Select>
 
         <label className="flex items-center gap-1">
           <input

@@ -1,12 +1,13 @@
-import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react'
+import { forwardRef, type InputHTMLAttributes } from 'react'
+
+// Select now lives in its own primitive file — re-exported here so the many
+// existing `import { Input, Select } from '@/components/shared/Input'` call
+// sites keep working unchanged.
+export { Select, type SelectProps } from './Select'
 
 type InputSize = 'sm' | 'md'
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
-  size?: InputSize
-}
-
-type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
   size?: InputSize
 }
 
@@ -30,16 +31,3 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   }
 )
 Input.displayName = 'Input'
-
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ size = 'sm', className = '', ...props }, ref) => {
-    return (
-      <select
-        ref={ref}
-        className={`${BASE_CLASSES} ${SIZE_CLASSES[size]} ${className}`}
-        {...props}
-      />
-    )
-  }
-)
-Select.displayName = 'Select'

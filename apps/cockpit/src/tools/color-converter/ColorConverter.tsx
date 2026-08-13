@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -18,6 +19,15 @@ type ColorConverterState = {
   history: string[]
   cssVarName: string
 }
+
+type ColorSection = 'formats' | 'scale' | 'harmony' | 'cssvar'
+
+const SECTION_OPTIONS: { value: ColorSection; label: string }[] = [
+  { value: 'formats', label: 'Formats' },
+  { value: 'scale', label: 'Shades & Tints' },
+  { value: 'harmony', label: 'Harmony' },
+  { value: 'cssvar', label: 'CSS Var' },
+]
 
 // ── CSS Named Colors (full 148) ──────────────────────────────────────
 
@@ -506,9 +516,7 @@ export default function ColorConverter() {
   })
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const [activeSection, setActiveSection] = useState<'formats' | 'scale' | 'harmony' | 'cssvar'>(
-    'formats'
-  )
+  const [activeSection, setActiveSection] = useState<ColorSection>('formats')
 
   const color = useMemo(() => {
     const rgb = parseColor(state.input)
@@ -619,26 +627,13 @@ export default function ColorConverter() {
       {/* ── Section Tabs ──────────────────────────────── */}
       {color && (
         <>
-          <div className="flex gap-2 border-b border-[var(--color-border)] pb-1">
-            {(['formats', 'scale', 'harmony', 'cssvar'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveSection(tab)}
-                className={`px-3 py-1 text-xs font-mono rounded-t ${
-                  activeSection === tab
-                    ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                {tab === 'formats'
-                  ? 'Formats'
-                  : tab === 'scale'
-                    ? 'Shades & Tints'
-                    : tab === 'harmony'
-                      ? 'Harmony'
-                      : 'CSS Var'}
-              </button>
-            ))}
+          <div className="pb-1">
+            <SegmentedControl
+              aria-label="Color info section"
+              options={SECTION_OPTIONS}
+              value={activeSection}
+              onChange={setActiveSection}
+            />
           </div>
 
           {/* ── Formats ─────────────────────────────────── */}

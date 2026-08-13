@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
-import { TabBar } from '@/components/shared/TabBar'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { useUiStore } from '@/stores/ui.store'
@@ -81,11 +81,13 @@ type FormattingAction = {
 
 // ─── Constants ───────────────────────────────────────────────────────
 
+type EditorMode = 'edit' | 'split' | 'preview'
+
 // Edit first — natural workflow order
-const MODES = [
-  { id: 'edit', label: 'Edit' },
-  { id: 'split', label: 'Split' },
-  { id: 'preview', label: 'Preview' },
+const MODE_OPTIONS: { value: EditorMode; label: string }[] = [
+  { value: 'edit', label: 'Edit' },
+  { value: 'split', label: 'Split' },
+  { value: 'preview', label: 'Preview' },
 ]
 
 const WORDS_PER_MINUTE = 200
@@ -886,12 +888,12 @@ export default function MarkdownEditor() {
   return (
     <div className="flex h-full flex-col">
       {/* ─── Header ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2">
-        <TabBar
-          tabs={MODES}
-          activeTab={state.mode}
-          onTabChange={(id) => updateState({ mode: id })}
-          noBorder
+      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2 py-1.5">
+        <SegmentedControl
+          aria-label="Editor view mode"
+          options={MODE_OPTIONS}
+          value={state.mode as EditorMode}
+          onChange={(mode) => updateState({ mode })}
         />
         <div className="ml-auto flex items-center gap-3 py-2">
           {state.fileName && (

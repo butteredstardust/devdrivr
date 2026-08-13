@@ -1,3 +1,4 @@
+import { Select } from '@/components/shared/Select'
 import type { ApiRequestAuth } from '@/types/models'
 
 type Props = {
@@ -16,7 +17,7 @@ export function AuthTab({ auth, onChange }: Props) {
     <div className="flex flex-1 flex-col p-3">
       <div className="mb-4 flex items-center gap-2">
         <span className="text-xs font-bold text-[var(--color-text-muted)]">Type:</span>
-        <select
+        <Select
           value={auth.type}
           onChange={(e) => {
             const type = e.target.value as ApiRequestAuth['type']
@@ -28,14 +29,13 @@ export function AuthTab({ auth, onChange }: Props) {
               onChange({ type: 'basic', username: '', password: '' })
             }
           }}
-          className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         >
           {AUTH_TYPES.map((t) => (
             <option key={t.id} value={t.id}>
               {t.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="flex-1">

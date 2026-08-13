@@ -757,17 +757,17 @@ export default function ApiClient() {
 
         {/* URL bar */}
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-          <select
+          <Select
             value={method}
             onChange={(e) => handleMethodChange(e.target.value)}
-            className="rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-2 py-1.5 font-mono text-xs text-[var(--color-accent)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+            className="border-[var(--color-accent)] font-mono text-[var(--color-accent)]"
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
-          </select>
+          </Select>
           <Input
             value={url}
             onChange={(e) => updateDraft({ url: e.target.value })}

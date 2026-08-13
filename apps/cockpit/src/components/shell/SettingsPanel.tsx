@@ -35,6 +35,7 @@ import {
 } from '@phosphor-icons/react'
 import { Dialog } from '@/components/shared/Dialog'
 import { Toggle } from '@/components/shared/Toggle'
+import { Select } from '@/components/shared/Select'
 import { ALL_THEMES, THEME_META } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
 
@@ -135,17 +136,17 @@ function SelectInput({
   options: { value: string | number; label: string }[]
 }) {
   return (
-    <select
+    <Select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+      className="bg-[var(--color-bg)]"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
         </option>
       ))}
-    </select>
+    </Select>
   )
 }
 
