@@ -84,7 +84,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)] transition-[width] duration-200 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
+      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)] transition-[width] duration-200 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
     >
       {/* Only one of the two layouts is ever mounted. Rendering both at once
           (previously cross-faded via opacity) kept the hidden tree fully

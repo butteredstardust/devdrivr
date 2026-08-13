@@ -77,7 +77,7 @@ export function ShortcutsModal() {
     >
       {categories.map((cat) => (
         <div key={cat.label} className="mb-4 last:mb-0">
-          <h3 className="mb-2 font-mono text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+          <h3 className="mb-2 text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
             {cat.label}
           </h3>
           <div className="flex flex-col gap-1">

@@ -524,7 +524,7 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="command-palette-title"
-        className="animate-fade-in fixed left-1/2 top-[15%] z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+        className="font-ui animate-fade-in fixed left-1/2 top-[15%] z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
       >
         <h2 id="command-palette-title" className="sr-only">
           Command palette

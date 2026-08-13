@@ -70,11 +70,10 @@ export function StatusBar() {
         ? 'text-[var(--color-success)]'
         : 'text-[var(--color-text-muted)]'
 
-  const themeLabel =
-    theme === 'system' ? 'System' : (THEME_META[theme]?.shortLabel ?? theme)
+  const themeLabel = theme === 'system' ? 'System' : (THEME_META[theme]?.shortLabel ?? theme)
 
   return (
-    <div className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[11px]">
+    <div className="font-ui flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[11px]">
       {/* Left: active tool + last action */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-[var(--color-text-muted)]">{tool?.name ?? ''}</span>

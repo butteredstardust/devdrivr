@@ -127,7 +127,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         createPortal(
           <div
             style={tooltipStyle}
-            className="pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 font-mono text-[11px] text-[var(--color-text)] shadow-md"
+            className="font-ui pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-[11px] text-[var(--color-text)] shadow-md"
           >
             {group.label}
           </div>,
@@ -140,7 +140,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
           <div
             ref={flyoutRef}
             style={flyoutStyle}
-            className="min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+            className="font-ui min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
           >
             <div className="px-2.5 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {group.label}

@@ -21,7 +21,7 @@ export function SidebarPinned() {
     <div className="mb-1">
       <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
         <PushPinIcon size={10} className="shrink-0" />
-        <span className="font-mono text-[11px] font-bold uppercase tracking-normal">[Pinned]</span>
+        <span className="text-[11px] font-bold uppercase tracking-normal">[Pinned]</span>
       </div>
       <div className="flex flex-col gap-1 px-1">
         {pinnedTools.map((tool) => (

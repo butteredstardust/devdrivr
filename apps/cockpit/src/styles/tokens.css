@@ -17,6 +17,7 @@
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
   --font-mono: 'Source Code Pro', monospace;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ─── Stacking order ─────────────────────────────────────────────────────
@@ -146,6 +147,9 @@
   --color-shadow: rgba(255, 0, 110, 0.2);
   --color-scrim: rgba(255, 0, 110, 0.4);
   --font-mono: 'Source Code Pro', monospace;
+  /* Keeps the all-mono terminal aesthetic that defines this theme — chrome
+     reads in the same code font as data, on purpose. */
+  --font-ui: var(--font-mono);
   --note-yellow: #ffbe0b;
   --note-green: #3a86ff;
   --note-blue: #8338ec;

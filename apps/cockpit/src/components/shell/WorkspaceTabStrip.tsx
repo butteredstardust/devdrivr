@@ -90,7 +90,7 @@ export function WorkspaceTabStrip() {
   const hasRight = contextTabIdx !== -1 && contextTabIdx < tabs.length - 1
 
   return (
-    <div className="relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div className="font-ui relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
       {/* Scrollable tab row */}
       <div
         ref={scrollRef}
@@ -137,9 +137,7 @@ export function WorkspaceTabStrip() {
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="flex-1 truncate font-mono text-[10px]">
-                {tool?.name ?? tab.toolId}
-              </span>
+              <span className="flex-1 truncate text-[10px]">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation()

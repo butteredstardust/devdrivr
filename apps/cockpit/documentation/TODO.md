@@ -231,7 +231,7 @@ Acceptance criteria:
 - No visual regression: the 22 themes still resolve every variable they resolved before. A test or
   script asserting every theme class defines the full token set is preferred over eyeballing.
 
-### [ ] Introduce a UI font distinct from the code font
+### [x] Introduce a UI font distinct from the code font
 
 Area: typography
 
