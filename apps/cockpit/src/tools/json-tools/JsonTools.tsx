@@ -12,6 +12,7 @@ import { Input } from '@/components/shared/Input'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { saveFileDialog } from '@/lib/file-io'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
@@ -248,6 +249,15 @@ export default function JsonTools() {
                 Sort Keys
               </Button>
               <CopyButton text={state.input} />
+              {!state.input.trim() && TOOL_SAMPLES['json-tools'] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
+              )}
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && <span className="text-xs text-[var(--color-success)]">✓ Valid</span>}
               {parsed.error && (

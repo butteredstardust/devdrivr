@@ -4,8 +4,8 @@ import { getToolById, MONACO_TOOL_IDS } from '@/app/tool-registry'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
-import { ToolboxIcon } from '@phosphor-icons/react'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
+import { WorkspaceEmptyState } from '@/components/shell/WorkspaceEmptyState'
 
 export function Workspace() {
   const activeTool = useUiStore((s) => s.activeTool)
@@ -50,12 +50,8 @@ export function Workspace() {
       )}
       <WorkspaceTabStrip />
       {!tool ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--color-text-muted)]">
-          <ToolboxIcon size={36} weight="light" />
-          <div className="text-center">
-            <p className="text-sm">Select a tool to get started</p>
-            <p className="mt-1 text-xs opacity-60">Use the sidebar or press ⌘K</p>
-          </div>
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <WorkspaceEmptyState />
         </div>
       ) : (
         <div

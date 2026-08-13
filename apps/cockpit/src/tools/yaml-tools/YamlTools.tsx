@@ -9,6 +9,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import {
@@ -245,6 +246,15 @@ export default function YamlTools() {
                 Sort Keys
               </Button>
               <CopyButton text={state.input} />
+              {!state.input.trim() && TOOL_SAMPLES['yaml-tools'] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['yaml-tools'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
+              )}
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">

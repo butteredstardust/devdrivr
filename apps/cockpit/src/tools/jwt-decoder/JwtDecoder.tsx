@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { IdentificationCardIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 
 type JwtDecoderState = {
   input: string
@@ -283,9 +287,21 @@ export default function JwtDecoder() {
             Invalid JWT token — expected format: header.payload.signature
           </div>
         ) : (
-          <div className="text-sm text-[var(--color-text-muted)]">
-            Paste a JWT token above to decode it
-          </div>
+          <EmptyState
+            icon={IdentificationCardIcon}
+            title="Paste a JWT token above to decode it"
+            action={
+              TOOL_SAMPLES['jwt-decoder'] ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['jwt-decoder'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
+              ) : undefined
+            }
+          />
         )}
       </div>
     </div>

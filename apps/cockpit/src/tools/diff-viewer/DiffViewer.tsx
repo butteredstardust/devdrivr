@@ -11,6 +11,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
+import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
 
@@ -224,6 +225,18 @@ export default function DiffViewer() {
         <Button variant="secondary" size="sm" onClick={handleSwap} title="Swap left and right">
           ⇄ Swap
         </Button>
+
+        {!state.left.trim() && !state.right.trim() && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
+            }
+          >
+            Load Sample
+          </Button>
+        )}
 
         <Select
           value={state.mode}

@@ -55,6 +55,17 @@ describe('XmlTools', () => {
     expect(matches).toEqual(['<child>1</child>'])
   })
 
+  it('populates the editor from Load Sample and hides the button once content exists', () => {
+    renderTool(XmlTools)
+    const editor = screen.getByTestId('monaco-editor')
+    expect(screen.getByText('Load Sample')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Load Sample'))
+
+    expect((editor as HTMLTextAreaElement).value).toContain('<catalog>')
+    expect(screen.queryByText('Load Sample')).not.toBeInTheDocument()
+  })
+
   // ── Worker round-trip ────────────────────────────────────────────
   // A no-op worker mock never resolves validate()/format(), so the error
   // banner or the reformatted editor value never appears — these only pass

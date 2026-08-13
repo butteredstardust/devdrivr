@@ -93,6 +93,20 @@ describe('JsonTools', () => {
     )
   })
 
+  it('shows a Load Sample button only while empty, and populates the editor through the same input path as typing', () => {
+    renderTool(JsonTools)
+    const editor = screen.getByTestId('monaco-editor')
+    expect(screen.getByText('Load Sample')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Load Sample'))
+
+    expect((editor as HTMLTextAreaElement).value).toContain('"customer": "Ada Lovelace"')
+    // Once populated, the affordance disappears — same as the empty-state contract.
+    expect(screen.queryByText('Load Sample')).not.toBeInTheDocument()
+    // Loaded content is valid JSON, same as if the user had typed it into the editor.
+    expect(screen.getByText(/Valid/)).toBeInTheDocument()
+  })
+
   it('surfaces save failures without clearing JSON input', async () => {
     vi.mocked(saveFileDialog).mockRejectedValue(new Error('disk full'))
     renderTool(JsonTools)

@@ -329,11 +329,27 @@ can't change the theme on next launch. Verified live: hovering previews and reve
 ArrowDown from System previews Midnight without moving the selection, Enter commits and writes
 `theme-cache`, and closing the panel mid-hover reverts to the committed theme.
 
-### [ ] Better empty states
+### [x] Better empty states
 
 The workspace placeholder ("Select a tool to get started") should surface recent and pinned tools as
-clickable chips. Per-tool empty panes should offer a "Load sample" action — `apps/cockpit/samples/`
-already exists.
+clickable chips. Per-tool empty panes should offer a "Load sample" action.
+
+Done. `src/components/shell/WorkspaceEmptyState.tsx` renders pinned and recent chips through the
+existing `EmptyState` primitive (no changes to the primitive were needed — its `action` slot already
+takes arbitrary nodes). Recency came from `recentToolIds` in `ui.store.ts`, which already existed and
+already feeds `SidebarRecent`; no new persisted list was added. Recent chips exclude anything already
+pinned.
+
+Samples live in `src/lib/tool-samples.ts` and cover JSON, XML and YAML Tools, the JWT decoder and the
+Diff Viewer. Loading a sample calls the same `updateState` setter the editors' `onChange` uses, so
+validation, history and undo behave exactly as they do for typed input — confirmed live: the JSON
+sample loads and immediately reports "✓ Valid · 11 keys · depth 3", the diff sample computes
+"+2 / −2", and the (obviously fake, unsigned) JWT sample decodes into header/payload. The button
+disappears once the input is non-empty.
+
+Correction to this item as originally written: `apps/cockpit/samples/` is snippet-library markdown
+for the Snippets importer, not per-tool sample inputs, so it was not a usable source. There is also
+no cron parser tool in the registry, so it was skipped rather than invented.
 
 ### [ ] Tooltip or wrap for truncated tool names
 

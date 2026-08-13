@@ -9,6 +9,7 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { XmlWorker } from '@/workers/xml.worker'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
 
@@ -377,6 +378,15 @@ export default function XmlTools() {
                 </Select>
               </label>
               <CopyButton text={state.input} />
+              {!state.input.trim() && TOOL_SAMPLES['xml-tools'] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['xml-tools'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
+              )}
             </div>
             {error && (
               <Alert
