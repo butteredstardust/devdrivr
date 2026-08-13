@@ -443,6 +443,7 @@ function DataTab() {
         alwaysOnTop: state.alwaysOnTop,
         sidebarCollapsed: state.sidebarCollapsed,
         collapsedSidebarGroups: state.collapsedSidebarGroups,
+        openedSidebarGroups: state.openedSidebarGroups,
         pinnedToolIds: state.pinnedToolIds,
         notesDrawerOpen: state.notesDrawerOpen,
         notesDrawerWidth: state.notesDrawerWidth,
@@ -545,6 +546,9 @@ function DataTab() {
         await su('defaultTimezone', obj['defaultTimezone'])
       if (Array.isArray(obj['collapsedSidebarGroups'])) {
         await su('collapsedSidebarGroups', obj['collapsedSidebarGroups'].filter(isToolGroup))
+      }
+      if (Array.isArray(obj['openedSidebarGroups'])) {
+        await su('openedSidebarGroups', obj['openedSidebarGroups'].filter(isToolGroup))
       }
       if (Array.isArray(obj['pinnedToolIds'])) {
         await su(

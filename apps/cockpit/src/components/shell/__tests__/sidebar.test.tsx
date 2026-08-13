@@ -6,7 +6,7 @@
  * 4. Keyboard navigation — ArrowUp/Down, Enter to select
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
@@ -322,6 +322,249 @@ describe('Sidebar — only one tree is live at a time', () => {
     // data-sidebar-item nodes must be fully absent, not just invisible.
     for (const tool of ALL_TOOLS) {
       expect(document.querySelectorAll(`[data-sidebar-item="${tool.id}"]`)).toHaveLength(0)
+    }
+  })
+})
+
+// ── Sidebar filter box ────────────────────────────────────────────
+
+describe('Sidebar — filter box', () => {
+  it('narrows results to matching tools and hides groups with no matches', () => {
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    expect(screen.getByRole('button', { name: 'UUID Generator' })).toBeInTheDocument()
+    // Groups with no matches (e.g. Code) shouldn't render their header at all
+    expect(screen.queryByText('[Code]')).not.toBeInTheDocument()
+    // A tool from a different group shouldn't be present either
+    expect(screen.queryByRole('button', { name: 'Code Formatter' })).not.toBeInTheDocument()
+  })
+
+  it('shows a "no matches" message when nothing matches', () => {
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'zzzznonexistenttool' },
+    })
+
+    expect(screen.getByText(/No tools matching/)).toBeInTheDocument()
+    for (const tool of ALL_TOOLS) {
+      expect(screen.queryByRole('button', { name: tool.name })).not.toBeInTheDocument()
+    }
+  })
+
+  it('force-expands a group with matches even if it was explicitly collapsed', () => {
+    useSettingsStore.setState({ collapsedSidebarGroups: ['convert'] })
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    expect(screen.getByRole('button', { name: 'UUID Generator' })).toHaveAttribute('tabindex', '0')
+  })
+
+  it('pressing "/" focuses the filter input', () => {
+    render(<Sidebar />)
+    const input = screen.getByRole('searchbox', { name: 'Filter tools' })
+    expect(input).not.toHaveFocus()
+
+    fireEvent.keyDown(window, { key: '/' })
+
+    expect(input).toHaveFocus()
+  })
+
+  it('does not steal "/" while the user is typing in another text field', () => {
+    render(
+      <div>
+        <input aria-label="other field" />
+        <Sidebar />
+      </div>
+    )
+    const other = screen.getByLabelText('other field')
+    other.focus()
+
+    fireEvent.keyDown(other, { key: '/' })
+
+    expect(screen.getByRole('searchbox', { name: 'Filter tools' })).not.toHaveFocus()
+    expect(other).toHaveFocus()
+  })
+
+  it('Escape clears the filter query', () => {
+    render(<Sidebar />)
+    const input = screen.getByRole('searchbox', { name: 'Filter tools' })
+
+    fireEvent.change(input, { target: { value: 'uuid' } })
+    expect(input).toHaveValue('uuid')
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(input).toHaveValue('')
+  })
+
+  it('expands the sidebar and focuses the filter when "/" is pressed while collapsed', async () => {
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        callback(0)
+        return 0
+      },
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: () => {},
+    })
+    useSettingsStore.setState({ sidebarCollapsed: true })
+    render(<Sidebar />)
+
+    fireEvent.keyDown(window, { key: '/' })
+
+    await waitFor(() => {
+      expect(useSettingsStore.getState().sidebarCollapsed).toBe(false)
+    })
+  })
+})
+
+// ── Group collapse defaults & persistence ───────────────────────────
+
+describe('SidebarGroup — default collapse for never-opened groups', () => {
+  it('keeps every group expanded on a first run (nothing opened yet)', () => {
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+    expect(screen.getByRole('button', { name: /TestGroup/i })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+  })
+
+  it('defaults to collapsed once other groups have been opened, if this one never was', () => {
+    useSettingsStore.setState({ openedSidebarGroups: ['code'] })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+
+    expect(screen.getByRole('button', { name: /TestGroup/i })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+  })
+
+  it('stays expanded if it has already been opened, even when other groups have too', () => {
+    useSettingsStore.setState({ openedSidebarGroups: ['code', 'convert'] })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+
+    expect(screen.getByRole('button', { name: /TestGroup/i })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+  })
+
+  it('expanding a default-collapsed group records it as opened, so it stays expanded', () => {
+    useSettingsStore.setState({ openedSidebarGroups: ['code'] })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+    const header = screen.getByRole('button', { name: /TestGroup/i })
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(header)
+
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(useSettingsStore.getState().openedSidebarGroups).toContain('convert')
+  })
+
+  it('does not re-collapse other groups when a group is opened mid-session', async () => {
+    // initialized: true is what freezes the launch snapshot — see
+    // useOpenedGroupsAtLaunch. Without it the default falls back to live state.
+    useSettingsStore.setState({ openedSidebarGroups: ['code', 'convert'], initialized: true })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+    const header = screen.getByRole('button', { name: /TestGroup/i })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+
+    // Another group gets opened while the user is working.
+    await act(async () => {
+      useSettingsStore.setState({ openedSidebarGroups: ['code', 'convert', 'data'] })
+    })
+
+    // This group was expanded a moment ago and must stay that way — the new
+    // entry only shapes the next launch.
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('keeps a first-run sidebar expanded after the first group is opened', async () => {
+    useSettingsStore.setState({ openedSidebarGroups: [], initialized: true })
+
+    render(<SidebarGroup group={GROUP} tools={TOOLS} />)
+    const header = screen.getByRole('button', { name: /TestGroup/i })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+
+    // The user's first ever click lands in a different group. Without the
+    // frozen gate this is the moment every other group would snap shut.
+    await act(async () => {
+      useSettingsStore.setState({ openedSidebarGroups: ['data'] })
+    })
+
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('marks a group as opened when a tool from it becomes active, via the full Sidebar', async () => {
+    useSettingsStore.setState({ openedSidebarGroups: ['code'] })
+    useUiStore.setState({ activeTool: 'uuid-generator' })
+
+    render(<Sidebar />)
+
+    await waitFor(() => {
+      expect(useSettingsStore.getState().openedSidebarGroups).toContain('convert')
+    })
+  })
+})
+
+// ── Truncated tool name tooltip ──────────────────────────────────────
+
+describe('SidebarItem — truncation tooltip', () => {
+  it('does not set a title when the label fits', () => {
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+    const label = screen.getByText('Tool A')
+    expect(label).not.toHaveAttribute('title')
+  })
+
+  it('sets a title with the full name when the label is clipped', () => {
+    const originalScrollWidth = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      'scrollWidth'
+    )
+    const originalClientWidth = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      'clientWidth'
+    )
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', {
+      configurable: true,
+      get() {
+        return 200
+      },
+    })
+    Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get() {
+        return 100
+      },
+    })
+
+    try {
+      render(<SidebarItem id="tool-a" name="A Very Long Tool Name" icon={fixtureIcon('a')} />)
+      const label = screen.getByText('A Very Long Tool Name')
+      expect(label).toHaveAttribute('title', 'A Very Long Tool Name')
+      // The full name stays reachable to assistive tech regardless of hover.
+      expect(screen.getByRole('button', { name: 'A Very Long Tool Name' })).toBeInTheDocument()
+    } finally {
+      if (originalScrollWidth) {
+        Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', originalScrollWidth)
+      }
+      if (originalClientWidth) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidth)
+      }
     }
   })
 })

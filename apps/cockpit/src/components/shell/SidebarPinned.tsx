@@ -4,15 +4,21 @@ import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { SidebarItem } from './SidebarItem'
 
-export function SidebarPinned() {
+type SidebarPinnedProps = {
+  /** When set (sidebar filter active), only tools in this set are shown. */
+  filterToolIds?: Set<string> | null
+}
+
+export function SidebarPinned({ filterToolIds = null }: SidebarPinnedProps) {
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
 
   const pinnedTools = useMemo(
     () =>
       pinnedToolIds
         .map((id) => TOOLS.find((tool) => tool.id === id))
-        .filter((tool): tool is (typeof TOOLS)[number] => tool != null),
-    [pinnedToolIds]
+        .filter((tool): tool is (typeof TOOLS)[number] => tool != null)
+        .filter((tool) => !filterToolIds || filterToolIds.has(tool.id)),
+    [pinnedToolIds, filterToolIds]
   )
 
   if (pinnedTools.length === 0) return null

@@ -5,7 +5,12 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { SidebarItem } from './SidebarItem'
 
-export function SidebarRecent() {
+type SidebarRecentProps = {
+  /** When set (sidebar filter active), only tools in this set are shown. */
+  filterToolIds?: Set<string> | null
+}
+
+export function SidebarRecent({ filterToolIds = null }: SidebarRecentProps) {
   const recentToolIds = useUiStore((s) => s.recentToolIds)
   const activeTool = useUiStore((s) => s.activeTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
@@ -17,8 +22,9 @@ export function SidebarRecent() {
         .filter((id) => !pinnedToolIds.includes(id))
         .map((id) => TOOLS.find((t) => t.id === id))
         .filter((t): t is (typeof TOOLS)[number] => t != null)
+        .filter((t) => !filterToolIds || filterToolIds.has(t.id))
         .slice(0, 3),
-    [recentToolIds, activeTool, pinnedToolIds]
+    [recentToolIds, activeTool, pinnedToolIds, filterToolIds]
   )
 
   if (recentTools.length === 0) return null

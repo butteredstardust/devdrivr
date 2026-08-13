@@ -20,6 +20,7 @@ const APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true> = {
   alwaysOnTop: true,
   sidebarCollapsed: true,
   collapsedSidebarGroups: true,
+  openedSidebarGroups: true,
   pinnedToolIds: true,
   notesDrawerOpen: true,
   notesDrawerWidth: true,

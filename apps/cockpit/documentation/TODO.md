@@ -281,6 +281,9 @@ Acceptance criteria:
   body with consistent padding, a `max-w` for form-style tools, and a full-bleed opt-out for
   editor-style tools.
 - Tools migrate one group per PR, starting with CONVERT (9 tools, simplest markup).
+  - [x] CONVERT (9 tools) — done; `ToolLayout` itself is built and tested.
+  - [ ] CODE, DATA, WEB, and the remaining groups.
+  - Ratchet standing after CONVERT: raw `<button>` in `src/tools` 121, arbitrary Tailwind values 1551. Both only come down once the componentisation passes land with the later groups.
 - Ratchet target once the migration completes: raw `<button>` in `src/tools` under 30, arbitrary
   Tailwind values under 400.
 
