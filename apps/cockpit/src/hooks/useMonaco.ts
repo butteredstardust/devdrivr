@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
-import { getEffectiveTheme } from '@/lib/theme'
+import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { loader } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 
@@ -31,9 +31,6 @@ const MONACO_PACKAGE_THEMES: Record<string, { data: MonacoThemeData; monacoId: s
   'tomorrow-night': { data: tomorrowNightTheme as MonacoThemeData, monacoId: 'tomorrow-night' },
   'oceanic-next': { data: oceanicNextTheme as MonacoThemeData, monacoId: 'oceanic-next' },
 }
-
-// App themes (original 12) where Monaco should use a light (vs) base for cockpit-current
-const LIGHT_APP_THEMES = new Set<string>(['soft-focus', 'tokyo-night-light', 'catppuccin-latte'])
 
 // Static fallback themes — used when the user explicitly picks cockpit-dark or cockpit-light
 const DARK_THEME: MonacoThemeData = {
@@ -393,9 +390,13 @@ export function useMonacoSettings() {
       }
 
       if (resolvedTheme === 'cockpit-current') {
-        // Redefine from CSS vars on every app theme change
-        const isLight = LIGHT_APP_THEMES.has(effective)
-        monaco.editor.defineTheme('cockpit-current', buildCockpitTheme(isLight))
+        // Redefine from CSS vars on every app theme change. Only non-package-backed
+        // themes reach here, so isLightEffectiveTheme's package-backed light entries
+        // are unreachable — sharing the one list beats keeping a second in sync.
+        monaco.editor.defineTheme(
+          'cockpit-current',
+          buildCockpitTheme(isLightEffectiveTheme(effective))
+        )
       }
 
       monaco.editor.setTheme(resolvedTheme)

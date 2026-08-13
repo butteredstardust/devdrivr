@@ -301,16 +301,33 @@ Filtering collapses groups with no matches.
 Default to collapsing groups the user has never opened a tool from, and remember explicit
 collapse/expand choices across launches.
 
-### [ ] Tool icons in tabs
+### [x] Tool icons in tabs
 
 Every tool has an icon in `src/app/tool-registry.ts`, but `WorkspaceTabStrip` renders text only, so a
 six-tab strip has no shape to scan by. The strip's overflow scrolling and fade affordances already
 work and should not be disturbed.
 
-### [ ] Theme picker with swatches
+Done. The icon is decorative (`aria-hidden`), so tab accessible names are unchanged. Verified at
+eight open tabs: overflow still engages (1133px of tabs in a 950px strip) and both edge fades still
+flip with scroll position.
+
+### [x] Theme picker with swatches
 
 23 themes in a native `<select>` with no preview. Replace with a grid of preview chips (bg, surface,
 accent, text) grouped Dark / Light, live-previewing on hover and reverting if the user cancels.
+
+Done — `src/components/shell/ThemePicker.tsx`. Each swatch applies the theme's own class to a scoped
+wrapper, so its colours resolve from `tokens.css` rather than from a duplicated JS palette. The
+Dark/Light split derives from `isLightEffectiveTheme` in `src/lib/theme.ts`; `useMonaco.ts` no longer
+keeps its own light-theme list.
+
+`role="listbox"` with manual activation, not `radiogroup`: radio semantics imply selection follows
+focus, which is the opposite of preview-then-commit. Arrow keys move a roving tabindex and preview;
+`aria-selected` only moves on Enter/Space/click. Preview swaps the `<html>` class only — it never
+touches the `theme-cache` localStorage key that `index.html` reads at boot, so quitting mid-hover
+can't change the theme on next launch. Verified live: hovering previews and reverts on leave,
+ArrowDown from System previews Midnight without moving the selection, Enter commits and writes
+`theme-cache`, and closing the panel mid-hover reverts to the committed theme.
 
 ### [ ] Better empty states
 

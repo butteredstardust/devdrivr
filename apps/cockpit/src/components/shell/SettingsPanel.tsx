@@ -36,7 +36,8 @@ import {
 import { Dialog } from '@/components/shared/Dialog'
 import { Toggle } from '@/components/shared/Toggle'
 import { Select } from '@/components/shared/Select'
-import { ALL_THEMES, THEME_META } from '@/lib/theme'
+import { ThemePicker } from '@/components/shell/ThemePicker'
+import { ALL_THEMES } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -57,11 +58,6 @@ const FONT_FAMILY_OPTIONS: AppSettings['editorFont'][] = [
   'Fira Code',
   'Cascadia Code',
   'Source Code Pro',
-]
-
-const THEME_OPTIONS: { value: Theme; label: string }[] = [
-  { value: 'system', label: 'System' },
-  ...ALL_THEMES.map((id) => ({ value: id as Theme, label: THEME_META[id].fullLabel })),
 ]
 
 const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: string }[] = [
@@ -274,14 +270,15 @@ function GeneralTab() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h4 className="mb-1 text-xs text-[var(--color-text)]">Theme</h4>
+        <p className="mb-2 text-[10px] text-[var(--color-text-muted)]">
+          Appearance mode for the app — hover or focus a swatch to preview it
+        </p>
+        <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
+      </div>
+
       <div className="space-y-1">
-        <SettingRow label="Theme" hint="Appearance mode for the app">
-          <SelectInput
-            value={theme}
-            onChange={(v) => void update('theme', v as Theme).catch(() => {})}
-            options={THEME_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          />
-        </SettingRow>
         <SettingRow label="Always on Top" hint="Keep window above all others">
           <Toggle checked={alwaysOnTop} onChange={handleAlwaysOnTop} />
         </SettingRow>
