@@ -7,6 +7,8 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Alert } from '@/components/shared/Alert'
 import { Select } from '@/components/shared/Select'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import CsvTable from './CsvTable'
 import CsvConvert from './CsvConvert'
 import CsvAnalyze from './CsvAnalyze'
@@ -103,42 +105,46 @@ export default function CsvTools() {
   )
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Global toolbar */}
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <Select
-          value={state.delimiter}
-          onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
-        >
-          <option value="auto">Auto-detect</option>
-          <option value=",">Comma</option>
-          <option value="&#9;">Tab</option>
-          <option value="|">Pipe</option>
-          <option value=";">Semicolon</option>
-        </Select>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            <Select
+              value={state.delimiter}
+              onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
+            >
+              <option value="auto">Auto-detect</option>
+              <option value=",">Comma</option>
+              <option value="&#9;">Tab</option>
+              <option value="|">Pipe</option>
+              <option value=";">Semicolon</option>
+            </Select>
 
-        <label className="flex items-center gap-1">
-          <input
-            type="checkbox"
-            checked={state.hasHeader}
-            onChange={(e) => updateState({ hasHeader: e.target.checked })}
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={state.hasHeader}
+                onChange={(e) => updateState({ hasHeader: e.target.checked })}
+              />
+              <span className="text-xs">Header row</span>
+            </label>
+
+            {stats && (
+              <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                {stats.cols} cols · {stats.rows} rows · {stats.size}
+              </span>
+            )}
+          </div>
+
+          <TabBar
+            tabs={TABS}
+            activeTab={state.activeTab}
+            onTabChange={(id) => updateState({ activeTab: id as CsvToolsState['activeTab'] })}
           />
-          <span className="text-xs">Header row</span>
-        </label>
-
-        {stats && (
-          <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
-            {stats.cols} cols · {stats.rows} rows · {stats.size}
-          </span>
-        )}
-      </div>
-
-      <TabBar
-        tabs={TABS}
-        activeTab={state.activeTab}
-        onTabChange={(id) => updateState({ activeTab: id as CsvToolsState['activeTab'] })}
-      />
-
+        </>
+      }
+    >
       {/* Error display */}
       {parseError && (
         <Alert
@@ -150,11 +156,7 @@ export default function CsvTools() {
       )}
 
       {/* Empty state */}
-      {!state.input.trim() && (
-        <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-          Paste CSV or open a file
-        </div>
-      )}
+      {!state.input.trim() && <EmptyState title="Paste CSV or open a file" className="flex-1" />}
 
       {/* Tab content */}
       <div className="flex flex-1 overflow-hidden">
@@ -196,6 +198,6 @@ export default function CsvTools() {
           </div>
         )}
       </div>
-    </div>
+    </ToolLayout>
   )
 }
