@@ -9,6 +9,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -691,106 +692,120 @@ export default function ApiClient() {
         }}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Header Row for Env / Save */}
-        <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <button
-              onClick={handleNewRequest}
-              title="New Request"
-              className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
-            >
-              + New
-            </button>
-            <span className="truncate font-bold text-sm text-[var(--color-text)]">{name}</span>
-          </div>
+      <ToolLayout
+        fullBleed
+        toolbar={
+          <>
+            {/* Top Header Row for Env / Save */}
+            <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={handleNewRequest}
+                  title="New Request"
+                  className="shrink-0 text-[var(--color-accent)]"
+                >
+                  + New
+                </Button>
+                <span className="truncate font-bold text-sm text-[var(--color-text)]">{name}</span>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
-            <Select
-              value={activeEnvironmentId || ''}
-              onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
-            >
-              <option value="">No Environment</option>
-              {environments.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </Select>
-            <button
-              onClick={() => setShowEnvModal(true)}
-              className="text-xs text-[var(--color-accent)] hover:underline"
-            >
-              Edit
-            </button>
-          </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
+                <Select
+                  value={activeEnvironmentId || ''}
+                  onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
+                >
+                  <option value="">No Environment</option>
+                  {environments.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setShowEnvModal(true)}
+                  className="hover:underline hover:bg-transparent"
+                >
+                  Edit
+                </Button>
+              </div>
 
-          <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-            <Button variant="secondary" size="sm" onClick={handleSave}>
-              Save
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleSaveAs}>
-              Save As
-            </Button>
-          </div>
+              <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+                <Button variant="secondary" size="sm" onClick={handleSave}>
+                  Save
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleSaveAs}>
+                  Save As
+                </Button>
+              </div>
 
-          <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowImportModal(true)}
-              title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
-            >
-              Import...
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleExport()}
-              title="Export all requests to clipboard (JSON)"
-            >
-              Export
-            </Button>
-          </div>
-        </div>
+              <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowImportModal(true)}
+                  title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
+                >
+                  Import...
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void handleExport()}
+                  title="Export all requests to clipboard (JSON)"
+                >
+                  Export
+                </Button>
+              </div>
+            </div>
 
-        {/* URL bar */}
-        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-          <Select
-            value={method}
-            onChange={(e) => handleMethodChange(e.target.value)}
-            className="border-[var(--color-accent)] font-mono text-[var(--color-accent)]"
-          >
-            {METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
-          <Input
-            value={url}
-            onChange={(e) => updateDraft({ url: e.target.value })}
-            placeholder="{{baseUrl}}/endpoint"
-            size="md"
-            className="flex-1"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSend()
-            }}
-          />
-          <Button variant="primary" size="sm" onClick={() => void handleSend()} disabled={loading}>
-            {loading ? 'Sending…' : 'Send'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleResponsePane}
-            aria-pressed={responseVisible}
-          >
-            {responseVisible ? 'Hide Response' : 'Show Response'}
-          </Button>
-        </div>
-
+            {/* URL bar */}
+            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+              <Select
+                value={method}
+                onChange={(e) => handleMethodChange(e.target.value)}
+                className="border-[var(--color-accent)] font-mono text-[var(--color-accent)]"
+              >
+                {METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value={url}
+                onChange={(e) => updateDraft({ url: e.target.value })}
+                placeholder="{{baseUrl}}/endpoint"
+                size="md"
+                className="flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSend()
+                }}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleSend()}
+                disabled={loading}
+              >
+                {loading ? 'Sending…' : 'Send'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleResponsePane}
+                aria-pressed={responseVisible}
+              >
+                {responseVisible ? 'Hide Response' : 'Show Response'}
+              </Button>
+            </div>
+          </>
+        }
+      >
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* ── Request panel ─────────────────────────────────── */}
           <div
@@ -810,12 +825,14 @@ export default function ApiClient() {
                       <span className="ml-1 text-[var(--color-text)]">({params.length})</span>
                     )}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={addParam}
-                    className="text-xs text-[var(--color-accent)] hover:underline"
+                    className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
                   >
                     + Add
-                  </button>
+                  </Button>
                 </div>
                 {params.length > 0 ? (
                   <div className="flex flex-col gap-1">
@@ -833,13 +850,15 @@ export default function ApiClient() {
                           placeholder="Value"
                           className="flex-1"
                         />
-                        <button
+                        <Button
+                          variant="icon"
+                          size="xs"
                           onClick={() => removeParam(i)}
                           aria-label="Remove query parameter"
-                          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                          className="hover:text-[var(--color-error)]"
                         >
                           <XIcon size={14} aria-hidden />
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -861,12 +880,14 @@ export default function ApiClient() {
                       <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
                     )}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={addHeader}
-                    className="text-xs text-[var(--color-accent)] hover:underline"
+                    className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
                   >
                     + Add
-                  </button>
+                  </Button>
                 </div>
                 <div className="flex flex-col gap-1">
                   {headers.map((h, i) => (
@@ -889,13 +910,15 @@ export default function ApiClient() {
                         placeholder="Value (or {{env_var}})"
                         className="flex-1"
                       />
-                      <button
+                      <Button
+                        variant="icon"
+                        size="xs"
                         onClick={() => removeHeader(i)}
                         aria-label="Remove header"
-                        className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+                        className="hover:text-[var(--color-error)]"
                       >
                         <XIcon size={14} aria-hidden />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -912,17 +935,19 @@ export default function ApiClient() {
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
                   {BODY_MODES.map((mode) => (
-                    <button
+                    <Button
                       key={mode.id}
+                      variant="ghost"
+                      size="xs"
                       onClick={() => updateDraft({ bodyMode: mode.id })}
-                      className={`text-xs ${
+                      className={
                         bodyMode === mode.id
-                          ? 'font-bold text-[var(--color-accent)]'
-                          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                      }`}
+                          ? 'font-bold text-[var(--color-accent)] hover:bg-transparent'
+                          : 'hover:bg-transparent'
+                      }
                     >
                       {mode.label}
-                    </button>
+                    </Button>
                   ))}
                   {!BODY_METHODS.has(method) && (
                     <span className="ml-2 text-[10px] text-[var(--color-text-muted)]">
@@ -1018,7 +1043,7 @@ export default function ApiClient() {
             )}
           </div>
         </div>
-      </div>
+      </ToolLayout>
 
       {showEnvModal && <EnvironmentModal onClose={() => setShowEnvModal(false)} />}
       {showSaveModal && (

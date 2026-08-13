@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 type DocsBrowserProps = {
   defaultLoadError?: boolean
@@ -32,50 +34,48 @@ export default function DocsBrowser({
   }, [])
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <span className="font-mono text-xs text-[var(--color-text-muted)]">DevDocs.io</span>
-        <a
-          href="https://devdocs.io"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-[var(--color-accent)] hover:underline"
-          onClick={() => setLastAction('Opened in browser', 'info')}
-        >
-          Open externally
-        </a>
-      </div>
-      {(loading || loadError || showSlowFallback) && (
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs text-[var(--color-text-muted)]">
-          {loadError ? (
-            <div className="flex items-center justify-between gap-3">
-              <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
-              <button
-                type="button"
-                onClick={handleRetry}
-                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
-              >
-                Retry
-              </button>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">DevDocs.io</span>
+            <a
+              href="https://devdocs.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--color-accent)] hover:underline"
+              onClick={() => setLastAction('Opened in browser', 'info')}
+            >
+              Open externally
+            </a>
+          </div>
+          {(loading || loadError || showSlowFallback) && (
+            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs text-[var(--color-text-muted)]">
+              {loadError ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
+                  <Button variant="secondary" size="sm" onClick={handleRetry}>
+                    Retry
+                  </Button>
+                </div>
+              ) : showSlowFallback ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span>
+                    DevDocs is taking longer than usual to load. You can keep waiting or retry.
+                  </span>
+                  <Button variant="secondary" size="sm" onClick={handleRetry}>
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <span>Loading DevDocs…</span>
+              )}
             </div>
-          ) : showSlowFallback ? (
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                DevDocs is taking longer than usual to load. You can keep waiting or retry.
-              </span>
-              <button
-                type="button"
-                onClick={handleRetry}
-                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
-              >
-                Retry
-              </button>
-            </div>
-          ) : (
-            <span>Loading DevDocs…</span>
           )}
-        </div>
-      )}
+        </>
+      }
+    >
       <iframe
         key={frameKey}
         src={frameSrc}
@@ -93,6 +93,6 @@ export default function DocsBrowser({
           setShowSlowFallback(false)
         }}
       />
-    </div>
+    </ToolLayout>
   )
 }
