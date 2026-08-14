@@ -1,28 +1,64 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiRequest } from '@/types/models'
-import { DotsThreeVerticalIcon } from '@phosphor-icons/react'
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  ClockCounterClockwiseIcon,
+  DotsThreeVerticalIcon,
+  DownloadSimpleIcon,
+  FolderPlusIcon,
+  MagnifyingGlassIcon,
+  PencilSimpleIcon,
+  TrayIcon,
+  UploadSimpleIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Input } from '@/components/shared/Input'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ConfirmDialog } from './ConfirmDialog'
 
 type Props = {
   activeRequestId: string | null
   onSelect: (req: ApiRequest) => void
   onLoadFromHistory?: (method: string, url: string) => void
+  onImport?: () => void
+  onExport?: () => void
 }
 
-type ContextMenu = {
+/** `root` lists the actions; `move` swaps the same popup over to collection targets. */
+type MenuState = {
   reqId: string
   x: number
   y: number
+  view: 'root' | 'move'
 }
 
-type MoveMenu = {
-  reqId: string
-  x: number
-  y: number
+const MENU_WIDTH = 190
+const MENU_MAX_HEIGHT = 260
+
+function clampToViewport(x: number, y: number): { x: number; y: number } {
+  const maxX = Math.max(8, window.innerWidth - MENU_WIDTH - 8)
+  const maxY = Math.max(8, window.innerHeight - MENU_MAX_HEIGHT - 8)
+  return { x: Math.min(x, maxX), y: Math.min(y, maxY) }
 }
 
-export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistory }: Props) {
+function matchesQuery(request: ApiRequest, needle: string): boolean {
+  return (
+    request.name.toLowerCase().includes(needle) ||
+    request.url.toLowerCase().includes(needle) ||
+    request.method.toLowerCase().includes(needle)
+  )
+}
+
+export function CollectionsSidebar({
+  activeRequestId,
+  onSelect,
+  onLoadFromHistory,
+  onImport,
+  onExport,
+}: Props) {
   const collections = useApiStore((s) => s.collections)
   const requests = useApiStore((s) => s.requests)
   const requestHistory = useApiStore((s) => s.requestHistory)
@@ -33,7 +69,8 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
   const updateRequest = useApiStore((s) => s.updateRequest)
   const deleteRequest = useApiStore((s) => s.deleteRequest)
 
-  const [expandedCols, setExpandedCols] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [collapsedCols, setCollapsedCols] = useState<Set<string>>(new Set())
   const [expandedHistory, setExpandedHistory] = useState(false)
 
   // Inline collection rename state
@@ -41,30 +78,76 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
   const [editingColName, setEditingColName] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
 
-  // Request context menu
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
-  const [moveMenu, setMoveMenu] = useState<MoveMenu | null>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
+  const [menu, setMenu] = useState<MenuState | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuTriggerRef = useRef<HTMLElement | null>(null)
+
+  const [pendingRequestDelete, setPendingRequestDelete] = useState<ApiRequest | null>(null)
+  const [pendingCollectionDelete, setPendingCollectionDelete] = useState<ApiCollection | null>(null)
+
+  const needle = search.trim().toLowerCase()
+
+  const grouped = useMemo(() => {
+    return collections
+      .map((col) => {
+        const all = requests.filter((r) => r.collectionId === col.id)
+        const matched = needle ? all.filter((r) => matchesQuery(r, needle)) : all
+        const collectionMatches = needle ? col.name.toLowerCase().includes(needle) : true
+        return {
+          col,
+          reqs: collectionMatches && matched.length === 0 ? all : matched,
+          total: all.length,
+        }
+      })
+      .filter(
+        ({ col, reqs }) => !needle || reqs.length > 0 || col.name.toLowerCase().includes(needle)
+      )
+  }, [collections, requests, needle])
+
+  const unassigned = useMemo(() => {
+    const all = requests.filter((r) => !r.collectionId)
+    return needle ? all.filter((r) => matchesQuery(r, needle)) : all
+  }, [requests, needle])
+
+  // Flattened list of the request rows the user can actually see, in visual
+  // order — the roving arrow-key navigation walks this, not the raw store list.
+  const visibleRequestIds = useMemo(() => {
+    const ids: string[] = []
+    for (const { col, reqs } of grouped) {
+      if (needle || !collapsedCols.has(col.id)) ids.push(...reqs.map((r) => r.id))
+    }
+    ids.push(...unassigned.map((r) => r.id))
+    return ids
+  }, [grouped, unassigned, collapsedCols, needle])
 
   useEffect(() => {
     if (editingColId) renameInputRef.current?.focus()
   }, [editingColId])
 
-  // Close context menu on outside click
+  // Close the menu on an outside press
   useEffect(() => {
-    if (!contextMenu && !moveMenu) return
+    if (!menu) return
     const handler = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setContextMenu(null)
-        setMoveMenu(null)
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [contextMenu, moveMenu])
+  }, [menu])
+
+  // Move focus into the menu when it opens so it is operable from the keyboard.
+  useEffect(() => {
+    if (!menu) return
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
+    first?.focus()
+  }, [menu])
+
+  const closeMenu = useCallback((restoreFocus = true) => {
+    setMenu(null)
+    if (restoreFocus && menuTriggerRef.current?.isConnected) menuTriggerRef.current.focus()
+  }, [])
 
   const toggleCol = (id: string) => {
-    setExpandedCols((prev) => {
+    setCollapsedCols((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -74,14 +157,17 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
 
   const handleCreateCollection = async () => {
     const col = await createCollection('New Collection')
-    setExpandedCols((prev) => new Set(prev).add(col.id))
+    setCollapsedCols((prev) => {
+      const next = new Set(prev)
+      next.delete(col.id)
+      return next
+    })
     // Immediately enter rename mode for the new collection
     setEditingColId(col.id)
     setEditingColName(col.name)
   }
 
-  const startRename = (col: ApiCollection, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const startRename = (col: ApiCollection) => {
     setEditingColId(col.id)
     setEditingColName(col.name)
   }
@@ -94,17 +180,13 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
     setEditingColId(null)
   }
 
-  const cancelRename = () => setEditingColId(null)
-
-  const openContextMenu = (e: React.MouseEvent, reqId: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setMoveMenu(null)
-    setContextMenu({ reqId, x: e.clientX, y: e.clientY })
+  const openMenu = (trigger: HTMLElement, reqId: string, x: number, y: number) => {
+    menuTriggerRef.current = trigger
+    setMenu({ reqId, view: 'root', ...clampToViewport(x, y) })
   }
 
   const handleDuplicate = async (reqId: string) => {
-    setContextMenu(null)
+    closeMenu()
     const req = requests.find((r) => r.id === reqId)
     if (!req) return
     await createRequest({
@@ -119,180 +201,286 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
     })
   }
 
-  const handleMoveToCollection = (reqId: string) => {
-    if (!contextMenu) return
-    setMoveMenu({ reqId, x: contextMenu.x + 140, y: contextMenu.y })
-    setContextMenu(null)
-  }
-
   const handleAssignCollection = async (reqId: string, collectionId: string | null) => {
-    setMoveMenu(null)
+    closeMenu()
     const req = requests.find((r) => r.id === reqId)
     if (!req) return
     await updateRequest({ ...req, collectionId })
   }
 
-  const handleDeleteRequest = async (reqId: string) => {
-    setContextMenu(null)
-    const req = requests.find((r) => r.id === reqId)
-    if (req && confirm(`Delete "${req.name}"?`)) {
-      await deleteRequest(reqId)
+  const handleMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeMenu()
+      return
+    }
+    if (e.key === 'Tab') {
+      closeMenu()
+      return
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+
+    e.preventDefault()
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
+    )
+    if (items.length === 0) return
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    const next = e.key === 'ArrowDown' ? index + 1 : index - 1
+    items[(next + items.length) % items.length]?.focus()
+  }
+
+  const handleRowKeyDown = (e: KeyboardEvent<HTMLElement>, reqId: string) => {
+    const index = visibleRequestIds.indexOf(reqId)
+    if (index < 0) return
+    let nextIndex: number | null = null
+    if (e.key === 'ArrowDown') nextIndex = Math.min(visibleRequestIds.length - 1, index + 1)
+    if (e.key === 'ArrowUp') nextIndex = Math.max(0, index - 1)
+    if (e.key === 'Home') nextIndex = 0
+    if (e.key === 'End') nextIndex = visibleRequestIds.length - 1
+
+    if (nextIndex !== null) {
+      if (nextIndex === index) return
+      e.preventDefault()
+      document.getElementById(`api-request-${visibleRequestIds[nextIndex]}`)?.focus()
+      return
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      const req = requests.find((r) => r.id === reqId)
+      if (!req) return
+      e.preventDefault()
+      setPendingRequestDelete(req)
     }
   }
 
-  const grouped = collections.map((col) => ({
-    ...col,
-    reqs: requests.filter((r) => r.collectionId === col.id),
-  }))
-
-  const unassigned = requests.filter((r) => !r.collectionId)
+  const menuRequest = menu ? requests.find((r) => r.id === menu.reqId) : undefined
+  const totalMatches = grouped.reduce((sum, g) => sum + g.reqs.length, 0) + unassigned.length
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] p-3">
-        <span className="font-mono text-xs text-[var(--color-text-muted)]">Collections</span>
+    <aside
+      className="flex h-full min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]"
+      aria-label="Request library"
+    >
+      <header className="flex min-h-14 items-center gap-2 border-b border-[var(--color-border)] px-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-ui text-sm font-semibold text-[var(--color-text)]">Requests</h2>
+          <p className="text-2xs text-[var(--color-text-muted)]">
+            {requests.length} saved · {collections.length} collections
+          </p>
+        </div>
         <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => {
-            void handleCreateCollection()
-          }}
-          className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
-          title="New Collection"
+          type="button"
+          variant="icon"
+          size="sm"
+          onClick={() => void handleCreateCollection()}
+          title="New collection"
+          aria-label="New collection"
         >
-          + Add
+          <FolderPlusIcon size={15} aria-hidden="true" />
         </Button>
+      </header>
+
+      <div className="border-b border-[var(--color-border)] p-2">
+        <div className="relative">
+          <MagnifyingGlassIcon
+            size={13}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+          />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search requests"
+            aria-label="Search saved requests"
+            className="w-full pl-8 pr-7"
+          />
+          {search && (
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => setSearch('')}
+              aria-label="Clear request search"
+              className="absolute right-1 top-1/2 -translate-y-1/2"
+            >
+              <XIcon size={11} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        {needle && (
+          <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+            {totalMatches} matching {totalMatches === 1 ? 'request' : 'requests'}
+          </p>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        {/* Collections */}
-        {grouped.map((col) => {
-          const isExpanded = expandedCols.has(col.id)
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {grouped.map(({ col, reqs, total }) => {
+          const isExpanded = !!needle || !collapsedCols.has(col.id)
           const isRenaming = editingColId === col.id
           return (
             <div key={col.id} className="mb-2">
-              <div className="group flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-[var(--color-surface-hover)]">
-                <div
-                  className="flex flex-1 items-center gap-2 overflow-hidden"
-                  onClick={() => !isRenaming && toggleCol(col.id)}
-                >
-                  <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                    {isExpanded ? '▼' : '▶'}
-                  </span>
-                  {isRenaming ? (
-                    <input
-                      ref={renameInputRef}
-                      value={editingColName}
-                      onChange={(e) => setEditingColName(e.target.value)}
-                      onBlur={() => void commitRename(col)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitRename(col)
-                        if (e.key === 'Escape') cancelRename()
-                      }}
-                      className="min-w-0 flex-1 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-1 py-0 text-sm font-bold text-[var(--color-text)] outline-none"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span
-                      className="truncate text-sm font-bold text-[var(--color-text)]"
-                      onDoubleClick={(e) => startRename(col, e)}
-                      title="Double-click to rename"
-                    >
-                      {col.name}
-                    </span>
-                  )}
-                </div>
-                {!isRenaming && (
-                  <div className="hidden items-center gap-1 group-hover:flex">
+              <div className="group flex items-center gap-1 rounded px-1 hover:bg-[var(--color-surface-hover)]">
+                {isRenaming ? (
+                  <input
+                    ref={renameInputRef}
+                    value={editingColName}
+                    onChange={(e) => setEditingColName(e.target.value)}
+                    onBlur={() => void commitRename(col)}
+                    aria-label={`Rename collection ${col.name}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void commitRename(col)
+                      if (e.key === 'Escape') setEditingColId(null)
+                    }}
+                    className="my-1 min-w-0 flex-1 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-1 py-0.5 text-xs font-bold text-[var(--color-text)] outline-none"
+                  />
+                ) : (
+                  <>
                     <Button
-                      variant="icon"
-                      size="xs"
-                      onClick={(e) => startRename(col, e)}
-                      className="p-0 text-2xs hover:text-[var(--color-accent)] hover:bg-transparent"
-                      title="Rename"
-                    >
-                      ✎
-                    </Button>
-                    <Button
+                      type="button"
                       variant="ghost"
                       size="xs"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm(`Delete collection "${col.name}"?`)) {
-                          void deleteCollection(col.id)
-                        }
-                      }}
-                      className="p-0 text-2xs text-[var(--color-error)] hover:underline hover:bg-transparent"
+                      onClick={() => toggleCol(col.id)}
+                      aria-expanded={isExpanded}
+                      className="min-w-0 flex-1 justify-start gap-1.5 py-1.5 text-left"
                     >
-                      Del
+                      {isExpanded ? (
+                        <CaretDownIcon size={11} weight="bold" aria-hidden="true" />
+                      ) : (
+                        <CaretRightIcon size={11} weight="bold" aria-hidden="true" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-[var(--color-text)]">
+                        {col.name}
+                      </span>
+                      <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+                        {total}
+                      </span>
                     </Button>
-                  </div>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="xs"
+                      onClick={() => startRename(col)}
+                      title={`Rename ${col.name}`}
+                      aria-label={`Rename collection ${col.name}`}
+                      className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <PencilSimpleIcon size={12} aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="xs"
+                      onClick={() => setPendingCollectionDelete(col)}
+                      title={`Delete ${col.name}`}
+                      aria-label={`Delete collection ${col.name}`}
+                      className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <XIcon size={12} aria-hidden="true" />
+                    </Button>
+                  </>
                 )}
               </div>
 
-              {isExpanded && col.reqs.length > 0 && (
-                <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-[var(--color-border)] pl-1">
-                  {col.reqs.map((req) => (
+              {isExpanded && (
+                <div className="ml-3 mt-1 flex flex-col gap-0.5 border-l border-[var(--color-border)] pl-1">
+                  {reqs.map((req) => (
                     <RequestRow
                       key={req.id}
                       req={req}
                       isActive={req.id === activeRequestId}
+                      tabIndex={
+                        visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1
+                      }
                       onSelect={() => onSelect(req)}
-                      onContextMenu={(e) => openContextMenu(e, req.id)}
+                      onOpenMenu={openMenu}
+                      onKeyDown={handleRowKeyDown}
                     />
                   ))}
-                </div>
-              )}
-              {isExpanded && col.reqs.length === 0 && (
-                <div className="ml-5 mt-1 text-2xs text-[var(--color-text-muted)] italic">
-                  Empty collection
+                  {reqs.length === 0 && (
+                    <p className="px-2 py-1 text-2xs italic text-[var(--color-text-muted)]">
+                      Empty collection
+                    </p>
+                  )}
                 </div>
               )}
             </div>
           )
         })}
 
-        {/* Unassigned */}
         {unassigned.length > 0 && (
-          <div className="mt-4">
-            <div className="mb-1 px-2 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <div className="mt-3">
+            <h3 className="mb-1 px-2 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               Unassigned
-            </div>
+            </h3>
             <div className="flex flex-col gap-0.5">
               {unassigned.map((req) => (
                 <RequestRow
                   key={req.id}
                   req={req}
                   isActive={req.id === activeRequestId}
+                  tabIndex={visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1}
                   onSelect={() => onSelect(req)}
-                  onContextMenu={(e) => openContextMenu(e, req.id)}
+                  onOpenMenu={openMenu}
+                  onKeyDown={handleRowKeyDown}
                 />
               ))}
             </div>
           </div>
         )}
 
-        {/* History section */}
+        {requests.length === 0 && (
+          <EmptyState
+            icon={TrayIcon}
+            size="sm"
+            title="No saved requests"
+            description="Send a request, then Save it to build up a collection."
+          />
+        )}
+
+        {requests.length > 0 && totalMatches === 0 && (
+          <EmptyState
+            icon={MagnifyingGlassIcon}
+            size="sm"
+            title="No matches"
+            description="Try a different search term."
+            action={
+              <Button type="button" variant="secondary" size="sm" onClick={() => setSearch('')}>
+                Clear search
+              </Button>
+            }
+          />
+        )}
+
         {requestHistory.length > 0 && (
-          <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+          <div className="mt-4 border-t border-[var(--color-border)] pt-2">
             <Button
+              type="button"
               variant="ghost"
               size="xs"
-              className="mb-1 w-full justify-start gap-1 px-2 text-2xs font-bold uppercase tracking-wider hover:bg-transparent"
+              aria-expanded={expandedHistory}
+              className="w-full justify-start gap-1.5 px-2 text-2xs font-bold uppercase tracking-wider"
               onClick={() => setExpandedHistory((v) => !v)}
             >
-              <span>{expandedHistory ? '▼' : '▶'}</span>
+              {expandedHistory ? (
+                <CaretDownIcon size={10} weight="bold" aria-hidden="true" />
+              ) : (
+                <CaretRightIcon size={10} weight="bold" aria-hidden="true" />
+              )}
+              <ClockCounterClockwiseIcon size={11} aria-hidden="true" />
               <span>History</span>
               <span className="ml-auto normal-case">{requestHistory.length}</span>
             </Button>
             {expandedHistory && (
-              <div className="flex flex-col gap-0.5">
+              <div className="mt-1 flex flex-col gap-0.5">
                 {requestHistory.map((entry) => {
                   const [method, ...urlParts] = entry.input.split(' ')
                   const histUrl = urlParts.join(' ')
                   return (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="xs"
                       key={entry.id}
@@ -302,11 +490,13 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
                     >
                       <span
-                        className={`shrink-0 text-[8px] font-bold ${getMethodColor(method ?? 'GET')}`}
+                        className={`shrink-0 text-[9px] font-bold ${getMethodColor(method ?? 'GET')}`}
                       >
                         {method}
                       </span>
-                      <span className="flex-1 truncate text-[var(--color-text)]">{histUrl}</span>
+                      <span className="min-w-0 flex-1 truncate text-[var(--color-text)]">
+                        {histUrl}
+                      </span>
                       <span className="shrink-0 text-[var(--color-text-muted)]">
                         {entry.output.split('·')[1]?.trim() ?? ''}
                       </span>
@@ -319,138 +509,228 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
         )}
       </div>
 
-      {/* Context menu */}
-      {(contextMenu || moveMenu) && (
-        <div ref={contextMenuRef}>
-          {contextMenu && (
-            <div
-              style={{
-                position: 'fixed',
-                top: contextMenu.y,
-                left: contextMenu.x,
-                zIndex: 'var(--z-popover)',
-              }}
-              className="min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
-                onClick={() => handleMoveToCollection(contextMenu.reqId)}
-              >
-                Move to Collection
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
-                onClick={() => {
-                  void handleDuplicate(contextMenu.reqId)
-                }}
-              >
-                Duplicate
-              </Button>
+      <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] px-2 py-1.5">
+        <span className="text-2xs text-[var(--color-text-muted)]">Library</span>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
+            onClick={onImport}
+            title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
+            aria-label="Import requests"
+          >
+            <UploadSimpleIcon size={13} aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
+            onClick={onExport}
+            title="Copy all saved requests to the clipboard as JSON"
+            aria-label="Export requests"
+            disabled={requests.length === 0}
+          >
+            <DownloadSimpleIcon size={13} aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
+      {menu && menuRequest && (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={`Actions for ${menuRequest.name}`}
+          onKeyDown={handleMenuKeyDown}
+          style={{
+            position: 'fixed',
+            top: menu.y,
+            left: menu.x,
+            width: MENU_WIDTH,
+            maxHeight: MENU_MAX_HEIGHT,
+            zIndex: 'var(--z-popover)',
+          }}
+          className="overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+        >
+          {menu.view === 'root' ? (
+            <>
+              <MenuItem onClick={() => setMenu({ ...menu, view: 'move' })}>
+                Move to collection…
+              </MenuItem>
+              <MenuItem onClick={() => void handleDuplicate(menu.reqId)}>Duplicate</MenuItem>
               <div className="my-1 border-t border-[var(--color-border)]" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-left text-[var(--color-error)] hover:bg-[var(--color-surface-hover)]"
+              <MenuItem
+                tone="danger"
                 onClick={() => {
-                  void handleDeleteRequest(contextMenu.reqId)
+                  // closeMenu (not setMenu(null)) so focus returns to the row's
+                  // trigger — that is what the confirm dialog restores to on cancel.
+                  closeMenu()
+                  setPendingRequestDelete(menuRequest)
                 }}
               >
-                Delete
-              </Button>
-            </div>
-          )}
-          {moveMenu && (
-            <div
-              style={{
-                position: 'fixed',
-                top: moveMenu.y,
-                left: moveMenu.x,
-                zIndex: 'calc(var(--z-popover) + 1)',
-              }}
-              className="min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
-                onClick={() => {
-                  void handleAssignCollection(moveMenu.reqId, null)
-                }}
-              >
+                Delete…
+              </MenuItem>
+            </>
+          ) : (
+            <>
+              <MenuItem onClick={() => void handleAssignCollection(menu.reqId, null)}>
                 (Unassigned)
-              </Button>
+              </MenuItem>
               {collections.map((col) => (
-                <Button
+                <MenuItem
                   key={col.id}
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-left text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-                  onClick={() => {
-                    void handleAssignCollection(moveMenu.reqId, col.id)
-                  }}
+                  onClick={() => void handleAssignCollection(menu.reqId, col.id)}
                 >
                   {col.name}
-                </Button>
+                </MenuItem>
               ))}
-            </div>
+              {collections.length === 0 && (
+                <p className="px-3 py-2 text-2xs text-[var(--color-text-muted)]">
+                  No collections yet.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
-    </div>
+
+      {pendingRequestDelete && (
+        <ConfirmDialog
+          title="Delete request"
+          confirmLabel="Delete request"
+          onClose={() => setPendingRequestDelete(null)}
+          onConfirm={() => {
+            const id = pendingRequestDelete.id
+            setPendingRequestDelete(null)
+            void deleteRequest(id)
+          }}
+        >
+          <p>
+            Delete <strong>{pendingRequestDelete.name}</strong>? This cannot be undone.
+          </p>
+        </ConfirmDialog>
+      )}
+
+      {pendingCollectionDelete && (
+        <ConfirmDialog
+          title="Delete collection"
+          confirmLabel="Delete collection"
+          onClose={() => setPendingCollectionDelete(null)}
+          onConfirm={() => {
+            const id = pendingCollectionDelete.id
+            setPendingCollectionDelete(null)
+            void deleteCollection(id)
+          }}
+        >
+          <p>
+            Delete <strong>{pendingCollectionDelete.name}</strong>?
+          </p>
+          {(() => {
+            const count = requests.filter(
+              (r) => r.collectionId === pendingCollectionDelete.id
+            ).length
+            return (
+              <p className="mt-2 text-[var(--color-warning)]">
+                {count === 0
+                  ? 'The collection is empty.'
+                  : `${count} saved ${count === 1 ? 'request' : 'requests'} inside it will also be deleted.`}
+              </p>
+            )
+          })()}
+        </ConfirmDialog>
+      )}
+    </aside>
+  )
+}
+
+type MenuItemProps = {
+  children: React.ReactNode
+  onClick: () => void
+  tone?: 'danger' | 'default'
+}
+
+function MenuItem({ children, onClick, tone = 'default' }: MenuItemProps) {
+  return (
+    <Button
+      type="button"
+      role="menuitem"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      className={`w-full justify-start rounded-none px-3 text-left ${
+        tone === 'danger' ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]'
+      }`}
+    >
+      <span className="min-w-0 truncate">{children}</span>
+    </Button>
   )
 }
 
 type RequestRowProps = {
   req: ApiRequest
   isActive: boolean
+  tabIndex: number
   onSelect: () => void
-  onContextMenu: (e: React.MouseEvent) => void
+  onOpenMenu: (trigger: HTMLElement, reqId: string, x: number, y: number) => void
+  onKeyDown: (e: KeyboardEvent<HTMLElement>, reqId: string) => void
 }
 
-function RequestRow({ req, isActive, onSelect, onContextMenu }: RequestRowProps) {
+function RequestRow({ req, isActive, tabIndex, onSelect, onOpenMenu, onKeyDown }: RequestRowProps) {
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+
   return (
     <div
-      className={`group flex cursor-pointer items-center justify-between rounded text-xs ${
+      className={`group flex items-center rounded text-xs ${
         isActive
           ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
           : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
       }`}
-      onContextMenu={onContextMenu}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onOpenMenu(menuButtonRef.current ?? e.currentTarget, req.id, e.clientX, e.clientY)
+      }}
     >
       <Button
+        id={`api-request-${req.id}`}
+        type="button"
         variant="ghost"
         size="sm"
-        className="min-w-0 flex-1 justify-between text-left hover:bg-transparent"
+        tabIndex={tabIndex}
+        className="min-w-0 flex-1 justify-between gap-2 text-left hover:bg-transparent"
         onClick={onSelect}
+        onKeyDown={(e) => onKeyDown(e, req.id)}
         aria-label={req.name}
         aria-current={isActive ? 'true' : undefined}
+        title={`${req.method} ${req.url}`}
       >
-        <span className="flex-1 truncate">{req.name}</span>
-        <span className={`ml-2 shrink-0 text-[8px] font-bold ${getMethodColor(req.method)}`}>
+        <span className="min-w-0 flex-1 truncate">{req.name}</span>
+        <span className={`shrink-0 text-[9px] font-bold ${getMethodColor(req.method)}`}>
           {req.method}
         </span>
       </Button>
       <Button
+        ref={menuButtonRef}
+        type="button"
         variant="icon"
         size="xs"
+        tabIndex={tabIndex}
         onClick={(e) => {
-          e.stopPropagation()
-          onContextMenu(e)
+          const rect = e.currentTarget.getBoundingClientRect()
+          onOpenMenu(e.currentTarget, req.id, rect.left, rect.bottom + 2)
         }}
-        className="ml-1 hidden shrink-0 p-0.5 focus-visible:block group-hover:block group-focus-within:block"
-        title="Options"
+        onKeyDown={(e) => onKeyDown(e, req.id)}
+        className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+        title={`Actions for ${req.name}`}
+        aria-label={`Actions for ${req.name}`}
+        aria-haspopup="menu"
       >
-        <DotsThreeVerticalIcon size={14} weight="bold" />
+        <DotsThreeVerticalIcon size={14} weight="bold" aria-hidden="true" />
       </Button>
     </div>
   )
 }
 
-function getMethodColor(method: string) {
+export function getMethodColor(method: string) {
   switch (method) {
     case 'GET':
       return 'text-[var(--color-success)]'

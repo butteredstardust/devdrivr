@@ -1,4 +1,10 @@
+import { useId, useState } from 'react'
 import { Select } from '@/components/shared/Select'
+import { Field } from '@/components/shared/Field'
+import { Input } from '@/components/shared/Input'
+import { Button } from '@/components/shared/Button'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { EyeIcon, EyeSlashIcon, LockKeyOpenIcon } from '@phosphor-icons/react'
 import type { ApiRequestAuth } from '@/types/models'
 
 type Props = {
@@ -12,21 +18,48 @@ const AUTH_TYPES = [
   { id: 'basic', label: 'Basic Auth' },
 ] as const
 
-export function AuthTab({ auth, onChange }: Props) {
+/** Reveal toggle for secret fields — secrets stay masked until asked for. */
+function RevealButton({ revealed, onToggle }: { revealed: boolean; onToggle: () => void }) {
   return (
-    <div className="flex flex-1 flex-col p-3">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-xs font-bold text-[var(--color-text-muted)]">Type:</span>
+    <Button
+      type="button"
+      variant="icon"
+      size="sm"
+      onClick={onToggle}
+      aria-pressed={revealed}
+      aria-label={revealed ? 'Hide value' : 'Reveal value'}
+      title={revealed ? 'Hide value' : 'Reveal value'}
+    >
+      {revealed ? (
+        <EyeSlashIcon size={15} aria-hidden="true" />
+      ) : (
+        <EyeIcon size={15} aria-hidden="true" />
+      )}
+    </Button>
+  )
+}
+
+export function AuthTab({ auth, onChange }: Props) {
+  const fieldId = useId()
+  const [revealToken, setRevealToken] = useState(false)
+  const [revealPassword, setRevealPassword] = useState(false)
+
+  return (
+    <div className="min-h-0 flex-1 overflow-auto p-3">
+      <Field label="Authorization type" htmlFor={`${fieldId}-type`} className="mb-4 max-w-xs">
         <Select
+          id={`${fieldId}-type`}
           value={auth.type}
           onChange={(e) => {
             const type = e.target.value as ApiRequestAuth['type']
-            if (type === 'none') {
-              onChange({ type: 'none' })
-            } else if (type === 'bearer') {
+            setRevealToken(false)
+            setRevealPassword(false)
+            if (type === 'bearer') {
               onChange({ type: 'bearer', token: '' })
             } else if (type === 'basic') {
               onChange({ type: 'basic', username: '', password: '' })
+            } else {
+              onChange({ type: 'none' })
             }
           }}
         >
@@ -36,61 +69,75 @@ export function AuthTab({ auth, onChange }: Props) {
             </option>
           ))}
         </Select>
-      </div>
+      </Field>
 
-      <div className="flex-1">
-        {auth.type === 'none' && (
-          <div className="text-sm text-[var(--color-text-muted)] mt-8 text-center">
-            This request does not use any authorization.
-          </div>
-        )}
+      {auth.type === 'none' && (
+        <EmptyState
+          icon={LockKeyOpenIcon}
+          size="sm"
+          title="No authorization"
+          description="This request is sent without an Authorization header."
+        />
+      )}
 
-        {auth.type === 'bearer' && (
-          <div className="flex max-w-md flex-col gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-[var(--color-text)]">Token</span>
-              <input
-                type="text"
+      {auth.type === 'bearer' && (
+        <div className="flex max-w-md flex-col gap-3">
+          <Field
+            label="Token"
+            htmlFor={`${fieldId}-token`}
+            hint="Sent as Authorization: Bearer <token>. {{variables}} are resolved from the active environment."
+          >
+            <div className="flex items-center gap-1">
+              <Input
+                id={`${fieldId}-token`}
+                type={revealToken ? 'text' : 'password'}
                 value={auth.token}
                 onChange={(e) => onChange({ ...auth, token: e.target.value })}
                 placeholder="Token (or {{token}} variable)"
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-mono text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                size="md"
+                className="min-w-0 flex-1 font-mono"
               />
-            </label>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              The token will be sent in the <code>Authorization: Bearer &lt;token&gt;</code> header.
-            </p>
-          </div>
-        )}
+              <RevealButton revealed={revealToken} onToggle={() => setRevealToken((r) => !r)} />
+            </div>
+          </Field>
+        </div>
+      )}
 
-        {auth.type === 'basic' && (
-          <div className="flex max-w-md flex-col gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-[var(--color-text)]">Username</span>
-              <input
-                type="text"
-                value={auth.username}
-                onChange={(e) => onChange({ ...auth, username: e.target.value })}
-                placeholder="Username"
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-[var(--color-text)]">Password</span>
-              <input
-                type="password"
+      {auth.type === 'basic' && (
+        <div className="flex max-w-md flex-col gap-3">
+          <Field label="Username" htmlFor={`${fieldId}-username`}>
+            <Input
+              id={`${fieldId}-username`}
+              value={auth.username}
+              onChange={(e) => onChange({ ...auth, username: e.target.value })}
+              placeholder="Username"
+              size="md"
+              className="font-mono"
+            />
+          </Field>
+          <Field
+            label="Password"
+            htmlFor={`${fieldId}-password`}
+            hint="Sent as Authorization: Basic <base64>."
+          >
+            <div className="flex items-center gap-1">
+              <Input
+                id={`${fieldId}-password`}
+                type={revealPassword ? 'text' : 'password'}
                 value={auth.password}
                 onChange={(e) => onChange({ ...auth, password: e.target.value })}
                 placeholder="Password"
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+                size="md"
+                className="min-w-0 flex-1 font-mono"
               />
-            </label>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Sent as <code>Authorization: Basic &lt;base64&gt;</code> header.
-            </p>
-          </div>
-        )}
-      </div>
+              <RevealButton
+                revealed={revealPassword}
+                onToggle={() => setRevealPassword((r) => !r)}
+              />
+            </div>
+          </Field>
+        </div>
+      )}
     </div>
   )
 }

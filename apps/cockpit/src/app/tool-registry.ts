@@ -296,6 +296,8 @@ export const TOOLS: ToolDefinition[] = [
     description: 'HTTP client with params editor, body modes, and response inspector',
     component: ApiClient,
     supportsOpenFile: true,
+    // ⌘S writes the current response body to a file.
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

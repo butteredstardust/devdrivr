@@ -8,6 +8,8 @@ import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
@@ -16,32 +18,52 @@ import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useApiStore } from '@/stores/api.store'
+import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { EnvironmentModal } from './components/EnvironmentModal'
 import { AuthTab } from './components/AuthTab'
-import { CollectionsSidebar } from './components/CollectionsSidebar'
+import { CollectionsSidebar, getMethodColor } from './components/CollectionsSidebar'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
 import { importApiSpec } from '@/lib/api-import'
 import type { ApiImportResult, ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
-import { BracketsCurlyIcon, CopyIcon, XIcon } from '@phosphor-icons/react'
+import {
+  BracketsCurlyIcon,
+  CodeIcon,
+  CopyIcon,
+  DownloadSimpleIcon,
+  FilePlusIcon,
+  GearSixIcon,
+  LinkIcon,
+  ListBulletsIcon,
+  PaperPlaneTiltIcon,
+  PlusIcon,
+  SidebarIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
+const DEFAULT_REQUEST_NAME = 'Untitled Request'
 
 type Param = { key: string; value: string }
 
+type RequestDraft = {
+  name: string
+  method: string
+  url: string
+  headers: ApiHeader[]
+  body: string
+  bodyMode: string
+  auth: ApiRequestAuth
+}
+
 type ApiClientState = {
   activeRequestId: string | null
+  /** Library sidebar visibility — persisted so narrow windows stay where the user left them. */
+  libraryOpen: boolean
   // We keep a working draft independent of the saved request
-  draft: {
-    name: string
-    method: string
-    url: string
-    headers: ApiHeader[]
-    body: string
-    bodyMode: string
-    auth: ApiRequestAuth
-  }
+  draft: RequestDraft
 }
 
 type ResponseData = {
@@ -55,12 +77,8 @@ type ResponseData = {
 
 type EditorInstance = Parameters<OnMount>[0]
 
-const REQUEST_TABS = [
-  { id: 'params', label: 'Params' },
-  { id: 'headers', label: 'Headers' },
-  { id: 'auth', label: 'Auth' },
-  { id: 'body', label: 'Body' },
-]
+/** A navigation that would discard unsaved edits, held until the user confirms. */
+type PendingNavigation = { description: string; perform: () => void }
 
 const RESPONSE_TABS = [
   { id: 'body', label: 'Body' },
@@ -142,12 +160,9 @@ function base64EncodeUtf8(text: string): string {
   return btoa(binary)
 }
 
-function createDefaultDraft(
-  method = 'GET',
-  patch: Partial<ApiClientState['draft']> = {}
-): ApiClientState['draft'] {
+function createDefaultDraft(method = 'GET', patch: Partial<RequestDraft> = {}): RequestDraft {
   return {
-    name: 'Untitled Request',
+    name: DEFAULT_REQUEST_NAME,
     method,
     url: '',
     headers: BODY_METHODS.has(method)
@@ -160,10 +175,41 @@ function createDefaultDraft(
   }
 }
 
-function applyMethodDefaults(
-  draft: ApiClientState['draft'],
-  nextMethod: string
-): ApiClientState['draft'] {
+/**
+ * Structural comparison of the seven fields that make up a request. Used for
+ * both "does this draft still match what's saved" and "is this a pristine new
+ * draft" — the two questions that decide whether navigating away destroys work.
+ */
+export function draftsMatch(a: RequestDraft, b: RequestDraft): boolean {
+  return (
+    a.name === b.name &&
+    a.method === b.method &&
+    a.url === b.url &&
+    a.body === b.body &&
+    a.bodyMode === b.bodyMode &&
+    JSON.stringify(a.auth) === JSON.stringify(b.auth) &&
+    JSON.stringify(a.headers) === JSON.stringify(b.headers)
+  )
+}
+
+export function isDraftDirty(draft: RequestDraft, saved: ApiRequest | undefined): boolean {
+  if (saved) {
+    return !draftsMatch(draft, {
+      name: saved.name,
+      method: saved.method,
+      url: saved.url,
+      headers: saved.headers,
+      body: saved.body,
+      bodyMode: saved.bodyMode,
+      auth: saved.auth,
+    })
+  }
+  // Unsaved draft: only "dirty" once it differs from a pristine draft for its
+  // own method, so simply switching GET → POST never triggers a discard prompt.
+  return !draftsMatch(draft, createDefaultDraft(draft.method))
+}
+
+function applyMethodDefaults(draft: RequestDraft, nextMethod: string): RequestDraft {
   const nextSupportsBody = BODY_METHODS.has(nextMethod)
   const currentSupportsBody = BODY_METHODS.has(draft.method)
 
@@ -215,6 +261,7 @@ export default function ApiClient() {
 
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
     activeRequestId: null,
+    libraryOpen: true,
     draft: createDefaultDraft(),
   })
 
@@ -222,7 +269,7 @@ export default function ApiClient() {
   const { method, url, headers, body, bodyMode, auth, name } = state.draft
 
   const updateDraft = useCallback(
-    (patch: Partial<ApiClientState['draft']>) => {
+    (patch: Partial<RequestDraft>) => {
       updateState({ draft: { ...state.draft, ...patch } })
     },
     [state.draft, updateState]
@@ -235,6 +282,7 @@ export default function ApiClient() {
   const [response, setResponse] = useState<ResponseData | null>(null)
   const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestTab, setRequestTab] = useState('params')
   const [responseTab, setResponseTab] = useState('body')
@@ -244,10 +292,25 @@ export default function ApiClient() {
   const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
   const [responseCollapsed, setResponseCollapsed] = useState(true)
   const [responsePaneUserToggled, setResponsePaneUserToggled] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = useMemo(() => activeEnv?.variables ?? {}, [activeEnv])
   const responseVisible = !responseCollapsed
+
+  const savedRequest = useMemo(
+    () => requests.find((r) => r.id === state.activeRequestId),
+    [requests, state.activeRequestId]
+  )
+  const dirty = useMemo(() => isDraftDirty(state.draft, savedRequest), [state.draft, savedRequest])
+  // Read inside stable callbacks so the discard guard never needs `dirty` as a dep.
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+
+  const activeCollectionName = useMemo(() => {
+    if (!savedRequest?.collectionId) return null
+    return collections.find((c) => c.id === savedRequest.collectionId)?.name ?? null
+  }, [collections, savedRequest])
 
   // ---------------------------------------------------------------------------
   // Query params
@@ -436,40 +499,102 @@ export default function ApiClient() {
   }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction, addRequestHistory])
 
   // ---------------------------------------------------------------------------
-  // New Request
+  // Draft navigation — every path that replaces the draft goes through the guard
   // ---------------------------------------------------------------------------
 
-  const handleNewRequest = useCallback(() => {
-    updateState({
-      activeRequestId: null,
-      draft: createDefaultDraft(),
-    })
+  const guardUnsaved = useCallback((description: string, perform: () => void) => {
+    if (dirtyRef.current) {
+      setPendingNavigation({ description, perform })
+      return
+    }
+    perform()
+  }, [])
+
+  const resetToNewRequest = useCallback(() => {
+    updateState({ activeRequestId: null, draft: createDefaultDraft() })
     setResponse(null)
     setError(null)
   }, [updateState])
 
+  const handleNewRequest = useCallback(() => {
+    guardUnsaved('starting a new request', resetToNewRequest)
+  }, [guardUnsaved, resetToNewRequest])
+
+  const handleSelectLoadedRequest = useCallback(
+    (req: ApiRequest) => {
+      guardUnsaved(`opening “${req.name}”`, () => {
+        updateState({
+          activeRequestId: req.id,
+          draft: {
+            name: req.name,
+            method: req.method,
+            url: req.url,
+            headers: req.headers,
+            body: req.body,
+            bodyMode: req.bodyMode,
+            auth: req.auth,
+          },
+        })
+        setResponse(null)
+        setError(null)
+      })
+    },
+    [guardUnsaved, updateState]
+  )
+
+  const handleLoadFromHistory = useCallback(
+    (histMethod: string, histUrl: string) => {
+      guardUnsaved('restoring a request from history', () => {
+        updateState({
+          activeRequestId: null,
+          draft: createDefaultDraft(histMethod, { url: histUrl }),
+        })
+        setResponse(null)
+        setError(null)
+      })
+    },
+    [guardUnsaved, updateState]
+  )
+
+  // A saved request deleted elsewhere (or with its collection) must not leave a
+  // phantom "saved" state behind — reset without prompting, there is nothing to
+  // navigate back to.
   useEffect(() => {
     if (
       apiInitialized &&
       state.activeRequestId &&
       !requests.some((request) => request.id === state.activeRequestId)
     ) {
-      handleNewRequest()
+      resetToNewRequest()
     }
-  }, [apiInitialized, handleNewRequest, requests, state.activeRequestId])
+  }, [apiInitialized, resetToNewRequest, requests, state.activeRequestId])
 
   // ---------------------------------------------------------------------------
   // Save Request logic
   // ---------------------------------------------------------------------------
 
-  const handleSave = useCallback(() => {
-    if (state.activeRequestId) {
-      setSaveMode('save')
-    } else {
-      setSaveMode('save-as')
+  const handleSave = useCallback(async () => {
+    // An already-saved request writes straight through — no dialog for every edit.
+    if (state.activeRequestId && savedRequest) {
+      setSaving(true)
+      try {
+        await updateRequest({
+          ...savedRequest,
+          ...state.draft,
+          id: state.activeRequestId,
+          collectionId: savedRequest.collectionId,
+        })
+        setLastAction('Request saved', 'success')
+      } catch (e) {
+        setLastAction(`Save failed — ${(e as Error).message}`, 'error')
+      } finally {
+        setSaving(false)
+      }
+      return
     }
+    setSaveMode('save-as')
     setShowSaveModal(true)
-  }, [state.activeRequestId])
+  }, [savedRequest, setLastAction, state.activeRequestId, state.draft, updateRequest])
 
   const handleSaveAs = useCallback(() => {
     setSaveMode('save-as')
@@ -479,33 +604,40 @@ export default function ApiClient() {
   const handleSaveModalSubmit = useCallback(
     async (reqName: string, collectionIdOrNewName: string | null, isNew: boolean) => {
       setShowSaveModal(false)
+      setSaving(true)
 
-      let resolvedCollectionId: string | null = collectionIdOrNewName
-      if (isNew && collectionIdOrNewName) {
-        const newCol = await createCollection(collectionIdOrNewName)
-        resolvedCollectionId = newCol.id
-      }
+      try {
+        let resolvedCollectionId: string | null = collectionIdOrNewName
+        if (isNew && collectionIdOrNewName) {
+          const newCol = await createCollection(collectionIdOrNewName)
+          resolvedCollectionId = newCol.id
+        }
 
-      if (saveMode === 'save' && state.activeRequestId) {
-        const existing = requests.find((r) => r.id === state.activeRequestId)
-        await updateRequest({
-          ...state.draft,
-          id: state.activeRequestId,
-          name: reqName,
-          collectionId: resolvedCollectionId,
-          createdAt: existing?.createdAt ?? Date.now(),
-          updatedAt: Date.now(),
-        })
-        updateState({ draft: { ...state.draft, name: reqName } })
-        setLastAction('Request updated', 'success')
-      } else {
-        const newReq = await createRequest({
-          ...state.draft,
-          name: reqName,
-          collectionId: resolvedCollectionId,
-        })
-        updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
-        setLastAction('Request saved', 'success')
+        if (saveMode === 'save' && state.activeRequestId) {
+          const existing = requests.find((r) => r.id === state.activeRequestId)
+          await updateRequest({
+            ...state.draft,
+            id: state.activeRequestId,
+            name: reqName,
+            collectionId: resolvedCollectionId,
+            createdAt: existing?.createdAt ?? Date.now(),
+            updatedAt: Date.now(),
+          })
+          updateState({ draft: { ...state.draft, name: reqName } })
+          setLastAction('Request updated', 'success')
+        } else {
+          const newReq = await createRequest({
+            ...state.draft,
+            name: reqName,
+            collectionId: resolvedCollectionId,
+          })
+          updateState({ activeRequestId: newReq.id, draft: { ...state.draft, name: reqName } })
+          setLastAction('Request saved', 'success')
+        }
+      } catch (e) {
+        setLastAction(`Save failed — ${(e as Error).message}`, 'error')
+      } finally {
+        setSaving(false)
       }
     },
     [
@@ -557,9 +689,44 @@ export default function ApiClient() {
     [handleImportData, setLastAction]
   )
 
+  const responseLanguage = useMemo(() => {
+    if (!response) return 'json'
+    return detectResponseLanguage(response.headers)
+  }, [response])
+
+  const prettyBody = useMemo(() => {
+    if (!response?.body) return ''
+    if (responseLanguage === 'json') {
+      try {
+        return JSON.stringify(JSON.parse(response.body), null, 2)
+      } catch {
+        return response.body
+      }
+    }
+    return response.body
+  }, [response, responseLanguage])
+
+  const handleSaveResponse = useCallback(async () => {
+    if (!response) {
+      setLastAction('No response to save yet', 'error')
+      return
+    }
+    const extension = responseLanguage === 'plaintext' ? 'txt' : responseLanguage
+    const filename = buildExportFilename(name || 'response', extension)
+    try {
+      const path = await exportFile(prettyBody, filename)
+      if (path) setLastAction(`Saved ${filename}`, 'success')
+    } catch (e) {
+      setLastAction(`Save failed — ${(e as Error).message}`, 'error')
+    }
+  }, [name, prettyBody, response, responseLanguage, setLastAction])
+
   useToolAction((action) => {
     if (action.type === 'execute') {
       void handleSend()
+    }
+    if (action.type === 'save-file') {
+      void handleSaveResponse()
     }
     if (action.type === 'open-file') {
       void handleImportContent(action.content, action.filename)
@@ -574,50 +741,33 @@ export default function ApiClient() {
   )
 
   const handleExport = useCallback(async () => {
+    const exportCollectionById = new Map(
+      collections.map((collection, index) => [
+        collection.id,
+        { key: `collection-${index + 1}`, name: collection.name },
+      ])
+    )
+    const exportData = requests.map((r) => {
+      const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
+      return {
+        name: r.name,
+        method: r.method,
+        url: r.url,
+        headers: r.headers,
+        body: r.body,
+        bodyMode: r.bodyMode,
+        auth: r.auth,
+        collectionKey: collection?.key ?? null,
+        collectionName: collection?.name ?? null,
+      }
+    })
     try {
-      const exportCollectionById = new Map(
-        collections.map((collection, index) => [
-          collection.id,
-          { key: `collection-${index + 1}`, name: collection.name },
-        ])
-      )
-      const exportData = requests.map((r) => {
-        const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
-        return {
-          name: r.name,
-          method: r.method,
-          url: r.url,
-          headers: r.headers,
-          body: r.body,
-          bodyMode: r.bodyMode,
-          auth: r.auth,
-          collectionKey: collection?.key ?? null,
-          collectionName: collection?.name ?? null,
-        }
-      })
       await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
       setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
     } catch {
       setLastAction('Export failed — clipboard unavailable', 'error')
     }
   }, [collections, requests, setLastAction])
-
-  const handleSelectLoadedRequest = (req: ApiRequest) => {
-    updateState({
-      activeRequestId: req.id,
-      draft: {
-        name: req.name,
-        method: req.method,
-        url: req.url,
-        headers: req.headers,
-        body: req.body,
-        bodyMode: req.bodyMode,
-        auth: req.auth,
-      },
-    })
-    setResponse(null)
-    setError(null)
-  }
 
   // ---------------------------------------------------------------------------
   // Header management
@@ -650,27 +800,6 @@ export default function ApiClient() {
   )
 
   // ---------------------------------------------------------------------------
-  // Response formatting
-  // ---------------------------------------------------------------------------
-
-  const responseLanguage = useMemo(() => {
-    if (!response) return 'json'
-    return detectResponseLanguage(response.headers)
-  }, [response])
-
-  const prettyBody = useMemo(() => {
-    if (!response?.body) return ''
-    if (responseLanguage === 'json') {
-      try {
-        return JSON.stringify(JSON.parse(response.body), null, 2)
-      } catch {
-        return response.body
-      }
-    }
-    return response.body
-  }, [response, responseLanguage])
-
-  // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
 
@@ -678,45 +807,106 @@ export default function ApiClient() {
   const bodyEditorLang = bodyMode === 'json' ? 'json' : 'plaintext'
   const activeHeaderCount = headers.filter((h) => h.enabled && h.key.trim()).length
 
+  const requestTabs = useMemo(
+    () => [
+      { id: 'params', label: params.length > 0 ? `Params (${params.length})` : 'Params' },
+      {
+        id: 'headers',
+        label: activeHeaderCount > 0 ? `Headers (${activeHeaderCount})` : 'Headers',
+      },
+      { id: 'auth', label: auth.type === 'none' ? 'Auth' : 'Auth ✓' },
+      { id: 'body', label: 'Body' },
+    ],
+    [activeHeaderCount, auth.type, params.length]
+  )
+
+  const statusLine = dirty
+    ? 'Unsaved changes'
+    : state.activeRequestId
+      ? `Saved in ${activeCollectionName ?? 'Unassigned'}`
+      : 'New request — not saved yet'
+
+  const toggleLibrary = useCallback(() => {
+    updateState({ libraryOpen: !state.libraryOpen })
+  }, [state.libraryOpen, updateState])
+
   return (
-    <div className="flex h-full flex-row overflow-hidden">
-      <CollectionsSidebar
-        activeRequestId={state.activeRequestId}
-        onSelect={handleSelectLoadedRequest}
-        onLoadFromHistory={(histMethod, histUrl) => {
-          updateState({
-            activeRequestId: null,
-            draft: createDefaultDraft(histMethod, { url: histUrl }),
-          })
-          setResponse(null)
-          setError(null)
-        }}
-      />
+    <div
+      className={`grid h-full min-h-0 bg-[var(--color-bg)] ${
+        state.libraryOpen
+          ? 'grid-cols-[minmax(13rem,17rem)_minmax(0,1fr)] max-[900px]:grid-cols-[11.5rem_minmax(0,1fr)]'
+          : 'grid-cols-[minmax(0,1fr)]'
+      }`}
+    >
+      {state.libraryOpen && (
+        <CollectionsSidebar
+          activeRequestId={state.activeRequestId}
+          onSelect={handleSelectLoadedRequest}
+          onLoadFromHistory={handleLoadFromHistory}
+          onImport={() => setShowImportModal(true)}
+          onExport={() => void handleExport()}
+        />
+      )}
 
       <ToolLayout
         fullBleed
         toolbar={
           <>
-            {/* Top Header Row for Env / Save */}
-            <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2 bg-[var(--color-surface)]">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  onClick={handleNewRequest}
-                  title="New Request"
-                  className="shrink-0 text-[var(--color-accent)]"
+            {/* Request identity + save actions */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              <Button
+                type="button"
+                variant="icon"
+                size="sm"
+                onClick={toggleLibrary}
+                aria-expanded={state.libraryOpen}
+                aria-label={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                title={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                className={
+                  state.libraryOpen
+                    ? 'text-[var(--color-accent)]'
+                    : 'text-[var(--color-text-muted)]'
+                }
+              >
+                <SidebarIcon size={15} aria-hidden="true" />
+              </Button>
+
+              <div className="min-w-0 flex-1 basis-40">
+                <input
+                  value={name}
+                  onChange={(e) => updateDraft({ name: e.target.value })}
+                  placeholder={DEFAULT_REQUEST_NAME}
+                  aria-label="Request name"
+                  className="w-full truncate bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)] focus-visible:shadow-[var(--focus-ring)]"
+                />
+                <p
+                  className={`text-2xs ${
+                    dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
+                  }`}
+                  aria-live="polite"
                 >
-                  + New
-                </Button>
-                <span className="truncate font-bold text-sm text-[var(--color-text)]">{name}</span>
+                  {statusLine}
+                </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--color-text-muted)]">Env:</span>
+              <Button
+                type="button"
+                variant="icon"
+                size="sm"
+                onClick={handleNewRequest}
+                title="New request"
+                aria-label="New request"
+              >
+                <FilePlusIcon size={15} aria-hidden="true" />
+              </Button>
+
+              <div className="flex items-center gap-1">
                 <Select
                   value={activeEnvironmentId || ''}
                   onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
+                  aria-label="Active environment"
+                  title="Active environment"
+                  className="max-w-36"
                 >
                   <option value="">No Environment</option>
                   {environments.map((e) => (
@@ -726,50 +916,42 @@ export default function ApiClient() {
                   ))}
                 </Select>
                 <Button
-                  variant="ghost"
-                  size="xs"
+                  type="button"
+                  variant="icon"
+                  size="sm"
                   onClick={() => setShowEnvModal(true)}
-                  className="hover:underline hover:bg-transparent"
+                  title="Manage environments"
+                  aria-label="Manage environments"
                 >
-                  Edit
+                  <GearSixIcon size={15} aria-hidden="true" />
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-                <Button variant="secondary" size="sm" onClick={handleSave}>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant={dirty ? 'primary' : 'secondary'}
+                  size="sm"
+                  loading={saving}
+                  disabled={!dirty && !!state.activeRequestId}
+                  onClick={() => void handleSave()}
+                  title="Save request"
+                >
                   Save
                 </Button>
-                <Button variant="secondary" size="sm" onClick={handleSaveAs}>
+                <Button type="button" variant="secondary" size="sm" onClick={handleSaveAs}>
                   Save As
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowImportModal(true)}
-                  title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
-                >
-                  Import...
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void handleExport()}
-                  title="Export all requests to clipboard (JSON)"
-                >
-                  Export
                 </Button>
               </div>
             </div>
 
             {/* URL bar */}
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
               <Select
                 value={method}
                 onChange={(e) => handleMethodChange(e.target.value)}
-                className="border-[var(--color-accent)] font-mono text-[var(--color-accent)]"
+                aria-label="HTTP method"
+                className={`font-mono font-bold ${getMethodColor(method)}`}
               >
                 {METHODS.map((m) => (
                   <option key={m} value={m}>
@@ -781,25 +963,32 @@ export default function ApiClient() {
                 value={url}
                 onChange={(e) => updateDraft({ url: e.target.value })}
                 placeholder="{{baseUrl}}/endpoint"
+                aria-label="Request URL"
                 size="md"
-                className="flex-1"
+                className="min-w-40 flex-1 basis-48 font-mono"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSend()
                 }}
               />
               <Button
+                type="button"
                 variant="primary"
                 size="sm"
                 onClick={() => void handleSend()}
-                disabled={loading}
+                loading={loading}
+                className="gap-1.5"
+                title="Send request (⌘↵)"
               >
-                {loading ? 'Sending…' : 'Send'}
+                <PaperPlaneTiltIcon size={13} aria-hidden="true" />
+                Send
               </Button>
               <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={toggleResponsePane}
-                aria-pressed={responseVisible}
+                aria-expanded={responseVisible}
+                aria-controls="api-response-pane"
               >
                 {responseVisible ? 'Hide Response' : 'Show Response'}
               </Button>
@@ -807,32 +996,40 @@ export default function ApiClient() {
           </>
         }
       >
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div
+          className={`grid min-h-0 flex-1 ${
+            responseVisible
+              ? 'grid-cols-2 max-[1000px]:grid-cols-1 max-[1000px]:grid-rows-2'
+              : 'grid-cols-1'
+          }`}
+        >
           {/* ── Request panel ─────────────────────────────────── */}
-          <div
-            className={`flex min-h-0 flex-col overflow-hidden ${
-              responseVisible ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'
+          <section
+            aria-label="Request"
+            className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${
+              responseVisible
+                ? 'border-r border-[var(--color-border)] max-[1000px]:border-b max-[1000px]:border-r-0'
+                : ''
             }`}
           >
-            <TabBar tabs={REQUEST_TABS} activeTab={requestTab} onTabChange={setRequestTab} />
+            <TabBar tabs={requestTabs} activeTab={requestTab} onTabChange={setRequestTab} />
 
             {/* Params tab */}
             {requestTab === 'params' && (
-              <div className="flex-1 overflow-auto p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-mono text-xs text-[var(--color-text-muted)]">
+              <div className="min-h-0 flex-1 overflow-auto p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
                     Query Parameters
-                    {params.length > 0 && (
-                      <span className="ml-1 text-[var(--color-text)]">({params.length})</span>
-                    )}
-                  </span>
+                  </h3>
                   <Button
-                    variant="ghost"
+                    type="button"
+                    variant="secondary"
                     size="xs"
                     onClick={addParam}
-                    className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
+                    className="gap-1"
                   >
-                    + Add
+                    <PlusIcon size={10} aria-hidden="true" />
+                    Add
                   </Button>
                 </div>
                 {params.length > 0 ? (
@@ -843,19 +1040,22 @@ export default function ApiClient() {
                           value={p.key}
                           onChange={(e) => updateParam(i, { key: e.target.value })}
                           placeholder="Key"
-                          className="w-1/3"
+                          aria-label={`Query parameter ${i + 1} name`}
+                          className="w-1/3 min-w-0 font-mono"
                         />
                         <Input
                           value={p.value}
                           onChange={(e) => updateParam(i, { value: e.target.value })}
                           placeholder="Value"
-                          className="flex-1"
+                          aria-label={`Query parameter ${i + 1} value`}
+                          className="min-w-0 flex-1 font-mono"
                         />
                         <Button
+                          type="button"
                           variant="icon"
                           size="xs"
                           onClick={() => removeParam(i)}
-                          aria-label="Remove query parameter"
+                          aria-label={`Remove query parameter ${p.key || i + 1}`}
                           className="hover:text-[var(--color-error)]"
                         >
                           <XIcon size={14} aria-hidden />
@@ -864,65 +1064,83 @@ export default function ApiClient() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-[var(--color-text-muted)]">
-                    No query parameters. Add them here or include them in the URL.
-                  </div>
+                  <EmptyState
+                    icon={LinkIcon}
+                    size="sm"
+                    title="No query parameters"
+                    description="Add them here, or type them straight into the URL."
+                  />
                 )}
               </div>
             )}
 
             {/* Headers tab */}
             {requestTab === 'headers' && (
-              <div className="flex-1 overflow-auto p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-mono text-xs text-[var(--color-text-muted)]">
+              <div className="min-h-0 flex-1 overflow-auto p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
                     Headers
                     {activeHeaderCount > 0 && (
                       <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
                     )}
-                  </span>
+                  </h3>
                   <Button
-                    variant="ghost"
+                    type="button"
+                    variant="secondary"
                     size="xs"
                     onClick={addHeader}
-                    className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
+                    className="gap-1"
                   >
-                    + Add
+                    <PlusIcon size={10} aria-hidden="true" />
+                    Add
                   </Button>
                 </div>
-                <div className="flex flex-col gap-1">
-                  {headers.map((h, i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={h.enabled}
-                        onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
-                        className="accent-[var(--color-accent)]"
-                      />
-                      <Input
-                        value={h.key}
-                        onChange={(e) => updateHeader(i, { key: e.target.value })}
-                        placeholder="Header name"
-                        className="w-1/3"
-                      />
-                      <Input
-                        value={h.value}
-                        onChange={(e) => updateHeader(i, { value: e.target.value })}
-                        placeholder="Value (or {{env_var}})"
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="icon"
-                        size="xs"
-                        onClick={() => removeHeader(i)}
-                        aria-label="Remove header"
-                        className="hover:text-[var(--color-error)]"
-                      >
-                        <XIcon size={14} aria-hidden />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                {headers.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {headers.map((h, i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={h.enabled}
+                          onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
+                          aria-label={`Send header ${h.key || i + 1}`}
+                          className="accent-[var(--color-accent)]"
+                        />
+                        <Input
+                          value={h.key}
+                          onChange={(e) => updateHeader(i, { key: e.target.value })}
+                          placeholder="Header name"
+                          aria-label={`Header ${i + 1} name`}
+                          className="w-1/3 min-w-0 font-mono"
+                        />
+                        <Input
+                          value={h.value}
+                          onChange={(e) => updateHeader(i, { value: e.target.value })}
+                          placeholder="Value (or {{env_var}})"
+                          aria-label={`Header ${i + 1} value`}
+                          className="min-w-0 flex-1 font-mono"
+                        />
+                        <Button
+                          type="button"
+                          variant="icon"
+                          size="xs"
+                          onClick={() => removeHeader(i)}
+                          aria-label={`Remove header ${h.key || i + 1}`}
+                          className="hover:text-[var(--color-error)]"
+                        >
+                          <XIcon size={14} aria-hidden />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={ListBulletsIcon}
+                    size="sm"
+                    title="No headers"
+                    description="Add Accept, Authorization, or any custom header."
+                  />
+                )}
               </div>
             )}
 
@@ -934,17 +1152,19 @@ export default function ApiClient() {
             {/* Body tab */}
             {requestTab === 'body' && (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1">
+                <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
                   {BODY_MODES.map((mode) => (
                     <Button
                       key={mode.id}
+                      type="button"
                       variant="ghost"
                       size="xs"
+                      aria-pressed={bodyMode === mode.id}
                       onClick={() => updateDraft({ bodyMode: mode.id })}
                       className={
                         bodyMode === mode.id
-                          ? 'font-bold text-[var(--color-accent)] hover:bg-transparent'
-                          : 'hover:bg-transparent'
+                          ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
+                          : ''
                       }
                     >
                       {mode.label}
@@ -967,85 +1187,120 @@ export default function ApiClient() {
                     />
                   </div>
                 ) : (
-                  <div className="flex flex-1 items-center justify-center text-xs text-[var(--color-text-muted)]">
-                    {bodyMode === 'none'
-                      ? 'Body is disabled'
-                      : `${method} requests do not include a body`}
+                  <div className="flex min-h-0 flex-1 items-center justify-center">
+                    <EmptyState
+                      icon={CodeIcon}
+                      size="sm"
+                      title={bodyMode === 'none' ? 'Body is disabled' : `No body for ${method}`}
+                      description={
+                        bodyMode === 'none'
+                          ? 'Pick JSON or Text above to send a request body.'
+                          : `${method} requests do not include a body.`
+                      }
+                    />
                   </div>
                 )}
               </div>
             )}
-          </div>
+          </section>
 
           {/* ── Response panel ────────────────────────────────── */}
-          <div
-            className={`${responseVisible ? 'flex' : 'hidden'} min-h-0 w-1/2 flex-col overflow-hidden`}
-          >
-            {error && (
-              <Alert
-                variant="error"
-                className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-              >
-                {error}
-              </Alert>
-            )}
-            {response && (
-              <>
-                <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-3 py-1">
-                  <span
-                    className={`font-mono text-sm font-bold ${
-                      response.status < 400
-                        ? 'text-[var(--color-success)]'
-                        : 'text-[var(--color-error)]'
-                    }`}
-                  >
-                    {response.status} {response.statusText}
-                  </span>
-                  <span className="text-xs text-[var(--color-text-muted)]">{response.time}ms</span>
-                  <span className="text-xs text-[var(--color-text-muted)]">
-                    {formatSize(response.size)}
-                  </span>
-                  <div className="ml-auto">
-                    <CopyButton text={prettyBody} />
-                  </div>
-                </div>
-                <TabBar tabs={RESPONSE_TABS} activeTab={responseTab} onTabChange={setResponseTab} />
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  {responseTab === 'body' ? (
-                    <Editor
-                      theme={monacoTheme}
-                      language={responseLanguage}
-                      value={prettyBody}
-                      onMount={handleResponseEditorMount}
-                      options={{ ...monacoOptions, readOnly: true }}
-                    />
-                  ) : (
-                    <div className="h-full overflow-auto p-3">
-                      {Object.entries(response.headers).map(([key, value]) => (
-                        <div key={key} className="mb-1 flex items-start gap-1 text-xs">
-                          <span className="shrink-0 font-bold text-[var(--color-accent)]">
-                            {key}
-                          </span>
-                          <span className="text-[var(--color-text-muted)]">: </span>
-                          <span className="break-all text-[var(--color-text)]">{value}</span>
-                        </div>
-                      ))}
+          {responseVisible && (
+            <section
+              id="api-response-pane"
+              aria-label="Response"
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+            >
+              {error && (
+                <Alert
+                  variant="error"
+                  className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+                >
+                  {error}
+                </Alert>
+              )}
+              {response && (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-mono text-xs font-bold ${
+                        response.status < 400
+                          ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                          : 'bg-[var(--color-error)]/10 text-[var(--color-error)]'
+                      }`}
+                    >
+                      {response.status} {response.statusText}
+                    </span>
+                    <span className="text-2xs text-[var(--color-text-muted)]">
+                      {response.time}ms
+                    </span>
+                    <span className="text-2xs text-[var(--color-text-muted)]">
+                      {formatSize(response.size)}
+                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <CopyButton text={prettyBody} />
+                      <Button
+                        type="button"
+                        variant="icon"
+                        size="xs"
+                        onClick={() => void handleSaveResponse()}
+                        title="Save response to a file (⌘S)"
+                        aria-label="Save response to a file"
+                      >
+                        <DownloadSimpleIcon size={13} aria-hidden="true" />
+                      </Button>
                     </div>
-                  )}
+                  </div>
+                  <TabBar
+                    tabs={RESPONSE_TABS}
+                    activeTab={responseTab}
+                    onTabChange={setResponseTab}
+                  />
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    {responseTab === 'body' ? (
+                      <Editor
+                        theme={monacoTheme}
+                        language={responseLanguage}
+                        value={prettyBody}
+                        onMount={handleResponseEditorMount}
+                        options={{ ...monacoOptions, readOnly: true }}
+                      />
+                    ) : (
+                      <div className="h-full overflow-auto p-3">
+                        {Object.entries(response.headers).map(([key, value]) => (
+                          <div key={key} className="mb-1 flex items-start gap-1 text-xs">
+                            <span className="shrink-0 font-bold text-[var(--color-accent)]">
+                              {key}
+                            </span>
+                            <span className="text-[var(--color-text-muted)]">: </span>
+                            <span className="break-all text-[var(--color-text)]">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {!response && !error && !loading && (
+                <div className="flex min-h-0 flex-1 items-center justify-center">
+                  <EmptyState
+                    icon={PaperPlaneTiltIcon}
+                    title="Send a request to see the response"
+                    description="⌘↵ sends the current request."
+                  />
                 </div>
-              </>
-            )}
-            {!response && !error && !loading && (
-              <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-                Send a request to see the response
-              </div>
-            )}
-            {loading && (
-              <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-                Sending request…
-              </div>
-            )}
-          </div>
+              )}
+              {loading && (
+                <div
+                  className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-sm text-[var(--color-text-muted)]"
+                  role="status"
+                >
+                  <Spinner size="md" label="Sending request" />
+                  Sending request…
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </ToolLayout>
 
@@ -1064,6 +1319,25 @@ export default function ApiClient() {
       )}
       {showImportModal && (
         <ImportSpecModal onImport={handleImportData} onClose={() => setShowImportModal(false)} />
+      )}
+      {pendingNavigation && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          confirmLabel="Discard changes"
+          onClose={() => setPendingNavigation(null)}
+          onConfirm={() => {
+            const { perform } = pendingNavigation
+            setPendingNavigation(null)
+            perform()
+          }}
+        >
+          <p>
+            “{name}” has unsaved changes. Continue {pendingNavigation.description} and lose them?
+          </p>
+          <p className="mt-2 text-[var(--color-text-muted)]">
+            Cancel and use Save or Save As to keep this request.
+          </p>
+        </ConfirmDialog>
       )}
       <SelectionContextToolbar
         selection={responseSelectionToolbar.selection}
