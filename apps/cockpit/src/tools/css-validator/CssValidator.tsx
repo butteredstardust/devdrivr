@@ -6,6 +6,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 
 type CssValidatorState = {
@@ -785,149 +786,158 @@ export default function CssValidator() {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <span className="text-xs text-[var(--color-text-muted)]">Lint:</span>
-        <Button
-          variant={state.showRules ? 'secondary' : 'ghost'}
-          size="sm"
-          onClick={() => updateState({ showRules: !state.showRules })}
-          className="text-[10px]"
-        >
-          Rules
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            void handleFormat()
-          }}
-          disabled={isFormatting || !state.input.trim()}
-          className="text-[10px]"
-        >
-          {isFormatting ? 'Formatting…' : 'Format'}
-        </Button>
-
-        <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-
-        {SAMPLES.map((sample) => (
-          <button
-            key={sample.label}
-            onClick={() => {
-              updateState({ input: sample.css })
-              setLastAction(`Loaded "${sample.label}" sample`, 'info')
-            }}
-            className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-          >
-            {sample.label}
-          </button>
-        ))}
-
-        <CopyButton text={state.input} />
-
-        <div className="ml-auto flex items-center gap-2">
-          {state.input.trim() && errorCount === 0 && warnCount === 0 && (
-            <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ✓ Valid CSS
-            </span>
-          )}
-          {errorCount > 0 && (
-            <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
-              ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
-            </span>
-          )}
-          {warnCount > 0 && (
-            <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {stats && (
-        <div className="flex flex-wrap items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1 text-xs text-[var(--color-text-muted)]">
-          <span>
-            {stats.rules} rule{stats.rules !== 1 ? 's' : ''}
-          </span>
-          <span>
-            {stats.selectors} selector{stats.selectors !== 1 ? 's' : ''}
-          </span>
-          <span>
-            {stats.declarations} declaration{stats.declarations !== 1 ? 's' : ''}
-          </span>
-          {stats.idSelectors > 0 && (
-            <span className="text-[var(--color-warning)]">
-              {stats.idSelectors} ID selector{stats.idSelectors !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      )}
-
-      {state.showRules && (
-        <div className="max-h-48 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {RULE_CATEGORIES.map((category) => (
-              <div key={category}>
-                <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
-                  {category}
-                </div>
-                {LINT_RULES.filter((rule) => rule.category === category).map((rule) => {
-                  const disabled = state.disabledRules.includes(rule.id)
-                  return (
-                    <label
-                      key={rule.id}
-                      className="flex cursor-pointer items-center gap-2 py-0.5 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!disabled}
-                        onChange={() => toggleRule(rule.id)}
-                        className="accent-[var(--color-accent)]"
-                      />
-                      <div>
-                        <div
-                          className={
-                            disabled
-                              ? 'text-[var(--color-text-muted)] line-through'
-                              : 'text-[var(--color-text)]'
-                          }
-                        >
-                          {rule.label}
-                        </div>
-                        <div className="text-[10px] text-[var(--color-text-muted)]">
-                          {rule.description}
-                        </div>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {issues.length > 0 && (
-        <div className="max-h-36 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
-          {issues.map((issue, index) => (
-            <div
-              key={`${issue.rule}-${index}`}
-              className={`flex flex-wrap items-start gap-2 py-1 text-xs ${
-                issue.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'
-              }`}
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            <span className="text-xs text-[var(--color-text-muted)]">Lint:</span>
+            <Button
+              variant={state.showRules ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => updateState({ showRules: !state.showRules })}
+              className="text-[10px]"
             >
-              <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
-                L{issue.line}:C{issue.column}
-              </span>
-              <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
-                {issue.rule}
-              </span>
-              <span>{issue.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
+              Rules
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void handleFormat()
+              }}
+              disabled={isFormatting || !state.input.trim()}
+              className="text-[10px]"
+            >
+              {isFormatting ? 'Formatting…' : 'Format'}
+            </Button>
 
+            <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
+
+            {SAMPLES.map((sample) => (
+              <Button
+                key={sample.label}
+                variant="secondary"
+                size="xs"
+                onClick={() => {
+                  updateState({ input: sample.css })
+                  setLastAction(`Loaded "${sample.label}" sample`, 'info')
+                }}
+                className="text-[10px]"
+              >
+                {sample.label}
+              </Button>
+            ))}
+
+            <CopyButton text={state.input} />
+
+            <div className="ml-auto flex items-center gap-2">
+              {state.input.trim() && errorCount === 0 && warnCount === 0 && (
+                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                  ✓ Valid CSS
+                </span>
+              )}
+              {errorCount > 0 && (
+                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
+                  ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
+                </span>
+              )}
+              {warnCount > 0 && (
+                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                  ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {stats && (
+            <div className="flex flex-wrap items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1 text-xs text-[var(--color-text-muted)]">
+              <span>
+                {stats.rules} rule{stats.rules !== 1 ? 's' : ''}
+              </span>
+              <span>
+                {stats.selectors} selector{stats.selectors !== 1 ? 's' : ''}
+              </span>
+              <span>
+                {stats.declarations} declaration{stats.declarations !== 1 ? 's' : ''}
+              </span>
+              {stats.idSelectors > 0 && (
+                <span className="text-[var(--color-warning)]">
+                  {stats.idSelectors} ID selector{stats.idSelectors !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
+
+          {state.showRules && (
+            <div className="max-h-48 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {RULE_CATEGORIES.map((category) => (
+                  <div key={category}>
+                    <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
+                      {category}
+                    </div>
+                    {LINT_RULES.filter((rule) => rule.category === category).map((rule) => {
+                      const disabled = state.disabledRules.includes(rule.id)
+                      return (
+                        <label
+                          key={rule.id}
+                          className="flex cursor-pointer items-center gap-2 py-0.5 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!disabled}
+                            onChange={() => toggleRule(rule.id)}
+                            className="accent-[var(--color-accent)]"
+                          />
+                          <div>
+                            <div
+                              className={
+                                disabled
+                                  ? 'text-[var(--color-text-muted)] line-through'
+                                  : 'text-[var(--color-text)]'
+                              }
+                            >
+                              {rule.label}
+                            </div>
+                            <div className="text-[10px] text-[var(--color-text-muted)]">
+                              {rule.description}
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {issues.length > 0 && (
+            <div className="max-h-36 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              {issues.map((issue, index) => (
+                <div
+                  key={`${issue.rule}-${index}`}
+                  className={`flex flex-wrap items-start gap-2 py-1 text-xs ${
+                    issue.type === 'error'
+                      ? 'text-[var(--color-error)]'
+                      : 'text-[var(--color-warning)]'
+                  }`}
+                >
+                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
+                    L{issue.line}:C{issue.column}
+                  </span>
+                  <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
+                    {issue.rule}
+                  </span>
+                  <span>{issue.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      }
+    >
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={monacoTheme}
@@ -938,6 +948,6 @@ export default function CssValidator() {
           onMount={handleEditorMount}
         />
       </div>
-    </div>
+    </ToolLayout>
   )
 }

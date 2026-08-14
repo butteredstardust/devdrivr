@@ -90,7 +90,7 @@ export function WorkspaceTabStrip() {
   const hasRight = contextTabIdx !== -1 && contextTabIdx < tabs.length - 1
 
   return (
-    <div className="relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div className="font-ui relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
       {/* Scrollable tab row */}
       <div
         ref={scrollRef}
@@ -137,9 +137,15 @@ export function WorkspaceTabStrip() {
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="flex-1 truncate font-mono text-[10px]">
-                {tool?.name ?? tab.toolId}
-              </span>
+              {tool && (
+                <span
+                  aria-hidden="true"
+                  className="flex shrink-0 items-center [&_svg]:h-3.5 [&_svg]:w-3.5"
+                >
+                  {tool.icon}
+                </span>
+              )}
+              <span className="flex-1 truncate text-[10px]">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -155,6 +161,7 @@ export function WorkspaceTabStrip() {
               {isActive && (
                 <span
                   aria-hidden="true"
+                  data-testid="tab-pill"
                   className="pointer-events-none absolute bottom-0 left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-t-full bg-[var(--color-accent)]"
                 />
               )}
@@ -188,7 +195,7 @@ export function WorkspaceTabStrip() {
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}
-          className="z-[9999] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+          className="z-[var(--z-popover)] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
         >
           <button
             onClick={() => {

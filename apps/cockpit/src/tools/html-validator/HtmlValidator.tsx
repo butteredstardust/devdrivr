@@ -3,6 +3,9 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Button } from '@/components/shared/Button'
+import { SegmentedControl, type SegmentedControlOption } from '@/components/shared/SegmentedControl'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { FrameCornersIcon, XIcon } from '@phosphor-icons/react'
 
@@ -263,6 +266,12 @@ const STARTERS: Record<string, { label: string; html: string }> = {
   },
 }
 
+const VIEW_MODE_OPTIONS: SegmentedControlOption<ViewMode>[] = [
+  { value: 'edit', label: 'Edit' },
+  { value: 'split', label: 'Split' },
+  { value: 'preview', label: 'Preview' },
+]
+
 // ── Component ────────────────────────────────────────────────────────
 
 export default function HtmlValidator() {
@@ -363,183 +372,180 @@ export default function HtmlValidator() {
   const showPreview = state.viewMode === 'split' || state.viewMode === 'preview'
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        {/* View mode */}
-        {(['edit', 'split', 'preview'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => updateState({ viewMode: mode })}
-            className={`rounded border px-2 py-0.5 text-xs ${
-              state.viewMode === mode
-                ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-            }`}
-          >
-            {mode === 'edit' ? 'Edit' : mode === 'split' ? 'Split' : 'Preview'}
-          </button>
-        ))}
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            {/* View mode */}
+            <SegmentedControl
+              aria-label="View mode"
+              options={VIEW_MODE_OPTIONS}
+              value={state.viewMode}
+              onChange={(viewMode) => updateState({ viewMode })}
+            />
 
-        <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
+            <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
 
-        {/* Starters */}
-        <span className="text-xs text-[var(--color-text-muted)]">Start:</span>
-        {Object.entries(STARTERS).map(([key, s]) => (
-          <button
-            key={key}
-            onClick={() => {
-              updateState({ input: s.html })
-              setLastAction(`Loaded "${s.label}" template`, 'info')
-            }}
-            className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
-          >
-            {s.label}
-          </button>
-        ))}
-
-        <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-
-        {/* Rules toggle */}
-        <button
-          onClick={() => updateState({ showRules: !state.showRules })}
-          className={`rounded border px-2 py-0.5 text-xs ${
-            state.showRules
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-          }`}
-        >
-          Rules
-        </button>
-
-        <CopyButton text={state.input} />
-
-        {/* Status */}
-        <div className="ml-auto flex items-center gap-2">
-          {isValidating && state.input.trim() && (
-            <span className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-text-muted)]">
-              … Validating
-            </span>
-          )}
-          {!isValidating && state.input.trim() && errors.length === 0 && (
-            <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ✓ Valid HTML
-            </span>
-          )}
-          {errorCount > 0 && (
-            <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
-            </span>
-          )}
-          {warnCount > 0 && (
-            <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      {stats && (
-        <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1 text-xs text-[var(--color-text-muted)]">
-          <span>{stats.tags} tags</span>
-          <span>depth {stats.depth}</span>
-          {stats.inlineStyles > 0 && (
-            <span className="text-[var(--color-warning)]">
-              {stats.inlineStyles} inline style{stats.inlineStyles !== 1 ? 's' : ''}
-            </span>
-          )}
-          {stats.inlineScripts > 0 && (
-            <span className="text-[var(--color-warning)]">
-              {stats.inlineScripts} script{stats.inlineScripts !== 1 ? 's' : ''}
-            </span>
-          )}
-          {stats.headings.length > 0 && (
-            <span>
-              {stats.headings.length} heading{stats.headings.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Rules panel */}
-      {state.showRules && (
-        <div className="max-h-40 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
-          <div className="grid grid-cols-2 gap-x-8 gap-y-1">
-            {RULE_CATEGORIES.map((cat) => (
-              <div key={cat}>
-                <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
-                  {cat}
-                </div>
-                {ALL_RULES.filter((r) => r.category === cat).map((rule) => {
-                  const disabled = state.disabledRules.includes(rule.id)
-                  return (
-                    <label
-                      key={rule.id}
-                      className="flex cursor-pointer items-center gap-1.5 py-0.5 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!disabled}
-                        onChange={() => toggleRule(rule.id)}
-                        className="accent-[var(--color-accent)]"
-                      />
-                      <span
-                        className={
-                          disabled
-                            ? 'text-[var(--color-text-muted)] line-through'
-                            : 'text-[var(--color-text)]'
-                        }
-                      >
-                        {rule.label}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
+            {/* Starters */}
+            <span className="text-xs text-[var(--color-text-muted)]">Start:</span>
+            {Object.entries(STARTERS).map(([key, s]) => (
+              <Button
+                key={key}
+                variant="secondary"
+                size="xs"
+                onClick={() => {
+                  updateState({ input: s.html })
+                  setLastAction(`Loaded "${s.label}" template`, 'info')
+                }}
+                className="text-[10px]"
+              >
+                {s.label}
+              </Button>
             ))}
-          </div>
-        </div>
-      )}
 
-      {/* Errors */}
-      {errors.length > 0 && (
-        <div className="max-h-28 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
-          {errors.map((e, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-2 py-0.5 text-xs ${
-                e.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'
-              }`}
+            <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
+
+            {/* Rules toggle */}
+            <Button
+              variant={state.showRules ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => updateState({ showRules: !state.showRules })}
             >
-              <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
-                L{e.line}:{e.col}
-              </span>
-              <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
-                {e.rule}
-              </span>
-              <span>{e.message}</span>
+              Rules
+            </Button>
+
+            <CopyButton text={state.input} />
+
+            {/* Status */}
+            <div className="ml-auto flex items-center gap-2">
+              {isValidating && state.input.trim() && (
+                <span className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-text-muted)]">
+                  … Validating
+                </span>
+              )}
+              {!isValidating && state.input.trim() && errors.length === 0 && (
+                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                  ✓ Valid HTML
+                </span>
+              )}
+              {errorCount > 0 && (
+                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                  ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
+                </span>
+              )}
+              {warnCount > 0 && (
+                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                  ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
 
-      {/* Heading outline */}
-      {stats && stats.headings.length > 0 && state.viewMode !== 'preview' && (
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">
-          <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">Outline:</span>
-          {stats.headings.map((h, i) => (
-            <span
-              key={i}
-              className="shrink-0 text-[10px] text-[var(--color-text)]"
-              style={{ paddingLeft: (h.level - 1) * 8 }}
-            >
-              <span className="text-[var(--color-accent)]">h{h.level}</span> {h.text}
-            </span>
-          ))}
-        </div>
-      )}
+          {/* Stats bar */}
+          {stats && (
+            <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1 text-xs text-[var(--color-text-muted)]">
+              <span>{stats.tags} tags</span>
+              <span>depth {stats.depth}</span>
+              {stats.inlineStyles > 0 && (
+                <span className="text-[var(--color-warning)]">
+                  {stats.inlineStyles} inline style{stats.inlineStyles !== 1 ? 's' : ''}
+                </span>
+              )}
+              {stats.inlineScripts > 0 && (
+                <span className="text-[var(--color-warning)]">
+                  {stats.inlineScripts} script{stats.inlineScripts !== 1 ? 's' : ''}
+                </span>
+              )}
+              {stats.headings.length > 0 && (
+                <span>
+                  {stats.headings.length} heading{stats.headings.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
 
+          {/* Rules panel */}
+          {state.showRules && (
+            <div className="max-h-40 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                {RULE_CATEGORIES.map((cat) => (
+                  <div key={cat}>
+                    <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
+                      {cat}
+                    </div>
+                    {ALL_RULES.filter((r) => r.category === cat).map((rule) => {
+                      const disabled = state.disabledRules.includes(rule.id)
+                      return (
+                        <label
+                          key={rule.id}
+                          className="flex cursor-pointer items-center gap-1.5 py-0.5 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!disabled}
+                            onChange={() => toggleRule(rule.id)}
+                            className="accent-[var(--color-accent)]"
+                          />
+                          <span
+                            className={
+                              disabled
+                                ? 'text-[var(--color-text-muted)] line-through'
+                                : 'text-[var(--color-text)]'
+                            }
+                          >
+                            {rule.label}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Errors */}
+          {errors.length > 0 && (
+            <div className="max-h-28 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              {errors.map((e, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2 py-0.5 text-xs ${
+                    e.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'
+                  }`}
+                >
+                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
+                    L{e.line}:{e.col}
+                  </span>
+                  <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
+                    {e.rule}
+                  </span>
+                  <span>{e.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Heading outline */}
+          {stats && stats.headings.length > 0 && state.viewMode !== 'preview' && (
+            <div className="flex items-center gap-2 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">
+              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">Outline:</span>
+              {stats.headings.map((h, i) => (
+                <span
+                  key={i}
+                  className="shrink-0 text-[10px] text-[var(--color-text)]"
+                  style={{ paddingLeft: (h.level - 1) * 8 }}
+                >
+                  <span className="text-[var(--color-accent)]">h{h.level}</span> {h.text}
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      }
+    >
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {showEditor && (
@@ -561,14 +567,15 @@ export default function HtmlValidator() {
           <div className={`flex flex-col ${showEditor ? 'w-1/2' : 'w-full'}`}>
             <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
               <span className="text-xs text-[var(--color-text-muted)]">Preview</span>
-              <button
+              <Button
+                variant="icon"
+                size="sm"
                 onClick={() => setIsPopoutOpen(true)}
                 disabled={!state.input.trim()}
                 title="Expand to full-size preview (Esc to close)"
-                className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
               >
                 <FrameCornersIcon size={13} />
-              </button>
+              </Button>
             </div>
             <div className="flex-1 bg-[var(--color-bg)]">
               {state.input.trim() ? (
@@ -594,19 +601,20 @@ export default function HtmlValidator() {
           role="dialog"
           aria-modal="true"
           aria-label="Full-size HTML preview"
-          className="fixed inset-0 z-50 flex flex-col bg-[var(--color-bg)]"
+          className="fixed inset-0 z-[var(--z-modal)] flex flex-col bg-[var(--color-bg)]"
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
             <span className="text-xs text-[var(--color-text-muted)]">HTML Preview</span>
-            <button
+            <Button
               ref={popoutCloseButtonRef}
+              variant="icon"
+              size="sm"
               onClick={() => setIsPopoutOpen(false)}
               aria-label="Close full-size preview"
               title="Close (Esc)"
-              className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
             >
               <XIcon size={14} />
-            </button>
+            </Button>
           </div>
           <iframe
             title="HTML Preview (full size)"
@@ -616,6 +624,6 @@ export default function HtmlValidator() {
           />
         </div>
       )}
-    </div>
+    </ToolLayout>
   )
 }

@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { TabBar } from '@/components/shared/TabBar'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import {
   ImageIcon,
   UploadSimpleIcon,
@@ -563,66 +564,70 @@ export default function ImageTool() {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
-          <UploadSimpleIcon size={13} />
-          Open Image
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileInputChange}
-        />
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <UploadSimpleIcon size={13} />
+              Open Image
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
 
-        {originalImg ? (
-          <>
-            <span
-              className="max-w-48 truncate font-mono text-xs text-[var(--color-text-muted)]"
-              title={fileName}
-            >
-              {fileName}
-            </span>
-            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-              {originalImg.naturalWidth} × {originalImg.naturalHeight}px
-            </span>
-            {originalFileSize > 0 && (
-              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-                {formatBytes(originalFileSize)}
+            {originalImg ? (
+              <>
+                <span
+                  className="max-w-48 truncate font-mono text-xs text-[var(--color-text-muted)]"
+                  title={fileName}
+                >
+                  {fileName}
+                </span>
+                <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                  {originalImg.naturalWidth} × {originalImg.naturalHeight}px
+                </span>
+                {originalFileSize > 0 && (
+                  <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                    {formatBytes(originalFileSize)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Open an image or drop it anywhere
               </span>
             )}
-          </>
-        ) : (
-          <span className="text-xs text-[var(--color-text-muted)]">
-            Open an image or drop it anywhere
-          </span>
-        )}
 
-        {originalImg && (
-          <button
-            onClick={handleResetAll}
-            title="Reset all settings"
-            className="ml-auto flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          >
-            <ArrowCounterClockwiseIcon size={13} />
-            Reset
-          </button>
-        )}
-      </div>
+            {originalImg && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleResetAll}
+                title="Reset all settings"
+                className="ml-auto gap-1"
+              >
+                <ArrowCounterClockwiseIcon size={13} />
+                Reset
+              </Button>
+            )}
+          </div>
 
-      {/* ── Tab bar ──────────────────────────────────────────────── */}
-      <div className="border-b border-[var(--color-border)]">
-        <TabBar
-          tabs={TABS}
-          activeTab={state.activeTab}
-          onTabChange={(id) => updateState({ activeTab: id })}
-        />
-      </div>
-
-      {/* ── Main body ────────────────────────────────────────────── */}
+          <div className="border-b border-[var(--color-border)]">
+            <TabBar
+              tabs={TABS}
+              activeTab={state.activeTab}
+              onTabChange={(id) => updateState({ activeTab: id })}
+            />
+          </div>
+        </>
+      }
+    >
       <div className="flex flex-1 overflow-hidden">
         {/* Preview panel */}
         <div
@@ -851,7 +856,7 @@ export default function ImageTool() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
 
@@ -902,13 +907,16 @@ function ResizePanel({
             />
           </div>
 
-          <button
+          <Button
+            variant="icon"
+            size="xs"
             onClick={onLockToggle}
+            aria-pressed={lockAspect}
             title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-            className="mt-4 shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
+            className="mt-4 shrink-0"
           >
             {lockAspect ? <LockSimpleIcon size={14} /> : <LockSimpleOpenIcon size={14} />}
-          </button>
+          </Button>
 
           <div className="flex flex-1 flex-col gap-1">
             <label className="text-[10px] text-[var(--color-text-muted)]">Height (px)</label>
@@ -923,6 +931,9 @@ function ResizePanel({
           </div>
         </div>
 
+        {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
+            dimension inputs; Button's smallest size is text-xs (12px), which would outweigh
+            the fields it annotates. */}
         <button
           onClick={onReset}
           className="mt-2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
@@ -937,6 +948,7 @@ function ResizePanel({
         </div>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_SIZES.map(({ label, w, h }) => (
+            // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
             <button
               key={label}
               onClick={() => onPreset(w, h)}
@@ -990,6 +1002,8 @@ function CropPanel({
     <div className="flex flex-col gap-4">
       {/* Enable toggle */}
       <div className="flex items-center gap-2">
+        {/* eslint-disable-next-line no-restricted-syntax -- switch: a track-and-thumb toggle
+            whose whole appearance is the state indicator, with no Button variant equivalent. */}
         <button
           type="button"
           onClick={onToggle}
@@ -1066,6 +1080,9 @@ function CropPanel({
           </div>
         </div>
 
+        {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
+            crop inputs; Button's smallest size is text-xs (12px), which would outweigh the
+            fields it annotates. */}
         <button
           onClick={onReset}
           disabled={!enabled}

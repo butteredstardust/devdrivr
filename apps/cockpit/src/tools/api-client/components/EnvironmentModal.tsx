@@ -91,17 +91,19 @@ export function EnvironmentModal({ onClose }: Props) {
           </div>
           <div className="flex-1 overflow-y-auto w-full">
             {environments.map((env) => (
-              <button
+              <Button
                 key={env.id}
+                variant="ghost"
+                size="sm"
                 onClick={() => setSelectedId(env.id)}
-                className={`block w-full px-3 py-2 text-left text-sm ${
+                className={`w-full justify-start text-left ${
                   env.id === selectedId
-                    ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
-                    : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+                    ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
+                    : 'hover:bg-[var(--color-surface-hover)]'
                 }`}
               >
                 {env.name}
-              </button>
+              </Button>
             ))}
             {environments.length === 0 && (
               <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
@@ -122,23 +124,27 @@ export function EnvironmentModal({ onClose }: Props) {
                   className="flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-lg font-bold text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
                   placeholder="Environment Name"
                 />
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={handleDeleteEnv}
-                  className="rounded text-xs text-[var(--color-error)] hover:underline"
+                  className="text-[var(--color-error)] hover:underline hover:bg-transparent"
                 >
                   Delete Environment
-                </button>
+                </Button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="font-bold text-sm text-[var(--color-text)]">Variables</span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={handleAddVar}
-                    className="text-xs text-[var(--color-accent)] hover:underline"
+                    className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
                   >
                     + Add Variable
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -159,14 +165,15 @@ export function EnvironmentModal({ onClose }: Props) {
                         size="md"
                         className="flex-1 font-mono"
                       />
-                      <button
-                        type="button"
+                      <Button
+                        variant="icon"
+                        size="sm"
                         onClick={() => handleDeleteVar(key)}
                         aria-label={`Delete ${key} variable`}
-                        className="inline-flex min-h-8 min-w-8 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                        className="min-h-8 min-w-8 hover:text-[var(--color-error)]"
                       >
                         <XIcon size={16} aria-hidden="true" />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   {Object.keys(activeEnv.variables).length === 0 && (

@@ -130,6 +130,7 @@ describe('settings store updates', () => {
       alwaysOnTop: true,
       sidebarCollapsed: true,
       collapsedSidebarGroups: ['code'],
+      openedSidebarGroups: ['data'],
       pinnedToolIds: ['json-formatter'],
       notesDrawerOpen: true,
       notesDrawerWidth: 400,

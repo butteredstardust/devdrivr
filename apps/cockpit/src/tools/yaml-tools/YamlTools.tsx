@@ -6,9 +6,12 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import {
@@ -18,6 +21,13 @@ import {
   yamlToJson,
   jsonToYaml,
 } from '@/tools/yaml-tools/yaml-helpers'
+
+type ConvertDirection = 'yaml-to-json' | 'json-to-yaml'
+
+const CONVERT_DIRECTIONS: { value: ConvertDirection; label: string }[] = [
+  { value: 'yaml-to-json', label: 'YAML → JSON' },
+  { value: 'json-to-yaml', label: 'JSON → YAML' },
+]
 
 type YamlToolsState = {
   input: string
@@ -72,6 +82,7 @@ function TreeValueButton({
   onClick: () => void
 }) {
   return (
+    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
     <button
       type="button"
       onClick={onClick}
@@ -105,9 +116,7 @@ export default function YamlTools() {
 
   const [convertError, setConvertError] = useState<string | null>(null)
   const [convertOutput, setConvertOutput] = useState('')
-  const [convertDirection, setConvertDirection] = useState<'yaml-to-json' | 'json-to-yaml'>(
-    'yaml-to-json'
-  )
+  const [convertDirection, setConvertDirection] = useState<ConvertDirection>('yaml-to-json')
 
   // Cleanup worker on unmount
   useEffect(() => {
@@ -217,16 +226,18 @@ export default function YamlTools() {
   }, [convertDirection, state.input, state.jsonInput, setLastAction])
 
   return (
-    <div className="flex h-full flex-col">
-      <TabBar
-        tabs={TABS}
-        activeTab={state.activeTab}
-        onTabChange={(id) => updateState({ activeTab: id })}
-      />
-      <div className="flex-1 overflow-hidden">
-        {/* ── Lint & Format ─────────────────────────────────── */}
-        {state.activeTab === 'lint' && (
-          <div className="flex h-full flex-col">
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <TabBar
+            tabs={TABS}
+            activeTab={state.activeTab}
+            onTabChange={(id) => updateState({ activeTab: id })}
+          />
+
+          {/* ── Lint & Format toolbar ─────────────────────────── */}
+          {state.activeTab === 'lint' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
               <Button
                 variant="primary"
@@ -234,9 +245,9 @@ export default function YamlTools() {
                 onClick={() => {
                   void handleFormat()
                 }}
-                disabled={isFormatting}
+                loading={isFormatting}
               >
-                {isFormatting ? 'Formatting…' : 'Format'}
+                Format
               </Button>
               <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
                 Minify
@@ -245,6 +256,15 @@ export default function YamlTools() {
                 Sort Keys
               </Button>
               <CopyButton text={state.input} />
+              {!state.input.trim() && TOOL_SAMPLES['yaml-tools'] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['yaml-tools'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
+              )}
               <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
               {parsed.ok && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
@@ -264,29 +284,10 @@ export default function YamlTools() {
                 </span>
               )}
             </div>
-            {error && (
-              <Alert
-                variant="error"
-                className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-              >
-                {error}
-              </Alert>
-            )}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Editor
-                theme={monacoTheme}
-                language="yaml"
-                value={state.input}
-                onChange={(v) => updateState({ input: v ?? '' })}
-                options={monacoOptions}
-              />
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Tree View ─────────────────────────────────────── */}
-        {state.activeTab === 'tree' && (
-          <div className="flex h-full flex-col">
+          {/* ── Tree View toolbar ─────────────────────────────── */}
+          {state.activeTab === 'tree' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
               {stats && (
                 <span className="text-[10px] text-[var(--color-text-muted)]">
@@ -294,117 +295,126 @@ export default function YamlTools() {
                 </span>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              {parsed.ok ? (
-                <YamlTree data={parsed.data} path="$" defaultExpanded={true} />
-              ) : (
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  {!parsed.ok
-                    ? `Parse error: ${parsed.error}`
-                    : 'Enter YAML in the Lint & Format tab'}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* ── JSON ↔ YAML ───────────────────────────────────── */}
-        {state.activeTab === 'convert' && (
-          <div className="flex h-full flex-col">
+          {/* ── JSON ↔ YAML toolbar ───────────────────────────── */}
+          {state.activeTab === 'convert' && (
             <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setConvertDirection('yaml-to-json')
-                }}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  convertDirection === 'yaml-to-json'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                YAML → JSON
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConvertDirection('json-to-yaml')
-                }}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  convertDirection === 'json-to-yaml'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                JSON → YAML
-              </button>
+              <SegmentedControl
+                aria-label="Conversion direction"
+                value={convertDirection}
+                onChange={setConvertDirection}
+                options={CONVERT_DIRECTIONS}
+              />
               <Button
                 variant="primary"
                 size="sm"
                 onClick={() => {
                   void handleConvert()
                 }}
-                disabled={isConverting}
+                loading={isConverting}
               >
-                {isConverting ? 'Converting…' : 'Convert'}
+                Convert
               </Button>
               {convertOutput && <CopyButton text={convertOutput} />}
             </div>
-            {convertError && (
-              <Alert
-                variant="error"
-                className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-              >
-                {convertError}
-              </Alert>
-            )}
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-[var(--color-border)]">
-                <div className="border-b border-[var(--color-border)] px-4 py-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                    {convertDirection === 'yaml-to-json' ? 'YAML Input' : 'JSON Input'}
-                  </span>
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  {convertDirection === 'yaml-to-json' ? (
-                    <Editor
-                      theme={monacoTheme}
-                      language="yaml"
-                      value={state.input}
-                      onChange={(v) => updateState({ input: v ?? '' })}
-                      options={monacoOptions}
-                    />
-                  ) : (
-                    <Editor
-                      theme={monacoTheme}
-                      language="json"
-                      value={state.jsonInput}
-                      onChange={(v) => updateState({ jsonInput: v ?? '' })}
-                      options={monacoOptions}
-                    />
-                  )}
-                </div>
+          )}
+        </>
+      }
+    >
+      {/* ── Lint & Format ─────────────────────────────────── */}
+      {state.activeTab === 'lint' && (
+        <>
+          {error && (
+            <Alert
+              variant="error"
+              className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+            >
+              {error}
+            </Alert>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Editor
+              theme={monacoTheme}
+              language="yaml"
+              value={state.input}
+              onChange={(v) => updateState({ input: v ?? '' })}
+              options={monacoOptions}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── Tree View ─────────────────────────────────────── */}
+      {state.activeTab === 'tree' && (
+        <div className="flex-1 overflow-auto p-4">
+          {parsed.ok ? (
+            <YamlTree data={parsed.data} path="$" defaultExpanded={true} />
+          ) : (
+            <div className="text-sm text-[var(--color-text-muted)]">
+              {!parsed.ok ? `Parse error: ${parsed.error}` : 'Enter YAML in the Lint & Format tab'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── JSON ↔ YAML ───────────────────────────────────── */}
+      {state.activeTab === 'convert' && (
+        <>
+          {convertError && (
+            <Alert
+              variant="error"
+              className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+            >
+              {convertError}
+            </Alert>
+          )}
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-[var(--color-border)]">
+              <div className="border-b border-[var(--color-border)] px-4 py-1">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                  {convertDirection === 'yaml-to-json' ? 'YAML Input' : 'JSON Input'}
+                </span>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="border-b border-[var(--color-border)] px-4 py-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                    {convertDirection === 'yaml-to-json' ? 'JSON Output' : 'YAML Output'}
-                  </span>
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {convertDirection === 'yaml-to-json' ? (
                   <Editor
                     theme={monacoTheme}
-                    language={convertDirection === 'yaml-to-json' ? 'json' : 'yaml'}
-                    value={convertOutput}
-                    options={{ ...monacoOptions, readOnly: true }}
+                    language="yaml"
+                    value={state.input}
+                    onChange={(v) => updateState({ input: v ?? '' })}
+                    options={monacoOptions}
                   />
-                </div>
+                ) : (
+                  <Editor
+                    theme={monacoTheme}
+                    language="json"
+                    value={state.jsonInput}
+                    onChange={(v) => updateState({ jsonInput: v ?? '' })}
+                    options={monacoOptions}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="border-b border-[var(--color-border)] px-4 py-1">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                  {convertDirection === 'yaml-to-json' ? 'JSON Output' : 'YAML Output'}
+                </span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <Editor
+                  theme={monacoTheme}
+                  language={convertDirection === 'yaml-to-json' ? 'json' : 'yaml'}
+                  value={convertOutput}
+                  options={{ ...monacoOptions, readOnly: true }}
+                />
               </div>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </ToolLayout>
   )
 }
 
@@ -464,6 +474,8 @@ function YamlTree({
   if (Array.isArray(data)) {
     return (
       <div className="ml-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -487,6 +499,8 @@ function YamlTree({
     const entries = Object.entries(data as Record<string, unknown>)
     return (
       <div className="ml-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}

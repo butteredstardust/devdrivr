@@ -7,6 +7,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -343,61 +344,67 @@ export default function JsonSchemaValidator() {
   }, [state.schemaUrl, updateState, setLastAction])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-        <span className="font-mono text-xs text-[var(--color-text-muted)]">Templates:</span>
-        {Object.entries(TEMPLATES).map(([key, tmpl]) => (
-          <button
-            key={key}
-            onClick={() => loadTemplate(key)}
-            className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+          <span className="font-mono text-xs text-[var(--color-text-muted)]">Templates:</span>
+          {Object.entries(TEMPLATES).map(([key, tmpl]) => (
+            // eslint-disable-next-line no-restricted-syntax -- 10px template chip sitting inline in the toolbar text row; Button's smallest size is text-xs and would out-weigh the "Templates:" label it follows.
+            <button
+              key={key}
+              onClick={() => loadTemplate(key)}
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            >
+              {tmpl.label}
+            </button>
+          ))}
+          <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={generateSchema}
+            title="Infer a schema from the current JSON data"
           >
-            {tmpl.label}
+            Infer Schema
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={generateSample}
+            title="Generate sample data from the current schema"
+          >
+            Generate Sample
+          </Button>
+          {/* eslint-disable-next-line no-restricted-syntax -- 10px on/off toggle whose border
+              flips to --color-warning when engaged; no Button variant carries that token, and
+              nothing below text-xs exists. */}
+          <button
+            onClick={() => updateState({ strict: !state.strict })}
+            className={`rounded border px-2 py-0.5 text-[10px] ${
+              state.strict
+                ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
+                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
+            }`}
+            title="Strict mode catches schema authoring errors"
+          >
+            Strict
           </button>
-        ))}
-        <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={generateSchema}
-          title="Infer a schema from the current JSON data"
-        >
-          Infer Schema
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={generateSample}
-          title="Generate sample data from the current schema"
-        >
-          Generate Sample
-        </Button>
-        <button
-          onClick={() => updateState({ strict: !state.strict })}
-          className={`rounded border px-2 py-0.5 text-[10px] ${
-            state.strict
-              ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
-              : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
-          }`}
-          title="Strict mode catches schema authoring errors"
-        >
-          Strict
-        </button>
-        <div className="ml-auto flex items-center gap-2">
-          {valid === true && (
-            <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
-              ✓ Valid
-            </span>
-          )}
-          {valid === false && (
-            <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
-              ✗ {errors.length} error{errors.length !== 1 ? 's' : ''}
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {valid === true && (
+              <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                ✓ Valid
+              </span>
+            )}
+            {valid === false && (
+              <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
+                ✗ {errors.length} error{errors.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
+      }
+    >
       {/* Error panel */}
       {errors.length > 0 && (
         <div className="max-h-28 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
@@ -447,9 +454,9 @@ export default function JsonSchemaValidator() {
                 onClick={() => {
                   void loadSchemaFromUrl()
                 }}
-                disabled={loadingUrl}
+                loading={loadingUrl}
               >
-                {loadingUrl ? 'Loading…' : 'Load'}
+                Load
               </Button>
               <CopyButton text={state.schema} />
             </div>
@@ -465,7 +472,7 @@ export default function JsonSchemaValidator() {
           </div>
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
 

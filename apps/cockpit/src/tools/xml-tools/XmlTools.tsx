@@ -9,6 +9,8 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { XmlWorker } from '@/workers/xml.worker'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
 
@@ -129,6 +131,8 @@ function TreeNodeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 
   return (
     <div>
+      {/* eslint-disable-next-line no-restricted-syntax -- tree node row: full-width, indented
+          by a computed paddingLeft, and disabled on leaves; it's a disclosure, not a control. */}
       <button
         type="button"
         style={{ paddingLeft: indent }}
@@ -335,27 +339,28 @@ export default function XmlTools() {
   }, [state.input])
 
   return (
-    <div className="flex h-full flex-col">
-      <TabBar
-        tabs={TABS}
-        activeTab={state.activeTab}
-        onTabChange={(id) => updateState({ activeTab: id })}
-      />
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <TabBar
+            tabs={TABS}
+            activeTab={state.activeTab}
+            onTabChange={(id) => updateState({ activeTab: id })}
+          />
 
-      {/* Stats bar */}
-      {stats && state.input.trim() && (
-        <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1.5 text-xs text-[var(--color-text-muted)]">
-          <span>{stats.elements} elements</span>
-          <span>{stats.attributes} attributes</span>
-          <span>{stats.textNodes} text nodes</span>
-          <span>depth {stats.depth}</span>
-        </div>
-      )}
+          {/* Stats bar */}
+          {stats && state.input.trim() && (
+            <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1.5 text-xs text-[var(--color-text-muted)]">
+              <span>{stats.elements} elements</span>
+              <span>{stats.attributes} attributes</span>
+              <span>{stats.textNodes} text nodes</span>
+              <span>depth {stats.depth}</span>
+            </div>
+          )}
 
-      <div className="flex-1 overflow-hidden">
-        {/* ── Lint & Format ─────────────────────────────── */}
-        {state.activeTab === 'lint' && (
-          <div className="flex h-full flex-col">
+          {/* ── Lint & Format toolbar ─────────────────────── */}
+          {state.activeTab === 'lint' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
               <Button variant="primary" size="sm" onClick={() => void handleFormat()}>
                 Format
@@ -377,83 +382,30 @@ export default function XmlTools() {
                 </Select>
               </label>
               <CopyButton text={state.input} />
-            </div>
-            {error && (
-              <Alert
-                variant="error"
-                className="max-h-24 overflow-auto border-b border-[var(--color-border)] rounded-none px-4 py-2"
-              >
-                <pre className="whitespace-pre-wrap">{error}</pre>
-              </Alert>
-            )}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Editor
-                theme={monacoTheme}
-                language="xml"
-                value={state.input}
-                onChange={(v) => updateState({ input: v ?? '' })}
-                options={monacoOptions}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Tree View ─────────────────────────────────── */}
-        {state.activeTab === 'tree' && (
-          <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-auto p-4">
-              {tree ? (
-                <TreeNodeRow node={tree} />
-              ) : state.input.trim() ? (
-                <div className="text-sm text-[var(--color-error)]">
-                  Could not parse XML — check for errors in Lint & Format tab
-                </div>
-              ) : (
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  Enter XML in the Lint & Format tab
-                </div>
+              {!state.input.trim() && TOOL_SAMPLES['xml-tools'] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateState({ input: TOOL_SAMPLES['xml-tools'] ?? '' })}
+                >
+                  Load Sample
+                </Button>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── XML → JSON ────────────────────────────────── */}
-        {state.activeTab === 'json' && (
-          <div className="flex h-full flex-col">
+          {/* ── XML → JSON toolbar ───────────────────────── */}
+          {state.activeTab === 'json' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
               <Button variant="primary" size="sm" onClick={() => void handleToJson()}>
                 Convert
               </Button>
               {jsonOutput && <CopyButton text={jsonOutput} label="Copy JSON" />}
             </div>
-            {jsonError && (
-              <Alert
-                variant="error"
-                className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
-              >
-                {jsonError}
-              </Alert>
-            )}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {jsonOutput ? (
-                <Editor
-                  theme={monacoTheme}
-                  language="json"
-                  value={jsonOutput}
-                  options={{ ...monacoOptions, readOnly: true }}
-                />
-              ) : (
-                <div className="p-4 text-sm text-[var(--color-text-muted)]">
-                  Enter XML in the Lint & Format tab, then click Convert
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* ── XPath ─────────────────────────────────────── */}
-        {state.activeTab === 'xpath' && (
-          <div className="flex h-full flex-col">
+          {/* ── XPath toolbar ────────────────────────────── */}
+          {state.activeTab === 'xpath' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
               <Input
                 value={state.xpathQuery}
@@ -468,35 +420,107 @@ export default function XmlTools() {
                 Query
               </Button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              {xpathResults.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs text-[var(--color-text-muted)]">
-                    {xpathResults.length} match(es)
-                  </div>
-                  {xpathResults.map((r, i) => (
-                    <div key={i} className="group flex items-start gap-2">
-                      <pre className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
-                        {r}
-                      </pre>
-                      <CopyButton
-                        text={r}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : xpathQueried ? (
-                <div className="text-sm text-[var(--color-text-muted)]">No matches</div>
-              ) : (
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  Enter an XPath expression and click Query (or press Enter)
-                </div>
-              )}
-            </div>
+          )}
+        </>
+      }
+    >
+      {/* ── Lint & Format ─────────────────────────────── */}
+      {state.activeTab === 'lint' && (
+        <>
+          {error && (
+            <Alert
+              variant="error"
+              className="max-h-24 overflow-auto border-b border-[var(--color-border)] rounded-none px-4 py-2"
+            >
+              <pre className="whitespace-pre-wrap">{error}</pre>
+            </Alert>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Editor
+              theme={monacoTheme}
+              language="xml"
+              value={state.input}
+              onChange={(v) => updateState({ input: v ?? '' })}
+              options={monacoOptions}
+            />
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+
+      {/* ── Tree View ─────────────────────────────────── */}
+      {state.activeTab === 'tree' && (
+        <div className="flex-1 overflow-auto p-4">
+          {tree ? (
+            <TreeNodeRow node={tree} />
+          ) : state.input.trim() ? (
+            <div className="text-sm text-[var(--color-error)]">
+              Could not parse XML — check for errors in Lint & Format tab
+            </div>
+          ) : (
+            <div className="text-sm text-[var(--color-text-muted)]">
+              Enter XML in the Lint & Format tab
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── XML → JSON ────────────────────────────────── */}
+      {state.activeTab === 'json' && (
+        <>
+          {jsonError && (
+            <Alert
+              variant="error"
+              className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+            >
+              {jsonError}
+            </Alert>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {jsonOutput ? (
+              <Editor
+                theme={monacoTheme}
+                language="json"
+                value={jsonOutput}
+                options={{ ...monacoOptions, readOnly: true }}
+              />
+            ) : (
+              <div className="p-4 text-sm text-[var(--color-text-muted)]">
+                Enter XML in the Lint & Format tab, then click Convert
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── XPath ─────────────────────────────────────── */}
+      {state.activeTab === 'xpath' && (
+        <div className="flex-1 overflow-auto p-4">
+          {xpathResults.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs text-[var(--color-text-muted)]">
+                {xpathResults.length} match(es)
+              </div>
+              {xpathResults.map((r, i) => (
+                <div key={i} className="group flex items-start gap-2">
+                  <pre className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
+                    {r}
+                  </pre>
+                  <CopyButton
+                    text={r}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : xpathQueried ? (
+            <div className="text-sm text-[var(--color-text-muted)]">No matches</div>
+          ) : (
+            <div className="text-sm text-[var(--color-text-muted)]">
+              Enter an XPath expression and click Query (or press Enter)
+            </div>
+          )}
+        </div>
+      )}
+    </ToolLayout>
   )
 }

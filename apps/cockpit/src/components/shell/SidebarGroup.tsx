@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
 import { useSettingsStore } from '@/stores/settings.store'
+import { useHadOpenedGroupsAtLaunch } from '@/hooks/useOpenedGroupsAtLaunch'
 import { CaretRightIcon } from '@phosphor-icons/react'
 import { SidebarItem } from './SidebarItem'
 
@@ -9,28 +10,61 @@ type SidebarGroupProps = {
   tools: ToolDefinition[]
   isFirst?: boolean
   isActiveGroup?: boolean
+  /** Force-expanded while the sidebar filter has matches in this group. */
+  forceExpanded?: boolean
 }
 
-export function SidebarGroup({ group, tools, isFirst, isActiveGroup = false }: SidebarGroupProps) {
+export function SidebarGroup({
+  group,
+  tools,
+  isFirst,
+  isActiveGroup = false,
+  forceExpanded = false,
+}: SidebarGroupProps) {
   const collapsedSidebarGroups = useSettingsStore((s) => s.collapsedSidebarGroups)
+  const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
   const update = useSettingsStore((s) => s.update)
-  const persistentlyCollapsed = collapsedSidebarGroups.includes(group.id)
-  const collapsed = persistentlyCollapsed && !isActiveGroup
+  const explicitlyCollapsed = collapsedSidebarGroups.includes(group.id)
+  // Once the user has opened any group at least once, groups they've never
+  // touched default to collapsed — but only after that first touch, so a
+  // brand-new install (openedSidebarGroups still empty) still shows every
+  // group expanded rather than looking broken/empty.
+  //
+  // The "has the user opened anything yet" gate is frozen at launch, so a
+  // first-run sidebar doesn't collapse itself the moment the first tool is
+  // clicked. Membership stays live, so expanding a group still works instantly.
+  const hadOpenedGroupsAtLaunch = useHadOpenedGroupsAtLaunch()
+  const recordedAsOpened = openedSidebarGroups.includes(group.id)
+  const defaultCollapsed = hadOpenedGroupsAtLaunch && !recordedAsOpened
+  const persistentlyCollapsed = explicitlyCollapsed || defaultCollapsed
+  const collapsed = persistentlyCollapsed && !isActiveGroup && !forceExpanded
 
   const collapseGroup = useCallback(() => {
-    if (!persistentlyCollapsed) {
+    if (!explicitlyCollapsed) {
       void update('collapsedSidebarGroups', [...collapsedSidebarGroups, group.id])
     }
-  }, [collapsedSidebarGroups, group.id, persistentlyCollapsed, update])
+  }, [collapsedSidebarGroups, group.id, explicitlyCollapsed, update])
 
   const expandGroup = useCallback(() => {
-    if (persistentlyCollapsed) {
+    if (explicitlyCollapsed) {
       void update(
         'collapsedSidebarGroups',
         collapsedSidebarGroups.filter((id) => id !== group.id)
       )
     }
-  }, [collapsedSidebarGroups, group.id, persistentlyCollapsed, update])
+    // Expanding — explicitly or via the default-collapse fallback — counts
+    // as "opened" so it stays expanded by default from here on.
+    if (!recordedAsOpened) {
+      void update('openedSidebarGroups', [...openedSidebarGroups, group.id])
+    }
+  }, [
+    collapsedSidebarGroups,
+    group.id,
+    explicitlyCollapsed,
+    recordedAsOpened,
+    openedSidebarGroups,
+    update,
+  ])
 
   const toggleCollapsed = useCallback(() => {
     if (collapsed) {
@@ -70,7 +104,7 @@ export function SidebarGroup({ group, tools, isFirst, isActiveGroup = false }: S
           size={12}
           className={`shrink-0 transition-transform duration-200 ease-in-out ${collapsed ? '' : 'rotate-90'}`}
         />
-        <span className="font-mono text-xs tracking-normal">[{group.label}]</span>
+        <span className="text-xs tracking-normal">[{group.label}]</span>
         <span className="ml-auto font-mono text-[10px] font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
           {tools.length}
         </span>

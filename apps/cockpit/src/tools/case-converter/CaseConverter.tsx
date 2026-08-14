@@ -4,6 +4,9 @@ import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { TextAaIcon } from '@phosphor-icons/react'
 
 type CaseConverterState = {
   input: string
@@ -111,79 +114,83 @@ export default function CaseConverter() {
   )
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-[var(--color-border)] p-4">
-        <div className="mb-2 flex items-center gap-3">
-          <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
-          {detected && (
-            <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-accent)]">
-              {detected}
-            </span>
-          )}
-          {words.length > 0 && (
-            <span className="text-[10px] text-[var(--color-text-muted)]">
-              {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
-            </span>
-          )}
+    <ToolLayout
+      toolbar={
+        <div className="border-b border-[var(--color-border)] p-4">
+          <div className="mb-2 flex items-center gap-3">
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
+            {detected && (
+              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-accent)]">
+                {detected}
+              </span>
+            )}
+            {words.length > 0 && (
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
+              </span>
+            )}
+          </div>
+          <textarea
+            value={state.input}
+            onChange={(e) => updateState({ input: e.target.value })}
+            placeholder="Type or paste text to convert..."
+            rows={3}
+            className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+          />
         </div>
-        <textarea
-          value={state.input}
-          onChange={(e) => updateState({ input: e.target.value })}
-          placeholder="Type or paste text to convert..."
-          rows={3}
-          className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-        />
-      </div>
-      <div className="flex-1 overflow-auto p-4">
-        {cases.length > 0 ? (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {cases.map((c) => {
-              const isCurrent = c.value === state.input
-              return (
-                <div
-                  key={c.id}
-                  className={`flex items-center justify-between rounded border px-3 py-2 ${
-                    isCurrent
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
-                      : 'border-[var(--color-border)] bg-[var(--color-surface)]'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                      {c.label}
-                      {isCurrent && (
-                        <span className="text-[10px] font-bold text-[var(--color-accent)]">
-                          current
-                        </span>
-                      )}
-                    </div>
-                    <div className="truncate font-mono text-sm text-[var(--color-text)]">
-                      {c.value}
-                    </div>
-                  </div>
-                  <div className="ml-2 flex shrink-0 gap-1">
-                    {!isCurrent && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleUseAsInput(c.value, c.label)}
-                        title="Use as input"
-                      >
-                        ↑ Use
-                      </Button>
+      }
+    >
+      {cases.length > 0 ? (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {cases.map((c) => {
+            const isCurrent = c.value === state.input
+            return (
+              <div
+                key={c.id}
+                className={`flex items-center justify-between rounded border px-3 py-2 ${
+                  isCurrent
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                    {c.label}
+                    {isCurrent && (
+                      <span className="text-[10px] font-bold text-[var(--color-accent)]">
+                        current
+                      </span>
                     )}
-                    <CopyButton text={c.value} />
+                  </div>
+                  <div className="truncate font-mono text-sm text-[var(--color-text)]">
+                    {c.value}
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="text-sm text-[var(--color-text-muted)]">
-            Enter text above to see conversions
-          </div>
-        )}
-      </div>
-    </div>
+                <div className="ml-2 flex shrink-0 gap-1">
+                  {!isCurrent && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleUseAsInput(c.value, c.label)}
+                      title="Use as input"
+                    >
+                      ↑ Use
+                    </Button>
+                  )}
+                  <CopyButton text={c.value} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          icon={TextAaIcon}
+          title="Enter text above to see conversions"
+          size="sm"
+          className="p-0"
+        />
+      )}
+    </ToolLayout>
   )
 }

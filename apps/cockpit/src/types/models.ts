@@ -31,6 +31,13 @@ export type AppSettings = {
   alwaysOnTop: boolean
   sidebarCollapsed: boolean
   collapsedSidebarGroups: ToolGroup[]
+  /**
+   * Groups the user has explicitly expanded or opened a tool from at least
+   * once. Once a group is in this list, "never opened" default-collapse no
+   * longer applies to it — only an explicit collapse (via
+   * collapsedSidebarGroups) hides it again.
+   */
+  openedSidebarGroups: ToolGroup[]
   pinnedToolIds: string[]
   notesDrawerOpen: boolean
   notesDrawerWidth: number
@@ -52,6 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   alwaysOnTop: false,
   sidebarCollapsed: false,
   collapsedSidebarGroups: [],
+  openedSidebarGroups: [],
   pinnedToolIds: [],
   notesDrawerOpen: false,
   notesDrawerWidth: 288,

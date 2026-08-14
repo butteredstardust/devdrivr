@@ -19,7 +19,10 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
 
   const columnStats = useMemo(() => {
     const keys = Object.keys(data[0] ?? {})
-    const result: Record<string, { type: ColumnType; stats: unknown; nullCount: number; nullPct: number }> = {}
+    const result: Record<
+      string,
+      { type: ColumnType; stats: unknown; nullCount: number; nullPct: number }
+    > = {}
 
     for (const key of keys) {
       const values = data.map((row) => row[key])
@@ -71,6 +74,8 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
     <div className="flex h-full flex-col overflow-auto p-4">
       {/* Column Statistics */}
       <div className="mb-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- full-width accordion panel header
+            with a ▼/▶ affordance; it's a disclosure, not an action button. */}
         <button
           className="flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
           onClick={() => setExpandedPanel(expandedPanel === 'stats' ? 'quality' : 'stats')}
@@ -111,6 +116,8 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
 
       {/* Schema Generation */}
       <div className="mb-4">
+        {/* eslint-disable-next-line no-restricted-syntax -- full-width accordion panel header
+            with a ▼/▶ affordance; it's a disclosure, not an action button. */}
         <button
           className="flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
           onClick={() => setExpandedPanel(expandedPanel === 'schema' ? 'stats' : 'schema')}

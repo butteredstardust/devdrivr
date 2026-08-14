@@ -413,7 +413,14 @@ describe('LinkModal', () => {
   it('calls onClose when Escape pressed', () => {
     const onClose = vi.fn()
     render(<LinkModal onInsert={vi.fn()} onClose={onClose} />)
-    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(<LinkModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.click(container.querySelector('[role="presentation"]') as Element)
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -449,6 +456,20 @@ describe('CodeBlockModal', () => {
     expect(screen.getByText('python')).toBeInTheDocument()
     expect(screen.queryByText('javascript')).not.toBeInTheDocument()
   })
+
+  it('calls onClose when Escape pressed', () => {
+    const onClose = vi.fn()
+    render(<CodeBlockModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(<CodeBlockModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.click(container.querySelector('[role="presentation"]') as Element)
+    expect(onClose).toHaveBeenCalled()
+  })
 })
 
 describe('TableModal', () => {
@@ -471,6 +492,20 @@ describe('TableModal', () => {
     expect(onInsert).toHaveBeenCalledWith(
       '| Col 1 | Col 2 | Col 3 |\n|-------|-------|-------|\n|   |   |   |\n|   |   |   |\n|   |   |   |'
     )
+  })
+
+  it('calls onClose when Escape pressed', () => {
+    const onClose = vi.fn()
+    render(<TableModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(<TableModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.click(container.querySelector('[role="presentation"]') as Element)
+    expect(onClose).toHaveBeenCalled()
   })
 })
 
@@ -509,6 +544,20 @@ describe('ImageModal', () => {
       target: { value: 'https://example.com/image.png' },
     })
     expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/image.png')
+  })
+
+  it('calls onClose when Escape pressed', () => {
+    const onClose = vi.fn()
+    render(<ImageModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(<ImageModal onInsert={vi.fn()} onClose={onClose} />)
+    fireEvent.click(container.querySelector('[role="presentation"]') as Element)
+    expect(onClose).toHaveBeenCalled()
   })
 })
 

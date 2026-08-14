@@ -101,8 +101,8 @@ export function Dialog({
     <>
       <div
         role="presentation"
-        className="fixed inset-0 z-50"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--color-shadow) 50%, transparent)' }}
+        className="fixed inset-0 z-[var(--z-scrim)]"
+        style={{ backgroundColor: 'var(--color-scrim)' }}
         onClick={onClose}
       />
       <div
@@ -112,13 +112,10 @@ export function Dialog({
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`animate-fade-in fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
+        className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-          <h2
-            id={titleId}
-            className={`font-mono text-sm text-[var(--color-text)] ${titleClassName}`}
-          >
+          <h2 id={titleId} className={`font-ui text-sm text-[var(--color-text)] ${titleClassName}`}>
             {title}
           </h2>
           <button
@@ -130,9 +127,9 @@ export function Dialog({
             <XIcon size={16} aria-hidden="true" />
           </button>
         </div>
-        <div className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>{children}</div>
+        <div className={`font-ui min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-[var(--color-border)] px-4 py-3">
+          <div className="font-ui flex justify-end gap-2 border-t border-[var(--color-border)] px-4 py-3">
             {footer}
           </div>
         )}

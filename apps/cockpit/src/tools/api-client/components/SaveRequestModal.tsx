@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { Input } from '@/components/shared/Input'
+import { Select } from '@/components/shared/Select'
 import type { ApiCollection } from '@/types/models'
 
 type Props = {
@@ -87,11 +88,7 @@ export function SaveRequestModal({
 
         <div className="flex flex-col gap-1">
           <label className="font-mono text-xs text-[var(--color-text-muted)]">Collection</label>
-          <select
-            value={collectionId}
-            onChange={(e) => setCollectionId(e.target.value)}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-          >
+          <Select size="md" value={collectionId} onChange={(e) => setCollectionId(e.target.value)}>
             <option value="">(Unassigned)</option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
@@ -99,7 +96,7 @@ export function SaveRequestModal({
               </option>
             ))}
             <option value={NEW_COLLECTION_SENTINEL}>+ New Collection…</option>
-          </select>
+          </Select>
         </div>
 
         {isNewCol && (

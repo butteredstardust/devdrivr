@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import type Fuse from 'fuse.js'
+import type { IFuseOptions } from 'fuse.js'
 import { TOOLS } from '@/app/tool-registry'
-import { TOOL_GROUPS } from '@/app/tool-groups'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
+import { useFuseSearch } from '@/hooks/useFuseSearch'
+import { GROUP_LABELS, searchTermsForTool } from '@/lib/tool-search'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   ArrowLeftIcon,
@@ -44,10 +45,6 @@ type SectionItem =
   | { type: 'item'; item: PaletteItem; flatIndex: number }
 
 // ─── Constants ───────────────────────────────────────────────────────
-
-const GROUP_LABELS: Record<string, string> = Object.fromEntries(
-  TOOL_GROUPS.map((g) => [g.id, g.label])
-)
 
 const actionIcon = (IconComponent: Icon) => (
   <IconComponent size={16} weight="regular" aria-hidden="true" />
@@ -168,27 +165,16 @@ function buildActions(modSymbol: string, state: ActionState): PaletteItem[] {
   ]
 }
 
-function searchTermsForTool(tool: (typeof TOOLS)[number]): string[] {
-  const groupLabel = GROUP_LABELS[tool.group] ?? tool.group
-
-  return [tool.id, tool.id.replaceAll('-', ' '), tool.group, groupLabel]
-}
-
-function fallbackSearch(items: PaletteItem[], searchQuery: string): PaletteItem[] {
-  const needle = searchQuery.toLowerCase()
-
-  return items.filter((item) =>
-    [
-      item.name,
-      item.description,
-      item.group,
-      item.groupLabel,
-      item.shortcut,
-      ...(item.searchTerms ?? []),
-    ]
-      .filter((value): value is string => value != null)
-      .some((value) => value.toLowerCase().includes(needle))
-  )
+/** Field set searched in both Fuse mode and the plain-substring fallback. */
+function paletteItemSearchable(item: PaletteItem): Array<string | null | undefined> {
+  return [
+    item.name,
+    item.description,
+    item.group,
+    item.groupLabel,
+    item.shortcut,
+    ...(item.searchTerms ?? []),
+  ]
 }
 
 function optionId(item: PaletteItem): string {
@@ -244,9 +230,9 @@ export function CommandPalette() {
 
   const allItems = useMemo(() => [...toolItems, ...actions], [toolItems, actions])
 
-  const fuseOpts = useMemo(
+  const fuseOpts: IFuseOptions<PaletteItem> = useMemo(
     () => ({
-      keys: ['name', 'description', 'group', 'groupLabel', 'shortcut', 'searchTerms'] as string[],
+      keys: ['name', 'description', 'group', 'groupLabel', 'shortcut', 'searchTerms'],
       threshold: 0.4,
       includeScore: true,
       includeMatches: true,
@@ -254,16 +240,11 @@ export function CommandPalette() {
     []
   )
 
-  const fuseRef = useRef<Fuse<PaletteItem> | null>(null)
-  const actionFuseRef = useRef<Fuse<PaletteItem> | null>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    import('fuse.js').then(({ default: FuseClass }) => {
-      fuseRef.current = new FuseClass(allItems, fuseOpts)
-      actionFuseRef.current = new FuseClass(actions, fuseOpts)
-    })
-  }, [isOpen, allItems, fuseOpts, actions])
+  // Fuzzy search: action mode uses a dedicated index over just the actions,
+  // normal mode searches everything. Both go through the one shared Fuse
+  // implementation (see useFuseSearch) — no second scoring engine here.
+  const searchAllItems = useFuseSearch(allItems, fuseOpts, paletteItemSearchable, isOpen)
+  const searchActions = useFuseSearch(actions, fuseOpts, paletteItemSearchable, isOpen)
 
   // ─── Results ───────────────────────────────────────────────────
 
@@ -287,13 +268,17 @@ export function CommandPalette() {
       return [...recent, ...remaining]
     }
 
-    // Fuzzy search (action mode uses dedicated Fuse, normal mode searches everything)
-    const fuseInstance = isActionMode ? actionFuseRef.current : fuseRef.current
-    const searchableItems = isActionMode ? actions : allItems
-    return fuseInstance
-      ? fuseInstance.search(searchQuery).map((r) => r.item)
-      : fallbackSearch(searchableItems, searchQuery)
-  }, [searchQuery, isActionMode, toolItems, actions, allItems, activeTool, recentToolIds])
+    return isActionMode ? searchActions(searchQuery) : searchAllItems(searchQuery)
+  }, [
+    searchQuery,
+    isActionMode,
+    toolItems,
+    actions,
+    activeTool,
+    recentToolIds,
+    searchActions,
+    searchAllItems,
+  ])
 
   // ─── Section headers for default view ──────────────────────────
 
@@ -516,15 +501,15 @@ export function CommandPalette() {
     <>
       <div
         role="presentation"
-        className="fixed inset-0 z-40"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--color-shadow) 50%, transparent)' }}
+        className="fixed inset-0 z-[var(--z-scrim)]"
+        style={{ backgroundColor: 'var(--color-scrim)' }}
         onClick={() => setOpen(false)}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="command-palette-title"
-        className="animate-fade-in fixed left-1/2 top-[15%] z-50 w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+        className="font-ui animate-fade-in fixed left-1/2 top-[15%] z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
       >
         <h2 id="command-palette-title" className="sr-only">
           Command palette

@@ -30,6 +30,18 @@ describe('DiffViewer', () => {
     expect(screen.getByDisplayValue('Side by Side')).toBeInTheDocument()
   })
 
+  it('populates both editors from Load Sample and hides the button once content exists', () => {
+    renderTool(DiffViewer)
+    expect(screen.getByText('Load Sample')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Load Sample'))
+
+    const [left, right] = screen.getAllByTestId('monaco-editor')
+    expect((left as HTMLTextAreaElement).value).toContain('function greet(name) {')
+    expect((right as HTMLTextAreaElement).value).toContain('function greet(name, punctuation')
+    expect(screen.queryByText('Load Sample')).not.toBeInTheDocument()
+  })
+
   // ── Worker round-trip ────────────────────────────────────────────
   // A no-op worker mock never resolves computeDiff, so diffHtml/rawPatch
   // never populate and the editors never disappear — this only passes

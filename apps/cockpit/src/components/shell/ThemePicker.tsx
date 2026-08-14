@@ -1,0 +1,267 @@
+import { useEffect, useRef, useState } from 'react'
+import { CheckIcon, MonitorIcon } from '@phosphor-icons/react'
+import type { Theme } from '@/types/models'
+import { ALL_THEMES, THEME_META, getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import type { EffectiveTheme } from '@/lib/theme'
+
+const COLS = 3
+
+const DARK_THEMES = ALL_THEMES.filter((t) => !isLightEffectiveTheme(t))
+const LIGHT_THEMES = ALL_THEMES.filter((t) => isLightEffectiveTheme(t))
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
+  return rows
+}
+
+// One flat grid model spanning "System" (its own single-cell row) followed by
+// the Dark section rows, then the Light section rows. Up/Down travel between
+// rows (clamping column to the target row's length); Left/Right travel the
+// flattened reading order. This lets arrow keys move seamlessly from System
+// into Dark into Light without the caller having to think about section
+// boundaries.
+const ROWS: Theme[][] = [['system'], ...chunk(DARK_THEMES, COLS), ...chunk(LIGHT_THEMES, COLS)]
+const FLAT: Theme[] = ROWS.flat()
+
+function findPosition(theme: Theme): { row: number; col: number } {
+  for (let row = 0; row < ROWS.length; row++) {
+    const col = (ROWS[row] ?? []).indexOf(theme)
+    if (col !== -1) return { row, col }
+  }
+  return { row: 0, col: 0 }
+}
+
+const FIRST_THEME: Theme = FLAT[0] ?? 'system'
+const LAST_THEME: Theme = FLAT[FLAT.length - 1] ?? 'system'
+
+// Renders a miniature preview of `effective`'s own tokens by applying the
+// theme's CSS class to a scoped wrapper — the same class tokens.css defines
+// for the real <html> element, just scoped to this swatch instead. No JS
+// color values are read or hardcoded; the browser resolves var(--color-*)
+// against whichever class is nearest.
+function Swatch({ effective, className = '' }: { effective: EffectiveTheme; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`${effective} relative block h-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] ${className}`}
+    >
+      <span className="absolute inset-x-1 bottom-1 top-3 rounded-[2px] bg-[var(--color-surface)]" />
+      <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+      <span className="absolute inset-x-1.5 bottom-1.5 h-1 w-4 rounded-full bg-[var(--color-text)] opacity-70" />
+    </span>
+  )
+}
+
+function SystemSwatch() {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative flex h-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)]"
+    >
+      <Swatch effective="midnight" className="h-full w-1/2 rounded-none border-0" />
+      <Swatch effective="soft-focus" className="h-full w-1/2 rounded-none border-0" />
+      <span className="absolute inset-0 flex items-center justify-center bg-[var(--color-scrim)]">
+        <MonitorIcon size={12} weight="bold" className="text-[var(--color-text)] drop-shadow" />
+      </span>
+    </span>
+  )
+}
+
+type ChipProps = {
+  theme: Theme
+  label: string
+  selected: boolean
+  tabbable: boolean
+  registerRef: (el: HTMLButtonElement | null) => void
+  onCommit: () => void
+  onHover: (hovering: boolean) => void
+  onFocusChange: (focused: boolean) => void
+  onArrow: (key: string) => void
+}
+
+function ThemeChip({
+  theme,
+  label,
+  selected,
+  tabbable,
+  registerRef,
+  onCommit,
+  onHover,
+  onFocusChange,
+  onArrow,
+}: ChipProps) {
+  return (
+    <button
+      type="button"
+      ref={registerRef}
+      role="option"
+      aria-selected={selected}
+      tabIndex={tabbable ? 0 : -1}
+      onClick={onCommit}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+      onFocus={() => onFocusChange(true)}
+      onBlur={() => onFocusChange(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onCommit()
+          return
+        }
+        if (
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'ArrowLeft' ||
+          e.key === 'ArrowRight' ||
+          e.key === 'Home' ||
+          e.key === 'End'
+        ) {
+          e.preventDefault()
+          onArrow(e.key)
+        }
+      }}
+      className="font-ui flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-1.5 text-left outline-none transition-colors duration-150 hover:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+    >
+      <span className="relative">
+        {theme === 'system' ? <SystemSwatch /> : <Swatch effective={getEffectiveTheme(theme)} />}
+        {selected && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-bg)]"
+          >
+            <CheckIcon size={9} weight="bold" />
+          </span>
+        )}
+      </span>
+      <span className="truncate text-[10px] text-[var(--color-text)]">{label}</span>
+    </button>
+  )
+}
+
+function applyPreviewClass(theme: Theme): void {
+  const effective = getEffectiveTheme(theme)
+  const html = document.documentElement
+  html.classList.remove(...ALL_THEMES)
+  html.classList.add(effective)
+}
+
+export type ThemePickerProps = {
+  value: Theme
+  onChange: (theme: Theme) => void
+}
+
+// role="listbox" + role="option" with manual activation (not "selection
+// follows focus"): arrow keys only move the roving-tabindex focus and update
+// a live class-only preview; aria-selected stays pinned to the committed
+// value until Enter/Space/click explicitly activates a chip. A radiogroup
+// (the pattern this codebase already uses in SegmentedControl) implies
+// native <input type="radio"> semantics where arrow movement itself changes
+// the selection — the opposite of what preview-then-commit needs here, so
+// listbox's manual-activation variant is the closer fit.
+export function ThemePicker({ value, onChange }: ThemePickerProps) {
+  const [hovered, setHovered] = useState<Theme | null>(null)
+  const [focused, setFocused] = useState<Theme | null>(null)
+  const refs = useRef(new Map<Theme, HTMLButtonElement>())
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  const preview = hovered ?? focused ?? value
+  // Class-only preview: swaps the <html> theme class for a live look without
+  // touching localStorage's theme-cache (read synchronously at boot — see
+  // index.html) or the settings DB. Only onChange (click/Enter/Space) goes
+  // through the store's update(), which is what persists. Runs as an effect
+  // (not inline in render) so it stays a commit-phase side effect rather
+  // than a render-phase DOM mutation.
+  useEffect(() => {
+    applyPreviewClass(preview)
+  }, [preview])
+
+  // On unmount, make sure the committed theme (not a lingering hover/focus
+  // preview) is what's left applied to <html>. Reads valueRef so this always
+  // reverts to the latest committed value even though the effect itself only
+  // runs once.
+  useEffect(() => {
+    return () => applyPreviewClass(valueRef.current)
+  }, [])
+
+  const focusTheme = (theme: Theme) => {
+    refs.current.get(theme)?.focus()
+  }
+
+  const handleArrow = (from: Theme, key: string) => {
+    if (key === 'Home') {
+      focusTheme(FIRST_THEME)
+      return
+    }
+    if (key === 'End') {
+      focusTheme(LAST_THEME)
+      return
+    }
+    const { row, col } = findPosition(from)
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const flatIdx = FLAT.indexOf(from)
+      const nextIdx =
+        key === 'ArrowLeft' ? Math.max(0, flatIdx - 1) : Math.min(FLAT.length - 1, flatIdx + 1)
+      focusTheme(FLAT[nextIdx] ?? from)
+      return
+    }
+    const targetRow = key === 'ArrowUp' ? row - 1 : row + 1
+    if (targetRow < 0 || targetRow >= ROWS.length) return
+    const targetRowItems = ROWS[targetRow] ?? []
+    const targetCol = Math.min(col, targetRowItems.length - 1)
+    const target = targetRowItems[targetCol]
+    if (target) focusTheme(target)
+  }
+
+  const renderChip = (theme: Theme) => (
+    <ThemeChip
+      key={theme}
+      theme={theme}
+      label={theme === 'system' ? 'System' : THEME_META[theme].fullLabel}
+      selected={theme === value}
+      tabbable={theme === (focused ?? value)}
+      registerRef={(el) => {
+        if (el) refs.current.set(theme, el)
+        else refs.current.delete(theme)
+      }}
+      onCommit={() => onChange(theme)}
+      onHover={(hovering) =>
+        setHovered((prev) => (hovering ? theme : prev === theme ? null : prev))
+      }
+      onFocusChange={(isFocused) =>
+        setFocused((prev) => (isFocused ? theme : prev === theme ? null : prev))
+      }
+      onArrow={(key) => handleArrow(theme, key)}
+    />
+  )
+
+  // No aria-orientation on the listbox: this grid navigates in both axes
+  // (Left/Right along reading order, Up/Down between rows), so neither value
+  // describes it honestly.
+  return (
+    <div role="listbox" aria-label="Theme" className="flex flex-col gap-3">
+      <div>{renderChip('system')}</div>
+
+      <div role="group" aria-labelledby="theme-group-dark">
+        <h5
+          id="theme-group-dark"
+          className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+        >
+          Dark
+        </h5>
+        <div className="grid grid-cols-3 gap-2">{DARK_THEMES.map(renderChip)}</div>
+      </div>
+
+      <div role="group" aria-labelledby="theme-group-light">
+        <h5
+          id="theme-group-light"
+          className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+        >
+          Light
+        </h5>
+        <div className="grid grid-cols-3 gap-2">{LIGHT_THEMES.map(renderChip)}</div>
+      </div>
+    </div>
+  )
+}

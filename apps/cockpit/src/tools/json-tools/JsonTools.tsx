@@ -9,9 +9,11 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { Input } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { saveFileDialog } from '@/lib/file-io'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
@@ -219,94 +221,90 @@ export default function JsonTools() {
   })
 
   return (
-    <div className="flex h-full flex-col">
-      <TabBar
-        tabs={TABS}
-        activeTab={state.activeTab}
-        onTabChange={(id) => updateState({ activeTab: id })}
-      />
-      <div className="flex-1 overflow-hidden">
-        {/* ── Lint & Format ─────────────────────────────────── */}
-        {state.activeTab === 'lint' && (
-          <div className="flex h-full flex-col">
-            {/* Toolbar */}
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  void handleFormat()
-                }}
-                disabled={isFormatting}
-              >
-                {isFormatting ? 'Formatting…' : 'Format'}
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
-                Minify
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleSortKeys} disabled={!parsed.ok}>
-                Sort Keys
-              </Button>
-              <CopyButton text={state.input} />
-              <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-              {parsed.ok && <span className="text-xs text-[var(--color-success)]">✓ Valid</span>}
-              {parsed.error && (
-                <span className="truncate text-xs text-[var(--color-error)]">✗ {parsed.error}</span>
-              )}
-              {stats && (
-                <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
-                  {stats.keys} keys · depth {stats.depth} · {stats.size}
-                </span>
-              )}
-            </div>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <>
+          <TabBar
+            tabs={TABS}
+            activeTab={state.activeTab}
+            onTabChange={(id) => updateState({ activeTab: id })}
+          />
 
-            {/* Query bar */}
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-              <span className="text-[10px] text-[var(--color-text-muted)]">Path</span>
-              <Input
-                value={state.query}
-                onChange={(e) => updateState({ query: e.target.value })}
-                placeholder="$.users[0].name"
-                className="flex-1 font-mono"
-              />
-              {queryResult.hasResult && queryResult.value && (
-                <CopyButton text={queryResult.value} />
-              )}
-            </div>
-            {queryResult.hasResult && (
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
-                <pre className="max-h-24 overflow-auto font-mono text-xs text-[var(--color-text)]">
-                  {queryResult.display}
-                </pre>
+          {/* ── Lint & Format toolbar ─────────────────────────── */}
+          {state.activeTab === 'lint' && (
+            <>
+              <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    void handleFormat()
+                  }}
+                  loading={isFormatting}
+                >
+                  Format
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
+                  Minify
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSortKeys}
+                  disabled={!parsed.ok}
+                >
+                  Sort Keys
+                </Button>
+                <CopyButton text={state.input} />
+                {!state.input.trim() && TOOL_SAMPLES['json-tools'] && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
+                  >
+                    Load Sample
+                  </Button>
+                )}
+                <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
+                {parsed.ok && <span className="text-xs text-[var(--color-success)]">✓ Valid</span>}
+                {parsed.error && (
+                  <span className="truncate text-xs text-[var(--color-error)]">
+                    ✗ {parsed.error}
+                  </span>
+                )}
+                {stats && (
+                  <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                    {stats.keys} keys · depth {stats.depth} · {stats.size}
+                  </span>
+                )}
               </div>
-            )}
 
-            {/* Format error */}
-            {error && (
-              <Alert
-                variant="error"
-                className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
-              >
-                {error}
-              </Alert>
-            )}
+              {/* Query bar */}
+              <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
+                <span className="text-[10px] text-[var(--color-text-muted)]">Path</span>
+                <Input
+                  value={state.query}
+                  onChange={(e) => updateState({ query: e.target.value })}
+                  placeholder="$.users[0].name"
+                  className="flex-1 font-mono"
+                />
+                {queryResult.hasResult && queryResult.value && (
+                  <CopyButton text={queryResult.value} />
+                )}
+              </div>
+              {queryResult.hasResult && (
+                <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+                  <pre className="max-h-24 overflow-auto font-mono text-xs text-[var(--color-text)]">
+                    {queryResult.display}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
 
-            {/* Editor */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Editor
-                theme={monacoTheme}
-                language="json"
-                value={state.input}
-                onChange={(v) => updateState({ input: v ?? '' })}
-                options={monacoOptions}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Tree View ─────────────────────────────────────── */}
-        {state.activeTab === 'tree' && (
-          <div className="flex h-full flex-col">
+          {/* ── Tree View toolbar ────────────────────────────── */}
+          {state.activeTab === 'tree' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
               <Button
                 variant="ghost"
@@ -334,43 +332,65 @@ export default function JsonTools() {
                 </span>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              {parsed.ok ? (
-                <JsonTree
-                  key={treeKey}
-                  data={parsed.data}
-                  path="$"
-                  defaultExpanded={treeExpanded}
-                />
-              ) : (
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  {parsed.error
-                    ? `Parse error: ${parsed.error}`
-                    : 'Enter JSON in the Lint & Format tab'}
-                </div>
-              )}
-            </div>
+          )}
+        </>
+      }
+    >
+      {/* ── Lint & Format ─────────────────────────────────── */}
+      {state.activeTab === 'lint' && (
+        <>
+          {error && (
+            <Alert
+              variant="error"
+              className="border-b border-[var(--color-border)] rounded-none px-4 py-2"
+            >
+              {error}
+            </Alert>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Editor
+              theme={monacoTheme}
+              language="json"
+              value={state.input}
+              onChange={(v) => updateState({ input: v ?? '' })}
+              options={monacoOptions}
+            />
           </div>
-        )}
+        </>
+      )}
 
-        {/* ── Table View ────────────────────────────────────── */}
-        {state.activeTab === 'table' && (
-          <div className="h-full overflow-auto p-4">
-            {parsed.ok && isTabularJsonArray(parsed.data) ? (
-              <JsonTable data={parsed.data} />
-            ) : (
-              <div className="text-sm text-[var(--color-text-muted)]">
-                {parsed.error
-                  ? `Parse error: ${parsed.error}`
-                  : parsed.ok
-                    ? 'Table view requires a JSON array of objects'
-                    : 'Enter JSON in the Lint & Format tab'}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      {/* ── Tree View ─────────────────────────────────────── */}
+      {state.activeTab === 'tree' && (
+        <div className="flex-1 overflow-auto p-4">
+          {parsed.ok ? (
+            <JsonTree key={treeKey} data={parsed.data} path="$" defaultExpanded={treeExpanded} />
+          ) : (
+            <div className="text-sm text-[var(--color-text-muted)]">
+              {parsed.error
+                ? `Parse error: ${parsed.error}`
+                : 'Enter JSON in the Lint & Format tab'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Table View ────────────────────────────────────── */}
+      {state.activeTab === 'table' && (
+        <div className="h-full overflow-auto p-4">
+          {parsed.ok && isTabularJsonArray(parsed.data) ? (
+            <JsonTable data={parsed.data} />
+          ) : (
+            <div className="text-sm text-[var(--color-text-muted)]">
+              {parsed.error
+                ? `Parse error: ${parsed.error}`
+                : parsed.ok
+                  ? 'Table view requires a JSON array of objects'
+                  : 'Enter JSON in the Lint & Format tab'}
+            </div>
+          )}
+        </div>
+      )}
+    </ToolLayout>
   )
 }
 
@@ -384,6 +404,7 @@ function TreeValueButton({
   onClick: () => void
 }) {
   return (
+    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
     <button
       type="button"
       onClick={onClick}
@@ -455,6 +476,8 @@ function JsonTree({
     return (
       <div className="ml-4">
         <div className="flex items-center gap-1">
+          {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+              ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
           <button
             type="button"
             onClick={() => hasChildren && setExpanded(!expanded)}
@@ -464,6 +487,8 @@ function JsonTree({
           >
             {hasChildren ? (expanded ? '▼' : '▶') : '•'}
           </button>
+          {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+              rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
           <button
             type="button"
             className="text-xs text-[var(--color-text-muted)] hover:underline"
@@ -490,6 +515,8 @@ function JsonTree({
     return (
       <div className="ml-4">
         <div className="flex items-center gap-1">
+          {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+              ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
           <button
             type="button"
             onClick={() => hasChildren && setExpanded(!expanded)}
@@ -499,6 +526,8 @@ function JsonTree({
           >
             {hasChildren ? (expanded ? '▼' : '▶') : '•'}
           </button>
+          {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+              rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
           <button
             type="button"
             className="text-xs text-[var(--color-text-muted)] hover:underline"

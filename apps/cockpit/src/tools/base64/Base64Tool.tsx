@@ -6,6 +6,7 @@ import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { UploadSimpleIcon, FileIcon, XIcon } from '@phosphor-icons/react'
 
 type Base64State = {
@@ -334,59 +335,61 @@ export default function Base64Tool() {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Toolbar ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button variant="primary" size="sm" onClick={handleToggle}>
-          {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
-          ⇄ Swap
-        </Button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Button variant="primary" size="sm" onClick={handleToggle}>
+            {state.mode === 'encode' ? 'Encode →' : '← Decode'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
+            ⇄ Swap
+          </Button>
+          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
 
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.urlSafe}
-            onChange={(e) => updateState({ urlSafe: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          URL-safe
-        </label>
-        {state.mode === 'encode' && !droppedFile && (
           <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
             <input
               type="checkbox"
-              checked={state.lineWrap}
-              onChange={(e) => updateState({ lineWrap: e.target.checked })}
+              checked={state.urlSafe}
+              onChange={(e) => updateState({ urlSafe: e.target.checked })}
               className="accent-[var(--color-accent)]"
             />
-            Wrap 76
+            URL-safe
           </label>
-        )}
-
-        {autoDetect && !droppedFile && (
-          <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
-          {!droppedFile && state.input.trim() && (
-            <>
-              <span>{formatSize(inputBytes)}</span>
-              <span>→</span>
-              <span>{formatSize(outputBytes)}</span>
-              {ratio && <span>({ratio}×)</span>}
-            </>
+          {state.mode === 'encode' && !droppedFile && (
+            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              <input
+                type="checkbox"
+                checked={state.lineWrap}
+                onChange={(e) => updateState({ lineWrap: e.target.checked })}
+                className="accent-[var(--color-accent)]"
+              />
+              Wrap 76
+            </label>
           )}
-          {droppedFile && (
-            <span>
-              {formatSize(droppedFile.size)} → {formatSize(droppedFile.dataUri.length)}
-            </span>
+
+          {autoDetect && !droppedFile && (
+            <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
           )}
+
+          <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
+            {!droppedFile && state.input.trim() && (
+              <>
+                <span>{formatSize(inputBytes)}</span>
+                <span>→</span>
+                <span>{formatSize(outputBytes)}</span>
+                {ratio && <span>({ratio}×)</span>}
+              </>
+            )}
+            {droppedFile && (
+              <span>
+                {formatSize(droppedFile.size)} → {formatSize(droppedFile.dataUri.length)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
+      }
+    >
       {/* ── Panels ────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── Input panel ─────────────────────────────────────────── */}
@@ -397,14 +400,16 @@ export default function Base64Tool() {
             </span>
             {state.mode === 'encode' && !droppedFile && (
               <>
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => fileInputRef.current?.click()}
                   title="Encode a file to Base64"
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
                   <UploadSimpleIcon size={11} />
                   Encode File
-                </button>
+                </Button>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -414,13 +419,15 @@ export default function Base64Tool() {
               </>
             )}
             {droppedFile && (
-              <button
+              <Button
+                variant="icon"
+                size="xs"
                 onClick={() => setDroppedFile(null)}
                 title="Clear file"
-                className="rounded p-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
+                className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
               >
                 <XIcon size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
@@ -437,13 +444,15 @@ export default function Base64Tool() {
                   {droppedFile.mimeType ? ` · ${droppedFile.mimeType}` : ''}
                 </div>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 <UploadSimpleIcon size={12} />
                 Drop another file
-              </button>
+              </Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -620,7 +629,7 @@ export default function Base64Tool() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
 
@@ -639,8 +648,10 @@ function ZoomBadge({
     <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
       <span>{Math.round(scale * 100)}%</span>
       {!isDefault && (
-        <button
-          className="pointer-events-auto ml-0.5 hover:text-[var(--color-text)]"
+        <Button
+          variant="icon"
+          size="xs"
+          className="pointer-events-auto ml-0.5 p-0 hover:bg-transparent hover:text-[var(--color-text)]"
           title="Reset view"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -649,7 +660,7 @@ function ZoomBadge({
           }}
         >
           ↺
-        </button>
+        </Button>
       )}
     </div>
   )

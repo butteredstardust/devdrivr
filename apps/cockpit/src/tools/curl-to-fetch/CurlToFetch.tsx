@@ -3,9 +3,11 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import { PlayIcon } from '@phosphor-icons/react'
 
 type CurlToFetchState = {
@@ -282,43 +284,47 @@ export default function CurlToFetch() {
   }, [parsed, cacheGet, cacheSet, openTab])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Parsed request summary */}
-      {parsed && (
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-1.5">
-          <span
-            className="rounded px-2 py-0.5 text-xs font-bold"
-            style={{
-              color: METHOD_COLORS[parsed.method] ?? 'var(--color-text)',
-              background: `color-mix(in srgb, ${METHOD_COLORS[parsed.method] ?? 'var(--color-text)'} 15%, transparent)`,
-            }}
-          >
-            {parsed.method}
-          </span>
-          <span className="min-w-0 truncate font-mono text-xs text-[var(--color-text)]">
-            {parsed.url}
-          </span>
-          {headerCount > 0 && (
-            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-              {headerCount} header{headerCount !== 1 ? 's' : ''}
+    <ToolLayout
+      fullBleed
+      toolbar={
+        parsed && (
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-1.5">
+            <span
+              className="rounded px-2 py-0.5 text-xs font-bold"
+              style={{
+                color: METHOD_COLORS[parsed.method] ?? 'var(--color-text)',
+                background: `color-mix(in srgb, ${METHOD_COLORS[parsed.method] ?? 'var(--color-text)'} 15%, transparent)`,
+              }}
+            >
+              {parsed.method}
             </span>
-          )}
-          {parsed.body && (
-            <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
-              body: {parsed.body.length} chars
+            <span className="min-w-0 truncate font-mono text-xs text-[var(--color-text)]">
+              {parsed.url}
             </span>
-          )}
-          <button
-            onClick={handleTestInApiClient}
-            title="Open this request in API Client"
-            className="ml-auto flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-accent)]"
-          >
-            <PlayIcon size={11} />
-            Test in API Client
-          </button>
-        </div>
-      )}
-
+            {headerCount > 0 && (
+              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                {headerCount} header{headerCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {parsed.body && (
+              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                body: {parsed.body.length} chars
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleTestInApiClient}
+              title="Open this request in API Client"
+              className="ml-auto shrink-0 gap-1"
+            >
+              <PlayIcon size={11} />
+              Test in API Client
+            </Button>
+          </div>
+        )
+      }
+    >
       <div className="flex flex-1 overflow-hidden">
         {/* Input */}
         <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
@@ -365,6 +371,6 @@ export default function CurlToFetch() {
           )}
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiRequest } from '@/types/models'
 import { DotsThreeVerticalIcon } from '@phosphor-icons/react'
+import { Button } from '@/components/shared/Button'
 
 type Props = {
   activeRequestId: string | null
@@ -151,15 +152,17 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-3">
         <span className="font-mono text-xs text-[var(--color-text-muted)]">Collections</span>
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => {
             void handleCreateCollection()
           }}
-          className="text-xs text-[var(--color-accent)] hover:underline"
+          className="text-[var(--color-accent)] hover:underline hover:bg-transparent"
           title="New Collection"
         >
           + Add
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -202,24 +205,28 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                 </div>
                 {!isRenaming && (
                   <div className="hidden items-center gap-1 group-hover:flex">
-                    <button
+                    <Button
+                      variant="icon"
+                      size="xs"
                       onClick={(e) => startRename(col, e)}
-                      className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+                      className="p-0 text-[10px] hover:text-[var(--color-accent)] hover:bg-transparent"
                       title="Rename"
                     >
                       ✎
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         if (confirm(`Delete collection "${col.name}"?`)) {
                           void deleteCollection(col.id)
                         }
                       }}
-                      className="text-[10px] text-[var(--color-error)] hover:underline"
+                      className="p-0 text-[10px] text-[var(--color-error)] hover:underline hover:bg-transparent"
                     >
                       Del
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -269,24 +276,27 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
         {/* History section */}
         {requestHistory.length > 0 && (
           <div className="mt-4 border-t border-[var(--color-border)] pt-3">
-            <button
-              className="mb-1 flex w-full items-center gap-1 px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            <Button
+              variant="ghost"
+              size="xs"
+              className="mb-1 w-full justify-start gap-1 px-2 text-[10px] font-bold uppercase tracking-wider hover:bg-transparent"
               onClick={() => setExpandedHistory((v) => !v)}
             >
               <span>{expandedHistory ? '▼' : '▶'}</span>
               <span>History</span>
               <span className="ml-auto normal-case">{requestHistory.length}</span>
-            </button>
+            </Button>
             {expandedHistory && (
               <div className="flex flex-col gap-0.5">
                 {requestHistory.map((entry) => {
                   const [method, ...urlParts] = entry.input.split(' ')
                   const histUrl = urlParts.join(' ')
                   return (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       key={entry.id}
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs hover:bg-[var(--color-surface-hover)]"
+                      className="w-full justify-start gap-1.5 text-left hover:bg-[var(--color-surface-hover)]"
                       title={`${entry.input}\n${entry.output}\nClick to restore`}
                       aria-label={`Restore ${entry.input}`}
                       onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
@@ -300,7 +310,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       <span className="shrink-0 text-[var(--color-text-muted)]">
                         {entry.output.split('·')[1]?.trim() ?? ''}
                       </span>
-                    </button>
+                    </Button>
                   )
                 })}
               </div>
@@ -314,57 +324,77 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
         <div ref={contextMenuRef}>
           {contextMenu && (
             <div
-              style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
+              style={{
+                position: 'fixed',
+                top: contextMenu.y,
+                left: contextMenu.x,
+                zIndex: 'var(--z-popover)',
+              }}
               className="min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
             >
-              <button
-                className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
                 onClick={() => handleMoveToCollection(contextMenu.reqId)}
               >
                 Move to Collection
-              </button>
-              <button
-                className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
                 onClick={() => {
                   void handleDuplicate(contextMenu.reqId)
                 }}
               >
                 Duplicate
-              </button>
+              </Button>
               <div className="my-1 border-t border-[var(--color-border)]" />
-              <button
-                className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-error)] hover:bg-[var(--color-surface-hover)]"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-left text-[var(--color-error)] hover:bg-[var(--color-surface-hover)]"
                 onClick={() => {
                   void handleDeleteRequest(contextMenu.reqId)
                 }}
               >
                 Delete
-              </button>
+              </Button>
             </div>
           )}
           {moveMenu && (
             <div
-              style={{ position: 'fixed', top: moveMenu.y, left: moveMenu.x, zIndex: 101 }}
+              style={{
+                position: 'fixed',
+                top: moveMenu.y,
+                left: moveMenu.x,
+                zIndex: 'calc(var(--z-popover) + 1)',
+              }}
               className="min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
             >
-              <button
-                className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-left hover:bg-[var(--color-surface-hover)]"
                 onClick={() => {
                   void handleAssignCollection(moveMenu.reqId, null)
                 }}
               >
                 (Unassigned)
-              </button>
+              </Button>
               {collections.map((col) => (
-                <button
+                <Button
                   key={col.id}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-left text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
                   onClick={() => {
                     void handleAssignCollection(moveMenu.reqId, col.id)
                   }}
                 >
                   {col.name}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -391,9 +421,10 @@ function RequestRow({ req, isActive, onSelect, onContextMenu }: RequestRowProps)
       }`}
       onContextMenu={onContextMenu}
     >
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between px-2 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)]"
+      <Button
+        variant="ghost"
+        size="sm"
+        className="min-w-0 flex-1 justify-between text-left hover:bg-transparent"
         onClick={onSelect}
         aria-label={req.name}
         aria-current={isActive ? 'true' : undefined}
@@ -402,18 +433,19 @@ function RequestRow({ req, isActive, onSelect, onContextMenu }: RequestRowProps)
         <span className={`ml-2 shrink-0 text-[8px] font-bold ${getMethodColor(req.method)}`}>
           {req.method}
         </span>
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="icon"
+        size="xs"
         onClick={(e) => {
           e.stopPropagation()
           onContextMenu(e)
         }}
-        className="ml-1 hidden shrink-0 rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:block focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] group-hover:block group-focus-within:block"
+        className="ml-1 hidden shrink-0 p-0.5 focus-visible:block group-hover:block group-focus-within:block"
         title="Options"
       >
         <DotsThreeVerticalIcon size={14} weight="bold" />
-      </button>
+      </Button>
     </div>
   )
 }

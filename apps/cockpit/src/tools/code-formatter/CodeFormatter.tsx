@@ -11,6 +11,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { saveFileDialog } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
@@ -139,60 +140,68 @@ export default function CodeFormatter() {
   )
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => void handleFormat()}
-          disabled={isFormatting || !state.input.trim()}
-        >
-          {isFormatting ? 'Formatting…' : 'Format'}
-        </Button>
-        <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
-        <Select value={state.language} onChange={(e) => updateState({ language: e.target.value })}>
-          {LANGUAGES.map((lang) => (
-            <option key={lang} value={lang}>
-              {lang}
-            </option>
-          ))}
-        </Select>
-        <Button variant="ghost" size="sm" onClick={() => void handleAutoDetect()}>
-          Auto-detect
-        </Button>
-        <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          Indent
-          <Select
-            value={state.tabWidth}
-            onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void handleFormat()}
+            disabled={!state.input.trim()}
+            loading={isFormatting}
           >
-            <option value={2}>2</option>
-            <option value={4}>4</option>
+            Format
+          </Button>
+          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+          <Select
+            value={state.language}
+            onChange={(e) => updateState({ language: e.target.value })}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
           </Select>
-        </label>
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.singleQuote}
-            onChange={(e) => updateState({ singleQuote: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          Single quotes
-        </label>
-        <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-          <input
-            type="checkbox"
-            checked={state.semi}
-            onChange={(e) => updateState({ semi: e.target.checked })}
-            className="accent-[var(--color-accent)]"
-          />
-          Semicolons
-        </label>
-        <div className="ml-auto">
-          <CopyButton text={state.input} />
+          <Button variant="ghost" size="sm" onClick={() => void handleAutoDetect()}>
+            Auto-detect
+          </Button>
+          <div className="mx-2 h-4 w-px bg-[var(--color-border)]" />
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            Indent
+            <Select
+              value={state.tabWidth}
+              onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
+            >
+              <option value={2}>2</option>
+              <option value={4}>4</option>
+            </Select>
+          </label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.singleQuote}
+              onChange={(e) => updateState({ singleQuote: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            Single quotes
+          </label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+            <input
+              type="checkbox"
+              checked={state.semi}
+              onChange={(e) => updateState({ semi: e.target.checked })}
+              className="accent-[var(--color-accent)]"
+            />
+            Semicolons
+          </label>
+          <div className="ml-auto">
+            <CopyButton text={state.input} />
+          </div>
         </div>
-      </div>
+      }
+    >
       {error && (
         <Alert
           variant="error"
@@ -210,6 +219,6 @@ export default function CodeFormatter() {
           options={monacoOptions}
         />
       </div>
-    </div>
+    </ToolLayout>
   )
 }
