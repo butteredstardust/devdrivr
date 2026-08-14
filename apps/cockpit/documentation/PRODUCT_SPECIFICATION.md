@@ -37,31 +37,31 @@ A Tauri 2 desktop application (macOS + Windows) that consolidates common develop
 
 ### 4.1 Stack
 
-| Layer | Technology | Best Practice |
-|---|---|---|
-| Shell | **Tauri 2** (latest stable) | Use Tauri 2 security model with capability-based permissions. Separate frontend from Rust backend via IPC commands. |
-| Frontend | **React 19 + TypeScript 5.9** (strict mode) | Functional components only. All props typed, no `any`. Use React.lazy + Suspense for tool-level code splitting. |
-| State | **Zustand** with `persist` middleware | One store per domain (ui, snippets, notes, history, settings). Persist to SQLite via custom storage adapter. Never put derived state in stores — use selectors. |
-| Editor | **Monaco Editor** | Single shared configuration. Lazy-load language workers. Use `editor.create` not `editor.createDiffEditor` except for diff tool. Dispose instances on unmount. |
-| Heavy processing | **Web Workers** | All formatting, diffing, AST transforms, XML parsing run off main thread. Use `comlink` for typed worker communication. |
-| Storage | **SQLite via `tauri-plugin-sql`** | Migrations managed in Rust side. Use WAL mode for concurrent reads. Parameterized queries only — no string interpolation. |
-| File I/O | **Tauri filesystem API** | Scoped access via capability permissions. Never access paths outside user-selected directories. |
-| Styling | **Tailwind CSS 4** | Design tokens in CSS variables for theme switching. No inline styles. Utility-first, extract components only when repeated 3+ times. |
+| Layer            | Technology                                  | Best Practice                                                                                                                                                   |
+| ---------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell            | **Tauri 2** (latest stable)                 | Use Tauri 2 security model with capability-based permissions. Separate frontend from Rust backend via IPC commands.                                             |
+| Frontend         | **React 19 + TypeScript 5.9** (strict mode) | Functional components only. All props typed, no `any`. Use React.lazy + Suspense for tool-level code splitting.                                                 |
+| State            | **Zustand** with `persist` middleware       | One store per domain (ui, snippets, notes, history, settings). Persist to SQLite via custom storage adapter. Never put derived state in stores — use selectors. |
+| Editor           | **Monaco Editor**                           | Single shared configuration. Lazy-load language workers. Use `editor.create` not `editor.createDiffEditor` except for diff tool. Dispose instances on unmount.  |
+| Heavy processing | **Web Workers**                             | All formatting, diffing, AST transforms, XML parsing run off main thread. Use `comlink` for typed worker communication.                                         |
+| Storage          | **SQLite via `tauri-plugin-sql`**           | Migrations managed in Rust side. Use WAL mode for concurrent reads. Parameterized queries only — no string interpolation.                                       |
+| File I/O         | **Tauri filesystem API**                    | Scoped access via capability permissions. Never access paths outside user-selected directories.                                                                 |
+| Styling          | **Tailwind CSS 4**                          | Design tokens in CSS variables for theme switching. No inline styles. Utility-first, extract components only when repeated 3+ times.                            |
 
 ### 4.2 Key Libraries
 
-| Purpose | Library | Notes |
-|---|---|---|
-| Formatting | `prettier` + plugins | SQL via `prettier-plugin-sql`, all others built-in. Run in Web Worker. |
-| Diffing | `diff` + `diff2html` | Compute in worker, render in main thread. |
-| Markdown | `unified` + `remark` + `rehype` | Full GFM support. Mermaid via `rehype-mermaid`. Sanitize HTML output. |
-| Mermaid | `mermaid` | Lazy-loaded, render in iframe sandbox for security. |
-| Fuzzy search | `fuse.js` | Used for command palette, snippets, notes search. |
-| XML | `@xmldom/xmldom` | Parse/validate in worker. |
-| AST transforms | `jscodeshift` | Refactoring toolkit. Run in worker. Always preview via diff. |
-| TypeScript | `typescript` (compiler API) | TS playground transpilation. Run in worker. |
-| HTTP client | `@tauri-apps/plugin-http` | API client uses Tauri's native HTTP, not browser fetch — avoids CORS entirely. |
-| Tailwind conversion | `css-to-tailwindcss` | CSS→Tailwind converter. |
+| Purpose             | Library                         | Notes                                                                          |
+| ------------------- | ------------------------------- | ------------------------------------------------------------------------------ |
+| Formatting          | `prettier` + plugins            | SQL via `prettier-plugin-sql`, all others built-in. Run in Web Worker.         |
+| Diffing             | `diff` + `diff2html`            | Compute in worker, render in main thread.                                      |
+| Markdown            | `unified` + `remark` + `rehype` | Full GFM support. Mermaid via `rehype-mermaid`. Sanitize HTML output.          |
+| Mermaid             | `mermaid`                       | Lazy-loaded, render in iframe sandbox for security.                            |
+| Fuzzy search        | `fuse.js`                       | Used for command palette, snippets, notes search.                              |
+| XML                 | `@xmldom/xmldom`                | Parse/validate in worker.                                                      |
+| AST transforms      | `jscodeshift`                   | Refactoring toolkit. Run in worker. Always preview via diff.                   |
+| TypeScript          | `typescript` (compiler API)     | TS playground transpilation. Run in worker.                                    |
+| HTTP client         | `@tauri-apps/plugin-http`       | API client uses Tauri's native HTTP, not browser fetch — avoids CORS entirely. |
+| Tailwind conversion | `css-to-tailwindcss`            | CSS→Tailwind converter.                                                        |
 
 ### 4.3 Project Structure
 
@@ -197,21 +197,21 @@ CSV Tools, Image Tool, and Prompt Templates).
 
 All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
-| Action | Shortcut |
-|---|---|
-| Command palette | Cmd/Ctrl+K |
-| Toggle notes drawer | Cmd/Ctrl+Shift+N |
-| Toggle sidebar | Cmd/Ctrl+B |
-| Cycle tools forward/back | Cmd/Ctrl+] / Cmd/Ctrl+[ |
-| Format / execute current tool | Cmd/Ctrl+Enter |
-| Copy output | Cmd/Ctrl+Shift+C |
-| Switch sub-tab 1/2/3 | Cmd/Ctrl+1/2/3 |
-| Open file into current tool | Cmd/Ctrl+O |
-| Save output to file | Cmd/Ctrl+S |
-| Settings | Cmd/Ctrl+, |
-| Quick capture note | Cmd/Ctrl+Shift+Space (global, works when app is background) |
-| Always on top toggle | Cmd/Ctrl+Shift+P |
-| Toggle dark/light theme | Cmd/Ctrl+Shift+T |
+| Action                        | Shortcut                                                    |
+| ----------------------------- | ----------------------------------------------------------- |
+| Command palette               | Cmd/Ctrl+K                                                  |
+| Toggle notes drawer           | Cmd/Ctrl+Shift+N                                            |
+| Toggle sidebar                | Cmd/Ctrl+B                                                  |
+| Cycle tools forward/back      | Cmd/Ctrl+] / Cmd/Ctrl+[                                     |
+| Format / execute current tool | Cmd/Ctrl+Enter                                              |
+| Copy output                   | Cmd/Ctrl+Shift+C                                            |
+| Switch sub-tab 1/2/3          | Cmd/Ctrl+1/2/3                                              |
+| Open file into current tool   | Cmd/Ctrl+O                                                  |
+| Save output to file           | Cmd/Ctrl+S                                                  |
+| Settings                      | Cmd/Ctrl+,                                                  |
+| Quick capture note            | Cmd/Ctrl+Shift+Space (global, works when app is background) |
+| Always on top toggle          | Cmd/Ctrl+Shift+P                                            |
+| Toggle dark/light theme       | Cmd/Ctrl+Shift+T                                            |
 
 ---
 
@@ -413,11 +413,15 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.22 TypeScript Playground
 
-- Left panel: TypeScript input (Monaco with TS language service).
-- Right panel: transpiled JavaScript output.
-- Compiler options toggle: target (ES5/ES2015/ESNext), module format, strict mode.
-- Type errors shown inline in the editor.
-- Runs TypeScript compiler in Web Worker.
+- Left panel: TypeScript input (Monaco); right panel: transpiled JavaScript output. Both panes are
+  labelled with a line count and stack vertically below 900px.
+- Compiler options behind a disclosure: target (ES5/ES2015/ES2020/ESNext), module format, strict mode.
+- Problems panel: collapsible, counted, with `line:column`, severity and the TS error code. Type
+  checking runs against the real `lib*.d.ts` closure, inlined into the worker bundle (an `iife`
+  worker cannot code-split, and module workers are barred).
+- Compiles automatically as you type (debounced); only an explicit ⌘↵ / Compile reports to the
+  status bar. Supports open-file and save-file (JavaScript output).
+- Runs the TypeScript compiler in a Web Worker.
 
 ### 6.23 JSON Schema Validator
 
@@ -524,23 +528,24 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ```ts
 type Snippet = {
-  id: string            // nanoid
+  id: string // nanoid
   title: string
   content: string
-  language: string      // e.g. 'javascript', 'sql', 'json'
+  language: string // e.g. 'javascript', 'sql', 'json'
   tags: string[]
-  createdAt: number     // unix ms
+  createdAt: number // unix ms
   updatedAt: number
 }
 
 type Note = {
   id: string
   title: string
-  content: string       // markdown
-  color: string         // one of 8 predefined colors
+  content: string // markdown
+  color: string // one of 8 predefined colors
   pinned: boolean
-  poppedOut: boolean    // whether displayed as floating window
-  windowBounds?: {      // position/size when popped out
+  poppedOut: boolean // whether displayed as floating window
+  windowBounds?: {
+    // position/size when popped out
     x: number
     y: number
     width: number
@@ -552,8 +557,8 @@ type Note = {
 
 type HistoryEntry = {
   id: string
-  tool: string          // tool identifier
-  subTab?: string       // e.g. 'lint', 'tree', 'table'
+  tool: string // tool identifier
+  subTab?: string // e.g. 'lint', 'tree', 'table'
   input: string
   output: string
   timestamp: number
@@ -561,7 +566,7 @@ type HistoryEntry = {
 
 type ToolState = {
   toolId: string
-  state: Record<string, unknown>  // tool-specific serialized state
+  state: Record<string, unknown> // tool-specific serialized state
   updatedAt: number
 }
 
@@ -574,7 +579,7 @@ type AppSettings = {
   defaultTimezone: string
   editorFontSize: number
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
-  historyRetentionPerTool: number  // default 500
+  historyRetentionPerTool: number // default 500
   formatOnPaste: boolean
 }
 ```
@@ -637,15 +642,15 @@ CREATE TABLE settings (
 
 ## 9. Performance Requirements
 
-| Metric | Target |
-|---|---|
-| Any UI interaction (click, keystroke) | <50ms response |
-| Formatting (typical file <1000 lines) | <200ms |
-| Diff computation (two inputs <1000 lines each) | <300ms |
-| Tool switch (sidebar click) | <100ms (lazy-loaded tools cached after first load) |
-| App cold start | <2s to interactive |
-| SQLite query (any) | <10ms |
-| Command palette open + search | <50ms |
+| Metric                                         | Target                                             |
+| ---------------------------------------------- | -------------------------------------------------- |
+| Any UI interaction (click, keystroke)          | <50ms response                                     |
+| Formatting (typical file <1000 lines)          | <200ms                                             |
+| Diff computation (two inputs <1000 lines each) | <300ms                                             |
+| Tool switch (sidebar click)                    | <100ms (lazy-loaded tools cached after first load) |
+| App cold start                                 | <2s to interactive                                 |
+| SQLite query (any)                             | <10ms                                              |
+| Command palette open + search                  | <50ms                                              |
 
 All formatting, diffing, AST, and XML operations run in Web Workers — main thread never blocked.
 
@@ -665,14 +670,14 @@ All formatting, diffing, AST, and XML operations run in Web Workers — main thr
 
 ## 11. Risks & Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| 28 tools = large bundle size | Code-split every tool via React.lazy. Only active tool loaded. |
-| Monaco Editor memory usage with multiple instances | Single Monaco instance per tool, disposed on unmount. Reuse config. |
-| Incorrect AST refactors | Always preview as diff. Never auto-apply. User confirms. |
-| Web Worker startup latency | Pre-warm formatter worker on app launch. Others lazy. |
-| SQLite data loss on crash | WAL mode + periodic checkpoint. Tool state saved on debounced interval (2s), not just on quit. |
-| Prettier/TS compiler large WASM | Load in worker, cache after first load. Show loading indicator. |
+| Risk                                               | Mitigation                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 28 tools = large bundle size                       | Code-split every tool via React.lazy. Only active tool loaded.                                 |
+| Monaco Editor memory usage with multiple instances | Single Monaco instance per tool, disposed on unmount. Reuse config.                            |
+| Incorrect AST refactors                            | Always preview as diff. Never auto-apply. User confirms.                                       |
+| Web Worker startup latency                         | Pre-warm formatter worker on app launch. Others lazy.                                          |
+| SQLite data loss on crash                          | WAL mode + periodic checkpoint. Tool state saved on debounced interval (2s), not just on quit. |
+| Prettier/TS compiler large WASM                    | Load in worker, cache after first load. Show loading indicator.                                |
 
 ---
 

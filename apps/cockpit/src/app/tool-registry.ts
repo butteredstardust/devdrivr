@@ -85,8 +85,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'TypeScript Playground',
     group: 'code',
     icon: toolIcon(FileTsIcon),
-    description: 'Transpile TypeScript to JavaScript',
+    description: 'Compile TypeScript to JavaScript with live type checking',
     component: TsPlayground,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

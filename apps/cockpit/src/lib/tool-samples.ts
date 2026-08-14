@@ -46,6 +46,27 @@ limits:
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXIiLCJuYW1lIjoiQWRhIEV4YW1wbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.fakesignature_not_a_real_signature',
 }
 
+/**
+ * TypeScript Playground's starting document, also offered as "Load example"
+ * once the editor is empty. Deliberately exercises interfaces, generics via
+ * `Array.map` and a DOM global so a broken standard library shows up at once.
+ */
+export const TS_PLAYGROUND_SAMPLE = `interface User {
+  id: number
+  name: string
+  email: string
+}
+
+function greet(user: User): string {
+  return \`Hello, \${user.name}!\`
+}
+
+const users: User[] = [{ id: 1, name: 'Alice', email: 'alice@example.com' }]
+
+const greeting = users.map(greet)
+console.log(greeting)
+`
+
 /** Diff Viewer needs a left/right pair rather than a single input string. */
 export const DIFF_VIEWER_SAMPLE = {
   left: `function greet(name) {

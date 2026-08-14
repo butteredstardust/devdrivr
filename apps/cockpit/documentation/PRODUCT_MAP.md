@@ -36,7 +36,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Tool                  | ID                    | What It Does                                                                          |
 | --------------------- | --------------------- | ------------------------------------------------------------------------------------- |
 | Code Formatter        | `code-formatter`      | Format JS/TS/JSON/CSS/HTML/SQL/YAML/XML/Markdown/GraphQL via Prettier + sql-formatter |
-| TypeScript Playground | `ts-playground`       | Transpile TypeScript → JavaScript (worker-based)                                      |
+| TypeScript Playground | `ts-playground`       | Compile TypeScript → JavaScript with real stdlib type checking (worker-based)         |
 | Diff Viewer           | `diff-viewer`         | Side-by-side & inline diff with syntax highlighting (diff2html)                       |
 | Refactoring Toolkit   | `refactoring-toolkit` | AST transforms: var→let/const, Promise.then→async/await, require→import               |
 
