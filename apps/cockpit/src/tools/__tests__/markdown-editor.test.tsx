@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import MarkdownEditor, {
   prefixMarkdownLines,
@@ -101,9 +101,10 @@ describe('MarkdownEditor', () => {
   it('File dropdown renders Open, Save, and Save As entries', () => {
     renderTool(MarkdownEditor)
     fireEvent.click(screen.getByText('File'))
-    expect(screen.getByText('Open…')).toBeInTheDocument()
-    expect(screen.getByText('Save')).toBeInTheDocument()
-    expect(screen.getByText('Save As…')).toBeInTheDocument()
+    const menu = within(screen.getByRole('menu'))
+    expect(menu.getByText('Open…')).toBeInTheDocument()
+    expect(menu.getByText('Save')).toBeInTheDocument()
+    expect(menu.getByText('Save As…')).toBeInTheDocument()
   })
 
   it('File > Open… populates content, fileName, and filePath', async () => {
@@ -135,7 +136,7 @@ describe('MarkdownEditor', () => {
     await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
 
     fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Save'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
 
     await waitFor(() => expect(saveFileToPath).toHaveBeenCalledWith('/tmp/notes.md', '# From disk'))
     expect(saveFileDialog).not.toHaveBeenCalled()
@@ -149,7 +150,7 @@ describe('MarkdownEditor', () => {
       target: { value: '# Untitled' },
     })
     fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Save'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
 
     await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('# Untitled', 'document.md'))
     expect(saveFileToPath).not.toHaveBeenCalled()
@@ -168,17 +169,53 @@ describe('MarkdownEditor', () => {
     fireEvent.click(screen.getByText('Open…'))
     await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
     expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
-    expect(screen.getByTestId('file-name').textContent).not.toContain('•')
+    expect(screen.getByText('Saved')).toBeInTheDocument()
 
     fireEvent.change(screen.getByTestId('monaco-editor'), {
       target: { value: '# Edited' },
     })
-    await waitFor(() => expect(screen.getByTestId('file-name').textContent).toContain('•'))
+    await waitFor(() => expect(screen.getByText('Modified')).toBeInTheDocument())
 
     fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Save'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
 
-    await waitFor(() => expect(screen.getByTestId('file-name').textContent).not.toContain('•'))
+    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
+  })
+
+  it('protects unsaved work before starting a new document', () => {
+    renderTool(MarkdownEditor)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '# Keep me' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
+
+    expect(screen.getByRole('dialog', { name: 'Replace unsaved changes?' })).toBeInTheDocument()
+    expect(editor).toHaveValue('# Keep me')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+    expect(editor).toHaveValue('')
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+  })
+
+  it('keeps unsaved work when template replacement is cancelled', () => {
+    renderTool(MarkdownEditor)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, { target: { value: '# In progress' } })
+
+    fireEvent.click(screen.getByText('Templates'))
+    fireEvent.click(screen.getByText('README'))
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+
+    expect(editor).toHaveValue('# In progress')
+    expect(screen.queryByRole('dialog', { name: 'Replace unsaved changes?' })).toBeNull()
+  })
+
+  it('exposes an accessible, horizontally scrollable formatting toolbar', () => {
+    renderTool(MarkdownEditor)
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Markdown formatting' })
+    expect(toolbar).toHaveClass('overflow-x-auto')
+    expect(within(toolbar).getByRole('button', { name: /^Bold/ })).toBeInTheDocument()
   })
 
   it('shows word count stats', () => {
