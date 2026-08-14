@@ -9,6 +9,10 @@ import { parsePromptTemplateImport } from '@/tools/prompt-templates/template-imp
 import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
 
 const originalClipboard = navigator.clipboard
+const fileIoMocks = vi.hoisted(() => ({
+  openFileDialog: vi.fn(),
+  exportFile: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({
   loadToolState: vi.fn().mockResolvedValue(null),
@@ -19,9 +23,17 @@ vi.mock('@/lib/db', () => ({
   deleteUserPromptTemplate: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/file-io', () => ({
+  buildExportFilename: (name: string, extension: string) => `${name}.${extension}`,
+  openFileDialog: fileIoMocks.openFileDialog,
+  exportFile: fileIoMocks.exportFile,
+}))
+
 beforeEach(() => {
   useUiStore.setState({ lastAction: null, toasts: [] })
   usePromptTemplatesStore.setState({ userTemplates: [], initialized: true, saving: false })
+  fileIoMocks.openFileDialog.mockReset().mockResolvedValue(null)
+  fileIoMocks.exportFile.mockReset().mockResolvedValue('/tmp/prompt-templates-backup.json')
 })
 
 afterEach(() => {
@@ -95,18 +107,22 @@ describe('prompt template utilities', () => {
 })
 
 describe('PromptTemplates', () => {
-  it('renders the template library and preview panes', () => {
+  it('renders the template library and switches between fill and preview workspaces', () => {
     renderTool(PromptTemplates)
 
     expect(screen.getAllByText('Review: Detect Code Smells').length).toBeGreaterThan(0)
-    expect(screen.getByText('[ 02-FILL ]')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /fill variables/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    fireEvent.click(screen.getByRole('button', { name: /preview/i }))
     expect(screen.getByText('[ 03-PREVIEW ]')).toBeInTheDocument()
   })
 
   it('filters templates by search text', () => {
     renderTool(PromptTemplates)
 
-    fireEvent.change(screen.getByPlaceholderText(/search prompts/i), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search prompt templates' }), {
       target: { value: 'stack trace' },
     })
 
@@ -123,7 +139,7 @@ describe('PromptTemplates', () => {
 
     renderTool(PromptTemplates)
     fireEvent.click(screen.getByText('Generate: Unit Tests'))
-    fireEvent.click(screen.getByRole('button', { name: 'Quick Fill' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Focus mode' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Generate: Unit Tests' })
     const codeField = within(dialog).getByLabelText('Code')
@@ -146,7 +162,7 @@ describe('PromptTemplates', () => {
     })
 
     renderTool(PromptTemplates)
-    fireEvent.click(screen.getByRole('button', { name: 'Quick Fill' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Focus mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copy to Clipboard' }))
 
     await waitFor(() => expect(useUiStore.getState().lastAction?.type).toBe('error'))
@@ -156,8 +172,8 @@ describe('PromptTemplates', () => {
   it('keeps Cmd+F focus inside the quick-fill modal', async () => {
     renderTool(PromptTemplates)
 
-    const searchInput = screen.getByPlaceholderText(/search prompts/i)
-    fireEvent.click(screen.getByRole('button', { name: 'Quick Fill' }))
+    const searchInput = screen.getByRole('searchbox', { name: 'Search prompt templates' })
+    fireEvent.click(screen.getByRole('button', { name: 'Focus mode' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
@@ -179,6 +195,19 @@ describe('PromptTemplates', () => {
     const selectedRow = screen.getAllByText('Review: Detect Code Smells')[0]!.closest('button')
 
     expect(selectedRow).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('supports arrow-key navigation through the template library', () => {
+    renderTool(PromptTemplates)
+
+    const options = within(screen.getByRole('listbox', { name: 'Prompt templates' })).getAllByRole(
+      'option'
+    )
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(options[0]!, { key: 'ArrowDown' })
+
+    expect(options[1]).toHaveAttribute('aria-selected', 'true')
+    expect(options[1]).toHaveAttribute('tabindex', '0')
   })
 
   it('creates a custom template from the editor modal', async () => {
@@ -231,7 +260,7 @@ describe('PromptTemplates', () => {
   it('duplicates a built-in template as an editable custom template', async () => {
     renderTool(PromptTemplates)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate template' }))
     const dialog = screen.getByRole('dialog', { name: 'Duplicate Template' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save Template' }))
 
@@ -240,8 +269,34 @@ describe('PromptTemplates', () => {
     expect(usePromptTemplatesStore.getState().userTemplates[0]!.name).toContain('(custom)')
   })
 
-  it('exports and imports custom templates through clipboard JSON', async () => {
-    const clipboardPayload = JSON.stringify([
+  it('requires explicit confirmation before deleting a custom template', async () => {
+    const customTemplate = {
+      ...BUILTIN_PROMPT_TEMPLATES[0]!,
+      id: 'custom-review',
+      name: 'Custom Review',
+      author: 'user' as const,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    usePromptTemplatesStore.setState({ userTemplates: [customTemplate] })
+    renderTool(PromptTemplates)
+
+    fireEvent.click(screen.getByText('Custom Review'))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete template' }))
+
+    expect(screen.getByRole('dialog', { name: 'Delete prompt template?' })).toBeInTheDocument()
+    expect(usePromptTemplatesStore.getState().userTemplates).toHaveLength(1)
+
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Delete prompt template?' })).getByRole('button', {
+        name: 'Delete template',
+      })
+    )
+    await waitFor(() => expect(usePromptTemplatesStore.getState().userTemplates).toHaveLength(0))
+  })
+
+  it('exports and imports custom templates through native JSON files', async () => {
+    const filePayload = JSON.stringify([
       {
         name: 'Imported Prompt',
         prompt: 'Summarize {{notes}}',
@@ -249,19 +304,22 @@ describe('PromptTemplates', () => {
         tags: ['summary'],
       },
     ])
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { readText: vi.fn().mockResolvedValue(clipboardPayload), writeText },
-      writable: true,
+    fileIoMocks.openFileDialog.mockResolvedValue({
+      content: filePayload,
+      filename: 'templates.json',
+      path: '/tmp/templates.json',
     })
 
     renderTool(PromptTemplates)
-    fireEvent.click(screen.getByText('[F10: IMP]'))
+    fireEvent.click(screen.getByRole('button', { name: 'Import templates from JSON' }))
 
     await waitFor(() => expect(screen.getAllByText('Imported Prompt').length).toBeGreaterThan(0))
-    fireEvent.click(screen.getByText('[F9: EXP]'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export custom templates as JSON' }))
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Imported Prompt'))
+    await waitFor(() => expect(fileIoMocks.exportFile).toHaveBeenCalledTimes(1))
+    expect(fileIoMocks.exportFile).toHaveBeenCalledWith(
+      expect.stringContaining('Imported Prompt'),
+      'prompt-templates-backup.json'
+    )
   })
 })
