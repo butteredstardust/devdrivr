@@ -66,18 +66,78 @@ describe('useWindowControls', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1)
   })
 
-  it('re-reads maximized state when the resize event fires', async () => {
-    renderHook(() => useWindowControls())
+  it('flips maximized state optimistically so the control updates without a read-back', async () => {
+    const { result } = renderHook(() => useWindowControls())
     await waitFor(() => expect(mocks.onResized).toHaveBeenCalled())
 
-    const resizedHandler = mocks.onResized.mock.calls[0]?.[0]
-    mocks.isMaximized.mockResolvedValue(true)
-    await act(async () => {
-      resizedHandler()
-      await Promise.resolve()
-    })
+    act(() => result.current.toggleMaximize())
 
-    expect(mocks.isMaximized).toHaveBeenCalled()
+    expect(result.current.isMaximized).toBe(true)
+  })
+
+  it('registers both listeners even if the initial state read never settles', async () => {
+    // The read is an IPC round trip. It used to be awaited *before* the listeners were attached,
+    // so a channel that stopped responding left the window with no listeners for the whole session.
+    mocks.isMaximized.mockReturnValue(new Promise(() => {}))
+    mocks.isFocused.mockReturnValue(new Promise(() => {}))
+
+    renderHook(() => useWindowControls())
+
+    await waitFor(() => expect(mocks.onResized).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.onFocusChanged).toHaveBeenCalled())
+  })
+
+  it('debounces resize events into a single trailing read instead of one read per event', async () => {
+    // Regression guard for the IPC deadlock: macOS emits a continuous stream of resize events
+    // during a zoom animation, and one `isMaximized()` round trip per event permanently wedged
+    // Tauri's plugin command dispatch — taking SQLite persistence down with it.
+    vi.useFakeTimers()
+    try {
+      renderHook(() => useWindowControls())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+
+      const resizedHandler = mocks.onResized.mock.calls[0]?.[0]
+      expect(resizedHandler).toBeTypeOf('function')
+
+      const readsAfterBootstrap = mocks.isMaximized.mock.calls.length
+
+      await act(async () => {
+        for (let i = 0; i < 50; i += 1) resizedHandler()
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterBootstrap)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterBootstrap + 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('applies the reconciled maximized state after a resize burst settles', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useWindowControls())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+
+      const resizedHandler = mocks.onResized.mock.calls[0]?.[0]
+      mocks.isMaximized.mockResolvedValue(true)
+
+      await act(async () => {
+        resizedHandler()
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(result.current.isMaximized).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('updates isFocused when the focus-change event fires', async () => {
@@ -100,6 +160,30 @@ describe('useWindowControls', () => {
 
     expect(mocks.unlistenResized).toHaveBeenCalledTimes(1)
     expect(mocks.unlistenFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire a pending resize reconcile after unmount', async () => {
+    vi.useFakeTimers()
+    try {
+      const { unmount } = renderHook(() => useWindowControls())
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+
+      const resizedHandler = mocks.onResized.mock.calls[0]?.[0]
+      const readsAfterBootstrap = mocks.isMaximized.mock.calls.length
+
+      resizedHandler()
+      unmount()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterBootstrap)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('tears down a listener immediately if unmount happens while it is still resolving', async () => {

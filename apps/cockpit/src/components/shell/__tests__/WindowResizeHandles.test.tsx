@@ -3,12 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
 
 const mocks = vi.hoisted(() => ({
-  isMacOS: vi.fn(),
   startResizeDragging: vi.fn(),
-}))
-
-vi.mock('@/lib/platform', () => ({
-  isMacOS: mocks.isMacOS,
 }))
 
 vi.mock('@tauri-apps/api/window', () => ({
@@ -26,28 +21,28 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('WindowResizeHandles', () => {
-  it('renders nothing on macOS (native edge resize is kept)', () => {
-    mocks.isMacOS.mockReturnValue(true)
-    const { container } = render(<WindowResizeHandles />)
-    expect(container).toBeEmptyDOMElement()
-  })
+const ALL_DIRECTIONS = [
+  'North',
+  'South',
+  'East',
+  'West',
+  'NorthEast',
+  'NorthWest',
+  'SouthEast',
+  'SouthWest',
+] as const
 
-  it('renders all 8 edge/corner handles on non-macOS platforms', () => {
-    mocks.isMacOS.mockReturnValue(false)
+describe('WindowResizeHandles', () => {
+  // Regression guard: these used to be skipped on macOS on the assumption that `decorations: false`
+  // left native edge resizing intact. It does not — the real window could not be resized at all.
+  it('renders all 8 edge/corner handles on every platform', () => {
     render(<WindowResizeHandles />)
-    expect(screen.getByTestId('resize-handle-North')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-South')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-East')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-West')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-NorthEast')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-NorthWest')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-SouthEast')).toBeInTheDocument()
-    expect(screen.getByTestId('resize-handle-SouthWest')).toBeInTheDocument()
+    for (const direction of ALL_DIRECTIONS) {
+      expect(screen.getByTestId(`resize-handle-${direction}`)).toBeInTheDocument()
+    }
   })
 
   it('calls startResizeDragging with the matching direction on mousedown', () => {
-    mocks.isMacOS.mockReturnValue(false)
     render(<WindowResizeHandles />)
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 0 })
@@ -55,7 +50,6 @@ describe('WindowResizeHandles', () => {
   })
 
   it('ignores non-primary-button mousedown', () => {
-    mocks.isMacOS.mockReturnValue(false)
     render(<WindowResizeHandles />)
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 2 })

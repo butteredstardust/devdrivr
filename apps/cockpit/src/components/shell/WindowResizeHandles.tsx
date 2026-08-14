@@ -1,17 +1,14 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { isMacOS } from '@/lib/platform'
 
 /**
  * Edge/corner resize handles for client-side-decorated windows.
  *
- * macOS keeps native edge/corner resizing after `decorations: false`: Tauri's window builder
- * only clears the AppKit `NSWindowStyleMask.titled` bit to hide the titlebar — the `resizable`
- * bit (and the OS-level edge tracking that comes with it) is untouched, and `tauri.conf.json`
- * does not set `resizable: false`. So this component renders nothing on macOS; only
- * Windows/WebView2 and Linux/WebKitGTK lose resize affordances when the native chrome goes away,
- * because those platforms' resize handling was part of the titlebar/border decorations Tauri
- * just stripped. Confirm this on a real build if the resize behaviour ever looks off — style-mask
- * behaviour like this is exactly the kind of thing that can drift between Tauri/macOS versions.
+ * Mounted on every platform, macOS included. An earlier version rendered nothing on macOS on the
+ * theory that `decorations: false` only clears the AppKit `NSWindowStyleMask.titled` bit and
+ * leaves OS-level edge tracking intact. Tested against the real build (Tauri 2.10.3, macOS 15):
+ * that is false — dragging every edge and corner, at ±3px around the frame, resized nothing, so
+ * the window could not be resized at all. The same synthetic drag resized a control window
+ * normally, ruling out the test method. See documentation/NATIVE_UI_HARNESS.md.
  *
  * Handles sit at `--z-scrim` minus one (39) — below every documented overlay tier in
  * src/styles/tokens.css (scrim 40 through toast 80) — so modals, popovers, tooltips, and toasts
@@ -49,8 +46,6 @@ const HANDLES: EdgeHandle[] = [
 const EDGE_DIRECTIONS = new Set(['North', 'South', 'East', 'West'])
 
 export function WindowResizeHandles() {
-  if (isMacOS()) return null
-
   return (
     <>
       {HANDLES.map((handle) => {
