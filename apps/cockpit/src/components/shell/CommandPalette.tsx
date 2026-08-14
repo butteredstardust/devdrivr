@@ -9,15 +9,16 @@ import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { GROUP_LABELS, searchTermsForTool } from '@/lib/tool-search'
+import { focusNativeWindow } from '@/lib/native-window'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  CommandIcon,
   FloppyDiskIcon,
   FolderOpenIcon,
   GearSixIcon,
   KeyboardIcon,
+  MagnifyingGlassIcon,
   MoonStarsIcon,
   NotePencilIcon,
   PushPinIcon,
@@ -205,11 +206,6 @@ export function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-
-  const focusInputRef = useCallback((input: HTMLInputElement | null) => {
-    inputRef.current = input
-    input?.focus()
-  }, [])
 
   // ─── Palette items ─────────────────────────────────────────────
 
@@ -436,6 +432,13 @@ export function CommandPalette() {
     if (isOpen) {
       setQuery('')
       setSelectedIndex(0)
+      requestAnimationFrame(() => inputRef.current?.focus())
+      void focusNativeWindow().catch((err) =>
+        console.error('[CommandPalette] native focus failed:', err)
+      )
+    } else {
+      setQuery('')
+      inputRef.current?.blur()
     }
   }, [isOpen])
 
@@ -499,154 +502,172 @@ export function CommandPalette() {
 
   // ─── Render ────────────────────────────────────────────────────
 
-  if (!isOpen) return null
-
   return (
     <>
       <div
-        role="presentation"
-        className="fixed inset-0 z-[var(--z-scrim)]"
-        style={{ backgroundColor: 'var(--color-scrim)' }}
-        onClick={() => setOpen(false)}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="command-palette-title"
-        className="font-ui animate-fade-in fixed left-1/2 top-[15%] z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+        className={`pointer-events-auto relative flex w-full min-w-0 max-w-[480px] items-center gap-2 rounded-md border bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs shadow-sm transition-colors ${
+          isOpen
+            ? 'z-[51] border-[var(--color-accent)] shadow-[var(--focus-ring)]'
+            : 'border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]'
+        }`}
       >
-        <h2 id="command-palette-title" className="sr-only">
-          Command palette
-        </h2>
-        {/* Input */}
-        <div className="flex items-center border-b border-[var(--color-border)] px-3 pt-[3px] pb-[3px]">
-          <CommandIcon size={14} className="mr-2 text-[var(--color-text-muted)]" />
-          <input
-            ref={focusInputRef}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setSelectedIndex(0)
-            }}
-            onKeyDown={onKeyDown}
-            placeholder={`Search tools... (${modSymbol}K)  •  Type > for actions`}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={flatCount > 0}
-            aria-controls="command-palette-results"
-            aria-activedescendant={selectedOptionId}
-            className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus-visible:outline-none"
-          />
-          {isActionMode && (
-            <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
-              Actions
-            </span>
-          )}
-        </div>
-
-        {/* Results */}
-        <div
-          ref={listRef}
-          id="command-palette-results"
-          role="listbox"
-          className="max-h-96 overflow-y-auto py-1"
-        >
-          {sections.map((section) => {
-            if (section.type === 'header') {
-              return (
-                <div
-                  key={`header-${section.label}`}
-                  role="presentation"
-                  className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
-                >
-                  {section.label}
-                </div>
-              )
-            }
-
-            const { item, flatIndex } = section
-            const isSelected = flatIndex === selectedIndex
-            const isActive = item.kind === 'tool' && item.id === activeTool
-            const isOpenInTab =
-              item.kind === 'tool' && !isActive && tabs.some((t) => t.toolId === item.id)
-
-            return (
-              <button
-                key={item.id}
-                id={optionId(item)}
-                role="option"
-                aria-selected={isSelected}
-                data-palette-item
-                tabIndex={-1}
-                className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${
-                  isSelected
-                    ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                    : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
-                }`}
-                onClick={() => executeItem(item)}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setSelectedIndex(flatIndex)}
-              >
-                <span className="flex w-6 shrink-0 justify-center text-[var(--color-text-muted)]">
-                  {item.icon}
-                </span>
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.name}</span>
-                    {isActive && (
-                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-accent)]">
-                        active
-                      </span>
-                    )}
-                    {isOpenInTab && (
-                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-text-muted)]">
-                        open
-                      </span>
-                    )}
-                    {item.kind === 'action' && (
-                      <span className="rounded bg-[var(--color-info)]/20 px-1 text-2xs text-[var(--color-info)]">
-                        action
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate text-xs text-[var(--color-text-muted)]">
-                    {item.description}
-                  </div>
-                </div>
-                {item.shortcut && (
-                  <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                    {item.shortcut}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-          {flatCount === 0 && (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {isActionMode
-                  ? searchQuery
-                    ? `No actions matching "${searchQuery}"`
-                    : 'No actions available'
-                  : `No tools matching "${searchQuery}"`}
-              </p>
-              <p className="mt-2 text-xs text-[var(--color-text-muted)] opacity-60">
-                {isActionMode
-                  ? 'Remove > to search tools instead'
-                  : 'Tip: type > to search actions'}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>esc close</span>
-          {!isActionMode && <span className="ml-auto">&gt; actions</span>}
-        </div>
+        <MagnifyingGlassIcon size={14} className="shrink-0 text-[var(--color-text-muted)]" />
+        <input
+          ref={inputRef}
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            if (!isOpen) setOpen(true)
+            setQuery(e.target.value)
+            setSelectedIndex(0)
+          }}
+          onKeyDown={onKeyDown}
+          placeholder={
+            isOpen
+              ? `Search tools... (${modSymbol}K)  •  Type > for actions`
+              : (TOOLS.find((tool) => tool.id === activeTool)?.name ?? 'Search tools and commands')
+          }
+          aria-label="Search tools and commands"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen && flatCount > 0}
+          aria-controls={isOpen ? 'command-palette-results' : undefined}
+          aria-activedescendant={isOpen ? selectedOptionId : undefined}
+          className="min-w-0 flex-1 bg-transparent text-left text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+        />
+        {isActionMode && isOpen ? (
+          <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
+            Actions
+          </span>
+        ) : (
+          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
+            {modSymbol}K
+          </kbd>
+        )}
       </div>
+
+      {isOpen && (
+        <>
+          <div
+            role="presentation"
+            className="pointer-events-auto fixed inset-0 z-[var(--z-scrim)]"
+            style={{ backgroundColor: 'var(--color-scrim)' }}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-labelledby="command-palette-title"
+            className="font-ui pointer-events-auto animate-fade-in fixed left-1/2 top-11 z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded-b border border-t-0 border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+          >
+            <h2 id="command-palette-title" className="sr-only">
+              Command palette
+            </h2>
+
+            {/* Results */}
+            <div
+              ref={listRef}
+              id="command-palette-results"
+              role="listbox"
+              className="max-h-96 overflow-y-auto py-1"
+            >
+              {sections.map((section) => {
+                if (section.type === 'header') {
+                  return (
+                    <div
+                      key={`header-${section.label}`}
+                      role="presentation"
+                      className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                    >
+                      {section.label}
+                    </div>
+                  )
+                }
+
+                const { item, flatIndex } = section
+                const isSelected = flatIndex === selectedIndex
+                const isActive = item.kind === 'tool' && item.id === activeTool
+                const isOpenInTab =
+                  item.kind === 'tool' && !isActive && tabs.some((t) => t.toolId === item.id)
+
+                return (
+                  <button
+                    key={item.id}
+                    id={optionId(item)}
+                    role="option"
+                    aria-selected={isSelected}
+                    data-palette-item
+                    tabIndex={-1}
+                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${
+                      isSelected
+                        ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                        : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+                    }`}
+                    onClick={() => executeItem(item)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSelectedIndex(flatIndex)}
+                  >
+                    <span className="flex w-6 shrink-0 justify-center text-[var(--color-text-muted)]">
+                      {item.icon}
+                    </span>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.name}</span>
+                        {isActive && (
+                          <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-accent)]">
+                            active
+                          </span>
+                        )}
+                        {isOpenInTab && (
+                          <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-text-muted)]">
+                            open
+                          </span>
+                        )}
+                        {item.kind === 'action' && (
+                          <span className="rounded bg-[var(--color-info)]/20 px-1 text-2xs text-[var(--color-info)]">
+                            action
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate text-xs text-[var(--color-text-muted)]">
+                        {item.description}
+                      </div>
+                    </div>
+                    {item.shortcut && (
+                      <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+                        {item.shortcut}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {flatCount === 0 && (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    {isActionMode
+                      ? searchQuery
+                        ? `No actions matching "${searchQuery}"`
+                        : 'No actions available'
+                      : `No tools matching "${searchQuery}"`}
+                  </p>
+                  <p className="mt-2 text-xs text-[var(--color-text-muted)] opacity-60">
+                    {isActionMode
+                      ? 'Remove > to search tools instead'
+                      : 'Tip: type > to search actions'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer hint */}
+            <div className="flex items-center gap-3 border-t border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+              <span>↑↓ navigate</span>
+              <span>↵ select</span>
+              <span>esc close</span>
+              {!isActionMode && <span className="ml-auto">&gt; actions</span>}
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

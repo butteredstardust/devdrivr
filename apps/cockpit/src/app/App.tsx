@@ -4,7 +4,6 @@ import { Workspace } from '@/components/shell/Workspace'
 import { NotesDrawer } from '@/components/shell/NotesDrawer'
 import { StatusBar } from '@/components/shell/StatusBar'
 import { TitleBar } from '@/components/shell/TitleBar'
-import { CommandPalette } from '@/components/shell/CommandPalette'
 import { ToastContainer } from '@/components/shared/Toast'
 import { SendToMenu, SendToContext } from '@/components/shared/SendToMenu'
 import { SettingsPanel } from '@/components/shell/SettingsPanel'
@@ -41,7 +40,6 @@ export function App() {
           <NotesDrawer />
         </div>
         <StatusBar />
-        <CommandPalette />
         <ToastContainer />
         <SettingsPanel />
         <ShortcutsModal />

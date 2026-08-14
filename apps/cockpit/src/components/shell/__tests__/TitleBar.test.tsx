@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TitleBar } from '@/components/shell/TitleBar'
-import { CommandPalette } from '@/components/shell/CommandPalette'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useNotesStore } from '@/stores/notes.store'
@@ -10,6 +9,16 @@ import type { Note } from '@/types/models'
 
 const mocks = vi.hoisted(() => ({
   platform: { current: 'mac' as 'mac' | 'windows' },
+  focusNativeWindow: vi.fn(),
+  isNativeWindowMaximized: vi.fn(),
+}))
+
+vi.mock('@/lib/native-window', () => ({
+  focusNativeWindow: mocks.focusNativeWindow,
+  isNativeWindowMaximized: mocks.isNativeWindowMaximized,
+  minimizeNativeWindow: vi.fn().mockResolvedValue(undefined),
+  toggleNativeWindowMaximize: vi.fn().mockResolvedValue(true),
+  closeNativeWindow: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/platform', () => ({
@@ -53,6 +62,8 @@ function makeNote(id: string): Note {
 
 beforeEach(() => {
   mocks.platform.current = 'mac'
+  mocks.focusNativeWindow.mockResolvedValue(undefined)
+  mocks.isNativeWindowMaximized.mockResolvedValue(false)
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
   useUiStore.setState({
     activeTabId: null,
@@ -61,6 +72,14 @@ beforeEach(() => {
     tabs: [],
   })
   useNotesStore.setState({ notes: [] })
+
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    configurable: true,
+    value: (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    },
+  })
 })
 
 afterEach(() => {
@@ -112,7 +131,7 @@ describe('TitleBar — moved buttons', () => {
 describe('TitleBar — command palette trigger', () => {
   it('opens the command palette when clicked', () => {
     render(<TitleBar />)
-    fireEvent.click(screen.getByLabelText('Open command palette'))
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Search tools and commands' }))
     expect(useUiStore.getState().commandPaletteOpen).toBe(true)
   })
 
@@ -120,15 +139,11 @@ describe('TitleBar — command palette trigger', () => {
     render(
       <>
         <TitleBar />
-        <CommandPalette />
       </>
     )
 
-    const trigger = screen.getByLabelText('Open command palette')
-    expect(fireEvent.mouseDown(trigger)).toBe(false)
-    fireEvent.click(trigger)
-
-    const input = screen.getByRole('combobox')
+    const input = screen.getByRole('combobox', { name: 'Search tools and commands' })
+    fireEvent.focus(input)
     expect(input).toHaveFocus()
 
     fireEvent.change(input, { target: { value: 'base64' } })
@@ -138,13 +153,13 @@ describe('TitleBar — command palette trigger', () => {
 
   it('shows a placeholder when no tool is active', () => {
     render(<TitleBar />)
-    expect(screen.getByText('Search tools and commands')).toBeInTheDocument()
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Search tools and commands')
   })
 
   it('shows the active tool name when a tool is open', () => {
     useUiStore.setState({ activeTool: 'base64' })
     render(<TitleBar />)
-    expect(screen.getByLabelText('Open command palette')).toHaveTextContent('Base64')
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Base64')
   })
 })
 

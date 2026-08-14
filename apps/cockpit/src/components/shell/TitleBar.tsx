@@ -1,10 +1,10 @@
-import { GearSixIcon, KeyboardIcon, MagnifyingGlassIcon, NotebookIcon } from '@phosphor-icons/react'
-import { getToolById } from '@/app/tool-registry'
+import { GearSixIcon, KeyboardIcon, NotebookIcon } from '@phosphor-icons/react'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
-import { WindowControls } from './WindowControls'
+import { CommandPalette } from '@/components/shell/CommandPalette'
+import { WindowControls } from '@/components/shell/WindowControls'
 
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]'
 
@@ -20,18 +20,13 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * normal browser control.
  */
 export function TitleBar() {
-  const { isMac, modSymbol } = usePlatform()
+  const { isMac } = usePlatform()
 
   const update = useSettingsStore((s) => s.update)
   const notesDrawerOpen = useSettingsStore((s) => s.notesDrawerOpen)
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const hasNotes = useNotesStore((s) => s.notes.length > 0)
-  const activeTool = useUiStore((s) => s.activeTool)
-  const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen)
-
-  const tool = getToolById(activeTool)
-  const shortcutHint = isMac ? `${modSymbol}K` : `${modSymbol}+K`
 
   const toggleNotes = () => {
     void update('notesDrawerOpen', !notesDrawerOpen)
@@ -95,21 +90,7 @@ export function TitleBar() {
           how wide the left cluster or right-side window controls are, rather than merely sitting
           between two flex siblings. */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-2">
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setCommandPaletteOpen(true)}
-          aria-label="Open command palette"
-          className={`pointer-events-auto flex w-full min-w-0 max-w-[480px] items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] shadow-sm transition-colors hover:bg-[var(--color-surface-hover)] ${FOCUS_RING}`}
-        >
-          <MagnifyingGlassIcon size={14} className="shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-left">
-            {tool?.name ?? 'Search tools and commands'}
-          </span>
-          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
-            {shortcutHint}
-          </kbd>
-        </button>
+        <CommandPalette />
       </div>
 
       {!isMac && (

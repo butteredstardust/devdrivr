@@ -3,18 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
 
 const mocks = vi.hoisted(() => ({
-  startResizeDragging: vi.fn(),
+  startResize: vi.fn(),
 }))
 
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({
-    startResizeDragging: mocks.startResizeDragging,
-  }),
+vi.mock('@/lib/native-window', () => ({
+  startNativeWindowResize: mocks.startResize,
 }))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.startResizeDragging.mockResolvedValue(undefined)
+  mocks.startResize.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -46,19 +44,19 @@ describe('WindowResizeHandles', () => {
     render(<WindowResizeHandles />)
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 0 })
-    expect(mocks.startResizeDragging).toHaveBeenCalledWith('East')
+    expect(mocks.startResize).toHaveBeenCalledWith('East')
   })
 
   it('ignores non-primary-button mousedown', () => {
     render(<WindowResizeHandles />)
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 2 })
-    expect(mocks.startResizeDragging).not.toHaveBeenCalled()
+    expect(mocks.startResize).not.toHaveBeenCalled()
   })
 
   it('contains native resize-drag failures', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    mocks.startResizeDragging.mockRejectedValueOnce(new Error('not resizable'))
+    mocks.startResize.mockRejectedValueOnce(new Error('not resizable'))
     render(<WindowResizeHandles />)
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 0 })

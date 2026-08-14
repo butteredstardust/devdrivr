@@ -1,5 +1,6 @@
 mod batch;
 mod mcp;
+mod window_commands;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -83,6 +84,12 @@ pub fn run() {
         .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
+            window_commands::window_close,
+            window_commands::window_focus,
+            window_commands::window_is_maximized,
+            window_commands::window_minimize,
+            window_commands::window_start_resize,
+            window_commands::window_toggle_maximize,
             batch::db_execute_batch,
             mcp::mcp_apply_settings,
             mcp::mcp_rotate_key,

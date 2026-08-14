@@ -90,14 +90,19 @@ They fail **independently**, and that asymmetry is what made this bug so hard to
 
 Cockpit persists everything through `plugin:sql`, so the app kept rendering perfectly while
 **silently writing nothing to disk** for the rest of the process's life. Nothing in the UI showed
-it. The cause was `useWindowControls` issuing one `isMaximized()` round trip per `onResized` event;
-macOS emits a continuous stream of those during a zoom animation, which floods and permanently
-deadlocks plugin dispatch. Fixed with a 200ms trailing debounce plus an in-flight guard — see
-`src/hooks/useWindowControls.ts`, and the regression tests in
-`src/hooks/__tests__/useWindowControls.test.ts`.
+it. The original cause was `useWindowControls` issuing `plugin:window|is_maximized` reads from a
+native resize-event listener; macOS emits a continuous stream of resize events during a zoom
+animation, which can flood and permanently deadlock plugin dispatch.
 
-To reproduce or re-verify: mount the probe, note the three baseline timings, click the green
-traffic light once, and watch the two plugin lanes flip to `NO RESPONSE` while `custom` stays fine.
+The durable fix keeps the unified client-side title bar but removes its lifecycle operations from
+the window plugin entirely. Close, minimize, maximize, focus, and edge resize now use dedicated
+Rust commands in `src-tauri/src/window_commands.rs`. `useWindowControls` observes ordinary browser
+focus/resize events and performs a single trailing custom-command reconciliation after resize
+bursts. This means title-bar activity cannot jam the SQL plugin queue.
+
+To reproduce the historical failure, check out a revision before the Rust command bridge, mount
+the probe, note the three baseline timings, click the green traffic light once, and watch the two
+plugin lanes flip to `NO RESPONSE` while `custom` stays fine.
 
 ## Findings so far
 
@@ -109,6 +114,10 @@ Recorded against Tauri 2.10.3 / macOS 15, on branch `feat/ui-polish-phase-2`.
   `WindowResizeHandles` mounts on every platform, macOS included.
 - **The unhandled-rejection listener earns its place.** Window calls written `void win.minimize()`
   swallow every error; the probe is how they surface. The hook now uses explicit `.catch`.
+- **A title-bar launcher must be the real focused input.** Replacing a clicked title-bar button
+  with a modal input left WKWebView DOM focus and the native first responder out of sync. The
+  unified bar now keeps its search input mounted permanently and expands results beneath that same
+  field, so a physical click and subsequent typing target one native control.
 - **Verified working, no action needed:** drag from the bar, double-click zoom _and_ restore, green
   maximize toggle both ways, minimize (`AXMinimized` true), close, focus dimming, the left-cluster
   icon buttons, and the 44px bar layout with the drag region confined to the bar itself.

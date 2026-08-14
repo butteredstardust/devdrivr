@@ -29,6 +29,15 @@ export function installTauriStub() {
     if (cmd === 'plugin:sql|select') return []
     if (cmd === 'plugin:sql|execute') return [0, 0]
     if (cmd === 'plugin:event|listen') return 1
+    if (cmd === 'window_is_maximized' || cmd === 'window_toggle_maximize') return false
+    if (
+      cmd === 'window_focus' ||
+      cmd === 'window_minimize' ||
+      cmd === 'window_close' ||
+      cmd === 'window_start_resize'
+    ) {
+      return null
+    }
     // Window-control layer (client-side decorations): boot-time reads resolve to sane
     // defaults, mutating calls resolve to void. Nothing here actually moves/resizes the
     // Chromium window — window/menu behaviour still needs the real app (see
