@@ -61,7 +61,7 @@ describe('tool capability flags', () => {
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 6', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 7', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -69,14 +69,22 @@ describe('tool capability flags', () => {
         'csv-tools',
         'json-tools',
         'markdown-editor',
+        'refactoring-toolkit',
         'ts-playground',
       ])
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 5', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 6', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
-      new Set(['api-client', 'code-formatter', 'json-tools', 'markdown-editor', 'ts-playground'])
+      new Set([
+        'api-client',
+        'code-formatter',
+        'json-tools',
+        'markdown-editor',
+        'refactoring-toolkit',
+        'ts-playground',
+      ])
     )
   })
 

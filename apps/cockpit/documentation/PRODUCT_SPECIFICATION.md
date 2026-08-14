@@ -471,6 +471,13 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
   - Arrow function conversion
 - **Always preview as diff before applying.** User confirms or discards.
 - Multiple transforms can be selected and applied in sequence.
+- Transform panel is a filterable, collapsible disclosure grouped by category, with a
+  select-all per group (indeterminate when partly selected) and a visible safety level per
+  transform.
+- Source/Diff view toggle: the diff is read-only, so the source stays reachable while
+  transforms remain selected.
+- Applying rewrites the buffer and offers Undo (⌘↵ applies). Supports open-file and
+  save-file; the language follows the opened file's extension.
 
 ---
 

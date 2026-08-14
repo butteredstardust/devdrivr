@@ -67,6 +67,26 @@ const greeting = users.map(greet)
 console.log(greeting)
 `
 
+/**
+ * Refactoring Toolkit's "Load example". Deliberately contains something for
+ * every category: `var` and a `function` expression to modernise, a loose `==`
+ * to tighten, and a `console.log` for the destructive cleanup transforms.
+ */
+export const REFACTORING_SAMPLE = `var API = require('./api')
+
+var fetchUser = function (id) {
+  return API.get('/users/' + id).then(function (res) {
+    if (res.status == 200) {
+      console.log('loaded', res.data)
+      return res.data
+    }
+    return null
+  })
+}
+
+module.exports = { fetchUser: fetchUser }
+`
+
 /** Diff Viewer needs a left/right pair rather than a single input string. */
 export const DIFF_VIEWER_SAMPLE = {
   left: `function greet(name) {

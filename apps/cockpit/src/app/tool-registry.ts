@@ -105,8 +105,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Refactoring Toolkit',
     group: 'code',
     icon: toolIcon(ArrowsClockwiseIcon),
-    description: 'Regex code transforms with diff preview (12 transforms, JS/TS)',
+    description: 'AST codemods with diff preview (12 transforms, JS/TS)',
     component: RefactoringToolkit,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   // --- Data ---
