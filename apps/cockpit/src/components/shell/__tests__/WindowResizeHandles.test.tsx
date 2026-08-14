@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
 
@@ -54,5 +54,20 @@ describe('WindowResizeHandles', () => {
 
     fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 2 })
     expect(mocks.startResizeDragging).not.toHaveBeenCalled()
+  })
+
+  it('contains native resize-drag failures', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.startResizeDragging.mockRejectedValueOnce(new Error('not resizable'))
+    render(<WindowResizeHandles />)
+
+    fireEvent.mouseDown(screen.getByTestId('resize-handle-East'), { button: 0 })
+
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        '[WindowResizeHandles] startResizeDragging failed:',
+        expect.any(Error)
+      )
+    )
   })
 })

@@ -206,6 +206,11 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  const focusInputRef = useCallback((input: HTMLInputElement | null) => {
+    inputRef.current = input
+    input?.focus()
+  }, [])
+
   // ─── Palette items ─────────────────────────────────────────────
 
   const actions = useMemo(
@@ -431,7 +436,6 @@ export function CommandPalette() {
     if (isOpen) {
       setQuery('')
       setSelectedIndex(0)
-      requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [isOpen])
 
@@ -518,7 +522,7 @@ export function CommandPalette() {
         <div className="flex items-center border-b border-[var(--color-border)] px-3 pt-[3px] pb-[3px]">
           <CommandIcon size={14} className="mr-2 text-[var(--color-text-muted)]" />
           <input
-            ref={inputRef}
+            ref={focusInputRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

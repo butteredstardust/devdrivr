@@ -68,7 +68,11 @@ export function WindowResizeHandles() {
               // Only the primary button should start a resize-drag.
               if (event.button !== 0) return
               event.preventDefault()
-              void getCurrentWindow().startResizeDragging(handle.direction)
+              void getCurrentWindow()
+                .startResizeDragging(handle.direction)
+                .catch((err) =>
+                  console.error('[WindowResizeHandles] startResizeDragging failed:', err)
+                )
             }}
           />
         )

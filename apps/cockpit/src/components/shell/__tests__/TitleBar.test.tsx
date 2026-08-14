@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TitleBar } from '@/components/shell/TitleBar'
+import { CommandPalette } from '@/components/shell/CommandPalette'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useNotesStore } from '@/stores/notes.store'
@@ -115,6 +116,26 @@ describe('TitleBar — command palette trigger', () => {
     expect(useUiStore.getState().commandPaletteOpen).toBe(true)
   })
 
+  it('preserves pointer focus until the palette input mounts and accepts search text', () => {
+    render(
+      <>
+        <TitleBar />
+        <CommandPalette />
+      </>
+    )
+
+    const trigger = screen.getByLabelText('Open command palette')
+    expect(fireEvent.mouseDown(trigger)).toBe(false)
+    fireEvent.click(trigger)
+
+    const input = screen.getByRole('combobox')
+    expect(input).toHaveFocus()
+
+    fireEvent.change(input, { target: { value: 'base64' } })
+    expect(input).toHaveValue('base64')
+    expect(screen.getByRole('option', { name: /Base64/ })).toBeInTheDocument()
+  })
+
   it('shows a placeholder when no tool is active', () => {
     render(<TitleBar />)
     expect(screen.getByText('Search tools and commands')).toBeInTheDocument()
@@ -144,10 +165,14 @@ describe('TitleBar — platform layout', () => {
 })
 
 describe('TitleBar — drag region', () => {
-  it('carries data-tauri-drag-region on the bar itself but not on interactive children', () => {
+  it('uses a background drag layer that never contains interactive children', () => {
     const { container } = render(<TitleBar />)
     const bar = container.firstElementChild as HTMLElement
-    expect(bar).toHaveAttribute('data-tauri-drag-region')
+    expect(bar).not.toHaveAttribute('data-tauri-drag-region')
+
+    const dragRegion = screen.getByTestId('titlebar-drag-region')
+    expect(dragRegion).toHaveAttribute('data-tauri-drag-region')
+    expect(dragRegion.querySelector('button, input, a')).toBeNull()
 
     const buttons = bar.querySelectorAll('button')
     expect(buttons.length).toBeGreaterThan(0)

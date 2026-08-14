@@ -14,11 +14,10 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * Unified client-side-decorated title bar (Safari-style). Replaces the native titlebar removed
  * by `decorations: false` in tauri.conf.json.
  *
- * The whole bar carries `data-tauri-drag-region` so the window can be dragged/double-click-zoomed
- * from any empty area, but only the bar's own background element has the attribute — none of the
- * interactive children (buttons) do. Tauri only starts a window drag when the raw mousedown target
- * itself carries the attribute; since the buttons render on top and are the actual event target,
- * clicks on them are never intercepted by the drag region.
+ * A dedicated background layer carries `data-tauri-drag-region` so the window can be
+ * dragged/double-click-zoomed from empty space. Interactive controls are siblings above it, never
+ * descendants of a native drag region; this keeps pointer and keyboard focus transitions under
+ * normal browser control.
  */
 export function TitleBar() {
   const { isMac, modSymbol } = usePlatform()
@@ -40,9 +39,14 @@ export function TitleBar() {
 
   return (
     <div
-      data-tauri-drag-region
       className={`font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] ${isMac ? 'pl-[78px]' : 'pl-2'} pr-2`}
     >
+      <div
+        data-tauri-drag-region
+        data-testid="titlebar-drag-region"
+        aria-hidden="true"
+        className="absolute inset-0"
+      />
       {isMac && (
         <div
           data-testid="titlebar-mac-controls"
@@ -52,7 +56,7 @@ export function TitleBar() {
         </div>
       )}
 
-      <div className="flex items-center gap-1">
+      <div className="relative flex items-center gap-1">
         <button
           type="button"
           onClick={toggleNotes}
@@ -93,6 +97,7 @@ export function TitleBar() {
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-2">
         <button
           type="button"
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => setCommandPaletteOpen(true)}
           aria-label="Open command palette"
           className={`pointer-events-auto flex w-full min-w-0 max-w-[480px] items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] shadow-sm transition-colors hover:bg-[var(--color-surface-hover)] ${FOCUS_RING}`}

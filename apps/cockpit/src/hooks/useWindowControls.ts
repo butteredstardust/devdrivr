@@ -48,11 +48,16 @@ export function useWindowControls(): UseWindowControlsResult {
 
     let reconcileTimer: ReturnType<typeof setTimeout> | undefined
     let reconcileInFlight = false
+    let reconcilePending = false
 
     const reconcileMaximized = () => {
-      // Never stack round trips: a second burst arriving mid-flight is dropped, not queued.
-      if (cancelled || reconcileInFlight) return
+      if (cancelled) return
+      if (reconcileInFlight) {
+        reconcilePending = true
+        return
+      }
       reconcileInFlight = true
+      reconcilePending = false
       win
         .isMaximized()
         .then((maximized) => {
@@ -61,47 +66,47 @@ export function useWindowControls(): UseWindowControlsResult {
         .catch((err) => console.error('[useWindowControls] isMaximized failed:', err))
         .finally(() => {
           reconcileInFlight = false
+          if (reconcilePending && !cancelled) reconcileMaximized()
         })
     }
 
     const scheduleReconcile = () => {
       if (reconcileTimer) clearTimeout(reconcileTimer)
-      reconcileTimer = setTimeout(reconcileMaximized, RESIZE_RECONCILE_MS)
+      reconcileTimer = setTimeout(() => {
+        reconcileTimer = undefined
+        reconcileMaximized()
+      }, RESIZE_RECONCILE_MS)
     }
 
-    async function bootstrap() {
-      // Listeners are registered *before* the initial state read. The read is a round trip that
-      // can be slow or never settle, and anything sequenced after awaiting it would then never
-      // run — which is how a wedged IPC channel previously left the window with no listeners at
-      // all, so focus dimming and maximized state stayed frozen for the rest of the session.
-      const unlistenResized = await win.onResized(scheduleReconcile)
-      if (cancelled) {
-        unlistenResized()
-        return
-      }
-      cleanups.push(unlistenResized)
+    const keepListener = (unlisten: () => void) => {
+      if (cancelled) unlisten()
+      else cleanups.push(unlisten)
+    }
 
-      const unlistenFocus = await win.onFocusChanged(({ payload }) => {
-        setIsFocused(payload)
+    // Each listener is registered independently. A stalled or rejected native call must not
+    // prevent the other listener from attaching.
+    void win
+      .onResized(scheduleReconcile)
+      .then(keepListener)
+      .catch((err) => console.error('[useWindowControls] onResized failed:', err))
+
+    void win
+      .onFocusChanged(({ payload }) => {
+        if (!cancelled) setIsFocused(payload)
       })
-      if (cancelled) {
-        unlistenFocus()
-        return
-      }
-      cleanups.push(unlistenFocus)
+      .then(keepListener)
+      .catch((err) => console.error('[useWindowControls] onFocusChanged failed:', err))
 
-      try {
-        const [maximized, focused] = await Promise.all([win.isMaximized(), win.isFocused()])
+    void Promise.all([win.isMaximized(), win.isFocused()])
+      .then(([maximized, focused]) => {
         if (!cancelled) {
           setIsMaximized(maximized)
           setIsFocused(focused)
         }
-      } catch {
+      })
+      .catch(() => {
         // Window may not be ready yet — the listeners above will catch up.
-      }
-    }
-
-    void bootstrap()
+      })
 
     return () => {
       cancelled = true
@@ -122,7 +127,12 @@ export function useWindowControls(): UseWindowControlsResult {
     setIsMaximized((maximized) => !maximized)
     getCurrentWindow()
       .toggleMaximize()
-      .catch((err) => console.error('[useWindowControls] toggleMaximize failed:', err))
+      .catch((err) => {
+        // Undo this attempt's optimistic flip. Multiple failed attempts still compose correctly:
+        // each rejected native toggle removes exactly one local inversion.
+        setIsMaximized((maximized) => !maximized)
+        console.error('[useWindowControls] toggleMaximize failed:', err)
+      })
   }, [])
 
   const close = useCallback(() => {

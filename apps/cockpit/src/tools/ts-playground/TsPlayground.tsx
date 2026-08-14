@@ -54,44 +54,53 @@ export default function TsPlayground() {
   const [isTranspiling, setIsTranspiling] = useState(false)
   const showSpinner = useDelayedLoading(isTranspiling)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transpileRequestRef = useRef(0)
 
-  const handleTranspile = useCallback(async () => {
+  const handleTranspile = useCallback(
+    async (requestId: number) => {
+      if (!worker) return
+      setIsTranspiling(true)
+      try {
+        const result = await worker.transpile(state.input, {
+          target: state.target,
+          module: state.module,
+          strict: state.strict,
+        })
+        if (requestId !== transpileRequestRef.current) return
+        setOutput(result.output)
+        setDiagnostics(result.diagnostics)
+        if (result.diagnostics.length > 0) {
+          setLastAction(`${result.diagnostics.length} diagnostic(s)`, 'info')
+        }
+      } catch (e) {
+        if (requestId !== transpileRequestRef.current) return
+        setOutput(`// Error: ${(e as Error).message}`)
+        setDiagnostics([])
+      } finally {
+        if (requestId === transpileRequestRef.current) setIsTranspiling(false)
+      }
+    },
+    [worker, state.input, state.target, state.module, state.strict, setLastAction]
+  )
+
+  // Auto-transpile on input/option change (debounced 500ms)
+  useEffect(() => {
+    const requestId = ++transpileRequestRef.current
+    setIsTranspiling(false)
     if (!worker) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.input.trim()) {
       setOutput('')
       setDiagnostics([])
       return
     }
-    setIsTranspiling(true)
-    try {
-      const result = await worker.transpile(state.input, {
-        target: state.target,
-        module: state.module,
-        strict: state.strict,
-      })
-      setOutput(result.output)
-      setDiagnostics(result.diagnostics)
-      if (result.diagnostics.length > 0) {
-        setLastAction(`${result.diagnostics.length} diagnostic(s)`, 'info')
-      }
-    } catch (e) {
-      setOutput(`// Error: ${(e as Error).message}`)
-      setDiagnostics([])
-    } finally {
-      setIsTranspiling(false)
-    }
-  }, [worker, state.input, state.target, state.module, state.strict, setLastAction])
-
-  // Auto-transpile on input/option change (debounced 500ms)
-  useEffect(() => {
-    if (!worker) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      void handleTranspile()
+      void handleTranspile(requestId)
     }, 500)
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      if (transpileRequestRef.current === requestId) transpileRequestRef.current += 1
     }
   }, [worker, state.input, state.target, state.module, state.strict, handleTranspile])
 

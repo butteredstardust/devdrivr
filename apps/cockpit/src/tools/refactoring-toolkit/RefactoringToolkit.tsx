@@ -56,13 +56,13 @@ export default function RefactoringToolkit() {
   // Auto-preview: debounce 300ms when input or selected transforms change
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    const requestId = ++previewRequestRef.current
     if (!state.input.trim() || state.selectedTransforms.length === 0 || !worker) {
       setPreview(null)
       setIsPreviewing(false)
       return
     }
     setPreview(null)
-    const requestId = ++previewRequestRef.current
     debounceRef.current = setTimeout(() => {
       const parser = state.language === 'typescript' ? 'tsx' : 'babel'
       setIsPreviewing(true)
@@ -82,6 +82,7 @@ export default function RefactoringToolkit() {
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      if (previewRequestRef.current === requestId) previewRequestRef.current += 1
     }
   }, [state.input, state.selectedTransforms, state.language, worker, setLastAction])
 
