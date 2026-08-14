@@ -673,10 +673,8 @@ export default function ColorConverter() {
                         className="h-10 w-10 rounded border border-[var(--color-border)] transition-transform group-hover:scale-110"
                         style={{ backgroundColor: step.hex }}
                       />
-                      <span className="text-[10px] text-[var(--color-text-muted)]">
-                        {step.label}
-                      </span>
-                      <span className="text-[10px] font-mono text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-2xs text-[var(--color-text-muted)]">{step.label}</span>
+                      <span className="text-2xs font-mono text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity">
                         {step.hex}
                       </span>
                     </Button>
@@ -797,7 +795,7 @@ export default function ColorConverter() {
                     </button>
                     {/* Badge */}
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      className="rounded-full px-2 py-0.5 text-2xs font-bold"
                       style={{ backgroundColor: color.hex + '33', color: color.hex }}
                     >
                       Badge

@@ -3,9 +3,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { getToolById } from '@/app/tool-registry'
-import { usePlatform } from '@/hooks/usePlatform'
 import { THEME_META } from '@/lib/theme'
-import { PushPinIcon, CommandIcon, ClockIcon } from '@phosphor-icons/react'
+import { PushPinIcon, ClockIcon } from '@phosphor-icons/react'
 
 // ─── Isolated clock component (re-renders only itself every minute) ──
 
@@ -49,7 +48,6 @@ export function StatusBar() {
   const updateSetting = useSettingsStore((s) => s.update)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const historyCount = useHistoryStore((s) => s.entries.length)
-  const { modSymbol } = usePlatform()
 
   function openHistoryDrawer() {
     void updateSetting('notesDrawerOpen', true)
@@ -92,7 +90,7 @@ export function StatusBar() {
         {historyCount > 0 && (
           <button
             type="button"
-            className="tabular-nums hover:text-[var(--color-text)] transition-colors"
+            className="tabular-nums hover:text-[var(--color-text)] transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             title={`${historyCount} history entries — click to open`}
             aria-label={`${historyCount} history ${historyCount === 1 ? 'entry' : 'entries'} — click to open`}
             onClick={openHistoryDrawer}
@@ -107,19 +105,12 @@ export function StatusBar() {
         )}
         <button
           type="button"
-          className="hover:text-[var(--color-text)] transition-colors"
+          className="hover:text-[var(--color-text)] transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           title="Theme — click to cycle"
           onClick={() => void toggleTheme()}
         >
           {themeLabel}
         </button>
-        <span
-          className="flex items-center gap-1 text-[var(--color-text-muted)] opacity-60"
-          title="Command Palette"
-        >
-          <CommandIcon size={10} aria-hidden="true" />
-          <span>{modSymbol}K</span>
-        </span>
         {alwaysOnTop && (
           <span title="Pinned">
             <PushPinIcon

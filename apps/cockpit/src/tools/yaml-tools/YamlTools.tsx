@@ -279,7 +279,7 @@ export default function YamlTools() {
                 </span>
               )}
               {stats && (
-                <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                   {stats.keys} keys · depth {stats.depth} · {stats.size}
                 </span>
               )}
@@ -290,7 +290,7 @@ export default function YamlTools() {
           {state.activeTab === 'tree' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
               {stats && (
-                <span className="text-[10px] text-[var(--color-text-muted)]">
+                <span className="text-2xs text-[var(--color-text-muted)]">
                   {stats.keys} keys · depth {stats.depth}
                 </span>
               )}
@@ -372,7 +372,7 @@ export default function YamlTools() {
           <div className="flex flex-1 overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-[var(--color-border)]">
               <div className="border-b border-[var(--color-border)] px-4 py-1">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                <span className="text-2xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
                   {convertDirection === 'yaml-to-json' ? 'YAML Input' : 'JSON Input'}
                 </span>
               </div>
@@ -398,7 +398,7 @@ export default function YamlTools() {
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="border-b border-[var(--color-border)] px-4 py-1">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                <span className="text-2xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
                   {convertDirection === 'yaml-to-json' ? 'JSON Output' : 'YAML Output'}
                 </span>
               </div>

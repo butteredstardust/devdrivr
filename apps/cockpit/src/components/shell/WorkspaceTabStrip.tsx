@@ -145,14 +145,14 @@ export function WorkspaceTabStrip() {
                   {tool.icon}
                 </span>
               )}
-              <span className="flex-1 truncate text-[10px]">{tool?.name ?? tab.toolId}</span>
+              <span className="flex-1 truncate text-2xs">{tool?.name ?? tab.toolId}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   closeTab(tab.id)
                 }}
                 aria-label={`Close ${tool?.name ?? 'tab'}`}
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-[var(--color-surface-hover)]"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               >
                 <XIcon size={10} />
               </button>
@@ -185,7 +185,7 @@ export function WorkspaceTabStrip() {
         onClick={toggleCommandPalette}
         aria-label="Open new tool (⌘K)"
         title="Open new tool (⌘K)"
-        className="flex h-full w-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+        className="flex h-full w-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />
       </button>
@@ -202,7 +202,7 @@ export function WorkspaceTabStrip() {
               closeTab(contextMenu.tabId)
               setContextMenu(null)
             }}
-            className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)]"
+            className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             Close
           </button>
@@ -212,7 +212,7 @@ export function WorkspaceTabStrip() {
               setContextMenu(null)
             }}
             disabled={!hasOthers}
-            className="flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent text-[var(--color-text)]"
+            className="flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             Close Others
           </button>
@@ -222,7 +222,7 @@ export function WorkspaceTabStrip() {
               setContextMenu(null)
             }}
             disabled={!hasRight}
-            className="flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent text-[var(--color-text)]"
+            className="flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             Close to Right
           </button>

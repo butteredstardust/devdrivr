@@ -30,11 +30,11 @@ export function Field({
       </label>
       {children}
       {error ? (
-        <span role="alert" className="text-[10px] text-[var(--color-error)]">
+        <span role="alert" className="text-2xs text-[var(--color-error)]">
           {error}
         </span>
       ) : (
-        hint && <span className="text-[10px] text-[var(--color-text-muted)]">{hint}</span>
+        hint && <span className="text-2xs text-[var(--color-text-muted)]">{hint}</span>
       )}
     </div>
   )

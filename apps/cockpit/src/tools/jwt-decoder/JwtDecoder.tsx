@@ -247,7 +247,7 @@ export default function JwtDecoder() {
                         {key}
                       </code>
                       {info && (
-                        <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                        <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                           {info.label}
                         </span>
                       )}
@@ -257,7 +257,7 @@ export default function JwtDecoder() {
                             {timeStr}
                             {key === 'exp' && expiry && (
                               <span
-                                className={`ml-1 text-[10px] ${
+                                className={`ml-1 text-2xs ${
                                   expiry.expired
                                     ? 'text-[var(--color-error)]'
                                     : 'text-[var(--color-success)]'

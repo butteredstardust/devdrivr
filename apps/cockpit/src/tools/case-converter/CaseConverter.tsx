@@ -120,12 +120,12 @@ export default function CaseConverter() {
           <div className="mb-2 flex items-center gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
             {detected && (
-              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-accent)]">
+              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-2xs font-bold text-[var(--color-accent)]">
                 {detected}
               </span>
             )}
             {words.length > 0 && (
-              <span className="text-[10px] text-[var(--color-text-muted)]">
+              <span className="text-2xs text-[var(--color-text-muted)]">
                 {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
               </span>
             )}
@@ -157,9 +157,7 @@ export default function CaseConverter() {
                   <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                     {c.label}
                     {isCurrent && (
-                      <span className="text-[10px] font-bold text-[var(--color-accent)]">
-                        current
-                      </span>
+                      <span className="text-2xs font-bold text-[var(--color-accent)]">current</span>
                     )}
                   </div>
                   <div className="truncate font-mono text-sm text-[var(--color-text)]">

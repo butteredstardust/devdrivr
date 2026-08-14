@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
+import { Spinner } from './Spinner'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'icon'
 type ButtonSize = 'xs' | 'sm' | 'md'
@@ -65,7 +66,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               {children}
             </span>
             <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              <Spinner size="sm" />
             </span>
           </>
         ) : (

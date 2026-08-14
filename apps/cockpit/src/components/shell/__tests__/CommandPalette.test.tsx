@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CommandPalette } from '@/components/shell/CommandPalette'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -7,6 +7,11 @@ import { DEFAULT_SETTINGS } from '@/types/models'
 
 const windowApi = vi.hoisted(() => ({
   setAlwaysOnTop: vi.fn(),
+  focusNativeWindow: vi.fn(),
+}))
+
+vi.mock('@/lib/native-window', () => ({
+  focusNativeWindow: windowApi.focusNativeWindow,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -26,6 +31,7 @@ beforeEach(() => {
   cleanup()
   vi.clearAllMocks()
   windowApi.setAlwaysOnTop.mockResolvedValue(undefined)
+  windowApi.focusNativeWindow.mockResolvedValue(undefined)
 
   Object.defineProperty(globalThis, 'requestAnimationFrame', {
     configurable: true,
@@ -48,11 +54,26 @@ beforeEach(() => {
 })
 
 describe('CommandPalette', () => {
+  it('only references the results list while it is rendered', () => {
+    useUiStore.setState({ commandPaletteOpen: false })
+
+    render(<CommandPalette />)
+    const input = screen.getByRole('combobox')
+
+    expect(input).not.toHaveAttribute('aria-controls')
+    expect(input).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.focus(input)
+
+    expect(input).toHaveAttribute('aria-controls', 'command-palette-results')
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('uses dialog and combobox semantics with an active descendant', () => {
     render(<CommandPalette />)
 
-    const dialog = screen.getByRole('dialog', { name: 'Command palette' })
-    const input = within(dialog).getByRole('combobox')
+    expect(screen.getByRole('dialog', { name: 'Command palette' })).toBeInTheDocument()
+    const input = screen.getByRole('combobox')
 
     expect(input).toHaveAttribute('aria-controls', 'command-palette-results')
     expect(input).toHaveAttribute('aria-expanded', 'true')

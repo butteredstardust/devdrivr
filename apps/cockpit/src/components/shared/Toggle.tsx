@@ -18,7 +18,7 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-200 ${
+        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
           checked ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >

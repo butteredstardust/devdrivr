@@ -225,7 +225,7 @@ export default function CssSpecificity() {
             {Object.values(TYPE_COLORS).map((tc) => (
               <div key={tc.label} className="flex items-center gap-1">
                 <div className="h-2 w-4 rounded" style={{ backgroundColor: tc.bar }} />
-                <span className="text-[10px]" style={{ color: tc.text }}>
+                <span className="text-2xs" style={{ color: tc.text }}>
                   {tc.label}
                 </span>
               </div>
@@ -269,13 +269,13 @@ export default function CssSpecificity() {
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {isWinner && (
-                          <span className="rounded bg-[var(--color-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                          <span className="rounded bg-[var(--color-accent)] px-1.5 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                             WINS
                           </span>
                         )}
                         <code className="text-xs text-[var(--color-text)]">{r.selector}</code>
                         {r.hasImportant && (
-                          <span className="rounded bg-[var(--color-error)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          <span className="rounded bg-[var(--color-error)] px-1.5 py-0.5 text-2xs font-bold text-white">
                             !important
                           </span>
                         )}
@@ -337,7 +337,7 @@ export default function CssSpecificity() {
                           return (
                             <span
                               key={j}
-                              className="rounded border px-1.5 py-0.5 font-mono text-[10px]"
+                              className="rounded border px-1.5 py-0.5 font-mono text-2xs"
                               style={{
                                 color,
                                 borderColor: color,

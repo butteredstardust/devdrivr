@@ -154,7 +154,7 @@ export default function UrlCodec() {
           <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
             ⇄ Swap
           </Button>
-          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+          <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
           <Select
             value={state.encodeMode}
             onChange={(e) =>
@@ -168,15 +168,13 @@ export default function UrlCodec() {
           {/* Status badges */}
           <div className="ml-auto flex items-center gap-2">
             {doubleEncoded && (
-              <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--color-warning)]">
+              <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-2xs font-bold text-[var(--color-warning)]">
                 Double-encoded?
               </span>
             )}
-            {noChange && (
-              <span className="text-[10px] text-[var(--color-text-muted)]">No change</span>
-            )}
+            {noChange && <span className="text-2xs text-[var(--color-text-muted)]">No change</span>}
             {encodedCount > 0 && !noChange && (
-              <span className="text-[10px] tabular-nums text-[var(--color-text-muted)]">
+              <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
                 {encodedCount} char{encodedCount !== 1 ? 's' : ''}{' '}
                 {state.mode === 'encode' ? 'encoded' : 'decoded'}
               </span>

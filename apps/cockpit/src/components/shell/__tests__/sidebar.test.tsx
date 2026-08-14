@@ -300,23 +300,33 @@ describe('SidebarGroup keyboard nav — focus-outside-list edge case', () => {
 // announced every tool twice, Tab walked an invisible copy of the
 // sidebar, and the footer could be unclickable depending on which tree
 // happened to be on top. Only one tree should ever be present in the DOM.
-
+//
+// The original version of this guard asserted on the "Open settings" button
+// that used to live in SidebarFooter. That button has since moved into
+// TitleBar (title-bar phase 2), so SidebarFooter — and its footer markup —
+// no longer exists in either tree. The collapse/expand toggle button is the
+// element that now plays the same role: it exists in both the collapsed and
+// expanded variants (one label per variant), so if both trees were ever
+// mounted simultaneously again, both labels — or duplicate tool nodes —
+// would appear at once and these assertions would catch it.
 describe('Sidebar — only one tree is live at a time', () => {
-  it('renders exactly one "Open settings" button and one node per tool id when expanded', () => {
+  it('renders exactly one sidebar toggle button and one node per tool id when expanded', () => {
     useSettingsStore.setState({ sidebarCollapsed: false })
     render(<Sidebar />)
 
-    expect(screen.getAllByLabelText('Open settings')).toHaveLength(1)
+    expect(screen.getAllByLabelText('Collapse sidebar')).toHaveLength(1)
+    expect(screen.queryByLabelText('Expand sidebar')).not.toBeInTheDocument()
     for (const tool of ALL_TOOLS) {
       expect(document.querySelectorAll(`[data-sidebar-item="${tool.id}"]`)).toHaveLength(1)
     }
   })
 
-  it('renders exactly one "Open settings" button when collapsed, and no leftover expanded-tree tool nodes', () => {
+  it('renders exactly one sidebar toggle button when collapsed, and no leftover expanded-tree tool nodes', () => {
     useSettingsStore.setState({ sidebarCollapsed: true })
     render(<Sidebar />)
 
-    expect(screen.getAllByLabelText('Open settings')).toHaveLength(1)
+    expect(screen.getAllByLabelText('Expand sidebar')).toHaveLength(1)
+    expect(screen.queryByLabelText('Collapse sidebar')).not.toBeInTheDocument()
     // The collapsed layout doesn't render per-tool nodes at all (tools only
     // appear in a group's flyout on demand) — so the expanded tree's
     // data-sidebar-item nodes must be fully absent, not just invisible.

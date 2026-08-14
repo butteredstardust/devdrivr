@@ -10,6 +10,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { useDelayedLoading } from '@/components/shared/Spinner'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { XmlWorker } from '@/workers/xml.worker'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
@@ -202,6 +203,29 @@ export default function XmlTools() {
     depth: number
   } | null>(null)
 
+  type BusyOp = 'format' | 'minify' | 'validate' | 'json' | 'xpath'
+
+  // Worker operations share mutable output, so allow only one at a time. The ref closes the
+  // same-render double-click gap; delayed loading remains a visual concern only.
+  const [busyOp, setBusyOp] = useState<BusyOp | null>(null)
+  const busyOpRef = useRef<BusyOp | null>(null)
+  const beginOperation = useCallback((operation: BusyOp) => {
+    if (busyOpRef.current) return false
+    busyOpRef.current = operation
+    setBusyOp(operation)
+    return true
+  }, [])
+  const finishOperation = useCallback((operation: BusyOp) => {
+    if (busyOpRef.current !== operation) return
+    busyOpRef.current = null
+    setBusyOp(null)
+  }, [])
+  const showFormatSpinner = useDelayedLoading(busyOp === 'format')
+  const showMinifySpinner = useDelayedLoading(busyOp === 'minify')
+  const showValidateSpinner = useDelayedLoading(busyOp === 'validate')
+  const showJsonSpinner = useDelayedLoading(busyOp === 'json')
+  const showXPathSpinner = useDelayedLoading(busyOp === 'xpath')
+
   // Debounced stats computation
   const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -243,7 +267,7 @@ export default function XmlTools() {
   }, [state.xpathQuery])
 
   const handleFormat = useCallback(async () => {
-    if (!worker || !state.input.trim()) return
+    if (!worker || !state.input.trim() || !beginOperation('format')) return
     try {
       const result = await worker.format(state.input, state.indent)
       if (result.valid && result.formatted) {
@@ -257,11 +281,21 @@ export default function XmlTools() {
     } catch (e) {
       setError((e as Error).message)
       setLastAction('Format failed', 'error')
+    } finally {
+      finishOperation('format')
     }
-  }, [worker, state.input, state.indent, updateState, setLastAction])
+  }, [
+    worker,
+    state.input,
+    state.indent,
+    updateState,
+    setLastAction,
+    beginOperation,
+    finishOperation,
+  ])
 
   const handleMinify = useCallback(async () => {
-    if (!worker || !state.input.trim()) return
+    if (!worker || !state.input.trim() || !beginOperation('minify')) return
     try {
       const result = await worker.minify(state.input)
       if (result.valid && result.formatted) {
@@ -275,11 +309,13 @@ export default function XmlTools() {
     } catch (e) {
       setError((e as Error).message)
       setLastAction('Minify failed', 'error')
+    } finally {
+      finishOperation('minify')
     }
-  }, [worker, state.input, updateState, setLastAction])
+  }, [worker, state.input, updateState, setLastAction, beginOperation, finishOperation])
 
   const handleValidate = useCallback(async () => {
-    if (!worker || !state.input.trim()) return
+    if (!worker || !state.input.trim() || !beginOperation('validate')) return
     try {
       const result = await worker.validate(state.input)
       if (result.valid) {
@@ -292,11 +328,13 @@ export default function XmlTools() {
     } catch (e) {
       setError((e as Error).message)
       setLastAction('Validation failed', 'error')
+    } finally {
+      finishOperation('validate')
     }
-  }, [worker, state.input, setLastAction])
+  }, [worker, state.input, setLastAction, beginOperation, finishOperation])
 
   const handleToJson = useCallback(async () => {
-    if (!worker || !state.input.trim()) return
+    if (!worker || !state.input.trim() || !beginOperation('json')) return
     try {
       const result = await worker.toJson(state.input)
       if (result.valid && result.json) {
@@ -312,8 +350,10 @@ export default function XmlTools() {
       setJsonError((e as Error).message)
       setJsonOutput('')
       setLastAction('Conversion failed', 'error')
+    } finally {
+      finishOperation('json')
     }
-  }, [worker, state.input, setLastAction])
+  }, [worker, state.input, setLastAction, beginOperation, finishOperation])
 
   const handleXPath = useCallback(async () => {
     if (!worker || !state.input.trim() || !state.xpathQuery.trim()) {
@@ -321,6 +361,7 @@ export default function XmlTools() {
       setXpathQueried(false)
       return
     }
+    if (!beginOperation('xpath')) return
     try {
       const result = await worker.queryXPath(state.input, state.xpathQuery)
       setXpathResults(result.matches)
@@ -330,8 +371,10 @@ export default function XmlTools() {
       setXpathResults([])
       setXpathQueried(true)
       setLastAction((e as Error).message || 'XPath query failed', 'error')
+    } finally {
+      finishOperation('xpath')
     }
-  }, [worker, state.input, state.xpathQuery, setLastAction])
+  }, [worker, state.input, state.xpathQuery, setLastAction, beginOperation, finishOperation])
 
   const tree = useMemo(() => {
     if (!state.input.trim()) return null
@@ -362,13 +405,31 @@ export default function XmlTools() {
           {/* ── Lint & Format toolbar ─────────────────────── */}
           {state.activeTab === 'lint' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button variant="primary" size="sm" onClick={() => void handleFormat()}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleFormat()}
+                loading={showFormatSpinner}
+                disabled={busyOp !== null}
+              >
                 Format
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => void handleMinify()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleMinify()}
+                loading={showMinifySpinner}
+                disabled={busyOp !== null}
+              >
                 Minify
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => void handleValidate()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleValidate()}
+                loading={showValidateSpinner}
+                disabled={busyOp !== null}
+              >
                 Validate
               </Button>
               <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
@@ -397,7 +458,13 @@ export default function XmlTools() {
           {/* ── XML → JSON toolbar ───────────────────────── */}
           {state.activeTab === 'json' && (
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button variant="primary" size="sm" onClick={() => void handleToJson()}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleToJson()}
+                loading={showJsonSpinner}
+                disabled={busyOp !== null}
+              >
                 Convert
               </Button>
               {jsonOutput && <CopyButton text={jsonOutput} label="Copy JSON" />}
@@ -413,10 +480,16 @@ export default function XmlTools() {
                 placeholder="Enter XPath expression (e.g. /root/child)"
                 className="flex-1"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleXPath()
+                  if (e.key === 'Enter' && busyOp === null) void handleXPath()
                 }}
               />
-              <Button variant="primary" size="sm" onClick={() => void handleXPath()}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleXPath()}
+                loading={showXPathSpinner}
+                disabled={busyOp !== null}
+              >
                 Query
               </Button>
             </div>

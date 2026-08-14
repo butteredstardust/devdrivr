@@ -94,4 +94,18 @@ describe('XmlTools', () => {
       expect(editor).toHaveValue('<root>\n  <a>1</a>\n</root>')
     })
   })
+
+  it('disables every XML operation immediately while a worker request is running', async () => {
+    renderTool(XmlTools)
+    const editor = screen.getByTestId('monaco-editor')
+
+    fireEvent.change(editor, { target: { value: '<root><a>1</a></root>' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Format' }))
+
+    expect(screen.getByRole('button', { name: 'Format' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Minify' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Validate' })).toBeDisabled()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Format' })).toBeEnabled())
+  })
 })

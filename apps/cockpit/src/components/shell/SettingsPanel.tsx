@@ -115,7 +115,7 @@ function SettingRow({
     <div className="flex items-center justify-between py-2">
       <div className="flex flex-col">
         <span className="text-xs text-[var(--color-text)]">{label}</span>
-        {hint && <span className="text-[10px] text-[var(--color-text-muted)]">{hint}</span>}
+        {hint && <span className="text-2xs text-[var(--color-text-muted)]">{hint}</span>}
       </div>
       <div className="flex items-center">{children}</div>
     </div>
@@ -212,7 +212,7 @@ function DangerButton({
         void handleClick()
       }}
       disabled={pending}
-      className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors ${
+      className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
         confirming
           ? 'border-[var(--color-error)] bg-[var(--color-error)]/10 text-[var(--color-error)]'
           : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)]'
@@ -272,7 +272,7 @@ function GeneralTab() {
     <div className="space-y-4">
       <div>
         <h4 className="mb-1 text-xs text-[var(--color-text)]">Theme</h4>
-        <p className="mb-2 text-[10px] text-[var(--color-text-muted)]">
+        <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
           Appearance mode for the app — hover or focus a swatch to preview it
         </p>
         <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
@@ -322,7 +322,7 @@ function GeneralTab() {
 
         <div className="mt-2 flex items-center gap-3">
           {appVersion && (
-            <span className="text-[10px] text-[var(--color-text-muted)]">v{appVersion}</span>
+            <span className="text-2xs text-[var(--color-text-muted)]">v{appVersion}</span>
           )}
           <button
             type="button"
@@ -330,7 +330,7 @@ function GeneralTab() {
               void checkForUpdate(true)
             }}
             disabled={isChecking}
-            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
           >
             {isChecking ? (
               <SpinnerIcon size={12} className="animate-spin" />
@@ -345,7 +345,7 @@ function GeneralTab() {
             </span>
           )}
           {!updateInfo && lastCheckedLabel && (
-            <span className="text-[10px] text-[var(--color-text-muted)]">{lastCheckedLabel}</span>
+            <span className="text-2xs text-[var(--color-text-muted)]">{lastCheckedLabel}</span>
           )}
         </div>
       </div>
@@ -598,7 +598,7 @@ function DataTab() {
             }
             min={10}
             max={5000}
-            className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+            className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
           />
         </SettingRow>
         <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
@@ -669,7 +669,7 @@ function DataTab() {
             onClick={() => {
               void handleExportSettings()
             }}
-            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             <DownloadSimpleIcon size={12} />
             Export to Clipboard
@@ -679,7 +679,7 @@ function DataTab() {
             onClick={() => {
               void handleImportSettings()
             }}
-            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             <UploadSimpleIcon size={12} />
             Import from Clipboard
@@ -723,7 +723,7 @@ function McpActionButton({
       type="button"
       onClick={onClick}
       disabled={pending}
-      className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
+      className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-50"
     >
       {pending ? <SpinnerIcon size={12} className="animate-spin" /> : icon}
       {label}
@@ -847,7 +847,7 @@ function McpTab() {
             <button
               type="button"
               onClick={() => void copyText(status.url, 'MCP URL copied')}
-              className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)]"
+              className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               {status.url}
             </button>
@@ -899,13 +899,13 @@ function McpTab() {
               onChange={(event) => setPortDraft(event.target.value)}
               min={MIN_MCP_PORT}
               max={MAX_MCP_PORT}
-              className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
+              className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
             />
             <button
               type="button"
               onClick={applyPort}
               disabled={pending}
-              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
             >
               Apply
             </button>
@@ -926,7 +926,7 @@ function McpTab() {
             <button
               type="button"
               onClick={() => setKeyVisible((v) => !v)}
-              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               aria-label={keyVisible ? 'Hide MCP key' : 'Show MCP key'}
             >
               {keyVisible ? <EyeSlashIcon size={13} /> : <EyeIcon size={13} />}
@@ -934,7 +934,7 @@ function McpTab() {
             <button
               type="button"
               onClick={() => void copyText(settings.apiKey, 'MCP key copied')}
-              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+              className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               aria-label="Copy MCP key"
             >
               <CopyIcon size={13} />
@@ -943,7 +943,7 @@ function McpTab() {
               type="button"
               onClick={() => void runAction(rotateKey, 'MCP key rotated')}
               disabled={pending}
-              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-warning)] hover:text-[var(--color-warning)] disabled:opacity-50"
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-warning)] hover:text-[var(--color-warning)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
             >
               Rotate
             </button>
@@ -957,7 +957,7 @@ function McpTab() {
           Permissions
         </h4>
         <div className="overflow-hidden rounded border border-[var(--color-border)]">
-          <div className="grid grid-cols-[1.4fr_repeat(4,0.7fr)] border-b border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1.5 text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+          <div className="grid grid-cols-[1.4fr_repeat(4,0.7fr)] border-b border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1.5 text-2xs uppercase tracking-wider text-[var(--color-text-muted)]">
             <span>Resource</span>
             {MCP_ACTIONS.map((action) => (
               <span key={action} className="text-center">
@@ -1023,13 +1023,13 @@ function McpTab() {
               key={label}
               type="button"
               onClick={() => void copyText(command, `${label} setup copied`)}
-              className="flex w-full items-start gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-2 text-left transition-colors hover:border-[var(--color-accent)]"
+              className="flex w-full items-start gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-2 text-left transition-colors hover:border-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               <CopyIcon size={13} className="mt-0.5 shrink-0 text-[var(--color-text-muted)]" />
               <span className="min-w-24 text-[11px] font-semibold text-[var(--color-text)]">
                 {label}
               </span>
-              <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[10px] text-[var(--color-text-muted)]">
+              <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-2xs text-[var(--color-text-muted)]">
                 {command}
               </code>
             </button>
@@ -1059,10 +1059,10 @@ export function SettingsPanel() {
       titleClassName="text-[var(--color-accent)]"
       footer={
         <div className="flex w-full items-center justify-between">
-          <span className="text-[10px] text-[var(--color-text-muted)]">
+          <span className="text-2xs text-[var(--color-text-muted)]">
             {TOOLS.length} tools loaded
           </span>
-          <span className="text-[10px] text-[var(--color-text-muted)]">
+          <span className="text-2xs text-[var(--color-text-muted)]">
             Changes saved automatically
           </span>
         </div>
@@ -1075,7 +1075,7 @@ export function SettingsPanel() {
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+            className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
               activeTab === tab.id
                 ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]'
                 : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'

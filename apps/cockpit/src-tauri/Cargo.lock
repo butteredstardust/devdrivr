@@ -430,6 +430,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-http",
  "tauri-plugin-sql",
+ "tauri-runtime",
  "tokio",
  "tokio-util",
  "uuid",

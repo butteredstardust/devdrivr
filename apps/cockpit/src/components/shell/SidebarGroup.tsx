@@ -105,7 +105,7 @@ export function SidebarGroup({
           className={`shrink-0 transition-transform duration-200 ease-in-out ${collapsed ? '' : 'rotate-90'}`}
         />
         <span className="text-xs tracking-normal">[{group.label}]</span>
-        <span className="ml-auto font-mono text-[10px] font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
+        <span className="ml-auto font-mono text-2xs font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
           {tools.length}
         </span>
       </button>

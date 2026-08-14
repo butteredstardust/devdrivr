@@ -552,7 +552,7 @@ export default function MermaidEditor() {
 
                 {/* PNG resolution picker */}
                 <div className="flex items-center gap-2 px-3 py-1">
-                  <span className="text-[10px] text-[var(--color-text-muted)]">PNG res:</span>
+                  <span className="text-2xs text-[var(--color-text-muted)]">PNG res:</span>
                   <div className="flex items-center rounded border border-[var(--color-border)]">
                     {EXPORT_SCALES.map((s) => (
                       <Button
@@ -563,7 +563,7 @@ export default function MermaidEditor() {
                         tabIndex={-1}
                         onClick={() => updateState({ exportScale: s })}
                         title={`Export PNG at ${s}× resolution`}
-                        className={`rounded-none text-[10px] first:rounded-l last:rounded-r ${
+                        className={`rounded-none text-2xs first:rounded-l last:rounded-r ${
                           exportScale === s
                             ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/15'
                             : 'hover:text-[var(--color-text)]'
@@ -688,12 +688,12 @@ export default function MermaidEditor() {
             </div>
 
             {/* Persistent interaction hint — bottom-left, always visible */}
-            <div className="pointer-events-none absolute bottom-2 left-2 select-none text-[10px] text-[var(--color-text-muted)] opacity-30">
+            <div className="pointer-events-none absolute bottom-2 left-2 select-none text-2xs text-[var(--color-text-muted)] opacity-30">
               Scroll · Drag · Double-click to reset
             </div>
 
             {/* Zoom badge — bottom-right; ↺ always shown, dimmed at default */}
-            <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
+            <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-2xs text-[var(--color-text-muted)]">
               {isRendering && (
                 <span className="mr-0.5 opacity-60" aria-label="Rendering">
                   ⟳

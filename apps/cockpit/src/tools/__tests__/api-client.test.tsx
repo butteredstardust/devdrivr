@@ -287,6 +287,20 @@ describe('ApiClient', () => {
     expect(screen.queryByDisplayValue('ok')).not.toBeInTheDocument()
   })
 
+  it('announces a request error via role="alert"', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('Network down'))
+
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://offline.example.com' },
+    })
+    fireEvent.click(screen.getByText('Send'))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Network down')
+  })
+
   it('restores history entries with safe GET defaults instead of stale auth or body', async () => {
     useApiStore.setState({
       requestHistory: [

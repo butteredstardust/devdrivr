@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Spinner, useDelayedLoading } from '@/components/shared/Spinner'
 import { useWorker } from '@/hooks/useWorker'
 import type { RefactoringWorker } from '@/workers/refactoring.worker'
 import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
@@ -41,6 +42,8 @@ export default function RefactoringToolkit() {
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [preview, setPreview] = useState<string | null>(null)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const showSpinner = useDelayedLoading(isPreviewing)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewRequestRef = useRef(0)
 
@@ -53,14 +56,16 @@ export default function RefactoringToolkit() {
   // Auto-preview: debounce 300ms when input or selected transforms change
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    const requestId = ++previewRequestRef.current
     if (!state.input.trim() || state.selectedTransforms.length === 0 || !worker) {
       setPreview(null)
+      setIsPreviewing(false)
       return
     }
     setPreview(null)
-    const requestId = ++previewRequestRef.current
     debounceRef.current = setTimeout(() => {
       const parser = state.language === 'typescript' ? 'tsx' : 'babel'
+      setIsPreviewing(true)
       worker
         .applyTransforms(state.input, state.selectedTransforms, parser)
         .then((result) => {
@@ -71,9 +76,13 @@ export default function RefactoringToolkit() {
           setPreview(null)
           setLastAction(err.message, 'error')
         })
+        .finally(() => {
+          if (requestId === previewRequestRef.current) setIsPreviewing(false)
+        })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      if (previewRequestRef.current === requestId) previewRequestRef.current += 1
     }
   }, [state.input, state.selectedTransforms, state.language, worker, setLastAction])
 
@@ -163,7 +172,8 @@ export default function RefactoringToolkit() {
               {selectedCount} transform{selectedCount !== 1 ? 's' : ''}
             </span>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {showSpinner && <Spinner size="sm" label="Generating preview" />}
             <CopyButton text={preview ?? state.input} />
           </div>
         </div>

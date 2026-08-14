@@ -154,7 +154,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
             </div>
             {preview.warnings.length > 0 && (
               <div className="mt-3 max-h-32 overflow-y-auto rounded border border-[var(--color-border)] p-2">
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                <div className="mb-1 font-mono text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
                   Warnings
                 </div>
                 <ul className="flex flex-col gap-1 text-xs text-[var(--color-warning)]">

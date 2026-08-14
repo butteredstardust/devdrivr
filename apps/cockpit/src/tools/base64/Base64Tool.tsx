@@ -345,7 +345,7 @@ export default function Base64Tool() {
           <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
             ⇄ Swap
           </Button>
-          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+          <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
 
           <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
             <input
@@ -372,7 +372,7 @@ export default function Base64Tool() {
             <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
           )}
 
-          <div className="ml-auto flex items-center gap-2 text-[10px] tabular-nums text-[var(--color-text-muted)]">
+          <div className="ml-auto flex items-center gap-2 text-2xs tabular-nums text-[var(--color-text-muted)]">
             {!droppedFile && state.input.trim() && (
               <>
                 <span>{formatSize(inputBytes)}</span>
@@ -405,7 +405,7 @@ export default function Base64Tool() {
                   size="xs"
                   onClick={() => fileInputRef.current?.click()}
                   title="Encode a file to Base64"
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
                   <UploadSimpleIcon size={11} />
                   Encode File
@@ -439,7 +439,7 @@ export default function Base64Tool() {
                 <div className="text-sm font-medium text-[var(--color-text)]">
                   {droppedFile.name}
                 </div>
-                <div className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">
+                <div className="mt-0.5 text-2xs text-[var(--color-text-muted)]">
                   {formatSize(droppedFile.size)}
                   {droppedFile.mimeType ? ` · ${droppedFile.mimeType}` : ''}
                 </div>
@@ -519,7 +519,7 @@ export default function Base64Tool() {
             /* File encode output: base64 text (truncated) + zoomable image */
             <div className="flex flex-1 flex-col overflow-hidden">
               {/* Compact base64 preview */}
-              <pre className="max-h-20 overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-bg)] p-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+              <pre className="max-h-20 overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-bg)] p-3 font-mono text-2xs text-[var(--color-text-muted)]">
                 {droppedFile.dataUri.split(',')[1]?.slice(0, 200) ?? ''}
                 <span className="text-[var(--color-text-muted)] opacity-50">…</span>
               </pre>
@@ -645,7 +645,7 @@ function ZoomBadge({
   onReset: () => void
 }) {
   return (
-    <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
+    <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 font-mono text-2xs text-[var(--color-text-muted)]">
       <span>{Math.round(scale * 100)}%</span>
       {!isDefault && (
         <Button

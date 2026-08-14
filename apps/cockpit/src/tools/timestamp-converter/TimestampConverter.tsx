@@ -191,7 +191,7 @@ export default function TimestampConverter() {
                 {p.label}
               </Button>
             ))}
-            <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+            <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
               {getTimezoneLabel()} ({getUtcOffset(new Date())})
             </span>
           </div>

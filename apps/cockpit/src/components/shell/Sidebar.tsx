@@ -8,7 +8,6 @@ import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { TOOL_FUSE_OPTIONS, toolSearchable } from '@/lib/tool-search'
 import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
-import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarPinned } from './SidebarPinned'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
@@ -194,7 +193,7 @@ export function Sidebar() {
           {/* Expand button — h-8 w-8 for a comfortable click target */}
           <button
             onClick={toggleCollapsed}
-            className="mb-1 flex h-8 w-8 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            className="mb-1 flex h-8 w-8 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             title="Expand sidebar"
             aria-label="Expand sidebar"
           >
@@ -216,7 +215,6 @@ export function Sidebar() {
               )
             })}
           </div>
-          <SidebarFooter collapsed />
         </div>
       ) : (
         <div key="expanded" className="flex h-full flex-col animate-fade-in">
@@ -230,7 +228,7 @@ export function Sidebar() {
             {/* Collapse button — h-7 w-7 for a larger click target */}
             <button
               onClick={toggleCollapsed}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >
@@ -261,7 +259,7 @@ export function Sidebar() {
                   onClick={clearFilter}
                   aria-label="Clear filter"
                   title="Clear filter"
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                 >
                   <XIcon size={10} />
                 </button>
@@ -299,7 +297,6 @@ export function Sidebar() {
               </p>
             )}
           </div>
-          <SidebarFooter collapsed={false} />
         </div>
       )}
     </aside>

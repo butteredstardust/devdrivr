@@ -177,7 +177,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                   className="flex flex-1 items-center gap-2 overflow-hidden"
                   onClick={() => !isRenaming && toggleCol(col.id)}
                 >
-                  <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                     {isExpanded ? '▼' : '▶'}
                   </span>
                   {isRenaming ? (
@@ -209,7 +209,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                       variant="icon"
                       size="xs"
                       onClick={(e) => startRename(col, e)}
-                      className="p-0 text-[10px] hover:text-[var(--color-accent)] hover:bg-transparent"
+                      className="p-0 text-2xs hover:text-[var(--color-accent)] hover:bg-transparent"
                       title="Rename"
                     >
                       ✎
@@ -223,7 +223,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                           void deleteCollection(col.id)
                         }
                       }}
-                      className="p-0 text-[10px] text-[var(--color-error)] hover:underline hover:bg-transparent"
+                      className="p-0 text-2xs text-[var(--color-error)] hover:underline hover:bg-transparent"
                     >
                       Del
                     </Button>
@@ -245,7 +245,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
                 </div>
               )}
               {isExpanded && col.reqs.length === 0 && (
-                <div className="ml-5 mt-1 text-[10px] text-[var(--color-text-muted)] italic">
+                <div className="ml-5 mt-1 text-2xs text-[var(--color-text-muted)] italic">
                   Empty collection
                 </div>
               )}
@@ -256,7 +256,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
         {/* Unassigned */}
         {unassigned.length > 0 && (
           <div className="mt-4">
-            <div className="mb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <div className="mb-1 px-2 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               Unassigned
             </div>
             <div className="flex flex-col gap-0.5">
@@ -279,7 +279,7 @@ export function CollectionsSidebar({ activeRequestId, onSelect, onLoadFromHistor
             <Button
               variant="ghost"
               size="xs"
-              className="mb-1 w-full justify-start gap-1 px-2 text-[10px] font-bold uppercase tracking-wider hover:bg-transparent"
+              className="mb-1 w-full justify-start gap-1 px-2 text-2xs font-bold uppercase tracking-wider hover:bg-transparent"
               onClick={() => setExpandedHistory((v) => !v)}
             >
               <span>{expandedHistory ? '▼' : '▶'}</span>

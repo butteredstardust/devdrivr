@@ -21,7 +21,7 @@ export function TabBar({ tabs, activeTab, onTabChange, noBorder }: TabBarProps) 
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`px-4 py-2 text-xs transition-colors duration-150 ${
+          className={`px-4 py-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
             activeTab === tab.id
               ? 'border-b-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30 font-bold text-[var(--color-accent)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'

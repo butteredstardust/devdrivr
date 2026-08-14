@@ -109,7 +109,7 @@ export function SelectionContextToolbar({
           type="button"
           title={action.label}
           aria-label={action.label}
-          className="flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
+          className="flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           onClick={() => {
             Promise.resolve(action.onSelect(selection.text))
               .catch(() => {})

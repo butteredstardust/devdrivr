@@ -103,7 +103,7 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
     <div className="space-y-3">
       {template.variables.map((variable) => (
         <label key={variable.name} className="block">
-          <span className="mb-1 flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+          <span className="mb-1 flex items-center gap-1 font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
             {variable.label}
             {variable.required && <span className="text-[var(--color-error)]">*</span>}
           </span>
@@ -155,7 +155,7 @@ function PreviewPane({ renderedPrompt, tokens, missingVariables }: PreviewPanePr
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
         <span>[ 03-PREVIEW ]</span>
         <span className={`rounded border px-2 py-0.5 ${tokenClass(tone)}`}>~{tokens} TOKENS</span>
       </div>
@@ -300,9 +300,7 @@ function QuickFillModal({
             <VariableForm template={template} values={values} onChange={onChange} />
           </div>
           <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
-            <span
-              className={`rounded border px-2 py-0.5 font-mono text-[10px] ${tokenClass(tone)}`}
-            >
+            <span className={`rounded border px-2 py-0.5 font-mono text-2xs ${tokenClass(tone)}`}>
               ~{tokens} tokens
             </span>
             <div className="flex gap-2">
@@ -489,7 +487,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
           <div className="min-h-0 overflow-auto border-r border-[var(--color-border)] p-4">
             <div className="space-y-3">
               <label className="block">
-                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                   Name
                 </span>
                 <Input
@@ -503,7 +501,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                   Description
                 </span>
                 <textarea
@@ -518,7 +516,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                     Category
                   </span>
                   <Select
@@ -540,7 +538,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   </Select>
                 </label>
                 <label className="block">
-                  <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                     Optimized For
                   </span>
                   <Select
@@ -563,7 +561,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                 </label>
               </div>
               <label className="block">
-                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                   Tags
                 </span>
                 <Input
@@ -577,7 +575,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                   Tips
                 </span>
                 <Input
@@ -595,7 +593,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
 
           <div className="flex min-h-0 flex-col overflow-hidden">
             <label className="flex min-h-0 flex-1 flex-col">
-              <span className="border-b border-[var(--color-border)] px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+              <span className="border-b border-[var(--color-border)] px-4 py-2 font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                 Prompt Body
               </span>
               <textarea
@@ -614,7 +612,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
               />
             </label>
             <div className="max-h-56 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+              <div className="mb-2 flex items-center justify-between font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                 <span>Variables</span>
                 <span>{draft.variables.length}</span>
               </div>
@@ -673,7 +671,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                         </option>
                       ))}
                     </Select>
-                    <label className="flex items-center justify-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+                    <label className="flex items-center justify-center gap-1 text-2xs text-[var(--color-text-muted)]">
                       <input
                         type="checkbox"
                         checked={variable.required ?? false}
@@ -949,7 +947,7 @@ export default function PromptTemplates() {
   return (
     <div className="grid h-full grid-cols-[18rem_minmax(26rem,1fr)_minmax(22rem,0.9fr)] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
       <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
           <ChatCircleTextIcon size={13} />[ 01-TEMPLATES ]
         </div>
         <div className="border-b border-[var(--color-border)] p-3">
@@ -984,9 +982,7 @@ export default function PromptTemplates() {
                 }`}
               >
                 {filter.label}{' '}
-                <span className="font-mono text-[10px]">
-                  {categoryCount(filter.id, allTemplates)}
-                </span>
+                <span className="font-mono text-2xs">{categoryCount(filter.id, allTemplates)}</span>
               </Button>
             ))}
           </div>
@@ -1018,7 +1014,7 @@ export default function PromptTemplates() {
                   {template.name}
                 </span>
                 <span
-                  className={`line-clamp-2 text-[10px] leading-4 ${
+                  className={`line-clamp-2 text-2xs leading-4 ${
                     selected ? 'text-[var(--color-bg)]/75' : 'text-[var(--color-text-muted)]'
                   }`}
                 >
@@ -1041,14 +1037,14 @@ export default function PromptTemplates() {
             </div>
           )}
         </div>
-        <div className="border-t border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
+        <div className="border-t border-[var(--color-border)] px-3 py-1 text-2xs text-[var(--color-text-muted)]">
           {filteredTemplates.length} shown / {BUILTIN_PROMPT_TEMPLATES.length} built in /{' '}
           {userTemplates.length} custom
         </div>
       </div>
 
       <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)]">
-        <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
           <span>[ 02-FILL ]</span>
           <span>{selectedTemplate.variables.length} VARS</span>
         </div>
@@ -1094,7 +1090,7 @@ export default function PromptTemplates() {
             {selectedTemplate.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]"
+                className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]"
               >
                 {tag}
               </span>

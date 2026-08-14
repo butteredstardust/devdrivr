@@ -10,6 +10,7 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -950,7 +951,7 @@ export default function ApiClient() {
                     </Button>
                   ))}
                   {!BODY_METHODS.has(method) && (
-                    <span className="ml-2 text-[10px] text-[var(--color-text-muted)]">
+                    <span className="ml-2 text-2xs text-[var(--color-text-muted)]">
                       Body not available for {method}
                     </span>
                   )}
@@ -981,9 +982,12 @@ export default function ApiClient() {
             className={`${responseVisible ? 'flex' : 'hidden'} min-h-0 w-1/2 flex-col overflow-hidden`}
           >
             {error && (
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-error)]">
+              <Alert
+                variant="error"
+                className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+              >
                 {error}
-              </div>
+              </Alert>
             )}
             {response && (
               <>

@@ -41,7 +41,7 @@ export function UpdateNotification() {
           type="button"
           onClick={handleDownload}
           disabled={isDownloading}
-          className="flex min-h-8 items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:pointer-events-none disabled:opacity-60"
+          className="flex min-h-8 items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
         >
           <DownloadSimpleIcon size={12} aria-hidden="true" />
           Download
@@ -52,7 +52,7 @@ export function UpdateNotification() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss update notification"
-        className="inline-flex min-h-8 min-w-8 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+        className="inline-flex min-h-8 min-w-8 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <XIcon size={12} aria-hidden="true" />
       </button>

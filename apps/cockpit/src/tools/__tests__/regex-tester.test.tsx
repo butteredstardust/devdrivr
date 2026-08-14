@@ -141,6 +141,33 @@ describe('RegexTester (component)', () => {
     expect(screen.getByText(/First 1000 matches/)).toBeInTheDocument()
   })
 
+  it('announces an invalid pattern error via role="alert"', async () => {
+    renderTool(RegexTester)
+    fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), {
+      target: { value: '(' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), {
+      target: { value: 'abc' },
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/./)
+  })
+
+  it('announces a replace-mode error via role="alert"', async () => {
+    renderTool(RegexTester)
+    fireEvent.click(screen.getByText('Replace'))
+    fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), {
+      target: { value: '(' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), {
+      target: { value: 'abc' },
+    })
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.length).toBeGreaterThan(0)
+  })
+
   it('toggling Diff off returns to plain result view', () => {
     renderTool(RegexTester)
     fireEvent.click(screen.getByText('Replace'))

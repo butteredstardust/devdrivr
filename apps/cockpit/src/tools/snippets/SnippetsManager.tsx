@@ -599,7 +599,7 @@ export default function SnippetsManager() {
     <div className="grid h-full grid-cols-[16rem_1fr_13rem] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
       {/* ─── Pane 1: Selection ────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
           [ 01-SELECT ]
         </div>
 
@@ -640,7 +640,7 @@ export default function SnippetsManager() {
               variant="ghost"
               size="xs"
               onClick={() => setFoldersCollapsed(!foldersCollapsed)}
-              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
+              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-2xs text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
               aria-expanded={!foldersCollapsed}
             >
               {foldersCollapsed ? (
@@ -695,7 +695,7 @@ export default function SnippetsManager() {
               variant="ghost"
               size="xs"
               onClick={() => setTagsCollapsed(!tagsCollapsed)}
-              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-[10px] text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
+              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-2xs text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
               aria-expanded={!tagsCollapsed}
             >
               {tagsCollapsed ? (
@@ -734,7 +734,7 @@ export default function SnippetsManager() {
               >
                 <div className="flex items-center gap-1">
                   {isFavorite(snippet.tags) && (
-                    <span className="text-[10px]" title="Favorite">
+                    <span className="text-2xs" title="Favorite">
                       [*]
                     </span>
                   )}
@@ -744,7 +744,7 @@ export default function SnippetsManager() {
                     {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
                   </span>
                   <span
-                    className={`shrink-0 text-[10px] ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                    className={`shrink-0 text-2xs ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
                   >
                     {relativeTime(snippet.updatedAt)}
                   </span>
@@ -760,7 +760,7 @@ export default function SnippetsManager() {
                   </span>
                   {snippet.content && (
                     <span
-                      className={`truncate text-[10px] ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
+                      className={`truncate text-2xs ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
                     >
                       {contentPreview(snippet.content)}
                     </span>
@@ -771,7 +771,7 @@ export default function SnippetsManager() {
                     {visibleTags(snippet.tags).map((tag) => (
                       <span
                         key={tag}
-                        className={`rounded px-1 text-[10px] ${
+                        className={`rounded px-1 text-2xs ${
                           isSelected
                             ? 'bg-[var(--color-bg)]/20 text-[var(--color-bg)]'
                             : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
@@ -793,7 +793,7 @@ export default function SnippetsManager() {
         </div>
 
         {/* Snippet count */}
-        <div className="border-t border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
+        <div className="border-t border-[var(--color-border)] px-3 py-1 text-2xs text-[var(--color-text-muted)]">
           {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
           {filterTag || activeFolder ? ` · ${filtered.length} shown` : ''}
         </div>
@@ -801,7 +801,7 @@ export default function SnippetsManager() {
 
       {/* ─── Pane 2: Editor ───────────────────────────────────── */}
       <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
           [ 02-EDIT:{' '}
           {selected
             ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}`
@@ -869,7 +869,7 @@ export default function SnippetsManager() {
 
       {/* ─── Pane 3: Meta ─────────────────────────────────────── */}
       <div className="flex w-52 flex-col overflow-hidden bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
           [ 03-META ]
         </div>
         {selected ? (
@@ -877,7 +877,7 @@ export default function SnippetsManager() {
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {/* Folder */}
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Folder
                 </div>
                 <input
@@ -896,7 +896,7 @@ export default function SnippetsManager() {
 
               {/* Language */}
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Language
                 </div>
                 <Select
@@ -914,7 +914,7 @@ export default function SnippetsManager() {
 
               {/* Tags */}
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                   Tags
                 </div>
                 <div className="space-y-1">
@@ -1021,7 +1021,7 @@ export default function SnippetsManager() {
 
             {/* Stats Block */}
             {editorStats && (
-              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-mono text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
+              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-mono text-2xs text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
                 L:{editorStats.lines} C:{editorStats.chars} B:{editorStats.bytes}
               </div>
             )}
@@ -1029,7 +1029,7 @@ export default function SnippetsManager() {
         ) : (
           /* Empty meta pane: keyboard shortcuts hint card */
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
               No snippet selected
             </div>
             <div className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)]/30 p-3">

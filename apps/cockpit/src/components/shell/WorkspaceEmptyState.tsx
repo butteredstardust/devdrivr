@@ -21,7 +21,7 @@ type ChipRowProps = {
 function ChipRow({ label, tools, onSelect }: ChipRowProps) {
   return (
     <div className="flex flex-col items-center gap-[var(--space-1)]">
-      <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
+      <span className="text-2xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
         {label}
       </span>
       <div className="flex flex-wrap items-center justify-center gap-[var(--space-2)]">

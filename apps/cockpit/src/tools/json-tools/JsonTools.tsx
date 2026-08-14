@@ -274,7 +274,7 @@ export default function JsonTools() {
                   </span>
                 )}
                 {stats && (
-                  <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                  <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                     {stats.keys} keys · depth {stats.depth} · {stats.size}
                   </span>
                 )}
@@ -282,7 +282,7 @@ export default function JsonTools() {
 
               {/* Query bar */}
               <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-                <span className="text-[10px] text-[var(--color-text-muted)]">Path</span>
+                <span className="text-2xs text-[var(--color-text-muted)]">Path</span>
                 <Input
                   value={state.query}
                   onChange={(e) => updateState({ query: e.target.value })}
@@ -327,7 +327,7 @@ export default function JsonTools() {
                 Collapse All
               </Button>
               {stats && (
-                <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                   {stats.keys} keys · depth {stats.depth}
                 </span>
               )}
