@@ -134,7 +134,7 @@ function ThemeChip({
           </span>
         )}
       </span>
-      <span className="truncate text-[10px] text-[var(--color-text)]">{label}</span>
+      <span className="truncate text-2xs text-[var(--color-text)]">{label}</span>
     </button>
   )
 }
@@ -246,7 +246,7 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
       <div role="group" aria-labelledby="theme-group-dark">
         <h5
           id="theme-group-dark"
-          className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+          className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
         >
           Dark
         </h5>
@@ -256,7 +256,7 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
       <div role="group" aria-labelledby="theme-group-light">
         <h5
           id="theme-group-light"
-          className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+          className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
         >
           Light
         </h5>

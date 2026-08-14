@@ -302,12 +302,12 @@ export default function CurlToFetch() {
               {parsed.url}
             </span>
             {headerCount > 0 && (
-              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+              <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                 {headerCount} header{headerCount !== 1 ? 's' : ''}
               </span>
             )}
             {parsed.body && (
-              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+              <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                 body: {parsed.body.length} chars
               </span>
             )}

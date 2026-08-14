@@ -65,6 +65,21 @@ describe('CssValidator', () => {
     })
   })
 
+  it('announces lint issues via a live status region', async () => {
+    renderTool(CssValidator)
+    const editor = screen.getByTestId('monaco-editor')
+    fireEvent.change(editor, {
+      target: {
+        value: '#page .container .item { width: 0; color: #ffffff; }',
+      },
+    })
+    await waitFor(() => {
+      const status = screen.getByRole('status')
+      expect(status).toHaveAttribute('aria-live', 'polite')
+      expect(status).toHaveTextContent(/overqualified/i)
+    })
+  })
+
   it('formats CSS when the Format button is clicked', async () => {
     renderTool(CssValidator)
     const editor = screen.getByTestId('monaco-editor')

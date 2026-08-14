@@ -92,7 +92,7 @@ export function StatusBar() {
         {historyCount > 0 && (
           <button
             type="button"
-            className="tabular-nums hover:text-[var(--color-text)] transition-colors"
+            className="tabular-nums hover:text-[var(--color-text)] transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             title={`${historyCount} history entries — click to open`}
             aria-label={`${historyCount} history ${historyCount === 1 ? 'entry' : 'entries'} — click to open`}
             onClick={openHistoryDrawer}
@@ -107,7 +107,7 @@ export function StatusBar() {
         )}
         <button
           type="button"
-          className="hover:text-[var(--color-text)] transition-colors"
+          className="hover:text-[var(--color-text)] transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           title="Theme — click to cycle"
           onClick={() => void toggleTheme()}
         >

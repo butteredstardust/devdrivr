@@ -455,7 +455,7 @@ export async function renderMarkdownContent(content: string): Promise<string> {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-    return `<p style="color: var(--color-error)">Render error: ${msg}</p>`
+    return `<p role="alert" aria-live="assertive" style="color: var(--color-error)">Render error: ${msg}</p>`
   }
 }
 
@@ -900,7 +900,7 @@ export default function MarkdownEditor() {
           {state.fileName && (
             <span
               data-testid="file-name"
-              className="text-[10px] text-[var(--color-text-muted)]"
+              className="text-2xs text-[var(--color-text-muted)]"
               title={state.filePath ?? state.fileName}
             >
               {state.fileName}
@@ -912,7 +912,7 @@ export default function MarkdownEditor() {
 
           {stats && (
             <span
-              className="text-[10px] text-[var(--color-text-muted)]"
+              className="text-2xs text-[var(--color-text-muted)]"
               title={`${stats.lines} lines · ${stats.paragraphs} paragraphs · ${stats.readTime}`}
             >
               {stats.words}w · {stats.chars}c · {stats.readTime}

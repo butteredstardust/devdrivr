@@ -131,7 +131,7 @@ export default function CsvTools() {
             </label>
 
             {stats && (
-              <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+              <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                 {stats.cols} cols · {stats.rows} rows · {stats.size}
               </span>
             )}

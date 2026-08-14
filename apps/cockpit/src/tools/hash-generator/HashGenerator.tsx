@@ -114,12 +114,12 @@ export default function HashGenerator() {
           <div className="mb-2 flex items-center gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
             {state.input && (
-              <span className="text-[10px] tabular-nums text-[var(--color-text-muted)]">
+              <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
                 {formatBytes(inputBytes)} · {state.input.length} chars
               </span>
             )}
             {isComputing && state.input && (
-              <span className="text-[10px] text-[var(--color-text-muted)]">Computing…</span>
+              <span className="text-2xs text-[var(--color-text-muted)]">Computing…</span>
             )}
           </div>
           <textarea
@@ -202,9 +202,9 @@ export default function HashGenerator() {
                     <span className="text-xs font-bold text-[var(--color-text-muted)]">
                       {state.hmacMode ? `HMAC-${h.label}` : h.label}
                     </span>
-                    <span className="text-[10px] text-[var(--color-text-muted)]">{h.bits}-bit</span>
+                    <span className="text-2xs text-[var(--color-text-muted)]">{h.bits}-bit</span>
                     {isMatch && (
-                      <span className="text-[10px] font-bold text-[var(--color-success)]">
+                      <span className="text-2xs font-bold text-[var(--color-success)]">
                         ✓ Match
                       </span>
                     )}

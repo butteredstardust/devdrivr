@@ -190,14 +190,14 @@ function NoteEditor({
         {note.tags.map((tag) => (
           <span
             key={tag}
-            className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]"
+            className="flex items-center gap-1 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]"
           >
             {tag}
             <button
               type="button"
               onClick={() => handleRemoveTag(tag)}
               aria-label={`Remove ${tag} tag`}
-              className="inline-flex min-h-5 min-w-5 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              className="inline-flex min-h-5 min-w-5 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               <XIcon size={10} aria-hidden="true" />
             </button>
@@ -209,7 +209,7 @@ function NoteEditor({
             onChange={(e) => setTagInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
             placeholder="add tag..."
-            className="w-16 bg-transparent text-[10px] text-[var(--color-text-muted)] outline-none"
+            className="w-16 bg-transparent text-2xs text-[var(--color-text-muted)] outline-none"
           />
         </div>
       </div>
@@ -223,7 +223,7 @@ function NoteEditor({
               onClick={() => applyUpdate({ color: c })}
               aria-label={`Set note color to ${c}`}
               aria-pressed={note.color === c}
-              className={`min-h-6 min-w-6 rounded-full border transition-transform duration-150 hover:scale-110 ${
+              className={`min-h-6 min-w-6 rounded-full border transition-transform duration-150 hover:scale-110 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
                 note.color === c
                   ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]'
                   : 'border-[var(--color-border)]'
@@ -236,7 +236,7 @@ function NoteEditor({
         <button
           type="button"
           onClick={onDone}
-          className="rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
+          className="rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
         >
           Done
         </button>
@@ -486,12 +486,12 @@ export function NotesDrawer() {
                 void handleAddNote()
               }}
               aria-label="New note"
-              className="rounded border border-[var(--color-accent)] px-2 py-1 font-mono text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)]"
+              className="rounded border border-[var(--color-accent)] px-2 py-1 font-mono text-xs text-[var(--color-accent)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               +
             </button>
           </div>
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-[10px] text-[var(--color-text-muted)]">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
             <span>
               {search
                 ? `${filteredNotes.length} of ${notes.length} note${notes.length === 1 ? '' : 's'}`
@@ -504,12 +504,12 @@ export function NotesDrawer() {
               <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-[var(--color-text-muted)]">
                 <NoteIcon size={24} weight="light" />
                 <span>{search ? 'No matching notes' : 'No notes yet'}</span>
-                {!search && <span className="text-[10px] opacity-60">Click + to create one</span>}
+                {!search && <span className="text-2xs opacity-60">Click + to create one</span>}
               </div>
             )}
             {noteSections.map((section) => (
               <section key={section.id} className="mb-3">
-                <div className="mb-1 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <div className="mb-1 flex items-center justify-between px-1 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                   <span>{section.label}</span>
                   <span>{section.notes.length}</span>
                 </div>
@@ -555,7 +555,7 @@ export function NotesDrawer() {
                                   onClick={(e) => e.stopPropagation()}
                                   onDragStart={(e) => handleNoteDragStart(note, e)}
                                   aria-label={`Drag ${note.title || 'untitled note'} to reorder`}
-                                  className="inline-flex min-h-6 min-w-4 cursor-grab items-center justify-center rounded opacity-60 transition-opacity group-hover:opacity-100"
+                                  className="inline-flex min-h-6 min-w-4 cursor-grab items-center justify-center rounded opacity-60 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                                   title="Drag to reorder"
                                 >
                                   <DotsSixVerticalIcon size={13} aria-hidden="true" />
@@ -574,7 +574,7 @@ export function NotesDrawer() {
                                     }}
                                     disabled={!canReorderNotes || !previousNote}
                                     aria-label={`Move ${note.title || 'untitled note'} up`}
-                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-30"
                                     title="Move up"
                                   >
                                     <ArrowUpIcon size={12} aria-hidden="true" />
@@ -587,7 +587,7 @@ export function NotesDrawer() {
                                     }}
                                     disabled={!canReorderNotes || !nextNote}
                                     aria-label={`Move ${note.title || 'untitled note'} down`}
-                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] disabled:pointer-events-none disabled:opacity-30"
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-30"
                                     title="Move down"
                                   >
                                     <ArrowDownIcon size={12} aria-hidden="true" />
@@ -602,7 +602,7 @@ export function NotesDrawer() {
                                         .catch(() => setLastAction('Failed to copy note', 'error'))
                                     }}
                                     aria-label={`Copy ${note.title || 'untitled note'} content`}
-                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                                     title="Copy content"
                                   >
                                     <CopyIcon size={12} aria-hidden="true" />
@@ -615,7 +615,7 @@ export function NotesDrawer() {
                                       setLastAction('Ready to send to tool', 'info')
                                     }}
                                     aria-label={`Use ${note.title || 'untitled note'} as input`}
-                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)]"
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-accent-dim)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                                     title="Use as input"
                                   >
                                     <PaperPlaneTiltIcon size={12} aria-hidden="true" />
@@ -630,7 +630,7 @@ export function NotesDrawer() {
                                     }}
                                     aria-label={`${note.pinned ? 'Unpin' : 'Pin'} ${note.title || 'untitled note'}`}
                                     aria-pressed={note.pinned}
-                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded transition-colors duration-150 ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}`}
+                                    className={`inline-flex min-h-7 min-w-7 items-center justify-center rounded transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${note.pinned ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}`}
                                     title={note.pinned ? 'Unpin' : 'Pin'}
                                   >
                                     <PushPinIcon
@@ -646,7 +646,7 @@ export function NotesDrawer() {
                                       void handleDelete(note.id)
                                     }}
                                     aria-label={`Delete ${note.title || 'untitled note'}`}
-                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)]"
+                                    className="inline-flex min-h-7 min-w-7 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                                     title="Delete note"
                                   >
                                     <TrashIcon size={12} aria-hidden="true" />
@@ -666,7 +666,7 @@ export function NotesDrawer() {
                                 {note.tags.map((tag) => (
                                   <span
                                     key={tag}
-                                    className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]"
+                                    className="flex items-center gap-0.5 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-2xs text-[var(--color-text-muted)]"
                                   >
                                     <TagIcon size={8} aria-hidden="true" />
                                     {tag}
@@ -675,7 +675,7 @@ export function NotesDrawer() {
                               </div>
                             )}
 
-                            <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
+                            <div className="mt-2 flex items-center justify-between text-2xs text-[var(--color-text-muted)]">
                               <span>{timeAgo(note.updatedAt)}</span>
                               {note.content.length > 0 && (
                                 <span>{note.content.split(/\s+/).length} words</span>
@@ -726,7 +726,7 @@ export function NotesDrawer() {
                   <span className="text-xs font-bold text-[var(--color-accent)]">{entry.tool}</span>
                   <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
                     <ArrowCounterClockwiseIcon size={10} />
-                    <span className="text-[10px]">{timeAgo(entry.timestamp)}</span>
+                    <span className="text-2xs">{timeAgo(entry.timestamp)}</span>
                   </div>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">

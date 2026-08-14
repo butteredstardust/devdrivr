@@ -796,7 +796,7 @@ export default function CssValidator() {
               variant={state.showRules ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => updateState({ showRules: !state.showRules })}
-              className="text-[10px]"
+              className="text-2xs"
             >
               Rules
             </Button>
@@ -807,7 +807,7 @@ export default function CssValidator() {
                 void handleFormat()
               }}
               disabled={isFormatting || !state.input.trim()}
-              className="text-[10px]"
+              className="text-2xs"
             >
               {isFormatting ? 'Formatting…' : 'Format'}
             </Button>
@@ -823,7 +823,7 @@ export default function CssValidator() {
                   updateState({ input: sample.css })
                   setLastAction(`Loaded "${sample.label}" sample`, 'info')
                 }}
-                className="text-[10px]"
+                className="text-2xs"
               >
                 {sample.label}
               </Button>
@@ -833,17 +833,17 @@ export default function CssValidator() {
 
             <div className="ml-auto flex items-center gap-2">
               {state.input.trim() && errorCount === 0 && warnCount === 0 && (
-                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                   ✓ Valid CSS
                 </span>
               )}
               {errorCount > 0 && (
-                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
+                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-2xs font-bold text-white">
                   ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
                 </span>
               )}
               {warnCount > 0 && (
-                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                   ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
                 </span>
               )}
@@ -874,7 +874,7 @@ export default function CssValidator() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {RULE_CATEGORIES.map((category) => (
                   <div key={category}>
-                    <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
+                    <div className="mb-1 text-2xs font-bold uppercase text-[var(--color-text-muted)]">
                       {category}
                     </div>
                     {LINT_RULES.filter((rule) => rule.category === category).map((rule) => {
@@ -900,7 +900,7 @@ export default function CssValidator() {
                             >
                               {rule.label}
                             </div>
-                            <div className="text-[10px] text-[var(--color-text-muted)]">
+                            <div className="text-2xs text-[var(--color-text-muted)]">
                               {rule.description}
                             </div>
                           </div>
@@ -914,7 +914,11 @@ export default function CssValidator() {
           )}
 
           {issues.length > 0 && (
-            <div className="max-h-36 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+            <div
+              role="status"
+              aria-live="polite"
+              className="max-h-36 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
+            >
               {issues.map((issue, index) => (
                 <div
                   key={`${issue.rule}-${index}`}
@@ -924,10 +928,10 @@ export default function CssValidator() {
                       : 'text-[var(--color-warning)]'
                   }`}
                 >
-                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-2xs text-[var(--color-text-muted)]">
                     L{issue.line}:C{issue.column}
                   </span>
-                  <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
+                  <span className="shrink-0 rounded border border-current px-1 py-0 text-2xs">
                     {issue.rule}
                   </span>
                   <span>{issue.message}</span>

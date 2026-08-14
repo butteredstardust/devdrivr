@@ -106,7 +106,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         onClick={() => setFlyoutOpen(!flyoutOpen)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`flex h-8 w-8 items-center justify-center rounded transition-colors duration-150 ${
+        className={`flex h-8 w-8 items-center justify-center rounded transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
           isActiveGroup
             ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : flyoutOpen
@@ -151,7 +151,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
                 <button
                   key={tool.id}
                   onClick={() => handleSelect(tool.id)}
-                  className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors ${
+                  className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
                     isActive
                       ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
                       : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'

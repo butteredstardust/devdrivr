@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </pre>
           <button
             onClick={() => this.reset()}
-            className="rounded border border-[var(--color-border)] px-3 py-1 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+            className="rounded border border-[var(--color-border)] px-3 py-1 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             Try Again
           </button>

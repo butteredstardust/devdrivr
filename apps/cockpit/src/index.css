@@ -25,6 +25,7 @@
   --font-pixel: 'Silkscreen', monospace;
   --font-mono: 'Source Code Pro', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-2xs: 0.625rem;
 }
 
 .css-error-line-gutter {

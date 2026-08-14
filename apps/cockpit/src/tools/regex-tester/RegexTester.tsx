@@ -6,6 +6,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Alert } from '@/components/shared/Alert'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 
@@ -246,7 +247,11 @@ export default function RegexTester() {
             <Button variant="ghost" size="sm" onClick={() => setShowRef(!showRef)}>
               {showRef ? 'Hide' : 'Ref'}
             </Button>
-            {matchError && <span className="text-xs text-[var(--color-error)]">{matchError}</span>}
+            {matchError && (
+              <Alert variant="error" className="px-2 py-0.5">
+                {matchError}
+              </Alert>
+            )}
             {!matchError && matchCount > 0 && (
               <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
                 {truncated ? `${matchCount}+` : matchCount}
@@ -311,7 +316,7 @@ export default function RegexTester() {
                 {mode === 'replace' && state.pattern && state.testString && !replaceError && (
                   <div className="flex items-center gap-2">
                     {diffStats && (
-                      <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                      <span className="font-mono text-2xs text-[var(--color-text-muted)]">
                         <span className="text-[var(--color-success)]">+{diffStats.added}</span>
                         {' / '}
                         <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
@@ -332,7 +337,7 @@ export default function RegexTester() {
               {mode === 'replace' ? (
                 <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
                   {replaceError ? (
-                    <span className="text-[var(--color-error)]">{replaceError}</span>
+                    <Alert variant="error">{replaceError}</Alert>
                   ) : !state.pattern || !state.testString ? (
                     <span className="text-[var(--color-text-muted)]">
                       Replace preview will appear here
@@ -427,7 +432,7 @@ export default function RegexTester() {
             </div>
             {REFERENCE_CATEGORIES.map((cat) => (
               <div key={cat.label} className="mb-3">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <div className="mb-1 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                   {cat.label}
                 </div>
                 {cat.items.map((r) => (

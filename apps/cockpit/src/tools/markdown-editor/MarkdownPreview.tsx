@@ -194,7 +194,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         {/* TOC Sidebar */}
         {showToc && toc.length > 0 && (
           <div className="w-48 shrink-0 overflow-auto border-r border-[var(--color-border)] p-3">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <div className="mb-2 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               Contents
             </div>
             {toc.map((entry, i) => (

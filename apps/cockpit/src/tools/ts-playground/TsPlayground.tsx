@@ -6,6 +6,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Spinner, useDelayedLoading } from '@/components/shared/Spinner'
 import { useUiStore } from '@/stores/ui.store'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
@@ -50,6 +51,8 @@ export default function TsPlayground() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [output, setOutput] = useState('')
   const [diagnostics, setDiagnostics] = useState<Array<{ message: string; line?: number }>>([])
+  const [isTranspiling, setIsTranspiling] = useState(false)
+  const showSpinner = useDelayedLoading(isTranspiling)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleTranspile = useCallback(async () => {
@@ -59,6 +62,7 @@ export default function TsPlayground() {
       setDiagnostics([])
       return
     }
+    setIsTranspiling(true)
     try {
       const result = await worker.transpile(state.input, {
         target: state.target,
@@ -73,6 +77,8 @@ export default function TsPlayground() {
     } catch (e) {
       setOutput(`// Error: ${(e as Error).message}`)
       setDiagnostics([])
+    } finally {
+      setIsTranspiling(false)
     }
   }, [worker, state.input, state.target, state.module, state.strict, setLastAction])
 
@@ -121,6 +127,7 @@ export default function TsPlayground() {
             Strict
           </label>
           <div className="ml-auto flex items-center gap-2">
+            {showSpinner && <Spinner size="sm" label="Compiling" />}
             <CopyButton text={output} label="Copy Output" />
           </div>
         </div>

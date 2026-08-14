@@ -209,7 +209,7 @@ export default function DiffViewer() {
           >
             Compare
           </Button>
-          <span className="text-[10px] text-[var(--color-text-muted)]">⌘↵</span>
+          <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
 
           {diffHtml && !identical && (
             <Button

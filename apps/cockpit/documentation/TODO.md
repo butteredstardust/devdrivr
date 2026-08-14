@@ -1,6 +1,6 @@
 # TODO - Cockpit Backlog
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 This is the working backlog for `apps/cockpit`. Keep this document focused on actionable engineering
 work: every item should have evidence, an expected outcome, acceptance criteria, and a verification
@@ -11,14 +11,21 @@ removed from this file — see git history for `documentation/TODO.md` if you ne
 What survives below is the four quality items that were never started, plus the UI modernisation
 programme filed on 2026-08-13.
 
+**The UI modernisation programme is now complete** (P0–P5). Note for anyone reading the history:
+four items in it — sidebar filter box, group collapse persistence, truncated-name tooltips, and
+ImageTool's `ToolLayout` pass — actually shipped in #81 but were left unchecked; they were verified
+against the running code and corrected on 2026-08-14. Trust the code over the checkbox if you find
+another one. The only open work below is the four-item quality backlog carried over from July.
+
 ## Current Snapshot
 
-Verified locally from `apps/cockpit` on 2026-07-31:
+Frontend gates verified locally from `apps/cockpit` on 2026-08-14; the Rust and release rows were
+last verified 2026-07-31 and are unchanged by this work (no `src-tauri` changes).
 
 | Gate        | Command                                        | Result                          |
 | ----------- | ---------------------------------------------- | ------------------------------- |
 | TypeScript  | `npx tsc --noEmit`                             | Passing                         |
-| Tests       | `bunx vitest run`                              | Passing: 79 files, 664 tests    |
+| Tests       | `bunx vitest run`                              | Passing: 100 files, 939 tests   |
 | ESLint      | `bun run lint`                                 | Passing with zero warnings      |
 | Rust check  | `cargo check` from `src-tauri`                 | Passing                         |
 | Rust clippy | `cargo clippy -- -D warnings` from `src-tauri` | Passing                         |
@@ -167,7 +174,7 @@ Area: editors / theming
 Problem: `src/hooks/useMonaco.ts` builds themes for the 12 cockpit-native app themes from CSS custom
 properties via `buildCockpitTheme()`, which returns `rules: []`. Monaco falls back to the bare `vs` /
 `vs-dark` base, so code in those themes renders with little to no syntax differentiation. Only the 10
-imported `monaco-themes` JSONs (dracula, monokai, nord, night-owl, github-\*, solarized-\*,
+imported `monaco-themes` JSONs (dracula, monokai, nord, night-owl, github-\_, solarized-\_,
 tomorrow-night, oceanic-next) highlight properly. The default theme is one of the good ones, which is
 why this is easy to miss.
 
@@ -306,47 +313,66 @@ all being counted as Tailwind. Use this instead, which matches a utility with an
 ignores `var()` token references:
 
 ```bash
-grep -rhoP '[a-zA-Z][a-zA-Z0-9:_-]*-\[(?!var\()[^\]]+\]' --include='*.tsx' src/tools | wc -l
+grep -rhoP '[a-zA-Z][a-zA-Z0-9:_-]_-\[(?!var\()[^\]]+\]' --include='_.tsx' src/tools | wc -l
 ```
 
-| Metric                        | Target | Before migration | Now |
-| ----------------------------- | ------ | ---------------- | --- |
-| raw `<button>` in `src/tools` | < 30   | 125              | 20  |
-| arbitrary Tailwind values     | < 400  | 202              | 202 |
+| Metric                        | Target | Before migration | After #81 | Now (2026-08-14) |
+| ----------------------------- | ------ | ---------------- | --------- | ---------------- |
+| raw `<button>` in `src/tools` | < 30   | 125              | 20        | 20               |
+| arbitrary Tailwind values     | < 400  | 202              | 202       | 60               |
 
 Count raw buttons with `grep -rc '<button' src/tools --include='*.tsx'` minus the four in
 `src/tools/__tests__/` (lint-ignored) and the one in `HtmlValidator.tsx`, which is HTML sample data
 inside a template string, not JSX. All 20 that remain carry an `eslint-disable-next-line` with a
 stated reason — the rule below now holds the line.
 
-Raw buttons met the target. Arbitrary values were already under it once measured correctly, and this
-migration did not move them, because **142 of the remaining 202 are `text-[10px]`** — the smallest
-`--text-*` token is `--text-xs` at 12px, so there is nothing to migrate them to. Closing that gap is
-a design decision, not a mechanical one: either add a `--text-2xs: 0.625rem` token and sweep, or
-decide 10px chrome text should become 12px. Do not "fix" it by rounding tools up to `text-xs` piecemeal
-— that silently enlarges dense toolbars one file at a time.
+Raw buttons met the target. Arbitrary values were already under it once measured correctly.
 
-### [ ] Remaining: Image Tool
+**The `text-[10px]` decision is now resolved (2026-08-14): a `--text-2xs` token was added and swept.**
+142 of the 202 remaining arbitrary values were `text-[10px]`, because the smallest `--text-*` token
+was `--text-xs` at 12px. The options were to add a `--text-2xs: 0.625rem` token and sweep, or to
+decide 10px chrome text should become 12px. **We took the token route**, because it is provably a
+no-op visually: `0.625rem × 16px root = 10px` exactly, confirmed live in Chromium
+(`getComputedStyle` on a `.text-2xs` probe returns `10px`, root returns `16px`). Rounding up to
+`text-xs` was rejected for the reason originally recorded here — it silently enlarges dense toolbars.
+
+Mechanism: `--text-2xs: 0.625rem` was added to the `@theme` block in `src/index.css`, which is how
+this project generates real Tailwind 4 utilities (the `--text-*` entries in `tokens.css` only
+document Tailwind's built-in scale; they do not generate anything). It was mirrored into
+`tokens.css` for scale consistency. All 173 occurrences swept — 142 in `src/tools`, 31 in
+`src/components` — taking tools from 202 arbitrary values to 60.
+
+### [x] Remaining: Image Tool
 
 `src/tools/image-tool/ImageTool.tsx` was missed in the CONVERT sweep. Its Reset and aspect-lock
 controls are now shared `Button`s (verified live: lock flips `aria-pressed`/title and stops height
-tracking width; Reset restores 64 × 64), but the tool still has no `ToolLayout` pass. The four raw
-buttons left are exempted by category, not oversight: two 10px underlabels, the 10px preset chip
-grid, and the crop switch.
+tracking width; Reset restores 64 × 64).
+
+Done in #81 — the `ToolLayout` pass landed (`ImageTool.tsx:567`, `fullBleed` with a `toolbar` slot)
+but this item was left unchecked. The four raw buttons left are exempted by category, not oversight:
+two 10px underlabels, the 10px preset chip grid, and the crop switch.
 
 ## P3 - Shell UX
 
-### [ ] Sidebar filter box
+### [x] Sidebar filter box
 
 All 30 tools sit in 8 always-expanded groups, so at 900px height the bottom third is permanently
 below the fold. Add a filter input at the top of the sidebar, focused by `/`, reusing the Fuse.js
 scoring already implemented in `CommandPalette.tsx` rather than a second search implementation.
 Filtering collapses groups with no matches.
 
-### [ ] Persist group collapse state
+Done in #81 — this item was left unchecked by mistake and is being corrected on 2026-08-14. The
+filter lives in `Sidebar.tsx` and shares scoring through the `useFuseSearch` hook, so there is one
+search implementation, not two. `/` focuses it (expanding the sidebar first if collapsed), ArrowDown
+drops into the filtered results, and Escape clears. Covered by `sidebar.test.tsx` "Filter Box".
+
+### [x] Persist group collapse state
 
 Default to collapsing groups the user has never opened a tool from, and remember explicit
 collapse/expand choices across launches.
+
+Done in #81 — also left unchecked by mistake. State lives in `openedSidebarGroups` on the settings
+store. Covered by `sidebar.test.tsx` "Group Collapse Defaults", including the first-run freeze gate.
 
 ### [x] Tool icons in tabs
 
@@ -398,9 +424,13 @@ Correction to this item as originally written: `apps/cockpit/samples/` is snippe
 for the Snippets importer, not per-tool sample inputs, so it was not a usable source. There is also
 no cron parser tool in the registry, so it was skipped rather than invented.
 
-### [ ] Tooltip or wrap for truncated tool names
+### [x] Tooltip or wrap for truncated tool names
 
 At the current 218px sidebar width, several tool names truncate mid-word with no way to read them.
+
+Done in #81 — also left unchecked by mistake. `SidebarItem` compares `scrollWidth` against
+`clientWidth` and only sets `title` when the label is actually clipped, so tools whose names fit
+don't get a redundant tooltip. Covered by `sidebar.test.tsx` "Truncation Tooltip".
 
 ## P4 - Guardrails
 
@@ -438,7 +468,7 @@ before adding one. `no-restricted-syntax` is built into ESLint and needs nothing
 Escape hatch: a per-line `// eslint-disable-next-line no-restricted-syntax -- <reason>` immediately
 above the element. **The directive must be the last line of the comment** — with stacked `//` lines
 ESLint applies it to the following comment line, not to the JSX, so it silently no-ops and reports
-an unused-directive warning. Keep the reason on that one line, or use a `{/* … */}` block comment.
+an unused-directive warning. Keep the reason on that one line, or use a `{/_ … _/}` block comment.
 
 The 25 sites the rule first flagged resolved as: 3 migrated (`ImageTool`'s Reset and aspect-lock to
 `Button`, `CurlToFetch`'s "Test in API Client" to `Button`), 2 replaced by `SegmentedControl`
@@ -448,9 +478,10 @@ headers, 10px chips and underlabels with no token below `text-xs`, and controls 
 state (`--color-warning`/`--color-success` borders, the crop switch, the decorative colour-mockup
 button).
 
-### [ ] Contrast pass across all 22 themes
+### [x] Contrast pass across all 22 themes
 
-Measured, not yet fixed. Ratios below are `--color-text-muted` composited over `--color-surface`
+**Fixed 2026-08-14** — see Outcome below. The ratios in this section are the _original_, pre-fix
+measurements, kept for the record. They are `--color-text-muted` composited over `--color-surface`
 and over `--color-bg`, taken live in Chromium by applying each theme class to `<html>` and reading
 computed values (the alpha in most tokens has to be flattened against the backdrop first — comparing
 the raw `rgba` against the surface overstates every dark theme).
@@ -477,6 +508,112 @@ so each theme keeps its palette identity.
 
 Re-measure with the snippet in `documentation/BROWSER_HARNESS.md` after any token change; the
 in-app WCAG checker in Color Converter can confirm individual pairs by hand.
+
+**Outcome.** All 10 sub-4.5 themes now clear AA on _both_ surface and bg. Worth noting: every one of
+the 10 was failing on bg as well, which the table above did not capture — it only recorded the
+surface ratio. Alpha was raised (or dropped to opaque) in preference to shifting hue, exactly as
+this item specified; only `solarized-light`, `tokyo-night-light`, and `catppuccin-latte` needed a
+lightness shift along their existing hue, because alpha alone could not reach 4.5.
+
+| Theme             | surface before → after | change                            |
+| ----------------- | ---------------------- | --------------------------------- |
+| solarized-light   | 2.23 → 4.85            | `rgba(88,110,117,.6)` → `#53676e` |
+| solarized-dark    | 2.59 → 4.75            | alpha dropped, hue kept           |
+| tokyo-night-light | 3.48 → 4.84            | `#6c6e75` → `#57585e`             |
+| soft-focus        | 3.49 → 5.23            | alpha 0.6 → 0.75                  |
+| github-light      | 3.96 → 5.35            | alpha 0.6 → 0.7                   |
+| catppuccin-latte  | 4.06 → 4.85            | `#6c6f85` → `#616377`             |
+| earth-code        | 4.07 → 4.92            | alpha 0.6 → 0.7                   |
+| tomorrow-night    | 4.41 → 5.04            | alpha 0.6 → 0.66                  |
+| nord              | 4.42 → 5.00            | alpha 0.6 → 0.66                  |
+| oceanic-next      | 4.48 → 4.99            | alpha 0.6 → 0.65                  |
+
+Worst case across all 22 themes is now **4.75:1** (`solarized-dark` on surface). Values were kept in
+a ~4.6–6:1 band deliberately: muted text still has to read as muted, so overshooting into
+full-contrast text would have been its own regression. Confirmed by eye in `soft-focus` (the default
+light theme, and the one users hit first) — secondary text is legible without competing with primary.
+
+Regression guard: `src/styles/__tests__/contrast.test.ts` parses `tokens.css`, flattens alpha against
+the backdrop, and asserts every theme clears 4.5:1 on both surface and bg. It asserts the parsed
+theme count is 22, so a parser regression cannot make it pass vacuously. Node-side numbers match
+live Chromium measurements to 2dp.
+
+## P5 - Polish pass (filed and completed 2026-08-14)
+
+Found by re-auditing the app after #81 landed, rather than from the original audit.
+
+### [x] One focus treatment everywhere
+
+Area: accessibility / shared primitives
+
+Problem: a `--focus-ring` token existed but only 13 files used `focus-visible`. `Toggle` and
+`CopyButton` had no focus styling at all, `TabBar` buttons had none, and several places used
+`focus:` — which also fires on mouse click, so clicking a control left a ring stuck on it.
+
+Done. Canonical treatment is `focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]`,
+matching what `Button`/`Select`/`SegmentedControl` already did. Applied across `src/components/**`:
+`Toggle`, `CopyButton`, `TabBar`, `Dialog`'s close button, `SelectionContextToolbar`, `SendToMenu`,
+`ErrorBoundary`, and every previously-unstyled interactive element in the shell (tab strip, sidebar,
+footer, status bar, update notification, notes drawer, settings panel).
+
+Deliberate exceptions, each for a reason rather than by oversight:
+
+- **`Input.tsx` keeps its `focus:border` accent** and gained the ring on top. An always-on active-field
+  border is correct UX for text inputs — users want to see which field is live whether they clicked
+  or tabbed. Removing it to satisfy a lint-shaped rule would have been a regression.
+- **`SidebarGroup`, `SidebarItem`, and the tab-row** keep their existing `focus-visible:ring-1
+ring-inset` treatment. They already satisfy keyboard-only visibility; the canonical token draws an
+  _outward_ 2px+4px glow that would clip inside those overflow-hidden scroll containers.
+- **`CommandPalette` and `SendToMenu` filter inputs** get no ring — they are focused programmatically
+  the instant the surface opens, so "you tabbed here" is never meaningful.
+- **`CommandPalette` result buttons** are `tabIndex={-1}` under the ARIA combobox pattern
+  (AGENTS.md rule 23); they never take DOM focus, so `focus-visible` could never fire.
+
+### [x] One spinner, and loading states only where they earn their place
+
+Area: shared primitives / perceived performance
+
+`Button` had an inline spinner and nothing else did. Extracted it into
+`src/components/shared/Spinner.tsx`; `Button` now consumes it, so there is exactly one spinner in the
+codebase. It inherits reduced-motion handling for free from the existing global
+`.animate-spin { animation: none !important; opacity: 1 }` rule — it degrades to a static ring rather
+than vanishing, which the P0 reduced-motion item requires.
+
+`useDelayedLoading(active, delay = 150)` ships alongside it: a single anti-flash implementation that
+only reports `true` once a load has held for 150ms, and drops to `false` immediately on completion.
+Tools import it rather than each re-implementing a timer.
+
+Instrumented: `TsPlayground` (worker compilation), `RefactoringToolkit` (AST transform preview),
+`XmlTools` (five worker round-trips, wired through `Button`'s existing `loading` prop).
+
+**Deliberately skipped, which is the more important half of this item** — a spinner that flashes for
+20ms is worse than no spinner:
+
+- `JsonSchemaValidator` — Ajv runs synchronously inside the debounce callback, so React cannot paint
+  a spinner mid-block. It would either never render or always render for the whole block.
+- `CodeFormatter` — `handleFormat` already had `Button loading`; `handleAutoDetect` is a handful of
+  cheap regex tests, never realistically >200ms.
+- `YamlTools` — format/convert already had `Button loading`; minify and sort-keys are synchronous on
+  already-parsed data.
+- `DiffViewer` — already had `Button loading={isComparing}`.
+
+### [x] Unify error presentation
+
+Area: accessibility / cross-tool consistency
+
+A shared `Alert` (`role="alert"`, `aria-live`) existed and 9 tools used it; four hand-rolled errors
+as bare colour-coded text with no role, so a screen reader never announced a validation failure.
+
+Migrated to `Alert`: `ApiClient` request errors, `RegexTester`'s `matchError` and `replaceError`.
+
+Exempted, because forcing the component would have been worse than the problem:
+
+- **`CssValidator`** renders a _list_ of diagnostics, potentially hundreds. Wrapping each in a banner
+  would be far worse than the status quo. Gave the list container `role="status"` /
+  `aria-live="polite"` instead, so it announces as one region.
+- **`MarkdownEditor`** bakes its render error into an HTML _string_ injected via
+  `dangerouslySetInnerHTML`, so there is no JSX pass to drop a React component into. Put
+  `role="alert"` / `aria-live="assertive"` directly on the generated tag for equivalent semantics.
 
 ---
 

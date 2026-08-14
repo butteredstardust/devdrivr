@@ -354,7 +354,7 @@ export default function JsonSchemaValidator() {
             <button
               key={key}
               onClick={() => loadTemplate(key)}
-              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
             >
               {tmpl.label}
             </button>
@@ -381,7 +381,7 @@ export default function JsonSchemaValidator() {
               nothing below text-xs exists. */}
           <button
             onClick={() => updateState({ strict: !state.strict })}
-            className={`rounded border px-2 py-0.5 text-[10px] ${
+            className={`rounded border px-2 py-0.5 text-2xs ${
               state.strict
                 ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
                 : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
@@ -392,12 +392,12 @@ export default function JsonSchemaValidator() {
           </button>
           <div className="ml-auto flex items-center gap-2">
             {valid === true && (
-              <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+              <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                 ✓ Valid
               </span>
             )}
             {valid === false && (
-              <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-white">
+              <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-2xs font-bold text-white">
                 ✗ {errors.length} error{errors.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -410,7 +410,7 @@ export default function JsonSchemaValidator() {
         <div className="max-h-28 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
           {errors.map((e, i) => (
             <div key={i} className="flex items-start gap-2 py-0.5 text-xs">
-              <span className="shrink-0 rounded bg-[var(--color-error)] px-1 py-0 text-[10px] font-bold text-white">
+              <span className="shrink-0 rounded bg-[var(--color-error)] px-1 py-0 text-2xs font-bold text-white">
                 {e.keyword ?? 'error'}
               </span>
               <code className="shrink-0 text-[var(--color-accent)]">{e.path}</code>

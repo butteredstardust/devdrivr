@@ -399,7 +399,7 @@ export default function HtmlValidator() {
                   updateState({ input: s.html })
                   setLastAction(`Loaded "${s.label}" template`, 'info')
                 }}
-                className="text-[10px]"
+                className="text-2xs"
               >
                 {s.label}
               </Button>
@@ -421,22 +421,22 @@ export default function HtmlValidator() {
             {/* Status */}
             <div className="ml-auto flex items-center gap-2">
               {isValidating && state.input.trim() && (
-                <span className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-text-muted)]">
+                <span className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs font-bold text-[var(--color-text-muted)]">
                   … Validating
                 </span>
               )}
               {!isValidating && state.input.trim() && errors.length === 0 && (
-                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                <span className="rounded bg-[var(--color-success)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                   ✓ Valid HTML
                 </span>
               )}
               {errorCount > 0 && (
-                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                <span className="rounded bg-[var(--color-error)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                   ✗ {errorCount} error{errorCount !== 1 ? 's' : ''}
                 </span>
               )}
               {warnCount > 0 && (
-                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-bg)]">
+                <span className="rounded bg-[var(--color-warning)] px-2 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
                   ⚠ {warnCount} warning{warnCount !== 1 ? 's' : ''}
                 </span>
               )}
@@ -472,7 +472,7 @@ export default function HtmlValidator() {
               <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                 {RULE_CATEGORIES.map((cat) => (
                   <div key={cat}>
-                    <div className="mb-1 text-[10px] font-bold uppercase text-[var(--color-text-muted)]">
+                    <div className="mb-1 text-2xs font-bold uppercase text-[var(--color-text-muted)]">
                       {cat}
                     </div>
                     {ALL_RULES.filter((r) => r.category === cat).map((rule) => {
@@ -516,10 +516,10 @@ export default function HtmlValidator() {
                     e.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'
                   }`}
                 >
-                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1 py-0 text-2xs text-[var(--color-text-muted)]">
                     L{e.line}:{e.col}
                   </span>
-                  <span className="shrink-0 rounded border border-current px-1 py-0 text-[10px]">
+                  <span className="shrink-0 rounded border border-current px-1 py-0 text-2xs">
                     {e.rule}
                   </span>
                   <span>{e.message}</span>
@@ -531,11 +531,11 @@ export default function HtmlValidator() {
           {/* Heading outline */}
           {stats && stats.headings.length > 0 && state.viewMode !== 'preview' && (
             <div className="flex items-center gap-2 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">
-              <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">Outline:</span>
+              <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">Outline:</span>
               {stats.headings.map((h, i) => (
                 <span
                   key={i}
-                  className="shrink-0 text-[10px] text-[var(--color-text)]"
+                  className="shrink-0 text-2xs text-[var(--color-text)]"
                   style={{ paddingLeft: (h.level - 1) * 8 }}
                 >
                   <span className="text-[var(--color-accent)]">h{h.level}</span> {h.text}

@@ -91,20 +91,20 @@ export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps)
                 className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
               >
                 <div className="font-mono text-sm font-bold text-[var(--color-accent)]">{key}</div>
-                <div className="text-[10px] text-[var(--color-text-muted)]">{type}</div>
+                <div className="text-2xs text-[var(--color-text-muted)]">{type}</div>
                 {type === 'number' && stats != null && (
-                  <div className="text-[10px] text-[var(--color-text-muted)]">
+                  <div className="text-2xs text-[var(--color-text-muted)]">
                     Min: {String((stats as { min: number }).min)} · Max:{' '}
                     {String((stats as { max: number }).max)}
                   </div>
                 )}
                 {(type === 'string' || type === 'mixed') && stats != null && (
-                  <div className="text-[10px] text-[var(--color-text-muted)]">
+                  <div className="text-2xs text-[var(--color-text-muted)]">
                     Unique: {String((stats as { unique: number }).unique)}
                   </div>
                 )}
                 {nullCount > 0 && (
-                  <div className="text-[10px] text-[var(--color-warning)]">
+                  <div className="text-2xs text-[var(--color-warning)]">
                     Nulls: {nullCount} ({nullPct.toFixed(1)}%)
                   </div>
                 )}

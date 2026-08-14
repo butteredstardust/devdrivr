@@ -73,9 +73,9 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
           <button
             key={tool.id}
             onClick={() => handleSelect(tool.id, tool.name)}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
-            <span className="w-5 text-center font-mono text-[10px] text-[var(--color-text-muted)]">
+            <span className="w-5 text-center font-mono text-2xs text-[var(--color-text-muted)]">
               {tool.icon}
             </span>
             {tool.name}

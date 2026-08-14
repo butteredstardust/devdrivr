@@ -589,11 +589,11 @@ export default function ImageTool() {
                 >
                   {fileName}
                 </span>
-                <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                   {originalImg.naturalWidth} × {originalImg.naturalHeight}px
                 </span>
                 {originalFileSize > 0 && (
-                  <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                     {formatBytes(originalFileSize)}
                   </span>
                 )}
@@ -789,7 +789,7 @@ export default function ImageTool() {
               <ImageIcon size={52} className="opacity-20" />
               <div className="text-center">
                 <div className="text-sm font-medium">Drop an image here</div>
-                <div className="mt-0.5 text-[10px] opacity-60">
+                <div className="mt-0.5 text-2xs opacity-60">
                   JPEG · PNG · WebP · GIF · BMP · SVG
                 </div>
               </div>
@@ -891,12 +891,12 @@ function ResizePanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Dimensions
         </div>
         <div className="flex items-center gap-2">
           <div className="flex flex-1 flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">Width (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
             <input
               type="number"
               min={1}
@@ -919,7 +919,7 @@ function ResizePanel({
           </Button>
 
           <div className="flex flex-1 flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">Height (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
             <input
               type="number"
               min={1}
@@ -936,14 +936,14 @@ function ResizePanel({
             the fields it annotates. */}
         <button
           onClick={onReset}
-          className="mt-2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          className="mt-2 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
         >
           Reset to original ({originalW} × {originalH})
         </button>
       </div>
 
       <div>
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Aspect Ratio Presets
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -952,7 +952,7 @@ function ResizePanel({
             <button
               key={label}
               onClick={() => onPreset(w, h)}
-              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             >
               {label}
             </button>
@@ -961,7 +961,7 @@ function ResizePanel({
       </div>
 
       {resizeW && resizeH && (resizeW !== originalW || resizeH !== originalH) && (
-        <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-[10px] text-[var(--color-accent)]">
+        <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-2xs text-[var(--color-accent)]">
           Output: {resizeW} × {resizeH}px (
           {((resizeW * resizeH) / (originalW * originalH)).toFixed(2)}× pixels)
         </div>
@@ -1020,12 +1020,12 @@ function CropPanel({
 
       {/* Crop coordinates */}
       <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Offset
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">X (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">X (px)</label>
             <input
               type="number"
               min={0}
@@ -1037,7 +1037,7 @@ function CropPanel({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">Y (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">Y (px)</label>
             <input
               type="number"
               min={0}
@@ -1050,12 +1050,12 @@ function CropPanel({
           </div>
         </div>
 
-        <div className="mb-2 mt-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 mt-3 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Size
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">Width (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
             <input
               type="number"
               min={1}
@@ -1067,7 +1067,7 @@ function CropPanel({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-[var(--color-text-muted)]">Height (px)</label>
+            <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
             <input
               type="number"
               min={1}
@@ -1086,19 +1086,19 @@ function CropPanel({
         <button
           onClick={onReset}
           disabled={!enabled}
-          className="mt-3 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none"
+          className="mt-3 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none"
         >
           Reset to full image
         </button>
       </div>
 
       {enabled && (
-        <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-[10px] text-[var(--color-accent)]">
+        <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-2xs text-[var(--color-accent)]">
           Crop: {w} × {h}px at ({x}, {y})
         </div>
       )}
 
-      <p className="text-[10px] text-[var(--color-text-muted)]">
+      <p className="text-2xs text-[var(--color-text-muted)]">
         Drag the crop box or its corners in the preview to adjust visually.
       </p>
     </div>
@@ -1139,11 +1139,11 @@ function ExportPanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Format
         </div>
         <TabBar tabs={FORMAT_TABS} activeTab={format} onTabChange={onFormatChange} />
-        <div className="mt-1.5 text-[10px] text-[var(--color-text-muted)]">
+        <div className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
           {format === 'png' && 'Lossless · Supports transparency'}
           {format === 'jpeg' && 'Lossy · Best for photos · No transparency'}
           {format === 'webp' && 'Lossy/lossless · Modern · Smallest size'}
@@ -1153,7 +1153,7 @@ function ExportPanel({
       {isLossy && (
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <div className="text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
               Quality
             </div>
             <span className="font-mono text-xs text-[var(--color-text)]">{quality}%</span>
@@ -1174,7 +1174,7 @@ function ExportPanel({
       )}
 
       <div>
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
           Output Info
         </div>
         <div className="space-y-1 text-xs text-[var(--color-text-muted)]">

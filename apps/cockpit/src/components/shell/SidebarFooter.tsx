@@ -19,7 +19,7 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
   }
 
   const buttonClass =
-    'flex items-center justify-center rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors'
+    'flex items-center justify-center rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]'
 
   if (collapsed) {
     return (

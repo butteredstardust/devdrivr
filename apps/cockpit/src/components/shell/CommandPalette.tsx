@@ -534,7 +534,7 @@ export function CommandPalette() {
             className="h-11 flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus-visible:outline-none"
           />
           {isActionMode && (
-            <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">
+            <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
               Actions
             </span>
           )}
@@ -590,17 +590,17 @@ export function CommandPalette() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{item.name}</span>
                     {isActive && (
-                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-[10px] text-[var(--color-accent)]">
+                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-accent)]">
                         active
                       </span>
                     )}
                     {isOpenInTab && (
-                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-[10px] text-[var(--color-text-muted)]">
+                      <span className="rounded bg-[var(--color-surface-hover)] px-1 text-2xs text-[var(--color-text-muted)]">
                         open
                       </span>
                     )}
                     {item.kind === 'action' && (
-                      <span className="rounded bg-[var(--color-info)]/20 px-1 text-[10px] text-[var(--color-info)]">
+                      <span className="rounded bg-[var(--color-info)]/20 px-1 text-2xs text-[var(--color-info)]">
                         action
                       </span>
                     )}
@@ -610,7 +610,7 @@ export function CommandPalette() {
                   </div>
                 </div>
                 {item.shortcut && (
-                  <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
+                  <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
                     {item.shortcut}
                   </span>
                 )}
@@ -636,7 +636,7 @@ export function CommandPalette() {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-[var(--color-border)] px-3 py-1.5 text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex items-center gap-3 border-t border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>

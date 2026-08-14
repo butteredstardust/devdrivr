@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import MarkdownEditor, { prefixMarkdownLines } from '@/tools/markdown-editor/MarkdownEditor'
+import MarkdownEditor, {
+  prefixMarkdownLines,
+  renderMarkdownContent,
+} from '@/tools/markdown-editor/MarkdownEditor'
+import { markdownEditorProcessor } from '@/lib/markdown'
 import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
 import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
@@ -361,6 +365,36 @@ describe('MarkdownEditor', () => {
 
   it('preserves blank lines when prefixing multiline selections', () => {
     expect(prefixMarkdownLines('alpha\n\nbeta', '> ')).toBe('> alpha\n\n> beta')
+  })
+
+  // renderMarkdownContent's error path bakes markup directly into an HTML string
+  // consumed via dangerouslySetInnerHTML — it cannot render the shared <Alert>
+  // component, so it must carry the same role="alert"/aria-live semantics by hand.
+  it('marks markdown render errors with alert semantics', async () => {
+    const spy = vi
+      .spyOn(markdownEditorProcessor, 'process')
+      .mockRejectedValueOnce(new Error('boom'))
+
+    const html = await renderMarkdownContent('# test')
+
+    expect(html).toContain('role="alert"')
+    expect(html).toContain('aria-live="assertive"')
+    expect(html).toContain('Render error: boom')
+
+    spy.mockRestore()
+  })
+
+  it('announces a markdown render error via role="alert" once mounted', async () => {
+    const spy = vi
+      .spyOn(markdownEditorProcessor, 'process')
+      .mockRejectedValueOnce(new Error('boom'))
+    const html = await renderMarkdownContent('# test')
+    spy.mockRestore()
+
+    render(<MarkdownPreview html={html} showToc={false} toc={[]} />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Render error: boom')
   })
 })
 
