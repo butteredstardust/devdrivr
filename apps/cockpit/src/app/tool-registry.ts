@@ -74,7 +74,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Code Formatter',
     group: 'code',
     icon: toolIcon(CodeBlockIcon),
-    description: 'Format and beautify code (JS, TS, CSS, HTML, SQL, Python)',
+    description: 'Format and beautify code (JS, TS, JSON, CSS, HTML, YAML, SQL, GraphQL)',
     component: CodeFormatter,
     supportsOpenFile: true,
     supportsSaveFile: true,
