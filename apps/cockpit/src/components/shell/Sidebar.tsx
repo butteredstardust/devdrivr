@@ -8,7 +8,6 @@ import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { TOOL_FUSE_OPTIONS, toolSearchable } from '@/lib/tool-search'
 import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
-import { SidebarFooter } from './SidebarFooter'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarPinned } from './SidebarPinned'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
@@ -216,7 +215,6 @@ export function Sidebar() {
               )
             })}
           </div>
-          <SidebarFooter collapsed />
         </div>
       ) : (
         <div key="expanded" className="flex h-full flex-col animate-fade-in">
@@ -299,7 +297,6 @@ export function Sidebar() {
               </p>
             )}
           </div>
-          <SidebarFooter collapsed={false} />
         </div>
       )}
     </aside>

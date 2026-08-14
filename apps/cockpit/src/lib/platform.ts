@@ -18,6 +18,11 @@ export function _resetPlatformCache(): void {
   cachedPlatform = null
 }
 
+/** True on macOS (WKWebView user agent contains "Mac"). Used for CSD window-control layout. */
+export function isMacOS(): boolean {
+  return detectPlatform() === 'mac'
+}
+
 export function getModKey(platform: Platform): string {
   return platform === 'mac' ? 'Cmd' : 'Ctrl'
 }

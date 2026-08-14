@@ -29,6 +29,24 @@ export function installTauriStub() {
     if (cmd === 'plugin:sql|select') return []
     if (cmd === 'plugin:sql|execute') return [0, 0]
     if (cmd === 'plugin:event|listen') return 1
+    // Window-control layer (client-side decorations): boot-time reads resolve to sane
+    // defaults, mutating calls resolve to void. Nothing here actually moves/resizes the
+    // Chromium window — window/menu behaviour still needs the real app (see
+    // documentation/BROWSER_HARNESS.md).
+    if (cmd === 'plugin:window|is_maximized') return false
+    if (cmd === 'plugin:window|is_focused') return true
+    if (
+      cmd === 'plugin:window|toggle_maximize' ||
+      cmd === 'plugin:window|maximize' ||
+      cmd === 'plugin:window|unmaximize' ||
+      cmd === 'plugin:window|minimize' ||
+      cmd === 'plugin:window|unminimize' ||
+      cmd === 'plugin:window|close' ||
+      cmd === 'plugin:window|start_resize_dragging' ||
+      cmd === 'plugin:window|start_dragging'
+    ) {
+      return null
+    }
     return null
   }
 

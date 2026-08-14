@@ -3,9 +3,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { getToolById } from '@/app/tool-registry'
-import { usePlatform } from '@/hooks/usePlatform'
 import { THEME_META } from '@/lib/theme'
-import { PushPinIcon, CommandIcon, ClockIcon } from '@phosphor-icons/react'
+import { PushPinIcon, ClockIcon } from '@phosphor-icons/react'
 
 // ─── Isolated clock component (re-renders only itself every minute) ──
 
@@ -49,7 +48,6 @@ export function StatusBar() {
   const updateSetting = useSettingsStore((s) => s.update)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const historyCount = useHistoryStore((s) => s.entries.length)
-  const { modSymbol } = usePlatform()
 
   function openHistoryDrawer() {
     void updateSetting('notesDrawerOpen', true)
@@ -113,13 +111,6 @@ export function StatusBar() {
         >
           {themeLabel}
         </button>
-        <span
-          className="flex items-center gap-1 text-[var(--color-text-muted)] opacity-60"
-          title="Command Palette"
-        >
-          <CommandIcon size={10} aria-hidden="true" />
-          <span>{modSymbol}K</span>
-        </span>
         {alwaysOnTop && (
           <span title="Pinned">
             <PushPinIcon
