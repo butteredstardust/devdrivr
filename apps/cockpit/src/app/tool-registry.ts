@@ -332,7 +332,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Snippets',
     group: 'write',
     icon: toolIcon(ScissorsIcon),
-    description: 'Manage snippets with favorites, tag filters, sort, duplicate, and download',
+    description: 'Organize, search, edit, and back up reusable code snippets',
     component: SnippetsManager,
     usesMonaco: true,
   },

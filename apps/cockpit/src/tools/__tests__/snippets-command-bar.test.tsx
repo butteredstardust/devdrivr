@@ -1,98 +1,71 @@
-import { describe, expect, it, afterEach } from 'vitest'
-import { screen, fireEvent, act } from '@testing-library/react'
-import { renderTool } from './test-utils'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, screen } from '@testing-library/react'
+import { renderTool } from '@/tools/__tests__/test-utils'
 import { useSnippetsStore } from '@/stores/snippets.store'
-import SnippetsManager from '../snippets/SnippetsManager'
+import SnippetsManager from '@/tools/snippets/SnippetsManager'
 
-describe('SnippetsManager Command Bar', () => {
-  afterEach(() => {
-    act(() => {
-      useSnippetsStore.setState({
-        snippets: [],
-        initialized: false,
-        saving: false,
-      })
-    })
+const favoriteSnippet = {
+  id: 'favorite',
+  title: 'Favorite snippet',
+  content: 'const favorite = true',
+  language: 'javascript',
+  tags: ['⭐'],
+  folder: '',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+}
+
+beforeEach(() => {
+  useSnippetsStore.setState({
+    snippets: [],
+    initialized: true,
+    saving: false,
+    activeFolder: '',
+  })
+})
+
+describe('SnippetsManager editor toolbar', () => {
+  it('exposes discoverable actions for the selected snippet', async () => {
+    useSnippetsStore.setState({ snippets: [favoriteSnippet] })
+    renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Favorite snippet')
+
+    expect(screen.getByRole('button', { name: 'Remove from favorites' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy snippet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Duplicate snippet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save snippet as file' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show snippet details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete snippet' })).toBeInTheDocument()
   })
 
-  it('renders command bar with correct labels', () => {
+  it('communicates favorite state in both the list and editor', async () => {
+    useSnippetsStore.setState({ snippets: [favoriteSnippet] })
     renderTool(SnippetsManager)
-    expect(screen.getByText('[F5: NEW]')).toBeInTheDocument()
-    expect(screen.getByText('[F6: DUP]')).toBeInTheDocument()
-    expect(screen.getByText('[F8: DEL]')).toBeInTheDocument()
-    expect(screen.getByText('[F9: EXP]')).toBeInTheDocument()
-    expect(screen.getByText('[F10: IMP]')).toBeInTheDocument()
+    await screen.findByDisplayValue('Favorite snippet')
+
+    expect(screen.getByLabelText('Favorite')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove from favorites' })).toBeInTheDocument()
   })
 
-  it('shows [FAV] indicator for favorite snippets', () => {
-    act(() => {
-      useSnippetsStore.setState({
-        snippets: [
-          {
-            id: '1',
-            title: 'Fav Snippet',
-            content: '...',
-            language: 'javascript',
-            tags: ['⭐'],
-            folder: '',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          },
-        ],
-        initialized: true,
-      })
-    })
+  it('announces active saves without a legacy command bar', async () => {
+    useSnippetsStore.setState({ snippets: [favoriteSnippet] })
     renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Favorite snippet')
 
-    // Select the snippet
-    const item = screen.getByText('Fav Snippet').closest('button')
-    fireEvent.click(item!)
+    act(() => useSnippetsStore.setState({ saving: true }))
+    expect(screen.getByText('Saving changes…')).toBeInTheDocument()
 
-    expect(screen.getByText('[FAV]')).toBeInTheDocument()
+    act(() => useSnippetsStore.setState({ saving: false }))
+    expect(screen.queryByText('Saving changes…')).not.toBeInTheDocument()
   })
 
-  it('shows [SAVING...] indicator when saving is true', () => {
+  it('opens explicit delete confirmation from the retained F8 shortcut', async () => {
+    useSnippetsStore.setState({ snippets: [favoriteSnippet] })
     renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Favorite snippet')
 
-    act(() => {
-      useSnippetsStore.setState({ saving: true })
-    })
+    fireEvent.keyDown(window, { key: 'F8' })
 
-    expect(screen.getByText('[SAVING...]')).toBeInTheDocument()
-
-    act(() => {
-      useSnippetsStore.setState({ saving: false })
-    })
-    expect(screen.queryByText('[SAVING...]')).not.toBeInTheDocument()
-  })
-
-  it('shows [CONFIRM?] when delete is clicked once', () => {
-    act(() => {
-      useSnippetsStore.setState({
-        snippets: [
-          {
-            id: '1',
-            title: 'Delete Me',
-            content: '...',
-            language: 'javascript',
-            tags: [],
-            folder: '',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          },
-        ],
-        initialized: true,
-      })
-    })
-    renderTool(SnippetsManager)
-
-    // Select the snippet
-    const item = screen.getByText('Delete Me').closest('button')
-    fireEvent.click(item!)
-
-    const deleteBtn = screen.getByText('[F8: DEL]')
-    fireEvent.click(deleteBtn)
-
-    expect(screen.getByText('[CONFIRM?]')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Delete snippet?' })).toBeInTheDocument()
   })
 })

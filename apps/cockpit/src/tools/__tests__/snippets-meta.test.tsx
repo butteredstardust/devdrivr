@@ -1,93 +1,95 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
-import { renderTool } from './test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, screen, within } from '@testing-library/react'
+import { renderTool } from '@/tools/__tests__/test-utils'
 import { useSnippetsStore } from '@/stores/snippets.store'
-import SnippetsManager from '../snippets/SnippetsManager'
+import SnippetsManager from '@/tools/snippets/SnippetsManager'
 
-describe('SnippetsManager Meta Pane', () => {
-  const setup = () => {
-    useSnippetsStore.setState({
-      snippets: [
-        {
-          id: '1',
-          title: 'Test Snippet',
-          content: 'line1\nline2',
-          language: 'javascript',
-          tags: ['tag1', 'tag2'],
-          folder: '',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      ],
-      initialized: true,
-    })
+const testSnippet = {
+  id: 'snippet-1',
+  title: 'Test snippet',
+  content: 'line1\nline2',
+  language: 'javascript',
+  tags: ['tag1', 'tag2'],
+  folder: 'work',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+}
+
+beforeEach(() => {
+  useSnippetsStore.setState({
+    snippets: [testSnippet],
+    initialized: true,
+    saving: false,
+    activeFolder: '',
+  })
+})
+
+async function openDetails() {
+  renderTool(SnippetsManager)
+  await screen.findByDisplayValue('Test snippet')
+  fireEvent.click(screen.getByRole('button', { name: 'Show snippet details' }))
+  return screen.getByLabelText('Snippet details')
+}
+
+describe('SnippetsManager details inspector', () => {
+  it('keeps language available in the editor and metadata behind an on-demand inspector', async () => {
     renderTool(SnippetsManager)
-    const item = screen.getByText('Test Snippet').closest('button')
-    fireEvent.click(item!)
-  }
+    await screen.findByDisplayValue('Test snippet')
 
-  it('renders language selector in Meta pane', () => {
-    setup()
-    const metaPane = screen.getByText('[ 03-META ]').parentElement?.parentElement
-    expect(metaPane).toBeInTheDocument()
+    expect(screen.getByLabelText('Snippet language')).toHaveValue('javascript')
+    expect(screen.queryByLabelText('Snippet details')).not.toBeInTheDocument()
 
-    // Check if language selector is in Meta pane
-    const langSelector = screen.getByDisplayValue('javascript')
-    expect(metaPane?.contains(langSelector)).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Show snippet details' }))
+    expect(screen.getByLabelText('Snippet details')).toBeInTheDocument()
   })
 
-  it('renders tags in vertical list in Meta pane', () => {
-    setup()
-    const metaPane = screen.getByText('[ 03-META ]').closest('div')?.parentElement
+  it('renders folder and tags in the details inspector', async () => {
+    const details = await openDetails()
 
-    // In Meta pane, tags are in a specific list
-    const tagsContainer = screen.getByText('Tags').nextElementSibling
-    expect(tagsContainer).toHaveTextContent('tag1')
-    expect(tagsContainer).toHaveTextContent('tag2')
-    expect(metaPane?.contains(tagsContainer!)).toBe(true)
+    expect(within(details).getByDisplayValue('work')).toBeInTheDocument()
+    expect(within(details).getByText('tag1')).toBeInTheDocument()
+    expect(within(details).getByText('tag2')).toBeInTheDocument()
   })
 
-  it('removes tags when clicking [X] button', async () => {
-    setup()
-    const tagsContainer = screen.getByText('Tags').nextElementSibling
-    const removeButtons = tagsContainer?.querySelectorAll('button')
-    // There should be remove buttons for tag1 and tag2
-    if (!removeButtons || !removeButtons[0]) {
-      throw new Error('Remove button not found')
-    }
-    fireEvent.click(removeButtons[0])
-
-    // tag1 should be gone from the tags container
-    expect(tagsContainer).not.toHaveTextContent('tag1')
-  })
-
-  it('shows high-density stats block', () => {
-    setup()
-    // content is 'line1\nline2' -> 2 lines, 11 chars
-    // bytes should be same as chars for ASCII
-    expect(
-      screen.getByText(
-        (content) => content.includes('L:2') && content.includes('C:11') && content.includes('B:11')
-      )
-    ).toBeInTheDocument()
-  })
-
-  it('updates stats when content changes', async () => {
-    setup()
-
-    // Try updating content via store but wrap in act
-    const { act } = await import('react')
-    await act(async () => {
+  it('removes a tag through a clearly labelled control', async () => {
+    const update = vi.fn().mockImplementation(async (id, patch) => {
       useSnippetsStore.setState((state) => ({
-        snippets: state.snippets.map((s) => (s.id === '1' ? { ...s, content: 'new content' } : s)),
+        snippets: state.snippets.map((snippet) =>
+          snippet.id === id ? { ...snippet, ...patch } : snippet
+        ),
+      }))
+    })
+    useSnippetsStore.setState({ update })
+    const details = await openDetails()
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Remove tag1 tag' }))
+
+    expect(update).toHaveBeenCalledWith('snippet-1', { tags: ['tag2'] })
+    expect(within(details).queryByText('tag1')).not.toBeInTheDocument()
+  })
+
+  it('shows readable line, character, and byte statistics', async () => {
+    const details = await openDetails()
+
+    expect(within(details).getByText('Lines')).toBeInTheDocument()
+    expect(within(details).getByText('Characters')).toBeInTheDocument()
+    expect(within(details).getByText('Bytes')).toBeInTheDocument()
+    expect(within(details).getByText('2')).toBeInTheDocument()
+    expect(within(details).getAllByText('11')).toHaveLength(2)
+  })
+
+  it('updates statistics when snippet content changes', async () => {
+    const details = await openDetails()
+
+    act(() => {
+      useSnippetsStore.setState((state) => ({
+        snippets: state.snippets.map((snippet) =>
+          snippet.id === 'snippet-1' ? { ...snippet, content: 'new content' } : snippet
+        ),
       }))
     })
 
-    // 'new content' -> 1 line, 11 chars
-    expect(
-      screen.getByText(
-        (content) => content.includes('L:1') && content.includes('C:11') && content.includes('B:11')
-      )
-    ).toBeInTheDocument()
+    expect(within(details).getByText('1')).toBeInTheDocument()
+    expect(within(details).getAllByText('11')).toHaveLength(2)
   })
 })
