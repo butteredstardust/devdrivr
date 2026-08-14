@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotesDrawer } from '@/components/shell/NotesDrawer'
 import { useHistoryStore } from '@/stores/history.store'
@@ -49,7 +49,10 @@ beforeEach(() => {
   useUiStore.setState({ lastAction: null, pendingSendTo: null })
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe('NotesDrawer', () => {
   it('labels compact note actions for assistive technology', () => {
@@ -78,8 +81,8 @@ describe('NotesDrawer', () => {
 
     expect(yellow).toHaveAttribute('aria-pressed', 'true')
     expect(blue).toHaveAttribute('aria-pressed', 'false')
-    expect(yellow.className).toContain('min-h-6')
-    expect(yellow.className).toContain('min-w-6')
+    expect(yellow.className).toContain('min-h-7')
+    expect(yellow.className).toContain('min-w-7')
   })
 
   it('shows search result counts and clears search input', async () => {
@@ -141,6 +144,63 @@ describe('NotesDrawer', () => {
     expect(reorder).toHaveBeenCalledWith('note-1', 'note-2', 'after')
     expect(screen.getByRole('button', { name: 'Move Test note up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move Second note down' })).toBeDisabled()
+  })
+
+  it('debounces note text persistence while keeping the draft responsive', async () => {
+    vi.useFakeTimers()
+    const update = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ update })
+    render(<NotesDrawer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Test note' }))
+    const title = screen.getByRole('textbox', { name: 'Note title' })
+    fireEvent.change(title, { target: { value: 'A better title' } })
+
+    expect(title).toHaveValue('A better title')
+    expect(update).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(450)
+    })
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith('note-1', {
+      title: 'A better title',
+      content: 'Use this as input',
+    })
+    vi.useRealTimers()
+  })
+
+  it('requires confirmation before deleting a note', async () => {
+    const remove = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ remove })
+    render(<NotesDrawer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Test note' }))
+    expect(remove).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Delete note?' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('note-1'))
+  })
+
+  it('renders history entries as keyboard-accessible replay buttons', () => {
+    useHistoryStore.setState({
+      entries: [
+        {
+          id: 'history-1',
+          tool: 'JSON Formatter',
+          input: '{"ok":true}',
+          output: '',
+          timestamp: Date.now(),
+        },
+      ],
+    })
+    render(<NotesDrawer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'History' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Replay JSON Formatter history entry' }))
+
+    expect(useUiStore.getState().pendingSendTo).toBe('{"ok":true}')
   })
 
   it('does not set state after unmount while markdown processing is still pending', async () => {
