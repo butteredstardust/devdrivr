@@ -61,8 +61,8 @@ function SystemSwatch() {
     >
       <Swatch effective="midnight" className="h-full w-1/2 rounded-none border-0" />
       <Swatch effective="soft-focus" className="h-full w-1/2 rounded-none border-0" />
-      <span className="absolute inset-0 flex items-center justify-center bg-black/10">
-        <MonitorIcon size={12} weight="bold" className="text-white drop-shadow" />
+      <span className="absolute inset-0 flex items-center justify-center bg-[var(--color-scrim)]">
+        <MonitorIcon size={12} weight="bold" className="text-[var(--color-text)] drop-shadow" />
       </span>
     </span>
   )
