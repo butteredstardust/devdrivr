@@ -120,26 +120,34 @@ Tests pure utility functions exported from the RegexTester tool.
 | `highlightMatches` — no match returns escaped input      | Miss case                  |
 | `highlightMatches` — invalid regex returns escaped input | Graceful error             |
 
-### `src/tools/__tests__/yaml-tools.test.ts` (14 tests)
+### `src/tools/__tests__/yaml-tools.test.tsx` (30 tests)
 
-Tests pure utility functions exported from the YAML Tools tool.
+Covers the YAML helpers and the YAML Tools component.
 
-| Test                                           | What it verifies     |
-| ---------------------------------------------- | -------------------- |
-| `parseYaml` — valid YAML string                | Successful parse     |
-| `parseYaml` — invalid YAML returns error       | Error handling       |
-| `stringifyYaml` — object to YAML string        | Serialisation        |
-| `stringifyYaml` — handles nested objects       | Nested structure     |
-| `yamlToJson` — converts YAML to JSON string    | YAML→JSON conversion |
-| `yamlToJson` — invalid YAML returns error      | Error handling       |
-| `jsonToYaml` — converts JSON string to YAML    | JSON→YAML conversion |
-| `jsonToYaml` — invalid JSON returns error      | Error handling       |
-| `sortKeysDeep` — sorts top-level keys          | Alphabetic sort      |
-| `sortKeysDeep` — sorts nested keys recursively | Deep sort            |
-| `sortKeysDeep` — preserves array order         | Array handling       |
-| `sortKeysDeep` — handles null values           | Null safety          |
-| `sortKeysDeep` — handles empty objects         | Edge case            |
-| Full round-trip YAML→JSON→YAML                 | Data integrity       |
+| Test                                              | What it verifies                 |
+| ------------------------------------------------- | -------------------------------- |
+| `parseYamlStream` — empty vs invalid              | Empty input is not an error      |
+| `parseYamlStream` — error location is 1-based     | Go to error lands on the problem |
+| `parseYamlStream` — `---` stream                  | Multi-document support           |
+| `stringifyYamlStream` — round trip                | A stream survives a reshape      |
+| `hasUnpreservableSyntax` — comments and anchors   | Lossy-transform warning          |
+| `documentsToJson` — single object vs array        | Stream shape in JSON             |
+| `sortKeysDeep` — deep sort, array order preserved | Sort semantics                   |
+| `parseYamlStream` / `jsonToYaml` — null document  | Null is a value, not a failure   |
+| `stringifyYaml` — objects and sequences           | Serialisation                    |
+| `jsonToYaml` — empty and malformed JSON           | Error messages name the problem  |
+| Editor and inspector on screen together           | Panes replaced the old tabs      |
+| Status line shape and document count              | Live validation                  |
+| Parse error line/column + Go to error             | Error navigation                 |
+| Format through the editor buffer                  | Formatter worker wiring          |
+| Sort keys, then Undo                              | Reshape is recoverable           |
+| Comment-dropping notice                           | No silent data loss              |
+| JSON pane converts without a Convert click        | Live conversion                  |
+| Apply to YAML, and refusal on invalid JSON        | JSON→YAML direction              |
+| Invalid document explained in the tree pane       | No blank pane on a parse error   |
+| Tree rows copyable by label                       | Keyboard reachability            |
+| open-file / save-file, empty buffer refused       | Tool actions                     |
+| Sample offered only while empty                   | Empty state                      |
 
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 

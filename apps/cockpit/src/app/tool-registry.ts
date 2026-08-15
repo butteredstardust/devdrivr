@@ -131,6 +131,8 @@ export const TOOLS: ToolDefinition[] = [
     description:
       'Live XML validation with tree, JSON and XPath panes beside the editor; format, minify, copy',
     component: XmlTools,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -138,8 +140,11 @@ export const TOOLS: ToolDefinition[] = [
     name: 'YAML Tools',
     group: 'data',
     icon: toolIcon(TreeStructureIcon),
-    description: 'Validate, format, sort keys, tree view, and convert YAML ↔ JSON',
+    description:
+      'Live YAML validation with tree and JSON panes beside the editor; multi-document streams, format, sort keys, compact',
     component: YamlTools,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

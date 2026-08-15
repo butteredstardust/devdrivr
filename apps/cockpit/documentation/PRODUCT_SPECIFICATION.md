@@ -509,6 +509,32 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 - Applying rewrites the buffer and offers Undo (⌘↵ applies). Supports open-file and
   save-file; the language follows the opened file's extension.
 
+### 6.29 YAML Tools
+
+**Views:** Source | Tree | JSON (segmented control — the inspector panes open _beside_ the editor,
+not instead of it.)
+
+- **Source** — Monaco editor in YAML mode. The document is parsed on every keystroke and the verdict
+  goes to a polite live region as `Valid YAML · N documents · K keys · depth D · size`, or
+  `Invalid YAML — <reason> — line L, column C` with a **Go to error** button that moves the caret
+  there. An empty buffer reads as "Nothing to inspect yet" rather than as an error.
+- **Multi-document streams** — the whole stream is parsed (`loadAll`), so `---`-separated documents
+  (Kubernetes manifests, most obviously) are supported end to end: validated, counted, inspected and
+  written back as a stream.
+- **Actions** — Format (⌘↵, via the formatter worker), Sort keys, Compact (flow style), Copy,
+  Save (⌘S; refuses an empty buffer). A format whose source changed while it was running is
+  discarded rather than written over the newer keystrokes.
+- **Lossy-transform warning** — reshaping goes through parse → dump, which js-yaml cannot do without
+  dropping comments and expanding anchors. When the source carries either, the action says
+  "comments dropped", and every reshape leaves a one-click **Undo** that does not depend on Monaco's
+  history.
+- **Tree** — collapsible tree of the parsed documents. Every value and every node is copyable from
+  the keyboard (values by content, nodes by path). Opens collapsed above 500 keys, with Expand all /
+  Collapse all in the pane header.
+- **JSON** — live YAML→JSON conversion; no Convert click, and the result survives keystrokes. The
+  pane is editable, and **Apply to YAML** converts back, which is the JSON→YAML direction that used
+  to live in a tab with a second buffer of its own.
+
 ---
 
 ## 7. Cross-Cutting Behaviors

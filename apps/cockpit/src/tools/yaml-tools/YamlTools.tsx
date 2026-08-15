@@ -1,525 +1,892 @@
-import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
-import Editor from '@monaco-editor/react'
-import { CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import Editor, { type OnMount } from '@monaco-editor/react'
+import {
+  ArrowUUpLeftIcon,
+  CheckCircleIcon,
+  CrosshairSimpleIcon,
+  FileCodeIcon,
+  FloppyDiskIcon,
+  SortAscendingIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
-import { TabBar } from '@/components/shared/TabBar'
+import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
+import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import {
-  parseYaml,
-  stringifyYaml,
-  sortKeysDeep,
-  yamlToJson,
+  documentsToJson,
+  hasUnpreservableSyntax,
   jsonToYaml,
+  parseYamlStream,
+  sortKeysDeep,
+  stringifyYamlStream,
+  yamlStats,
+  type YamlParse,
 } from '@/tools/yaml-tools/yaml-helpers'
 
-type ConvertDirection = 'yaml-to-json' | 'json-to-yaml'
-
-const CONVERT_DIRECTIONS: { value: ConvertDirection; label: string }[] = [
-  { value: 'yaml-to-json', label: 'YAML → JSON' },
-  { value: 'json-to-yaml', label: 'JSON → YAML' },
-]
+type YamlView = 'source' | 'tree' | 'json'
 
 type YamlToolsState = {
   input: string
-  activeTab: string
-  jsonInput: string
+  fileName: string | null
+  /**
+   * Tree and JSON used to be tabs that replaced the editor, so inspecting a
+   * document meant leaving it, and the conversion tab kept its own second
+   * buffer that drifted out of sync with the one being edited. They are panes
+   * beside the source now, and the view choice persists.
+   */
+  view: YamlView
 }
 
-const TABS = [
-  { id: 'lint', label: 'Lint & Format' },
-  { id: 'tree', label: 'Tree View' },
-  { id: 'convert', label: 'JSON ↔ YAML' },
+/** Above this many keys the tree starts collapsed — expanding is one click. */
+const LARGE_DOCUMENT_KEYS = 500
+
+const VIEW_OPTIONS = [
+  { value: 'source' as const, label: 'Source' },
+  { value: 'tree' as const, label: 'Tree' },
+  { value: 'json' as const, label: 'JSON' },
 ]
 
-function yamlStats(data: unknown): { keys: number; depth: number; size: string } {
-  let keyCount = 0
-  let maxDepth = 0
-  const MAX_DEPTH = 1000 // Prevent stack overflow
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-  function walk(val: unknown, depth: number) {
-    if (depth > MAX_DEPTH) return // Safety limit
-    if (depth > maxDepth) maxDepth = depth
-    if (Array.isArray(val)) {
-      for (const item of val) walk(item, depth + 1)
-    } else if (val !== null && typeof val === 'object') {
-      try {
-        const entries = Object.entries(val as Record<string, unknown>)
-        keyCount += entries.length
-        for (const [, v] of entries) walk(v, depth + 1)
-      } catch {
-        // Skip invalid objects
-      }
-    }
-  }
-
-  try {
-    walk(data, 0)
-    const bytes = new Blob([JSON.stringify(data)]).size
-    const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
-    return { keys: keyCount, depth: maxDepth, size }
-  } catch {
-    return { keys: 0, depth: 0, size: '0 B' }
-  }
+/** A value short enough for an aria-label, with strings marked as strings. */
+function toLabel(value: unknown): string {
+  const text = typeof value === 'string' ? `"${value}"` : String(value)
+  return text.length > 60 ? `${text.slice(0, 60)}…` : text
 }
 
-function TreeValueButton({
-  children,
-  className,
-  onClick,
-}: {
-  children: ReactNode
-  className: string
-  onClick: () => void
-}) {
-  return (
-    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
-    <button
-      type="button"
-      onClick={onClick}
-      title="Click to copy"
-      className={`cursor-pointer rounded hover:underline ${className}`}
-    >
-      {children}
-    </button>
+function toText(value: unknown): string {
+  return typeof value === 'object' && value !== null
+    ? JSON.stringify(value, null, 2)
+    : String(value)
+}
+
+function useCopy() {
+  const setLastAction = useUiStore((s) => s.setLastAction)
+  return useCallback(
+    (text: string, label: string) => {
+      void navigator.clipboard.writeText(text).then(
+        () => setLastAction(label, 'success'),
+        () => setLastAction('Copy failed', 'error')
+      )
+    },
+    [setLastAction]
   )
 }
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function YamlTools() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<YamlToolsState>('yaml-tools', {
     input: '',
-    activeTab: 'lint',
-    jsonInput: '',
+    fileName: null,
+    view: 'source',
   })
+  const { record } = useToolHistory({ toolId: 'yaml-tools' })
 
   const formatter = useWorker<FormatterWorker>(
     () => new FormatterWorkerFactory(),
     ['format', 'detectLanguage', 'getSupportedLanguages']
   )
+
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopy()
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
-  const [isConverting, setIsConverting] = useState(false)
   const formattingRef = useRef(false)
-  const convertRef = useRef(false)
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  // Reshaping drops comments; an undo that does not depend on Monaco's history
+  // is the difference between "annoying" and "lost work".
+  const [undoBuffer, setUndoBuffer] = useState<{ input: string; label: string } | null>(null)
+  // Lives here rather than in the pane so switching to Source or Tree does not
+  // silently throw away an unapplied edit.
+  const [jsonDraft, setJsonDraft] = useState<string | null>(null)
 
-  const [convertError, setConvertError] = useState<string | null>(null)
-  const [convertOutput, setConvertOutput] = useState('')
-  const [convertDirection, setConvertDirection] = useState<ConvertDirection>('yaml-to-json')
+  const { input, view } = state
+  const inputRef = useRef(input)
+  inputRef.current = input
+  const hasInput = input.trim().length > 0
 
-  // Cleanup worker on unmount
+  // Parsing (and the stats walk over the result) runs off a debounced copy of
+  // the buffer: on a large manifest doing it per keystroke costs a frame, and a
+  // live region that re-announces the whole verdict on every character is
+  // unusable with a screen reader.
+  const [parseSource, setParseSource] = useState(input)
   useEffect(() => {
-    return () => {
-      if (formatter) {
-        // The formatter is a WorkerRpc type, which does not have a terminate method.
-        // The worker itself is managed by the useWorker hook, so no manual termination is needed.
-      }
-    }
-  }, [formatter])
+    const timer = setTimeout(() => setParseSource(input), 250)
+    return () => clearTimeout(timer)
+  }, [input])
 
-  useEffect(() => {
-    setConvertOutput('')
-    setConvertError(null)
-  }, [state.input, state.jsonInput, convertDirection])
+  const parsed = useMemo<YamlParse>(() => parseYamlStream(parseSource), [parseSource])
+  const isValid = parsed.status === 'valid'
+  const documents = parsed.status === 'valid' ? parsed.documents : []
 
-  const parsed = useMemo(() => parseYaml(state.input), [state.input])
+  const stats = useMemo(
+    () => (parsed.status === 'valid' ? yamlStats(parsed.documents) : null),
+    [parsed]
+  )
 
-  const stats = useMemo(() => {
-    if (!parsed.ok) return null
-    return yamlStats(parsed.data)
-  }, [parsed])
+  const status =
+    parsed.status === 'empty'
+      ? 'Nothing to inspect yet'
+      : parsed.status === 'invalid'
+        ? parsed.location
+          ? `Invalid YAML — ${parsed.message} — line ${parsed.location.line}, column ${parsed.location.column}`
+          : `Invalid YAML — ${parsed.message}`
+        : stats
+          ? `Valid YAML · ${documents.length > 1 ? `${documents.length} documents · ` : ''}${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
+          : 'Valid YAML'
+
+  // --- Actions ---------------------------------------------------------
+
+  const recordRun = useCallback(
+    (output: string) => {
+      const source = inputRef.current
+      record({
+        input: `YAML: ${source.slice(0, 300)}${source.length > 300 ? '...' : ''}`,
+        output: output.slice(0, 1000),
+        subTab: view,
+        success: true,
+      })
+    },
+    [record, view]
+  )
+
+  /** Writes a reshaped document back, keeping the previous text recoverable. */
+  const applyResult = useCallback(
+    (next: string, label: string, previous: string) => {
+      setUndoBuffer({ input: previous, label })
+      updateState({ input: next })
+      setError(null)
+      recordRun(next)
+    },
+    [updateState, recordRun]
+  )
 
   const handleFormat = useCallback(async () => {
-    if (!formatter || formattingRef.current) return
+    if (!formatter || formattingRef.current || !inputRef.current.trim()) return
     formattingRef.current = true
     setIsFormatting(true)
+    const snapshot = inputRef.current
     try {
-      const result = await formatter.format(state.input, { language: 'yaml' })
-      updateState({ input: result })
-      setError(null)
+      const result = await formatter.format(snapshot, { language: 'yaml' })
+      // Writing the result over a buffer the user kept typing into would
+      // silently eat those keystrokes.
+      if (inputRef.current !== snapshot) {
+        setLastAction('Document changed while formatting — try again', 'info')
+        return
+      }
+      applyResult(result, 'Formatted YAML', snapshot)
       setLastAction('Formatted YAML', 'success')
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
-      setLastAction('Invalid YAML', 'error')
+      const message = e instanceof Error ? e.message : String(e)
+      setError(message)
+      setLastAction('Format failed', 'error')
     } finally {
       formattingRef.current = false
       setIsFormatting(false)
     }
-  }, [formatter, state.input, updateState, setLastAction])
+  }, [formatter, applyResult, setLastAction])
 
-  const handleMinify = useCallback(() => {
-    if (!parsed.ok) return
-    try {
-      const minified = stringifyYaml(parsed.data).replace(/\n\s*\n/g, '\n')
-      updateState({ input: minified })
-      setError(null)
-      setLastAction('Minified YAML', 'success')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
-      setLastAction('Minify failed', 'error')
-    }
-  }, [parsed, updateState, setLastAction])
-
-  const handleSortKeys = useCallback(() => {
-    if (!parsed.ok) return
-    try {
-      const sorted = sortKeysDeep(parsed.data)
-      const result = stringifyYaml(sorted)
-      updateState({ input: result })
-      setError(null)
-      setLastAction('Keys sorted', 'success')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
-      setLastAction('Sort failed', 'error')
-    }
-  }, [parsed, updateState, setLastAction])
-
-  const handleConvert = useCallback(async () => {
-    if (convertRef.current) return
-    convertRef.current = true
-    setIsConverting(true)
-    setConvertError(null)
-    try {
-      if (convertDirection === 'yaml-to-json') {
-        if (!state.input.trim()) {
-          throw new Error('YAML input is empty')
-        }
-        const result = yamlToJson(state.input)
-        if (!result) {
-          throw new Error('Conversion produced empty result')
-        }
-        setConvertOutput(result)
-        setLastAction('Converted YAML → JSON', 'success')
-      } else {
-        if (!state.jsonInput.trim()) {
-          throw new Error('JSON input is empty')
-        }
-        const result = jsonToYaml(state.jsonInput)
-        if (!result) {
-          throw new Error('Conversion produced empty result')
-        }
-        setConvertOutput(result)
-        setLastAction('Converted JSON → YAML', 'success')
+  const reshape = useCallback(
+    (transform: (documents: unknown[]) => string, label: string) => {
+      // Parsed fresh rather than read off the debounced memo, so a click landing
+      // within the debounce window reshapes what is actually in the buffer.
+      const snapshot = inputRef.current
+      const current = parseYamlStream(snapshot)
+      if (current.status !== 'valid') {
+        setLastAction(`${label} — the document does not parse`, 'error')
+        return
       }
-    } catch (e) {
-      setConvertOutput('')
-      setConvertError(e instanceof Error ? e.message : String(e))
-      setLastAction('Conversion failed', 'error')
-    } finally {
-      convertRef.current = false
-      setIsConverting(false)
+      try {
+        const next = transform(current.documents)
+        applyResult(next, label, snapshot)
+        if (hasUnpreservableSyntax(snapshot)) {
+          setLastAction(`${label} — comments and anchors were not preserved`, 'info')
+        } else {
+          setLastAction(label, 'success')
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        setLastAction(`${label} failed`, 'error')
+      }
+    },
+    [applyResult, setLastAction]
+  )
+
+  const handleSortKeys = useCallback(
+    () => reshape((docs) => stringifyYamlStream(docs.map(sortKeysDeep)), 'Sorted keys'),
+    [reshape]
+  )
+
+  // The old "minify" only stripped blank lines. Flow style is what a compact
+  // YAML document actually looks like.
+  const handleCompact = useCallback(
+    () => reshape((docs) => stringifyYamlStream(docs, { flowLevel: 0 }), 'Compacted YAML'),
+    [reshape]
+  )
+
+  /**
+   * The old Convert tab went JSON → YAML in a buffer of its own. Editing the
+   * JSON pane and applying it keeps that direction without a second document to
+   * keep in sync.
+   */
+  const handleApplyJson = useCallback(
+    (json: string) => {
+      const snapshot = inputRef.current
+      try {
+        // A stream is shown as a JSON array; dumping that array as one document
+        // would turn N documents into a single sequence — a different document.
+        const data: unknown = JSON.parse(json)
+        const current = parseYamlStream(snapshot)
+        const wasStream = current.status === 'valid' && current.documents.length > 1
+        const next = wasStream && Array.isArray(data) ? stringifyYamlStream(data) : jsonToYaml(json)
+        applyResult(next, 'Applied JSON', snapshot)
+        setLastAction('Applied JSON to YAML', 'success')
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        setLastAction('Apply failed', 'error')
+      }
+    },
+    [applyResult, setLastAction]
+  )
+
+  const handleUndo = useCallback(() => {
+    if (!undoBuffer) return
+    updateState({ input: undoBuffer.input })
+    setUndoBuffer(null)
+    setLastAction('Reverted', 'info')
+  }, [undoBuffer, updateState, setLastAction])
+
+  const handleSave = useCallback(() => {
+    void saveFileDialog(inputRef.current, state.fileName ?? 'document.yaml').then(
+      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+      (err: unknown) =>
+        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    )
+  }, [state.fileName, setLastAction])
+
+  // The parse error knows where it is; without this the user reads the line
+  // number and then scrolls to find it by hand.
+  const handleGoToError = useCallback(() => {
+    if (parsed.status !== 'invalid' || !parsed.location) return
+    const editor = editorRef.current
+    if (!editor) return
+    const position = { lineNumber: parsed.location.line, column: parsed.location.column }
+    editor.revealPositionInCenter(position)
+    editor.setPosition(position)
+    editor.focus()
+  }, [parsed])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ input: action.content, fileName: action.filename })
+      setError(null)
+      setUndoBuffer(null)
+      setJsonDraft(null)
+      setLastAction(`Opened ${action.filename}`, 'success')
     }
-  }, [convertDirection, state.input, state.jsonInput, setLastAction])
+    if (action.type === 'save-file') {
+      if (!inputRef.current.trim()) {
+        setLastAction('Nothing to save yet', 'info')
+        return
+      }
+      handleSave()
+    }
+    if (action.type === 'copy-output') {
+      copy(inputRef.current, 'Copied YAML')
+    }
+  })
+
+  useKeyboardShortcut(
+    { key: 'Enter', mod: true },
+    useCallback(() => {
+      void handleFormat()
+    }, [handleFormat])
+  )
 
   return (
     <ToolLayout
       fullBleed
       toolbar={
-        <>
-          <TabBar
-            tabs={TABS}
-            activeTab={state.activeTab}
-            onTabChange={(id) => updateState({ activeTab: id })}
-          />
-
-          {/* ── Lint & Format toolbar ─────────────────────────── */}
-          {state.activeTab === 'lint' && (
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  void handleFormat()
-                }}
-                loading={isFormatting}
-              >
-                Format
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!parsed.ok}>
-                Minify
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleSortKeys} disabled={!parsed.ok}>
-                Sort Keys
-              </Button>
-              <CopyButton text={state.input} />
-              {!state.input.trim() && TOOL_SAMPLES['yaml-tools'] && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => updateState({ input: TOOL_SAMPLES['yaml-tools'] ?? '' })}
-                >
-                  Load Sample
-                </Button>
-              )}
-              <div className="mx-1 h-4 w-px bg-[var(--color-border)]" />
-              {parsed.ok && (
-                <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
-                  <CheckCircleIcon size={12} weight="fill" />
-                  Valid
-                </span>
-              )}
-              {!parsed.ok && (
-                <span className="flex items-center gap-1 truncate text-xs text-[var(--color-error)]">
-                  <XCircleIcon size={12} weight="fill" />
-                  {parsed.error}
-                </span>
-              )}
-              {stats && (
-                <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
-                  {stats.keys} keys · depth {stats.depth} · {stats.size}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* ── Tree View toolbar ─────────────────────────────── */}
-          {state.activeTab === 'tree' && (
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-              {stats && (
-                <span className="text-2xs text-[var(--color-text-muted)]">
-                  {stats.keys} keys · depth {stats.depth}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* ── JSON ↔ YAML toolbar ───────────────────────────── */}
-          {state.activeTab === 'convert' && (
-            <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-              <SegmentedControl
-                aria-label="Conversion direction"
-                value={convertDirection}
-                onChange={setConvertDirection}
-                options={CONVERT_DIRECTIONS}
+        <div className="border-b border-[var(--color-border)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <FileCodeIcon
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
               />
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  void handleConvert()
-                }}
-                loading={isConverting}
+              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
+                {state.fileName ?? 'Untitled'}
+              </span>
+              <span
+                role="status"
+                aria-live="polite"
+                className="flex min-w-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
               >
-                Convert
-              </Button>
-              {convertOutput && <CopyButton text={convertOutput} />}
-            </div>
-          )}
-        </>
-      }
-    >
-      {/* ── Lint & Format ─────────────────────────────────── */}
-      {state.activeTab === 'lint' && (
-        <>
-          {error && (
-            <Alert
-              variant="error"
-              className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-            >
-              {error}
-            </Alert>
-          )}
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <Editor
-              theme={monacoTheme}
-              language="yaml"
-              value={state.input}
-              onChange={(v) => updateState({ input: v ?? '' })}
-              options={monacoOptions}
-            />
-          </div>
-        </>
-      )}
-
-      {/* ── Tree View ─────────────────────────────────────── */}
-      {state.activeTab === 'tree' && (
-        <div className="flex-1 overflow-auto p-4">
-          {parsed.ok ? (
-            <YamlTree data={parsed.data} path="$" defaultExpanded={true} />
-          ) : (
-            <div className="text-sm text-[var(--color-text-muted)]">
-              {!parsed.ok ? `Parse error: ${parsed.error}` : 'Enter YAML in the Lint & Format tab'}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── JSON ↔ YAML ───────────────────────────────────── */}
-      {state.activeTab === 'convert' && (
-        <>
-          {convertError && (
-            <Alert
-              variant="error"
-              className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-            >
-              {convertError}
-            </Alert>
-          )}
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-[var(--color-border)]">
-              <div className="border-b border-[var(--color-border)] px-4 py-1">
-                <span className="text-2xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                  {convertDirection === 'yaml-to-json' ? 'YAML Input' : 'JSON Input'}
-                </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {convertDirection === 'yaml-to-json' ? (
-                  <Editor
-                    theme={monacoTheme}
-                    language="yaml"
-                    value={state.input}
-                    onChange={(v) => updateState({ input: v ?? '' })}
-                    options={monacoOptions}
-                  />
-                ) : (
-                  <Editor
-                    theme={monacoTheme}
-                    language="json"
-                    value={state.jsonInput}
-                    onChange={(v) => updateState({ jsonInput: v ?? '' })}
-                    options={monacoOptions}
+                {isValid && (
+                  <CheckCircleIcon
+                    size={12}
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--color-success)]"
                   />
                 )}
-              </div>
+                {parsed.status === 'invalid' && (
+                  <WarningCircleIcon
+                    size={12}
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--color-error)]"
+                  />
+                )}
+                <span className="truncate">{isFormatting ? 'Formatting…' : status}</span>
+              </span>
+              {parsed.status === 'invalid' && parsed.location && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleGoToError}
+                  title="Move the cursor to the parse error"
+                  className="shrink-0 gap-1"
+                >
+                  <CrosshairSimpleIcon size={12} aria-hidden="true" />
+                  Go to error
+                </Button>
+              )}
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="border-b border-[var(--color-border)] px-4 py-1">
-                <span className="text-2xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                  {convertDirection === 'yaml-to-json' ? 'JSON Output' : 'YAML Output'}
+
+            <div className="ml-auto flex items-center gap-2">
+              <SegmentedControl
+                aria-label="View"
+                value={view}
+                onChange={(next) => updateState({ view: next })}
+                options={VIEW_OPTIONS}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleFormat()}
+                disabled={!hasInput || isFormatting}
+                loading={isFormatting}
+                title="Format the document (⌘↵)"
+              >
+                Format
+                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
+                  ⌘↵
                 </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <Editor
-                  theme={monacoTheme}
-                  language={convertDirection === 'yaml-to-json' ? 'json' : 'yaml'}
-                  value={convertOutput}
-                  options={{ ...monacoOptions, readOnly: true }}
-                />
-              </div>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSortKeys}
+                disabled={!hasInput}
+                className="gap-1"
+              >
+                <SortAscendingIcon size={13} aria-hidden="true" />
+                Sort keys
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleCompact} disabled={!hasInput}>
+                Compact
+              </Button>
+              {undoBuffer && (
+                <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
+                  <ArrowUUpLeftIcon size={13} aria-hidden="true" />
+                  Undo {undoBuffer.label.toLowerCase()}
+                </Button>
+              )}
+              <CopyButton text={input} label="Copy YAML" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSave}
+                disabled={!hasInput}
+                title="Save to a file (⌘S)"
+                aria-label="Save YAML to file"
+              >
+                <FloppyDiskIcon size={15} aria-hidden="true" />
+              </Button>
             </div>
           </div>
-        </>
+        </div>
+      }
+    >
+      {error && (
+        <Alert
+          variant="error"
+          className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+        >
+          {error}
+        </Alert>
       )}
+      <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
+        <section
+          aria-label="YAML source"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
+          <Editor
+            theme={monacoTheme}
+            language="yaml"
+            value={input}
+            onChange={(v) => {
+              updateState({ input: v ?? '' })
+              // Reverting to a snapshot taken before the last few minutes of
+              // typing would throw that typing away, so the offer expires on
+              // the first manual edit.
+              setUndoBuffer(null)
+              // The banner reports a failed action on the *old* text; leaving it
+              // up contradicts the status line as soon as the user fixes things.
+              setError(null)
+            }}
+            options={monacoOptions}
+            onMount={(editor) => {
+              editorRef.current = editor
+            }}
+          />
+          {!hasInput && (
+            // Click-through: the hint must never sit between the user and the caret.
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+              <EmptyState
+                icon={FileCodeIcon}
+                title="Paste or open a YAML document"
+                description="Format with ⌘↵, inspect it as a tree, and read it as JSON — multi-document streams included."
+                action={
+                  TOOL_SAMPLES['yaml-tools'] ? (
+                    <span className="pointer-events-auto">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => updateState({ input: TOOL_SAMPLES['yaml-tools'] ?? '' })}
+                      >
+                        Load sample
+                      </Button>
+                    </span>
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
+        </section>
+
+        {view !== 'source' && (
+          <InspectorPane
+            view={view}
+            parsed={parsed}
+            keyCount={stats?.keys ?? 0}
+            monacoTheme={monacoTheme}
+            monacoOptions={monacoOptions}
+            onCopy={copy}
+            jsonDraft={jsonDraft}
+            onJsonDraftChange={setJsonDraft}
+            onApplyJson={handleApplyJson}
+          />
+        )}
+      </div>
     </ToolLayout>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Tree View
+// Inspector (tree / json)
 // ---------------------------------------------------------------------------
+
+const PANE_LABELS: Record<Exclude<YamlView, 'source'>, string> = {
+  tree: 'Tree view',
+  json: 'JSON view',
+}
+
+function InspectorPane({
+  view,
+  parsed,
+  keyCount,
+  monacoTheme,
+  monacoOptions,
+  onCopy,
+  jsonDraft,
+  onJsonDraftChange,
+  onApplyJson,
+}: {
+  view: Exclude<YamlView, 'source'>
+  parsed: YamlParse
+  keyCount: number
+  monacoTheme: string
+  monacoOptions: Record<string, unknown>
+  onCopy: (text: string, label: string) => void
+  jsonDraft: string | null
+  onJsonDraftChange: (draft: string | null) => void
+  onApplyJson: (json: string) => void
+}) {
+  return (
+    <section
+      aria-label={PANE_LABELS[view]}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-[var(--color-border)] max-[900px]:border-l-0 max-[900px]:border-t"
+    >
+      {/* JSON stays editable in every state: it is also the way in for someone
+          who has JSON and wants YAML back, which used to be its own tab. */}
+      {view === 'json' ? (
+        <JsonPane
+          parsed={parsed}
+          monacoTheme={monacoTheme}
+          monacoOptions={monacoOptions}
+          draft={jsonDraft}
+          onDraftChange={onJsonDraftChange}
+          onApply={onApplyJson}
+        />
+      ) : parsed.status === 'empty' ? (
+        <EmptyState size="sm" title="Nothing to inspect" description="Add a document first." />
+      ) : parsed.status === 'invalid' ? (
+        // The pane used to go blank on a parse error, which reads as "no data"
+        // rather than "the document does not parse".
+        <EmptyState
+          size="sm"
+          icon={WarningCircleIcon}
+          title="Invalid YAML"
+          description={
+            parsed.location
+              ? `${parsed.message} — line ${parsed.location.line}, column ${parsed.location.column}`
+              : parsed.message
+          }
+        />
+      ) : (
+        <TreePane documents={parsed.documents} keyCount={keyCount} onCopy={onCopy} />
+      )}
+    </section>
+  )
+}
+
+function PaneHeader({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
+      <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+        {title}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+function TreePane({
+  documents,
+  keyCount,
+  onCopy,
+}: {
+  documents: unknown[]
+  keyCount: number
+  onCopy: (text: string, label: string) => void
+}) {
+  // A 5000-key document rendered fully expanded janks the pane on open, so the
+  // default follows the document size until the user overrides it.
+  const [expandAll, setExpandAll] = useState<boolean | null>(null)
+  const [treeKey, setTreeKey] = useState(0)
+  const autoExpanded = keyCount <= LARGE_DOCUMENT_KEYS
+  const expanded = expandAll ?? autoExpanded
+
+  const setExpansion = (next: boolean) => {
+    setExpandAll(next)
+    setTreeKey((k) => k + 1)
+  }
+
+  return (
+    <>
+      <PaneHeader title="Tree">
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => setExpansion(true)}
+          title="Expand every node"
+        >
+          Expand all
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => setExpansion(false)}
+          title="Collapse every node"
+        >
+          Collapse all
+        </Button>
+        {expandAll === null && !autoExpanded && (
+          <span className="text-2xs text-[var(--color-text-muted)]">
+            Collapsed — {keyCount} keys
+          </span>
+        )}
+      </PaneHeader>
+      <div
+        className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs"
+        // Remount when the default changes, otherwise editing a document across
+        // the threshold leaves the old expansion in place.
+        key={`${treeKey}-${String(expanded)}`}
+      >
+        {documents.map((document, i) => (
+          <div key={i}>
+            {documents.length > 1 && (
+              <div className="mt-2 text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
+                Document {i + 1}
+              </div>
+            )}
+            <YamlTree
+              data={document}
+              path={documents.length > 1 ? `$[${i}]` : '$'}
+              defaultExpanded={expanded}
+              onCopy={onCopy}
+            />
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function JsonPane({
+  parsed,
+  monacoTheme,
+  monacoOptions,
+  draft,
+  onDraftChange,
+  onApply,
+}: {
+  parsed: YamlParse
+  monacoTheme: string
+  monacoOptions: Record<string, unknown>
+  /** `null` means "mirroring the YAML"; a string means the user took it over. */
+  draft: string | null
+  onDraftChange: (draft: string | null) => void
+  onApply: (json: string) => void
+}) {
+  // Conversion used to need a Convert click and was thrown away on every
+  // keystroke, so the pane was empty most of the time it was open.
+  const json = useMemo(() => {
+    if (parsed.status !== 'valid') return ''
+    try {
+      return documentsToJson(parsed.documents)
+    } catch {
+      return ''
+    }
+  }, [parsed])
+
+  const value = draft ?? json
+
+  const draftError = useMemo(() => {
+    if (draft === null || !draft.trim()) return null
+    try {
+      JSON.parse(draft)
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }, [draft])
+
+  const canApply = draft !== null && draft.trim().length > 0 && draftError === null
+
+  return (
+    <>
+      <PaneHeader title="JSON">
+        <CopyButton text={value} label="Copy JSON" />
+        {draft !== null && (
+          <>
+            <Button
+              variant="primary"
+              size="xs"
+              onClick={() => {
+                onApply(draft)
+                onDraftChange(null)
+              }}
+              disabled={!canApply}
+              title="Replace the YAML document with this JSON"
+            >
+              Apply to YAML
+            </Button>
+            <Button variant="ghost" size="xs" onClick={() => onDraftChange(null)}>
+              Discard edits
+            </Button>
+            <span className="text-2xs text-[var(--color-text-muted)]">
+              {draftError ? `Invalid JSON — ${draftError}` : 'Edited — not applied'}
+            </span>
+          </>
+        )}
+      </PaneHeader>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <Editor
+          theme={monacoTheme}
+          language="json"
+          value={value}
+          onChange={(next) => onDraftChange(next ?? '')}
+          options={monacoOptions}
+        />
+      </div>
+    </>
+  )
+}
+
+function TreeValueButton({
+  children,
+  className,
+  onClick,
+  label,
+}: {
+  children: ReactNode
+  className: string
+  onClick: () => void
+  label: string
+}) {
+  return (
+    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title="Copy value"
+      className={`cursor-pointer rounded hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
 
 function YamlTree({
   data,
   path,
-  defaultExpanded = true,
+  defaultExpanded,
+  onCopy,
 }: {
   data: unknown
   path: string
-  defaultExpanded?: boolean
+  defaultExpanded: boolean
+  onCopy: (text: string, label: string) => void
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const setLastAction = useUiStore((s) => s.setLastAction)
 
-  const copyValue = useCallback(
-    (val: unknown) => {
-      const text = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val ?? '')
-      navigator.clipboard.writeText(text)
-      setLastAction('Copied value', 'success')
-    },
-    [setLastAction]
-  )
+  const copyValue = useCallback((value: unknown) => onCopy(toText(value), 'Copied value'), [onCopy])
+  const copyPath = useCallback(() => onCopy(path, `Copied path ${path}`), [onCopy, path])
 
   if (data === null || data === undefined)
     return (
-      <TreeValueButton className="text-[var(--color-text-muted)]" onClick={() => copyValue(null)}>
+      <TreeValueButton
+        className="text-[var(--color-text-muted)]"
+        onClick={() => copyValue(null)}
+        label="Copy value null"
+      >
         null
       </TreeValueButton>
     )
-
   if (typeof data === 'boolean')
     return (
-      <TreeValueButton className="text-[var(--color-warning)]" onClick={() => copyValue(data)}>
+      <TreeValueButton
+        className="text-[var(--color-warning)]"
+        onClick={() => copyValue(data)}
+        label={`Copy value ${toLabel(data)}`}
+      >
         {String(data)}
       </TreeValueButton>
     )
-
   if (typeof data === 'number')
     return (
-      <TreeValueButton className="text-[var(--color-accent)]" onClick={() => copyValue(data)}>
+      <TreeValueButton
+        className="text-[var(--color-accent)]"
+        onClick={() => copyValue(data)}
+        label={`Copy value ${toLabel(data)}`}
+      >
         {data}
       </TreeValueButton>
     )
-
   if (typeof data === 'string')
     return (
-      <TreeValueButton className="text-[var(--color-success)]" onClick={() => copyValue(data)}>
-        {data}
+      <TreeValueButton
+        className="text-[var(--color-success)]"
+        onClick={() => copyValue(data)}
+        label={`Copy value ${toLabel(data)}`}
+      >
+        {/* Quoted like the JSON tree: without it a quoted "30" and the number
+            30 are the same row, which is exactly the YAML trap worth seeing. */}
+        &quot;{data}&quot;
+      </TreeValueButton>
+    )
+  if (data instanceof Date)
+    return (
+      <TreeValueButton
+        className="text-[var(--color-info)]"
+        onClick={() => copyValue(data.toISOString())}
+        label={`Copy value ${toLabel(data.toISOString())}`}
+      >
+        {data.toISOString()}
       </TreeValueButton>
     )
 
-  if (Array.isArray(data)) {
-    return (
-      <div className="ml-4">
+  if (typeof data !== 'object') return <span>{String(data)}</span>
+
+  const isArray = Array.isArray(data)
+  const entries = isArray
+    ? (data as unknown[]).map((value, i) => [String(i), value] as const)
+    : Object.entries(data as Record<string, unknown>)
+  const hasChildren = entries.length > 0
+
+  return (
+    <div className="ml-4">
+      <div className="flex items-center gap-1">
         {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
-            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
+            ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
-          aria-expanded={expanded}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          onClick={() => hasChildren && setExpanded(!expanded)}
+          aria-expanded={hasChildren ? expanded : undefined}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${path}`}
+          disabled={!hasChildren}
+          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
         >
-          {expanded ? '▼' : '▶'} <span className="text-xs">[{data.length}]</span>
+          {hasChildren ? (expanded ? '▼' : '▶') : '•'}
         </button>
-        {expanded &&
-          data.map((item, i) => (
-            <div key={`${path}[${i}]`} className="ml-4">
-              <span className="text-[var(--color-text-muted)]">{i}: </span>
-              <YamlTree data={item} path={`${path}[${i}]`} defaultExpanded={defaultExpanded} />
-            </div>
-          ))}
-      </div>
-    )
-  }
-
-  if (typeof data === 'object') {
-    const entries = Object.entries(data as Record<string, unknown>)
-    return (
-      <div className="ml-4">
-        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
-            ▼/▶ glyph aligned to the monospace indent grid, not an action button. */}
+        {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+            rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
-          aria-expanded={expanded}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          className="text-[var(--color-text-muted)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+          onClick={copyPath}
+          aria-label={`Copy path ${path}`}
+          title="Copy path"
         >
-          {expanded ? '▼' : '▶'} <span className="text-xs">{`{${entries.length}}`}</span>
+          {isArray ? `[${entries.length}]` : `{${entries.length}}`}
         </button>
-        {expanded &&
-          entries.map(([key, value]) => (
-            <div key={key} className="ml-4">
-              <span className="text-[var(--color-accent)]">{key}</span>
-              <span className="text-[var(--color-text-muted)]">: </span>
-              <YamlTree data={value} path={`${path}.${key}`} defaultExpanded={defaultExpanded} />
-            </div>
-          ))}
       </div>
-    )
-  }
-
-  return <span>{String(data)}</span>
+      {expanded &&
+        entries.map(([key, value]) => (
+          <div key={key} className="ml-4">
+            {isArray ? (
+              <span className="text-[var(--color-text-muted)]">{key}: </span>
+            ) : (
+              <>
+                <span className="text-[var(--color-accent)]">{key}</span>
+                <span className="text-[var(--color-text-muted)]">: </span>
+              </>
+            )}
+            <YamlTree
+              data={value}
+              path={isArray ? `${path}[${key}]` : `${path}.${key}`}
+              defaultExpanded={defaultExpanded}
+              onCopy={onCopy}
+            />
+          </div>
+        ))}
+    </div>
+  )
 }

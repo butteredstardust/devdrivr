@@ -84,7 +84,10 @@ export async function saveFileDialog(
   const path = await save({
     ...(defaultName !== undefined && { defaultPath: defaultName }),
     filters: [
-      { name: 'Text', extensions: ['txt', 'json', 'xml', 'html', 'css', 'js', 'ts', 'md'] },
+      {
+        name: 'Text',
+        extensions: ['txt', 'json', 'xml', 'yaml', 'yml', 'html', 'css', 'js', 'ts', 'md'],
+      },
       { name: 'All', extensions: ['*'] },
     ],
   })
