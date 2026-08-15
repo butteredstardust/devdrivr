@@ -177,9 +177,12 @@ export const TOOLS: ToolDefinition[] = [
     name: 'CSS Validator',
     group: 'web',
     icon: toolIcon(FileCssIcon),
-    description: 'Validate CSS syntax',
+    description:
+      'Check CSS against the specification with clickable problems, a specificity ranking, and formatting',
     component: CssValidator,
     usesMonaco: true,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
   },
   {
     id: 'html-validator',

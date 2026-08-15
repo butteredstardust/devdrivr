@@ -494,10 +494,38 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.24 CSS Validator
 
-- Monaco editor with CSS language mode.
-- Validate CSS syntax, show errors with line numbers.
-- Warn on deprecated properties, browser-compatibility issues.
-- Use `css-tree` for parsing/validation.
+- Monaco editor with CSS language mode, a file identity header (name, saved /
+  modified, verdict) and New / Open / Save.
+- Live checking on a 300 ms debounce. One `css-tree` pass produces the problems,
+  the statistics and the selector list; the previous results stay on screen
+  while the next run is computed.
+- Property names and values are checked with `cssTree.lexer.matchProperty`,
+  which carries the specification — an unknown name is a `SyntaxReferenceError`
+  and a value off the grammar a `SyntaxMatchError`. Custom properties and
+  vendor-prefixed names are skipped, and anything the lexer cannot resolve
+  (a `var()` it cannot expand) is reported as nothing rather than guessed at.
+- 12 rules across syntax, style and compatibility, each with a plain-language
+  label and a hint. Rules the user changes are stored as departures from the
+  defaults, the Rules button carries the count, and "Reset to defaults" clears
+  them. `!important`, long hex colours and vendor prefixes are off by default.
+- Problems are listed worst-first in a collapsible bottom panel; each row is a
+  button that moves the Monaco cursor to the line and column, and every problem
+  is also a model marker (`setModelMarkers`, so hover, minimap and the overview
+  ruler all show it).
+- A Selectors panel ranks every selector most-specific first with its `a-b-c`
+  score, highlighted when an ID is involved — the rules hardest to override sit
+  at the top. Specificity follows the specification: `:where()` contributes
+  nothing and `:is()`/`:not()`/`:has()` take their most specific argument.
+- Both lists are capped (200 problems, 100 selectors) with the remainder
+  counted, so an opened stylesheet cannot mount thousands of rows.
+- Starter templates and a sample stylesheet, both behind a "Replace unsaved
+  changes?" confirmation, and neither counts as an edit of the buffer.
+- Format runs through the shared prettier worker (⌘↵). CSS prettier cannot parse
+  is left untouched with the parser's own message shown — there is no regex
+  fallback rewriting unchecked text.
+- Footer statistics: rules, selectors, declarations, custom properties, media
+  queries, ID selectors and `!important` count.
+- Supports open-file and save-file (⌘O / ⌘S) and copy-output.
 
 ### 6.25 HTML Validator
 
