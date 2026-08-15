@@ -28,22 +28,6 @@
   --text-2xs: 0.625rem;
 }
 
-.css-error-line-gutter {
-  border-left: 3px solid rgba(239, 68, 68, 0.65);
-}
-
-.css-warning-line-gutter {
-  border-left: 3px solid rgba(245, 158, 11, 0.65);
-}
-
-.css-error-inline {
-  background-color: rgba(239, 68, 68, 0.16);
-}
-
-.css-warning-inline {
-  background-color: rgba(245, 158, 11, 0.12);
-}
-
 *,
 *::before,
 *::after {

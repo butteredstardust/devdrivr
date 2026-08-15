@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 1187 tests | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 1231 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
@@ -54,7 +54,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 
 | Tool            | ID                | What It Does                                                                                                                     |
 | --------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| CSS Validator   | `css-validator`   | Parse & validate CSS, report errors with line numbers                                                                            |
+| CSS Validator   | `css-validator`   | Specification-backed checking with a clickable problems list, a specificity ranking, and formatting                              |
 | HTML Validator  | `html-validator`  | Live HTMLHint validation with a clickable problems list, accessibility rules, heading outline, sandboxed preview, and formatting |
 | CSS Specificity | `css-specificity` | Calculate & compare CSS selector specificity scores                                                                              |
 | CSS → Tailwind  | `css-to-tailwind` | Convert raw CSS properties to Tailwind utility classes                                                                           |
