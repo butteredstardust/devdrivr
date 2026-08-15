@@ -50,7 +50,7 @@ export function ToolLayout({
           )}
         </div>
       )}
-      {toolbar}
+      {toolbar && <div className="shrink-0 bg-[var(--color-surface)]">{toolbar}</div>}
       {fullBleed ? (
         <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
       ) : (

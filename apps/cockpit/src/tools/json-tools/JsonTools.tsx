@@ -27,7 +27,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -485,52 +485,47 @@ export default function JsonTools() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <Toolbar border={false} aria-label="JSON document actions">
-            <ToolbarGroup label="Document status" className="min-w-0 shrink">
-              <BracketsCurlyIcon
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
-              />
-              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-                {state.fileName ?? 'Untitled'}
-              </span>
-              <span
-                role="status"
-                aria-live="polite"
-                className="flex shrink-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
-              >
-                {isValid && (
+          <DocumentToolbar border={false} aria-label="JSON document actions">
+            <DocumentIdentity
+              title={state.fileName ?? 'Untitled'}
+              icon={
+                <BracketsCurlyIcon
+                  size={15}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-text-muted)]"
+                />
+              }
+              status={isFormatting ? 'Formatting…' : status}
+              statusIcon={
+                isValid ? (
                   <CheckCircleIcon
                     size={12}
                     aria-hidden="true"
-                    className="text-[var(--color-success)]"
+                    className="shrink-0 text-[var(--color-success)]"
                   />
-                )}
-                {parsed.status === 'invalid' && (
+                ) : parsed.status === 'invalid' ? (
                   <WarningCircleIcon
                     size={12}
                     aria-hidden="true"
-                    className="text-[var(--color-error)]"
+                    className="shrink-0 text-[var(--color-error)]"
                   />
-                )}
-                {isFormatting ? 'Formatting…' : status}
-              </span>
-              {parsed.status === 'invalid' && parsed.location && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={handleGoToError}
-                  title="Move the cursor to the parse error"
-                  className="gap-1"
-                >
-                  <CrosshairSimpleIcon size={12} aria-hidden="true" />
-                  Go to error
-                </Button>
-              )}
-            </ToolbarGroup>
+                ) : undefined
+              }
+            />
+            {parsed.status === 'invalid' && parsed.location && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleGoToError}
+                title="Move the cursor to the parse error"
+                className="shrink-0 gap-1"
+              >
+                <CrosshairSimpleIcon size={12} aria-hidden="true" />
+                Go to error
+              </Button>
+            )}
 
-            <ToolbarGroup label="View options" className="ml-auto">
+            <ToolbarGroup label="View options" separated>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 <span className="max-[900px]:hidden">Indent</span>
                 <Select
@@ -590,7 +585,7 @@ export default function JsonTools() {
               </Button>
               <CopyButton text={input} label="Copy JSON" />
               <Button
-                variant="ghost"
+                variant="icon"
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasInput}
@@ -598,10 +593,9 @@ export default function JsonTools() {
                 aria-label="Save JSON to file"
               >
                 <FloppyDiskIcon size={15} aria-hidden="true" />
-                Save
               </Button>
             </ToolbarGroup>
-          </Toolbar>
+          </DocumentToolbar>
 
           {state.queryOpen && (
             <div

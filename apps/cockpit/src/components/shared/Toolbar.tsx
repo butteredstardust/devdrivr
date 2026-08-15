@@ -25,7 +25,7 @@ export function Toolbar({
     <div
       role="toolbar"
       aria-label={ariaLabel}
-      className={`flex items-center gap-2 px-4 py-2 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
+      className={`flex min-h-10 items-center gap-2 bg-[var(--color-surface)] px-4 py-2 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
     >
       {children}
     </div>
@@ -58,4 +58,79 @@ export function ToolbarGroup({
 
 export function ToolbarSpacer() {
   return <div className="min-w-2 flex-1" aria-hidden="true" />
+}
+
+type DocumentToolbarProps = ToolbarProps
+
+/**
+ * Compact, wrapping chrome for document-oriented tools. Identity, view controls,
+ * and primary actions share one row at normal widths and wrap as groups when the
+ * workspace narrows.
+ */
+export function DocumentToolbar({ children, className = '', ...props }: DocumentToolbarProps) {
+  return (
+    <Toolbar {...props} className={`gap-x-3 gap-y-2 ${className}`}>
+      {children}
+    </Toolbar>
+  )
+}
+
+type DocumentIdentityProps = {
+  title: string
+  titleTooltip?: string
+  titleTestId?: string
+  icon?: ReactNode
+  stateLabel?: string
+  stateChanged?: boolean
+  status?: ReactNode
+  statusIcon?: ReactNode
+  statusTestId?: string
+  statusLive?: boolean
+  className?: string
+}
+
+/** File identity and live status used at the leading edge of a document toolbar. */
+export function DocumentIdentity({
+  title,
+  titleTooltip,
+  titleTestId,
+  icon,
+  stateLabel,
+  stateChanged = false,
+  status,
+  statusIcon,
+  statusTestId,
+  statusLive = true,
+  className = '',
+}: DocumentIdentityProps) {
+  return (
+    <div className={`flex min-w-0 flex-1 items-center gap-2 ${className}`}>
+      {icon}
+      <span
+        data-testid={titleTestId}
+        className="font-ui max-w-56 truncate text-xs font-semibold text-[var(--color-text)]"
+        title={titleTooltip ?? title}
+      >
+        {title}
+      </span>
+      {stateLabel && (
+        <span
+          className={`shrink-0 text-2xs ${stateChanged ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
+        >
+          {stateLabel}
+        </span>
+      )}
+      {status && (
+        <span
+          data-testid={statusTestId}
+          role={statusLive ? 'status' : undefined}
+          aria-live={statusLive ? 'polite' : undefined}
+          className="flex min-w-0 items-center gap-1 truncate text-2xs text-[var(--color-text-muted)]"
+        >
+          {statusIcon}
+          <span className="truncate">{status}</span>
+        </span>
+      )}
+    </div>
+  )
 }

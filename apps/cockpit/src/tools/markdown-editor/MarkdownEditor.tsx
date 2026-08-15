@@ -7,7 +7,7 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
@@ -948,29 +948,17 @@ export default function MarkdownEditor() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex min-h-14 items-center gap-2 px-3 max-[1000px]:flex-wrap max-[1000px]:py-2">
-          <div className="min-w-0 flex-1 max-[1000px]:basis-full">
-            <div className="flex items-center gap-2">
-              <h1
-                data-testid="file-name"
-                className="truncate text-sm font-semibold text-[var(--color-text)]"
-                title={state.filePath ?? state.fileName ?? 'Untitled document'}
-              >
-                {state.fileName ?? 'Untitled document'}
-              </h1>
-              <span
-                className={`shrink-0 text-2xs ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
-                aria-live="polite"
-              >
-                {isDirty ? 'Modified' : 'Saved'}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
-              {state.filePath ?? 'Local markdown workspace'}
-            </p>
-          </div>
+        <DocumentToolbar border={false} aria-label="Markdown document actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled document'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
+            titleTestId="file-name"
+            stateLabel={isDirty ? 'Modified' : 'Saved'}
+            stateChanged={isDirty}
+            status={state.filePath ?? 'Local markdown workspace'}
+          />
 
-          <ToolbarGroup label="View options">
+          <ToolbarGroup label="View options" separated>
             <SegmentedControl
               aria-label="Editor view mode"
               options={MODE_OPTIONS}
@@ -1231,7 +1219,7 @@ export default function MarkdownEditor() {
               </div>
             )}
           </div>
-        </div>
+        </DocumentToolbar>
       </header>
 
       {/* ─── Formatting Toolbar ─────────────────────────────────── */}

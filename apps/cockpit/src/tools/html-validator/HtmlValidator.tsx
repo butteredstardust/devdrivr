@@ -30,7 +30,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Input'
 import { SegmentedControl, type SegmentedControlOption } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { openFileDialog, saveFileDialog, filenameFromPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -51,7 +51,7 @@ import {
   toggleRule,
   type HtmlIssue,
   type RuleConfig,
-} from './html-helpers'
+} from '@/tools/html-validator/html-helpers'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -527,121 +527,117 @@ export default function HtmlValidator() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex min-h-14 items-center gap-2 px-3 max-[1000px]:flex-wrap max-[1000px]:py-2">
-          <FileHtmlIcon
-            size={16}
-            aria-hidden="true"
-            className="shrink-0 text-[var(--color-text-muted)]"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h1
-                data-testid="file-name"
-                className="truncate text-sm font-semibold text-[var(--color-text)]"
-                title={state.filePath ?? state.fileName ?? 'Untitled document'}
-              >
-                {state.fileName ?? 'Untitled document'}
-              </h1>
-              <span
-                className={`shrink-0 text-2xs ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
-              >
-                {isDirty ? 'Modified' : 'Saved'}
-              </span>
-            </div>
-            <p
-              data-testid="validation-status"
-              role="status"
-              aria-live="polite"
-              className="mt-0.5 flex items-center gap-1 truncate text-2xs text-[var(--color-text-muted)]"
-            >
-              {hasInput && hasValidated && issues.length === 0 && (
+        <DocumentToolbar border={false} aria-label="HTML document actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled document'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
+            titleTestId="file-name"
+            icon={
+              <FileHtmlIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            stateLabel={isDirty ? 'Modified' : 'Saved'}
+            stateChanged={isDirty}
+            status={status}
+            statusTestId="validation-status"
+            statusIcon={
+              hasInput && hasValidated && issues.length === 0 ? (
                 <CheckCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-success)]"
+                  className="shrink-0 text-[var(--color-success)]"
                 />
-              )}
-              {errorCount > 0 && (
+              ) : errorCount > 0 ? (
                 <WarningCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-error)]"
+                  className="shrink-0 text-[var(--color-error)]"
                 />
-              )}
-              {errorCount === 0 && warningCount > 0 && (
-                <WarningIcon size={12} aria-hidden="true" className="text-[var(--color-warning)]" />
-              )}
-              {status}
-            </p>
-          </div>
-
-          <SegmentedControl
-            aria-label="View mode"
-            options={VIEW_OPTIONS}
-            value={viewMode}
-            onChange={(next) => updateState({ viewMode: next })}
+              ) : errorCount === 0 && warningCount > 0 ? (
+                <WarningIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-warning)]"
+                />
+              ) : undefined
+            }
           />
-        </div>
 
-        <Toolbar border={false} className="flex-wrap gap-x-2 gap-y-1 pt-0 pb-2">
-          <Button variant="ghost" size="sm" onClick={handleNew} className="gap-1">
-            <FilePlusIcon size={13} aria-hidden="true" />
-            New
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleOpen()}
-            className="gap-1"
-            title="Open an .html file (⌘O)"
-          >
-            <FolderOpenIcon size={13} aria-hidden="true" />
-            Open
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleSave()}
-            className="gap-1"
-            title="Save the document (⌘S)"
-          >
-            <FloppyDiskIcon size={13} aria-hidden="true" />
-            Save
-          </Button>
+          <ToolbarGroup label="View controls" separated>
+            <SegmentedControl
+              aria-label="View mode"
+              options={VIEW_OPTIONS}
+              value={viewMode}
+              onChange={(next) => updateState({ viewMode: next })}
+            />
+          </ToolbarGroup>
 
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
+          <ToolbarGroup label="Document actions" separated>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={handleNew}
+              title="New HTML document"
+              aria-label="New HTML document"
+            >
+              <FilePlusIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleOpen()}
+              title="Open an .html file (⌘O)"
+              aria-label="Open HTML file"
+            >
+              <FolderOpenIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleSave()}
+              title="Save the document (⌘S)"
+              aria-label="Save HTML document"
+            >
+              <FloppyDiskIcon size={13} aria-hidden="true" />
+            </Button>
+          </ToolbarGroup>
 
-          <Select
-            aria-label="Starter template"
-            value={state.templateId}
-            onChange={(e) => updateState({ templateId: e.target.value })}
-          >
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.label}
-              </option>
-            ))}
-          </Select>
-          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
-            Load
-          </Button>
+          <ToolbarGroup label="Template actions" separated>
+            <Select
+              aria-label="Starter template"
+              value={state.templateId}
+              onChange={(e) => updateState({ templateId: e.target.value })}
+            >
+              {TEMPLATES.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.label}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+              Load
+            </Button>
+          </ToolbarGroup>
 
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void handleFormat()}
-            disabled={!hasInput || isFormatting}
-            loading={isFormatting}
-            title="Reformat the markup (⌘↵)"
-          >
-            Format
-            <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-              ⌘↵
-            </span>
-          </Button>
-          <CopyButton text={input} label="Copy HTML" />
+          <ToolbarGroup label="Markup output" separated>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void handleFormat()}
+              disabled={!hasInput || isFormatting}
+              loading={isFormatting}
+              title="Reformat the markup (⌘↵)"
+            >
+              Format
+              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
+                ⌘↵
+              </span>
+            </Button>
+            <CopyButton text={input} label="Copy HTML" />
+          </ToolbarGroup>
 
           <Button
             variant={state.showRules ? 'secondary' : 'ghost'}
@@ -649,7 +645,7 @@ export default function HtmlValidator() {
             onClick={() => updateState({ showRules: !state.showRules })}
             aria-expanded={state.showRules}
             aria-controls={rulesPanelId}
-            className="ml-auto gap-1"
+            className="gap-1"
           >
             <SlidersHorizontalIcon size={13} aria-hidden="true" />
             Rules
@@ -659,7 +655,7 @@ export default function HtmlValidator() {
               </span>
             )}
           </Button>
-        </Toolbar>
+        </DocumentToolbar>
 
         {state.showRules && (
           <section

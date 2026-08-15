@@ -24,6 +24,7 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -296,52 +297,47 @@ export default function XmlTools() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-border)] px-4 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <BracketsAngleIcon
-              size={15}
-              aria-hidden="true"
-              className="shrink-0 text-[var(--color-text-muted)]"
-            />
-            <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-              {state.fileName ?? 'Untitled'}
-            </span>
-            <span
-              role="status"
-              aria-live="polite"
-              className="flex shrink-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
-            >
-              {hasInput && isValid && (
+        <DocumentToolbar aria-label="XML document actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled'}
+            icon={
+              <BracketsAngleIcon
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            status={status}
+            statusIcon={
+              hasInput && isValid ? (
                 <CheckCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-success)]"
+                  className="shrink-0 text-[var(--color-success)]"
                 />
-              )}
-              {blockingIssue && (
+              ) : blockingIssue ? (
                 <WarningCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-error)]"
+                  className="shrink-0 text-[var(--color-error)]"
                 />
-              )}
-              {status}
-            </span>
-            {blockingIssue?.line !== undefined && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleGoToError}
-                title="Move the cursor to the parse error"
-                className="gap-1"
-              >
-                <CrosshairSimpleIcon size={12} aria-hidden="true" />
-                Go to error
-              </Button>
-            )}
-          </div>
+              ) : undefined
+            }
+          />
+          {blockingIssue?.line !== undefined && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleGoToError}
+              title="Move the cursor to the parse error"
+              className="gap-1"
+            >
+              <CrosshairSimpleIcon size={12} aria-hidden="true" />
+              Go to error
+            </Button>
+          )}
 
-          <div className="ml-auto flex items-center gap-2">
+          <ToolbarGroup label="XML view options" separated>
             <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
               <span className="max-[900px]:hidden">Indent</span>
               <Select
@@ -359,9 +355,9 @@ export default function XmlTools() {
               onChange={(next) => updateState({ view: next })}
               options={VIEW_OPTIONS}
             />
-          </div>
+          </ToolbarGroup>
 
-          <div className="flex items-center gap-2">
+          <ToolbarGroup label="XML output" separated>
             <Button
               variant="primary"
               size="sm"
@@ -394,8 +390,8 @@ export default function XmlTools() {
             >
               <FloppyDiskIcon size={15} aria-hidden="true" />
             </Button>
-          </div>
-        </div>
+          </ToolbarGroup>
+        </DocumentToolbar>
       }
     >
       {error && (
