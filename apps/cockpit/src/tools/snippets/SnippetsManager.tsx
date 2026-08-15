@@ -1,30 +1,38 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react'
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import {
-  CaretDownIcon,
-  CaretRightIcon,
+  ClipboardTextIcon,
+  CopyIcon,
   DownloadSimpleIcon,
+  FolderOpenIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  ScissorsIcon,
+  SidebarIcon,
   StarIcon,
+  TagIcon,
+  TrashIcon,
+  UploadSimpleIcon,
   XIcon,
 } from '@phosphor-icons/react'
-import { useSnippetsStore } from '@/stores/snippets.store'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
-import { CopyButton } from '@/components/shared/CopyButton'
+import { Dialog } from '@/components/shared/Dialog'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
+import { useMonacoOptions, useMonacoTheme } from '@/hooks/useMonaco'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
+import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
-import { buildExportFilename, exportFile } from '@/lib/file-io'
-
-// ─── Constants ───────────────────────────────────────────────────────
+import type { Snippet } from '@/types/models'
 
 const FAVORITE_TAG = '⭐'
 
@@ -77,6 +85,7 @@ const LANG_EXTENSIONS: Record<string, string> = {
   swift: 'swift',
   kotlin: 'kt',
   yaml: 'yml',
+  xml: 'xml',
   toml: 'toml',
   dockerfile: 'dockerfile',
   graphql: 'gql',
@@ -123,428 +132,383 @@ const LANG_TONE_CLASSES: Record<LangTone, string> = {
   muted: 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
 }
 
-const SELECTED_LANG_CLASS = 'bg-[var(--color-bg)] text-[var(--color-accent)]'
-
 type SortMode = 'updated' | 'created' | 'title' | 'language'
 
-const SORT_OPTIONS: { id: SortMode; label: string }[] = [
-  { id: 'updated', label: 'Recent' },
-  { id: 'created', label: 'Created' },
-  { id: 'title', label: 'A → Z' },
-  { id: 'language', label: 'Lang' },
-]
-
-// ─── Types ───────────────────────────────────────────────────────────
-
-// Subset of FuseResultMatch we actually need
 interface FuseMatchEntry {
   key?: string
   indices: ReadonlyArray<[number, number]>
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts
-  const secs = Math.floor(diff / 1000)
-  if (secs < 60) return 'just now'
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
+function relativeTime(timestamp: number): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months}mo ago`
+  return `${Math.floor(days / 30)}mo ago`
 }
 
 function contentPreview(content: string): string {
-  const firstLine = content.split('\n').find((l) => l.trim()) ?? ''
-  return firstLine.length > 40 ? firstLine.slice(0, 40) + '…' : firstLine
+  const firstLine = content.split('\n').find((line) => line.trim()) ?? ''
+  return firstLine.length > 64 ? `${firstLine.slice(0, 64)}…` : firstLine
 }
 
 function visibleTags(tags: string[]): string[] {
-  return tags.filter((t) => t !== FAVORITE_TAG)
+  return tags.filter((tag) => tag !== FAVORITE_TAG)
 }
 
 function isFavorite(tags: string[]): boolean {
   return tags.includes(FAVORITE_TAG)
 }
 
-/** Wraps matched character ranges in a <mark> element. */
+function formatTimestamp(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(timestamp)
+}
+
 function highlightMatches(
   text: string,
   matches: ReadonlyArray<FuseMatchEntry> | undefined,
   key: string
 ): ReactNode {
-  if (!matches) return text
-  const match = matches.find((m) => m.key === key)
+  const match = matches?.find((entry) => entry.key === key)
   if (!match || match.indices.length === 0) return text
-  const sorted = [...match.indices].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0))
+
   const parts: ReactNode[] = []
-  let last = 0
-  for (const pair of sorted) {
-    const start = pair[0] ?? 0
-    const end = pair[1] ?? 0
-    if (start > last) parts.push(text.slice(last, start))
+  const sorted = [...match.indices].sort((a, b) => a[0] - b[0])
+  let lastIndex = 0
+
+  for (const [start, end] of sorted) {
+    if (start > lastIndex) parts.push(text.slice(lastIndex, start))
     parts.push(
       <mark
         key={`${start}-${end}`}
-        className="rounded bg-[var(--color-accent)]/25 text-[var(--color-accent)] not-italic"
+        className="rounded bg-[var(--color-accent-dim)] text-[var(--color-accent)]"
       >
         {text.slice(start, end + 1)}
       </mark>
     )
-    last = end + 1
+    lastIndex = end + 1
   }
-  if (last < text.length) parts.push(text.slice(last))
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
   return <>{parts}</>
 }
 
-// ─── Tag Filter Bar ──────────────────────────────────────────────────
-
-const TAG_BAR_COLLAPSED_HEIGHT = 28 // ~1 row of chips
-
-function TagFilterBar({
-  tags,
-  filterTag,
-  onFilterTag,
-}: {
+function importedSnippet(item: unknown): {
+  title: string
+  content: string
+  language: string
   tags: string[]
-  filterTag: string | null
-  onFilterTag: (tag: string | null) => void
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [overflows, setOverflows] = useState(false)
-  const [expanded, setExpanded] = useState(false)
+  folder: string
+} | null {
+  if (!item || typeof item !== 'object') return null
+  const candidate = item as Record<string, unknown>
+  if (typeof candidate['title'] !== 'string' || typeof candidate['content'] !== 'string') {
+    return null
+  }
 
-  useLayoutEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    setOverflows(el.scrollHeight > TAG_BAR_COLLAPSED_HEIGHT + 4)
-  }, [tags])
-
-  return (
-    <div className="px-3 py-1.5">
-      <div
-        ref={containerRef}
-        className="flex flex-wrap gap-1 overflow-hidden transition-[max-height] duration-150"
-        style={{ maxHeight: expanded || !overflows ? 'none' : TAG_BAR_COLLAPSED_HEIGHT }}
-      >
-        {filterTag && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => onFilterTag(null)}
-            className="rounded bg-[var(--color-error)]/20 px-1.5 py-0.5 text-xs text-[var(--color-error)] hover:bg-[var(--color-error)]/20"
-          >
-            ✕ Clear
-          </Button>
-        )}
-        {tags.map((tag) => (
-          <Button
-            key={tag}
-            variant="ghost"
-            size="xs"
-            onClick={() => onFilterTag(filterTag === tag ? null : tag)}
-            className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-              filterTag === tag
-                ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
-                : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
-            }`}
-          >
-            {tag}
-          </Button>
-        ))}
-      </div>
-      {overflows && (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-xs text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-accent)]"
-        >
-          {expanded ? '▲ Show less' : `▼ ${tags.length} tags…`}
-        </Button>
-      )}
-    </div>
-  )
+  return {
+    title: candidate['title'],
+    content: candidate['content'],
+    language: typeof candidate['language'] === 'string' ? candidate['language'] : 'text',
+    tags: Array.isArray(candidate['tags'])
+      ? candidate['tags'].filter((tag): tag is string => typeof tag === 'string')
+      : [],
+    folder: typeof candidate['folder'] === 'string' ? candidate['folder'] : '',
+  }
 }
-
-// ─── Component ───────────────────────────────────────────────────────
 
 export default function SnippetsManager() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
-  const snippets = useSnippetsStore((s) => s.snippets)
-  const saving = useSnippetsStore((s) => s.saving)
-  const activeFolder = useSnippetsStore((s) => s.activeFolder)
-  const setActiveFolder = useSnippetsStore((s) => s.setActiveFolder)
-  const addSnippet = useSnippetsStore((s) => s.add)
-  const updateSnippet = useSnippetsStore((s) => s.update)
-  const removeSnippet = useSnippetsStore((s) => s.remove)
-  const setLastAction = useUiStore((s) => s.setLastAction)
+  const snippets = useSnippetsStore((state) => state.snippets)
+  const saving = useSnippetsStore((state) => state.saving)
+  const activeFolder = useSnippetsStore((state) => state.activeFolder)
+  const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)
+  const addSnippet = useSnippetsStore((state) => state.add)
+  const updateSnippet = useSnippetsStore((state) => state.update)
+  const removeSnippet = useSnippetsStore((state) => state.remove)
+  const setLastAction = useUiStore((state) => state.setLastAction)
 
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [tagInput, setTagInput] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
-  const [filterTag, setFilterTag] = useState<string | null>(null)
-  const [foldersCollapsed, setFoldersCollapsed] = useState(false)
-  const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  const [filterTag, setFilterTag] = useState('')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [tagInput, setTagInput] = useState('')
   const [suggestionIndex, setSuggestionIndex] = useState(-1)
-  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [titleFocusRequest, setTitleFocusRequest] = useState(0)
+
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
+  const handledTitleFocusRequestRef = useRef(0)
 
-  // Clear confirm timer on unmount
-  useEffect(() => {
-    return () => {
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
-    }
+  const setTitleInputRef = useCallback((element: HTMLInputElement | null) => {
+    titleInputRef.current = element
   }, [])
-
-  // ─── Handlers (defined early for shortcuts) ───────────────────────
-
-  const handleNew = useCallback(async () => {
-    const snippet = await addSnippet('Untitled', '', 'javascript', [], activeFolder)
-    setSelectedId(snippet.id)
-    setLastAction('Snippet created', 'success')
-    setTimeout(() => titleInputRef.current?.focus(), 50)
-  }, [addSnippet, setLastAction, activeFolder])
-
-  // ─── Fuse search ─────────────────────────────────────────────────
 
   const fuse = useMemo(
     () =>
       new Fuse(snippets, {
-        keys: ['title', 'content', 'tags'],
-        threshold: 0.3,
+        keys: ['title', 'content', 'language', 'folder', 'tags'],
+        threshold: 0.32,
         includeMatches: true,
       }),
     [snippets]
   )
 
-  // ─── Fuse results + match map ────────────────────────────────────
-
-  const fuseResults = useMemo(() => (search.trim() ? fuse.search(search) : null), [fuse, search])
+  const fuseResults = useMemo(
+    () => (search.trim() ? fuse.search(search.trim()) : null),
+    [fuse, search]
+  )
 
   const matchMap = useMemo(() => {
     if (!fuseResults) return new Map<string, ReadonlyArray<FuseMatchEntry>>()
-    return new Map(fuseResults.map((r) => [r.item.id, (r.matches ?? []) as FuseMatchEntry[]]))
+    return new Map(
+      fuseResults.map((result) => [result.item.id, (result.matches ?? []) as FuseMatchEntry[]])
+    )
   }, [fuseResults])
 
-  // ─── All unique folders ──────────────────────────────────────────
-
-  const allFolders = useMemo(() => {
-    const folderSet = new Set<string>()
-    for (const s of snippets) {
-      if (s.folder) folderSet.add(s.folder)
-    }
-    return [...folderSet].sort()
-  }, [snippets])
-
-  // ─── All unique tags (excluding favorite marker) ─────────────────
-
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>()
-    for (const s of snippets) {
-      for (const t of s.tags) {
-        if (t !== FAVORITE_TAG) tagSet.add(t)
-      }
-    }
-    return [...tagSet].sort()
-  }, [snippets])
-
-  // ─── Filtered + sorted list ──────────────────────────────────────
-
-  const filtered = useMemo(() => {
-    let list = fuseResults ? fuseResults.map((r) => r.item) : [...snippets]
-
-    // Filter by folder
-    if (activeFolder) {
-      list = list.filter((s) => s.folder === activeFolder)
-    }
-
-    // Filter by tag
-    if (filterTag) {
-      list = list.filter((s) => s.tags.includes(filterTag))
-    }
-
-    // Sort
-    list.sort((a, b) => {
-      // Favorites always first
-      const aFav = isFavorite(a.tags) ? 0 : 1
-      const bFav = isFavorite(b.tags) ? 0 : 1
-      if (aFav !== bFav) return aFav - bFav
-
-      switch (sortMode) {
-        case 'updated':
-          return b.updatedAt - a.updatedAt
-        case 'created':
-          return b.createdAt - a.createdAt
-        case 'title':
-          return a.title.localeCompare(b.title)
-        case 'language':
-          return a.language.localeCompare(b.language) || b.updatedAt - a.updatedAt
-      }
-    })
-
-    return list
-  }, [snippets, fuseResults, sortMode, filterTag, activeFolder])
-
-  const selected = useMemo(
-    () => snippets.find((s) => s.id === selectedId) ?? null,
-    [snippets, selectedId]
+  const allFolders = useMemo(
+    () => [...new Set(snippets.map((snippet) => snippet.folder).filter(Boolean))].sort(),
+    [snippets]
   )
 
-  // ─── Stats for selected snippet ──────────────────────────────────
+  const allTags = useMemo(
+    () =>
+      [
+        ...new Set(
+          snippets.flatMap((snippet) => visibleTags(snippet.tags)).filter((tag) => tag.trim())
+        ),
+      ].sort(),
+    [snippets]
+  )
+
+  const filtered = useMemo(() => {
+    const candidates = fuseResults ? fuseResults.map((result) => result.item) : [...snippets]
+    const visible = candidates.filter((snippet) => {
+      if (activeFolder && snippet.folder !== activeFolder) return false
+      if (filterTag && !snippet.tags.includes(filterTag)) return false
+      if (favoritesOnly && !isFavorite(snippet.tags)) return false
+      return true
+    })
+
+    visible.sort((a, b) => {
+      const favoriteOrder = Number(isFavorite(b.tags)) - Number(isFavorite(a.tags))
+      if (favoriteOrder !== 0) return favoriteOrder
+      if (sortMode === 'created') return b.createdAt - a.createdAt
+      if (sortMode === 'title') return a.title.localeCompare(b.title)
+      if (sortMode === 'language') {
+        return a.language.localeCompare(b.language) || b.updatedAt - a.updatedAt
+      }
+      return b.updatedAt - a.updatedAt
+    })
+
+    return visible
+  }, [activeFolder, favoritesOnly, filterTag, fuseResults, snippets, sortMode])
+
+  const selected = useMemo(
+    () => snippets.find((snippet) => snippet.id === selectedId) ?? null,
+    [selectedId, snippets]
+  )
 
   const editorStats = useMemo(() => {
     if (!selected) return null
-    const lines = selected.content.split('\n').length
-    const chars = selected.content.length
-    const bytes = new TextEncoder().encode(selected.content).length
-    return { lines, chars, bytes }
+    return {
+      lines: selected.content.split('\n').length,
+      characters: selected.content.length,
+      bytes: new TextEncoder().encode(selected.content).length,
+    }
   }, [selected])
 
-  // ─── Tag autocomplete suggestions ───────────────────────────────
-
   const tagSuggestions = useMemo(() => {
-    if (!tagInput.trim() || !selected) return []
+    if (!selected || !tagInput.trim()) return []
     const query = tagInput.trim().toLowerCase()
-    return allTags.filter((t) => t.toLowerCase().includes(query) && !selected.tags.includes(t))
-  }, [tagInput, allTags, selected])
+    return allTags.filter(
+      (tag) => tag.toLowerCase().includes(query) && !selected.tags.includes(tag)
+    )
+  }, [allTags, selected, tagInput])
 
-  // ─── Handlers ────────────────────────────────────────────────────
+  const hasFilters = Boolean(search || activeFolder || filterTag || favoritesOnly)
+
+  useEffect(() => {
+    if (snippets.length === 0) {
+      if (selectedId !== null) setSelectedId(null)
+      return
+    }
+    if (!selectedId || !snippets.some((snippet) => snippet.id === selectedId)) {
+      setSelectedId(filtered[0]?.id ?? snippets[0]?.id ?? null)
+    }
+  }, [filtered, selectedId, snippets])
+
+  useEffect(() => {
+    setTagInput('')
+    setSuggestionIndex(-1)
+    setDeleteDialogOpen(false)
+  }, [selectedId])
+
+  useEffect(() => {
+    if (
+      !selected ||
+      titleFocusRequest === 0 ||
+      titleFocusRequest === handledTitleFocusRequestRef.current
+    ) {
+      return
+    }
+    handledTitleFocusRequestRef.current = titleFocusRequest
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    })
+  }, [selected, titleFocusRequest])
+
+  const handleNew = useCallback(async () => {
+    try {
+      const snippet = await addSnippet('Untitled snippet', '', 'javascript', [], activeFolder)
+      setSelectedId(snippet.id)
+      setTitleFocusRequest((request) => request + 1)
+      setLastAction('Snippet created', 'success')
+    } catch {
+      setLastAction('Failed to create snippet', 'error')
+    }
+  }, [activeFolder, addSnippet, setLastAction])
 
   const handleDuplicate = useCallback(async () => {
     if (!selected) return
     try {
-      const snippet = await addSnippet(
-        selected.title + ' (copy)',
+      const duplicate = await addSnippet(
+        `${selected.title || 'Untitled'} copy`,
         selected.content,
         selected.language,
         visibleTags(selected.tags),
         selected.folder
       )
-      setSelectedId(snippet.id)
+      setSelectedId(duplicate.id)
+      setTitleFocusRequest((request) => request + 1)
       setLastAction('Snippet duplicated', 'success')
     } catch {
       setLastAction('Duplicate failed', 'error')
     }
-  }, [selected, addSnippet, setLastAction])
+  }, [addSnippet, selected, setLastAction])
 
   const handleDelete = useCallback(async () => {
-    if (!selectedId) return
-    await removeSnippet(selectedId)
-    setSelectedId(null)
-    setLastAction('Snippet deleted', 'info')
-  }, [selectedId, removeSnippet, setLastAction])
-
-  const handleDeleteClick = useCallback(() => {
-    if (!selectedId) return
-    if (confirmDeleteId === selectedId) {
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
-      setConfirmDeleteId(null)
-      handleDelete().catch(() => setLastAction('Delete failed', 'error'))
-    } else {
-      setConfirmDeleteId(selectedId)
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
-      confirmTimeoutRef.current = setTimeout(() => setConfirmDeleteId(null), 2500)
+    if (!selected) return
+    const currentIndex = filtered.findIndex((snippet) => snippet.id === selected.id)
+    const nextSelection = filtered[currentIndex + 1] ?? filtered[currentIndex - 1] ?? null
+    try {
+      await removeSnippet(selected.id)
+      setSelectedId(nextSelection?.id ?? null)
+      setDeleteDialogOpen(false)
+      setLastAction('Snippet deleted', 'info')
+    } catch {
+      setLastAction('Delete failed', 'error')
     }
-  }, [selectedId, confirmDeleteId, handleDelete, setLastAction])
+  }, [filtered, removeSnippet, selected, setLastAction])
 
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
+    const tags = isFavorite(selected.tags)
+      ? selected.tags.filter((tag) => tag !== FAVORITE_TAG)
+      : [...selected.tags, FAVORITE_TAG]
     try {
-      if (isFavorite(selected.tags)) {
-        await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== FAVORITE_TAG) })
-      } else {
-        await updateSnippet(selected.id, { tags: [...selected.tags, FAVORITE_TAG] })
-      }
+      await updateSnippet(selected.id, { tags })
     } catch {
       setLastAction('Failed to update favorite', 'error')
     }
-  }, [selected, updateSnippet, setLastAction])
+  }, [selected, setLastAction, updateSnippet])
 
-  const handleAddTag = useCallback(async () => {
-    if (!selected || !tagInput.trim()) return
-    const tag = tagInput.trim()
-    if (tag === FAVORITE_TAG) {
-      setTagInput('')
-      return
-    }
-    if (selected.tags.includes(tag)) {
-      setTagInput('')
-      return
-    }
-    await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
-    setTagInput('')
-  }, [selected, tagInput, updateSnippet])
-
-  const handleAddTagFromSuggestion = useCallback(
-    async (tag: string) => {
+  const handleAddTag = useCallback(
+    async (requestedTag?: string) => {
       if (!selected) return
-      if (selected.tags.includes(tag)) return
-      await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
-      setTagInput('')
-      tagInputRef.current?.focus()
+      const tag = (requestedTag ?? tagInput).trim()
+      if (!tag || tag === FAVORITE_TAG || selected.tags.includes(tag)) {
+        setTagInput('')
+        return
+      }
+      try {
+        await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
+        setTagInput('')
+        setSuggestionIndex(-1)
+        requestAnimationFrame(() => tagInputRef.current?.focus())
+      } catch {
+        setLastAction('Failed to add tag', 'error')
+      }
     },
-    [selected, updateSnippet]
+    [selected, setLastAction, tagInput, updateSnippet]
   )
 
   const handleRemoveTag = useCallback(
     async (tag: string) => {
       if (!selected) return
-      await updateSnippet(selected.id, { tags: selected.tags.filter((t) => t !== tag) })
+      try {
+        await updateSnippet(selected.id, {
+          tags: selected.tags.filter((existingTag) => existingTag !== tag),
+        })
+      } catch {
+        setLastAction('Failed to remove tag', 'error')
+      }
     },
-    [selected, updateSnippet]
+    [selected, setLastAction, updateSnippet]
   )
 
-  const handleExport = useCallback(async () => {
+  const handleExportAll = useCallback(async () => {
     try {
-      const data = JSON.stringify(snippets, null, 2)
-      await navigator.clipboard.writeText(data)
-      setLastAction(`Exported ${snippets.length} snippets to clipboard`, 'success')
+      const path = await exportFile(JSON.stringify(snippets, null, 2), 'snippets-backup.json')
+      if (path) {
+        setLastAction(
+          `Exported ${snippets.length} snippet${snippets.length === 1 ? '' : 's'}`,
+          'success'
+        )
+      }
     } catch {
-      setLastAction('Export failed — clipboard unavailable', 'error')
+      setLastAction('Export failed', 'error')
     }
-  }, [snippets, setLastAction])
+  }, [setLastAction, snippets])
 
   const handleImport = useCallback(async () => {
     try {
-      const text = await navigator.clipboard.readText()
-      const parsed: unknown = JSON.parse(text)
-      if (!Array.isArray(parsed)) {
-        setLastAction('Import failed — paste valid JSON array', 'error')
-        return
+      const file = await openFileDialog()
+      if (!file) return
+      const parsed: unknown = JSON.parse(file.content)
+      if (!Array.isArray(parsed)) throw new Error('Expected an array')
+
+      const validSnippets = parsed
+        .map((item) => importedSnippet(item))
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+      if (validSnippets.length === 0) throw new Error('No valid snippets')
+
+      let firstImported: Snippet | null = null
+      for (const item of validSnippets) {
+        const created = await addSnippet(
+          item.title,
+          item.content,
+          item.language,
+          item.tags,
+          item.folder
+        )
+        firstImported ??= created
       }
-      const imported = parsed as Array<Record<string, unknown>>
-      let count = 0
-      for (const item of imported) {
-        if (typeof item['title'] === 'string' && typeof item['content'] === 'string') {
-          await addSnippet(
-            item['title'],
-            item['content'],
-            typeof item['language'] === 'string' ? item['language'] : 'text',
-            Array.isArray(item['tags']) ? (item['tags'] as string[]) : []
-          )
-          count++
-        }
-      }
-      setLastAction(`Imported ${count} snippets`, 'success')
+      setSelectedId(firstImported?.id ?? null)
+      setLastAction(`Imported ${validSnippets.length} snippets`, 'success')
     } catch {
-      setLastAction('Import failed — paste valid JSON array', 'error')
+      setLastAction('Import failed — choose a valid snippets JSON file', 'error')
     }
   }, [addSnippet, setLastAction])
 
   const handleDownload = useCallback(async () => {
     if (!selected) return
-    const ext = LANG_EXTENSIONS[selected.language] ?? selected.language
-    const filename = buildExportFilename(selected.title || 'snippet', ext)
+    const extension = LANG_EXTENSIONS[selected.language] ?? 'txt'
+    const filename = buildExportFilename(selected.title || 'snippet', extension)
     try {
       const path = await exportFile(selected.content, filename)
       if (path) setLastAction(`Downloaded ${filename}`, 'success')
@@ -553,576 +517,651 @@ export default function SnippetsManager() {
     }
   }, [selected, setLastAction])
 
-  // ─── Shortcuts ───────────────────────────────────────────────────
+  const handleCopy = useCallback(async () => {
+    if (!selected) return
+    try {
+      await navigator.clipboard.writeText(selected.content)
+      setLastAction('Copied to clipboard', 'success')
+    } catch {
+      setLastAction('Failed to copy to clipboard', 'error')
+    }
+  }, [selected, setLastAction])
+
+  const clearFilters = useCallback(() => {
+    setSearch('')
+    setActiveFolder('')
+    setFilterTag('')
+    setFavoritesOnly(false)
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }, [setActiveFolder])
+
+  const handleListKeyDown = (event: KeyboardEvent<HTMLButtonElement>, snippetId: string) => {
+    const index = filtered.findIndex((snippet) => snippet.id === snippetId)
+    if (index < 0) return
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowDown') nextIndex = Math.min(filtered.length - 1, index + 1)
+    if (event.key === 'ArrowUp') nextIndex = Math.max(0, index - 1)
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = filtered.length - 1
+    if (nextIndex === null || nextIndex === index) return
+
+    event.preventDefault()
+    const next = filtered[nextIndex]
+    if (!next) return
+    setSelectedId(next.id)
+    requestAnimationFrame(() => document.getElementById(`snippet-option-${next.id}`)?.focus())
+  }
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // ⌘N: New
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault()
-        handleNew()
+    const handleShortcut = (event: globalThis.KeyboardEvent) => {
+      const modifier = event.metaKey || event.ctrlKey
+      if (modifier && event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        void handleNew()
       }
-      // ⌘F: Search
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault()
+      if (modifier && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
         searchInputRef.current?.focus()
       }
-      // F-Keys
-      if (e.key === 'F5') {
-        e.preventDefault()
-        handleNew()
+      if (modifier && event.shiftKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault()
+        void handleDuplicate()
       }
-      if (e.key === 'F6') {
-        e.preventDefault()
-        handleDuplicate()
+      if (event.key === 'F5') {
+        event.preventDefault()
+        void handleNew()
       }
-      if (e.key === 'F8') {
-        e.preventDefault()
-        handleDeleteClick()
+      if (event.key === 'F6') {
+        event.preventDefault()
+        void handleDuplicate()
       }
-      if (e.key === 'F9') {
-        e.preventDefault()
-        handleExport()
+      if (event.key === 'F8' && selected) {
+        event.preventDefault()
+        setDeleteDialogOpen(true)
       }
-      if (e.key === 'F10') {
-        e.preventDefault()
-        handleImport()
+      if (event.key === 'F9') {
+        event.preventDefault()
+        void handleExportAll()
+      }
+      if (event.key === 'F10') {
+        event.preventDefault()
+        void handleImport()
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNew, handleDuplicate, handleDeleteClick, handleExport, handleImport])
-
-  // ─── Render ──────────────────────────────────────────────────────
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [handleDuplicate, handleExportAll, handleImport, handleNew, selected])
 
   return (
-    <div className="grid h-full grid-cols-[16rem_1fr_13rem] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
-      {/* ─── Pane 1: Selection ────────────────────────────────── */}
-      <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-          [ 01-SELECT ]
-        </div>
-
-        {/* Search */}
-        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-          <Input
-            ref={searchInputRef}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search... (⌘F)"
-            className="flex-1"
-          />
-        </div>
-
-        {/* Sort */}
-        <div className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-1">
-          {SORT_OPTIONS.map((opt) => (
-            <Button
-              key={opt.id}
-              variant="ghost"
-              size="xs"
-              onClick={() => setSortMode(opt.id)}
-              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                sortMode === opt.id
-                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
-                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              {opt.label}
-            </Button>
-          ))}
-        </div>
-
-        {/* Folder filter — collapsible */}
-        {allFolders.length > 0 && (
-          <div className="border-b border-[var(--color-border)]">
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setFoldersCollapsed(!foldersCollapsed)}
-              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-2xs text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
-              aria-expanded={!foldersCollapsed}
-            >
-              {foldersCollapsed ? (
-                <CaretRightIcon size={9} weight="bold" />
-              ) : (
-                <CaretDownIcon size={9} weight="bold" />
-              )}
-              FOLDERS
-            </Button>
-            <div
-              className={`grid transition-[grid-template-rows] duration-150 ${foldersCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
-            >
-              <div className="overflow-hidden">
-                <div className="flex flex-wrap gap-1 px-3 pb-1.5">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setActiveFolder('')}
-                    className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                      activeFolder === ''
-                        ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
-                        : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    All
-                  </Button>
-                  {allFolders.map((folder) => (
-                    <Button
-                      key={folder}
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setActiveFolder(activeFolder === folder ? '' : folder)}
-                      className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                        activeFolder === folder
-                          ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
-                          : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30'
-                      }`}
-                    >
-                      {folder}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
+    <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+        <header className="flex min-h-14 items-center gap-3 border-b border-[var(--color-border)] px-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-ui text-sm font-semibold text-[var(--color-text)]">Snippets</h1>
+            <p className="text-2xs text-[var(--color-text-muted)]">
+              {snippets.length} saved locally
+            </p>
           </div>
-        )}
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => void handleNew()}
+            className="gap-1.5"
+          >
+            <PlusIcon size={12} aria-hidden="true" />
+            New
+          </Button>
+        </header>
 
-        {/* Tag filter — collapsible */}
-        {allTags.length > 0 && (
-          <div className="border-b border-[var(--color-border)]">
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setTagsCollapsed(!tagsCollapsed)}
-              className="flex w-full items-center justify-start gap-1.5 rounded-none px-3 py-1 font-mono text-2xs text-[var(--color-text-muted)] transition-colors hover:bg-transparent hover:text-[var(--color-text)]"
-              aria-expanded={!tagsCollapsed}
-            >
-              {tagsCollapsed ? (
-                <CaretRightIcon size={9} weight="bold" />
-              ) : (
-                <CaretDownIcon size={9} weight="bold" />
-              )}
-              TAGS
-            </Button>
-            <div
-              className={`grid transition-[grid-template-rows] duration-150 ${tagsCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
-            >
-              <div className="overflow-hidden">
-                <TagFilterBar tags={allTags} filterTag={filterTag} onFilterTag={setFilterTag} />
-              </div>
-            </div>
+        <div className="space-y-2 border-b border-[var(--color-border)] p-3">
+          <div className="relative">
+            <MagnifyingGlassIcon
+              size={13}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+            />
+            <Input
+              ref={searchInputRef}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search snippets"
+              aria-label="Search snippets"
+              className="w-full pl-8 pr-8"
+            />
+            {search && (
+              <Button
+                type="button"
+                variant="icon"
+                size="xs"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+              >
+                <XIcon size={11} aria-hidden="true" />
+              </Button>
+            )}
           </div>
-        )}
 
-        {/* Snippet list */}
-        <div className="flex-1 overflow-auto">
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={activeFolder}
+              onChange={(event) => setActiveFolder(event.target.value)}
+              aria-label="Filter by folder"
+              title="Filter by folder"
+            >
+              <option value="">All folders</option>
+              {allFolders.map((folder) => (
+                <option key={folder} value={folder}>
+                  {folder}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              aria-label="Sort snippets"
+              title="Sort snippets"
+            >
+              <option value="updated">Recently edited</option>
+              <option value="created">Recently created</option>
+              <option value="title">Title A–Z</option>
+              <option value="language">Language</option>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={favoritesOnly}
+              onClick={() => setFavoritesOnly((current) => !current)}
+              className={`gap-1.5 ${favoritesOnly ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
+            >
+              <StarIcon size={12} weight={favoritesOnly ? 'fill' : 'regular'} aria-hidden="true" />
+              Favorites
+            </Button>
+            {allTags.length > 0 && (
+              <Select
+                value={filterTag}
+                onChange={(event) => setFilterTag(event.target.value)}
+                aria-label="Filter by tag"
+                title="Filter by tag"
+                className="min-w-0 flex-1"
+              >
+                <option value="">All tags</option>
+                {allTags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    #{tag}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {hasFilters && (
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+          <span>
+            {filtered.length === snippets.length ? 'Library' : `${filtered.length} results`}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => void handleImport()}
+              title="Import snippets from JSON"
+              aria-label="Import snippets from JSON"
+            >
+              <UploadSimpleIcon size={12} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => void handleExportAll()}
+              title="Export snippets as JSON"
+              aria-label="Export snippets as JSON"
+              disabled={snippets.length === 0}
+            >
+              <DownloadSimpleIcon size={12} aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Snippets">
           {filtered.map((snippet) => {
-            const isSelected = selectedId === snippet.id
+            const isSelected = snippet.id === selectedId
             const matches = isSelected ? undefined : matchMap.get(snippet.id)
-            const langTone = LANG_TONES[snippet.language] ?? 'accent'
+            const tone = LANG_TONES[snippet.language] ?? 'accent'
             return (
               <Button
                 key={snippet.id}
+                id={`snippet-option-${snippet.id}`}
+                type="button"
                 variant="ghost"
+                size="xs"
+                role="option"
+                aria-selected={isSelected}
+                tabIndex={isSelected || (!selectedId && filtered[0]?.id === snippet.id) ? 0 : -1}
                 onClick={() => setSelectedId(snippet.id)}
-                className={`flex w-full flex-col items-start justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
+                onKeyDown={(event) => handleListKeyDown(event, snippet.id)}
+                className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[inset_var(--focus-ring)] ${
                   isSelected
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
+                    ? 'bg-[var(--color-accent-dim)]'
                     : 'hover:bg-[var(--color-surface-hover)]'
                 }`}
               >
-                <div className="flex items-center gap-1">
-                  {isFavorite(snippet.tags) && (
-                    <span className="text-2xs" title="Favorite">
-                      [*]
-                    </span>
-                  )}
+                <div className="flex items-start gap-2">
                   <span
-                    className={`flex-1 truncate text-xs font-bold ${isSelected ? 'text-[var(--color-bg)]' : 'text-[var(--color-text)]'}`}
-                  >
-                    {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
-                  </span>
-                  <span
-                    className={`shrink-0 text-2xs ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
-                  >
-                    {relativeTime(snippet.updatedAt)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Language pill */}
-                  <span
-                    className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
-                      isSelected ? SELECTED_LANG_CLASS : LANG_TONE_CLASSES[langTone]
-                    }`}
+                    className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
                   >
                     {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
                   </span>
-                  {snippet.content && (
-                    <span
-                      className={`truncate text-2xs ${isSelected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-text-muted)]'}`}
-                    >
-                      {contentPreview(snippet.content)}
-                    </span>
-                  )}
-                </div>
-                {visibleTags(snippet.tags).length > 0 && (
-                  <div className="mt-0.5 flex flex-wrap gap-1">
-                    {visibleTags(snippet.tags).map((tag) => (
-                      <span
-                        key={tag}
-                        className={`rounded px-1 text-2xs ${
-                          isSelected
-                            ? 'bg-[var(--color-bg)]/20 text-[var(--color-bg)]'
-                            : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                        }`}
-                      >
-                        {tag}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
+                        {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
                       </span>
-                    ))}
-                  </div>
-                )}
+                      {isFavorite(snippet.tags) && (
+                        <StarIcon
+                          size={11}
+                          weight="fill"
+                          aria-label="Favorite"
+                          className="shrink-0 text-[var(--color-warning)]"
+                        />
+                      )}
+                      <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+                        {relativeTime(snippet.updatedAt)}
+                      </span>
+                    </span>
+                    <span className="mt-1 block truncate text-2xs text-[var(--color-text-muted)]">
+                      {contentPreview(snippet.content) || 'Empty snippet'}
+                    </span>
+                    {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
+                      <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-[9px] text-[var(--color-text-muted)]">
+                        {snippet.folder && (
+                          <span className="flex min-w-0 items-center gap-1 truncate">
+                            <FolderOpenIcon size={9} aria-hidden="true" />
+                            {snippet.folder}
+                          </span>
+                        )}
+                        {visibleTags(snippet.tags)
+                          .slice(0, 2)
+                          .map((tag) => (
+                            <span key={tag} className="truncate">
+                              #{tag}
+                            </span>
+                          ))}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </Button>
             )
           })}
+
           {filtered.length === 0 && (
-            <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-              {search || filterTag || activeFolder ? 'No matching snippets' : 'No snippets yet'}
-            </div>
+            <EmptyState
+              icon={ScissorsIcon}
+              size="sm"
+              title={snippets.length === 0 ? 'No snippets yet' : 'No matches'}
+              description={
+                snippets.length === 0
+                  ? 'Save reusable code and commands here.'
+                  : 'Try a different search or clear the filters.'
+              }
+              action={
+                snippets.length === 0 ? null : (
+                  <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                )
+              }
+            />
           )}
         </div>
+      </aside>
 
-        {/* Snippet count */}
-        <div className="border-t border-[var(--color-border)] px-3 py-1 text-2xs text-[var(--color-text-muted)]">
-          {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
-          {filterTag || activeFolder ? ` · ${filtered.length} shown` : ''}
-        </div>
-      </div>
-
-      {/* ─── Pane 2: Editor ───────────────────────────────────── */}
-      <div className="flex flex-col overflow-hidden border-r border-[var(--color-border)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-          [ 02-EDIT:{' '}
-          {selected
-            ? `${selected.title || 'untitled'}.${LANG_EXTENSIONS[selected.language] || 'txt'}`
-            : '---'}{' '}
-          ]
-        </div>
+      <main className="flex min-h-0 min-w-0 flex-col">
         {selected ? (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Title + controls */}
-            <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-              <Button
-                variant="icon"
-                size="xs"
-                onClick={() => {
-                  void handleToggleFavorite()
-                }}
-                className={`rounded p-1 transition-colors ${isFavorite(selected.tags) ? 'text-[var(--color-warning)] hover:text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-warning)]'}`}
-                title={isFavorite(selected.tags) ? 'Remove favorite' : 'Add to favorites'}
-              >
-                <StarIcon size={14} weight={isFavorite(selected.tags) ? 'fill' : 'regular'} />
-              </Button>
-              <input
-                ref={titleInputRef}
-                value={selected.title}
-                onChange={(e) => void updateSnippet(selected.id, { title: e.target.value })}
-                placeholder="Snippet title"
-                className="flex-1 bg-transparent text-sm font-bold text-[var(--color-text)] outline-none"
-              />
-              <CopyButton text={selected.content} />
-              <Button
-                variant="icon"
-                size="xs"
-                onClick={() => {
-                  void handleDownload()
-                }}
-                className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                title="Download as file"
-              >
-                <DownloadSimpleIcon size={14} />
-              </Button>
-            </div>
-
-            {/* Monaco editor */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Editor
-                theme={monacoTheme}
-                language={selected.language}
-                value={selected.content}
-                onChange={(v) => void updateSnippet(selected.id, { content: v ?? '' })}
-                options={{
-                  ...monacoOptions,
-                  minimap: { enabled: false },
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
-            Select a snippet or create a new one
-          </div>
-        )}
-      </div>
-
-      {/* ─── Pane 3: Meta ─────────────────────────────────────── */}
-      <div className="flex w-52 flex-col overflow-hidden bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-          [ 03-META ]
-        </div>
-        {selected ? (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
-              {/* Folder */}
-              <div>
-                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
-                  Folder
-                </div>
-                <input
-                  value={selected.folder}
-                  onChange={(e) => void updateSnippet(selected.id, { folder: e.target.value })}
-                  placeholder="e.g. work, personal"
-                  list="snippet-folders"
-                  className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
-                />
-                <datalist id="snippet-folders">
-                  {allFolders.map((f) => (
-                    <option key={f} value={f} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Language */}
-              <div>
-                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
-                  Language
+          <>
+            <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+              <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => void handleToggleFavorite()}
+                  title={isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-label={
+                    isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'
+                  }
+                  className={isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : ''}
+                >
+                  <StarIcon
+                    size={15}
+                    weight={isFavorite(selected.tags) ? 'fill' : 'regular'}
+                    aria-hidden="true"
+                  />
+                </Button>
+                <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
+                  <input
+                    ref={setTitleInputRef}
+                    value={selected.title}
+                    onChange={(event) =>
+                      void updateSnippet(selected.id, { title: event.target.value })
+                    }
+                    placeholder="Snippet title"
+                    aria-label="Snippet title"
+                    className="w-full bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+                  />
+                  <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+                    {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}
+                  </p>
                 </div>
                 <Select
                   value={selected.language}
-                  onChange={(e) => void updateSnippet(selected.id, { language: e.target.value })}
-                  className="w-full"
+                  onChange={(event) =>
+                    void updateSnippet(selected.id, { language: event.target.value })
+                  }
+                  aria-label="Snippet language"
+                  title="Snippet language"
+                  className="w-32"
                 >
-                  {LANGUAGES.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
+                  {LANGUAGES.map((language) => (
+                    <option key={language} value={language}>
+                      {language}
                     </option>
                   ))}
                 </Select>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => void handleCopy()}
+                  title="Copy snippet"
+                  aria-label="Copy snippet"
+                >
+                  <ClipboardTextIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => void handleDuplicate()}
+                  title="Duplicate snippet (⌘⇧D)"
+                  aria-label="Duplicate snippet"
+                >
+                  <CopyIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => void handleDownload()}
+                  title="Save snippet as file"
+                  aria-label="Save snippet as file"
+                >
+                  <DownloadSimpleIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setDetailsOpen((current) => !current)}
+                  title={detailsOpen ? 'Hide details' : 'Show details'}
+                  aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
+                  aria-expanded={detailsOpen}
+                  className={
+                    detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                  }
+                >
+                  <SidebarIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  title="Delete snippet"
+                  aria-label="Delete snippet"
+                  className="hover:text-[var(--color-error)]"
+                >
+                  <TrashIcon size={14} aria-hidden="true" />
+                </Button>
+              </div>
+            </header>
+
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+              <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
+                <Editor
+                  theme={monacoTheme}
+                  language={selected.language}
+                  value={selected.content}
+                  onChange={(value) => void updateSnippet(selected.id, { content: value ?? '' })}
+                  options={{
+                    ...monacoOptions,
+                    minimap: { enabled: false },
+                    lineNumbers: 'on',
+                    padding: { top: 12, bottom: 12 },
+                    scrollBeyondLastLine: false,
+                  }}
+                />
               </div>
 
-              {/* Tags */}
-              <div>
-                <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
-                  Tags
-                </div>
-                <div className="space-y-1">
-                  {visibleTags(selected.tags).map((tag) => (
-                    <div
-                      key={tag}
-                      className="flex items-center justify-between gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)]"
-                    >
-                      <span className="truncate">{tag}</span>
-                      <Button
-                        variant="icon"
-                        size="xs"
-                        onClick={() => {
-                          void handleRemoveTag(tag)
-                        }}
-                        className="shrink-0 p-0 text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-error)]"
-                      >
-                        <XIcon size={10} />
-                      </Button>
+              {detailsOpen && (
+                <aside
+                  aria-label="Snippet details"
+                  className="absolute inset-y-0 right-0 z-10 w-60 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg max-[1000px]:w-52"
+                >
+                  <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
+
+                  <label className="block text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                    Folder
+                    <Input
+                      value={selected.folder}
+                      onChange={(event) =>
+                        void updateSnippet(selected.id, { folder: event.target.value })
+                      }
+                      placeholder="No folder"
+                      list="snippet-folders"
+                      className="mt-1.5 w-full"
+                    />
+                  </label>
+                  <datalist id="snippet-folders">
+                    {allFolders.map((folder) => (
+                      <option key={folder} value={folder} />
+                    ))}
+                  </datalist>
+
+                  <div className="mt-5">
+                    <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                      <TagIcon size={11} aria-hidden="true" />
+                      Tags
                     </div>
-                  ))}
-                </div>
-                {/* Tag input with autocomplete */}
-                <div className="relative mt-2">
-                  <input
-                    ref={tagInputRef}
-                    id="tag-input"
-                    role="combobox"
-                    aria-autocomplete="list"
-                    aria-expanded={tagSuggestions.length > 0}
-                    aria-controls="tag-suggestions"
-                    aria-activedescendant={
-                      suggestionIndex >= 0 ? `tag-suggestion-${suggestionIndex}` : undefined
-                    }
-                    value={tagInput}
-                    onChange={(e) => {
-                      setTagInput(e.target.value)
-                      setSuggestionIndex(-1)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowDown') {
-                        e.preventDefault()
-                        setSuggestionIndex((i) => Math.min(i + 1, tagSuggestions.length - 1))
-                        return
-                      }
-                      if (e.key === 'ArrowUp') {
-                        e.preventDefault()
-                        setSuggestionIndex((i) => Math.max(i - 1, -1))
-                        return
-                      }
-                      if (e.key === 'Enter') {
-                        if (suggestionIndex >= 0) {
-                          e.preventDefault()
-                          const chosen = tagSuggestions[suggestionIndex]
-                          if (chosen) void handleAddTagFromSuggestion(chosen)
-                          setSuggestionIndex(-1)
-                          return
-                        }
-                        handleAddTag()
-                        return
-                      }
-                      if (e.key === 'Escape') {
-                        setSuggestionIndex(-1)
-                        setTagInput('')
-                      }
-                    }}
-                    placeholder="+ Add tag..."
-                    className="w-full bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border-b border-transparent focus:border-[var(--color-accent)]"
-                  />
-                  {tagSuggestions.length > 0 && (
-                    <div
-                      id="tag-suggestions"
-                      role="listbox"
-                      aria-label="Tag suggestions"
-                      className="absolute left-0 right-0 top-full z-10 rounded border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
-                      data-testid="tag-suggestions"
-                    >
-                      {tagSuggestions.map((suggestion, i) => (
-                        <Button
-                          key={suggestion}
-                          variant="ghost"
-                          size="xs"
-                          id={`tag-suggestion-${i}`}
-                          role="option"
-                          aria-selected={i === suggestionIndex}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            void handleAddTagFromSuggestion(suggestion)
-                          }}
-                          className={`flex w-full items-center justify-start rounded-none px-2 py-1 text-left text-xs text-[var(--color-text)] ${
-                            i === suggestionIndex
-                              ? 'bg-[var(--color-surface-hover)]'
-                              : 'hover:bg-[var(--color-surface-hover)]'
-                          }`}
+                    <div className="flex flex-wrap gap-1.5">
+                      {visibleTags(selected.tags).map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
                         >
-                          {suggestion}
-                        </Button>
+                          {tag}
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
+                            onClick={() => void handleRemoveTag(tag)}
+                            aria-label={`Remove ${tag} tag`}
+                            className="rounded-full p-0 hover:bg-transparent hover:text-[var(--color-error)]"
+                          >
+                            <XIcon size={9} aria-hidden="true" />
+                          </Button>
+                        </span>
                       ))}
                     </div>
+
+                    <div className="relative mt-2">
+                      <Input
+                        ref={tagInputRef}
+                        role="combobox"
+                        aria-label="Add tag"
+                        aria-autocomplete="list"
+                        aria-expanded={tagSuggestions.length > 0}
+                        aria-controls={tagSuggestions.length > 0 ? 'tag-suggestions' : undefined}
+                        aria-activedescendant={
+                          suggestionIndex >= 0 ? `tag-suggestion-${suggestionIndex}` : undefined
+                        }
+                        value={tagInput}
+                        onChange={(event) => {
+                          setTagInput(event.target.value)
+                          setSuggestionIndex(-1)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'ArrowDown') {
+                            event.preventDefault()
+                            setSuggestionIndex((current) =>
+                              Math.min(current + 1, tagSuggestions.length - 1)
+                            )
+                          } else if (event.key === 'ArrowUp') {
+                            event.preventDefault()
+                            setSuggestionIndex((current) => Math.max(current - 1, -1))
+                          } else if (event.key === 'Enter') {
+                            event.preventDefault()
+                            const suggestion = tagSuggestions[suggestionIndex]
+                            void handleAddTag(suggestion)
+                          } else if (event.key === 'Escape') {
+                            setTagInput('')
+                            setSuggestionIndex(-1)
+                          }
+                        }}
+                        placeholder="Add a tag"
+                        className="w-full"
+                      />
+                      {tagSuggestions.length > 0 && (
+                        <div
+                          id="tag-suggestions"
+                          role="listbox"
+                          aria-label="Tag suggestions"
+                          data-testid="tag-suggestions"
+                          className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+                        >
+                          {tagSuggestions.map((suggestion, index) => (
+                            <Button
+                              key={suggestion}
+                              id={`tag-suggestion-${index}`}
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              role="option"
+                              aria-selected={index === suggestionIndex}
+                              onMouseDown={(event) => {
+                                event.preventDefault()
+                                void handleAddTag(suggestion)
+                              }}
+                              className={`block w-full rounded-none px-2 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] ${
+                                index === suggestionIndex ? 'bg-[var(--color-surface-hover)]' : ''
+                              }`}
+                            >
+                              {suggestion}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {editorStats && (
+                    <dl className="mt-6 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-[var(--color-text-muted)]">Lines</dt>
+                        <dd className="text-[var(--color-text)]">{editorStats.lines}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-[var(--color-text-muted)]">Characters</dt>
+                        <dd className="text-[var(--color-text)]">{editorStats.characters}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-[var(--color-text-muted)]">Bytes</dt>
+                        <dd className="text-[var(--color-text)]">{editorStats.bytes}</dd>
+                      </div>
+                    </dl>
                   )}
-                </div>
-              </div>
-            </div>
 
-            {/* Stats Block */}
-            {editorStats && (
-              <div className="mt-auto border-t border-[var(--color-border)] p-3 font-mono text-2xs text-[var(--color-text-muted)] bg-[var(--color-bg)]/30">
-                L:{editorStats.lines} C:{editorStats.chars} B:{editorStats.bytes}
-              </div>
-            )}
-          </div>
+                  <dl className="mt-5 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
+                    <div>
+                      <dt className="text-[var(--color-text-muted)]">Created</dt>
+                      <dd className="mt-0.5 text-[var(--color-text)]">
+                        {formatTimestamp(selected.createdAt)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[var(--color-text-muted)]">Last edited</dt>
+                      <dd className="mt-0.5 text-[var(--color-text)]">
+                        {formatTimestamp(selected.updatedAt)}
+                      </dd>
+                    </div>
+                  </dl>
+                </aside>
+              )}
+            </div>
+          </>
         ) : (
-          /* Empty meta pane: keyboard shortcuts hint card */
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
-            <div className="font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-              No snippet selected
-            </div>
-            <div className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)]/30 p-3">
-              <div className="mb-2 font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                Shortcuts
+          <EmptyState
+            icon={ScissorsIcon}
+            title="Build your snippet library"
+            description="Create a snippet or import an existing JSON backup to get started."
+            className="h-full"
+            action={
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="primary" onClick={() => void handleNew()}>
+                  <PlusIcon size={12} aria-hidden="true" className="mr-1.5" />
+                  New snippet
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => void handleImport()}>
+                  <UploadSimpleIcon size={12} aria-hidden="true" className="mr-1.5" />
+                  Import JSON
+                </Button>
               </div>
-              {(
-                [
-                  ['F5 / ⌘N', 'New snippet'],
-                  ['F6', 'Duplicate'],
-                  ['F8', 'Delete'],
-                  ['⌘F', 'Search'],
-                  ['F9', 'Export'],
-                  ['F10', 'Import'],
-                ] as [string, string][]
-              ).map(([key, label]) => (
-                <div key={key} className="flex items-center justify-between py-0.5">
-                  <span className="font-mono text-[9px] text-[var(--color-accent)]">{key}</span>
-                  <span className="text-[9px] text-[var(--color-text-muted)]">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            }
+          />
         )}
-      </div>
+      </main>
 
-      {/* ─── Bottom Bar: Command Bar ──────────────────────────── */}
-      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              void handleNew()
-            }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F5: NEW]
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              void handleDuplicate()
-            }}
-            disabled={!selected}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            [F6: DUP]
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleDeleteClick}
-            disabled={!selected}
-            className={`rounded px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
-              selectedId && confirmDeleteId === selectedId
-                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)] hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
-            }`}
-          >
-            {selectedId && confirmDeleteId === selectedId ? '[CONFIRM?]' : '[F8: DEL]'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              void handleExport()
-            }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F9: EXP]
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              void handleImport()
-            }}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F10: IMP]
-          </Button>
-        </div>
-
-        <div className="ml-auto flex items-center gap-4">
-          {saving && <span className="text-[var(--color-accent)] animate-pulse">[SAVING...]</span>}
-          {selected && isFavorite(selected.tags) && (
-            <span className="text-[var(--color-accent)]">[FAV]</span>
-          )}
-          <div className="text-[var(--color-text-muted)] uppercase">{snippets.length} SNIPPETS</div>
-        </div>
-      </div>
+      {deleteDialogOpen && selected && (
+        <Dialog
+          title="Delete snippet?"
+          onClose={() => setDeleteDialogOpen(false)}
+          initialFocusRef={cancelDeleteRef}
+          className="w-[min(26rem,calc(100vw-2rem))]"
+          footer={
+            <>
+              <Button
+                ref={cancelDeleteRef}
+                type="button"
+                variant="secondary"
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" variant="danger" onClick={() => void handleDelete()}>
+                Delete snippet
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            “{selected.title || 'Untitled'}” will be permanently removed from this device.
+          </p>
+        </Dialog>
+      )}
     </div>
   )
 }

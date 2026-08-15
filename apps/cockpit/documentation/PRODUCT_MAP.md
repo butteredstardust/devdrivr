@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 593 tests  | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 1187 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
@@ -36,28 +36,28 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Tool                  | ID                    | What It Does                                                                          |
 | --------------------- | --------------------- | ------------------------------------------------------------------------------------- |
 | Code Formatter        | `code-formatter`      | Format JS/TS/JSON/CSS/HTML/SQL/YAML/XML/Markdown/GraphQL via Prettier + sql-formatter |
-| TypeScript Playground | `ts-playground`       | Transpile TypeScript → JavaScript (worker-based)                                      |
+| TypeScript Playground | `ts-playground`       | Compile TypeScript → JavaScript with real stdlib type checking (worker-based)         |
 | Diff Viewer           | `diff-viewer`         | Side-by-side & inline diff with syntax highlighting (diff2html)                       |
-| Refactoring Toolkit   | `refactoring-toolkit` | AST transforms: var→let/const, Promise.then→async/await, require→import               |
+| Refactoring Toolkit   | `refactoring-toolkit` | 12 jscodeshift codemods with filterable picker, diff preview, apply + undo            |
 
 ### Data Group
 
-| Tool                  | ID                      | What It Does                                                                    |
-| --------------------- | ----------------------- | ------------------------------------------------------------------------------- |
-| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                                         |
-| XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                                             |
-| YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON                 |
-| JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)                             |
-| CSV Tools             | `csv-tools`             | View, edit, convert with JSON, analyze stats, and generate schemas for CSV data |
+| Tool                  | ID                      | What It Does                                                                                                                          |
+| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, path query, tree + table beside the editor                                                       |
+| XML Tools             | `xml-tools`             | Live validation with line/column; tree, JSON and XPath panes beside the editor                                                        |
+| YAML Tools            | `yaml-tools`            | Live validation with line/column; multi-document streams; tree and JSON panes beside the editor                                       |
+| JSON Schema Validator | `json-schema-validator` | Live Ajv validation with a clickable problems list, templates, schema inference, and strict mode                                      |
+| CSV Tools             | `csv-tools`             | Sortable/filterable table beside the source, JSON/TSV/Markdown/SQL conversion, column statistics, generated TypeScript or SQL schemas |
 
 ### Web Group
 
-| Tool            | ID                | What It Does                                             |
-| --------------- | ----------------- | -------------------------------------------------------- |
-| CSS Validator   | `css-validator`   | Parse & validate CSS, report errors with line numbers    |
-| HTML Validator  | `html-validator`  | HTMLHint-based HTML validation with error/warning counts |
-| CSS Specificity | `css-specificity` | Calculate & compare CSS selector specificity scores      |
-| CSS → Tailwind  | `css-to-tailwind` | Convert raw CSS properties to Tailwind utility classes   |
+| Tool            | ID                | What It Does                                                                                                                     |
+| --------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| CSS Validator   | `css-validator`   | Parse & validate CSS, report errors with line numbers                                                                            |
+| HTML Validator  | `html-validator`  | Live HTMLHint validation with a clickable problems list, accessibility rules, heading outline, sandboxed preview, and formatting |
+| CSS Specificity | `css-specificity` | Calculate & compare CSS selector specificity scores                                                                              |
+| CSS → Tailwind  | `css-to-tailwind` | Convert raw CSS properties to Tailwind utility classes                                                                           |
 
 ### Convert Group
 
@@ -92,7 +92,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Tool             | ID                 | What It Does                                                        |
 | ---------------- | ------------------ | ------------------------------------------------------------------- |
 | Markdown Editor  | `markdown-editor`  | Split-pane edit + preview; GFM; Mermaid diagrams; HTML export       |
-| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; SVG/PNG export; 7 templates        |
+| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; pan/zoom; ⌘O/⌘S; SVG/PNG export    |
 | Snippets         | `snippets`         | CRUD code snippets with tags, fuzzy search, import/export           |
 | Prompt Templates | `prompt-templates` | Fill curated AI prompt templates with variables and token estimates |
 

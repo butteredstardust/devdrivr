@@ -4,6 +4,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
+import { Dialog } from '@/components/shared/Dialog'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
@@ -17,21 +18,24 @@ import {
 } from '@/lib/file-io'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
-import { MarkdownPreview } from './MarkdownPreview'
-import { useScrollSync } from './hooks/useScrollSync'
-import { useImageDrop } from './hooks/useImageDrop'
-import { useMarkdownListEditing } from './hooks/useMarkdownListEditing'
-import { useMarkdownSmartPaste } from './hooks/useMarkdownSmartPaste'
-import { LinkModal } from './modals/LinkModal'
-import { CodeBlockModal } from './modals/CodeBlockModal'
-import { ImageModal } from './modals/ImageModal'
-import { TableModal } from './modals/TableModal'
-import { nextHeadingId } from './heading-ids'
+import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
+import { useScrollSync } from '@/tools/markdown-editor/hooks/useScrollSync'
+import { useImageDrop } from '@/tools/markdown-editor/hooks/useImageDrop'
+import { useMarkdownListEditing } from '@/tools/markdown-editor/hooks/useMarkdownListEditing'
+import { useMarkdownSmartPaste } from '@/tools/markdown-editor/hooks/useMarkdownSmartPaste'
+import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
+import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
+import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
+import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
+import { nextHeadingId } from '@/tools/markdown-editor/heading-ids'
 import {
   ArrowsClockwiseIcon,
   CaretDownIcon,
   CodeIcon,
   CopyIcon,
+  FilePlusIcon,
+  FloppyDiskIcon,
+  FolderOpenIcon,
   ImageIcon,
   LinkIcon,
   QuotesIcon,
@@ -46,7 +50,7 @@ import {
 // comment in src/lib/markdown.ts for why that variant exists instead of loosening
 // the shared schema for every surface.
 import { markdownEditorProcessor } from '@/lib/markdown'
-import { toggleTaskAtIndex } from './task-list'
+import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -64,6 +68,14 @@ type TocEntry = {
   level: number
   text: string
   id: string
+}
+
+type PendingDocument = {
+  content: string
+  fileName: string | null
+  filePath: string | null
+  savedContent: string
+  successMessage: string
 }
 
 type EditorInstance = Parameters<OnMount>[0]
@@ -485,6 +497,7 @@ export default function MarkdownEditor() {
   const [showExport, setShowExport] = useState(false)
   const [showFileMenu, setShowFileMenu] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
+  const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const fileMenuRef = useRef<HTMLDivElement>(null)
@@ -493,6 +506,7 @@ export default function MarkdownEditor() {
 
   const showEditor = state.mode === 'split' || state.mode === 'edit'
   const showPreview = state.mode === 'split' || state.mode === 'preview'
+  const isDirty = state.content !== state.savedContent
 
   useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
@@ -541,6 +555,41 @@ export default function MarkdownEditor() {
     const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim()).length
     return { words, chars, lines, paragraphs, readTime: readingTime(words) }
   }, [state.content])
+
+  const applyDocument = useCallback(
+    (document: PendingDocument) => {
+      updateState({
+        content: document.content,
+        fileName: document.fileName,
+        filePath: document.filePath,
+        savedContent: document.savedContent,
+      })
+      setPendingDocument(null)
+      setLastAction(document.successMessage, 'success')
+    },
+    [setLastAction, updateState]
+  )
+
+  const requestDocument = useCallback(
+    (document: PendingDocument) => {
+      if (isDirty) {
+        setPendingDocument(document)
+        return
+      }
+      applyDocument(document)
+    },
+    [applyDocument, isDirty]
+  )
+
+  const handleNewDocument = useCallback(() => {
+    requestDocument({
+      content: '',
+      fileName: null,
+      filePath: null,
+      savedContent: '',
+      successMessage: 'New document created',
+    })
+  }, [requestDocument])
 
   // ─── TOC ─────────────────────────────────────────────────────────
 
@@ -783,18 +832,18 @@ export default function MarkdownEditor() {
     try {
       const result = await openFileDialog()
       if (result) {
-        updateState({
+        requestDocument({
           content: result.content,
           fileName: result.filename,
           filePath: result.path,
           savedContent: result.content,
+          successMessage: `Opened ${result.filename}`,
         })
-        setLastAction(`Opened ${result.filename}`, 'success')
       }
     } catch (err) {
       setLastAction(err instanceof Error ? err.message : String(err), 'error')
     }
-  }, [updateState, setLastAction])
+  }, [requestDocument, setLastAction])
 
   const handleSaveAs = useCallback(async () => {
     try {
@@ -828,11 +877,12 @@ export default function MarkdownEditor() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({
+      requestDocument({
         content: action.content,
         fileName: action.filename,
         filePath: action.path ?? null,
         savedContent: action.content,
+        successMessage: `Opened ${action.filename}`,
       })
     }
     if (action.type === 'save-file') {
@@ -879,124 +929,179 @@ export default function MarkdownEditor() {
 
   const handleTemplateSelect = useCallback(
     (content: string) => {
-      updateState({ content })
       setShowTemplates(false)
-      setLastAction('Template loaded', 'success')
+      requestDocument({
+        content,
+        fileName: null,
+        filePath: null,
+        savedContent: '',
+        successMessage: 'Template loaded',
+      })
     },
-    [updateState, setLastAction]
+    [requestDocument]
   )
 
   return (
     <ToolLayout fullBleed>
-      {/* ─── Header ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-2 py-1.5">
-        <SegmentedControl
-          aria-label="Editor view mode"
-          options={MODE_OPTIONS}
-          value={state.mode as EditorMode}
-          onChange={(mode) => updateState({ mode })}
-        />
-        <div className="ml-auto flex items-center gap-3 py-2">
-          {state.fileName && (
-            <span
-              data-testid="file-name"
-              className="text-2xs text-[var(--color-text-muted)]"
-              title={state.filePath ?? state.fileName}
-            >
-              {state.fileName}
-              {state.content !== state.savedContent && (
-                <span className="text-[var(--color-accent)]"> •</span>
-              )}
-            </span>
-          )}
+      <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="flex min-h-14 items-center gap-2 px-3 max-[1000px]:flex-wrap max-[1000px]:py-2">
+          <div className="min-w-0 flex-1 max-[1000px]:basis-full">
+            <div className="flex items-center gap-2">
+              <h1
+                data-testid="file-name"
+                className="truncate text-sm font-semibold text-[var(--color-text)]"
+                title={state.filePath ?? state.fileName ?? 'Untitled document'}
+              >
+                {state.fileName ?? 'Untitled document'}
+              </h1>
+              <span
+                className={`shrink-0 text-2xs ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
+                aria-live="polite"
+              >
+                {isDirty ? 'Modified' : 'Saved'}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
+              {state.filePath ?? 'Local markdown workspace'}
+            </p>
+          </div>
 
-          {stats && (
-            <span
-              className="text-2xs text-[var(--color-text-muted)]"
-              title={`${stats.lines} lines · ${stats.paragraphs} paragraphs · ${stats.readTime}`}
-            >
-              {stats.words}w · {stats.chars}c · {stats.readTime}
-            </span>
-          )}
+          <SegmentedControl
+            aria-label="Editor view mode"
+            options={MODE_OPTIONS}
+            value={state.mode as EditorMode}
+            onChange={(mode) => updateState({ mode })}
+          />
 
-          {/* Scroll sync toggle — icon button, split mode only */}
           {state.mode === 'split' && (
             <Button
+              type="button"
               variant="icon"
-              size="xs"
+              size="sm"
               onClick={() => updateState({ scrollSync: !state.scrollSync })}
-              title={
-                state.scrollSync
-                  ? 'Scroll sync on (click to disable)'
-                  : 'Scroll sync off (click to enable)'
-              }
+              title={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
+              aria-label={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
+              aria-pressed={state.scrollSync}
               className={state.scrollSync ? 'text-[var(--color-accent)]' : ''}
             >
-              <ArrowsClockwiseIcon size={13} weight={state.scrollSync ? 'bold' : 'regular'} />
+              <ArrowsClockwiseIcon
+                size={14}
+                weight={state.scrollSync ? 'bold' : 'regular'}
+                aria-hidden="true"
+              />
             </Button>
           )}
 
           {toc.length > 0 && (
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => updateState({ showToc: !state.showToc })}
               className={
-                state.showToc ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+                state.showToc ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
               }
-              title="Table of Contents"
+              title="Table of contents"
               aria-pressed={state.showToc}
             >
-              TOC
+              Contents
             </Button>
           )}
 
-          {/* File dropdown — Open / Save / Save As */}
+          <Button
+            type="button"
+            variant="icon"
+            size="sm"
+            onClick={handleNewDocument}
+            title="New document"
+            aria-label="New document"
+          >
+            <FilePlusIcon size={14} aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="icon"
+            size="sm"
+            onClick={() => void handleOpen()}
+            title="Open markdown file"
+            aria-label="Open markdown file"
+          >
+            <FolderOpenIcon size={14} aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => void handleSave()}
+            className="gap-1.5"
+          >
+            <FloppyDiskIcon size={13} aria-hidden="true" /> Save
+          </Button>
+
           <div ref={fileMenuRef} className="relative">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => setShowFileMenu(!showFileMenu)}
               className={
-                showFileMenu ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+                showFileMenu ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
               }
               aria-expanded={showFileMenu}
               aria-haspopup="menu"
             >
-              File
+              File <CaretDownIcon size={10} aria-hidden="true" className="ml-1" />
             </Button>
             {showFileMenu && (
-              <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-20 mt-1 min-w-36 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+              >
                 <Button
+                  role="menuitem"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    handleNewDocument()
+                    setShowFileMenu(false)
+                  }}
+                  className="w-full justify-start"
+                >
+                  New
+                </Button>
+                <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleOpen()
                     setShowFileMenu(false)
                   }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
+                  className="w-full justify-start"
                 >
                   Open…
                 </Button>
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleSave()
                     setShowFileMenu(false)
                   }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
+                  className="w-full justify-start"
                 >
                   Save
                 </Button>
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleSaveAs()
                     setShowFileMenu(false)
                   }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
+                  className="w-full justify-start"
                 >
                   Save As…
                 </Button>
@@ -1004,14 +1109,14 @@ export default function MarkdownEditor() {
             )}
           </div>
 
-          {/* Templates dropdown */}
           <div ref={templatesRef} className="relative">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => setShowTemplates(!showTemplates)}
               className={
-                showTemplates ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''
+                showTemplates ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
               }
               aria-expanded={showTemplates}
               aria-haspopup="menu"
@@ -1019,38 +1124,45 @@ export default function MarkdownEditor() {
               Templates
             </Button>
             {showTemplates && (
-              <div className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
-                {TEMPLATES.map((t) => (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+              >
+                {TEMPLATES.map((template) => (
                   <Button
-                    key={t.label}
+                    key={template.label}
+                    role="menuitem"
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleTemplateSelect(t.content)}
-                    className="w-full justify-start text-left hover:text-[var(--color-text)]"
+                    onClick={() => handleTemplateSelect(template.content)}
+                    className="w-full justify-start text-left"
                   >
-                    {t.label}
+                    {template.label}
                   </Button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Export dropdown — consolidates Copy MD, Copy HTML, Download .md/.html, Print/PDF */}
           <div ref={exportRef} className="relative">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => setShowExport(!showExport)}
-              className={`gap-1 ${showExport ? 'bg-[var(--color-surface-hover)] !text-[var(--color-accent)]' : ''}`}
+              className={`gap-1 ${showExport ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
               aria-expanded={showExport}
               aria-haspopup="menu"
             >
-              Export
-              <CaretDownIcon size={10} />
+              Export <CaretDownIcon size={10} aria-hidden="true" />
             </Button>
             {showExport && (
-              <div className="absolute right-0 top-full z-10 mt-1 min-w-[160px] rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+              >
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1065,6 +1177,7 @@ export default function MarkdownEditor() {
                   Copy Markdown
                 </Button>
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1076,6 +1189,7 @@ export default function MarkdownEditor() {
                 </Button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1086,6 +1200,7 @@ export default function MarkdownEditor() {
                   Download .md
                 </Button>
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1096,6 +1211,7 @@ export default function MarkdownEditor() {
                   Download .html
                 </Button>
                 <Button
+                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1109,11 +1225,15 @@ export default function MarkdownEditor() {
             )}
           </div>
         </div>
-      </div>
+      </header>
 
       {/* ─── Formatting Toolbar ─────────────────────────────────── */}
       {showEditor && (
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--color-border)] px-2 py-1">
+        <div
+          role="toolbar"
+          aria-label="Markdown formatting"
+          className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--color-border)] px-2 py-1"
+        >
           {FORMATTING_ACTIONS.map((action, i) => {
             const prev = FORMATTING_ACTIONS[i - 1]
             const showSep = i > 0 && prev !== undefined && action.group !== prev.group
@@ -1124,6 +1244,7 @@ export default function MarkdownEditor() {
                   <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--color-border)]" />
                 )}
                 <Button
+                  type="button"
                   variant="ghost"
                   size="xs"
                   onClick={() => {
@@ -1139,9 +1260,10 @@ export default function MarkdownEditor() {
                     }
                   }}
                   title={action.title}
+                  aria-label={action.title}
                   className="hover:text-[var(--color-text)]"
                 >
-                  {Icon ? <Icon size={12} /> : action.label}
+                  {Icon ? <Icon size={12} aria-hidden="true" /> : action.label}
                 </Button>
               </Fragment>
             )
@@ -1150,12 +1272,16 @@ export default function MarkdownEditor() {
       )}
 
       {/* ─── Body ───────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden max-[1000px]:flex-col">
         {/* Editor */}
         {showEditor && (
           <div
             ref={editorContainerRef}
-            className={`relative h-full min-h-0 overflow-hidden ${showPreview ? 'w-1/2 border-r border-[var(--color-border)]' : 'w-full'}`}
+            className={`relative min-h-0 overflow-hidden ${
+              showPreview
+                ? 'h-full w-1/2 border-r border-[var(--color-border)] max-[1000px]:h-1/2 max-[1000px]:w-full max-[1000px]:border-b max-[1000px]:border-r-0'
+                : 'h-full w-full'
+            }`}
           >
             <Editor
               theme={monacoTheme}
@@ -1178,7 +1304,13 @@ export default function MarkdownEditor() {
 
         {/* Preview */}
         {showPreview && (
-          <div className={showEditor ? 'w-1/2' : 'w-full'}>
+          <div
+            className={
+              showEditor
+                ? 'h-full min-h-0 w-1/2 max-[1000px]:h-1/2 max-[1000px]:w-full'
+                : 'h-full min-h-0 w-full'
+            }
+          >
             <MarkdownPreview
               ref={previewRef}
               html={html}
@@ -1189,6 +1321,41 @@ export default function MarkdownEditor() {
           </div>
         )}
       </div>
+
+      <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
+        <span>{isDirty ? 'Unsaved changes' : 'All changes saved'}</span>
+        {stats ? (
+          <span title={`${stats.lines} lines · ${stats.paragraphs} paragraphs`}>
+            {stats.words}w · {stats.chars}c · {stats.readTime}
+          </span>
+        ) : (
+          <span>Empty document</span>
+        )}
+        <span className="ml-auto capitalize">{state.mode} view</span>
+      </footer>
+
+      {pendingDocument && (
+        <Dialog
+          title="Replace unsaved changes?"
+          onClose={() => setPendingDocument(null)}
+          className="w-[min(30rem,calc(100vw-2rem))]"
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>
+                Keep editing
+              </Button>
+              <Button type="button" variant="danger" onClick={() => applyDocument(pendingDocument)}>
+                Discard changes
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
+            Your current document has changes that have not been saved to a file. Continuing will
+            replace them.
+          </p>
+        </Dialog>
+      )}
 
       {activeModal === 'link' && (
         <LinkModal

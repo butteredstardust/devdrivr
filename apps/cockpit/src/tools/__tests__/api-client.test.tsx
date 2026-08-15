@@ -73,9 +73,10 @@ describe('ApiClient', () => {
     expect(screen.getByText('Send')).toBeInTheDocument()
   })
 
-  it('renders import button', () => {
+  it('renders import and export controls in the library footer', () => {
     renderTool(ApiClient)
-    expect(screen.getByText('Import...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import requests' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export requests' })).toBeInTheDocument()
   })
 
   it('exports requests in a format that preserves collections and request metadata on import', async () => {
@@ -106,7 +107,7 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export requests' }))
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const exported = clipboardWriteText.mock.calls[0]?.[0]
@@ -173,7 +174,7 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByText('Export'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export requests' }))
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })
@@ -203,38 +204,42 @@ describe('ApiClient', () => {
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()
     expect(screen.queryByText('Body is disabled')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Headers'))
+    // The tab label now carries the active-header count.
+    fireEvent.click(screen.getByRole('button', { name: 'Headers (1)' }))
     expect(screen.getByDisplayValue('Content-Type')).toBeInTheDocument()
     expect(screen.getByDisplayValue('application/json')).toBeInTheDocument()
   })
 
   it('starts with the response pane collapsed and lets users reveal it', () => {
     renderTool(ApiClient)
-    const emptyResponse = screen.getByText('Send a request to see the response')
 
-    expect(screen.getByText('Show Response')).toBeInTheDocument()
-    expect(emptyResponse.parentElement).toHaveClass('hidden')
+    const toggle = screen.getByRole('button', { name: 'Show Response' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('region', { name: 'Response' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Send a request to see the response')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Show Response'))
+    fireEvent.click(toggle)
 
-    expect(screen.getByText('Hide Response')).toBeInTheDocument()
-    expect(emptyResponse.parentElement).not.toHaveClass('hidden')
+    expect(screen.getByRole('button', { name: 'Hide Response' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByText('Send a request to see the response')).toBeInTheDocument()
   })
 
   it('keeps the response pane hidden during requests after the user hides it', async () => {
     renderTool(ApiClient)
-    const emptyResponse = screen.getByText('Send a request to see the response')
-    const responsePanel = emptyResponse.parentElement
 
-    fireEvent.click(screen.getByText('Show Response'))
-    fireEvent.click(screen.getByText('Hide Response'))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Response' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Response' }))
     fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
       target: { value: 'https://example.com' },
     })
     fireEvent.click(screen.getByText('Send'))
 
-    await waitFor(() => expect(screen.getByText('Show Response')).toBeInTheDocument())
-    expect(responsePanel).toHaveClass('hidden')
+    await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Show Response' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Response' })).not.toBeInTheDocument()
   })
 
   it('encodes non-ASCII Basic auth credentials as UTF-8 bytes', async () => {
@@ -334,6 +339,8 @@ describe('ApiClient', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Restore GET https://history.example.com/users?page=1' })
     )
+    // The edited draft is unsaved, so the guard asks before replacing it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }))
     fireEvent.click(screen.getByText('Send'))
 
     await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
@@ -392,7 +399,6 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByText('Active'))
     fireEvent.click(screen.getByRole('button', { name: 'Get active user' }))
     expect(screen.getByDisplayValue('https://example.com/active-user')).toBeInTheDocument()
 
@@ -426,5 +432,199 @@ describe('ApiClient', () => {
     expect(
       screen.getByRole('button', { name: 'Restore GET https://example.com/history' })
     ).toBeInTheDocument()
+  })
+  const savedRequest = {
+    id: 'req-saved',
+    collectionId: null,
+    name: 'Get User',
+    method: 'GET',
+    url: 'https://example.com/user',
+    headers: [],
+    body: '',
+    bodyMode: 'none',
+    auth: { type: 'none' as const },
+    createdAt: 1,
+    updatedAt: 2,
+  }
+
+  it('guards unsaved draft edits before opening a saved request', () => {
+    useApiStore.setState({ requests: [savedRequest] })
+    renderTool(ApiClient)
+
+    const urlInput = screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)
+    fireEvent.change(urlInput, { target: { value: 'https://draft.example.com' } })
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
+
+    expect(screen.getByText('Discard unsaved changes?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)).toHaveValue(
+      'https://draft.example.com'
+    )
+  })
+
+  it('loads the saved request once the discard is confirmed', () => {
+    useApiStore.setState({ requests: [savedRequest] })
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://draft.example.com' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(screen.getByDisplayValue('https://example.com/user')).toBeInTheDocument()
+    expect(screen.getByLabelText('Request name')).toHaveValue('Get User')
+  })
+
+  it('opens a saved request without prompting when the draft is untouched', () => {
+    useApiStore.setState({ requests: [savedRequest] })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
+
+    expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue('https://example.com/user')).toBeInTheDocument()
+  })
+
+  it('does not treat a bare method switch as unsaved work', () => {
+    renderTool(ApiClient)
+
+    expect(screen.getByText('New request — not saved yet')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
+  })
+
+  it('confirms before deleting a saved request', () => {
+    const deleteRequest = vi.fn().mockResolvedValue(undefined)
+    useApiStore.setState({ requests: [savedRequest], deleteRequest })
+    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Get User' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+
+    expect(deleteRequest).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete request' }))
+    expect(deleteRequest).toHaveBeenCalledWith('req-saved')
+  })
+
+  it('warns that deleting a collection also deletes the requests inside it', () => {
+    const deleteCollection = vi.fn().mockResolvedValue(undefined)
+    useApiStore.setState({
+      collections: [{ id: 'col-1', name: 'Accounts', createdAt: 1, updatedAt: 1 }],
+      requests: [{ ...savedRequest, collectionId: 'col-1' }],
+      deleteCollection,
+    })
+    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete collection Accounts' }))
+
+    expect(screen.getByText('1 saved request inside it will also be deleted.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
+    expect(deleteCollection).toHaveBeenCalledWith('col-1')
+  })
+
+  it('filters saved requests by name, URL, and method', () => {
+    useApiStore.setState({
+      requests: [
+        savedRequest,
+        { ...savedRequest, id: 'req-2', name: 'Create order', method: 'POST', url: '/orders' },
+      ],
+    })
+    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Search saved requests'), {
+      target: { value: 'order' },
+    })
+
+    expect(screen.getByRole('button', { name: 'Create order' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Get User' })).not.toBeInTheDocument()
+    expect(screen.getByText('1 matching request')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search saved requests'), { target: { value: 'zzz' } })
+    expect(screen.getByText('No matches')).toBeInTheDocument()
+  })
+
+  it('moves arrow-key focus between visible request rows', () => {
+    useApiStore.setState({
+      requests: [savedRequest, { ...savedRequest, id: 'req-2', name: 'Create order' }],
+    })
+    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+
+    const first = screen.getByRole('button', { name: 'Get User' })
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Create order' }))
+  })
+
+  it('saves an already-saved request without reopening the save dialog', async () => {
+    const updateRequest = vi.fn().mockResolvedValue(undefined)
+    useApiStore.setState({ requests: [savedRequest], updateRequest })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
+    fireEvent.change(screen.getByDisplayValue('https://example.com/user'), {
+      target: { value: 'https://example.com/user?page=2' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateRequest).toHaveBeenCalledOnce())
+    expect(updateRequest.mock.calls[0]?.[0]).toMatchObject({
+      id: 'req-saved',
+      url: 'https://example.com/user?page=2',
+    })
+    expect(screen.queryByText('Save Request')).not.toBeInTheDocument()
+  })
+
+  it('closes only the confirm dialog when Escape is pressed inside the environment manager', () => {
+    useApiStore.setState({
+      environments: [
+        {
+          id: 'env-1',
+          name: 'Local',
+          variables: { baseUrl: 'http://x' },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage environments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    const confirm = screen.getByRole('dialog', { name: 'Delete environment?' })
+    fireEvent.keyDown(confirm, { key: 'Escape' })
+
+    expect(screen.queryByText('Delete environment?')).not.toBeInTheDocument()
+    expect(screen.getByText('Manage Environments')).toBeInTheDocument()
+  })
+
+  it('keeps focus while renaming an environment variable', () => {
+    useApiStore.setState({
+      environments: [
+        {
+          id: 'env-1',
+          name: 'Local',
+          variables: { baseUrl: 'http://x' },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      updateEnvironment: vi.fn().mockResolvedValue(undefined),
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage environments' }))
+    const keyInput = screen.getByLabelText('Variable 1 name')
+    keyInput.focus()
+    fireEvent.change(keyInput, { target: { value: 'baseUrlX' } })
+
+    expect(screen.getByLabelText('Variable 1 name')).toHaveValue('baseUrlX')
+    expect(document.activeElement).toBe(screen.getByLabelText('Variable 1 name'))
   })
 })

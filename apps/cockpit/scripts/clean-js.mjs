@@ -1,8 +1,9 @@
-import { readdirSync, unlinkSync } from 'node:fs'
+import { readdirSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const sourceDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'src')
+const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const sourceDirectory = join(appDirectory, 'src')
 
 const removeGeneratedJavaScript = (directory) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -20,3 +21,11 @@ const removeGeneratedJavaScript = (directory) => {
 }
 
 removeGeneratedJavaScript(sourceDirectory)
+
+// A stray `tsc` emit leaves a compiled `vite.config.js` next to the source
+// config. Vite resolves `.js` before `.ts`, so the build silently runs against
+// a frozen copy of the config — worker options and manual chunks simply have
+// no effect until it is removed.
+for (const generated of ['vite.config.js', 'vite.config.d.ts']) {
+  rmSync(join(appDirectory, generated), { force: true })
+}

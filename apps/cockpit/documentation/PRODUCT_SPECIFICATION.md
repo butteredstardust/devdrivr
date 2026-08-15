@@ -37,31 +37,31 @@ A Tauri 2 desktop application (macOS + Windows) that consolidates common develop
 
 ### 4.1 Stack
 
-| Layer | Technology | Best Practice |
-|---|---|---|
-| Shell | **Tauri 2** (latest stable) | Use Tauri 2 security model with capability-based permissions. Separate frontend from Rust backend via IPC commands. |
-| Frontend | **React 19 + TypeScript 5.9** (strict mode) | Functional components only. All props typed, no `any`. Use React.lazy + Suspense for tool-level code splitting. |
-| State | **Zustand** with `persist` middleware | One store per domain (ui, snippets, notes, history, settings). Persist to SQLite via custom storage adapter. Never put derived state in stores — use selectors. |
-| Editor | **Monaco Editor** | Single shared configuration. Lazy-load language workers. Use `editor.create` not `editor.createDiffEditor` except for diff tool. Dispose instances on unmount. |
-| Heavy processing | **Web Workers** | All formatting, diffing, AST transforms, XML parsing run off main thread. Use `comlink` for typed worker communication. |
-| Storage | **SQLite via `tauri-plugin-sql`** | Migrations managed in Rust side. Use WAL mode for concurrent reads. Parameterized queries only — no string interpolation. |
-| File I/O | **Tauri filesystem API** | Scoped access via capability permissions. Never access paths outside user-selected directories. |
-| Styling | **Tailwind CSS 4** | Design tokens in CSS variables for theme switching. No inline styles. Utility-first, extract components only when repeated 3+ times. |
+| Layer            | Technology                                  | Best Practice                                                                                                                                                   |
+| ---------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell            | **Tauri 2** (latest stable)                 | Use Tauri 2 security model with capability-based permissions. Separate frontend from Rust backend via IPC commands.                                             |
+| Frontend         | **React 19 + TypeScript 5.9** (strict mode) | Functional components only. All props typed, no `any`. Use React.lazy + Suspense for tool-level code splitting.                                                 |
+| State            | **Zustand** with `persist` middleware       | One store per domain (ui, snippets, notes, history, settings). Persist to SQLite via custom storage adapter. Never put derived state in stores — use selectors. |
+| Editor           | **Monaco Editor**                           | Single shared configuration. Lazy-load language workers. Use `editor.create` not `editor.createDiffEditor` except for diff tool. Dispose instances on unmount.  |
+| Heavy processing | **Web Workers**                             | All formatting, diffing, AST transforms, XML parsing run off main thread. Use `comlink` for typed worker communication.                                         |
+| Storage          | **SQLite via `tauri-plugin-sql`**           | Migrations managed in Rust side. Use WAL mode for concurrent reads. Parameterized queries only — no string interpolation.                                       |
+| File I/O         | **Tauri filesystem API**                    | Scoped access via capability permissions. Never access paths outside user-selected directories.                                                                 |
+| Styling          | **Tailwind CSS 4**                          | Design tokens in CSS variables for theme switching. No inline styles. Utility-first, extract components only when repeated 3+ times.                            |
 
 ### 4.2 Key Libraries
 
-| Purpose | Library | Notes |
-|---|---|---|
-| Formatting | `prettier` + plugins | SQL via `prettier-plugin-sql`, all others built-in. Run in Web Worker. |
-| Diffing | `diff` + `diff2html` | Compute in worker, render in main thread. |
-| Markdown | `unified` + `remark` + `rehype` | Full GFM support. Mermaid via `rehype-mermaid`. Sanitize HTML output. |
-| Mermaid | `mermaid` | Lazy-loaded, render in iframe sandbox for security. |
-| Fuzzy search | `fuse.js` | Used for command palette, snippets, notes search. |
-| XML | `@xmldom/xmldom` | Parse/validate in worker. |
-| AST transforms | `jscodeshift` | Refactoring toolkit. Run in worker. Always preview via diff. |
-| TypeScript | `typescript` (compiler API) | TS playground transpilation. Run in worker. |
-| HTTP client | `@tauri-apps/plugin-http` | API client uses Tauri's native HTTP, not browser fetch — avoids CORS entirely. |
-| Tailwind conversion | `css-to-tailwindcss` | CSS→Tailwind converter. |
+| Purpose             | Library                         | Notes                                                                          |
+| ------------------- | ------------------------------- | ------------------------------------------------------------------------------ |
+| Formatting          | `prettier` + plugins            | SQL via `prettier-plugin-sql`, all others built-in. Run in Web Worker.         |
+| Diffing             | `diff` + `diff2html`            | Compute in worker, render in main thread.                                      |
+| Markdown            | `unified` + `remark` + `rehype` | Full GFM support. Mermaid via `rehype-mermaid`. Sanitize HTML output.          |
+| Mermaid             | `mermaid`                       | Lazy-loaded, render in iframe sandbox for security.                            |
+| Fuzzy search        | `fuse.js`                       | Used for command palette, snippets, notes search.                              |
+| XML                 | `@xmldom/xmldom`                | Parse/validate in worker.                                                      |
+| AST transforms      | `jscodeshift`                   | Refactoring toolkit. Run in worker. Always preview via diff.                   |
+| TypeScript          | `typescript` (compiler API)     | TS playground transpilation. Run in worker.                                    |
+| HTTP client         | `@tauri-apps/plugin-http`       | API client uses Tauri's native HTTP, not browser fetch — avoids CORS entirely. |
+| Tailwind conversion | `css-to-tailwindcss`            | CSS→Tailwind converter.                                                        |
 
 ### 4.3 Project Structure
 
@@ -197,21 +197,21 @@ CSV Tools, Image Tool, and Prompt Templates).
 
 All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
-| Action | Shortcut |
-|---|---|
-| Command palette | Cmd/Ctrl+K |
-| Toggle notes drawer | Cmd/Ctrl+Shift+N |
-| Toggle sidebar | Cmd/Ctrl+B |
-| Cycle tools forward/back | Cmd/Ctrl+] / Cmd/Ctrl+[ |
-| Format / execute current tool | Cmd/Ctrl+Enter |
-| Copy output | Cmd/Ctrl+Shift+C |
-| Switch sub-tab 1/2/3 | Cmd/Ctrl+1/2/3 |
-| Open file into current tool | Cmd/Ctrl+O |
-| Save output to file | Cmd/Ctrl+S |
-| Settings | Cmd/Ctrl+, |
-| Quick capture note | Cmd/Ctrl+Shift+Space (global, works when app is background) |
-| Always on top toggle | Cmd/Ctrl+Shift+P |
-| Toggle dark/light theme | Cmd/Ctrl+Shift+T |
+| Action                        | Shortcut                                                    |
+| ----------------------------- | ----------------------------------------------------------- |
+| Command palette               | Cmd/Ctrl+K                                                  |
+| Toggle notes drawer           | Cmd/Ctrl+Shift+N                                            |
+| Toggle sidebar                | Cmd/Ctrl+B                                                  |
+| Cycle tools forward/back      | Cmd/Ctrl+] / Cmd/Ctrl+[                                     |
+| Format / execute current tool | Cmd/Ctrl+Enter                                              |
+| Copy output                   | Cmd/Ctrl+Shift+C                                            |
+| Switch sub-tab 1/2/3          | Cmd/Ctrl+1/2/3                                              |
+| Open file into current tool   | Cmd/Ctrl+O                                                  |
+| Save output to file           | Cmd/Ctrl+S                                                  |
+| Settings                      | Cmd/Ctrl+,                                                  |
+| Quick capture note            | Cmd/Ctrl+Shift+Space (global, works when app is background) |
+| Always on top toggle          | Cmd/Ctrl+Shift+P                                            |
+| Toggle dark/light theme       | Cmd/Ctrl+Shift+T                                            |
 
 ---
 
@@ -221,11 +221,24 @@ All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
 **Replaces:** jsonlint.com, json2table.de
 
-**Sub-tabs:** Lint & Format | Tree View | Table View
+**Views:** Source | Tree | Table (segmented control — Tree and Table open _beside_ the editor, not
+instead of it, so a document can be fixed while it is being inspected.)
 
-- **Lint & Format** — Monaco editor with JSON language mode. Validates on keystroke (debounced 300ms). Format button runs Prettier in worker. Errors shown as inline markers + error panel with line numbers.
-- **Tree View** — Collapsible tree rendered from parsed JSON. Click a node to copy its path (`data.users[0].name`). Search/filter nodes.
-- **Table View** — Renders array-of-objects as a sortable table using `@tanstack/react-table`. Copy cell, copy row, copy column. Export as CSV.
+- **Source** — Monaco editor in JSON mode. Validity is computed on every keystroke and reported in a
+  polite live region as `Valid JSON · N keys · depth D · size`, or
+  `Invalid JSON — line L, column C` with a **Go to error** button that moves the caret there
+  (`JSON.parse` only reports a character offset, which is useless in a long document).
+- **Actions** — Format (Prettier in the formatter worker, ⌘↵, indent 2/4), Minify, Sort keys, Copy,
+  Save (⌘S; refuses an empty buffer). Minify and Sort keys are disabled while the document does not
+  parse.
+- **Path query** — a collapsible row; dot and bracket paths (`$.items[0].sku`) resolved against the
+  parsed document, with the result in an `output` live region and a Copy button. A path that
+  resolves to `null` is reported as a hit, not a miss.
+- **Tree** — collapsible tree; values and paths are click-to-copy, and the pane starts collapsed
+  above 500 keys with Expand all / Collapse all in its header.
+- **Table** — array-of-objects rendered as a grid with sortable headers (`aria-sort`), a sticky
+  header row and a roving cell cursor: arrow keys move, Enter copies the focused cell. Non-tabular
+  documents get an explanation rather than an empty grid.
 
 ### 6.2 Code Formatter
 
@@ -243,12 +256,29 @@ All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
 **Replaces:** xmllint.com
 
-**Sub-tabs:** Lint & Format | Tree View
+**Views:** Source | Tree | JSON | XPath (segmented control — the inspector panes open _beside_ the
+editor, not instead of it, so a document can be fixed while it is being inspected.)
 
-- Validate XML syntax, show errors with line numbers.
-- Format/prettify XML with configurable indent.
-- Tree view for navigating XML structure.
-- XPath query support — enter an XPath, see matching nodes highlighted.
+- **Source** — Monaco editor in XML mode. The document is parsed on every keystroke (debounced, in
+  the XML worker) and the verdict goes to a polite live region as
+  `Valid XML · N elements · M attributes · depth D`, or `Invalid XML — <message> — line L, column C`
+  with a **Go to error** button that moves the caret there.
+- **Issue levels** — a recoverable problem (an unquoted attribute, say) is a warning: it is shown in
+  a banner but the document stays usable, and only `error`/`fatalError` block the panes and the
+  transforms.
+- **Actions** — Format (⌘↵, indent 2/4), Minify, Copy, Save (⌘S; refuses an empty buffer). A
+  transform whose source changed while it was running is discarded rather than written over the
+  newer keystrokes.
+- **Tree** — collapsible tree built in the worker from the same parse that validates, so it never
+  disagrees with the status line. Every element row has a Copy button (keyboard-reachable, not
+  hover-only) that yields the element's XML. Opens collapsed above 300 elements, with Expand all /
+  Collapse all in the pane header.
+- **JSON** — live XML→JSON conversion in a read-only Monaco editor; no Convert click, and the result
+  survives keystrokes instead of being thrown away.
+- **XPath** — expressions run as you type against the parsed document, with a match count and a
+  per-match Copy button. A broken expression is reported as an error rather than returned as a
+  match, and because the bundled engine ignores predicates it says so instead of quietly matching
+  every node.
 
 ### 6.4 Diff Viewer
 
@@ -281,11 +311,17 @@ All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
 **Standalone diagram editor for mermaid syntax.**
 
-- Monaco editor with mermaid language hints.
-- Live preview panel rendering the diagram.
-- Export as SVG or PNG.
-- Template gallery: flowchart, sequence, class, ER, gantt, state, pie.
-- Error feedback when syntax is invalid.
+- Monaco editor with Edit / Split / Preview modes; the panes stack below ~900px.
+- Live preview, debounced 500ms, that keeps the last good diagram while syntax is broken.
+- Pan and zoom canvas with fit-to-view and full keyboard control (arrows, `+`/`-`, `F`, `0`); it
+  auto-fits new diagrams but leaves a zoom the user set alone.
+- Error banner with the failing line, a "Go to line" jump, and a Monaco marker on that line. Line
+  numbers are mapped back through the comments and front matter Mermaid strips before parsing.
+- Template gallery (flowchart, sequence, class, ER, gantt, state, pie) behind a confirmation
+  when the buffer has unsaved changes.
+- Open `.mmd` files from disk and save back to them (⌘O / ⌘S), with a Modified/Saved status.
+- Copy or export SVG (with explicit pixel dimensions) and PNG at 1×–4×, opaque by default.
+- Status bar reporting the diagram type, line count and render state.
 
 ### 6.7 Case Converter
 
@@ -413,19 +449,48 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.22 TypeScript Playground
 
-- Left panel: TypeScript input (Monaco with TS language service).
-- Right panel: transpiled JavaScript output.
-- Compiler options toggle: target (ES5/ES2015/ESNext), module format, strict mode.
-- Type errors shown inline in the editor.
-- Runs TypeScript compiler in Web Worker.
+- Left panel: TypeScript input (Monaco); right panel: transpiled JavaScript output. Both panes are
+  labelled with a line count and stack vertically below 900px.
+- Compiler options behind a disclosure: target (ES5/ES2015/ES2020/ESNext), module format, strict mode.
+- Problems panel: collapsible, counted, with `line:column`, severity and the TS error code. Type
+  checking runs against the real `lib*.d.ts` closure, inlined into the worker bundle (an `iife`
+  worker cannot code-split, and module workers are barred).
+- Compiles automatically as you type (debounced); only an explicit ⌘↵ / Compile reports to the
+  status bar. Supports open-file and save-file (JavaScript output).
+- Runs the TypeScript compiler in a Web Worker.
 
 ### 6.23 JSON Schema Validator
 
-- Two editors: JSON data (left) and JSON Schema (right).
-- Validate data against schema on keystroke (debounced).
-- Errors shown with JSON Pointer paths and human-readable messages.
-- Load schema from URL (fetches via Tauri HTTP).
-- Common schema templates: OpenAPI, JSON:API, GeoJSON.
+- Two labelled editors — JSON data (left) and JSON Schema (right) — that stack vertically below
+  900px. Each pane carries its own file name, Format, Copy and Save.
+- Validates on keystroke (debounced 250ms); ⌘↵ revalidates immediately. The verdict lives in a
+  `role="status"` live region, not in the global status bar.
+- The three failure modes stay apart: data that does not parse, a schema that does not parse or
+  compile (with the Ajv message), and data that simply does not match. Parse errors report
+  `line, column` and a **Go to error** button that lands the cursor in the right pane.
+- Problems panel: collapsible, counted, capped at 200 rendered rows with the real total shown.
+  Each row is a button carrying the keyword and JSON Pointer, and clicking it jumps to that value
+  in the data editor (the pointer is resolved against the source text, so the cursor lands on the
+  offending line rather than on the pointer's name).
+- Draft-07, 2019-09 and 2020-12 are all supported; the dialect is read off `$schema` and the
+  compiled validator is cached by schema text, so typing in the data pane never recompiles.
+- Templates picker (7 shapes: object, array, nested, enum/oneOf, formats, allOf, conditional) plus
+  an explicit **Load template** button that fills both panes; selecting alone changes nothing, so
+  keyboard navigation through the list cannot destroy the buffers. Every template also validates
+  cleanly under strict mode.
+- **Infer schema** merges every array item rather than trusting the first, widens integer/number,
+  and marks a key required only when every observed object had it. **Sample data** builds the
+  smallest document the current schema accepts. Both are undoable — each buffer-replacing action
+  offers "Undo <action>" until the next manual edit.
+- Strict mode toggle (`aria-pressed`) surfaces schema authoring mistakes as schema errors.
+- Load schema from URL: uses the Tauri HTTP client (schema hosts send no CORS headers, so the
+  WebView's own `fetch` cannot reach them). http(s) only, 15s timeout, superseded requests aborted
+  and their responses discarded, and the failure reason passed through — a host outside the app's
+  capability scope is named as such rather than surfacing Tauri's wording. The allowed hosts are
+  `raw.githubusercontent.com`, `json.schemastore.org` and `json-schema.org`.
+- Supports open-file (routed to the schema pane for a file named `*schema*` or containing
+  `"$schema"`, otherwise to the data pane, and undoable) and save-file (saves the pane last
+  focused).
 
 ### 6.24 CSS Validator
 
@@ -436,10 +501,27 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.25 HTML Validator
 
-- Monaco editor with HTML language mode.
-- Validate HTML structure, unclosed tags, nesting issues.
-- Accessibility hints: missing alt attributes, missing labels, ARIA issues.
-- Use `htmlhint` or `html-validate`.
+- Monaco editor with HTML language mode beside a sandboxed live preview
+  (`Editor` / `Split` / `Preview`), stacking below ~900px. The preview follows
+  the source on a debounce and expands into a focus-trapped dialog.
+- Live HTMLHint validation on a 300 ms debounce. Problems are listed worst-first
+  in a collapsible bottom panel; each row is a button that moves the Monaco
+  cursor to the line and column, and every problem is also a model marker.
+- ~30 rules across structure, attributes, accessibility and style, each with a
+  plain-language label and a hint. Rules the user changes are stored as
+  departures from the defaults (so new defaults still reach them), the Rules
+  button carries the count of those departures, and "Reset to defaults" clears
+  them. Rules that are off are omitted from the ruleset rather than passed
+  `false`.
+- Document statistics read off the parsed DOM — element count discounting the
+  wrappers the parser supplies for a fragment, nesting depth, style attributes
+  and scripts.
+- Heading outline with the problems a linter will not report: an outline that
+  does not start at `h1`, more than one `h1`, and skipped levels.
+- Documents are files: New / Open / Save with a name, path and Modified/Saved
+  status, ⌘O and ⌘S support, and a confirmation before a template or a new
+  document replaces unsaved work. `Format` (⌘↵) reformats through the shared
+  prettier worker and reports markup prettier cannot parse.
 
 ### 6.26 CSS Specificity Calculator
 
@@ -467,6 +549,77 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
   - Arrow function conversion
 - **Always preview as diff before applying.** User confirms or discards.
 - Multiple transforms can be selected and applied in sequence.
+- Transform panel is a filterable, collapsible disclosure grouped by category, with a
+  select-all per group (indeterminate when partly selected) and a visible safety level per
+  transform.
+- Source/Diff view toggle: the diff is read-only, so the source stays reachable while
+  transforms remain selected.
+- Applying rewrites the buffer and offers Undo (⌘↵ applies). Supports open-file and
+  save-file; the language follows the opened file's extension.
+
+### 6.29 YAML Tools
+
+**Views:** Source | Tree | JSON (segmented control — the inspector panes open _beside_ the editor,
+not instead of it.)
+
+- **Source** — Monaco editor in YAML mode. The document is parsed on every keystroke and the verdict
+  goes to a polite live region as `Valid YAML · N documents · K keys · depth D · size`, or
+  `Invalid YAML — <reason> — line L, column C` with a **Go to error** button that moves the caret
+  there. An empty buffer reads as "Nothing to inspect yet" rather than as an error.
+- **Multi-document streams** — the whole stream is parsed (`loadAll`), so `---`-separated documents
+  (Kubernetes manifests, most obviously) are supported end to end: validated, counted, inspected and
+  written back as a stream.
+- **Actions** — Format (⌘↵, via the formatter worker), Sort keys, Compact (flow style), Copy,
+  Save (⌘S; refuses an empty buffer). A format whose source changed while it was running is
+  discarded rather than written over the newer keystrokes.
+- **Lossy-transform warning** — reshaping goes through parse → dump, which js-yaml cannot do without
+  dropping comments and expanding anchors. When the source carries either, the action says
+  "comments dropped", and every reshape leaves a one-click **Undo** that does not depend on Monaco's
+  history.
+- **Tree** — collapsible tree of the parsed documents. Every value and every node is copyable from
+  the keyboard (values by content, nodes by path). Opens collapsed above 500 keys, with Expand all /
+  Collapse all in the pane header.
+- **JSON** — live YAML→JSON conversion; no Convert click, and the result survives keystrokes. The
+  pane is editable, and **Apply to YAML** converts back, which is the JSON→YAML direction that used
+  to live in a tab with a second buffer of its own.
+
+### 6.30 CSV Tools
+
+**Views:** Table | Convert | Analyze (segmented control — every pane opens _beside_ the source
+editor, not instead of it.)
+
+- **Source** — Monaco editor holding the raw text. Parsed on a 250ms debounce; the verdict goes to a
+  polite live region as `N rows · K columns · <delimiter>-separated (detected) · size`, with the
+  issue count appended and a **Go to issue** button that moves the caret to the offending line.
+  Line numbers are counted over the source, so blank lines and newlines inside quoted fields do not
+  make them drift.
+- **Delimiter** — auto-detection scores comma, tab, semicolon and pipe by how consistently they
+  split the file into records (quoted sections excluded), rather than by counting characters in the
+  header — a title row ahead of the header no longer misleads it — and can be overridden from a
+  labelled select. **Header row** and **Typed values** are toggles;
+  leaving typing off keeps `007`, phone numbers and SKUs as the strings they are.
+- **Ragged rows are data, not noise** — rows are read positionally and keyed afterwards, so a row
+  with more fields than the header gets extra `Column N` entries and an issue naming its line
+  instead of silently losing the values. Repeated header names are disambiguated (`id`, `id (2)`).
+- **Table** — sortable, filterable preview. Header sorting is a real button with `aria-sort` on the
+  `<th>` (it used to be a click handler, unreachable from the keyboard), rows are numbered, the
+  header is sticky, and rendering is capped at the first 500 matches with the total stated.
+- **Convert** — JSON (array of objects or object of arrays), TSV, Markdown table and SQL inserts
+  (named after the same table as the generated schema, so the DDL and the inserts run together).
+  Values that would break the target syntax are escaped: pipes and newlines in Markdown, quotes and
+  identifiers in SQL, tabs in TSV. The pane reads the same parse as the rest of the tool rather than
+  re-parsing a buffer of its own.
+- **Analyze** — three independently-openable disclosure panels: per-column statistics (type, unique,
+  blanks, min/max/mean/median or longest/most common), a data-quality summary (blank cells,
+  duplicate rows, mixed-type and empty columns), and a generated schema shown on screen as
+  **TypeScript** or **SQL** with its own Copy. A column with one stray value is reported as `mixed`
+  rather than as a number.
+- **Actions** — Copy and Save (⌘S) act on the visible pane, re-reading the editor if the debounce
+  has not caught up, and the suggested file name follows the source with the right extension. In
+  Table view they write the source text verbatim: re-serialising the parsed rows would drop a ragged
+  row's extra fields and rewrite `007` as `7`. open-file records the file name and leaves a
+  one-click **Undo** that restores name and buffer together, as does Load sample; the offer expires
+  on the first manual edit.
 
 ---
 
@@ -524,23 +677,24 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ```ts
 type Snippet = {
-  id: string            // nanoid
+  id: string // nanoid
   title: string
   content: string
-  language: string      // e.g. 'javascript', 'sql', 'json'
+  language: string // e.g. 'javascript', 'sql', 'json'
   tags: string[]
-  createdAt: number     // unix ms
+  createdAt: number // unix ms
   updatedAt: number
 }
 
 type Note = {
   id: string
   title: string
-  content: string       // markdown
-  color: string         // one of 8 predefined colors
+  content: string // markdown
+  color: string // one of 8 predefined colors
   pinned: boolean
-  poppedOut: boolean    // whether displayed as floating window
-  windowBounds?: {      // position/size when popped out
+  poppedOut: boolean // whether displayed as floating window
+  windowBounds?: {
+    // position/size when popped out
     x: number
     y: number
     width: number
@@ -552,8 +706,8 @@ type Note = {
 
 type HistoryEntry = {
   id: string
-  tool: string          // tool identifier
-  subTab?: string       // e.g. 'lint', 'tree', 'table'
+  tool: string // tool identifier
+  subTab?: string // e.g. 'lint', 'tree', 'table'
   input: string
   output: string
   timestamp: number
@@ -561,7 +715,7 @@ type HistoryEntry = {
 
 type ToolState = {
   toolId: string
-  state: Record<string, unknown>  // tool-specific serialized state
+  state: Record<string, unknown> // tool-specific serialized state
   updatedAt: number
 }
 
@@ -574,7 +728,7 @@ type AppSettings = {
   defaultTimezone: string
   editorFontSize: number
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
-  historyRetentionPerTool: number  // default 500
+  historyRetentionPerTool: number // default 500
   formatOnPaste: boolean
 }
 ```
@@ -637,15 +791,15 @@ CREATE TABLE settings (
 
 ## 9. Performance Requirements
 
-| Metric | Target |
-|---|---|
-| Any UI interaction (click, keystroke) | <50ms response |
-| Formatting (typical file <1000 lines) | <200ms |
-| Diff computation (two inputs <1000 lines each) | <300ms |
-| Tool switch (sidebar click) | <100ms (lazy-loaded tools cached after first load) |
-| App cold start | <2s to interactive |
-| SQLite query (any) | <10ms |
-| Command palette open + search | <50ms |
+| Metric                                         | Target                                             |
+| ---------------------------------------------- | -------------------------------------------------- |
+| Any UI interaction (click, keystroke)          | <50ms response                                     |
+| Formatting (typical file <1000 lines)          | <200ms                                             |
+| Diff computation (two inputs <1000 lines each) | <300ms                                             |
+| Tool switch (sidebar click)                    | <100ms (lazy-loaded tools cached after first load) |
+| App cold start                                 | <2s to interactive                                 |
+| SQLite query (any)                             | <10ms                                              |
+| Command palette open + search                  | <50ms                                              |
 
 All formatting, diffing, AST, and XML operations run in Web Workers — main thread never blocked.
 
@@ -665,14 +819,14 @@ All formatting, diffing, AST, and XML operations run in Web Workers — main thr
 
 ## 11. Risks & Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| 28 tools = large bundle size | Code-split every tool via React.lazy. Only active tool loaded. |
-| Monaco Editor memory usage with multiple instances | Single Monaco instance per tool, disposed on unmount. Reuse config. |
-| Incorrect AST refactors | Always preview as diff. Never auto-apply. User confirms. |
-| Web Worker startup latency | Pre-warm formatter worker on app launch. Others lazy. |
-| SQLite data loss on crash | WAL mode + periodic checkpoint. Tool state saved on debounced interval (2s), not just on quit. |
-| Prettier/TS compiler large WASM | Load in worker, cache after first load. Show loading indicator. |
+| Risk                                               | Mitigation                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 28 tools = large bundle size                       | Code-split every tool via React.lazy. Only active tool loaded.                                 |
+| Monaco Editor memory usage with multiple instances | Single Monaco instance per tool, disposed on unmount. Reuse config.                            |
+| Incorrect AST refactors                            | Always preview as diff. Never auto-apply. User confirms.                                       |
+| Web Worker startup latency                         | Pre-warm formatter worker on app launch. Others lazy.                                          |
+| SQLite data loss on crash                          | WAL mode + periodic checkpoint. Tool state saved on debounced interval (2s), not just on quit. |
+| Prettier/TS compiler large WASM                    | Load in worker, cache after first load. Show loading indicator.                                |
 
 ---
 

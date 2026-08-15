@@ -46,9 +46,12 @@ export async function openFileDialog(): Promise<{
           'json',
           'xml',
           'html',
+          'htm',
           'css',
           'js',
+          'jsx',
           'ts',
+          'tsx',
           'md',
           'yaml',
           'yml',
@@ -58,6 +61,8 @@ export async function openFileDialog(): Promise<{
           'sql',
           'csv',
           'svg',
+          'mmd',
+          'mermaid',
         ],
       },
       { name: 'All', extensions: ['*'] },
@@ -82,7 +87,29 @@ export async function saveFileDialog(
   const path = await save({
     ...(defaultName !== undefined && { defaultPath: defaultName }),
     filters: [
-      { name: 'Text', extensions: ['txt', 'json', 'xml', 'html', 'css', 'js', 'ts', 'md'] },
+      {
+        name: 'Text',
+        // `csv`, `tsv`, `sql` and `mmd` are here because the save panel appends
+        // an allowed extension: without them `people.csv` is written as
+        // `people.csv.txt`.
+        extensions: [
+          'txt',
+          'json',
+          'xml',
+          'yaml',
+          'yml',
+          'html',
+          'htm',
+          'css',
+          'js',
+          'ts',
+          'md',
+          'csv',
+          'tsv',
+          'sql',
+          'mmd',
+        ],
+      },
       { name: 'All', extensions: ['*'] },
     ],
   })

@@ -5,7 +5,16 @@
 // browser DOMParser), so XML Tools is exercised end to end in tests. Replies
 // are delivered asynchronously (as a real worker would) and a terminated
 // instance goes silent.
-import { validate, format, minify, toJson, stats, queryXPath } from '@/workers/xml.api'
+import {
+  validate,
+  format,
+  minify,
+  toJson,
+  stats,
+  inspect,
+  tree,
+  queryXPath,
+} from '@/workers/xml.api'
 
 type RpcRequest = { id: number; method: string; args: unknown[] }
 
@@ -15,6 +24,8 @@ const METHODS: Record<string, (...args: unknown[]) => unknown> = {
   minify: (xml) => minify(xml as string),
   toJson: (xml) => toJson(xml as string),
   stats: (xml) => stats(xml as string),
+  inspect: (xml) => inspect(xml as string),
+  tree: (xml) => tree(xml as string),
   queryXPath: (xml, expression) => queryXPath(xml as string, expression as string),
 }
 

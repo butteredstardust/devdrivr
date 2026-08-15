@@ -1,202 +1,506 @@
-import { useRef, useMemo, useCallback } from 'react'
-import Editor from '@monaco-editor/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Editor, { type OnMount } from '@monaco-editor/react'
+import {
+  ArrowUUpLeftIcon,
+  CheckCircleIcon,
+  CrosshairSimpleIcon,
+  FileCsvIcon,
+  FloppyDiskIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
-import { TabBar } from '@/components/shared/TabBar'
-import { Alert } from '@/components/shared/Alert'
-import { Select } from '@/components/shared/Select'
+import { Button } from '@/components/shared/Button'
+import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { Select } from '@/components/shared/Select'
+import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { useUiStore } from '@/stores/ui.store'
+import { saveFileDialog } from '@/lib/file-io'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import CsvTable from './CsvTable'
 import CsvConvert from './CsvConvert'
-import CsvAnalyze from './CsvAnalyze'
-import type { Delimiter } from './utils'
-import { parseCsv, detectDelimiter } from './utils'
+import CsvAnalyze, { type SchemaLanguage } from './CsvAnalyze'
+import {
+  DELIMITER_OPTIONS,
+  FORMAT_EXTENSIONS,
+  formatBytes,
+  generateSql,
+  generateTypeScript,
+  outputFileName,
+  parseCsv,
+  summarizeColumns,
+  toOutput,
+  type CsvIssue,
+  type CsvParse,
+  type CsvRow,
+  type Delimiter,
+  type OutputFormat,
+} from './csv-helpers'
+
+type CsvView = 'table' | 'convert' | 'analyze'
 
 type CsvToolsState = {
   input: string
-  activeTab: 'view' | 'convert' | 'analyze'
+  fileName: string | null
+  view: CsvView
   delimiter: Delimiter
   hasHeader: boolean
-  jsonOutputFormat: 'array-of-objects' | 'object-of-arrays'
+  /** Off keeps `007` and `+4420…` intact; on gives real numbers to the stats. */
+  typed: boolean
+  format: OutputFormat
+  schemaLanguage: SchemaLanguage
 }
 
-const TABS = [
-  { id: 'view', label: 'View & Edit' },
-  { id: 'convert', label: 'Convert' },
-  { id: 'analyze', label: 'Analyze' },
+const VIEW_OPTIONS = [
+  { value: 'table' as const, label: 'Table' },
+  { value: 'convert' as const, label: 'Convert' },
+  { value: 'analyze' as const, label: 'Analyze' },
 ]
+
+const EMPTY_PARSE = { columns: [] as string[], rows: [] as CsvRow[], issues: [] as CsvIssue[] }
+
+const DELIMITER_LABELS: Record<string, string> = {
+  ',': 'comma',
+  '\t': 'tab',
+  ';': 'semicolon',
+  '|': 'pipe',
+}
+
+type OutputOptions = {
+  view: CsvView
+  format: OutputFormat
+  schemaLanguage: SchemaLanguage
+  fileName: string | null
+}
+
+/** `people.csv` → `people`: the table both the schema and the inserts name. */
+function tableNameFrom(fileName: string | null): string {
+  return (fileName ?? 'csv_data').replace(/\.[^./\\]+$/, '')
+}
+
+/**
+ * The text the visible pane represents — what Copy and ⌘S act on.
+ *
+ * The table deliberately hands back the source itself: re-serialising the
+ * parsed rows would drop the extra fields of a ragged row and rewrite `007`
+ * as `7`, so saving a file you had only *looked* at could lose data.
+ */
+function outputFor(source: string, parse: CsvParse, options: OutputOptions): string {
+  if (parse.status !== 'parsed' || options.view === 'table') return source
+  const tableName = tableNameFrom(options.fileName)
+  if (options.view === 'convert')
+    return toOutput(parse.columns, parse.rows, options.format, tableName)
+  const summaries = summarizeColumns(parse.columns, parse.rows)
+  if (summaries.length === 0) return ''
+  return options.schemaLanguage === 'sql'
+    ? generateSql(summaries, tableName)
+    : generateTypeScript(summaries)
+}
 
 export default function CsvTools() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<CsvToolsState>('csv-tools', {
     input: '',
-    activeTab: 'view',
+    fileName: null,
+    view: 'table',
     delimiter: 'auto',
     hasHeader: true,
-    jsonOutputFormat: 'array-of-objects',
+    typed: false,
+    format: 'json-rows',
+    schemaLanguage: 'typescript',
   })
+  const { record } = useToolHistory({ toolId: 'csv-tools' })
+  const setLastAction = useUiStore((s) => s.setLastAction)
 
-  const { record } = useToolHistory({ toolId: 'csv-tools', debounceMs: 2000 })
-  const lastRecordedInput = useRef('')
+  const { input, view, delimiter, hasHeader, typed, format, schemaLanguage } = state
+  const inputRef = useRef(input)
+  inputRef.current = input
+  const hasInput = input.trim().length > 0
 
-  // Parse CSV — derive both data and error without setState
-  const parseResult = useMemo(() => {
-    if (!state.input.trim()) return { data: null, error: null }
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  // Opening a file or loading the sample replaces whatever was in the buffer;
+  // Monaco's own undo stack does not survive that, so the text is kept here.
+  const [undoBuffer, setUndoBuffer] = useState<{
+    input: string
+    fileName: string | null
+    label: string
+  } | null>(null)
 
-    try {
-      const delimiter = state.delimiter === 'auto' ? detectDelimiter(state.input) : state.delimiter
+  // Parsing a multi-megabyte export on every keystroke costs a frame, and a
+  // live region re-announcing the verdict per character is unusable.
+  const [parseSource, setParseSource] = useState(input)
+  useEffect(() => {
+    const timer = setTimeout(() => setParseSource(input), 250)
+    return () => clearTimeout(timer)
+  }, [input])
 
-      const result = parseCsv(state.input, delimiter, state.hasHeader)
-      const error = result.errors.length > 0 && result.errors[0] ? result.errors[0].message : null
+  const parsed = useMemo<CsvParse>(
+    () => parseCsv(parseSource, { delimiter, hasHeader, typed }),
+    [parseSource, delimiter, hasHeader, typed]
+  )
+  // Memoised rather than re-derived per render: they are dependencies of the
+  // conversion and analysis memos, which would otherwise recompute constantly.
+  const { columns, rows, issues } = useMemo(
+    () =>
+      parsed.status === 'parsed'
+        ? { columns: parsed.columns, rows: parsed.rows, issues: parsed.issues }
+        : EMPTY_PARSE,
+    [parsed]
+  )
 
-      return {
-        data: { data: result.data, meta: result.meta },
-        error,
-      }
-    } catch (error) {
-      return { data: null, error: (error as Error).message }
+  const summaries = useMemo(
+    // Only the Analyze pane reads these, and summarising walks every cell.
+    () => (view === 'analyze' ? summarizeColumns(columns, rows) : []),
+    [view, columns, rows]
+  )
+  const schema = useMemo(() => {
+    if (view !== 'analyze' || summaries.length === 0) return ''
+    const tableName = tableNameFrom(state.fileName)
+    return schemaLanguage === 'sql'
+      ? generateSql(summaries, tableName)
+      : generateTypeScript(summaries)
+  }, [view, summaries, schemaLanguage, state.fileName])
+
+  const converted = useMemo(
+    () =>
+      view === 'convert' && parsed.status === 'parsed'
+        ? // The same table the generated schema creates — inserts naming
+          // `csv_data` while the DDL said `people` do not run together.
+          toOutput(columns, rows, format, tableNameFrom(state.fileName))
+        : '',
+    [view, parsed.status, columns, rows, format, state.fileName]
+  )
+
+  const activeOutput = useMemo(() => {
+    if (parsed.status !== 'parsed' || view === 'table') return input
+    return view === 'convert' ? converted : schema
+  }, [parsed.status, view, converted, schema, input])
+
+  /**
+   * The same thing, but re-derived when the 250 ms debounce has not caught up:
+   * ⌘S immediately after a paste would otherwise write the previous parse.
+   */
+  const currentOutput = useCallback(() => {
+    const source = inputRef.current
+    const options = { view, format, schemaLanguage, fileName: state.fileName }
+    if (source === parseSource) return activeOutput
+    return outputFor(source, parseCsv(source, { delimiter, hasHeader, typed }), options)
+  }, [
+    activeOutput,
+    parseSource,
+    view,
+    format,
+    schemaLanguage,
+    state.fileName,
+    delimiter,
+    hasHeader,
+    typed,
+  ])
+
+  const activeExtension =
+    view === 'convert'
+      ? FORMAT_EXTENSIONS[format]
+      : view === 'analyze'
+        ? schemaLanguage === 'sql'
+          ? 'sql'
+          : 'ts'
+        : 'csv'
+
+  const status =
+    parsed.status === 'empty'
+      ? 'Nothing to parse yet'
+      : `${rows.length} row${rows.length === 1 ? '' : 's'} · ${columns.length} column${
+          columns.length === 1 ? '' : 's'
+        } · ${DELIMITER_LABELS[parsed.delimiter] ?? 'comma'}-separated${
+          delimiter === 'auto' ? ' (detected)' : ''
+        } · ${formatBytes(parseSource)}${
+          issues.length > 0 ? ` · ${issues.length} issue${issues.length === 1 ? '' : 's'}` : ''
+        }`
+
+  // --- Actions ---------------------------------------------------------
+
+  // Only the user's own edits are history: restoring last session's buffer —
+  // which arrives asynchronously, so it cannot be told apart by timing — and
+  // switching panes must not write an entry.
+  const userEdited = useRef(false)
+  const lastRecorded = useRef<string | null>(null)
+  useEffect(() => {
+    if (parsed.status !== 'parsed' || !userEdited.current) return
+    if (parseSource === lastRecorded.current) return
+    lastRecorded.current = parseSource
+    const summary = `${rows.length} rows × ${columns.length} columns`
+    record({
+      input: `CSV: ${parseSource.slice(0, 300)}${parseSource.length > 300 ? '...' : ''}`,
+      output: summary,
+      // A flagged file still parsed, so the summary has to stay in `output`;
+      // `flushPending` replaces it with `error` when success is false.
+      success: issues.length === 0,
+      ...(issues.length > 0
+        ? { error: `${summary}, ${issues.length} issue${issues.length === 1 ? '' : 's'}` }
+        : {}),
+    })
+  }, [parsed.status, parseSource, rows.length, columns.length, issues.length, record])
+
+  /** Replaces the buffer, keeping the previous text one click away. */
+  const replaceInput = useCallback(
+    (next: string, label: string, fileName: string | null) => {
+      userEdited.current = true
+      setUndoBuffer({ input: inputRef.current, fileName: state.fileName, label })
+      updateState({ input: next, fileName })
+    },
+    [updateState, state.fileName]
+  )
+
+  const handleUndo = useCallback(() => {
+    if (!undoBuffer) return
+    // The name goes back too: otherwise ⌘S after an undo offers to overwrite
+    // the file whose contents are no longer in the buffer.
+    updateState({ input: undoBuffer.input, fileName: undoBuffer.fileName })
+    setUndoBuffer(null)
+    setLastAction('Reverted', 'info')
+  }, [undoBuffer, updateState, setLastAction])
+
+  const handleSave = useCallback(() => {
+    const output = currentOutput()
+    if (!output.trim()) {
+      setLastAction('Nothing to save yet', 'info')
+      return
     }
-  }, [state.input, state.delimiter, state.hasHeader])
+    void saveFileDialog(output, outputFileName(state.fileName, activeExtension)).then(
+      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+      (error: unknown) =>
+        setLastAction(
+          `Save failed: ${error instanceof Error ? error.message : String(error)}`,
+          'error'
+        )
+    )
+  }, [currentOutput, activeExtension, state.fileName, setLastAction])
 
-  const parsed = parseResult.data
-  const parseError = parseResult.error
+  const handleLoadSample = useCallback(() => {
+    const sample = TOOL_SAMPLES['csv-tools']
+    if (!sample) return
+    replaceInput(sample, 'Load sample', 'sample.csv')
+    setLastAction('Loaded sample CSV', 'success')
+  }, [replaceInput, setLastAction])
 
-  // Calculate stats for display
-  const stats = useMemo(() => {
-    if (!parsed || parsed.data.length === 0) return null
+  // The issue list reports a line number; without this the user reads it and
+  // then scrolls to find it by hand.
+  const handleGoToIssue = useCallback(() => {
+    const first = issues[0]
+    const editor = editorRef.current
+    if (!first || !editor) return
+    const position = { lineNumber: first.line, column: 1 }
+    editor.revealPositionInCenter(position)
+    editor.setPosition(position)
+    editor.focus()
+  }, [issues])
 
-    const cols = Object.keys(parsed.data[0] ?? {}).length
-    const rows = parsed.data.length
-    const bytes = new Blob([state.input]).size
-    const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
-
-    return { cols, rows, size }
-  }, [parsed, state.input])
-
-  // Handle global tool actions (Cmd+Enter, file open, copy output)
-  useToolAction(async (action) => {
-    if (action.type === 'open-file') updateState({ input: action.content })
-    if (action.type === 'copy-output' && parsed) {
-      navigator.clipboard.writeText(JSON.stringify(parsed.data, null, 2))
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      replaceInput(action.content, `Open ${action.filename}`, action.filename)
+      setLastAction(`Opened ${action.filename}`, 'success')
+    }
+    if (action.type === 'save-file') handleSave()
+    if (action.type === 'copy-output') {
+      const output = currentOutput()
+      if (!output.trim()) {
+        setLastAction('Nothing to copy yet', 'info')
+        return
+      }
+      void navigator.clipboard.writeText(output).then(
+        () => setLastAction('Copied output', 'success'),
+        () => setLastAction('Copy failed', 'error')
+      )
     }
   })
 
   const handleInputChange = useCallback(
     (value: string | undefined) => {
-      const input = value ?? ''
-      updateState({ input })
-
-      // Record history only on meaningful input changes (debounced via useToolHistory)
-      if (input.trim() && input !== lastRecordedInput.current) {
-        lastRecordedInput.current = input
-        record({
-          input: input.slice(0, 200),
-          output: input.slice(0, 500),
-          subTab: state.activeTab,
-          success: true,
-        })
-      }
+      userEdited.current = true
+      updateState({ input: value ?? '' })
+      // Reverting to a snapshot taken before the last minutes of typing would
+      // throw that typing away, so the offer expires on the first manual edit.
+      setUndoBuffer(null)
     },
-    [updateState, record, state.activeTab]
+    [updateState]
   )
 
   return (
     <ToolLayout
       fullBleed
       toolbar={
-        <>
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
-            <Select
-              value={state.delimiter}
-              onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
-            >
-              <option value="auto">Auto-detect</option>
-              <option value=",">Comma</option>
-              <option value="&#9;">Tab</option>
-              <option value="|">Pipe</option>
-              <option value=";">Semicolon</option>
-            </Select>
-
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={state.hasHeader}
-                onChange={(e) => updateState({ hasHeader: e.target.checked })}
+        <div className="border-b border-[var(--color-border)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <FileCsvIcon
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
               />
-              <span className="text-xs">Header row</span>
-            </label>
-
-            {stats && (
-              <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
-                {stats.cols} cols · {stats.rows} rows · {stats.size}
+              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
+                {state.fileName ?? 'Untitled'}
               </span>
-            )}
-          </div>
+              <span
+                role="status"
+                aria-live="polite"
+                className="flex min-w-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
+              >
+                {parsed.status === 'parsed' && issues.length === 0 && (
+                  <CheckCircleIcon
+                    size={12}
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--color-success)]"
+                  />
+                )}
+                {issues.length > 0 && (
+                  <WarningCircleIcon
+                    size={12}
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--color-warning)]"
+                  />
+                )}
+                <span className="truncate">{status}</span>
+              </span>
+              {issues.length > 0 && issues[0] && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleGoToIssue}
+                  title={`${issues[0].message} (line ${issues[0].line})`}
+                  className="shrink-0 gap-1"
+                >
+                  <CrosshairSimpleIcon size={12} aria-hidden="true" />
+                  Go to issue
+                </Button>
+              )}
+            </div>
 
-          <TabBar
-            tabs={TABS}
-            activeTab={state.activeTab}
-            onTabChange={(id) => updateState({ activeTab: id as CsvToolsState['activeTab'] })}
-          />
-        </>
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <Select
+                aria-label="Delimiter"
+                value={delimiter}
+                onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
+                className="w-32"
+              >
+                {DELIMITER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Toggle
+                checked={hasHeader}
+                onChange={(checked) => updateState({ hasHeader: checked })}
+                label="Header row"
+              />
+              <Toggle
+                checked={typed}
+                onChange={(checked) => updateState({ typed: checked })}
+                label="Typed values"
+              />
+              <SegmentedControl
+                aria-label="View"
+                value={view}
+                onChange={(next) => updateState({ view: next })}
+                options={VIEW_OPTIONS}
+              />
+              {undoBuffer && (
+                <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
+                  <ArrowUUpLeftIcon size={13} aria-hidden="true" />
+                  Undo {undoBuffer.label.toLowerCase()}
+                </Button>
+              )}
+              <CopyButton text={activeOutput} label="Copy output" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSave}
+                disabled={!hasInput}
+                title="Save the current view to a file (⌘S)"
+                aria-label="Save output to file"
+              >
+                <FloppyDiskIcon size={15} aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+        </div>
       }
     >
-      {/* Error display */}
-      {parseError && (
-        <Alert
-          variant="error"
-          className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+      <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
+        <section
+          aria-label="CSV source"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-[var(--color-border)] max-[900px]:border-b min-[901px]:border-r"
         >
-          Parse error: {parseError}
-        </Alert>
-      )}
-
-      {/* Empty state */}
-      {!state.input.trim() && <EmptyState title="Paste CSV or open a file" className="flex-1" />}
-
-      {/* Tab content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Input editor — always visible as left pane when there's content, or full width for empty state */}
-        {state.input.trim() ? (
-          <>
-            <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
-              <Editor
-                theme={monacoTheme}
-                language="plaintext"
-                value={state.input}
-                onChange={handleInputChange}
-                options={monacoOptions}
+          <Editor
+            theme={monacoTheme}
+            language="plaintext"
+            value={input}
+            onChange={handleInputChange}
+            options={monacoOptions}
+            onMount={(editor) => {
+              editorRef.current = editor
+            }}
+          />
+          {!hasInput && (
+            // Click-through: the hint must never sit between the user and the caret.
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+              <EmptyState
+                icon={FileCsvIcon}
+                title="Paste CSV, or open a file"
+                description="Delimiter is detected automatically. Everything stays on this machine."
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleLoadSample}
+                    className="pointer-events-auto"
+                  >
+                    Load sample
+                  </Button>
+                }
               />
             </div>
-            <div className="flex w-1/2 flex-col overflow-hidden">
-              {state.activeTab === 'view' && parsed && <CsvTable data={parsed.data} />}
-              {state.activeTab === 'convert' && parsed && (
-                <CsvConvert
-                  csvText={state.input}
-                  delimiter={state.delimiter}
-                  hasHeader={state.hasHeader}
-                  outputFormat={state.jsonOutputFormat}
-                  onOutputFormatChange={(format) => updateState({ jsonOutputFormat: format })}
-                />
-              )}
-              {state.activeTab === 'analyze' && parsed && <CsvAnalyze data={parsed.data} />}
-            </div>
-          </>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <Editor
-              theme={monacoTheme}
-              language="plaintext"
-              value={state.input}
-              onChange={handleInputChange}
-              options={{ ...monacoOptions, renderWhitespace: 'all' as const }}
+          )}
+        </section>
+
+        <section
+          aria-label={
+            view === 'table' ? 'Table view' : view === 'convert' ? 'Converted output' : 'Analysis'
+          }
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
+          {parsed.status !== 'parsed' ? (
+            <EmptyState
+              size="sm"
+              title="No rows yet"
+              description="The table, conversions and analysis appear once there is CSV to read."
+              className="flex-1"
             />
-          </div>
-        )}
+          ) : view === 'table' ? (
+            <CsvTable columns={columns} rows={rows} />
+          ) : view === 'convert' ? (
+            <CsvConvert
+              output={converted}
+              format={format}
+              onFormatChange={(next) => updateState({ format: next })}
+            />
+          ) : (
+            <CsvAnalyze
+              columns={columns}
+              rows={rows}
+              summaries={summaries}
+              schema={schema}
+              schemaLanguage={schemaLanguage}
+              onSchemaLanguageChange={(next) => updateState({ schemaLanguage: next })}
+            />
+          )}
+        </section>
       </div>
     </ToolLayout>
   )

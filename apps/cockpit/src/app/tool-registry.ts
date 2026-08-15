@@ -74,7 +74,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Code Formatter',
     group: 'code',
     icon: toolIcon(CodeBlockIcon),
-    description: 'Format and beautify code (JS, TS, CSS, HTML, SQL, Python)',
+    description: 'Format and beautify code (JS, TS, JSON, CSS, HTML, YAML, SQL, GraphQL)',
     component: CodeFormatter,
     supportsOpenFile: true,
     supportsSaveFile: true,
@@ -85,8 +85,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'TypeScript Playground',
     group: 'code',
     icon: toolIcon(FileTsIcon),
-    description: 'Transpile TypeScript to JavaScript',
+    description: 'Compile TypeScript to JavaScript with live type checking',
     component: TsPlayground,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -103,8 +105,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Refactoring Toolkit',
     group: 'code',
     icon: toolIcon(ArrowsClockwiseIcon),
-    description: 'Regex code transforms with diff preview (12 transforms, JS/TS)',
+    description: 'AST codemods with diff preview (12 transforms, JS/TS)',
     component: RefactoringToolkit,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   // --- Data ---
@@ -113,7 +117,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'JSON Tools',
     group: 'data',
     icon: toolIcon(BracketsCurlyIcon),
-    description: 'Validate, format, minify, sort keys, path query, and tree view for JSON',
+    description: 'Validate, format, minify, sort keys, path query, tree and table views for JSON',
     component: JsonTools,
     supportsOpenFile: true,
     supportsSaveFile: true,
@@ -124,8 +128,11 @@ export const TOOLS: ToolDefinition[] = [
     name: 'XML Tools',
     group: 'data',
     icon: toolIcon(BracketsAngleIcon),
-    description: 'Validate, format, minify XML with tree view, JSON conversion, XPath, and stats',
+    description:
+      'Live XML validation with tree, JSON and XPath panes beside the editor; format, minify, copy',
     component: XmlTools,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -133,8 +140,11 @@ export const TOOLS: ToolDefinition[] = [
     name: 'YAML Tools',
     group: 'data',
     icon: toolIcon(TreeStructureIcon),
-    description: 'Validate, format, sort keys, tree view, and convert YAML ↔ JSON',
+    description:
+      'Live YAML validation with tree and JSON panes beside the editor; multi-document streams, format, sort keys, compact',
     component: YamlTools,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -143,8 +153,10 @@ export const TOOLS: ToolDefinition[] = [
     group: 'data',
     icon: toolIcon(ShieldCheckIcon),
     description:
-      'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode',
+      'Live validation against a JSON Schema with a clickable problems list, 7 templates, inference, sample generation, and strict mode',
     component: JsonSchemaValidator,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -152,9 +164,11 @@ export const TOOLS: ToolDefinition[] = [
     name: 'CSV Tools',
     group: 'data',
     icon: toolIcon(FileCsvIcon),
-    description: 'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
+    description:
+      'Sortable, filterable table beside the source, conversion to JSON/TSV/Markdown/SQL, column statistics, and generated TypeScript or SQL schemas',
     component: CsvTools,
     supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   // --- Web ---
@@ -173,9 +187,11 @@ export const TOOLS: ToolDefinition[] = [
     group: 'web',
     icon: toolIcon(FileHtmlIcon),
     description:
-      'Validate HTML with live preview, configurable rules, heading outline, and starter templates',
+      'Validate HTML with live preview, clickable problems, accessibility rules, heading outline, and formatting',
     component: HtmlValidator,
     usesMonaco: true,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
   },
   {
     id: 'css-specificity',
@@ -296,6 +312,8 @@ export const TOOLS: ToolDefinition[] = [
     description: 'HTTP client with params editor, body modes, and response inspector',
     component: ApiClient,
     supportsOpenFile: true,
+    // ⌘S writes the current response body to a file.
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -323,8 +341,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Mermaid Editor',
     group: 'write',
     icon: toolIcon(GraphIcon),
-    description: 'Edit and preview Mermaid diagrams',
+    description: 'Edit and preview Mermaid diagrams, then export them as SVG or PNG',
     component: MermaidEditor,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {
@@ -332,7 +352,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Snippets',
     group: 'write',
     icon: toolIcon(ScissorsIcon),
-    description: 'Manage snippets with favorites, tag filters, sort, duplicate, and download',
+    description: 'Organize, search, edit, and back up reusable code snippets',
     component: SnippetsManager,
     usesMonaco: true,
   },

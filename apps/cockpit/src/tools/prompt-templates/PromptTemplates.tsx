@@ -1,18 +1,41 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
+import {
+  CopyIcon,
   ChatCircleTextIcon,
   ClipboardTextIcon,
+  DownloadSimpleIcon,
   MagnifyingGlassIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  SparkleIcon,
+  TrashIcon,
+  UploadSimpleIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Dialog } from '@/components/shared/Dialog'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import { BUILTIN_PROMPT_TEMPLATES, CATEGORY_LABELS } from './builtin-templates'
-import { parsePromptTemplateImport, serializePromptTemplateExport } from './template-import'
+import {
+  BUILTIN_PROMPT_TEMPLATES,
+  CATEGORY_LABELS,
+} from '@/tools/prompt-templates/builtin-templates'
+import {
+  parsePromptTemplateImport,
+  serializePromptTemplateExport,
+} from '@/tools/prompt-templates/template-import'
 import {
   estimateTokens,
   mergeDefaultValues,
@@ -23,14 +46,14 @@ import {
   templateToDraft,
   tokenTone,
   type PromptTemplateDraft,
-} from './template-utils'
+} from '@/tools/prompt-templates/template-utils'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
   PromptTemplateVariableType,
   PromptTemplateValues,
   TokenTone,
-} from './types'
+} from '@/tools/prompt-templates/types'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -208,7 +231,7 @@ function QuickFillModal({
       document.activeElement && 'focus' in document.activeElement
         ? (document.activeElement as { focus: () => void })
         : null
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       fieldRootRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus()
     }, 0)
     const onKeyDown = (event: KeyboardEvent) => {
@@ -250,6 +273,7 @@ function QuickFillModal({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
+      clearTimeout(focusTimer)
       window.removeEventListener('keydown', onKeyDown)
       previousActive?.focus()
     }
@@ -270,9 +294,9 @@ function QuickFillModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="prompt-template-modal-title"
-        className="grid max-h-[88vh] w-full max-w-5xl grid-cols-[minmax(20rem,0.85fr)_minmax(24rem,1fr)] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)]"
+        className="grid max-h-[88vh] w-full max-w-5xl grid-cols-[minmax(20rem,0.85fr)_minmax(24rem,1fr)] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[minmax(0,1fr)_minmax(10rem,0.75fr)]"
       >
-        <div className="flex min-h-0 flex-col border-r border-[var(--color-border)]">
+        <div className="flex min-h-0 flex-col border-r border-[var(--color-border)] max-[900px]:border-b max-[900px]:border-r-0">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
             <div>
               <h2
@@ -398,7 +422,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
       document.activeElement && 'focus' in document.activeElement
         ? (document.activeElement as { focus: () => void })
         : null
-    setTimeout(() => firstInputRef.current?.focus(), 0)
+    const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 0)
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -434,6 +458,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
+      clearTimeout(focusTimer)
       window.removeEventListener('keydown', onKeyDown)
       previousActive?.focus()
     }
@@ -483,7 +508,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
           </Button>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden max-[900px]:grid-cols-[minmax(16rem,0.8fr)_minmax(20rem,1fr)]">
           <div className="min-h-0 overflow-auto border-r border-[var(--color-border)] p-4">
             <div className="space-y-3">
               <label className="block">
@@ -754,6 +779,7 @@ export default function PromptTemplates() {
     template?: PromptTemplate
   } | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [workspaceTab, setWorkspaceTab] = useState<'fill' | 'preview'>('fill')
   const searchRef = useRef<HTMLInputElement>(null)
 
   const allTemplates = useMemo(
@@ -793,6 +819,7 @@ export default function PromptTemplates() {
           [template.id]: mergeDefaultValues(template, state.inputsByTemplate[template.id]),
         },
       })
+      setWorkspaceTab('fill')
     },
     [state.inputsByTemplate, updateState]
   )
@@ -849,31 +876,35 @@ export default function PromptTemplates() {
       setLastAction('Built-in templates cannot be deleted', 'error')
       return
     }
-    if (confirmDeleteId !== selectedTemplate.id) {
-      setConfirmDeleteId(selectedTemplate.id)
-      setLastAction('Press delete again to confirm', 'info')
-      return
+    if (confirmDeleteId !== selectedTemplate.id) return
+    try {
+      await removeTemplate(selectedTemplate.id)
+      setConfirmDeleteId(null)
+      updateState({ selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '' })
+      setLastAction('Prompt template deleted', 'info')
+    } catch {
+      setLastAction('Failed to delete prompt template', 'error')
     }
-    await removeTemplate(selectedTemplate.id)
-    setConfirmDeleteId(null)
-    updateState({ selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '' })
-    setLastAction('Prompt template deleted', 'info')
   }, [confirmDeleteId, removeTemplate, selectedTemplate, setLastAction, updateState])
 
   const handleExport = useCallback(async () => {
     try {
       const exportDrafts = userTemplates.map((template) => templateToDraft(template))
-      await navigator.clipboard.writeText(serializePromptTemplateExport(exportDrafts))
-      setLastAction(`Exported ${exportDrafts.length} prompt templates`, 'success')
+      const path = await exportFile(
+        serializePromptTemplateExport(exportDrafts),
+        buildExportFilename('prompt-templates-backup', 'json')
+      )
+      if (path) setLastAction(`Exported ${exportDrafts.length} prompt templates`, 'success')
     } catch {
-      setLastAction('Export failed — clipboard unavailable', 'error')
+      setLastAction('Failed to export prompt templates', 'error')
     }
   }, [setLastAction, userTemplates])
 
   const handleImport = useCallback(async () => {
     try {
-      const text = await navigator.clipboard.readText()
-      const drafts = parsePromptTemplateImport(text)
+      const file = await openFileDialog()
+      if (!file) return
+      const drafts = parsePromptTemplateImport(file.content)
       const imported = await importTemplates(drafts)
       if (imported[0]) {
         updateState({ selectedId: imported[0].id })
@@ -883,6 +914,29 @@ export default function PromptTemplates() {
       setLastAction(err instanceof Error ? err.message : 'Import failed', 'error')
     }
   }, [importTemplates, setLastAction, updateState])
+
+  const clearFilters = useCallback(() => {
+    updateState({ search: '', category: 'all' })
+  }, [updateState])
+
+  const handleListKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, templateId: string) => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const currentIndex = filteredTemplates.findIndex((template) => template.id === templateId)
+      let nextIndex = currentIndex
+      if (event.key === 'ArrowDown')
+        nextIndex = Math.min(filteredTemplates.length - 1, currentIndex + 1)
+      if (event.key === 'ArrowUp') nextIndex = Math.max(0, currentIndex - 1)
+      if (event.key === 'Home') nextIndex = 0
+      if (event.key === 'End') nextIndex = filteredTemplates.length - 1
+      const next = filteredTemplates[nextIndex]
+      if (!next) return
+      selectTemplate(next)
+      requestAnimationFrame(() => document.getElementById(`prompt-template-${next.id}`)?.focus())
+    },
+    [filteredTemplates, selectTemplate]
+  )
 
   useToolAction((action) => {
     if (action.type === 'copy-output') {
@@ -910,7 +964,7 @@ export default function PromptTemplates() {
       }
       if (event.key === 'F8' && selectedTemplate.author === 'user') {
         event.preventDefault()
-        void handleDeleteTemplate()
+        setConfirmDeleteId(selectedTemplate.id)
       }
       if (event.key === 'F9') {
         event.preventDefault()
@@ -934,289 +988,311 @@ export default function PromptTemplates() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [
-    copyRenderedPrompt,
-    editorState,
-    handleDeleteTemplate,
-    handleExport,
-    handleImport,
-    modalOpen,
-    selectedTemplate,
-  ])
+  }, [copyRenderedPrompt, editorState, handleExport, handleImport, modalOpen, selectedTemplate])
 
   return (
-    <div className="grid h-full grid-cols-[18rem_minmax(26rem,1fr)_minmax(22rem,0.9fr)] grid-rows-[1fr_2.5rem] bg-[var(--color-bg)]">
-      <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-          <ChatCircleTextIcon size={13} />[ 01-TEMPLATES ]
-        </div>
-        <div className="border-b border-[var(--color-border)] p-3">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+        <header className="flex min-h-14 items-center gap-3 border-b border-[var(--color-border)] px-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-ui text-sm font-semibold text-[var(--color-text)]">
+              Prompt Templates
+            </h1>
+            <p className="text-2xs text-[var(--color-text-muted)]">
+              {allTemplates.length} templates · {userTemplates.length} custom
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => setEditorState({ mode: 'create' })}
+            className="gap-1.5"
+          >
+            <PlusIcon size={12} aria-hidden="true" /> New
+          </Button>
+        </header>
+
+        <div className="space-y-2 border-b border-[var(--color-border)] p-3">
           <div className="relative">
             <MagnifyingGlassIcon
               size={13}
-              className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
             />
             <Input
               ref={searchRef}
+              type="search"
               value={state.search}
               onChange={(event) => updateState({ search: event.target.value })}
-              placeholder="Search prompts... (Cmd+F)"
-              className="w-full pl-7"
+              placeholder="Search templates"
+              aria-label="Search prompt templates"
+              className="w-full pl-8 pr-8"
             />
-          </div>
-        </div>
-        <div className="border-b border-[var(--color-border)] p-2">
-          <div className="flex flex-wrap gap-1">
-            {FILTERS.map((filter) => (
+            {state.search && (
               <Button
-                key={filter.id}
                 type="button"
-                variant="ghost"
+                variant="icon"
                 size="xs"
-                aria-pressed={state.category === filter.id}
-                onClick={() => updateState({ category: filter.id })}
-                className={`rounded px-2 py-0.5 text-xs transition-colors ${
-                  state.category === filter.id
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
-                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-                }`}
+                onClick={() => updateState({ search: '' })}
+                aria-label="Clear template search"
+                className="absolute right-1.5 top-1/2 h-6 w-6 -translate-y-1/2"
               >
-                {filter.label}{' '}
-                <span className="font-mono text-2xs">{categoryCount(filter.id, allTemplates)}</span>
+                <XIcon size={11} aria-hidden="true" />
               </Button>
+            )}
+          </div>
+          <Select
+            value={state.category}
+            onChange={(event) => updateState({ category: event.target.value as CategoryFilter })}
+            aria-label="Filter templates by category"
+            className="w-full"
+          >
+            {FILTERS.map((filter) => (
+              <option key={filter.id} value={filter.id}>
+                {filter.label} ({categoryCount(filter.id, allTemplates)})
+              </option>
             ))}
+          </Select>
+        </div>
+
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+          <span>
+            {filteredTemplates.length === allTemplates.length
+              ? 'Library'
+              : `${filteredTemplates.length} results`}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => void handleImport()}
+              title="Import templates from JSON"
+              aria-label="Import templates from JSON"
+            >
+              <UploadSimpleIcon size={12} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => void handleExport()}
+              title="Export custom templates as JSON"
+              aria-label="Export custom templates as JSON"
+              disabled={userTemplates.length === 0}
+            >
+              <DownloadSimpleIcon size={12} aria-hidden="true" />
+            </Button>
           </div>
         </div>
+
         <div className="min-h-0 flex-1 overflow-auto" role="listbox" aria-label="Prompt templates">
-          {filteredTemplates.map((template) => {
+          {filteredTemplates.map((template, index) => {
             const selected = template.id === selectedTemplate.id
             return (
               <Button
                 key={template.id}
+                id={`prompt-template-${template.id}`}
                 type="button"
                 variant="ghost"
+                size="xs"
                 role="option"
                 aria-selected={selected}
+                tabIndex={
+                  selected ||
+                  (!filteredTemplates.some((item) => item.id === selectedTemplate.id) &&
+                    index === 0)
+                    ? 0
+                    : -1
+                }
                 onClick={() => selectTemplate(template)}
+                onKeyDown={(event) => handleListKeyDown(event, template.id)}
                 onDoubleClick={() => {
                   selectTemplate(template)
                   setModalOpen(true)
                 }}
-                className={`flex w-full flex-col items-start justify-start gap-1 rounded-none border-b border-[var(--color-border)] px-3 py-2 text-left transition-colors ${
-                  selected
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:bg-[var(--color-accent)]'
-                    : 'hover:bg-[var(--color-surface-hover)]'
-                }`}
+                className={`flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left ${selected ? 'bg-[var(--color-accent-dim)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
               >
-                <span
-                  className={`text-xs font-bold ${selected ? 'text-[var(--color-bg)]' : 'text-[var(--color-text)]'}`}
-                >
-                  {template.name}
-                </span>
-                <span
-                  className={`line-clamp-2 text-2xs leading-4 ${
-                    selected ? 'text-[var(--color-bg)]/75' : 'text-[var(--color-text-muted)]'
-                  }`}
-                >
-                  {template.description}
-                </span>
-                <span
-                  className={`font-mono text-[9px] uppercase tracking-wider ${
-                    selected ? 'text-[var(--color-bg)]/70' : 'text-[var(--color-accent)]'
-                  }`}
-                >
-                  {CATEGORY_LABELS[template.category]} / {template.optimizedFor} /{' '}
-                  {template.author === 'user' ? 'CUSTOM' : 'BUILT-IN'}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
+                      {template.name}
+                    </span>
+                    {template.author === 'user' && (
+                      <span className="shrink-0 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--color-accent)]">
+                        Custom
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
+                    {template.description}
+                  </span>
+                  <span className="mt-1.5 block text-[9px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                    {CATEGORY_LABELS[template.category]} · {template.optimizedFor}
+                  </span>
                 </span>
               </Button>
             )
           })}
           {filteredTemplates.length === 0 && (
-            <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-              No prompt templates match the current filters.
-            </div>
+            <EmptyState
+              icon={ChatCircleTextIcon}
+              size="sm"
+              title="No matching templates"
+              description="Try a different search or category."
+              action={
+                <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              }
+            />
           )}
         </div>
-        <div className="border-t border-[var(--color-border)] px-3 py-1 text-2xs text-[var(--color-text-muted)]">
-          {filteredTemplates.length} shown / {BUILTIN_PROMPT_TEMPLATES.length} built in /{' '}
-          {userTemplates.length} custom
-        </div>
-      </div>
+      </aside>
 
-      <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--color-border)]">
-        <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-          <span>[ 02-FILL ]</span>
-          <span>{selectedTemplate.variables.length} VARS</span>
-        </div>
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-base font-bold text-[var(--color-text)]">
-                {selectedTemplate.name}
-              </h1>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--color-text-muted)]">
+      <main className="flex min-h-0 min-w-0 flex-col">
+        <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+          <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
+            <div className="min-w-0 flex-1 max-[1000px]:basis-full">
+              <div className="flex items-center gap-2">
+                <h2 className="truncate text-sm font-semibold text-[var(--color-text)]">
+                  {selectedTemplate.name}
+                </h2>
+                <span className="shrink-0 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--color-accent)]">
+                  {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
                 {selectedTemplate.description}
               </p>
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setEditorState({ mode: 'create' })}
-              >
-                New
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-              >
-                Duplicate
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={selectedTemplate.author !== 'user'}
-                onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-              >
-                Edit
-              </Button>
-              <Button size="sm" variant="primary" onClick={() => setModalOpen(true)}>
-                Quick Fill
-              </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
+              title="Duplicate template"
+              aria-label="Duplicate template"
+            >
+              <CopyIcon size={14} aria-hidden="true" />
+            </Button>
+            {selectedTemplate.author === 'user' && (
+              <>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+                  title="Edit template"
+                  aria-label="Edit template"
+                >
+                  <PencilSimpleIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setConfirmDeleteId(selectedTemplate.id)}
+                  title="Delete template"
+                  aria-label="Delete template"
+                  className="hover:text-[var(--color-error)]"
+                >
+                  <TrashIcon size={14} aria-hidden="true" />
+                </Button>
+              </>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setModalOpen(true)}
+              className="gap-1.5"
+            >
+              <SparkleIcon size={13} aria-hidden="true" /> Focus mode
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => void copyRenderedPrompt()}
+              className="gap-1.5"
+            >
+              <ClipboardTextIcon size={13} aria-hidden="true" /> Copy prompt
+            </Button>
+          </div>
+          <div className="flex items-center gap-1 border-t border-[var(--color-border)] px-4 py-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={workspaceTab === 'fill'}
+              onClick={() => setWorkspaceTab('fill')}
+              className={
+                workspaceTab === 'fill'
+                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                  : ''
+              }
+            >
+              Fill variables{' '}
+              <span className="ml-1 text-2xs">{selectedTemplate.variables.length}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={workspaceTab === 'preview'}
+              onClick={() => setWorkspaceTab('preview')}
+              className={
+                workspaceTab === 'preview'
+                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                  : ''
+              }
+            >
+              Preview <span className="ml-1 text-2xs">~{tokens}</span>
+            </Button>
+            <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+              {savingTemplates
+                ? 'Saving template…'
+                : `Optimized for ${selectedTemplate.optimizedFor}`}
+            </span>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          {workspaceTab === 'fill' ? (
+            <div className="mx-auto max-w-3xl p-5 max-[1000px]:p-4">
+              <div className="mb-5 flex flex-wrap gap-1.5">
+                {selectedTemplate.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <VariableForm
+                template={selectedTemplate}
+                values={selectedValues}
+                onChange={updateVariable}
+              />
+              {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
+                <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs leading-5 text-[var(--color-text-muted)]">
+                  <span className="font-semibold text-[var(--color-text)]">Tip:</span>{' '}
+                  {selectedTemplate.tips[0]}
+                </div>
+              )}
             </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1">
-            {selectedTemplate.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          ) : (
+            <PreviewPane
+              renderedPrompt={renderedPrompt}
+              tokens={tokens}
+              missingVariables={missingVariables}
+            />
+          )}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          <VariableForm
-            template={selectedTemplate}
-            values={selectedValues}
-            onChange={updateVariable}
-          />
-        </div>
-        {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
-          <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-text-muted)]">
-            Tip: {selectedTemplate.tips[0]}
-          </div>
-        )}
-      </div>
-
-      <PreviewPane
-        renderedPrompt={renderedPrompt}
-        tokens={tokens}
-        missingVariables={missingVariables}
-      />
-
-      <div className="col-span-3 flex h-10 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 font-mono text-xs">
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setEditorState({ mode: 'create' })}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F5: NEW]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F6: DUP]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            disabled={selectedTemplate.author !== 'user'}
-            onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            [F7: EDIT]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            disabled={selectedTemplate.author !== 'user'}
-            onClick={() => void handleDeleteTemplate()}
-            className={`rounded px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent ${
-              selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
-                ? 'bg-[var(--color-error)]/10 font-bold text-[var(--color-error)] hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-error)]'
-            }`}
-          >
-            {selectedTemplate.author === 'user' && confirmDeleteId === selectedTemplate.id
-              ? '[CONFIRM?]'
-              : '[F8: DEL]'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => void handleExport()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F9: EXP]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => void handleImport()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [F10: IMP]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setModalOpen(true)}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [ENTER: QUICK FILL]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => void copyRenderedPrompt()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [CMD+ENTER: COPY]
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => searchRef.current?.focus()}
-            className="rounded px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
-          >
-            [CMD+F: SEARCH]
-          </Button>
-        </div>
-        <div className="ml-auto flex items-center gap-3 text-[var(--color-text-muted)]">
-          {savingTemplates && <span className="text-[var(--color-accent)]">[SAVING...]</span>}
-          <ClipboardTextIcon size={13} />
-          <span>{CATEGORY_LABELS[selectedTemplate.category].toUpperCase()}</span>
-          <span>{selectedTemplate.author === 'user' ? 'CUSTOM' : 'BUILT-IN'}</span>
-          <span>~{tokens} TOKENS</span>
-        </div>
-      </div>
+      </main>
 
       <QuickFillModal
         open={modalOpen}
@@ -1236,6 +1312,27 @@ export default function PromptTemplates() {
           onClose={() => setEditorState(null)}
           onSave={handleSaveEditor}
         />
+      )}
+      {confirmDeleteId === selectedTemplate.id && selectedTemplate.author === 'user' && (
+        <Dialog
+          title="Delete prompt template?"
+          onClose={() => setConfirmDeleteId(null)}
+          className="w-[min(28rem,calc(100vw-2rem))]"
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="danger" onClick={() => void handleDeleteTemplate()}>
+                Delete template
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
+            “{selectedTemplate.name}” will be permanently deleted. This cannot be undone.
+          </p>
+        </Dialog>
       )}
     </div>
   )

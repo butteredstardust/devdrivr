@@ -31,6 +31,26 @@ export const TOOL_SAMPLES: Partial<Record<string, string>> = {
   </book>
 </catalog>`,
 
+  // Deliberately imperfect: an uppercase tag, an unquoted attribute, a missing
+  // alt, a duplicated id, an unlabelled input and a typeless button, so the
+  // problems panel has something to demonstrate.
+  'html-validator': `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Sample</title>
+  </head>
+  <body>
+    <DIV class=card>
+      <img src="logo.png">
+      <h3>Sales</h3>
+      <p id="total">1 &lt; 2</p>
+      <p id="total">Duplicated id</p>
+      <input type="text" name="query">
+      <button>Go</button>
+    </DIV>
+  </body>
+</html>`,
+
   'yaml-tools': `service: cockpit
 version: 0.1.58
 env: development
@@ -42,9 +62,56 @@ limits:
   maxUploadMb: 25
   timeoutSec: 30`,
 
+  'csv-tools': `id,name,role,signups,active,joined
+1,Ada Lovelace,engineer,42,true,2024-01-15
+2,Grace Hopper,architect,17,true,2024-02-03
+3,Alan Turing,researcher,,false,2024-02-19
+4,Katherine Johnson,analyst,8,true,2024-03-07`,
+
   'jwt-decoder':
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXIiLCJuYW1lIjoiQWRhIEV4YW1wbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.fakesignature_not_a_real_signature',
 }
+
+/**
+ * TypeScript Playground's starting document, also offered as "Load example"
+ * once the editor is empty. Deliberately exercises interfaces, generics via
+ * `Array.map` and a DOM global so a broken standard library shows up at once.
+ */
+export const TS_PLAYGROUND_SAMPLE = `interface User {
+  id: number
+  name: string
+  email: string
+}
+
+function greet(user: User): string {
+  return \`Hello, \${user.name}!\`
+}
+
+const users: User[] = [{ id: 1, name: 'Alice', email: 'alice@example.com' }]
+
+const greeting = users.map(greet)
+console.log(greeting)
+`
+
+/**
+ * Refactoring Toolkit's "Load example". Deliberately contains something for
+ * every category: `var` and a `function` expression to modernise, a loose `==`
+ * to tighten, and a `console.log` for the destructive cleanup transforms.
+ */
+export const REFACTORING_SAMPLE = `var API = require('./api')
+
+var fetchUser = function (id) {
+  return API.get('/users/' + id).then(function (res) {
+    if (res.status == 200) {
+      console.log('loaded', res.data)
+      return res.data
+    }
+    return null
+  })
+}
+
+module.exports = { fetchUser: fetchUser }
+`
 
 /** Diff Viewer needs a left/right pair rather than a single input string. */
 export const DIFF_VIEWER_SAMPLE = {

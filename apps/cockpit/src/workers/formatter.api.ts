@@ -6,8 +6,12 @@
 import * as prettier from 'prettier/standalone'
 import prettierPluginBabel from 'prettier/plugins/babel'
 import prettierPluginEstree from 'prettier/plugins/estree'
+import prettierPluginGraphql from 'prettier/plugins/graphql'
 import prettierPluginHtml from 'prettier/plugins/html'
 import prettierPluginMarkdown from 'prettier/plugins/markdown'
+// css/scss/less all parse through postcss. Without it every stylesheet format
+// threw "Couldn't resolve parser" even though the language picker offered them.
+import prettierPluginPostcss from 'prettier/plugins/postcss'
 import prettierPluginTypescript from 'prettier/plugins/typescript'
 import prettierPluginYaml from 'prettier/plugins/yaml'
 import prettierPluginXml from '@prettier/plugin-xml'
@@ -19,8 +23,10 @@ import { format as formatSql } from 'sql-formatter'
 const PRETTIER_PLUGINS: any[] = [
   prettierPluginBabel,
   prettierPluginEstree,
+  prettierPluginGraphql,
   prettierPluginHtml,
   prettierPluginMarkdown,
+  prettierPluginPostcss,
   prettierPluginTypescript,
   prettierPluginYaml,
   prettierPluginXml,

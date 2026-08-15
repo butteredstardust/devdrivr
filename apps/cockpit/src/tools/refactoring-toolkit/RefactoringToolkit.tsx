@@ -1,14 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { DiffEditor } from '@monaco-editor/react'
+import {
+  ArrowCounterClockwiseIcon,
+  ArrowsClockwiseIcon,
+  CheckCircleIcon,
+  FloppyDiskIcon,
+  MagnifyingGlassIcon,
+  SlidersHorizontalIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
-import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
-import { Button } from '@/components/shared/Button'
-import { Select } from '@/components/shared/Input'
-import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Spinner, useDelayedLoading } from '@/components/shared/Spinner'
 import { useWorker } from '@/hooks/useWorker'
+import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useToolAction } from '@/hooks/useToolAction'
+import { CopyButton } from '@/components/shared/CopyButton'
+import { Alert } from '@/components/shared/Alert'
+import { Button } from '@/components/shared/Button'
+import { Input, Select } from '@/components/shared/Input'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { ToolLayout } from '@/components/shared/ToolLayout'
+import { useUiStore } from '@/stores/ui.store'
+import { saveFileDialog } from '@/lib/file-io'
+import { REFACTORING_SAMPLE } from '@/lib/tool-samples'
 import type { RefactoringWorker } from '@/workers/refactoring.worker'
 import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
 import {
@@ -17,22 +31,101 @@ import {
   SAFETY_COLORS,
   SAFETY_LABELS,
   LANGUAGES,
+  type Transform,
   type TransformCategory,
 } from './transforms'
 
+type RefactoringView = 'source' | 'diff'
+
 type RefactoringState = {
   input: string
+  fileName: string | null
   selectedTransforms: string[]
   language: string
+  /** The transform list is a disclosure so an 800px-wide window still has an editor. */
+  panelOpen: boolean
+  view: RefactoringView
+  /**
+   * Applying rewrites the buffer in place, so the pre-apply source is kept for
+   * Undo. Persisted with the buffer: both survive a tool switch, and an Undo
+   * button derived from session-only state would vanish while the transformed
+   * code it belongs to stayed on screen.
+   */
+  lastApply: { before: string; after: string } | null
+}
+
+/** Largest pre-apply snapshot worth persisting for Undo (~200KB of source). */
+const MAX_SNAPSHOT_LENGTH = 200_000
+
+const EXTENSION: Record<string, string> = { javascript: 'js', typescript: 'ts' }
+
+function languageFromFilename(filename: string): string | null {
+  if (/\.[cm]?tsx?$/i.test(filename)) return 'typescript'
+  if (/\.[cm]?jsx?$/i.test(filename)) return 'javascript'
+  return null
+}
+
+function matchesSearch(transform: Transform, query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return (
+    transform.name.toLowerCase().includes(needle) ||
+    transform.description.toLowerCase().includes(needle)
+  )
+}
+
+/**
+ * `indeterminate` is a DOM property with no HTML attribute, so a partially
+ * selected category can only be expressed through the node itself.
+ */
+function IndeterminateCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  'aria-label': ariaLabel,
+}: {
+  checked: boolean
+  indeterminate: boolean
+  onChange: () => void
+  'aria-label': string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={ariaLabel}
+      className="accent-[var(--color-accent)]"
+    />
+  )
 }
 
 export default function RefactoringToolkit() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
+  const diffOptions = useMemo(
+    () => ({
+      ...monacoOptions,
+      readOnly: true,
+      renderSideBySide: true,
+      enableSplitViewResizing: true,
+    }),
+    [monacoOptions]
+  )
+
   const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
     input: '',
+    fileName: null,
     selectedTransforms: [],
     language: 'javascript',
+    panelOpen: true,
+    view: 'source',
+    lastApply: null,
   })
 
   const worker = useWorker<RefactoringWorker>(
@@ -41,64 +134,115 @@ export default function RefactoringToolkit() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const [preview, setPreview] = useState<string | null>(null)
+  // The source the preview was computed from travels with it, so a diff shown
+  // while the debounce is still catching up compares two consistent snapshots
+  // instead of pairing new source with an old result.
+  const [preview, setPreview] = useState<{ source: string; output: string } | null>(null)
   const [isPreviewing, setIsPreviewing] = useState(false)
-  const showSpinner = useDelayedLoading(isPreviewing)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const previewRequestRef = useRef(0)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const panelId = useId()
 
-  // Filter transforms by selected language
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requestRef = useRef(0)
+
+  const { input, language, selectedTransforms, lastApply } = state
+  const hasCode = input.trim().length > 0
+  const selectedCount = selectedTransforms.length
+
   const availableTransforms = useMemo(
-    () => TRANSFORMS.filter((t) => t.languages.includes(state.language)),
-    [state.language]
+    () => TRANSFORMS.filter((t) => t.languages.includes(language)),
+    [language]
+  )
+  const visibleTransforms = useMemo(
+    () => availableTransforms.filter((t) => matchesSearch(t, search)),
+    [availableTransforms, search]
   )
 
-  // Auto-preview: debounce 300ms when input or selected transforms change
+  // Auto-preview, debounced: the transform list is a checkbox grid, so a
+  // "Preview" button would mean two clicks for every experiment.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    const requestId = ++previewRequestRef.current
-    if (!state.input.trim() || state.selectedTransforms.length === 0 || !worker) {
+    const requestId = ++requestRef.current
+    if (!worker || !input.trim() || selectedTransforms.length === 0) {
       setPreview(null)
+      setError(null)
       setIsPreviewing(false)
       return
     }
-    setPreview(null)
+    setIsPreviewing(true)
     debounceRef.current = setTimeout(() => {
-      const parser = state.language === 'typescript' ? 'tsx' : 'babel'
-      setIsPreviewing(true)
+      const parser = language === 'typescript' ? 'tsx' : 'babel'
       worker
-        .applyTransforms(state.input, state.selectedTransforms, parser)
-        .then((result) => {
-          if (requestId === previewRequestRef.current) setPreview(result)
+        .applyTransforms(input, selectedTransforms, parser)
+        .then((output) => {
+          if (requestId !== requestRef.current) return
+          setPreview({ source: input, output })
+          setError(null)
         })
-        .catch((err: Error) => {
-          if (requestId !== previewRequestRef.current) return
+        .catch((err: unknown) => {
+          if (requestId !== requestRef.current) return
           setPreview(null)
-          setLastAction(err.message, 'error')
+          setError(err instanceof Error ? err.message : String(err))
         })
         .finally(() => {
-          if (requestId === previewRequestRef.current) setIsPreviewing(false)
+          if (requestId === requestRef.current) setIsPreviewing(false)
         })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (previewRequestRef.current === requestId) previewRequestRef.current += 1
     }
-  }, [state.input, state.selectedTransforms, state.language, worker, setLastAction])
+  }, [worker, input, selectedTransforms, language])
+
+  const isStale = preview !== null && preview.source !== input
+  const noChanges = preview !== null && !isStale && preview.output === preview.source
+  const canApply = preview !== null && !isStale && !noChanges
+  const showDiff = state.view === 'diff' && canApply
+  // Copy what the user is looking at: in Source view the buffer is still the
+  // pre-transform code, and a Copy that quietly hands back the preview instead
+  // is a paste-the-wrong-thing bug.
+  const copyText = showDiff && preview ? preview.output : input
+  const hasDestructive = selectedTransforms.some(
+    (id) => TRANSFORMS.find((t) => t.id === id)?.safety === 'destructive'
+  )
+  // Undo only while the buffer still holds exactly what Apply produced.
+  const canUndo =
+    lastApply !== null && input === lastApply.after && lastApply.before !== lastApply.after
 
   const handleApply = useCallback(() => {
-    if (preview === null || preview === state.input) return
-    updateState({ input: preview, selectedTransforms: [] })
+    if (preview === null || preview.source !== input || preview.output === input) return
+    updateState({
+      input: preview.output,
+      selectedTransforms: [],
+      view: 'source',
+      lastApply:
+        input.length > MAX_SNAPSHOT_LENGTH ? null : { before: input, after: preview.output },
+    })
     setPreview(null)
-    setLastAction('Transforms applied', 'success')
-  }, [preview, state.input, updateState, setLastAction])
+    setLastAction(
+      hasDestructive ? 'Transforms applied — code was removed' : 'Transforms applied',
+      hasDestructive ? 'info' : 'success'
+    )
+  }, [preview, input, hasDestructive, updateState, setLastAction])
+
+  const handleUndo = useCallback(() => {
+    if (!lastApply) return
+    updateState({ input: lastApply.before, lastApply: null, view: 'source' })
+    setLastAction('Reverted to the code before the transforms', 'info')
+  }, [lastApply, updateState, setLastAction])
+
+  useKeyboardShortcut({ key: 'Enter', mod: true }, handleApply)
 
   const toggleTransform = useCallback(
     (id: string) => {
+      const selected = state.selectedTransforms.includes(id)
       updateState({
-        selectedTransforms: state.selectedTransforms.includes(id)
+        selectedTransforms: selected
           ? state.selectedTransforms.filter((t) => t !== id)
           : [...state.selectedTransforms, id],
+        // Selecting is a deliberate act, so following it into the diff isn't a
+        // surprise; deselecting the last one has nothing left to diff.
+        view: selected && state.selectedTransforms.length === 1 ? 'source' : 'diff',
       })
     },
     [state.selectedTransforms, updateState]
@@ -106,156 +250,367 @@ export default function RefactoringToolkit() {
 
   const toggleCategory = useCallback(
     (categoryId: TransformCategory) => {
-      const ids = availableTransforms.filter((t) => t.category === categoryId).map((t) => t.id)
-      const allSelected = ids.every((id) => state.selectedTransforms.includes(id))
-      if (allSelected) {
-        updateState({
-          selectedTransforms: state.selectedTransforms.filter((id) => !ids.includes(id)),
-        })
-      } else {
-        const merged = new Set([...state.selectedTransforms, ...ids])
-        updateState({ selectedTransforms: [...merged] })
-      }
+      // Only the rows the user can actually see are affected — select-all under
+      // an active search must not quietly enable filtered-out transforms.
+      const ids = visibleTransforms.filter((t) => t.category === categoryId).map((t) => t.id)
+      const allSelected = ids.length > 0 && ids.every((id) => state.selectedTransforms.includes(id))
+      const next = allSelected
+        ? state.selectedTransforms.filter((id) => !ids.includes(id))
+        : [...new Set([...state.selectedTransforms, ...ids])]
+      updateState({ selectedTransforms: next, view: next.length > 0 ? 'diff' : 'source' })
     },
-    [availableTransforms, state.selectedTransforms, updateState]
+    [visibleTransforms, state.selectedTransforms, updateState]
   )
 
-  const selectedCount = state.selectedTransforms.length
-  const hasDestructive = state.selectedTransforms.some((id) => {
-    const t = TRANSFORMS.find((tr) => tr.id === id)
-    return t?.safety === 'destructive'
+  const handleSave = useCallback(() => {
+    const defaultName = state.fileName ?? `refactored.${EXTENSION[language] ?? 'js'}`
+    void saveFileDialog(input, defaultName).then(
+      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+      (err: unknown) =>
+        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    )
+  }, [state.fileName, language, input, setLastAction])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      const detected = languageFromFilename(action.filename)
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        selectedTransforms: [],
+        view: 'source',
+        lastApply: null,
+        ...(detected ? { language: detected } : {}),
+      })
+      setError(null)
+      setLastAction(`Opened ${action.filename}`, 'success')
+    }
+    if (action.type === 'save-file') {
+      if (!hasCode) {
+        setLastAction('Nothing to save yet', 'info')
+        return
+      }
+      handleSave()
+    }
+    if (action.type === 'copy-output' && hasCode) {
+      void navigator.clipboard.writeText(copyText).then(
+        () => setLastAction('Code copied', 'success'),
+        () => setLastAction('Copy failed', 'error')
+      )
+    }
   })
-  const noChanges = preview !== null && preview === state.input
+
+  const status = !hasCode
+    ? 'Nothing to transform yet'
+    : error
+      ? 'Transform failed'
+      : selectedCount === 0
+        ? 'Select transforms to preview'
+        : isPreviewing || isStale
+          ? 'Previewing…'
+          : noChanges
+            ? 'No changes for this code'
+            : preview
+              ? `Preview ready · ${selectedCount} transform${selectedCount === 1 ? '' : 's'}`
+              : 'Previewing…'
 
   return (
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-          {preview !== null && !noChanges && (
-            // eslint-disable-next-line no-restricted-syntax -- severity-coloured border that flips warning/success with the transform selection; Button has no variant on those two tokens (danger is --color-error) and className can't reliably beat the variant's own border colour.
-            <button
-              onClick={handleApply}
-              className={`rounded border px-3 py-1 font-mono text-xs hover:opacity-80 ${
-                hasDestructive
-                  ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
-                  : 'border-[var(--color-success)] text-[var(--color-success)]'
-              }`}
-            >
-              {hasDestructive ? 'Apply (destructive)' : 'Apply'}
-            </button>
-          )}
-          {noChanges && (
-            <span className="text-xs text-[var(--color-text-muted)]">No changes to apply</span>
-          )}
-          {selectedCount > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => updateState({ selectedTransforms: [] })}
-            >
-              Clear
-            </Button>
-          )}
-          <Select
-            value={state.language}
-            onChange={(e) => updateState({ language: e.target.value, selectedTransforms: [] })}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </Select>
-          {selectedCount > 0 && (
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {selectedCount} transform{selectedCount !== 1 ? 's' : ''}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-border)] px-4 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <ArrowsClockwiseIcon
+              size={15}
+              aria-hidden="true"
+              className="shrink-0 text-[var(--color-text-muted)]"
+            />
+            <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
+              {state.fileName ?? 'Untitled'}
             </span>
-          )}
+            <span
+              role="status"
+              aria-live="polite"
+              className="flex shrink-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
+            >
+              {canApply && !isPreviewing && (
+                <CheckCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="text-[var(--color-success)]"
+                />
+              )}
+              {error && (
+                <WarningCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="text-[var(--color-error)]"
+                />
+              )}
+              {status}
+            </span>
+          </div>
+
           <div className="ml-auto flex items-center gap-2">
-            {showSpinner && <Spinner size="sm" label="Generating preview" />}
-            <CopyButton text={preview ?? state.input} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => updateState({ panelOpen: !state.panelOpen })}
+              aria-expanded={state.panelOpen}
+              {...(state.panelOpen ? { 'aria-controls': panelId } : {})}
+              className="gap-1"
+            >
+              <SlidersHorizontalIcon size={13} aria-hidden="true" />
+              Transforms
+              {selectedCount > 0 && (
+                <span className="ml-1 text-2xs tabular-nums opacity-70">{selectedCount}</span>
+              )}
+            </Button>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+              <span className="max-[900px]:hidden">Language</span>
+              <Select
+                aria-label="Language"
+                value={language}
+                onChange={(e) => updateState({ language: e.target.value })}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <SegmentedControl
+              aria-label="View"
+              value={showDiff ? 'diff' : 'source'}
+              onChange={(view) => {
+                updateState({ view })
+                // With no preview to show, the control snaps back to Source —
+                // say why instead of eating the click silently.
+                if (view === 'diff' && !canApply) {
+                  setLastAction(
+                    noChanges ? 'No changes to preview' : 'Select transforms to preview',
+                    'info'
+                  )
+                }
+              }}
+              options={[
+                { value: 'source', label: 'Source' },
+                { value: 'diff', label: 'Diff' },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant={hasDestructive ? 'danger' : 'primary'}
+              size="sm"
+              onClick={handleApply}
+              disabled={!canApply}
+              title={
+                hasDestructive
+                  ? 'Apply the transforms — this removes code (⌘↵)'
+                  : 'Apply the transforms to the buffer (⌘↵)'
+              }
+            >
+              {hasDestructive ? 'Apply (removes code)' : 'Apply'}
+              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
+                ⌘↵
+              </span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Restore the code from before the last apply"
+              className="gap-1"
+            >
+              <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+              Undo
+            </Button>
+            <CopyButton text={copyText} label={showDiff ? 'Copy transformed code' : 'Copy code'} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={!hasCode}
+              title="Save the code to a file (⌘S)"
+              aria-label="Save code to file"
+            >
+              <FloppyDiskIcon size={15} aria-hidden="true" />
+            </Button>
           </div>
         </div>
       }
     >
-      <div className="flex flex-1 overflow-hidden">
-        {/* Transforms sidebar */}
-        <div className="w-64 shrink-0 overflow-auto border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          {CATEGORIES.map((cat) => {
-            const catTransforms = availableTransforms.filter((t) => t.category === cat.id)
-            if (catTransforms.length === 0) return null
-            const allSelected = catTransforms.every((t) => state.selectedTransforms.includes(t.id))
-            return (
-              <div key={cat.id} className="mb-4">
-                {/* eslint-disable-next-line no-restricted-syntax -- full-width category header
-                    row that select-alls its group; it wraps a checkbox as its state indicator,
-                    which no Button variant models. */}
-                <button
-                  onClick={() => toggleCategory(cat.id)}
-                  className="mb-2 flex w-full items-center gap-2 font-mono text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    readOnly
-                    className="accent-[var(--color-accent)]"
-                  />
-                  {cat.label}
-                </button>
-                {catTransforms.map((t) => (
-                  <label
-                    key={t.id}
-                    className="mb-1 flex cursor-pointer items-start gap-2 rounded p-1.5 text-xs hover:bg-[var(--color-surface-hover)]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={state.selectedTransforms.includes(t.id)}
-                      onChange={() => toggleTransform(t.id)}
-                      className="mt-0.5 accent-[var(--color-accent)]"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-[var(--color-text)]">{t.name}</span>
-                        <span
-                          className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: SAFETY_COLORS[t.safety] }}
-                          title={SAFETY_LABELS[t.safety]}
-                        />
-                      </div>
-                      <div className="text-[var(--color-text-muted)]">{t.description}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )
-          })}
-        </div>
+      {error && (
+        <Alert
+          variant="error"
+          className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+        >
+          {error}
+        </Alert>
+      )}
 
-        {/* Editor area */}
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {preview !== null && !noChanges ? (
+      {/* Stacks below 900px: a 256px sidebar next to an editor is unusable at 800×600. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden max-[900px]:flex-col">
+        {state.panelOpen && (
+          <section
+            id={panelId}
+            aria-label="Transforms"
+            className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] max-[900px]:max-h-[45%] max-[900px]:w-full max-[900px]:border-r-0 max-[900px]:border-b"
+          >
+            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+              <MagnifyingGlassIcon
+                size={13}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+              <Input
+                aria-label="Filter transforms"
+                placeholder="Filter transforms…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="min-w-0 flex-1"
+              />
+              {selectedCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => updateState({ selectedTransforms: [], view: 'source' })}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {visibleTransforms.length === 0 ? (
+                <p className="py-2 text-xs text-[var(--color-text-muted)]">
+                  No transforms match “{search}”.
+                </p>
+              ) : (
+                CATEGORIES.map((category) => {
+                  const rows = visibleTransforms.filter((t) => t.category === category.id)
+                  if (rows.length === 0) return null
+                  const selectedInCategory = rows.filter((t) =>
+                    selectedTransforms.includes(t.id)
+                  ).length
+                  // `aria-label` rather than a <legend>: the visible heading is
+                  // part of the select-all control below, and a legend
+                  // repeating it would double the group's name.
+                  return (
+                    <fieldset
+                      key={category.id}
+                      aria-label={category.label}
+                      className="mb-4 min-w-0"
+                    >
+                      {/* A checkbox rather than the old button-wrapping-a-checkbox,
+                          which nested one control inside another. */}
+                      <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                        <IndeterminateCheckbox
+                          checked={selectedInCategory === rows.length}
+                          indeterminate={selectedInCategory > 0 && selectedInCategory < rows.length}
+                          onChange={() => toggleCategory(category.id)}
+                          aria-label={`Select all ${category.label} transforms`}
+                        />
+                        <span className="font-ui font-semibold">{category.label}</span>
+                        <span className="ml-auto text-2xs tabular-nums opacity-70">
+                          {selectedInCategory}/{rows.length}
+                        </span>
+                      </label>
+
+                      {rows.map((transform) => (
+                        <label
+                          key={transform.id}
+                          className="mb-1 flex cursor-pointer items-start gap-2 rounded p-1.5 text-xs hover:bg-[var(--color-surface-hover)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedTransforms.includes(transform.id)}
+                            onChange={() => toggleTransform(transform.id)}
+                            className="mt-0.5 accent-[var(--color-accent)]"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-bold text-[var(--color-text)]">
+                                {transform.name}
+                              </span>
+                              {/* Was a bare coloured dot with a title attribute —
+                                  invisible to keyboard and screen-reader users. */}
+                              <span
+                                className="rounded px-1 text-2xs uppercase"
+                                style={{ color: SAFETY_COLORS[transform.safety] }}
+                                title={SAFETY_LABELS[transform.safety]}
+                              >
+                                {transform.safety}
+                              </span>
+                            </span>
+                            <span className="block text-[var(--color-text-muted)]">
+                              {transform.description}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )
+                })
+              )}
+            </div>
+          </section>
+        )}
+
+        <section
+          aria-label={showDiff ? 'Transform preview' : 'Source'}
+          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+        >
+          {showDiff && preview ? (
             <DiffEditor
-              original={state.input}
-              modified={preview}
-              language={state.language}
-              options={{
-                ...monacoOptions,
-                readOnly: true,
-                renderSideBySide: true,
-                enableSplitViewResizing: true,
-              }}
+              // Monaco's setTheme is global and DiffEditor defaults to "light":
+              // omitting this flips the whole editor to light on every preview.
+              theme={monacoTheme}
+              original={preview.source}
+              modified={preview.output}
+              language={language}
+              options={diffOptions}
             />
           ) : (
             <Editor
               theme={monacoTheme}
-              language={state.language}
-              value={state.input}
+              language={language}
+              value={input}
               onChange={(v) => updateState({ input: v ?? '' })}
               options={monacoOptions}
             />
           )}
-        </div>
+          {!hasCode && (
+            // Click-through so the hint never stands between user and caret;
+            // only the button itself takes pointer events.
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-[var(--color-text-muted)]">
+              <ArrowsClockwiseIcon size={32} weight="light" aria-hidden="true" />
+              <p className="text-sm">Paste JavaScript or TypeScript</p>
+              <p className="max-w-xs text-xs opacity-60">
+                Pick transforms on the {state.panelOpen ? 'left' : 'Transforms panel'} and preview
+                the rewrite as a diff before applying it.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  updateState({
+                    input: REFACTORING_SAMPLE,
+                    fileName: null,
+                    lastApply: null,
+                  })
+                }
+                className="pointer-events-auto"
+              >
+                Load example
+              </Button>
+            </div>
+          )}
+        </section>
       </div>
     </ToolLayout>
   )

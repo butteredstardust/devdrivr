@@ -50,6 +50,16 @@ describe('file I/O', () => {
     })
   })
 
+  // TSX and JSX were missing, so React sources were invisible in the picker
+  // for tools that read TypeScript.
+  it('offers the TypeScript and JSX extensions in the open dialog', async () => {
+    vi.mocked(open).mockResolvedValue(null)
+    await openFileDialog()
+
+    const filters = vi.mocked(open).mock.calls[0]![0]!.filters!
+    expect(filters[0]!.extensions).toEqual(expect.arrayContaining(['ts', 'tsx', 'js', 'jsx']))
+  })
+
   it('extracts filenames from Unix and Windows paths', () => {
     expect(filenameFromPath('/tmp/example.json')).toBe('example.json')
     expect(filenameFromPath('C:\\Users\\Ada\\example.json')).toBe('example.json')
