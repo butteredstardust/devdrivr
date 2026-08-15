@@ -164,9 +164,11 @@ export const TOOLS: ToolDefinition[] = [
     name: 'CSV Tools',
     group: 'data',
     icon: toolIcon(FileCsvIcon),
-    description: 'View, edit, convert with JSON, analyze stats, and generate schemas for CSV data',
+    description:
+      'Sortable, filterable table beside the source, conversion to JSON/TSV/Markdown/SQL, column statistics, and generated TypeScript or SQL schemas',
     component: CsvTools,
     supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   // --- Web ---

@@ -42,6 +42,12 @@ limits:
   maxUploadMb: 25
   timeoutSec: 30`,
 
+  'csv-tools': `id,name,role,signups,active,joined
+1,Ada Lovelace,engineer,42,true,2024-01-15
+2,Grace Hopper,architect,17,true,2024-02-03
+3,Alan Turing,researcher,,false,2024-02-19
+4,Katherine Johnson,analyst,8,true,2024-03-07`,
+
   'jwt-decoder':
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXIiLCJuYW1lIjoiQWRhIEV4YW1wbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.fakesignature_not_a_real_signature',
 }

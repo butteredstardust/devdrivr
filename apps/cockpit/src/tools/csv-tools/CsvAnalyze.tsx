@@ -1,138 +1,205 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useId, useMemo, useState, type ReactNode } from 'react'
+import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
-import { useUiStore } from '@/stores/ui.store'
-import {
-  inferColumnType,
-  calculateNumberStats,
-  calculateStringStats,
-  type ColumnType,
-} from './utils'
+import { CopyButton } from '@/components/shared/CopyButton'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { countDuplicateRows, type ColumnSummary, type CsvRow } from './csv-helpers'
 
-interface CsvAnalyzeProps {
-  data: Record<string, unknown>[]
-  onSchemaGenerated?: (schema: string) => void
+export type SchemaLanguage = 'typescript' | 'sql'
+
+type CsvAnalyzeProps = {
+  columns: string[]
+  rows: CsvRow[]
+  summaries: ColumnSummary[]
+  schema: string
+  schemaLanguage: SchemaLanguage
+  onSchemaLanguageChange: (language: SchemaLanguage) => void
 }
 
-export default function CsvAnalyze({ data, onSchemaGenerated }: CsvAnalyzeProps) {
-  const setLastAction = useUiStore((s) => s.setLastAction)
-  const [expandedPanel, setExpandedPanel] = useState<'stats' | 'quality' | 'schema'>('stats')
+const SCHEMA_OPTIONS = [
+  { value: 'typescript' as const, label: 'TypeScript' },
+  { value: 'sql' as const, label: 'SQL' },
+]
 
-  const columnStats = useMemo(() => {
-    const keys = Object.keys(data[0] ?? {})
-    const result: Record<
-      string,
-      { type: ColumnType; stats: unknown; nullCount: number; nullPct: number }
-    > = {}
+const TYPE_COLORS: Record<ColumnSummary['type'], string> = {
+  number: 'text-[var(--color-accent)]',
+  boolean: 'text-[var(--color-accent)]',
+  date: 'text-[var(--color-accent)]',
+  string: 'text-[var(--color-text-muted)]',
+  mixed: 'text-[var(--color-warning)]',
+  empty: 'text-[var(--color-text-muted)]',
+}
 
-    for (const key of keys) {
-      const values = data.map((row) => row[key])
-      const type = inferColumnType(values)
+function round(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}
 
-      let stats: unknown
-      if (type === 'number') {
-        stats = calculateNumberStats(values)
-      } else {
-        stats = calculateStringStats(values)
-      }
+/**
+ * A disclosure, not a tab: the old accordion tracked a single open panel in one
+ * piece of state with three values and only two panels, so opening "Column
+ * statistics" while it was open collapsed everything.
+ */
+function Disclosure({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const panelId = useId()
+  return (
+    <section className="mb-4">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="w-full justify-between gap-2 py-2 font-semibold"
+      >
+        {title}
+        {open ? (
+          <CaretDownIcon size={12} aria-hidden="true" />
+        ) : (
+          <CaretRightIcon size={12} aria-hidden="true" />
+        )}
+      </Button>
+      {/* Rendered even when closed, with `hidden`: an `aria-controls` that
+          points at nothing is a broken reference to a screen reader. */}
+      <div id={panelId} hidden={!open} className="mt-2">
+        {children}
+      </div>
+    </section>
+  )
+}
 
-      const nullCount = values.filter((v) => v === null || v === undefined || v === '').length
-      const nullPct = data.length > 0 ? (nullCount / data.length) * 100 : 0
-
-      result[key] = { type, stats, nullCount, nullPct }
-    }
-
-    return result
-  }, [data])
-
-  const generateTypeScript = useCallback(() => {
-    const keys = Object.keys(data[0] ?? {})
-    const lines: string[] = ['interface CsvRow {']
-
-    for (const key of keys) {
-      const type = columnStats[key]?.type
-      let tsType = 'string'
-      if (type === 'number') tsType = 'number'
-      else if (type === 'date') tsType = 'Date'
-
-      const nullCount = data.filter(
-        (row) => row[key] === null || row[key] === undefined || row[key] === ''
-      ).length
-      const optional = nullCount > 0 ? ' | null' : ''
-
-      lines.push(`  ${key}: ${tsType}${optional};`)
-    }
-
-    lines.push('}')
-    const result = lines.join('\n')
-
-    onSchemaGenerated?.(result)
-    navigator.clipboard.writeText(result)
-    setLastAction('Generated TypeScript interface', 'success')
-  }, [data, columnStats, onSchemaGenerated, setLastAction])
+export default function CsvAnalyze({
+  columns,
+  rows,
+  summaries,
+  schema,
+  schemaLanguage,
+  onSchemaLanguageChange,
+}: CsvAnalyzeProps) {
+  const duplicates = useMemo(() => countDuplicateRows(columns, rows), [columns, rows])
+  const blankCells = summaries.reduce((total, summary) => total + summary.blanks, 0)
+  const mixedColumns = summaries.filter((summary) => summary.type === 'mixed')
+  const emptyColumns = summaries.filter((summary) => summary.type === 'empty')
 
   return (
-    <div className="flex h-full flex-col overflow-auto p-4">
-      {/* Column Statistics */}
-      <div className="mb-4">
-        {/* eslint-disable-next-line no-restricted-syntax -- full-width accordion panel header
-            with a ▼/▶ affordance; it's a disclosure, not an action button. */}
-        <button
-          className="flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
-          onClick={() => setExpandedPanel(expandedPanel === 'stats' ? 'quality' : 'stats')}
-        >
-          <span className="text-sm font-bold">Column Statistics</span>
-          <span>{expandedPanel === 'stats' ? '\u25BC' : '\u25B6'}</span>
-        </button>
-        {expandedPanel === 'stats' && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {Object.entries(columnStats).map(([key, { type, stats, nullCount, nullPct }]) => (
-              <div
-                key={key}
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
-              >
-                <div className="font-mono text-sm font-bold text-[var(--color-accent)]">{key}</div>
-                <div className="text-2xs text-[var(--color-text-muted)]">{type}</div>
-                {type === 'number' && stats != null && (
-                  <div className="text-2xs text-[var(--color-text-muted)]">
-                    Min: {String((stats as { min: number }).min)} · Max:{' '}
-                    {String((stats as { max: number }).max)}
-                  </div>
-                )}
-                {(type === 'string' || type === 'mixed') && stats != null && (
-                  <div className="text-2xs text-[var(--color-text-muted)]">
-                    Unique: {String((stats as { unique: number }).unique)}
-                  </div>
-                )}
-                {nullCount > 0 && (
-                  <div className="text-2xs text-[var(--color-warning)]">
-                    Nulls: {nullCount} ({nullPct.toFixed(1)}%)
-                  </div>
-                )}
+    <div className="h-full min-h-0 overflow-auto p-4">
+      <Disclosure title="Column statistics" defaultOpen>
+        <div className="grid gap-2 min-[560px]:grid-cols-2">
+          {summaries.map((summary) => (
+            <div
+              key={summary.name}
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate font-mono text-xs font-bold text-[var(--color-text)]">
+                  {summary.name}
+                </span>
+                <span className={`text-2xs ${TYPE_COLORS[summary.type]}`}>{summary.type}</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <dl className="mt-1 grid grid-cols-2 gap-x-2 text-2xs text-[var(--color-text-muted)]">
+                <div className="flex gap-1">
+                  <dt>Unique</dt>
+                  <dd className="tabular-nums">{summary.unique}</dd>
+                </div>
+                <div className="flex gap-1">
+                  <dt>Blank</dt>
+                  <dd
+                    className={`tabular-nums ${summary.blanks > 0 ? 'text-[var(--color-warning)]' : ''}`}
+                  >
+                    {summary.blanks} ({summary.blankPercent.toFixed(0)}%)
+                  </dd>
+                </div>
+                {summary.numeric && (
+                  <>
+                    <div className="flex gap-1">
+                      <dt>Min</dt>
+                      <dd className="tabular-nums">{round(summary.numeric.min)}</dd>
+                    </div>
+                    <div className="flex gap-1">
+                      <dt>Max</dt>
+                      <dd className="tabular-nums">{round(summary.numeric.max)}</dd>
+                    </div>
+                    <div className="flex gap-1">
+                      <dt>Mean</dt>
+                      <dd className="tabular-nums">{round(summary.numeric.mean)}</dd>
+                    </div>
+                    <div className="flex gap-1">
+                      <dt>Median</dt>
+                      <dd className="tabular-nums">{round(summary.numeric.median)}</dd>
+                    </div>
+                  </>
+                )}
+                {summary.text && (
+                  <>
+                    <div className="flex gap-1">
+                      <dt>Longest</dt>
+                      <dd className="tabular-nums">{summary.text.longest}</dd>
+                    </div>
+                    {summary.text.mode && (
+                      <div className="flex min-w-0 gap-1">
+                        <dt>Most common</dt>
+                        <dd className="truncate" title={summary.text.mode}>
+                          {summary.text.mode}
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                )}
+              </dl>
+            </div>
+          ))}
+        </div>
+      </Disclosure>
 
-      {/* Schema Generation */}
-      <div className="mb-4">
-        {/* eslint-disable-next-line no-restricted-syntax -- full-width accordion panel header
-            with a ▼/▶ affordance; it's a disclosure, not an action button. */}
-        <button
-          className="flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
-          onClick={() => setExpandedPanel(expandedPanel === 'schema' ? 'stats' : 'schema')}
-        >
-          <span className="text-sm font-bold">Schema Generation</span>
-          <span>{expandedPanel === 'schema' ? '\u25BC' : '\u25B6'}</span>
-        </button>
-        {expandedPanel === 'schema' && (
-          <div className="mt-2 flex gap-2">
-            <Button variant="secondary" size="sm" onClick={generateTypeScript}>
-              TypeScript
-            </Button>
-          </div>
-        )}
-      </div>
+      <Disclosure title="Data quality">
+        <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
+          <li>
+            {rows.length} row{rows.length === 1 ? '' : 's'} across {columns.length} column
+            {columns.length === 1 ? '' : 's'}
+          </li>
+          <li className={blankCells > 0 ? 'text-[var(--color-warning)]' : undefined}>
+            {blankCells} blank cell{blankCells === 1 ? '' : 's'}
+          </li>
+          <li className={duplicates > 0 ? 'text-[var(--color-warning)]' : undefined}>
+            {duplicates} duplicate row{duplicates === 1 ? '' : 's'}
+          </li>
+          {mixedColumns.length > 0 && (
+            <li className="text-[var(--color-warning)]">
+              Mixed types in {mixedColumns.map((summary) => summary.name).join(', ')}
+            </li>
+          )}
+          {emptyColumns.length > 0 && (
+            <li className="text-[var(--color-warning)]">
+              Entirely empty: {emptyColumns.map((summary) => summary.name).join(', ')}
+            </li>
+          )}
+        </ul>
+      </Disclosure>
+
+      <Disclosure title="Generated schema">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            aria-label="Schema language"
+            value={schemaLanguage}
+            onChange={onSchemaLanguageChange}
+            options={SCHEMA_OPTIONS}
+          />
+          <CopyButton text={schema} label="Copy schema" className="ml-auto" />
+        </div>
+        {/* Shown, not silently copied — the old version put the interface on the
+            clipboard and never displayed it. */}
+        <pre className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-mono text-2xs text-[var(--color-text)]">
+          {schema}
+        </pre>
+      </Disclosure>
     </div>
   )
 }

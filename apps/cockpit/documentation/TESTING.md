@@ -185,6 +185,48 @@ Covers the JSON Schema helpers and the JSON Schema Validator component.
 | Problems panel hides and shows                     | Collapsible panel                       |
 | Registry flags + open-file routing, undoable       | ⌘O/⌘S reach the tool; no data loss      |
 
+### `src/tools/__tests__/csv-tools.test.tsx` (40 tests)
+
+Covers the CSV helpers and the CSV Tools component.
+
+| Test                                               | What it verifies                      |
+| -------------------------------------------------- | ------------------------------------- |
+| `detectDelimiter` — consistency across lines       | Commas inside a field no longer win   |
+| `detectDelimiter` — quoted sections ignored        | `"x,y"` is one field                  |
+| `parseCsv` — empty vs parsed                       | Untouched tool is not an error        |
+| `parseCsv` — ragged row keeps its extra fields     | Papa's header mode dropped them       |
+| `parseCsv` — issue carries the source line         | Go to issue lands on the row          |
+| `parseCsv` — repeated and missing header names     | No column overwrites another          |
+| `parseCsv` — typed off keeps `007` a string        | Codes survive the round trip          |
+| `toOutput` — JSON rows/columns, TSV, Markdown, SQL | Every conversion format               |
+| `toOutput` — pipes, quotes and newlines escaped    | Output cannot break its own syntax    |
+| `parseCsv` — blank lines do not shift line numbers | Go to issue stays accurate            |
+| `parseCsv` — newline inside a quoted field         | One record, not two                   |
+| `parseCsv` — a quoted-empty line keeps alignment   | Papa skips it; the counter must too   |
+| `detectDelimiter` — a title row does not mislead   | Agreement across records wins         |
+| `toOutput` — SQL inserts name the file's table     | DDL and inserts must agree            |
+| `summarizeColumns` — numeric and text statistics   | Min/max/mean/median, unique, mode     |
+| `summarizeColumns` — one stray value is `mixed`    | A dirty column is not called numeric  |
+| `countDuplicateRows`                               | Data-quality panel                    |
+| `generateTypeScript` / `generateSql`               | Blanks nullable; identifiers quoted   |
+| `outputFileName`                                   | An export never overwrites the source |
+| Source editor and active pane on screen together   | Panes replaced the old tabs           |
+| Status line: rows, columns, detected delimiter     | Live parse verdict                    |
+| Ragged rows announced + Go to issue                | Error navigation                      |
+| Load sample, then Undo                             | Buffer replacement is recoverable     |
+| Table sorting from the keyboard + `aria-sort`      | Header was a click handler on `<th>`  |
+| Table filter leaves the source untouched           | Preview is non-destructive            |
+| Convert pane follows the format select             | Conversion wiring                     |
+| Generated schema is shown, TypeScript and SQL      | It used to be copied but never shown  |
+| Analysis panels open independently                 | The old accordion collapsed itself    |
+| open-file names the buffer and is undoable         | No silent data loss                   |
+| save-file saves the active view                    | ⌘S follows what is on screen          |
+| copy-output copies the active view, or says why    | Async actions are explicit            |
+| save-file inside the debounce window               | ⌘S writes the current buffer          |
+| Table view saves the source verbatim               | Ragged rows and `007` survive         |
+| Undo restores the file name too                    | ⌘S cannot overwrite the wrong file    |
+| First paste recorded; flagged file recorded failed | History is not swallowed by the guard |
+
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 
 Tests the Zustand notes store in isolation (DB calls are mocked).

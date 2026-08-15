@@ -86,7 +86,24 @@ export async function saveFileDialog(
     filters: [
       {
         name: 'Text',
-        extensions: ['txt', 'json', 'xml', 'yaml', 'yml', 'html', 'css', 'js', 'ts', 'md'],
+        // `csv`, `tsv` and `sql` are here because the save panel appends an
+        // allowed extension: without them `people.csv` is written as
+        // `people.csv.txt`.
+        extensions: [
+          'txt',
+          'json',
+          'xml',
+          'yaml',
+          'yml',
+          'html',
+          'css',
+          'js',
+          'ts',
+          'md',
+          'csv',
+          'tsv',
+          'sql',
+        ],
       },
       { name: 'All', extensions: ['*'] },
     ],

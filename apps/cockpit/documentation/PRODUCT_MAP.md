@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 1118 tests | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 1135 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
@@ -42,13 +42,13 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 
 ### Data Group
 
-| Tool                  | ID                      | What It Does                                                                                     |
-| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, path query, tree + table beside the editor                  |
-| XML Tools             | `xml-tools`             | Live validation with line/column; tree, JSON and XPath panes beside the editor                   |
-| YAML Tools            | `yaml-tools`            | Live validation with line/column; multi-document streams; tree and JSON panes beside the editor  |
-| JSON Schema Validator | `json-schema-validator` | Live Ajv validation with a clickable problems list, templates, schema inference, and strict mode |
-| CSV Tools             | `csv-tools`             | View, edit, convert with JSON, analyze stats, and generate schemas for CSV data                  |
+| Tool                  | ID                      | What It Does                                                                                                                          |
+| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, path query, tree + table beside the editor                                                       |
+| XML Tools             | `xml-tools`             | Live validation with line/column; tree, JSON and XPath panes beside the editor                                                        |
+| YAML Tools            | `yaml-tools`            | Live validation with line/column; multi-document streams; tree and JSON panes beside the editor                                       |
+| JSON Schema Validator | `json-schema-validator` | Live Ajv validation with a clickable problems list, templates, schema inference, and strict mode                                      |
+| CSV Tools             | `csv-tools`             | Sortable/filterable table beside the source, JSON/TSV/Markdown/SQL conversion, column statistics, generated TypeScript or SQL schemas |
 
 ### Web Group
 

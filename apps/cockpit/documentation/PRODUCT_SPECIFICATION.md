@@ -560,6 +560,44 @@ not instead of it.)
   pane is editable, and **Apply to YAML** converts back, which is the JSON→YAML direction that used
   to live in a tab with a second buffer of its own.
 
+### 6.30 CSV Tools
+
+**Views:** Table | Convert | Analyze (segmented control — every pane opens _beside_ the source
+editor, not instead of it.)
+
+- **Source** — Monaco editor holding the raw text. Parsed on a 250ms debounce; the verdict goes to a
+  polite live region as `N rows · K columns · <delimiter>-separated (detected) · size`, with the
+  issue count appended and a **Go to issue** button that moves the caret to the offending line.
+  Line numbers are counted over the source, so blank lines and newlines inside quoted fields do not
+  make them drift.
+- **Delimiter** — auto-detection scores comma, tab, semicolon and pipe by how consistently they
+  split the file into records (quoted sections excluded), rather than by counting characters in the
+  header — a title row ahead of the header no longer misleads it — and can be overridden from a
+  labelled select. **Header row** and **Typed values** are toggles;
+  leaving typing off keeps `007`, phone numbers and SKUs as the strings they are.
+- **Ragged rows are data, not noise** — rows are read positionally and keyed afterwards, so a row
+  with more fields than the header gets extra `Column N` entries and an issue naming its line
+  instead of silently losing the values. Repeated header names are disambiguated (`id`, `id (2)`).
+- **Table** — sortable, filterable preview. Header sorting is a real button with `aria-sort` on the
+  `<th>` (it used to be a click handler, unreachable from the keyboard), rows are numbered, the
+  header is sticky, and rendering is capped at the first 500 matches with the total stated.
+- **Convert** — JSON (array of objects or object of arrays), TSV, Markdown table and SQL inserts
+  (named after the same table as the generated schema, so the DDL and the inserts run together).
+  Values that would break the target syntax are escaped: pipes and newlines in Markdown, quotes and
+  identifiers in SQL, tabs in TSV. The pane reads the same parse as the rest of the tool rather than
+  re-parsing a buffer of its own.
+- **Analyze** — three independently-openable disclosure panels: per-column statistics (type, unique,
+  blanks, min/max/mean/median or longest/most common), a data-quality summary (blank cells,
+  duplicate rows, mixed-type and empty columns), and a generated schema shown on screen as
+  **TypeScript** or **SQL** with its own Copy. A column with one stray value is reported as `mixed`
+  rather than as a number.
+- **Actions** — Copy and Save (⌘S) act on the visible pane, re-reading the editor if the debounce
+  has not caught up, and the suggested file name follows the source with the right extension. In
+  Table view they write the source text verbatim: re-serialising the parsed rows would drop a ragged
+  row's extra fields and rewrite `007` as `7`. open-file records the file name and leaves a
+  one-click **Undo** that restores name and buffer together, as does Load sample; the offer expires
+  on the first manual edit.
+
 ---
 
 ## 7. Cross-Cutting Behaviors

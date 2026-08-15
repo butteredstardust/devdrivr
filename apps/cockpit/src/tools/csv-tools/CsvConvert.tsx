@@ -1,94 +1,43 @@
-import { useState, useMemo, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { parseCsv, toColumnarFormat } from './utils'
-import type { Delimiter } from './utils'
+import { Select } from '@/components/shared/Select'
+import { FORMAT_LANGUAGES, OUTPUT_FORMATS, type OutputFormat } from './csv-helpers'
 
-interface CsvConvertProps {
-  csvText: string
-  delimiter: Delimiter
-  hasHeader: boolean
-  outputFormat?: 'array-of-objects' | 'object-of-arrays'
-  onOutputFormatChange?: (format: 'array-of-objects' | 'object-of-arrays') => void
+type CsvConvertProps = {
+  /** Converted text, computed once by the tool — this pane no longer re-parses. */
+  output: string
+  format: OutputFormat
+  onFormatChange: (format: OutputFormat) => void
 }
 
-export default function CsvConvert({
-  csvText,
-  delimiter,
-  hasHeader,
-  outputFormat = 'array-of-objects',
-  onOutputFormatChange,
-}: CsvConvertProps) {
+export default function CsvConvert({ output, format, onFormatChange }: CsvConvertProps) {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
 
-  const [internalFormat, setInternalFormat] = useState<'array-of-objects' | 'object-of-arrays'>(
-    outputFormat
-  )
-
-  const convertedJson = useMemo(() => {
-    if (!csvText.trim()) return ''
-
-    const result = parseCsv(csvText, delimiter, hasHeader)
-    if (result.errors.length > 0) return ''
-
-    const data = result.data
-
-    if (internalFormat === 'object-of-arrays') {
-      const columnar = toColumnarFormat(data)
-      const metadata = {
-        __csv_meta__: {
-          columnOrder: Object.keys(data[0] ?? {}),
-          types: Object.fromEntries(Object.keys(data[0] ?? {}).map((key) => [key, 'string'])),
-        },
-      }
-      return JSON.stringify({ ...metadata, ...columnar }, null, 2)
-    }
-
-    return JSON.stringify(data, null, 2)
-  }, [csvText, delimiter, hasHeader, internalFormat])
-
-  const handleFormatChange = useCallback(
-    (format: 'array-of-objects' | 'object-of-arrays') => {
-      setInternalFormat(format)
-      onOutputFormatChange?.(format)
-    },
-    [onOutputFormatChange]
-  )
-
   return (
-    <div className="flex h-full flex-col">
-      {/* Format selector */}
-      <div className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-2">
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="format"
-            checked={internalFormat === 'array-of-objects'}
-            onChange={() => handleFormatChange('array-of-objects')}
-          />
-          <span className="text-xs">Array of objects</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="format"
-            checked={internalFormat === 'object-of-arrays'}
-            onChange={() => handleFormatChange('object-of-arrays')}
-          />
-          <span className="text-xs">Object of arrays</span>
-        </label>
-
-        {convertedJson && <CopyButton text={convertedJson} />}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+        <Select
+          aria-label="Output format"
+          value={format}
+          onChange={(e) => onFormatChange(e.target.value as OutputFormat)}
+          className="w-52"
+        >
+          {OUTPUT_FORMATS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <CopyButton text={output} label="Copy converted" className="ml-auto" />
       </div>
 
-      {/* Output */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={monacoTheme}
-          language="json"
-          value={convertedJson}
+          language={FORMAT_LANGUAGES[format]}
+          value={output}
           options={{ ...monacoOptions, readOnly: true }}
         />
       </div>
