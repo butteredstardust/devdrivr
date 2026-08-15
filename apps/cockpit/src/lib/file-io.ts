@@ -60,6 +60,8 @@ export async function openFileDialog(): Promise<{
           'sql',
           'csv',
           'svg',
+          'mmd',
+          'mermaid',
         ],
       },
       { name: 'All', extensions: ['*'] },
@@ -86,8 +88,8 @@ export async function saveFileDialog(
     filters: [
       {
         name: 'Text',
-        // `csv`, `tsv` and `sql` are here because the save panel appends an
-        // allowed extension: without them `people.csv` is written as
+        // `csv`, `tsv`, `sql` and `mmd` are here because the save panel appends
+        // an allowed extension: without them `people.csv` is written as
         // `people.csv.txt`.
         extensions: [
           'txt',
@@ -103,6 +105,7 @@ export async function saveFileDialog(
           'csv',
           'tsv',
           'sql',
+          'mmd',
         ],
       },
       { name: 'All', extensions: ['*'] },

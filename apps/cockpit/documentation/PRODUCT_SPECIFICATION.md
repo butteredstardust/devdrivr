@@ -311,11 +311,17 @@ editor, not instead of it, so a document can be fixed while it is being inspecte
 
 **Standalone diagram editor for mermaid syntax.**
 
-- Monaco editor with mermaid language hints.
-- Live preview panel rendering the diagram.
-- Export as SVG or PNG.
-- Template gallery: flowchart, sequence, class, ER, gantt, state, pie.
-- Error feedback when syntax is invalid.
+- Monaco editor with Edit / Split / Preview modes; the panes stack below ~900px.
+- Live preview, debounced 500ms, that keeps the last good diagram while syntax is broken.
+- Pan and zoom canvas with fit-to-view and full keyboard control (arrows, `+`/`-`, `F`, `0`); it
+  auto-fits new diagrams but leaves a zoom the user set alone.
+- Error banner with the failing line, a "Go to line" jump, and a Monaco marker on that line. Line
+  numbers are mapped back through the comments and front matter Mermaid strips before parsing.
+- Template gallery (flowchart, sequence, class, ER, gantt, state, pie) behind a confirmation
+  when the buffer has unsaved changes.
+- Open `.mmd` files from disk and save back to them (⌘O / ⌘S), with a Modified/Saved status.
+- Copy or export SVG (with explicit pixel dimensions) and PNG at 1×–4×, opaque by default.
+- Status bar reporting the diagram type, line count and render state.
 
 ### 6.7 Case Converter
 

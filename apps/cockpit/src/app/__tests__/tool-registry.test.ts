@@ -54,14 +54,14 @@ describe('tool capability flags', () => {
   // silently dropping tools' flags (e.g. `usesMonaco` disappearing from JSON Tools
   // would flip its overflow mode with no type error). So beyond membership, assert
   // the exact expected size and contents for each derived set — pinned to the
-  // audited values from documentation/TODO.md (10 / 10 / 17).
+  // audited values from documentation/TODO.md (11 / 11 / 17).
   it('every capability flag set only contains registered tool ids', () => {
     for (const id of OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of SAVE_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 10', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 11', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -70,6 +70,7 @@ describe('tool capability flags', () => {
         'json-schema-validator',
         'json-tools',
         'markdown-editor',
+        'mermaid-editor',
         'refactoring-toolkit',
         'ts-playground',
         'xml-tools',
@@ -78,7 +79,7 @@ describe('tool capability flags', () => {
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 10', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 11', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -87,6 +88,7 @@ describe('tool capability flags', () => {
         'json-schema-validator',
         'json-tools',
         'markdown-editor',
+        'mermaid-editor',
         'refactoring-toolkit',
         'ts-playground',
         'xml-tools',

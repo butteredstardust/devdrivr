@@ -339,8 +339,10 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Mermaid Editor',
     group: 'write',
     icon: toolIcon(GraphIcon),
-    description: 'Edit and preview Mermaid diagrams',
+    description: 'Edit and preview Mermaid diagrams, then export them as SVG or PNG',
     component: MermaidEditor,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

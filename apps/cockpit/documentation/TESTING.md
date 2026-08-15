@@ -227,6 +227,52 @@ Covers the CSV helpers and the CSV Tools component.
 | Undo restores the file name too                    | ⌘S cannot overwrite the wrong file    |
 | First paste recorded; flagged file recorded failed | History is not swallowed by the guard |
 
+### `src/tools/__tests__/mermaid-editor.test.tsx` (39 tests)
+
+Covers the Mermaid helpers, the editor shell, and the pan/zoom preview.
+
+| Test                                                    | What it verifies                           |
+| ------------------------------------------------------- | ------------------------------------------ |
+| `detectDiagramType` skips `%%` comments/directives      | The type is read off the first real line   |
+| `detectDiagramType` — unknown keyword, empty source     | Generic label, then null                   |
+| `countStatements` ignores blanks and comments           | The status line counts real lines          |
+| Every template resolves by id and parses                | The picker cannot offer a dead entry       |
+| `parseMermaidError` — line number, caret block cut      | "Go to line" has something to jump to      |
+| `parseMermaidError` — no line named                     | The jump button is omitted, not broken     |
+| `sourceLineForReportedLine` maps through stripped lines | Mermaid parses a copy without comments     |
+| `withSourceLine` rewrites the quoted line number        | Banner and jump button agree               |
+| `svgSize` prefers `viewBox` over `max-width`            | `img.width` used to crop every PNG         |
+| `svgSize` falls back to attributes, then a default      | No zero-sized export                       |
+| `svgWithExplicitSize` pins px and strips max-width      | Copied SVG survives outside the app        |
+| `fitScale` fits large, never enlarges small             | Fit-to-view                                |
+| `exportFileName`                                        | `diagram.mmd` → `diagram.svg`              |
+| Editor, mode control and diagram name on screen         | Shell layout                               |
+| Status bar: type · lines · render state                 | Live verdict                               |
+| Stale async renders ignored after rapid edits           | Render sequence guard                      |
+| Light app theme initialises the light Mermaid theme     | Theme follows the app                      |
+| `htmlLabels: false` on flowchart and class              | WebKit cannot rasterise `foreignObject`    |
+| Rendered preview keeps pointer events                   | Diagram links stay clickable               |
+| History recorded on edit, not on restored state         | Async hydration is not user input          |
+| Error banner shows the line and keeps last diagram      | The preview no longer blanks mid-type      |
+| Error line is the source line, not Mermaid's            | Comments shifted every reported line       |
+| Scratch nodes removed after a failed render             | Mermaid leaked a `div#d<id>` per keystroke |
+| No jump button when Mermaid names no line               | Nothing to jump to                         |
+| Templates listed with human labels                      | `er`/`classDiagram` told nobody anything   |
+| Template loads on a clean buffer, twice over            | Not "Modified", and no confirmation        |
+| Template over unsaved work asks first                   | The old dropdown overwrote silently        |
+| New diagram over unsaved work asks first                | No silent data loss                        |
+| Registry flags for ⌘O/⌘S                                | The shortcuts reach the tool               |
+| open-file then save-file round trip                     | File name and path are kept                |
+| Toolbar Open marks the buffer saved                     | Modified/Saved status                      |
+| Editing marks the buffer modified                       | Dirty tracking                             |
+| Image actions disabled until something renders          | Nothing to export                          |
+| Copy SVG pins pixel dimensions                          | Pasted SVG renders elsewhere               |
+| copy-output copies the source                           | Shell action                               |
+| PNG resolution and transparency appear for PNG          | Format-specific options                    |
+| Preview zooms, pans and resets from the keyboard        | It was mouse-only                          |
+| A user-set zoom survives a re-render                    | Auto-fit used to yank the view back        |
+| Empty preview offers a template                         | Dead end replaced with an action           |
+
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 
 Tests the Zustand notes store in isolation (DB calls are mocked).

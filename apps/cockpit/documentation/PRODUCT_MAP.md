@@ -25,7 +25,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 1135 tests | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 1155 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
@@ -92,7 +92,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Tool             | ID                 | What It Does                                                        |
 | ---------------- | ------------------ | ------------------------------------------------------------------- |
 | Markdown Editor  | `markdown-editor`  | Split-pane edit + preview; GFM; Mermaid diagrams; HTML export       |
-| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; SVG/PNG export; 7 templates        |
+| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; pan/zoom; ⌘O/⌘S; SVG/PNG export    |
 | Snippets         | `snippets`         | CRUD code snippets with tags, fuzzy search, import/export           |
 | Prompt Templates | `prompt-templates` | Fill curated AI prompt templates with variables and token estimates |
 
