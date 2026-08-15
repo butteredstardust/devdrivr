@@ -13,7 +13,7 @@ describe('Base64Tool', () => {
 
   it('renders encode mode by default', () => {
     renderTool(Base64Tool)
-    expect(screen.getByText('Encode →')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Encode' })).toBeInTheDocument()
   })
 
   it('encodes text to base64', () => {
@@ -25,13 +25,13 @@ describe('Base64Tool', () => {
 
   it('toggles to decode mode', () => {
     renderTool(Base64Tool)
-    fireEvent.click(screen.getByText('Encode →'))
-    expect(screen.getByText('← Decode')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
+    expect(screen.getByRole('button', { name: 'Decode' })).toBeInTheDocument()
   })
 
   it('decodes base64 to text', () => {
     renderTool(Base64Tool)
-    fireEvent.click(screen.getByText('Encode →'))
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
     const input = screen.getByPlaceholderText(/enter base64/i)
     fireEvent.change(input, { target: { value: 'aGVsbG8=' } })
     expect(screen.getByText('hello')).toBeInTheDocument()
@@ -44,7 +44,7 @@ describe('Base64Tool', () => {
 
   it('does not render Encode File button in decode mode', () => {
     renderTool(Base64Tool)
-    fireEvent.click(screen.getByText('Encode →'))
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
     expect(screen.queryByTitle('Encode a file to Base64')).not.toBeInTheDocument()
   })
 
@@ -54,7 +54,7 @@ describe('Base64Tool', () => {
     // Can't easily trigger in unit test without actual image data,
     // but we can verify the zoom badge infrastructure exists by checking
     // the component renders without error
-    expect(screen.getByText('Encode →')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Encode' })).toBeInTheDocument()
   })
 
   it('shows drag overlay placeholder in encode textarea', () => {
@@ -66,7 +66,7 @@ describe('Base64Tool', () => {
   it('clears Encode File button when switching to decode mode', () => {
     renderTool(Base64Tool)
     expect(screen.getByTitle('Encode a file to Base64')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Encode →')) // switch to decode
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' })) // switch to decode
     expect(screen.queryByTitle('Encode a file to Base64')).not.toBeInTheDocument()
   })
 

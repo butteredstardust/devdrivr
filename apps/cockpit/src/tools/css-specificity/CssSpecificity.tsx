@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { TextArea } from '@/components/shared/TextArea'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -241,13 +242,15 @@ export default function CssSpecificity() {
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
             Selectors (one per line)
           </div>
-          <textarea
+          <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder={
               '#main .content p\n.sidebar a:hover\ndiv > p:first-child\n#nav ul li.active'
             }
-            className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+            monospace
+            size="md"
+            className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
           />
         </div>
 

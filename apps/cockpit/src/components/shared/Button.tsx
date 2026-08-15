@@ -44,6 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       size = 'md',
       loading = false,
       disabled,
+      title,
       className = '',
       children,
       ...props
@@ -54,9 +55,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
+        type="button"
         disabled={disabled || loading}
         aria-busy={loading || undefined}
-        className={`font-ui relative inline-flex items-center justify-center rounded-[var(--radius-sm)] transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${VARIANT_CLASSES[variant]} ${sizeClasses} ${className}`}
+        title={title ?? (variant === 'icon' ? props['aria-label'] : undefined)}
+        className={`font-ui relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${VARIANT_CLASSES[variant]} ${sizeClasses} ${className}`}
         {...props}
       >
         {loading ? (

@@ -23,7 +23,11 @@ import {
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Alert } from '@/components/shared/Alert'
 import { Input, Select } from '@/components/shared/Input'
+import { TextArea } from '@/components/shared/TextArea'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { TabBar } from '@/components/shared/TabBar'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { useIsInstanceActive } from '@/app/tool-instance'
@@ -146,13 +150,13 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
               ))}
             </Select>
           ) : variable.type === 'textarea' ? (
-            <textarea
+            <TextArea
               value={values[variable.name] ?? ''}
               onChange={(event) => onChange(variable.name, event.target.value)}
               placeholder={variable.placeholder}
               rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
               aria-label={variable.label}
-              className="min-h-24 w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+              className="min-h-24 resize-none"
             />
           ) : (
             <Input
@@ -531,14 +535,14 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                 <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                   Description
                 </span>
-                <textarea
+                <TextArea
                   value={draft.description}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, description: event.target.value }))
                   }
                   rows={3}
                   aria-label="Template description"
-                  className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+                  className="resize-none"
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -623,7 +627,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
               <span className="border-b border-[var(--color-border)] px-4 py-2 font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                 Prompt Body
               </span>
-              <textarea
+              <TextArea
                 value={draft.prompt}
                 onChange={(event) => {
                   const prompt = event.target.value
@@ -635,7 +639,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   }))
                 }}
                 aria-label="Prompt body"
-                className="min-h-0 flex-1 resize-none bg-[var(--color-bg)] p-4 font-mono text-xs leading-5 text-[var(--color-text)] outline-none"
+                monospace
+                className="min-h-0 flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
             </label>
             <div className="max-h-56 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
@@ -751,7 +756,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
         </div>
 
         <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
-          <div className="text-xs text-[var(--color-error)]">{error}</div>
+          <div>{error && <Alert variant="error">{error}</Alert>}</div>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={onClose}>
               Cancel
@@ -1135,9 +1140,9 @@ export default function PromptTemplates() {
                       {template.name}
                     </span>
                     {template.author === 'user' && (
-                      <span className="shrink-0 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--color-accent)]">
+                      <StatusBadge variant="info" className="shrink-0 uppercase">
                         Custom
-                      </span>
+                      </StatusBadge>
                     )}
                   </span>
                   <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
@@ -1174,9 +1179,9 @@ export default function PromptTemplates() {
                 <h2 className="truncate text-sm font-semibold text-[var(--color-text)]">
                   {selectedTemplate.name}
                 </h2>
-                <span className="shrink-0 rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--color-accent)]">
+                <StatusBadge variant="info" className="shrink-0 uppercase">
                   {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
-                </span>
+                </StatusBadge>
               </div>
               <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
                 {selectedTemplate.description}
@@ -1236,36 +1241,17 @@ export default function PromptTemplates() {
               <ClipboardTextIcon size={13} aria-hidden="true" /> Copy prompt
             </Button>
           </div>
-          <div className="flex items-center gap-1 border-t border-[var(--color-border)] px-4 py-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-pressed={workspaceTab === 'fill'}
-              onClick={() => setWorkspaceTab('fill')}
-              className={
-                workspaceTab === 'fill'
-                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                  : ''
-              }
-            >
-              Fill variables{' '}
-              <span className="ml-1 text-2xs">{selectedTemplate.variables.length}</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-pressed={workspaceTab === 'preview'}
-              onClick={() => setWorkspaceTab('preview')}
-              className={
-                workspaceTab === 'preview'
-                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                  : ''
-              }
-            >
-              Preview <span className="ml-1 text-2xs">~{tokens}</span>
-            </Button>
+          <div className="flex items-center border-t border-[var(--color-border)] pr-4">
+            <TabBar
+              noBorder
+              aria-label="Template workspace"
+              activeTab={workspaceTab}
+              onTabChange={(tab) => setWorkspaceTab(tab as 'fill' | 'preview')}
+              tabs={[
+                { id: 'fill', label: `Fill variables (${selectedTemplate.variables.length})` },
+                { id: 'preview', label: `Preview (~${tokens})` },
+              ]}
+            />
             <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">
               {savingTemplates
                 ? 'Saving template…'

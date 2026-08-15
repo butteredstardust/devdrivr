@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { Dialog } from '@/components/shared/Dialog'
+import { Alert } from '@/components/shared/Alert'
 
 type Props = {
   onInsert: (markdown: string) => void
@@ -91,9 +92,7 @@ export function ImageModal({ onInsert, onClose }: Props) {
               Paste
             </Button>
           </div>
-          {pasteError && (
-            <p className="font-mono text-xs text-[var(--color-error)]">{pasteError}</p>
-          )}
+          {pasteError && <Alert variant="error">{pasteError}</Alert>}
         </div>
 
         <div className="flex flex-col gap-1">

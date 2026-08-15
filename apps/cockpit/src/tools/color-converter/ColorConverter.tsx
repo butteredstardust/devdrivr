@@ -6,6 +6,8 @@ import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { ArrowsLeftRightIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -482,7 +484,8 @@ function ContrastInputs({
         className="mb-1"
         title="Swap foreground and background"
       >
-        ⇄
+        <ArrowsLeftRightIcon size={14} aria-hidden="true" />
+        <span className="sr-only">Swap colors</span>
       </Button>
       <div className="flex-1">
         <label className="mb-1 block text-xs text-[var(--color-text-muted)]">Background</label>
@@ -841,28 +844,21 @@ export default function ColorConverter() {
               >
                 Sample Text
               </div>
-              <div className="flex flex-col gap-1 text-xs">
-                <span
-                  className={
-                    contrast.aa ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
-                  }
-                >
-                  {contrast.aa ? '✓' : '✗'} AA Normal (≥4.5)
-                </span>
-                <span
-                  className={
-                    contrast.aaLarge ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
-                  }
-                >
-                  {contrast.aaLarge ? '✓' : '✗'} AA Large (≥3.0)
-                </span>
-                <span
-                  className={
-                    contrast.aaa ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
-                  }
-                >
-                  {contrast.aaa ? '✓' : '✗'} AAA (≥7.0)
-                </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { passes: contrast.aa, label: 'AA Normal (≥4.5)' },
+                  { passes: contrast.aaLarge, label: 'AA Large (≥3.0)' },
+                  { passes: contrast.aaa, label: 'AAA (≥7.0)' },
+                ].map(({ passes, label }) => (
+                  <StatusBadge key={label} variant={passes ? 'success' : 'error'}>
+                    {passes ? (
+                      <CheckCircleIcon size={12} weight="fill" aria-hidden="true" />
+                    ) : (
+                      <XCircleIcon size={12} weight="fill" aria-hidden="true" />
+                    )}
+                    {label}
+                  </StatusBadge>
+                ))}
               </div>
             </div>
           )}

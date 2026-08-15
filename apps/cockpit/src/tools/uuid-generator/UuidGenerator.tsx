@@ -6,6 +6,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Alert } from '@/components/shared/Alert'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 
 // ── UUID Generation ──────────────────────────────────────────────────
 
@@ -332,10 +334,10 @@ export default function UuidGenerator() {
               {parsed.valid ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-[var(--color-success)]">✓ Valid UUID</span>
-                    <span className="rounded bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs text-[var(--color-accent)]">
+                    <StatusBadge variant="success">Valid UUID</StatusBadge>
+                    <StatusBadge variant="info">
                       {parsed.version === 0 ? parsed.variant : `Version ${parsed.version}`}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
                     {parsed.version > 0 && (
@@ -359,7 +361,7 @@ export default function UuidGenerator() {
                   </div>
                 </div>
               ) : (
-                <span className="text-sm text-[var(--color-error)]">✗ {parsed.message}</span>
+                <Alert variant="error">{parsed.message}</Alert>
               )}
             </div>
           )}

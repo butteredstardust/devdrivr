@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { Toolbar } from '../Toolbar'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 
 describe('Toolbar', () => {
   it('renders children in a row', () => {
@@ -19,5 +19,20 @@ describe('Toolbar', () => {
     const { container: noBorder } = render(<Toolbar border={false}>content</Toolbar>)
     expect(withBorder.firstElementChild?.className).toContain('border-b')
     expect(noBorder.firstElementChild?.className).not.toContain('border-b')
+  })
+
+  it('labels related action groups and provides a flexible spacer', () => {
+    const { container } = render(
+      <Toolbar aria-label="Editor actions">
+        <ToolbarGroup label="Document actions">
+          <button>Save</button>
+        </ToolbarGroup>
+        <ToolbarSpacer />
+      </Toolbar>
+    )
+
+    expect(screen.getByRole('toolbar', { name: 'Editor actions' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Document actions' })).toBeInTheDocument()
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveClass('flex-1')
   })
 })

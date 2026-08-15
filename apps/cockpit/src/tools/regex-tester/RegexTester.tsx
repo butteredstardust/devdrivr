@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
+import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 
@@ -301,11 +302,13 @@ export default function RegexTester() {
               <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
                 Test String
               </div>
-              <textarea
+              <TextArea
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}
                 placeholder="Enter text to test against..."
-                className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+                monospace
+                size="md"
+                className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
             </div>
             <div className="flex w-1/2 flex-col">

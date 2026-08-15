@@ -169,7 +169,7 @@ describe('RefactoringToolkit', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('const x = 1;'))
 
     fireEvent.click(screen.getByRole('radio', { name: 'Source' }))
-    // The button still reads "✓ Copied" from the click above.
+    // The button still reads "Copied" from the click above.
     fireEvent.click(screen.getByRole('button', { name: /Cop(y|ied)/ }))
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('var x = 1;'))
   })

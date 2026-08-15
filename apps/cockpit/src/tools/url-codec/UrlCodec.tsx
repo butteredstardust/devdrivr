@@ -8,6 +8,10 @@ import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { TextArea } from '@/components/shared/TextArea'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { ArrowLeftIcon, ArrowRightIcon, ArrowsLeftRightIcon } from '@phosphor-icons/react'
 
 type UrlCodecState = {
   input: string
@@ -147,31 +151,35 @@ export default function UrlCodec() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-          <Button variant="primary" size="sm" onClick={handleToggle}>
-            {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
-            ⇄ Swap
-          </Button>
-          <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
-          <Select
-            value={state.encodeMode}
-            onChange={(e) =>
-              updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
-            }
-          >
-            <option value="component">Component</option>
-            <option value="full">Full URL</option>
-          </Select>
+        <Toolbar aria-label="URL conversion actions">
+          <ToolbarGroup label="Conversion actions">
+            <Button variant="primary" size="sm" onClick={handleToggle}>
+              {state.mode === 'decode' && <ArrowLeftIcon size={12} aria-hidden="true" />}
+              {state.mode === 'encode' ? 'Encode' : 'Decode'}
+              {state.mode === 'encode' && <ArrowRightIcon size={12} aria-hidden="true" />}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
+              <ArrowsLeftRightIcon size={12} aria-hidden="true" />
+              Swap
+            </Button>
+            <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+          </ToolbarGroup>
+          <ToolbarGroup label="Encoding options" separated>
+            <Select
+              value={state.encodeMode}
+              onChange={(e) =>
+                updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
+              }
+            >
+              <option value="component">Component</option>
+              <option value="full">Full URL</option>
+            </Select>
+          </ToolbarGroup>
 
           {/* Status badges */}
-          <div className="ml-auto flex items-center gap-2">
-            {doubleEncoded && (
-              <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-2xs font-bold text-[var(--color-warning)]">
-                Double-encoded?
-              </span>
-            )}
+          <ToolbarSpacer />
+          <div className="flex items-center gap-2">
+            {doubleEncoded && <StatusBadge variant="warning">Double-encoded?</StatusBadge>}
             {noChange && <span className="text-2xs text-[var(--color-text-muted)]">No change</span>}
             {encodedCount > 0 && !noChange && (
               <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
@@ -180,7 +188,7 @@ export default function UrlCodec() {
               </span>
             )}
           </div>
-        </div>
+        </Toolbar>
       }
     >
       {/* Input / Output panels */}
@@ -189,11 +197,13 @@ export default function UrlCodec() {
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
             Input ({state.mode === 'encode' ? 'Text' : 'Encoded'})
           </div>
-          <textarea
+          <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder="Enter text or URL..."
-            className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+            monospace
+            size="md"
+            className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
           />
         </div>
         <div className="flex w-1/2 flex-col">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
+import { Input } from '@/components/shared/Input'
 import { useIsInstanceActive } from '@/app/tool-instance'
 
 type Props = {
@@ -58,26 +59,28 @@ export function TableModal({ onInsert, onClose }: Props) {
         <div className="flex gap-6">
           <div className="flex flex-col gap-1">
             <label className="font-mono text-xs text-[var(--color-text-muted)]">Rows (1–10)</label>
-            <input
+            <Input
               type="number"
               min={1}
               max={10}
               value={rows}
               onChange={(e) => setRows(clamp(parseInt(e.target.value) || 1))}
-              className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+              size="md"
+              className="w-20"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="font-mono text-xs text-[var(--color-text-muted)]">
               Columns (1–10)
             </label>
-            <input
+            <Input
               type="number"
               min={1}
               max={10}
               value={cols}
               onChange={(e) => setCols(clamp(parseInt(e.target.value) || 1))}
-              className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+              size="md"
+              className="w-20"
             />
           </div>
         </div>

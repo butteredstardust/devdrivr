@@ -7,6 +7,7 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
@@ -969,48 +970,51 @@ export default function MarkdownEditor() {
             </p>
           </div>
 
-          <SegmentedControl
-            aria-label="Editor view mode"
-            options={MODE_OPTIONS}
-            value={state.mode as EditorMode}
-            onChange={(mode) => updateState({ mode })}
-          />
+          <ToolbarGroup label="View options">
+            <SegmentedControl
+              aria-label="Editor view mode"
+              options={MODE_OPTIONS}
+              value={state.mode as EditorMode}
+              onChange={(mode) => updateState({ mode })}
+            />
 
-          {state.mode === 'split' && (
-            <Button
-              type="button"
-              variant="icon"
-              size="sm"
-              onClick={() => updateState({ scrollSync: !state.scrollSync })}
-              title={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
-              aria-label={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
-              aria-pressed={state.scrollSync}
-              className={state.scrollSync ? 'text-[var(--color-accent)]' : ''}
-            >
-              <ArrowsClockwiseIcon
-                size={14}
-                weight={state.scrollSync ? 'bold' : 'regular'}
-                aria-hidden="true"
-              />
-            </Button>
-          )}
+            {state.mode === 'split' && (
+              <Button
+                type="button"
+                variant="icon"
+                size="sm"
+                onClick={() => updateState({ scrollSync: !state.scrollSync })}
+                title={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
+                aria-label={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
+                aria-pressed={state.scrollSync}
+                className={state.scrollSync ? 'text-[var(--color-accent)]' : ''}
+              >
+                <ArrowsClockwiseIcon
+                  size={14}
+                  weight={state.scrollSync ? 'bold' : 'regular'}
+                  aria-hidden="true"
+                />
+              </Button>
+            )}
 
-          {toc.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => updateState({ showToc: !state.showToc })}
-              className={
-                state.showToc ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-              }
-              title="Table of contents"
-              aria-pressed={state.showToc}
-            >
-              Contents
-            </Button>
-          )}
+            {toc.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => updateState({ showToc: !state.showToc })}
+                className={
+                  state.showToc ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                }
+                title="Table of contents"
+                aria-pressed={state.showToc}
+              >
+                Contents
+              </Button>
+            )}
+          </ToolbarGroup>
 
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-[var(--color-border)]" />
           <Button
             type="button"
             variant="icon"

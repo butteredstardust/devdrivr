@@ -205,7 +205,7 @@ describe('ApiClient', () => {
     expect(screen.queryByText('Body is disabled')).not.toBeInTheDocument()
 
     // The tab label now carries the active-header count.
-    fireEvent.click(screen.getByRole('button', { name: 'Headers (1)' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Headers (1)' }))
     expect(screen.getByDisplayValue('Content-Type')).toBeInTheDocument()
     expect(screen.getByDisplayValue('application/json')).toBeInTheDocument()
   })

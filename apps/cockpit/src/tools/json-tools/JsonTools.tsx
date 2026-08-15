@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -484,8 +485,8 @@ export default function JsonTools() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
-            <div className="flex min-w-0 items-center gap-2">
+          <Toolbar border={false} aria-label="JSON document actions">
+            <ToolbarGroup label="Document status" className="min-w-0 shrink">
               <BracketsCurlyIcon
                 size={15}
                 aria-hidden="true"
@@ -527,9 +528,9 @@ export default function JsonTools() {
                   Go to error
                 </Button>
               )}
-            </div>
+            </ToolbarGroup>
 
-            <div className="ml-auto flex items-center gap-2">
+            <ToolbarGroup label="View options" className="ml-auto">
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 <span className="max-[900px]:hidden">Indent</span>
                 <Select
@@ -558,9 +559,9 @@ export default function JsonTools() {
                 onChange={(next) => updateState({ view: next })}
                 options={VIEW_OPTIONS}
               />
-            </div>
+            </ToolbarGroup>
 
-            <div className="flex items-center gap-2">
+            <ToolbarGroup label="Document actions" separated>
               <Button
                 variant="primary"
                 size="sm"
@@ -597,9 +598,10 @@ export default function JsonTools() {
                 aria-label="Save JSON to file"
               >
                 <FloppyDiskIcon size={15} aria-hidden="true" />
+                Save
               </Button>
-            </div>
-          </div>
+            </ToolbarGroup>
+          </Toolbar>
 
           {state.queryOpen && (
             <div
