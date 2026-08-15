@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import {
@@ -750,9 +750,6 @@ function EditorPane({
   )
 }
 
-/** Only one problems panel is ever mounted, so a constant id is safe. */
-const LIST_ID = 'json-schema-problems'
-
 function ProblemsPanel({
   issues,
   total,
@@ -766,6 +763,7 @@ function ProblemsPanel({
   onToggle: () => void
   onSelect: (issue: ValidationIssue) => void
 }) {
+  const listId = useId()
   return (
     <section
       aria-label="Problems"
@@ -786,14 +784,14 @@ function ProblemsPanel({
           size="xs"
           onClick={onToggle}
           aria-expanded={open}
-          aria-controls={LIST_ID}
+          aria-controls={listId}
           className="ml-auto"
         >
           {open ? 'Hide' : 'Show'}
         </Button>
       </div>
       {open && (
-        <ul id={LIST_ID} className="min-h-0 flex-1 overflow-auto py-1">
+        <ul id={listId} className="min-h-0 flex-1 overflow-auto py-1">
           {issues.map((issue, i) => (
             <li key={`${issue.pointer}-${issue.keyword}-${i}`}>
               {/* eslint-disable-next-line no-restricted-syntax -- a full-width list row rather than a control: it must fill the panel and keep the monospace pointer aligned, which every Button variant would override. */}

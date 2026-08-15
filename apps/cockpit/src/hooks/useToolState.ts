@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadToolState, saveToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { useToolInstance } from '@/app/tool-instance'
 
 /**
  * Persists tool-specific state to SQLite.
@@ -18,9 +19,16 @@ import { useToolStateCache } from '@/stores/tool-state.store'
  * dirty state even if the read never resolved.
  */
 export function useToolState<T extends Record<string, unknown>>(
-  toolId: string,
+  requestedId: string,
   defaultState: T
 ): [T, (patch: Partial<T>) => void] {
+  // Two tabs of the same tool must not share a row, so the tab decides the
+  // key. The first tab of a tool is given the bare tool id, which is why
+  // state saved before duplicate tabs existed is still found. Rendered
+  // outside a tab (tests, previews) the tool id stands in.
+  const instance = useToolInstance()
+  const toolId = instance?.stateKey ?? requestedId
+
   const cacheGet = useToolStateCache((s) => s.get)
   const cacheSet = useToolStateCache((s) => s.set)
 
@@ -68,6 +76,29 @@ export function useToolState<T extends Record<string, unknown>>(
     // pass inline object literals.
   }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A handoff from another tool (`sendToTool`) merges into the cache and bumps
+  // this counter. Mount-time reads used to catch every handoff because the
+  // destination was unmounted while it was in the background; now it is still
+  // mounted, so the counter is the only signal that the cache changed under it.
+  const seedRevision = useToolStateCache((s) => s.seeds.get(toolId) ?? 0)
+  const seenSeedRef = useRef(seedRevision)
+  useEffect(() => {
+    if (seedRevision === seenSeedRef.current) return
+    seenSeedRef.current = seedRevision
+    const seeded = cacheGet(toolId)
+    if (!seeded) return
+    const merged = { ...defaultState, ...seeded } as T
+    setState(merged)
+    stateRef.current = merged
+    // The handoff is the user's intent as much as typing is: a pending cold
+    // read must not overwrite it, and it has to reach SQLite. Saved here rather
+    // than left to the unmount save, which never runs if the app is quit.
+    loadedRef.current = true
+    dirtyRef.current = true
+    saveToolState(toolId, merged)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `defaultState` is an inline literal; see the load effect above.
+  }, [seedRevision, toolId, cacheGet])
+
   // Debounced save to SQLite (cache is updated synchronously)
   const update = useCallback(
     (patch: Partial<T>) => {
@@ -93,6 +124,9 @@ export function useToolState<T extends Record<string, unknown>>(
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      // The tab was closed, not backgrounded — its row is on its way out and
+      // saving here would put it straight back.
+      if (useToolStateCache.getState().isDiscarded(toolId)) return
       if (loadedRef.current || dirtyRef.current) {
         saveToolState(toolId, stateRef.current)
       }

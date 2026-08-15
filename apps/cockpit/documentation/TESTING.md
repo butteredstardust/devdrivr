@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 593 tests across 74 test files, covering core stores, database and
+The application currently has 1235 tests across 103 test files, covering core stores, database and
 migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
 tool-specific behavior. API Client coverage includes persistence CRUD, atomic imports, export/import
 round trips, relationship preservation, and secret-redacted MCP serialization. MCP coverage includes
@@ -314,6 +314,56 @@ Covers the rule model, the document statistics, the outline and the editor shell
 | History recorded on edit, not on restored state     | Async hydration is not user input              |
 | A saved `'edit'` view mode still shows an editor    | The renamed mode used to render neither pane   |
 | A restored document is not "Modified" until touched | State predating `savedContent` hydrates clean  |
+
+### Workspace tabs (66 tests across 5 files)
+
+Tabs stay mounted after they lose focus, so the tests are mostly about what a backgrounded tool must
+not do and about which state row a tab reads.
+
+`src/stores/__tests__/ui.store.tabs.test.ts` (36 tests)
+
+| Test                                                  | What it verifies                                  |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| `openTab` focuses an open tool instead of duplicating | The + button is not a tab factory                 |
+| `openTabInstance` always adds a tab                   | Duplicate is a deliberate act                     |
+| The first tab of a tool keeps the bare state key      | State written before duplicates still loads       |
+| Extra tabs get `<toolId>#<tabId>`                     | Two tabs of one tool do not share a row           |
+| Surviving tabs keep their keys on close               | Re-keying would swap state out from under a tab   |
+| `restoreTabs` keys legacy tabs left-to-right          | Sessions saved before this change still open      |
+| MRU records every activation, close and open          | Which tabs stay mounted                           |
+| MRU drops ids of closed tabs                          | The list cannot pin a tab that is gone            |
+| `reorderTab` moves a tab without changing focus       | Drag reordering persists without changing focus   |
+| Closing a duplicate deletes its `tool_state` row      | Scoped keys are never reused, so nothing reads it |
+| Closing the last tab of a tool keeps the row          | Reopening is how you get your work back           |
+| Bulk closes sweep every duplicate they close          | Close Others / Close to Right                     |
+
+`src/components/shell/__tests__/Workspace.test.tsx` (6 tests)
+
+| Test                                            | What it verifies                           |
+| ----------------------------------------------- | ------------------------------------------ |
+| Only the active pane is visible                 | Backgrounded panes are `display:none`      |
+| Recently used tabs stay in the DOM              | Keep-alive                                 |
+| Tabs past the limit are evicted                 | `KEEP_ALIVE_LIMIT` is enforced             |
+| The active tab is mounted even if MRU misses it | No blank workspace                         |
+| Empty state shows with no active pane           | Including an active tab whose tool is gone |
+| Each pane is a `tabpanel` labelled by its tab   | Tab strip and panes are wired for ARIA     |
+
+`src/hooks/__tests__/useToolInstance.test.tsx` (8 tests)
+
+| Test                                        | What it verifies                               |
+| ------------------------------------------- | ---------------------------------------------- |
+| Tool actions reach the visible tab          | Dispatch still works                           |
+| A mounted-but-hidden tab gets nothing       | One ⌘S must not open four save dialogs         |
+| Shell components keep receiving actions     | They belong to no tab                          |
+| Only the visible tab answers a shortcut     | Shortcuts register globally, so gating is real |
+| Two tabs of a tool do not share a state row | Per-tab keys reach `useToolState`              |
+| A bare key still reads last session's state | Migration path                                 |
+| A handoff reaches a mounted, hidden tab     | Mount-time cache reads miss a kept-alive tool  |
+| A handoff for another tab is ignored        | Seeds are addressed by state key               |
+
+`src/lib/__tests__/tab-state-key.test.ts` (6 tests) covers key assignment in isolation, and
+`src/lib/__tests__/tool-handoff.test.ts` (10 tests) covers `sendToTool` addressing the target tab's
+key rather than the bare tool id.
 
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 

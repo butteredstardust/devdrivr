@@ -131,12 +131,12 @@ If any of these fail with `command not found`, see the PATH note under
 
 ### Common mistakes
 
-| Wrong                      | Right                                | Why                                                     |
-| -------------------------- | ------------------------------------ | ------------------------------------------------------- |
-| Run from monorepo root     | Run from `apps/cockpit/`             | Wrong tsconfig, wrong vitest config, wrong node_modules |
-| `bun run test`             | `bunx vitest run`                    | bun can't resolve the vitest binary directly            |
-| `npm run ...` / `yarn ...` | `bun run ...`                        | npm/yarn are not the package manager                    |
-| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH — see § Commits |
+| Wrong                                      | Right                                      | Why                                                     |
+| ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------- |
+| Run from monorepo root                     | Run from `apps/cockpit/`                   | Wrong tsconfig, wrong vitest config, wrong node_modules |
+| `bun run test`                             | `bunx vitest run`                          | bun can't resolve the vitest binary directly            |
+| `npm run ...` / `yarn ...`                 | `bun run ...`                              | npm/yarn are not the package manager                    |
+| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH — see § Commits     |
 
 ---
 
@@ -386,24 +386,25 @@ observer.observe(el)
 return () => observer.disconnect()
 ```
 
-### 18. Cross-tool navigation — inject state via `useToolStateCache`
+### 18. Cross-tool navigation — hand off with `sendToTool`
 
-To pre-populate a destination tool before navigating, write to `useToolStateCache`.
-The destination reads from it synchronously on mount — no IPC or pub/sub needed:
+To pre-populate a destination tool and bring it forward, use `sendToTool`:
 
 ```typescript
-const cacheSet = useToolStateCache((s) => s.set)
-const cacheGet = useToolStateCache((s) => s.get)
-const openTab = useUiStore((s) => s.openTab)
+import { sendToTool } from '@/lib/tool-handoff'
 
-cacheSet('target-tool', {
-  ...cacheGet('target-tool'),
+sendToTool('target-tool', {
   draft: {
     /* ... */
   },
 })
-openTab('target-tool')
 ```
+
+Do **not** write to `useToolStateCache.set` and call `openTab` by hand. Two things make that wrong
+now: the destination may be open in more than one tab, so the patch has to be addressed to the
+receiving tab's state key rather than the bare tool id; and the destination is usually already
+mounted (tabs are kept alive), so it will never re-read the cache. `sendToTool` resolves the key and
+goes through `seed()`, which is the signal a mounted `useToolState` watches for.
 
 ### 19. Canvas 2D is sufficient for image processing
 

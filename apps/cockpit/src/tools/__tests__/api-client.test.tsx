@@ -227,6 +227,24 @@ describe('ApiClient', () => {
     expect(screen.getByText('Send a request to see the response')).toBeInTheDocument()
   })
 
+  it('generates a distinct response relationship id for each mounted instance', () => {
+    render(
+      <>
+        <ApiClient />
+        <ApiClient />
+      </>
+    )
+    const toggles = screen.getAllByRole('button', { name: 'Show Response' })
+    for (const toggle of toggles) fireEvent.click(toggle)
+
+    const ids = toggles.map((toggle) => toggle.getAttribute('aria-controls'))
+    expect(new Set(ids).size).toBe(2)
+    for (const id of ids) {
+      expect(id).toBeTruthy()
+      expect(document.getElementById(id!)).toHaveAccessibleName('Response')
+    }
+  })
+
   it('keeps the response pane hidden during requests after the user hides it', async () => {
     renderTool(ApiClient)
 

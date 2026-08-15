@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { html as diff2htmlRender } from 'diff2html'
 import 'diff2html/bundles/css/diff2html.min.css'
@@ -222,6 +222,7 @@ function EditorPane({
 }
 
 export default function DiffViewer() {
+  const optionsId = useId()
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   // Merged once: spreading inline made a new object every render, which
@@ -487,7 +488,7 @@ export default function DiffViewer() {
                 size="sm"
                 onClick={() => updateState({ optionsOpen: !state.optionsOpen })}
                 aria-expanded={state.optionsOpen}
-                {...(state.optionsOpen ? { 'aria-controls': 'diff-viewer-options' } : {})}
+                {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
                 <SlidersHorizontalIcon size={13} aria-hidden="true" />
@@ -511,7 +512,7 @@ export default function DiffViewer() {
 
           {state.optionsOpen && (
             <div
-              id="diff-viewer-options"
+              id={optionsId}
               className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
             >
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">

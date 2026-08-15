@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, type KeyboardEvent, type ReactElement } from 'react'
+import { useIsInstanceActive } from '@/app/tool-instance'
 
 export type SelectionToolbarState = {
   text: string
@@ -29,11 +30,13 @@ export function SelectionContextToolbar({
   onDismiss,
 }: SelectionContextToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const isInstanceActive = useIsInstanceActive()
 
   useEffect(() => {
     if (!selection) return
 
     const handleGlobalKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (event.key === 'Escape') {
         event.preventDefault()
         onDismiss()
@@ -54,7 +57,7 @@ export function SelectionContextToolbar({
 
     document.addEventListener('keydown', handleGlobalKeyDown, true)
     return () => document.removeEventListener('keydown', handleGlobalKeyDown, true)
-  }, [onDismiss, selection])
+  }, [isInstanceActive, onDismiss, selection])
 
   if (!selection || actions.length === 0) return null
 

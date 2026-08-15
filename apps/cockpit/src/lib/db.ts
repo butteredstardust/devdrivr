@@ -134,6 +134,15 @@ export async function saveToolState(toolId: string, state: Record<string, unknow
   )
 }
 
+/**
+ * Drops a tool's saved state. Used when a duplicate tab closes: its key is
+ * `<toolId>#<tabId>` and the tab id never comes back, so the row would sit
+ * there forever holding whatever the editor had in it.
+ */
+export async function deleteToolState(toolId: string): Promise<void> {
+  await enqueueWrite((conn) => conn.execute('DELETE FROM tool_state WHERE tool_id = $1', [toolId]))
+}
+
 // --- Notes ---
 
 type NoteRow = {

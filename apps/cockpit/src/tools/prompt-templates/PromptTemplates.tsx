@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -25,6 +26,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -217,6 +219,8 @@ function QuickFillModal({
   onClose,
   onCopy,
 }: QuickFillModalProps) {
+  const isInstanceActive = useIsInstanceActive()
+  const titleId = useId()
   const fieldRootRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -235,6 +239,7 @@ function QuickFillModal({
       fieldRootRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus()
     }, 0)
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (event.key === 'Escape') {
         event.preventDefault()
         onCloseRef.current()
@@ -277,7 +282,7 @@ function QuickFillModal({
       window.removeEventListener('keydown', onKeyDown)
       previousActive?.focus()
     }
-  }, [open])
+  }, [isInstanceActive, open])
 
   if (!open) return null
 
@@ -293,16 +298,13 @@ function QuickFillModal({
         ref={modalRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="prompt-template-modal-title"
+        aria-labelledby={titleId}
         className="grid max-h-[88vh] w-full max-w-5xl grid-cols-[minmax(20rem,0.85fr)_minmax(24rem,1fr)] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[minmax(0,1fr)_minmax(10rem,0.75fr)]"
       >
         <div className="flex min-h-0 flex-col border-r border-[var(--color-border)] max-[900px]:border-b max-[900px]:border-r-0">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
             <div>
-              <h2
-                id="prompt-template-modal-title"
-                className="text-sm font-bold text-[var(--color-text)]"
-              >
+              <h2 id={titleId} className="text-sm font-bold text-[var(--color-text)]">
                 {template.name}
               </h2>
               <p className="text-xs text-[var(--color-text-muted)]">
@@ -380,6 +382,8 @@ function joinList(value: string[]): string {
 }
 
 function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: TemplateEditorModalProps) {
+  const isInstanceActive = useIsInstanceActive()
+  const titleId = useId()
   const [draft, setDraft] = useState<PromptTemplateDraft>(() => templateToDraft(sourceTemplate))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -424,6 +428,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
         : null
     const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 0)
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (event.key === 'Escape') {
         event.preventDefault()
         onCloseRef.current()
@@ -462,7 +467,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
       window.removeEventListener('keydown', onKeyDown)
       previousActive?.focus()
     }
-  }, [])
+  }, [isInstanceActive])
 
   const title =
     mode === 'edit'
@@ -481,15 +486,12 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
         ref={modalRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="prompt-template-editor-title"
+        aria-labelledby={titleId}
         className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)]"
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
           <div>
-            <h2
-              id="prompt-template-editor-title"
-              className="text-sm font-bold text-[var(--color-text)]"
-            >
+            <h2 id={titleId} className="text-sm font-bold text-[var(--color-text)]">
               {title}
             </h2>
             <p className="text-xs text-[var(--color-text-muted)]">
@@ -765,6 +767,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
 }
 
 export default function PromptTemplates() {
+  const isInstanceActive = useIsInstanceActive()
+  const templateOptionsId = useId()
   const [state, updateState] = useToolState<PromptTemplatesState>('prompt-templates', DEFAULT_STATE)
   const userTemplates = usePromptTemplatesStore((s) => s.userTemplates)
   const savingTemplates = usePromptTemplatesStore((s) => s.saving)
@@ -933,9 +937,11 @@ export default function PromptTemplates() {
       const next = filteredTemplates[nextIndex]
       if (!next) return
       selectTemplate(next)
-      requestAnimationFrame(() => document.getElementById(`prompt-template-${next.id}`)?.focus())
+      requestAnimationFrame(() =>
+        document.getElementById(`${templateOptionsId}-option-${next.id}`)?.focus()
+      )
     },
-    [filteredTemplates, selectTemplate]
+    [filteredTemplates, selectTemplate, templateOptionsId]
   )
 
   useToolAction((action) => {
@@ -949,6 +955,7 @@ export default function PromptTemplates() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (modalOpen || editorState) return
       if (event.key === 'F5') {
         event.preventDefault()
@@ -988,7 +995,15 @@ export default function PromptTemplates() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [copyRenderedPrompt, editorState, handleExport, handleImport, modalOpen, selectedTemplate])
+  }, [
+    copyRenderedPrompt,
+    editorState,
+    handleExport,
+    handleImport,
+    isInstanceActive,
+    modalOpen,
+    selectedTemplate,
+  ])
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
@@ -1093,7 +1108,7 @@ export default function PromptTemplates() {
             return (
               <Button
                 key={template.id}
-                id={`prompt-template-${template.id}`}
+                id={`${templateOptionsId}-option-${template.id}`}
                 type="button"
                 variant="ghost"
                 size="xs"

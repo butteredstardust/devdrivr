@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { matchesCombo, type KeyCombo } from '@/lib/keybindings'
+import { useIsInstanceActive } from '@/app/tool-instance'
 
 type ShortcutHandler = () => void | Promise<void>
 
 type Registration = {
   comboRef: { current: KeyCombo }
   handlerRef: { current: ShortcutHandler }
+  /** False while the tool owning this shortcut sits in a backgrounded tab. */
+  activeRef: { current: boolean }
 }
 
 // Every useKeyboardShortcut() call used to register its own `window` keydown
@@ -42,6 +45,9 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
   for (const registration of registrations) {
     const combo = registration.comboRef.current
 
+    // Tools in backgrounded tabs are mounted and still registered; only the
+    // visible one should answer. Shell shortcuts have no tab and stay live.
+    if (!registration.activeRef.current) continue
     if (isEditable && !combo.mod) continue
     if (!matchesCombo(event, combo)) continue
 
@@ -74,11 +80,13 @@ function detachSharedListenerIfIdle(): void {
 export function useKeyboardShortcut(combo: KeyCombo, handler: ShortcutHandler): void {
   const comboRef = useRef(combo)
   const handlerRef = useRef(handler)
+  const activeRef = useRef(true)
   comboRef.current = combo
   handlerRef.current = handler
+  activeRef.current = useIsInstanceActive()
 
   useEffect(() => {
-    const registration: Registration = { comboRef, handlerRef }
+    const registration: Registration = { comboRef, handlerRef, activeRef }
     registrations.add(registration)
     attachSharedListener()
     return () => {

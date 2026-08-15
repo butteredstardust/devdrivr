@@ -9,20 +9,24 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const cacheStore: Record<string, unknown> = {}
-vi.mock('@/stores/tool-state.store', () => ({
-  useToolStateCache: (
-    selector: (s: {
-      get: (id: string) => unknown
-      set: (id: string, v: unknown) => void
-    }) => unknown
-  ) =>
-    selector({
-      get: (id) => cacheStore[id],
-      set: (id, v) => {
-        cacheStore[id] = v
-      },
-    }),
+// Hoisted alongside the vi.mock factory below, which reads them eagerly.
+const { seedStore, discardedStore } = vi.hoisted(() => ({
+  seedStore: new Map<string, number>(),
+  discardedStore: new Set<string>(),
 }))
+vi.mock('@/stores/tool-state.store', () => {
+  const state = {
+    get: (id: string) => cacheStore[id],
+    set: (id: string, v: unknown) => {
+      cacheStore[id] = v
+    },
+    seeds: seedStore,
+    isDiscarded: (id: string) => discardedStore.has(id),
+  }
+  const hook = (selector: (s: typeof state) => unknown) => selector(state)
+  hook.getState = () => state
+  return { useToolStateCache: hook }
+})
 
 type ToolState = { value: string }
 
@@ -32,6 +36,8 @@ describe('useToolState', () => {
 
   beforeEach(() => {
     Object.keys(cacheStore).forEach((k) => delete cacheStore[k])
+    seedStore.clear()
+    discardedStore.clear()
     vi.clearAllMocks()
     vi.useRealTimers()
   })

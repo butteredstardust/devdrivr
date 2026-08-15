@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiRequest } from '@/types/models'
 import {
@@ -59,6 +59,7 @@ export function CollectionsSidebar({
   onImport,
   onExport,
 }: Props) {
+  const requestRowsId = useId()
   const collections = useApiStore((s) => s.collections)
   const requests = useApiStore((s) => s.requests)
   const requestHistory = useApiStore((s) => s.requestHistory)
@@ -242,7 +243,7 @@ export function CollectionsSidebar({
     if (nextIndex !== null) {
       if (nextIndex === index) return
       e.preventDefault()
-      document.getElementById(`api-request-${visibleRequestIds[nextIndex]}`)?.focus()
+      document.getElementById(`${requestRowsId}-request-${visibleRequestIds[nextIndex]}`)?.focus()
       return
     }
 
@@ -390,6 +391,7 @@ export function CollectionsSidebar({
                     <RequestRow
                       key={req.id}
                       req={req}
+                      rowId={`${requestRowsId}-request-${req.id}`}
                       isActive={req.id === activeRequestId}
                       tabIndex={
                         visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1
@@ -420,6 +422,7 @@ export function CollectionsSidebar({
                 <RequestRow
                   key={req.id}
                   req={req}
+                  rowId={`${requestRowsId}-request-${req.id}`}
                   isActive={req.id === activeRequestId}
                   tabIndex={visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1}
                   onSelect={() => onSelect(req)}
@@ -668,6 +671,7 @@ function MenuItem({ children, onClick, tone = 'default' }: MenuItemProps) {
 
 type RequestRowProps = {
   req: ApiRequest
+  rowId: string
   isActive: boolean
   tabIndex: number
   onSelect: () => void
@@ -675,7 +679,15 @@ type RequestRowProps = {
   onKeyDown: (e: KeyboardEvent<HTMLElement>, reqId: string) => void
 }
 
-function RequestRow({ req, isActive, tabIndex, onSelect, onOpenMenu, onKeyDown }: RequestRowProps) {
+function RequestRow({
+  req,
+  rowId,
+  isActive,
+  tabIndex,
+  onSelect,
+  onOpenMenu,
+  onKeyDown,
+}: RequestRowProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   return (
@@ -691,7 +703,7 @@ function RequestRow({ req, isActive, tabIndex, onSelect, onOpenMenu, onKeyDown }
       }}
     >
       <Button
-        id={`api-request-${req.id}`}
+        id={rowId}
         type="button"
         variant="ghost"
         size="sm"

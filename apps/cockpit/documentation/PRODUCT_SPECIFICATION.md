@@ -179,10 +179,35 @@ apps/cockpit/
 ```
 
 - **Sidebar** — Narrow icon rail. Groups separated by subtle dividers. Active tool highlighted with accent color. Hover shows tool name + shortcut. Sidebar can be collapsed (Cmd/Ctrl+B).
-- **Workspace** — Full remaining width. Each tool renders here. State preserved when switching tools.
+- **Workspace** — Full remaining width. Each tool renders here. State preserved when switching tools —
+  see § 5.1.1.
 - **Notes Drawer** — Right side, collapsible. Shows sticky note cards. Pin, color-label, reorder. Markdown rendering per note.
 - **Status Bar** — Current tool, last action result ("Valid JSON", "Formatted", "Copied"), theme toggle icon.
 - **Command Palette** — Floating overlay (Cmd/Ctrl+K). Searches tools, snippets, notes, history, settings. Prefixes: `>` tools, `@` snippets, `#` notes.
+
+### 5.1.1 Workspace Tabs (as shipped)
+
+Tabs are tool _instances_, not shortcuts to a tool.
+
+- **Keep-alive** — the four most recently used tabs stay mounted; backgrounded panes are
+  `display:none` rather than unmounted, so editor undo history, scroll position, and in-flight
+  requests survive a switch. Tabs past the limit are evicted and rebuild from persisted state on
+  their next activation. The limit is small on purpose: a mounted tool keeps its workers and Monaco
+  models alive.
+- **Instance state** — each tab reads its own `tool_state` row via a state key. The first tab of a
+  tool keeps the bare tool id so pre-existing state loads; further tabs use `<toolId>#<tabId>`.
+- **Duplicate** — the tab context menu opens a second, independently-stated tab of the same tool.
+  Tabs sharing a tool are numbered in the strip so they can be told apart.
+- **Event gating** — tool actions (`dispatchToolAction`) and keyboard shortcuts only reach the
+  _active_ tab. Both are broadcast mechanisms, so without gating one ⌘S would fire in every mounted
+  tool. Shell components, which belong to no tab, keep receiving both.
+- **Cross-tool handoff** — "send to tool" resolves the target tab's state key and focuses that tab,
+  opening one only if the tool is not already open. Because the destination is usually already
+  mounted, the handoff is delivered as a seed the destination watches for, and is written to SQLite
+  at once rather than waiting for an unmount that may never come.
+- **Strip affordances** — tabs can be reordered by dragging; middle-click closes; arrow keys move
+  focus between tabs; the context menu offers Close / Duplicate / Close Others / Close to Right; and
+  overflow scrolls with edge fades.
 
 ### 5.2 Sidebar Tool Groups
 

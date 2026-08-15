@@ -1,7 +1,8 @@
 /**
  * Tests for WorkspaceTabStrip UX improvements:
  * 1. Bottom pill indicator on the active tab
- * 2. Right-click context menu: Close / Close Others / Close to Right
+ * 2. Drag reordering
+ * 3. Right-click context menu: Close / Duplicate / Close Others / Close to Right
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -31,14 +32,43 @@ vi.mock('@/app/tool-registry', () => ({
 function seedTabs(toolIds: string[]) {
   const tabs = toolIds.map((toolId) => ({ id: crypto.randomUUID(), toolId }))
   const activeTabId = tabs[0]?.id ?? null
-  useUiStore.setState({ tabs, activeTabId, activeTool: tabs[0]?.toolId ?? '' })
+  useUiStore.setState({
+    tabs,
+    activeTabId,
+    activeTool: tabs[0]?.toolId ?? '',
+    tabMru: activeTabId ? [activeTabId] : [],
+  })
   return tabs
 }
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '' })
+  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
   vi.clearAllMocks()
+})
+
+describe('WorkspaceTabStrip — drag reordering', () => {
+  it('moves a dragged tab to the indicated edge of another tab', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+    }
+    const firstElement = document.querySelector(`[data-tab-id="${first!.id}"]`)!
+    const thirdElement = document.querySelector(`[data-tab-id="${third!.id}"]`)!
+
+    fireEvent.dragStart(firstElement, { dataTransfer })
+    fireEvent.dragOver(thirdElement, { clientX: 1, dataTransfer })
+    fireEvent.drop(thirdElement, { clientX: 1, dataTransfer })
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      second!.id,
+      third!.id,
+      first!.id,
+    ])
+  })
 })
 
 // ── Pill indicator ─────────────────────────────────────────────────
@@ -97,6 +127,7 @@ describe('WorkspaceTabStrip — context menu', () => {
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
     expect(screen.getByText('Close')).toBeInTheDocument()
+    expect(screen.getByText('Duplicate')).toBeInTheDocument()
     expect(screen.getByText('Close Others')).toBeInTheDocument()
     expect(screen.getByText('Close to Right')).toBeInTheDocument()
   })
@@ -121,6 +152,18 @@ describe('WorkspaceTabStrip — context menu', () => {
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
     fireEvent.click(screen.getByText('Close'))
     expect(closeTab).toHaveBeenCalledWith(tab!.id)
+  })
+
+  it('Duplicate opens another instance of the selected tool', () => {
+    const openTabInstance = vi.fn()
+    const [tab] = seedTabs(['json-tools'])
+    useUiStore.setState({ openTabInstance } as never)
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
+    fireEvent.click(screen.getByText('Duplicate'))
+
+    expect(openTabInstance).toHaveBeenCalledWith('json-tools')
   })
 
   it('Close Others calls closeOtherTabs with the right tabId', () => {

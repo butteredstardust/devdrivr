@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
+import { useIsInstanceActive } from '@/app/tool-instance'
 
 type Props = {
   onInsert: (markdown: string) => void
@@ -18,6 +19,7 @@ function buildTable(rows: number, cols: number): string {
 }
 
 export function TableModal({ onInsert, onClose }: Props) {
+  const isInstanceActive = useIsInstanceActive()
   const [rows, setRows] = useState(3)
   const [cols, setCols] = useState(3)
 
@@ -25,12 +27,13 @@ export function TableModal({ onInsert, onClose }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (e.key === 'Escape') onClose()
       if (e.key === 'Enter') onInsert(preview)
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose, onInsert, preview])
+  }, [isInstanceActive, onClose, onInsert, preview])
 
   const clamp = (v: number) => Math.max(1, Math.min(10, v))
 
