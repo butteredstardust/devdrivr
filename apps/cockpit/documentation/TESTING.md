@@ -8,7 +8,7 @@ The devdrivr cockpit application uses Vitest with jsdom for testing. The testing
 
 ## Current Test Coverage
 
-The application currently has 1235 tests across 103 test files, covering core stores, database and
+The application currently has 1279 tests across 103 test files, covering core stores, database and
 migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
 tool-specific behavior. API Client coverage includes persistence CRUD, atomic imports, export/import
 round trips, relationship preservation, and secret-redacted MCP serialization. MCP coverage includes
@@ -364,6 +364,54 @@ not do and about which state row a tab reads.
 `src/lib/__tests__/tab-state-key.test.ts` (6 tests) covers key assignment in isolation, and
 `src/lib/__tests__/tool-handoff.test.ts` (10 tests) covers `sendToTool` addressing the target tab's
 key rather than the bare tool id.
+
+### `src/tools/__tests__/css-validator.test.tsx` (51 tests)
+
+Covers the lexer-backed checks, the rule model, specificity and the editor shell.
+
+| Test                                                  | What it verifies                               |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| Modern properties are not "unknown"                   | The old hardcoded list aged out of CSS         |
+| A misspelled property is flagged                      | `colr` still gets caught                       |
+| Custom and vendor-prefixed properties are left alone  | Neither is a typo                              |
+| A value off the property grammar is flagged           | `padding: 3` mismatches `<'padding-top'>{1,4}` |
+| An unresolvable `var()` says nothing                  | A limit of the checker, not a mistake          |
+| A syntax error carries its line                       | Problems have somewhere to jump to             |
+| Syntax rule off silences it                           | Every rule is switchable                       |
+| A unit on zero is flagged, a bare `0` is not          | The old rule had this exactly backwards        |
+| Duplicate property names the earlier line             | The second declaration wins                    |
+| Empty rules and ID selectors                          | Style rules                                    |
+| Overqualified counts compound parts                   | `.a.b.c.d` is one part, not four               |
+| `!important` and long hex are off by default          | Opinions stay opt-in                           |
+| Both report once switched on                          | Default-off rules actually work                |
+| A deprecated property is flagged                      | Compatibility rules                            |
+| Setting a rule back to its default drops it           | Overrides do not accumulate                    |
+| `countRuleOverrides` counts departures only           | The badge on the Rules button                  |
+| `isRuleEnabled` resolves every rule                   | Panel and checker cannot disagree              |
+| A rule switched off stops reporting                   | Rule plumbing reaches the analysis             |
+| `sortIssues` puts errors first, then position         | The worst problem is the one on screen         |
+| `countIssues` splits errors from warnings             | Status line arithmetic                         |
+| Statistics counted in one pass                        | The old tool analysed twice per keystroke      |
+| Custom properties, IDs and `!important` counted       | Footer statistics                              |
+| Specificity scores ids, classes and elements          | `#a .b span` → `1-1-1`                         |
+| `*` is not an element                                 | The universal selector adds nothing            |
+| Selectors rank hardest-to-override first              | The point of the panel                         |
+| Every shipped template passes its own checks          | The starters practise what they check          |
+| Editor and empty state render                         | Shell layout                                   |
+| Problems listed with the rule that found them         | The rule id is the fix                         |
+| Panel says "checking" before the first verdict        | It used to claim valid CSS first               |
+| Previous problems survive the next run                | Rows no longer flicker away mid-click          |
+| Every problem row is a control                        | The old list was text to scroll to by hand     |
+| A rule switched off drops them; Reset restores        | Rules panel round trip                         |
+| Selectors panel ranks by specificity                  | Specificity chips carry the score              |
+| Template over unsaved work asks first                 | The old starter overwrote silently             |
+| Sample loads from the empty state                     | Dead end replaced with an action               |
+| Format runs through the formatter worker              | Shared prettier pipeline                       |
+| Unparseable CSS explains itself and changes nothing   | The old regex fallback rewrote it silently     |
+| open-file, toolbar Open, Save round trip              | ⌘O/⌘S reach the tool                           |
+| Registry flags for ⌘O/⌘S                              | The shortcuts are wired up                     |
+| History recorded on edit, not on restored state       | Async hydration is not user input              |
+| A restored stylesheet is not "Modified" until touched | State predating `savedContent` hydrates clean  |
 
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 

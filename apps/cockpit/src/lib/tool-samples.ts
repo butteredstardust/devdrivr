@@ -51,6 +51,20 @@ export const TOOL_SAMPLES: Partial<Record<string, string>> = {
   </body>
 </html>`,
 
+  // Deliberately imperfect: a misspelled property, a value that does not match
+  // its grammar, a duplicated declaration, an ID selector, a deep selector and
+  // a unit on zero, so the problems panel has something to demonstrate.
+  'css-validator': `#page .sidebar .panel .title {
+  colr: #333333;
+  padding: 0px 1rem;
+  margin: 3;
+  display: flex;
+  display: block;
+}
+
+.empty {}
+`,
+
   'yaml-tools': `service: cockpit
 version: 0.1.58
 env: development
