@@ -11,7 +11,7 @@
 
 <br>
 
-![devdrivr cockpit](screenshots/Screenshot%202026-04-06%20at%2023.00.12.png)
+![devdrivr Cockpit showing the Mermaid Editor in split view](screenshots/cockpit-overview.png)
 
 </div>
 
@@ -89,25 +89,21 @@ bun run build:web    # Production web build
 
 ## Screenshots
 
-![Code Tools](screenshots/Screenshot%202026-04-06%20at%2023.00.27.png)
+![TypeScript Playground with source, compiled output, and problems](screenshots/cockpit-code-tools.png)
 
-**Code** — Code Formatter, TypeScript Playground, Diff Viewer, Refactoring Toolkit
+**Code** — Edit, compile, compare, and refactor without leaving the workspace.
 
-![Data Tools](screenshots/Screenshot%202026-04-06%20at%2023.01.25.png)
+![JSON Tools showing source and tree inspection side by side](screenshots/cockpit-data-tools.png)
 
-**Data** — JSON Tools, XML Tools, YAML Tools, JSON Schema Validator
+**Data** — Inspect, validate, format, and convert structured data side by side.
 
-![Web Tools](screenshots/Screenshot%202026-04-06%20at%2023.01.36.png)
+![API Client with a saved request library and request workspace](screenshots/cockpit-api-client.png)
 
-**Web** — CSS Validator, HTML Validator, CSS Specificity, CSS → Tailwind
+**Network** — Organize saved requests, environments, authentication, and responses.
 
-![Convert Tools](screenshots/Screenshot%202026-04-06%20at%2023.02.05.png)
+![Markdown Editor showing source and rendered preview](screenshots/cockpit-writing-tools.png)
 
-**Convert** — Case Converter, Color Converter, Timestamp, Base64, URL Encode/Decode, cURL → Fetch, UUID, Hash
-
-![Test Tools](screenshots/Screenshot%202026-04-06%20at%2023.02.24.png)
-
-**Test** — Regex Tester, JWT Decoder
+**Write** — Work with Markdown, Mermaid diagrams, snippets, notes, and reusable prompts.
 
 ---
 
