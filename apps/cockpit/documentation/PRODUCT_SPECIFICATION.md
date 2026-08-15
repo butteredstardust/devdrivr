@@ -455,11 +455,36 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.23 JSON Schema Validator
 
-- Two editors: JSON data (left) and JSON Schema (right).
-- Validate data against schema on keystroke (debounced).
-- Errors shown with JSON Pointer paths and human-readable messages.
-- Load schema from URL (fetches via Tauri HTTP).
-- Common schema templates: OpenAPI, JSON:API, GeoJSON.
+- Two labelled editors — JSON data (left) and JSON Schema (right) — that stack vertically below
+  900px. Each pane carries its own file name, Format, Copy and Save.
+- Validates on keystroke (debounced 250ms); ⌘↵ revalidates immediately. The verdict lives in a
+  `role="status"` live region, not in the global status bar.
+- The three failure modes stay apart: data that does not parse, a schema that does not parse or
+  compile (with the Ajv message), and data that simply does not match. Parse errors report
+  `line, column` and a **Go to error** button that lands the cursor in the right pane.
+- Problems panel: collapsible, counted, capped at 200 rendered rows with the real total shown.
+  Each row is a button carrying the keyword and JSON Pointer, and clicking it jumps to that value
+  in the data editor (the pointer is resolved against the source text, so the cursor lands on the
+  offending line rather than on the pointer's name).
+- Draft-07, 2019-09 and 2020-12 are all supported; the dialect is read off `$schema` and the
+  compiled validator is cached by schema text, so typing in the data pane never recompiles.
+- Templates picker (7 shapes: object, array, nested, enum/oneOf, formats, allOf, conditional) plus
+  an explicit **Load template** button that fills both panes; selecting alone changes nothing, so
+  keyboard navigation through the list cannot destroy the buffers. Every template also validates
+  cleanly under strict mode.
+- **Infer schema** merges every array item rather than trusting the first, widens integer/number,
+  and marks a key required only when every observed object had it. **Sample data** builds the
+  smallest document the current schema accepts. Both are undoable — each buffer-replacing action
+  offers "Undo <action>" until the next manual edit.
+- Strict mode toggle (`aria-pressed`) surfaces schema authoring mistakes as schema errors.
+- Load schema from URL: uses the Tauri HTTP client (schema hosts send no CORS headers, so the
+  WebView's own `fetch` cannot reach them). http(s) only, 15s timeout, superseded requests aborted
+  and their responses discarded, and the failure reason passed through — a host outside the app's
+  capability scope is named as such rather than surfacing Tauri's wording. The allowed hosts are
+  `raw.githubusercontent.com`, `json.schemastore.org` and `json-schema.org`.
+- Supports open-file (routed to the schema pane for a file named `*schema*` or containing
+  `"$schema"`, otherwise to the data pane, and undoable) and save-file (saves the pane last
+  focused).
 
 ### 6.24 CSS Validator
 

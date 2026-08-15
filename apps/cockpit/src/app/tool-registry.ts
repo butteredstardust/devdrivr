@@ -153,8 +153,10 @@ export const TOOLS: ToolDefinition[] = [
     group: 'data',
     icon: toolIcon(ShieldCheckIcon),
     description:
-      'Validate JSON against schemas with 7 templates, inference, sample generation, and strict mode',
+      'Live validation against a JSON Schema with a clickable problems list, 7 templates, inference, sample generation, and strict mode',
     component: JsonSchemaValidator,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

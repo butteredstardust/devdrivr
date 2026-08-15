@@ -149,6 +149,42 @@ Covers the YAML helpers and the YAML Tools component.
 | open-file / save-file, empty buffer refused       | Tool actions                     |
 | Sample offered only while empty                   | Empty state                      |
 
+### `src/tools/__tests__/json-schema-validator.test.tsx` (52 tests)
+
+Covers the JSON Schema helpers and the JSON Schema Validator component.
+
+| Test                                               | What it verifies                        |
+| -------------------------------------------------- | --------------------------------------- |
+| `parseJson` — line/column, blank input             | Parse errors are navigable              |
+| `offsetToLocation` — 1-based, clamped              | Cursor math                             |
+| `pointerLocation` — nested, root, `~0`/`~1`        | Ajv pointers map to the source text     |
+| `pointerLocation` — braces inside strings, misses  | Scanner is not fooled; null on miss     |
+| `pointerLocation` — duplicate keys pick the last   | Matches the value `JSON.parse` kept     |
+| `validateJson` — draft 2019-09 and 2020-12         | Dialect chosen from `$schema`           |
+| `validateJson` — data vs schema vs compile error   | The three failure modes stay apart      |
+| `validateJson` — pointer, keyword, enum, extra     | Issue messages name the value           |
+| `validateJson` — 500 errors capped at 200          | A huge array cannot flood the panel     |
+| `validateJson` — strict mode, schema re-edit       | Strict wiring and Ajv cache eviction    |
+| `inferSchema` — formats, required, item merge      | Inference reads every array item        |
+| `inferSchema` — round-trips its own data           | An inferred schema accepts its input    |
+| `generateSample` — every template, enum/format     | Samples validate against the schema     |
+| Every template also passes under strict mode       | Strict never rejects our own starters   |
+| Live region announces valid / N problems           | Verdict is announced, not shouted       |
+| Problems list shows path and keyword               | Clickable navigation targets            |
+| "The JSON data / schema does not parse"            | The user is told which side broke       |
+| Template picker fills both editors on Load         | Templates                               |
+| Selecting a template alone leaves buffers intact   | Arrow-key navigation is not destructive |
+| Schema URL: loads, rejects non-http, names a       | Tauri HTTP client and its scope         |
+| blocked host                                       |                                         |
+| ⌘↵ revalidates and reports "Revalidated"           | The shortcut is observable              |
+| save-file / copy-output use the focused pane       | Shell actions                           |
+| Infer schema, then Undo; refusal on bad JSON       | Generators are recoverable              |
+| Sample data validates; undo drops on manual edit   | No silent data loss                     |
+| Format one pane leaves the other alone             | Per-pane actions                        |
+| Strict toggle flips `aria-pressed` and the verdict | Strict mode                             |
+| Problems panel hides and shows                     | Collapsible panel                       |
+| Registry flags + open-file routing, undoable       | ⌘O/⌘S reach the tool; no data loss      |
+
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 
 Tests the Zustand notes store in isolation (DB calls are mocked).
