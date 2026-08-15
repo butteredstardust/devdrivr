@@ -187,9 +187,11 @@ export const TOOLS: ToolDefinition[] = [
     group: 'web',
     icon: toolIcon(FileHtmlIcon),
     description:
-      'Validate HTML with live preview, configurable rules, heading outline, and starter templates',
+      'Validate HTML with live preview, clickable problems, accessibility rules, heading outline, and formatting',
     component: HtmlValidator,
     usesMonaco: true,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
   },
   {
     id: 'css-specificity',

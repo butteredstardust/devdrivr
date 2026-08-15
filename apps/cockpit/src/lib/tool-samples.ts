@@ -31,6 +31,26 @@ export const TOOL_SAMPLES: Partial<Record<string, string>> = {
   </book>
 </catalog>`,
 
+  // Deliberately imperfect: an uppercase tag, an unquoted attribute, a missing
+  // alt, a duplicated id, an unlabelled input and a typeless button, so the
+  // problems panel has something to demonstrate.
+  'html-validator': `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Sample</title>
+  </head>
+  <body>
+    <DIV class=card>
+      <img src="logo.png">
+      <h3>Sales</h3>
+      <p id="total">1 &lt; 2</p>
+      <p id="total">Duplicated id</p>
+      <input type="text" name="query">
+      <button>Go</button>
+    </DIV>
+  </body>
+</html>`,
+
   'yaml-tools': `service: cockpit
 version: 0.1.58
 env: development

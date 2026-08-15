@@ -501,10 +501,27 @@ Cross-cutting system feature visible in the notes drawer (separate tab from note
 
 ### 6.25 HTML Validator
 
-- Monaco editor with HTML language mode.
-- Validate HTML structure, unclosed tags, nesting issues.
-- Accessibility hints: missing alt attributes, missing labels, ARIA issues.
-- Use `htmlhint` or `html-validate`.
+- Monaco editor with HTML language mode beside a sandboxed live preview
+  (`Editor` / `Split` / `Preview`), stacking below ~900px. The preview follows
+  the source on a debounce and expands into a focus-trapped dialog.
+- Live HTMLHint validation on a 300 ms debounce. Problems are listed worst-first
+  in a collapsible bottom panel; each row is a button that moves the Monaco
+  cursor to the line and column, and every problem is also a model marker.
+- ~30 rules across structure, attributes, accessibility and style, each with a
+  plain-language label and a hint. Rules the user changes are stored as
+  departures from the defaults (so new defaults still reach them), the Rules
+  button carries the count of those departures, and "Reset to defaults" clears
+  them. Rules that are off are omitted from the ruleset rather than passed
+  `false`.
+- Document statistics read off the parsed DOM — element count discounting the
+  wrappers the parser supplies for a fragment, nesting depth, style attributes
+  and scripts.
+- Heading outline with the problems a linter will not report: an outline that
+  does not start at `h1`, more than one `h1`, and skipped levels.
+- Documents are files: New / Open / Save with a name, path and Modified/Saved
+  status, ⌘O and ⌘S support, and a confirmation before a template or a new
+  document replaces unsaved work. `Format` (⌘↵) reformats through the shared
+  prettier worker and reports markup prettier cannot parse.
 
 ### 6.26 CSS Specificity Calculator
 

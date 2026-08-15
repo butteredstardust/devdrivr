@@ -273,6 +273,48 @@ Covers the Mermaid helpers, the editor shell, and the pan/zoom preview.
 | A user-set zoom survives a re-render                    | Auto-fit used to yank the view back        |
 | Empty preview offers a template                         | Dead end replaced with an action           |
 
+### `src/tools/__tests__/html-validator.test.tsx` (40 tests)
+
+Covers the rule model, the document statistics, the outline and the editor shell.
+
+| Test                                                | What it verifies                               |
+| --------------------------------------------------- | ---------------------------------------------- |
+| `buildRuleset` never passes a rule `false`          | Three rules looked enabled but never fired     |
+| A rule with a mode is passed the mode               | `id-class-value` needs `'dash'`, not `true`    |
+| Default-on off / default-off on                     | Both directions reach HTMLHint                 |
+| Setting a rule back to its default drops it         | Overrides do not accumulate                    |
+| `countRuleOverrides` counts departures only         | The badge on the Rules button                  |
+| `isRuleEnabled` agrees with the built ruleset       | Panel and checker cannot disagree              |
+| `sortIssues` puts errors first, then position       | The worst problem is the one on screen         |
+| `countIssues` splits errors from warnings           | Status line arithmetic                         |
+| `computeStats` discounts implied wrappers           | A pasted `<div>` is one element, not four      |
+| `computeStats` counts declared wrappers             | A full document keeps `html`/`head`/`body`     |
+| Depth measured from the tree                        | The old stack never popped `<li>`              |
+| Heading text decoded and stripped of markup         | `Tips &amp; <em>tricks</em>` → `Tips & tricks` |
+| Style attributes and scripts counted                | Footer statistics                              |
+| `outlineProblems`: clean, no-h1 start, dupes, skips | Level gaps a linter will not report            |
+| Every shipped template has a clean outline          | The starters practise what they check          |
+| Editor and empty state render                       | Shell layout                                   |
+| Problems listed with the rule that found them       | The rule id is the fix                         |
+| Panel says "checking" before the first verdict      | It used to claim "No problems" first           |
+| Previous problems survive the next run              | Rows no longer flicker away mid-click          |
+| Clicking a problem in Preview returns to the source | The list was not clickable at all              |
+| A rule switched on adds its problems                | Default-off rules now work                     |
+| A rule switched off drops them; Reset restores      | Rules panel round trip                         |
+| Outline lists headings and names skipped levels     | Accessibility of the document                  |
+| Template over unsaved work asks first               | The old starters overwrote silently            |
+| A freshly loaded template is not "Modified"         | No confirmation on the second load             |
+| Sample loads from the empty state                   | Dead end replaced with an action               |
+| Format runs through the formatter worker            | Shared prettier pipeline                       |
+| Unparseable markup explains itself                  | Format failures were silent                    |
+| Preview is sandboxed and debounced                  | Typing no longer reloads the frame             |
+| Expand opens a focus-trapped dialog                 | The old overlay ate every Tab                  |
+| open-file, toolbar Open, Save round trip            | ⌘O/⌘S reach the tool                           |
+| Registry flags for ⌘O/⌘S                            | The shortcuts are wired up                     |
+| History recorded on edit, not on restored state     | Async hydration is not user input              |
+| A saved `'edit'` view mode still shows an editor    | The renamed mode used to render neither pane   |
+| A restored document is not "Modified" until touched | State predating `savedContent` hydrates clean  |
+
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 
 Tests the Zustand notes store in isolation (DB calls are mocked).
