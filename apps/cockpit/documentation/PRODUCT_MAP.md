@@ -44,7 +44,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 
 | Tool                  | ID                      | What It Does                                                                    |
 | --------------------- | ----------------------- | ------------------------------------------------------------------------------- |
-| JSON Tools            | `json-tools`            | Validate, format, tree view, table view                                         |
+| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, path query, tree + table beside the editor |
 | XML Tools             | `xml-tools`             | Validate, format XML; XPath queries                                             |
 | YAML Tools            | `yaml-tools`            | Validate, format, sort keys, tree view, and convert YAML ↔ JSON                 |
 | JSON Schema Validator | `json-schema-validator` | Validate JSON documents against a JSON Schema (AJV)                             |

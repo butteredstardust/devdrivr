@@ -117,7 +117,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'JSON Tools',
     group: 'data',
     icon: toolIcon(BracketsCurlyIcon),
-    description: 'Validate, format, minify, sort keys, path query, and tree view for JSON',
+    description: 'Validate, format, minify, sort keys, path query, tree and table views for JSON',
     component: JsonTools,
     supportsOpenFile: true,
     supportsSaveFile: true,

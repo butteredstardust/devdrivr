@@ -221,11 +221,24 @@ All shortcuts use Cmd on macOS, Ctrl on Windows. Tauri handles this natively.
 
 **Replaces:** jsonlint.com, json2table.de
 
-**Sub-tabs:** Lint & Format | Tree View | Table View
+**Views:** Source | Tree | Table (segmented control — Tree and Table open _beside_ the editor, not
+instead of it, so a document can be fixed while it is being inspected.)
 
-- **Lint & Format** — Monaco editor with JSON language mode. Validates on keystroke (debounced 300ms). Format button runs Prettier in worker. Errors shown as inline markers + error panel with line numbers.
-- **Tree View** — Collapsible tree rendered from parsed JSON. Click a node to copy its path (`data.users[0].name`). Search/filter nodes.
-- **Table View** — Renders array-of-objects as a sortable table using `@tanstack/react-table`. Copy cell, copy row, copy column. Export as CSV.
+- **Source** — Monaco editor in JSON mode. Validity is computed on every keystroke and reported in a
+  polite live region as `Valid JSON · N keys · depth D · size`, or
+  `Invalid JSON — line L, column C` with a **Go to error** button that moves the caret there
+  (`JSON.parse` only reports a character offset, which is useless in a long document).
+- **Actions** — Format (Prettier in the formatter worker, ⌘↵, indent 2/4), Minify, Sort keys, Copy,
+  Save (⌘S; refuses an empty buffer). Minify and Sort keys are disabled while the document does not
+  parse.
+- **Path query** — a collapsible row; dot and bracket paths (`$.items[0].sku`) resolved against the
+  parsed document, with the result in an `output` live region and a Copy button. A path that
+  resolves to `null` is reported as a hit, not a miss.
+- **Tree** — collapsible tree; values and paths are click-to-copy, and the pane starts collapsed
+  above 500 keys with Expand all / Collapse all in its header.
+- **Table** — array-of-objects rendered as a grid with sortable headers (`aria-sort`), a sticky
+  header row and a roving cell cursor: arrow keys move, Enter copies the focused cell. Non-tabular
+  documents get an explanation rather than an empty grid.
 
 ### 6.2 Code Formatter
 
