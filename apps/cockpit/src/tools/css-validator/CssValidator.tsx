@@ -49,7 +49,7 @@ import {
   type CssStats,
   type RuleConfig,
   type SelectorInfo,
-} from './css-helpers'
+} from '@/tools/css-validator/css-helpers'
 
 type Panel = 'problems' | 'selectors'
 

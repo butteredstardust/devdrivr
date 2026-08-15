@@ -9,6 +9,7 @@ import { SelectionContextToolbar } from '@/components/shared/SelectionContextToo
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import {
   exportFile,
   filenameFromPath,
@@ -474,6 +475,7 @@ export async function renderMarkdownContent(content: string): Promise<string> {
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function MarkdownEditor() {
+  const isInstanceActive = useIsInstanceActive()
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
@@ -774,6 +776,7 @@ export default function MarkdownEditor() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!isInstanceActive) return
       if (!e.metaKey && !e.ctrlKey) return
       if (!editorRef.current?.hasTextFocus()) return
       if (e.key === 'b') {
@@ -786,7 +789,7 @@ export default function MarkdownEditor() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [insertFormatting])
+  }, [insertFormatting, isInstanceActive])
 
   // ─── Export handlers ─────────────────────────────────────────────
 

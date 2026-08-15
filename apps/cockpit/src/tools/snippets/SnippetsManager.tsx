@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -29,6 +30,7 @@ import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { useMonacoOptions, useMonacoTheme } from '@/hooks/useMonaco'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -225,6 +227,10 @@ function importedSnippet(item: unknown): {
 }
 
 export default function SnippetsManager() {
+  const folderListId = useId()
+  const tagSuggestionsId = useId()
+  const snippetOptionsId = useId()
+  const isInstanceActive = useIsInstanceActive()
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const snippets = useSnippetsStore((state) => state.snippets)
@@ -549,11 +555,14 @@ export default function SnippetsManager() {
     const next = filtered[nextIndex]
     if (!next) return
     setSelectedId(next.id)
-    requestAnimationFrame(() => document.getElementById(`snippet-option-${next.id}`)?.focus())
+    requestAnimationFrame(() =>
+      document.getElementById(`${snippetOptionsId}-option-${next.id}`)?.focus()
+    )
   }
 
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!isInstanceActive) return
       const modifier = event.metaKey || event.ctrlKey
       if (modifier && event.key.toLowerCase() === 'n') {
         event.preventDefault()
@@ -590,7 +599,7 @@ export default function SnippetsManager() {
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [handleDuplicate, handleExportAll, handleImport, handleNew, selected])
+  }, [handleDuplicate, handleExportAll, handleImport, handleNew, isInstanceActive, selected])
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
@@ -744,7 +753,7 @@ export default function SnippetsManager() {
             return (
               <Button
                 key={snippet.id}
-                id={`snippet-option-${snippet.id}`}
+                id={`${snippetOptionsId}-option-${snippet.id}`}
                 type="button"
                 variant="ghost"
                 size="xs"
@@ -972,11 +981,11 @@ export default function SnippetsManager() {
                         void updateSnippet(selected.id, { folder: event.target.value })
                       }
                       placeholder="No folder"
-                      list="snippet-folders"
+                      list={folderListId}
                       className="mt-1.5 w-full"
                     />
                   </label>
-                  <datalist id="snippet-folders">
+                  <datalist id={folderListId}>
                     {allFolders.map((folder) => (
                       <option key={folder} value={folder} />
                     ))}
@@ -1015,9 +1024,11 @@ export default function SnippetsManager() {
                         aria-label="Add tag"
                         aria-autocomplete="list"
                         aria-expanded={tagSuggestions.length > 0}
-                        aria-controls={tagSuggestions.length > 0 ? 'tag-suggestions' : undefined}
+                        aria-controls={tagSuggestions.length > 0 ? tagSuggestionsId : undefined}
                         aria-activedescendant={
-                          suggestionIndex >= 0 ? `tag-suggestion-${suggestionIndex}` : undefined
+                          suggestionIndex >= 0
+                            ? `${tagSuggestionsId}-option-${suggestionIndex}`
+                            : undefined
                         }
                         value={tagInput}
                         onChange={(event) => {
@@ -1047,7 +1058,7 @@ export default function SnippetsManager() {
                       />
                       {tagSuggestions.length > 0 && (
                         <div
-                          id="tag-suggestions"
+                          id={tagSuggestionsId}
                           role="listbox"
                           aria-label="Tag suggestions"
                           data-testid="tag-suggestions"
@@ -1056,7 +1067,7 @@ export default function SnippetsManager() {
                           {tagSuggestions.map((suggestion, index) => (
                             <Button
                               key={suggestion}
-                              id={`tag-suggestion-${index}`}
+                              id={`${tagSuggestionsId}-option-${index}`}
                               type="button"
                               variant="ghost"
                               size="xs"

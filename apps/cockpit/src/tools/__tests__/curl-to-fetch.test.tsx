@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import CurlToFetch from '../curl-to-fetch/CurlToFetch'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { useUiStore } from '@/stores/ui.store'
+
+beforeEach(() => {
+  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+})
 
 describe('CurlToFetch', () => {
   it('renders input and output areas', () => {
@@ -45,7 +50,7 @@ describe('CurlToFetch', () => {
     expect(screen.getByTitle('Open this request in API Client')).toBeInTheDocument()
   })
 
-  it('clicking "Test in API Client" writes parsed request to api-client tool state cache', () => {
+  it('clicking "Test in API Client" writes parsed request to api-client tool state cache', async () => {
     renderTool(CurlToFetch)
     const input = screen.getByPlaceholderText(/curl/i)
     fireEvent.change(input, {
@@ -57,6 +62,7 @@ describe('CurlToFetch', () => {
 
     fireEvent.click(screen.getByTitle('Open this request in API Client'))
 
+    await waitFor(() => expect(useToolStateCache.getState().get('api-client')).toBeTruthy())
     const cached = useToolStateCache.getState().get('api-client') as Record<string, unknown>
     expect(cached).toBeTruthy()
     const draft = cached['draft'] as Record<string, unknown>
@@ -65,7 +71,7 @@ describe('CurlToFetch', () => {
     expect(draft['bodyMode']).toBe('json')
   })
 
-  it('sets bodyMode to "text" for non-JSON body', () => {
+  it('sets bodyMode to "text" for non-JSON body', async () => {
     renderTool(CurlToFetch)
     const input = screen.getByPlaceholderText(/curl/i)
     fireEvent.change(input, {
@@ -74,12 +80,13 @@ describe('CurlToFetch', () => {
 
     fireEvent.click(screen.getByTitle('Open this request in API Client'))
 
+    await waitFor(() => expect(useToolStateCache.getState().get('api-client')).toBeTruthy())
     const cached = useToolStateCache.getState().get('api-client') as Record<string, unknown>
     const draft = cached['draft'] as Record<string, unknown>
     expect(draft['bodyMode']).toBe('text')
   })
 
-  it('maps curl headers to api-client draft headers array', () => {
+  it('maps curl headers to api-client draft headers array', async () => {
     renderTool(CurlToFetch)
     const input = screen.getByPlaceholderText(/curl/i)
     fireEvent.change(input, {
@@ -90,6 +97,7 @@ describe('CurlToFetch', () => {
 
     fireEvent.click(screen.getByTitle('Open this request in API Client'))
 
+    await waitFor(() => expect(useToolStateCache.getState().get('api-client')).toBeTruthy())
     const cached = useToolStateCache.getState().get('api-client') as Record<string, unknown>
     const draft = cached['draft'] as Record<string, unknown>
     const headers = draft['headers'] as Array<Record<string, unknown>>
@@ -99,10 +107,9 @@ describe('CurlToFetch', () => {
   })
 
   it('resets activeRequestId to null when writing to api-client cache', () => {
-    // Pre-populate cache with an existing activeRequestId
-    useToolStateCache.getState().set('api-client', { activeRequestId: 'existing-id', draft: {} })
-
     renderTool(CurlToFetch)
+    // Pre-populate after renderTool, which intentionally clears the cache.
+    useToolStateCache.getState().set('api-client', { activeRequestId: 'existing-id', draft: {} })
     const input = screen.getByPlaceholderText(/curl/i)
     fireEvent.change(input, { target: { value: "curl 'https://api.example.com/data'" } })
     fireEvent.click(screen.getByTitle('Open this request in API Client'))

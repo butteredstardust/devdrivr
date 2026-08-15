@@ -16,10 +16,7 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('Tool error:', error, info.componentStack)
   }
 
-  // Public imperative API for callers that need to clear a caught error from
-  // outside (e.g. Workspace resetting the boundary when the active tool changes).
-  // Prefer this over reaching into setState directly from another component.
-  reset(): void {
+  private reset(): void {
     this.setState({ hasError: false, error: null })
   }
 

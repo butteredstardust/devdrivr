@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { setSetting } from '@/lib/db'
+import { setSetting, deleteToolState } from '@/lib/db'
+import { useToolStateCache } from '@/stores/tool-state.store'
+import { assignStateKeys, stateKeyFor } from '@/lib/tab-state-key'
 import type { WorkspaceTab } from '@/types/tools'
 
 const MAX_RECENT = 5
@@ -22,10 +24,24 @@ type UiStore = {
   activeTabId: string | null
   /** Always mirrors tabs.find(t => t.id === activeTabId)?.toolId ?? '' */
   activeTool: string
+  /**
+   * Tab ids most-recently-active first. The workspace keeps the leading few
+   * mounted, so this is what decides which backgrounded tab keeps its editor
+   * and which gets torn down.
+   */
+  tabMru: string[]
 
   // --- Tab actions ---
   /** Open tool in a new tab, or focus the existing tab if already open. */
   openTab: (toolId: string) => void
+  /**
+   * Open another tab of a tool that is already open. Deliberately separate
+   * from `openTab`: clicking a tool in the sidebar should return you to your
+   * work, not fork it, so duplicating stays an explicit request.
+   */
+  openTabInstance: (toolId: string) => void
+  /** Move a tab to a new index, for drag reordering. */
+  reorderTab: (tabId: string, toIndex: number) => void
   /** Close a tab by its tab id. Activates adjacent tab if it was active. */
   closeTab: (tabId: string) => void
   /** Close every tab except the one with the given tab id. */
@@ -78,27 +94,78 @@ function persistTabs(tabs: WorkspaceTab[], activeTabId: string | null): void {
   setSetting('activeTabId', activeTabId).catch(() => {})
 }
 
+/**
+ * Forget the state of tabs that are being closed.
+ *
+ * Only scoped keys — a duplicate tab's `<toolId>#<tabId>`, whose tab id will
+ * never come round again. The bare tool id is deliberately left behind: closing
+ * a tool and reopening it is how you get your work back.
+ */
+function discardClosedState(closed: WorkspaceTab[]): void {
+  for (const tab of closed) {
+    const key = tab.stateKey ?? tab.toolId
+    if (!key.includes('#')) continue
+    useToolStateCache.getState().discard(key)
+    deleteToolState(key).catch(() => {})
+  }
+}
+
+/** Most-recently-active first, with ids of closed tabs dropped. */
+function touchMru(mru: string[], tabId: string | null, tabs: WorkspaceTab[]): string[] {
+  const live = new Set(tabs.map((tab) => tab.id))
+  const rest = mru.filter((id) => id !== tabId && live.has(id))
+  return tabId && live.has(tabId) ? [tabId, ...rest] : rest
+}
+
 export const useUiStore = create<UiStore>()((set, get) => ({
   // --- Tab state ---
   tabs: [],
   activeTabId: null,
   activeTool: '',
+  tabMru: [],
 
   openTab: (toolId) => {
-    const existing = get().tabs.find((t) => t.toolId === toolId)
+    const { tabs: currentTabs, tabMru } = get()
+    const existing =
+      tabMru
+        .map((id) => currentTabs.find((tab) => tab.id === id))
+        .find((tab) => tab?.toolId === toolId) ?? currentTabs.find((tab) => tab.toolId === toolId)
     if (existing) {
-      // Tool already open — just focus it
-      const currentTabs = get().tabs
+      // Tool already open — return to its most recently used instance.
       const activeTool = derivedActiveTool(currentTabs, existing.id)
-      set({ activeTabId: existing.id, activeTool })
+      set({
+        activeTabId: existing.id,
+        activeTool,
+        tabMru: touchMru(get().tabMru, existing.id, currentTabs),
+      })
       persistTabs(currentTabs, existing.id)
+      get().trackRecent(toolId)
     } else {
-      const tab: WorkspaceTab = { id: crypto.randomUUID(), toolId }
-      const tabs = [...get().tabs, tab]
-      set({ tabs, activeTabId: tab.id, activeTool: toolId })
-      persistTabs(tabs, tab.id)
+      get().openTabInstance(toolId)
     }
+  },
+
+  openTabInstance: (toolId) => {
+    const id = crypto.randomUUID()
+    const current = get().tabs
+    const tab: WorkspaceTab = { id, toolId, stateKey: stateKeyFor(current, toolId, id) }
+    const tabs = [...current, tab]
+    set({ tabs, activeTabId: id, activeTool: toolId, tabMru: touchMru(get().tabMru, id, tabs) })
+    persistTabs(tabs, id)
     get().trackRecent(toolId)
+  },
+
+  reorderTab: (tabId, toIndex) => {
+    const { tabs, activeTabId } = get()
+    const from = tabs.findIndex((t) => t.id === tabId)
+    const to = Math.max(0, Math.min(toIndex, tabs.length - 1))
+    if (from === -1 || from === to) return
+    const next = [...tabs]
+    const [moved] = next.splice(from, 1)
+    if (!moved) return
+    next.splice(to, 0, moved)
+    set({ tabs: next })
+    persistTabs(next, activeTabId)
   },
 
   closeTab: (tabId) => {
@@ -113,7 +180,16 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       nextActiveId = candidate?.id ?? null
     }
     const nextActiveTool = derivedActiveTool(next, nextActiveId)
-    set({ tabs: next, activeTabId: nextActiveId, activeTool: nextActiveTool })
+    discardClosedState(tabs.filter((t) => t.id === tabId))
+    // Surviving tabs keep their state keys. The bare key the closed tab held
+    // is only up for grabs by a tab opened later, which is what makes closing
+    // a tool and reopening it give you your work back.
+    set({
+      tabs: next,
+      activeTabId: nextActiveId,
+      activeTool: nextActiveTool,
+      tabMru: touchMru(get().tabMru, nextActiveId, next),
+    })
     persistTabs(next, nextActiveId)
   },
 
@@ -122,11 +198,13 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     if (!tabs.some((t) => t.id === tabId)) return // unknown id — bail
     const next = tabs.filter((t) => t.id === tabId)
     if (next.length === tabs.length) return // nothing to close
+    discardClosedState(tabs.filter((t) => t.id !== tabId))
     const nextActiveId = next[0]?.id ?? null
     set({
       tabs: next,
       activeTabId: nextActiveId,
       activeTool: derivedActiveTool(next, nextActiveId),
+      tabMru: touchMru(get().tabMru, nextActiveId, next),
     })
     persistTabs(next, nextActiveId)
   },
@@ -136,6 +214,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     const idx = tabs.findIndex((t) => t.id === tabId)
     if (idx === -1 || idx === tabs.length - 1) return // nothing to close
     const next = tabs.slice(0, idx + 1)
+    discardClosedState(tabs.slice(idx + 1))
     // If active tab was in the closed range, activate the anchor tab
     const nextActiveId = next.some((t) => t.id === activeTabId)
       ? activeTabId
@@ -144,6 +223,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       tabs: next,
       activeTabId: nextActiveId,
       activeTool: derivedActiveTool(next, nextActiveId),
+      tabMru: touchMru(get().tabMru, nextActiveId, next),
     })
     persistTabs(next, nextActiveId)
   },
@@ -152,13 +232,15 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     const { tabs } = get()
     if (!tabs.some((t) => t.id === tabId)) return
     const activeTool = derivedActiveTool(tabs, tabId)
-    set({ activeTabId: tabId, activeTool })
+    set({ activeTabId: tabId, activeTool, tabMru: touchMru(get().tabMru, tabId, tabs) })
     persistTabs(tabs, tabId)
   },
 
   restoreTabs: (tabs, activeTabId) => {
-    const activeTool = derivedActiveTool(tabs, activeTabId)
-    set({ tabs, activeTabId, activeTool })
+    // Sessions saved before tabs could be duplicated have no state keys.
+    const keyed = assignStateKeys(tabs)
+    const activeTool = derivedActiveTool(keyed, activeTabId)
+    set({ tabs: keyed, activeTabId, activeTool, tabMru: touchMru([], activeTabId, keyed) })
     // No persist — restoreTabs is bootstrap-only
   },
 
@@ -168,8 +250,8 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   },
 
   restoreActiveTool: (toolId) => {
-    const tab: WorkspaceTab = { id: crypto.randomUUID(), toolId }
-    set({ tabs: [tab], activeTabId: tab.id, activeTool: toolId })
+    const tab: WorkspaceTab = { id: crypto.randomUUID(), toolId, stateKey: toolId }
+    set({ tabs: [tab], activeTabId: tab.id, activeTool: toolId, tabMru: [tab.id] })
   },
 
   // --- Recents ---

@@ -25,7 +25,8 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Unit tests              | ✅ 1231 tests | Stores, tools, shell components, theme, keybindings      |
+| Workspace tabs          | ✅ Stable     | Keep-alive (4 most recent), duplicate tabs, MRU tracking |
+| Unit tests              | ✅ 1279 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 
@@ -105,7 +106,7 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 | Table                   | Contains                                                                  |
 | ----------------------- | ------------------------------------------------------------------------- |
 | `settings`              | All app preferences (theme, window bounds, active tool, etc.)             |
-| `tool_state`            | Per-tool UI state (restores between sessions)                             |
+| `tool_state`            | Per-tab UI state (restores between sessions); see note below              |
 | `notes`                 | Sticky notes with colors, pin state, size, and tags (added migration 003) |
 | `snippets`              | Code snippets with tags                                                   |
 | `history`               | Tool execution history (input/output pairs)                               |
@@ -113,6 +114,12 @@ Everything lives in `~/Library/Application Support/com.devdrivr.cockpit/cockpit.
 | `api_collections`       | API Client request collections                                            |
 | `api_requests`          | Saved API requests with method, URL, headers, body                        |
 | `user_prompt_templates` | Built-in and user-created prompt templates                                |
+
+`tool_state.tool_id` holds a tab's **state key**, not always a bare tool id. The first tab of a tool
+keeps the bare id (`json-tools`), so state written before tabs could be duplicated is still read;
+every additional tab of the same tool gets `<toolId>#<tabId>`. Keys are assigned left-to-right when
+tabs are restored, and a surviving tab keeps its key when a sibling closes. Closing a duplicate tab
+deletes its row — the tab id never comes round again — while bare-keyed rows are always kept.
 
 ---
 

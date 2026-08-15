@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import { exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import SnippetsManager from '@/tools/snippets/SnippetsManager'
+import { ToolInstanceContext } from '@/app/tool-instance'
 
 vi.mock('@/lib/file-io', async () => {
   const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
@@ -217,11 +218,74 @@ describe('SnippetsManager — editor and details', () => {
 
     expect(input).not.toHaveAttribute('aria-controls')
     fireEvent.change(input, { target: { value: 'a' } })
-    expect(input).toHaveAttribute('aria-controls', 'tag-suggestions')
+    const suggestionsId = input.getAttribute('aria-controls')
+    expect(suggestionsId).toBeTruthy()
+    expect(document.getElementById(suggestionsId!)).toHaveAttribute('role', 'listbox')
     fireEvent.mouseDown(screen.getByRole('option', { name: 'api' }))
 
     await waitFor(() => expect(update).toHaveBeenCalledWith('snippet-1', { tags: ['api'] }))
     expect(document.activeElement).toBe(input)
+  })
+
+  it('generates distinct folder and tag relationship ids for each mounted instance', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({ id: 'snippet-1', title: 'API helper', updatedAt: 2 }),
+        snippet({ id: 'snippet-2', title: 'Tagged', tags: ['api'], updatedAt: 1 }),
+      ],
+    })
+    render(
+      <>
+        <SnippetsManager />
+        <SnippetsManager />
+      </>
+    )
+    await screen.findAllByDisplayValue('API helper')
+    for (const button of screen.getAllByRole('button', { name: 'Show snippet details' })) {
+      fireEvent.click(button)
+    }
+    const snippetOptions = screen.getAllByRole('option', { name: /API helper/ })
+    const folderInputs = screen.getAllByPlaceholderText('No folder')
+    const tagInputs = screen.getAllByRole('combobox', { name: 'Add tag' })
+    fireEvent.change(tagInputs[0]!, { target: { value: 'a' } })
+    fireEvent.change(tagInputs[1]!, { target: { value: 'a' } })
+
+    const folderIds = folderInputs.map((input) => input.getAttribute('list'))
+    const suggestionIds = tagInputs.map((input) => input.getAttribute('aria-controls'))
+    expect(new Set(snippetOptions.map((option) => option.id)).size).toBe(2)
+    expect(new Set(folderIds).size).toBe(2)
+    expect(new Set(suggestionIds).size).toBe(2)
+    for (const id of [...folderIds, ...suggestionIds]) {
+      expect(id).toBeTruthy()
+      expect(document.getElementById(id!)).not.toBeNull()
+    }
+  })
+
+  it('lets only the active instance handle global shortcuts', async () => {
+    render(
+      <>
+        <ToolInstanceContext.Provider
+          value={{ tabId: 'left', toolId: 'snippets', stateKey: 'snippets', isActive: false }}
+        >
+          <SnippetsManager />
+        </ToolInstanceContext.Provider>
+        <ToolInstanceContext.Provider
+          value={{
+            tabId: 'right',
+            toolId: 'snippets',
+            stateKey: 'snippets#right',
+            isActive: true,
+          }}
+        >
+          <SnippetsManager />
+        </ToolInstanceContext.Provider>
+      </>
+    )
+    const searches = screen.getAllByRole('searchbox', { name: 'Search snippets' })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    await waitFor(() => expect(document.activeElement).toBe(searches[1]))
   })
 
   it('toggles favorites through the editor toolbar', async () => {

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useUiStore } from '../ui.store'
-import { setSetting } from '@/lib/db'
+import { setSetting, deleteToolState } from '@/lib/db'
+import { useToolStateCache } from '@/stores/tool-state.store'
 
 vi.mock('@/lib/db', () => ({
   setSetting: vi.fn().mockResolvedValue(undefined),
   getSetting: vi.fn(),
+  deleteToolState: vi.fn().mockResolvedValue(undefined),
 }))
 
 function resetStore() {
@@ -12,6 +14,7 @@ function resetStore() {
     tabs: [],
     activeTabId: null,
     activeTool: '',
+    tabMru: [],
     recentToolIds: [],
     commandPaletteOpen: false,
     lastAction: null,
@@ -25,6 +28,56 @@ function resetStore() {
 beforeEach(() => {
   vi.clearAllMocks()
   resetStore()
+  useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
+})
+
+describe('closing a tab and its state', () => {
+  it('deletes the row of a duplicate tab, which nothing can reach again', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+    const duplicate = useUiStore.getState().tabs[1]!
+    useToolStateCache.getState().set(duplicate.stateKey!, { input: 'scratch' })
+
+    useUiStore.getState().closeTab(duplicate.id)
+
+    expect(deleteToolState).toHaveBeenCalledWith(duplicate.stateKey)
+    expect(useToolStateCache.getState().get(duplicate.stateKey!)).toBeUndefined()
+    // The pane unmounts after this and would save the row straight back.
+    expect(useToolStateCache.getState().isDiscarded(duplicate.stateKey!)).toBe(true)
+  })
+
+  it('keeps the row behind a bare key, which is how work comes back', () => {
+    useUiStore.getState().openTab('json-tools')
+    const only = useUiStore.getState().tabs[0]!
+
+    useUiStore.getState().closeTab(only.id)
+
+    expect(deleteToolState).not.toHaveBeenCalled()
+    expect(useToolStateCache.getState().isDiscarded('json-tools')).toBe(false)
+  })
+
+  it('sweeps duplicates closed in bulk', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+    const [first, second, third] = useUiStore.getState().tabs
+
+    useUiStore.getState().closeOtherTabs(first!.id)
+
+    expect(deleteToolState).toHaveBeenCalledWith(second!.stateKey)
+    expect(deleteToolState).toHaveBeenCalledWith(third!.stateKey)
+    expect(deleteToolState).toHaveBeenCalledTimes(2)
+  })
+
+  it('sweeps duplicates closed to the right', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+    const second = useUiStore.getState().tabs[1]!
+
+    useUiStore.getState().closeTabsToRight(useUiStore.getState().tabs[0]!.id)
+
+    expect(deleteToolState).toHaveBeenCalledWith(second.stateKey)
+  })
 })
 
 describe('openTab', () => {
@@ -47,6 +100,20 @@ describe('openTab', () => {
     const { tabs, activeTabId } = useUiStore.getState()
     expect(tabs).toHaveLength(2)
     expect(activeTabId).toBe(firstId)
+  })
+
+  it('focuses the most recently used duplicate instead of the leftmost one', () => {
+    useUiStore.getState().openTab('json-tools')
+    const firstId = useUiStore.getState().activeTabId
+    useUiStore.getState().openTabInstance('json-tools')
+    const secondId = useUiStore.getState().activeTabId
+    useUiStore.getState().openTab('base64')
+
+    useUiStore.getState().openTab('json-tools')
+
+    expect(firstId).not.toBe(secondId)
+    expect(useUiStore.getState().activeTabId).toBe(secondId)
+    expect(useUiStore.getState().tabs).toHaveLength(3)
   })
 
   it('adds toolId to recentToolIds', () => {
@@ -138,7 +205,12 @@ describe('restoreTabs', () => {
     useUiStore.getState().restoreTabs(tabs, 'tab-b')
 
     const state = useUiStore.getState()
-    expect(state.tabs).toEqual(tabs)
+    // Restored tabs gain state keys; a session saved before duplicates existed
+    // has none, and each tool's only tab keeps the bare id it wrote under.
+    expect(state.tabs).toEqual([
+      { id: 'tab-a', toolId: 'json-tools', stateKey: 'json-tools' },
+      { id: 'tab-b', toolId: 'code-formatter', stateKey: 'code-formatter' },
+    ])
     expect(state.activeTabId).toBe('tab-b')
     expect(state.activeTool).toBe('code-formatter')
     expect(setSetting).not.toHaveBeenCalled()
@@ -260,5 +332,114 @@ describe('closeTabsToRight', () => {
 
     expect(useUiStore.getState().activeTabId).toBe(firstId)
     expect(useUiStore.getState().activeTool).toBe('json-tools')
+  })
+})
+
+describe('state keys', () => {
+  it('gives the first tab of a tool the bare tool id', () => {
+    useUiStore.getState().openTab('json-tools')
+    expect(useUiStore.getState().tabs[0]!.stateKey).toBe('json-tools')
+  })
+
+  it('scopes a second tab of the same tool to its own key', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+
+    const [first, second] = useUiStore.getState().tabs
+    expect(first!.stateKey).toBe('json-tools')
+    expect(second!.stateKey).toBe(`json-tools#${second!.id}`)
+    expect(second!.stateKey).not.toBe(first!.stateKey)
+  })
+
+  it('hands the bare key to a later tab once the tab holding it has closed', () => {
+    useUiStore.getState().openTab('json-tools')
+    const firstId = useUiStore.getState().tabs[0]!.id
+    useUiStore.getState().closeTab(firstId)
+
+    useUiStore.getState().openTab('json-tools')
+    // Reopening a closed tool has always given you your work back, and the
+    // bare key is where that work is.
+    expect(useUiStore.getState().tabs[0]!.stateKey).toBe('json-tools')
+  })
+
+  it("leaves a surviving tab's key alone when a sibling closes", () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTabInstance('json-tools')
+    const [first, second] = useUiStore.getState().tabs
+    const secondKey = second!.stateKey
+
+    useUiStore.getState().closeTab(first!.id)
+
+    // Re-keying the survivor would swap the state out from under a live tab.
+    expect(useUiStore.getState().tabs[0]!.stateKey).toBe(secondKey)
+  })
+})
+
+describe('openTabInstance', () => {
+  it('always opens another tab, unlike openTab', () => {
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('base64')
+    expect(useUiStore.getState().tabs).toHaveLength(1)
+
+    useUiStore.getState().openTabInstance('base64')
+    expect(useUiStore.getState().tabs).toHaveLength(2)
+    expect(useUiStore.getState().activeTabId).toBe(useUiStore.getState().tabs[1]!.id)
+  })
+})
+
+describe('tabMru', () => {
+  it('lists the most recently active tab first', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('base64')
+    const [a, b] = useUiStore.getState().tabs
+
+    expect(useUiStore.getState().tabMru).toEqual([b!.id, a!.id])
+
+    useUiStore.getState().setActiveTab(a!.id)
+    expect(useUiStore.getState().tabMru).toEqual([a!.id, b!.id])
+  })
+
+  it('drops closed tabs so they cannot hold a keep-alive slot', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('base64')
+    const [a, b] = useUiStore.getState().tabs
+
+    useUiStore.getState().closeTab(b!.id)
+
+    expect(useUiStore.getState().tabMru).toEqual([a!.id])
+  })
+})
+
+describe('reorderTab', () => {
+  it('moves a tab and persists the new order', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('code-formatter')
+    const ids = useUiStore.getState().tabs.map((t) => t.id)
+    vi.clearAllMocks()
+
+    useUiStore.getState().reorderTab(ids[2]!, 0)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([ids[2], ids[0], ids[1]])
+    expect(setSetting).toHaveBeenCalledWith('openTabs', useUiStore.getState().tabs)
+  })
+
+  it('clamps an out-of-range index instead of losing the tab', () => {
+    useUiStore.getState().openTab('json-tools')
+    useUiStore.getState().openTab('base64')
+    const ids = useUiStore.getState().tabs.map((t) => t.id)
+
+    useUiStore.getState().reorderTab(ids[0]!, 99)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([ids[1], ids[0]])
+  })
+
+  it('ignores a tab id it does not know', () => {
+    useUiStore.getState().openTab('json-tools')
+    const before = useUiStore.getState().tabs
+
+    useUiStore.getState().reorderTab('nope', 0)
+
+    expect(useUiStore.getState().tabs).toBe(before)
   })
 })

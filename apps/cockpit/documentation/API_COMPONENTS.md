@@ -22,7 +22,6 @@ This document provides comprehensive API documentation for the core components o
    - [useToolAction](#usetoolaction)
    - [useGlobalShortcuts](#useglobalshortcuts)
    - [useFileDropZone](#usefiledropzone)
-   - [useFormatter](#useformatter)
    - [useMonaco](#usemonaco)
    - [usePlatform](#useplatform)
 5. [Libraries](#libraries)
@@ -328,16 +327,6 @@ Tauri file drop to content handler.
 **Parameters:** None
 
 **Description:** Handles file drag and drop operations.
-
-### useFormatter
-
-Main-thread Prettier formatting with cached plugins.
-
-**Location:** `src/hooks/useFormatter.ts`
-
-**Parameters:** None
-
-**Returns:** Object with `format` and `detectLanguage` functions
 
 ### useMonaco
 

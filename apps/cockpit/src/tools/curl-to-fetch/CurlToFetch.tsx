@@ -5,8 +5,7 @@ import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { useUiStore } from '@/stores/ui.store'
-import { useToolStateCache } from '@/stores/tool-state.store'
+import { sendToTool } from '@/lib/tool-handoff'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { PlayIcon } from '@phosphor-icons/react'
 
@@ -244,10 +243,6 @@ export default function CurlToFetch() {
 
   const headerCount = parsed ? Object.keys(parsed.headers).length : 0
 
-  const openTab = useUiStore((s) => s.openTab)
-  const cacheSet = useToolStateCache((s) => s.set)
-  const cacheGet = useToolStateCache((s) => s.get)
-
   const handleTestInApiClient = useCallback(() => {
     if (!parsed) return
 
@@ -265,9 +260,7 @@ export default function CurlToFetch() {
           : 'text'
 
     // Patch only the draft; preserve any other ApiClientState fields (e.g. activeRequestId)
-    const existing = cacheGet('api-client')
-    cacheSet('api-client', {
-      ...existing,
+    sendToTool('api-client', {
       activeRequestId: null,
       draft: {
         name: `${parsed.method} ${parsed.url}`,
@@ -279,9 +272,7 @@ export default function CurlToFetch() {
         auth: { type: 'none' },
       },
     })
-
-    openTab('api-client')
-  }, [parsed, cacheGet, cacheSet, openTab])
+  }, [parsed])
 
   return (
     <ToolLayout

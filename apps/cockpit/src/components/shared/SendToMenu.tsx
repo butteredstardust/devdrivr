@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { TOOLS } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
+import { useIsInstanceActive } from '@/app/tool-instance'
 
 type Position = { x: number; y: number }
 
@@ -11,6 +12,7 @@ type SendToMenuProps = {
 }
 
 export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
+  const isInstanceActive = useIsInstanceActive()
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const addToast = useUiStore((s) => s.addToast)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -32,11 +34,13 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
+      if (!isInstanceActive) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
     function handleEscape(e: KeyboardEvent) {
+      if (!isInstanceActive) return
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -45,7 +49,7 @@ export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [onClose])
+  }, [isInstanceActive, onClose])
 
   // Clamp position so the menu never goes off-screen
   const menuWidth = 224 // w-56

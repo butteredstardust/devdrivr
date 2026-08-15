@@ -30,4 +30,12 @@ export type ToolGroupMeta = {
 export type WorkspaceTab = {
   id: string // crypto.randomUUID() — unique tab instance
   toolId: string // references ToolDefinition.id
+  /**
+   * The `tool_state` row this tab reads and writes. The first open tab of a
+   * tool takes the bare tool id, so state saved before tabs could be
+   * duplicated is still the state that tab sees; further tabs of the same
+   * tool get `${toolId}#${id}`. Optional on the type because tabs persisted
+   * before this existed have no key — `stateKeyFor` assigns one on restore.
+   */
+  stateKey?: string
 }

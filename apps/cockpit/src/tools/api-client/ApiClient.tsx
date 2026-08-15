@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
@@ -14,7 +14,7 @@ import { SelectionContextToolbar } from '@/components/shared/SelectionContextToo
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
-import { useToolStateCache } from '@/stores/tool-state.store'
+import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useApiStore } from '@/stores/api.store'
@@ -235,6 +235,7 @@ function applyMethodDefaults(draft: RequestDraft, nextMethod: string): RequestDr
 // ---------------------------------------------------------------------------
 
 export default function ApiClient() {
+  const responsePaneId = useId()
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const init = useApiStore((s) => s.init)
@@ -276,9 +277,6 @@ export default function ApiClient() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const openTab = useUiStore((s) => s.openTab)
-  const cacheGet = useToolStateCache((s) => s.get)
-  const cacheSet = useToolStateCache((s) => s.set)
   const [response, setResponse] = useState<ResponseData | null>(null)
   const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
   const [loading, setLoading] = useState(false)
@@ -358,16 +356,12 @@ export default function ApiClient() {
 
   const sendResponseSelectionToJsonTools = useCallback(
     (text: string) => {
-      cacheSet('json-tools', {
-        ...cacheGet('json-tools'),
-        input: text,
-        activeTab: 'lint',
-        query: '',
-      })
-      openTab('json-tools')
+      // `view`, not `activeTab` — JSON Tools has no such field, so the old key
+      // switched nothing and was persisted as junk into its row.
+      sendToTool('json-tools', { input: text, view: 'source', query: '' })
       setLastAction('Sent response selection to JSON Tools', 'success')
     },
-    [cacheGet, cacheSet, openTab, setLastAction]
+    [setLastAction]
   )
 
   const responseSelectionActions = useMemo(
@@ -988,7 +982,7 @@ export default function ApiClient() {
                 size="sm"
                 onClick={toggleResponsePane}
                 aria-expanded={responseVisible}
-                aria-controls="api-response-pane"
+                aria-controls={responsePaneId}
               >
                 {responseVisible ? 'Hide Response' : 'Show Response'}
               </Button>
@@ -1207,7 +1201,7 @@ export default function ApiClient() {
           {/* ── Response panel ────────────────────────────────── */}
           {responseVisible && (
             <section
-              id="api-response-pane"
+              id={responsePaneId}
               aria-label="Response"
               className="flex min-h-0 min-w-0 flex-col overflow-hidden"
             >
