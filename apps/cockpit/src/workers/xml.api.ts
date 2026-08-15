@@ -7,15 +7,29 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import type { Node, Element } from '@xmldom/xmldom'
 import { evaluateSimpleXPath } from '@/lib/xml-xpath'
 
+/** Levels come straight from xmldom: only `warning` still leaves a usable document. */
+export type XmlIssueLevel = 'warning' | 'error' | 'fatalError'
+
+export type XmlIssue = {
+  level: XmlIssueLevel
+  message: string
+  line?: number
+  column?: number
+}
+
 export type XmlResult = {
   valid: boolean
-  errors: string[]
+  issues: XmlIssue[]
   formatted?: string
 }
 
 export type XPathResult = {
   matches: string[]
   count: number
+  /** Set when the expression itself is the problem, so the UI never shows an error as a match. */
+  error?: string
+  /** The mini engine ignores predicates; say so rather than quietly returning every node. */
+  predicatesIgnored?: boolean
 }
 
 export type XmlStats = {
@@ -24,6 +38,20 @@ export type XmlStats = {
   textNodes: number
   depth: number
 }
+
+export type XmlInspection = {
+  valid: boolean
+  issues: XmlIssue[]
+  stats: XmlStats
+}
+
+/** The shape the Tree pane renders. Built here so it agrees with validation. */
+export type XmlTreeNode =
+  | { type: 'element'; name: string; attributes: Record<string, string>; children: XmlTreeNode[] }
+  | { type: 'text'; value: string }
+  | { type: 'comment'; value: string }
+  | { type: 'cdata'; value: string }
+  | { type: 'pi'; name: string; value: string }
 
 export type JsonResult = {
   valid: boolean
@@ -34,102 +62,156 @@ export type JsonResult = {
 // Use xmldom's Node types. The library's Node interface doesn't match the DOM
 // lib types exactly, so we use it directly from the import above.
 
-function makeParser(errors: string[]): DOMParser {
-  return new DOMParser({
-    onError: (_level, msg) => errors.push(msg),
+type Located = { locator?: { lineNumber?: number; columnNumber?: number } }
+
+const EMPTY_STATS: XmlStats = { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
+
+/**
+ * Parses once and collects every issue with its location.
+ *
+ * xmldom reports recoverable problems through `onError` and aborts fatal ones by
+ * throwing a `ParseError`; both carry a locator, and without it the UI can only
+ * say "invalid" and leave the user to find the offending line themselves.
+ */
+function parseXml(xml: string): {
+  doc: ReturnType<DOMParser['parseFromString']> | null
+  issues: XmlIssue[]
+} {
+  const issues: XmlIssue[] = []
+  const parser = new DOMParser({
+    onError: (level, message, context) => {
+      const locator = (context as Located | undefined)?.locator
+      issues.push({
+        level: level as XmlIssueLevel,
+        message,
+        ...(locator?.lineNumber !== undefined ? { line: locator.lineNumber } : {}),
+        ...(locator?.columnNumber !== undefined ? { column: locator.columnNumber } : {}),
+      })
+    },
   })
+  try {
+    return { doc: parser.parseFromString(xml, 'text/xml'), issues }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    // A fatal error reaches `onError` first and is then thrown: only add it when
+    // the throw is all we got.
+    if (!issues.some((issue) => issue.message === message)) {
+      const locator = (e as Located).locator
+      issues.push({
+        level: 'fatalError',
+        message,
+        ...(locator?.lineNumber !== undefined ? { line: locator.lineNumber } : {}),
+        ...(locator?.columnNumber !== undefined ? { column: locator.columnNumber } : {}),
+      })
+    }
+    return { doc: null, issues }
+  }
+}
+
+/** Warnings (a missing attribute quote, say) still produce a document worth showing. */
+function isUsable(issues: XmlIssue[]): boolean {
+  return !issues.some((issue) => issue.level !== 'warning')
 }
 
 export function validate(xml: string): XmlResult {
-  try {
-    const errors: string[] = []
-    const parser = makeParser(errors)
-    parser.parseFromString(xml, 'text/xml')
-    return { valid: errors.length === 0, errors }
-  } catch (e) {
-    return { valid: false, errors: [(e as Error).message] }
-  }
+  const { issues } = parseXml(xml)
+  return { valid: isUsable(issues), issues }
 }
 
 export function format(xml: string, indent: number = 2): XmlResult {
-  try {
-    const errors: string[] = []
-    const parser = makeParser(errors)
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) {
-      return { valid: false, errors }
-    }
-
-    // Simple indentation-based formatting
-    const serializer = new XMLSerializer()
-    const raw = serializer.serializeToString(doc)
-    const formatted = formatXmlString(raw, indent)
-    return { valid: true, errors: [], formatted }
-  } catch (e) {
-    return { valid: false, errors: [(e as Error).message] }
-  }
+  const { doc, issues } = parseXml(xml)
+  if (!doc || !isUsable(issues)) return { valid: false, issues }
+  const serializer = new XMLSerializer()
+  const formatted = formatXmlString(serializer.serializeToString(doc), indent)
+  return { valid: true, issues, formatted }
 }
 
 export function minify(xml: string): XmlResult {
-  try {
-    const errors: string[] = []
-    const parser = makeParser(errors)
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) {
-      return { valid: false, errors }
-    }
-    const serializer = new XMLSerializer()
-    const raw = serializer.serializeToString(doc)
-    // Strip whitespace between tags
-    const minified = raw.replace(/>\s+</g, '><').trim()
-    return { valid: true, errors: [], formatted: minified }
-  } catch (e) {
-    return { valid: false, errors: [(e as Error).message] }
-  }
+  const { doc, issues } = parseXml(xml)
+  if (!doc || !isUsable(issues)) return { valid: false, issues }
+  const serializer = new XMLSerializer()
+  const minified = serializer.serializeToString(doc).replace(/>\s+</g, '><').trim()
+  return { valid: true, issues, formatted: minified }
+}
+
+/** One parse for the whole status line: validity, issues and document shape. */
+export function inspect(xml: string): XmlInspection {
+  const { doc, issues } = parseXml(xml)
+  const valid = isUsable(issues)
+  return { valid, issues, stats: doc && valid ? collectStats(doc.documentElement) : EMPTY_STATS }
 }
 
 export function toJson(xml: string): JsonResult {
+  const { doc, issues } = parseXml(xml)
+  if (!doc || !isUsable(issues)) {
+    return { valid: false, error: issues.map((issue) => issue.message).join('\n') || 'Invalid XML' }
+  }
   try {
-    const errors: string[] = []
-    const parser = makeParser(errors)
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) {
-      return { valid: false, error: errors.join('\n') }
-    }
-    const json = nodeToJson(doc.documentElement)
-    return { valid: true, json: JSON.stringify(json, null, 2) }
+    return { valid: true, json: JSON.stringify(nodeToJson(doc.documentElement), null, 2) }
   } catch (e) {
     return { valid: false, error: (e as Error).message }
   }
 }
 
-export function stats(xml: string): XmlStats {
-  try {
-    const errors: string[] = []
-    const parser = makeParser(errors)
-    const doc = parser.parseFromString(xml, 'text/xml')
-    if (errors.length > 0) return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
-    return collectStats(doc.documentElement)
-  } catch {
-    return { elements: 0, attributes: 0, textNodes: 0, depth: 0 }
+/**
+ * The document as a tree of plain objects.
+ *
+ * It used to be built on the main thread with the browser `DOMParser`, which
+ * meant a second parse with a second set of rules — and no tree at all wherever
+ * that global is absent. One parser, one verdict.
+ */
+export function tree(xml: string): XmlTreeNode | null {
+  const { doc, issues } = parseXml(xml)
+  if (!doc || !isUsable(issues)) return null
+  return nodeToTree(doc.documentElement)
+}
+
+function nodeToTree(node: Node | null): XmlTreeNode | null {
+  if (!node) return null
+  if (node.nodeType === 1) {
+    const el = node as Element
+    const attributes: Record<string, string> = {}
+    for (let i = 0; i < el.attributes.length; i++) {
+      const attribute = el.attributes.item(i)
+      if (attribute) attributes[attribute.name] = attribute.value
+    }
+    const children: XmlTreeNode[] = []
+    for (let i = 0; i < el.childNodes.length; i++) {
+      const child = nodeToTree(el.childNodes.item(i))
+      if (child) children.push(child)
+    }
+    return { type: 'element', name: el.tagName, attributes, children }
   }
+  if (node.nodeType === 3) {
+    const text = (node.textContent ?? '').trim()
+    return text ? { type: 'text', value: text } : null
+  }
+  if (node.nodeType === 8) return { type: 'comment', value: node.textContent ?? '' }
+  if (node.nodeType === 4) return { type: 'cdata', value: node.textContent ?? '' }
+  if (node.nodeType === 7) return { type: 'pi', name: node.nodeName, value: node.textContent ?? '' }
+  return null
+}
+
+export function stats(xml: string): XmlStats {
+  return inspect(xml).stats
 }
 
 export function queryXPath(xml: string, expression: string): XPathResult {
+  const { doc, issues } = parseXml(xml)
+  if (!doc || !isUsable(issues)) {
+    return { matches: [], count: 0, error: 'Fix the XML before running a query.' }
+  }
+  const predicatesIgnored = /\[[^\]]*\]/.test(expression)
   try {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(xml, 'text/xml')
     const serializer = new XMLSerializer()
-    const results: string[] = []
-
-    const nodes = evaluateSimpleXPath(doc, expression)
-    for (const node of nodes) {
-      results.push(serializer.serializeToString(node))
-    }
-
-    return { matches: results, count: results.length }
+    const matches = evaluateSimpleXPath(doc, expression).map((node) =>
+      serializer.serializeToString(node)
+    )
+    // The error used to be returned *as a match*, so a broken expression looked
+    // like a result with a count of zero next to it.
+    return { matches, count: matches.length, ...(predicatesIgnored ? { predicatesIgnored } : {}) }
   } catch (e) {
-    return { matches: [(e as Error).message], count: 0 }
+    return { matches: [], count: 0, error: (e as Error).message }
   }
 }
 

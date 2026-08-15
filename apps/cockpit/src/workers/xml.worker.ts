@@ -1,5 +1,5 @@
 import { handleRpc } from './rpc'
-import { validate, format, minify, toJson, stats, queryXPath } from './xml.api'
+import { validate, format, minify, toJson, stats, inspect, tree, queryXPath } from './xml.api'
 
 const api = {
   validate,
@@ -7,6 +7,8 @@ const api = {
   minify,
   toJson,
   stats,
+  inspect,
+  tree,
   queryXPath,
 }
 

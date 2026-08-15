@@ -15,7 +15,8 @@ import { useEffect, useRef, useState } from 'react'
  *   )
  */
 
-type WorkerRpc<T> = {
+/** The promisified view of a worker API, as handed to callers of `useWorker`. */
+export type WorkerRpc<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => infer R
     ? (...args: A) => R extends Promise<infer U> ? Promise<U> : Promise<R>
     : never

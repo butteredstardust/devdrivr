@@ -256,12 +256,29 @@ instead of it, so a document can be fixed while it is being inspected.)
 
 **Replaces:** xmllint.com
 
-**Sub-tabs:** Lint & Format | Tree View
+**Views:** Source | Tree | JSON | XPath (segmented control — the inspector panes open _beside_ the
+editor, not instead of it, so a document can be fixed while it is being inspected.)
 
-- Validate XML syntax, show errors with line numbers.
-- Format/prettify XML with configurable indent.
-- Tree view for navigating XML structure.
-- XPath query support — enter an XPath, see matching nodes highlighted.
+- **Source** — Monaco editor in XML mode. The document is parsed on every keystroke (debounced, in
+  the XML worker) and the verdict goes to a polite live region as
+  `Valid XML · N elements · M attributes · depth D`, or `Invalid XML — <message> — line L, column C`
+  with a **Go to error** button that moves the caret there.
+- **Issue levels** — a recoverable problem (an unquoted attribute, say) is a warning: it is shown in
+  a banner but the document stays usable, and only `error`/`fatalError` block the panes and the
+  transforms.
+- **Actions** — Format (⌘↵, indent 2/4), Minify, Copy, Save (⌘S; refuses an empty buffer). A
+  transform whose source changed while it was running is discarded rather than written over the
+  newer keystrokes.
+- **Tree** — collapsible tree built in the worker from the same parse that validates, so it never
+  disagrees with the status line. Every element row has a Copy button (keyboard-reachable, not
+  hover-only) that yields the element's XML. Opens collapsed above 300 elements, with Expand all /
+  Collapse all in the pane header.
+- **JSON** — live XML→JSON conversion in a read-only Monaco editor; no Convert click, and the result
+  survives keystrokes instead of being thrown away.
+- **XPath** — expressions run as you type against the parsed document, with a match count and a
+  per-match Copy button. A broken expression is reported as an error rather than returned as a
+  match, and because the bundled engine ignores predicates it says so instead of quietly matching
+  every node.
 
 ### 6.4 Diff Viewer
 

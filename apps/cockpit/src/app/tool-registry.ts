@@ -128,7 +128,8 @@ export const TOOLS: ToolDefinition[] = [
     name: 'XML Tools',
     group: 'data',
     icon: toolIcon(BracketsAngleIcon),
-    description: 'Validate, format, minify XML with tree view, JSON conversion, XPath, and stats',
+    description:
+      'Live XML validation with tree, JSON and XPath panes beside the editor; format, minify, copy',
     component: XmlTools,
     usesMonaco: true,
   },
