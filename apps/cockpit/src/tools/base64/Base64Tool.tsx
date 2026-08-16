@@ -7,7 +7,18 @@ import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { UploadSimpleIcon, FileIcon, XIcon } from '@phosphor-icons/react'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { TextArea } from '@/components/shared/TextArea'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { Toggle } from '@/components/shared/Toggle'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowsLeftRightIcon,
+  UploadSimpleIcon,
+  FileIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 
 type Base64State = {
   input: string
@@ -338,41 +349,41 @@ export default function Base64Tool() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-          <Button variant="primary" size="sm" onClick={handleToggle}>
-            {state.mode === 'encode' ? 'Encode →' : '← Decode'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
-            ⇄ Swap
-          </Button>
-          <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+        <Toolbar aria-label="Base64 conversion actions">
+          <ToolbarGroup label="Conversion actions">
+            <Button variant="primary" size="sm" onClick={handleToggle}>
+              {state.mode === 'decode' && <ArrowLeftIcon size={12} aria-hidden="true" />}
+              {state.mode === 'encode' ? 'Encode' : 'Decode'}
+              {state.mode === 'encode' && <ArrowRightIcon size={12} aria-hidden="true" />}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleSwap} disabled={!output.text}>
+              <ArrowsLeftRightIcon size={12} aria-hidden="true" />
+              Swap
+            </Button>
+            <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+          </ToolbarGroup>
 
-          <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-            <input
-              type="checkbox"
+          <ToolbarGroup label="Encoding options" separated>
+            <Toggle
               checked={state.urlSafe}
-              onChange={(e) => updateState({ urlSafe: e.target.checked })}
-              className="accent-[var(--color-accent)]"
+              onChange={(urlSafe) => updateState({ urlSafe })}
+              label="URL-safe"
             />
-            URL-safe
-          </label>
-          {state.mode === 'encode' && !droppedFile && (
-            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <input
-                type="checkbox"
+            {state.mode === 'encode' && !droppedFile && (
+              <Toggle
                 checked={state.lineWrap}
-                onChange={(e) => updateState({ lineWrap: e.target.checked })}
-                className="accent-[var(--color-accent)]"
+                onChange={(lineWrap) => updateState({ lineWrap })}
+                label="Wrap 76"
               />
-              Wrap 76
-            </label>
-          )}
+            )}
 
-          {autoDetect && !droppedFile && (
-            <span className="text-xs text-[var(--color-success)]">✓ Valid Base64</span>
-          )}
+            {autoDetect && !droppedFile && (
+              <StatusBadge variant="success">Valid Base64</StatusBadge>
+            )}
+          </ToolbarGroup>
 
-          <div className="ml-auto flex items-center gap-2 text-2xs tabular-nums text-[var(--color-text-muted)]">
+          <ToolbarSpacer />
+          <div className="flex items-center gap-2 text-2xs tabular-nums text-[var(--color-text-muted)]">
             {!droppedFile && state.input.trim() && (
               <>
                 <span>{formatSize(inputBytes)}</span>
@@ -387,7 +398,7 @@ export default function Base64Tool() {
               </span>
             )}
           </div>
-        </div>
+        </Toolbar>
       }
     >
       {/* ── Panels ────────────────────────────────────────────────── */}
@@ -468,7 +479,7 @@ export default function Base64Tool() {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <textarea
+              <TextArea
                 value={state.input}
                 onChange={(e) => updateState({ input: e.target.value })}
                 placeholder={
@@ -476,7 +487,9 @@ export default function Base64Tool() {
                     ? 'Enter text to encode, or drop a file…'
                     : 'Enter Base64 to decode (data URIs supported)…'
                 }
-                className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+                monospace
+                size="md"
+                className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
               {isDragOver && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[var(--color-surface)]/90 backdrop-blur-sm">

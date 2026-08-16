@@ -98,8 +98,9 @@ A customizable button component with different visual variants.
 
 **Props:**
 
-- `variant`: Button style variant ('primary' | 'secondary' | 'ghost')
-- `size`: Button size ('sm' | 'md')
+- `variant`: Button style variant (`primary`, `secondary`, `ghost`, `danger`, or `icon`)
+- `size`: Button size (`xs`, `sm`, or `md`)
+- `loading`: Preserves width while showing the shared spinner and disabling the button
 - All standard HTMLButtonElement props
 
 **Example:**
@@ -143,6 +144,7 @@ Horizontal tab navigation component.
 - `tabs`: Array of tab objects with id and label
 - `activeTab`: Currently active tab ID
 - `onTabChange`: Callback when tab changes
+- `aria-label`: Optional tab-list label (defaults to "Tool sections")
 
 **Example:**
 
@@ -204,6 +206,27 @@ import { CopyButton } from '@/components/shared/CopyButton'
 
 <CopyButton text={output} label="Copy result" />
 ```
+
+### TextArea
+
+Standard multiline input with shared typography, focus, disabled, border, and radius behavior.
+
+**Location:** `src/components/shared/TextArea.tsx`
+
+Use `monospace` for source or code and `size="md"` for larger prose input.
+
+### StatusBadge
+
+Compact semantic status treatment for `neutral`, `info`, `success`, `warning`, and `error` states.
+
+**Location:** `src/components/shared/StatusBadge.tsx`
+
+### Toolbar
+
+Shared action row with optional wrapping. Use `ToolbarGroup` to label related actions and
+`ToolbarSpacer` to keep trailing actions predictably aligned.
+
+**Location:** `src/components/shared/Toolbar.tsx`
 
 ### ErrorBoundary
 

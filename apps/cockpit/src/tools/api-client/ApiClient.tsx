@@ -13,6 +13,7 @@ import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useUiStore } from '@/stores/ui.store'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -808,7 +809,7 @@ export default function ApiClient() {
         id: 'headers',
         label: activeHeaderCount > 0 ? `Headers (${activeHeaderCount})` : 'Headers',
       },
-      { id: 'auth', label: auth.type === 'none' ? 'Auth' : 'Auth ✓' },
+      { id: 'auth', label: auth.type === 'none' ? 'Auth' : 'Auth (set)' },
       { id: 'body', label: 'Body' },
     ],
     [activeHeaderCount, auth.type, params.length]
@@ -1216,15 +1217,12 @@ export default function ApiClient() {
               {response && (
                 <>
                   <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-                    <span
-                      className={`rounded px-1.5 py-0.5 font-mono text-xs font-bold ${
-                        response.status < 400
-                          ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
-                          : 'bg-[var(--color-error)]/10 text-[var(--color-error)]'
-                      }`}
+                    <StatusBadge
+                      variant={response.status < 400 ? 'success' : 'error'}
+                      className="font-mono"
                     >
                       {response.status} {response.statusText}
-                    </span>
+                    </StatusBadge>
                     <span className="text-2xs text-[var(--color-text-muted)]">
                       {response.time}ms
                     </span>

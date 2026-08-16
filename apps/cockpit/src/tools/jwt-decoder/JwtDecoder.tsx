@@ -6,6 +6,9 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Alert } from '@/components/shared/Alert'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { TextArea } from '@/components/shared/TextArea'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 
 type JwtDecoderState = {
@@ -155,23 +158,18 @@ export default function JwtDecoder() {
         <div className="mb-2 flex items-center gap-3">
           <span className="font-mono text-xs text-[var(--color-text-muted)]">JWT Token</span>
           {expiry && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                expiry.expired
-                  ? 'bg-[var(--color-error)]/15 text-[var(--color-error)]'
-                  : 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-              }`}
-            >
+            <StatusBadge variant={expiry.expired ? 'error' : 'success'}>
               {expiry.expired ? 'Expired' : 'Valid'} · {expiry.relative}
-            </span>
+            </StatusBadge>
           )}
         </div>
-        <textarea
+        <TextArea
           value={state.input}
           onChange={(e) => updateState({ input: e.target.value })}
           placeholder="Paste a JWT token (eyJ...)"
           rows={3}
-          className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+          monospace
+          className="resize-none"
         />
         {/* Color-coded token preview */}
         {tokenParts && decoded && (
@@ -191,16 +189,10 @@ export default function JwtDecoder() {
           <div className="flex flex-col gap-4">
             {/* Expiry banner */}
             {expiry && (
-              <div
-                className={`rounded border px-3 py-2 text-sm ${
-                  expiry.expired
-                    ? 'border-[var(--color-error)] bg-[var(--color-error)]/10 text-[var(--color-error)]'
-                    : 'border-[var(--color-success)] bg-[var(--color-success)]/10 text-[var(--color-success)]'
-                }`}
-              >
-                {expiry.expired ? '⚠ Token expired' : '✓ Token valid'} — {expiry.expiresAt} (
-                {expiry.relative})
-              </div>
+              <Alert variant={expiry.expired ? 'error' : 'success'}>
+                Token {expiry.expired ? 'expired' : 'valid'} — {expiry.expiresAt} ({expiry.relative}
+                )
+              </Alert>
             )}
 
             {/* Header + Payload side by side */}
@@ -284,9 +276,9 @@ export default function JwtDecoder() {
             </section>
           </div>
         ) : state.input.trim() ? (
-          <div className="text-sm text-[var(--color-error)]">
+          <Alert variant="error">
             Invalid JWT token — expected format: header.payload.signature
-          </div>
+          </Alert>
         ) : (
           <EmptyState
             icon={IdentificationCardIcon}

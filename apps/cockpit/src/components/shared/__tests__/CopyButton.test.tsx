@@ -20,4 +20,11 @@ describe('CopyButton', () => {
       'focus-visible:shadow-[var(--focus-ring)]'
     )
   })
+
+  it('uses the shared secondary button treatment', () => {
+    render(<CopyButton text="hello" />)
+    expect(screen.getByRole('button', { name: 'Copy' }).className).toContain(
+      'border-[var(--color-border)]'
+    )
+  })
 })

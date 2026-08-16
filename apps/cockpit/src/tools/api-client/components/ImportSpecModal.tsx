@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
+import { Alert } from '@/components/shared/Alert'
+import { TextArea } from '@/components/shared/TextArea'
 import { openFileDialog } from '@/lib/file-io'
 import { importApiSpec } from '@/lib/api-import'
 import type { ApiImportFormat, ApiImportResult } from '@/types/models'
@@ -120,7 +122,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
           </Button>
         </div>
 
-        <textarea
+        <TextArea
           ref={textareaRef}
           value={content}
           onChange={(e) => {
@@ -129,14 +131,11 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
             setError(null)
           }}
           placeholder="Paste API specification content here..."
-          className="min-h-56 resize-y rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)] outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+          monospace
+          className="min-h-56 resize-y"
         />
 
-        {error && (
-          <div className="rounded border border-[var(--color-error)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-error)]">
-            {error}
-          </div>
-        )}
+        {error && <Alert variant="error">{error}</Alert>}
 
         {preview && (
           <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">

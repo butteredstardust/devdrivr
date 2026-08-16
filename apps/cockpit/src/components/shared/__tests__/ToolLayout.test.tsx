@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { ToolLayout } from '../ToolLayout'
+import { ToolLayout } from '@/components/shared/ToolLayout'
 
 describe('ToolLayout', () => {
   it('renders children', () => {
@@ -41,6 +41,7 @@ describe('ToolLayout', () => {
       </ToolLayout>
     )
     expect(screen.getByTestId('toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('toolbar').parentElement).toHaveClass('bg-[var(--color-surface)]')
   })
 
   it('constrains body width to the default max-w when not full-bleed', () => {

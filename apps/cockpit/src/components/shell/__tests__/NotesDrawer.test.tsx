@@ -197,7 +197,7 @@ describe('NotesDrawer', () => {
     })
     render(<NotesDrawer />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'History' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'History' }))
     fireEvent.click(screen.getByRole('button', { name: 'Replay JSON Formatter history entry' }))
 
     expect(useUiStore.getState().pendingSendTo).toBe('{"ok":true}')

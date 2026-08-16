@@ -4,7 +4,11 @@ import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { HashIcon } from '@phosphor-icons/react'
+import { Input } from '@/components/shared/Input'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { TextArea } from '@/components/shared/TextArea'
+import { Toggle } from '@/components/shared/Toggle'
+import { CheckCircleIcon, HashIcon, XCircleIcon } from '@phosphor-icons/react'
 import { computeHashes, computeHmac, type Hashes } from './hash-utils'
 
 type HashGeneratorState = {
@@ -122,40 +126,34 @@ export default function HashGenerator() {
               <span className="text-2xs text-[var(--color-text-muted)]">Computing…</span>
             )}
           </div>
-          <textarea
+          <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder="Enter text to hash..."
             rows={4}
-            className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="resize-none"
           />
 
           {/* Options row */}
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <input
-                type="checkbox"
-                checked={state.uppercase}
-                onChange={(e) => updateState({ uppercase: e.target.checked })}
-                className="accent-[var(--color-accent)]"
-              />
-              Uppercase
-            </label>
-            <label className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <input
-                type="checkbox"
-                checked={state.hmacMode}
-                onChange={(e) => updateState({ hmacMode: e.target.checked })}
-                className="accent-[var(--color-accent)]"
-              />
-              HMAC
-            </label>
+            <Toggle
+              checked={state.uppercase}
+              onChange={(uppercase) => updateState({ uppercase })}
+              label="Uppercase"
+            />
+            <Toggle
+              checked={state.hmacMode}
+              onChange={(hmacMode) => updateState({ hmacMode })}
+              label="HMAC"
+            />
             {state.hmacMode && (
-              <input
+              <Input
                 value={state.hmacKey}
                 onChange={(e) => updateState({ hmacKey: e.target.value })}
                 placeholder="Secret key..."
-                className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                aria-label="HMAC secret key"
+                className="flex-1 font-mono"
               />
             )}
           </div>
@@ -163,20 +161,22 @@ export default function HashGenerator() {
           {/* Compare hash */}
           <div className="mt-2">
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 value={state.compareHash}
                 onChange={(e) => updateState({ compareHash: e.target.value })}
                 placeholder="Paste a hash to compare..."
-                className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                aria-label="Hash to compare"
+                className="flex-1 font-mono"
               />
               {compareNormalized && hashes && (
-                <span
-                  className={`shrink-0 text-xs font-bold ${
-                    matchedAlgo ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
-                  }`}
-                >
-                  {matchedAlgo ? `✓ Matches ${matchedAlgo}` : '✗ No match'}
-                </span>
+                <StatusBadge variant={matchedAlgo ? 'success' : 'error'}>
+                  {matchedAlgo ? (
+                    <CheckCircleIcon size={12} weight="fill" aria-hidden="true" />
+                  ) : (
+                    <XCircleIcon size={12} weight="fill" aria-hidden="true" />
+                  )}
+                  {matchedAlgo ? `Matches ${matchedAlgo}` : 'No match'}
+                </StatusBadge>
               )}
             </div>
           </div>
@@ -191,10 +191,8 @@ export default function HashGenerator() {
             return (
               <div
                 key={h.label}
-                className={`flex items-center justify-between rounded border px-3 py-2 ${
-                  isMatch
-                    ? 'border-[var(--color-success)] bg-[var(--color-success)]/10'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+                className={`flex items-center justify-between rounded-[var(--radius-md)] border px-3 py-2 ${
+                  isMatch ? 'border-[var(--color-success)] bg-[var(--color-success)]/10' : ''
                 }`}
               >
                 <div className="min-w-0 flex-1">
@@ -203,21 +201,13 @@ export default function HashGenerator() {
                       {state.hmacMode ? `HMAC-${h.label}` : h.label}
                     </span>
                     <span className="text-2xs text-[var(--color-text-muted)]">{h.bits}-bit</span>
-                    {isMatch && (
-                      <span className="text-2xs font-bold text-[var(--color-success)]">
-                        ✓ Match
-                      </span>
-                    )}
+                    {isMatch && <StatusBadge variant="success">Match</StatusBadge>}
                   </div>
                   <div className="truncate font-mono text-xs text-[var(--color-text)]">
                     {displayValue}
                   </div>
                 </div>
-                <CopyButton
-                  text={displayValue}
-                  className="ml-2 shrink-0"
-                  label={isMatch ? '✓ Copy' : 'Copy'}
-                />
+                <CopyButton text={displayValue} className="ml-2 shrink-0" label="Copy" />
               </div>
             )
           })}

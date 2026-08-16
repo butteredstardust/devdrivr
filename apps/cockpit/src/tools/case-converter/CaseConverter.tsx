@@ -6,7 +6,9 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { TextAaIcon } from '@phosphor-icons/react'
+import { StatusBadge } from '@/components/shared/StatusBadge'
+import { TextArea } from '@/components/shared/TextArea'
+import { ArrowUpIcon, TextAaIcon } from '@phosphor-icons/react'
 
 type CaseConverterState = {
   input: string
@@ -119,23 +121,20 @@ export default function CaseConverter() {
         <div className="border-b border-[var(--color-border)] p-4">
           <div className="mb-2 flex items-center gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
-            {detected && (
-              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-2xs font-bold text-[var(--color-accent)]">
-                {detected}
-              </span>
-            )}
+            {detected && <StatusBadge variant="info">{detected}</StatusBadge>}
             {words.length > 0 && (
               <span className="text-2xs text-[var(--color-text-muted)]">
                 {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
               </span>
             )}
           </div>
-          <textarea
+          <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder="Type or paste text to convert..."
             rows={3}
-            className="w-full resize-none rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            size="md"
+            className="resize-none"
           />
         </div>
       }
@@ -147,18 +146,14 @@ export default function CaseConverter() {
             return (
               <div
                 key={c.id}
-                className={`flex items-center justify-between rounded border px-3 py-2 ${
-                  isCurrent
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+                className={`flex items-center justify-between rounded-[var(--radius-md)] border px-3 py-2 ${
+                  isCurrent ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30' : ''
                 }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                     {c.label}
-                    {isCurrent && (
-                      <span className="text-2xs font-bold text-[var(--color-accent)]">current</span>
-                    )}
+                    {isCurrent && <StatusBadge variant="info">Current</StatusBadge>}
                   </div>
                   <div className="truncate font-mono text-sm text-[var(--color-text)]">
                     {c.value}
@@ -172,7 +167,8 @@ export default function CaseConverter() {
                       onClick={() => handleUseAsInput(c.value, c.label)}
                       title="Use as input"
                     >
-                      ↑ Use
+                      <ArrowUpIcon size={12} weight="bold" aria-hidden="true" />
+                      Use
                     </Button>
                   )}
                   <CopyButton text={c.value} />

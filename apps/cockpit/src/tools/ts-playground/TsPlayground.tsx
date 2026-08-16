@@ -21,6 +21,7 @@ import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TS_PLAYGROUND_SAMPLE } from '@/lib/tool-samples'
@@ -245,44 +246,48 @@ export default function TsPlayground() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <FileTsIcon
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
-              />
-              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-                {state.fileName ?? 'Untitled.ts'}
-              </span>
-              <span className="flex shrink-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]">
-                {!isTranspiling && hasCode && !error && sorted.length === 0 && (
+          <DocumentToolbar border={false} aria-label="TypeScript playground actions">
+            <DocumentIdentity
+              title={state.fileName ?? 'Untitled.ts'}
+              icon={
+                <FileTsIcon
+                  size={15}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-text-muted)]"
+                />
+              }
+              // Only the settled result is announced. "Compiling…" goes in
+              // aria-hidden so a keystroke-triggered run does not speak twice,
+              // while the live region itself stays mounted — a region added and
+              // removed around each run announces nothing at all.
+              status={
+                isTranspiling && hasCode ? (
+                  <span aria-hidden="true">{summary}</span>
+                ) : (
+                  settledSummary
+                )
+              }
+              statusIcon={
+                !isTranspiling && hasCode && !error && sorted.length === 0 ? (
                   <CheckCircleIcon
                     size={12}
                     aria-hidden="true"
-                    className="text-[var(--color-success)]"
+                    className="shrink-0 text-[var(--color-success)]"
                   />
-                )}
-                {/* Warning-only compiles get a glyph too, in their own colour. */}
-                {!isTranspiling && sorted.length > 0 && (
+                ) : !isTranspiling && sorted.length > 0 ? (
                   <WarningCircleIcon
                     size={12}
                     aria-hidden="true"
+                    className="shrink-0"
                     style={{
                       color: errorCount > 0 ? 'var(--color-error)' : 'var(--color-warning)',
                     }}
                   />
-                )}
-                {/* Only the settled result is live: announcing "Compiling…" as
-                    well would make every keystroke-triggered run speak twice. */}
-                <span role="status" aria-live="polite">
-                  {isTranspiling && hasCode ? '' : settledSummary}
-                </span>
-                {isTranspiling && hasCode && <span aria-hidden="true">Compiling…</span>}
-              </span>
-            </div>
+                ) : undefined
+              }
+            />
 
-            <div className="ml-auto flex items-center gap-2">
+            <ToolbarGroup label="Playground actions" separated>
               <Button
                 variant="ghost"
                 size="sm"
@@ -310,7 +315,7 @@ export default function TsPlayground() {
               </Button>
               <CopyButton text={output} label="Copy output" />
               <Button
-                variant="ghost"
+                variant="icon"
                 size="sm"
                 onClick={handleSave}
                 disabled={!output}
@@ -319,8 +324,8 @@ export default function TsPlayground() {
               >
                 <FloppyDiskIcon size={15} aria-hidden="true" />
               </Button>
-            </div>
-          </div>
+            </ToolbarGroup>
+          </DocumentToolbar>
 
           {state.optionsOpen && (
             <div

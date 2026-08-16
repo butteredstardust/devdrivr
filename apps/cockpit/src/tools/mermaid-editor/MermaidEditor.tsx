@@ -19,7 +19,7 @@ import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Select } from '@/components/shared/Select'
-import { Toolbar } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toggle } from '@/components/shared/Toggle'
 import { useUiStore } from '@/stores/ui.store'
@@ -32,7 +32,7 @@ import {
   saveFileDialog,
   saveFileToPath,
 } from '@/lib/file-io'
-import MermaidPreview from './MermaidPreview'
+import MermaidPreview from '@/tools/mermaid-editor/MermaidPreview'
 import {
   TEMPLATES,
   countStatements,
@@ -44,7 +44,7 @@ import {
   templateById,
   withSourceLine,
   type MermaidError,
-} from './mermaid-helpers'
+} from '@/tools/mermaid-editor/mermaid-helpers'
 
 type EditorMode = 'edit' | 'split' | 'preview'
 type ExportFormat = 'svg' | 'png'
@@ -530,142 +530,142 @@ export default function MermaidEditor() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex min-h-14 items-center gap-2 px-3 max-[1000px]:flex-wrap max-[1000px]:py-2">
-          <div className="min-w-0 flex-1 max-[1000px]:basis-full">
-            <div className="flex items-center gap-2">
-              <h1
-                data-testid="file-name"
-                className="truncate text-sm font-semibold text-[var(--color-text)]"
-                title={state.filePath ?? state.fileName ?? 'Untitled diagram'}
-              >
-                {state.fileName ?? 'Untitled diagram'}
-              </h1>
-              <span
-                className={`shrink-0 text-2xs ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
-                aria-live="polite"
-              >
-                {isDirty ? 'Modified' : 'Saved'}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
-              {state.filePath ?? 'Local Mermaid diagram'}
-            </p>
-          </div>
-
-          <SegmentedControl
-            aria-label="Editor view mode"
-            options={MODE_OPTIONS}
-            value={mode}
-            onChange={(next) => updateState({ mode: next })}
-          />
-        </div>
-
-        <Toolbar border={false} className="flex-wrap gap-x-2 gap-y-1 pt-0 pb-2">
-          <Button variant="ghost" size="sm" onClick={handleNewDiagram} className="gap-1">
-            <FilePlusIcon size={13} aria-hidden="true" />
-            New
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleOpen()}
-            className="gap-1"
-            title="Open a .mmd file (⌘O)"
-          >
-            <FolderOpenIcon size={13} aria-hidden="true" />
-            Open
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleSave()}
-            className="gap-1"
-            title="Save the source (⌘S)"
-          >
-            <FloppyDiskIcon size={13} aria-hidden="true" />
-            Save
-          </Button>
-
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
-
-          <Select
-            aria-label="Diagram template"
-            value={state.templateId}
-            onChange={(e) => updateState({ templateId: e.target.value })}
-          >
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.label}
-              </option>
-            ))}
-          </Select>
-          <Button variant="secondary" size="sm" onClick={() => handleLoadTemplate()}>
-            Load
-          </Button>
-
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
-
-          <Select
-            aria-label="Export format"
-            value={exportFormat}
-            onChange={(e) => updateState({ exportFormat: e.target.value as ExportFormat })}
-          >
-            <option value="svg">SVG</option>
-            <option value="png">PNG</option>
-          </Select>
-          {exportFormat === 'png' && (
-            <>
-              <Select
-                aria-label="PNG resolution"
-                value={String(exportScale)}
-                onChange={(e) => updateState({ exportScale: Number(e.target.value) })}
-              >
-                {EXPORT_SCALES.map((scale) => (
-                  <option key={scale} value={scale}>
-                    {scale}×
-                  </option>
-                ))}
-              </Select>
-              <Toggle
-                checked={transparent}
-                onChange={(checked) => updateState({ transparentBackground: checked })}
-                label="Transparent"
+        <DocumentToolbar border={false} aria-label="Diagram actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled diagram'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled diagram'}
+            titleTestId="file-name"
+            icon={
+              <GraphIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
               />
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleCopyImage()}
-            disabled={!svgHtml}
-            loading={isExporting}
-            className="gap-1"
-          >
-            <CopyIcon size={13} aria-hidden="true" />
-            Copy {exportFormat.toUpperCase()}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleExportImage()}
-            disabled={!svgHtml}
-            loading={isExporting}
-            className="gap-1"
-          >
-            <DownloadSimpleIcon size={13} aria-hidden="true" />
-            Export
-          </Button>
+            }
+            stateLabel={isDirty ? 'Modified' : 'Saved'}
+            stateChanged={isDirty}
+            status={statusText}
+          />
+
+          <ToolbarGroup label="View controls" separated>
+            <SegmentedControl
+              aria-label="Editor view mode"
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={(next) => updateState({ mode: next })}
+            />
+          </ToolbarGroup>
+
+          <ToolbarGroup label="Document actions" separated>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={handleNewDiagram}
+              title="New diagram"
+              aria-label="New diagram"
+            >
+              <FilePlusIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleOpen()}
+              title="Open a .mmd file (⌘O)"
+              aria-label="Open Mermaid file"
+            >
+              <FolderOpenIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleSave()}
+              title="Save the source (⌘S)"
+              aria-label="Save Mermaid source"
+            >
+              <FloppyDiskIcon size={13} aria-hidden="true" />
+            </Button>
+          </ToolbarGroup>
+
+          <ToolbarGroup label="Template actions" separated>
+            <Select
+              aria-label="Diagram template"
+              value={state.templateId}
+              onChange={(e) => updateState({ templateId: e.target.value })}
+            >
+              {TEMPLATES.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.label}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary" size="sm" onClick={() => handleLoadTemplate()}>
+              Load
+            </Button>
+          </ToolbarGroup>
+
+          <ToolbarGroup label="Diagram export" separated>
+            <Select
+              aria-label="Export format"
+              value={exportFormat}
+              onChange={(e) => updateState({ exportFormat: e.target.value as ExportFormat })}
+            >
+              <option value="svg">SVG</option>
+              <option value="png">PNG</option>
+            </Select>
+            {exportFormat === 'png' && (
+              <>
+                <Select
+                  aria-label="PNG resolution"
+                  value={String(exportScale)}
+                  onChange={(e) => updateState({ exportScale: Number(e.target.value) })}
+                >
+                  {EXPORT_SCALES.map((scale) => (
+                    <option key={scale} value={scale}>
+                      {scale}×
+                    </option>
+                  ))}
+                </Select>
+                <Toggle
+                  checked={transparent}
+                  onChange={(checked) => updateState({ transparentBackground: checked })}
+                  label="Transparent"
+                />
+              </>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleCopyImage()}
+              disabled={!svgHtml}
+              loading={isExporting}
+              className="gap-1"
+            >
+              <CopyIcon size={13} aria-hidden="true" />
+              Copy {exportFormat.toUpperCase()}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void handleExportImage()}
+              disabled={!svgHtml}
+              loading={isExporting}
+              className="gap-1"
+            >
+              <DownloadSimpleIcon size={13} aria-hidden="true" />
+              Export
+            </Button>
+          </ToolbarGroup>
 
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => void handleCopySource()}
-            className="ml-auto gap-1"
+            className="gap-1"
           >
             <CopyIcon size={13} aria-hidden="true" />
             Copy source
           </Button>
-        </Toolbar>
+        </DocumentToolbar>
       </header>
 
       {error && (

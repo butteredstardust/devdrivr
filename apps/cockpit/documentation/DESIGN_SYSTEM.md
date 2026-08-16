@@ -208,14 +208,17 @@ import { Button } from '@/components/shared/Button'
 <Button variant="primary">Run</Button>        // accent background — main CTA
 <Button variant="secondary">Cancel</Button>   // border style — default
 <Button variant="ghost">Settings</Button>     // text only — minimal chrome
+<Button variant="danger">Delete</Button>      // destructive action
+<Button variant="icon" aria-label="Save">…</Button> // icon-only action
 
 // Sizes
 <Button size="md">Default</Button>            // px-4 py-2
 <Button size="sm">Compact</Button>            // px-2 py-1
+<Button size="xs">Dense toolbar</Button>       // px-1.5 py-0.5
 
 // All standard HTMLButtonElement props pass through
-<Button variant="primary" disabled={loading} onClick={handleRun}>
-  {loading ? 'Running…' : 'Run'}
+<Button variant="primary" loading={loading} onClick={handleRun}>
+  Run
 </Button>
 ```
 
@@ -223,7 +226,12 @@ import { Button } from '@/components/shared/Button'
 
 - `primary` — one per tool, the main action (Format, Run, Generate, etc.)
 - `secondary` — secondary actions (Clear, Reset, Copy as…)
-- `ghost` — tertiary actions, icon-only buttons, navigation
+- `ghost` — tertiary actions and navigation
+- `danger` — destructive actions only
+- `icon` — icon-only controls; always provide `aria-label` (it also becomes the tooltip)
+
+Use `loading` for asynchronous actions. It preserves the button width, announces busy state, and
+disables repeat clicks. Use one `primary` action per action group, not one per screen.
 
 ### `CopyButton`
 
@@ -235,7 +243,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 <CopyButton text={output} className="ml-auto" />
 ```
 
-Shows "✓ Copied" for 1.5s after click. Triggers a success toast automatically.
+Shows a check icon and "Copied" for 1.5s after click. Triggers a success toast automatically.
 
 ### `TabBar`
 
@@ -255,6 +263,40 @@ const TABS = [
 ```
 
 Active tab has a 2px bottom border in `--color-accent`. Use `TabBar` for multi-mode tools.
+It exposes the ARIA tab pattern, supports arrow/Home/End navigation, and scrolls horizontally when
+the available width is narrow. Use `SegmentedControl` for a view mode rather than document sections.
+
+### `Toolbar` and `ToolbarGroup`
+
+```typescript
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+
+<Toolbar aria-label="Editor actions">
+  <ToolbarGroup label="Document actions">…</ToolbarGroup>
+  <ToolbarGroup label="Formatting" separated>…</ToolbarGroup>
+  <ToolbarSpacer />
+  <ToolbarGroup label="Export actions">…</ToolbarGroup>
+</Toolbar>
+```
+
+Place document-wide actions in the tool toolbar. Use groups and separators for different action
+families; keep actions for a specific pane in that pane's header.
+
+### `Input`, `Select`, and `TextArea`
+
+Use these primitives for native form controls instead of duplicating border, radius, focus, and
+disabled styles. Set `monospace` on `TextArea` for source/code. Full-bleed editor textareas may
+override radius and border while retaining the shared typography and focus contract.
+
+### `Alert`, `StatusBadge`, and `EmptyState`
+
+- `Alert` is for a message that needs attention or explains an operation outcome.
+- `StatusBadge` is for a compact state or metadata value, such as HTTP status or validity.
+- `EmptyState` replaces ambiguous blank panes and may include a single next-step action.
+
+Use semantic variants (`info`, `success`, `warning`, `error`) rather than styling status text at the
+call site. Do not add check marks, warning glyphs, emoji, or custom SVG; the shared component or a
+Phosphor icon supplies the visual cue.
 
 ### `Toggle`
 

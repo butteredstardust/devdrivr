@@ -4,6 +4,7 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Alert } from '@/components/shared/Alert'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PlusIcon, StackIcon, TrashIcon, XIcon } from '@phosphor-icons/react'
 
@@ -221,12 +222,12 @@ export function EnvironmentModal({ onClose }: Props) {
               </div>
 
               {error && (
-                <p
-                  role="alert"
-                  className="border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-error)]"
+                <Alert
+                  variant="error"
+                  className="rounded-none border-b border-[var(--color-border)] px-3 py-2"
                 >
                   {error}
-                </p>
+                </Alert>
               )}
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3">

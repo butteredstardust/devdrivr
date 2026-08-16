@@ -22,6 +22,7 @@ import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
@@ -233,37 +234,33 @@ export default function CodeFormatter() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
-            {/* Document identity — what am I looking at, and is it formatted? */}
-            <div className="flex min-w-0 items-center gap-2">
-              <CodeBlockIcon
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
-              />
-              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-                {state.fileName ?? 'Untitled'}
-              </span>
-              <span
-                role="status"
-                aria-live="polite"
-                className="flex shrink-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
-              >
-                {status === 'formatted' && (
+          <DocumentToolbar border={false} aria-label="Code formatting actions">
+            <DocumentIdentity
+              title={state.fileName ?? 'Untitled'}
+              icon={
+                <CodeBlockIcon
+                  size={15}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-text-muted)]"
+                />
+              }
+              status={isFormatting ? 'Formatting…' : describeStatus(status)}
+              statusIcon={
+                status === 'formatted' ? (
                   <CheckCircleIcon
                     size={12}
                     aria-hidden="true"
-                    className="text-[var(--color-success)]"
+                    className="shrink-0 text-[var(--color-success)]"
                   />
-                )}
-                {status === 'modified' && <PencilSimpleIcon size={12} aria-hidden="true" />}
-                {isFormatting ? 'Formatting…' : describeStatus(status)}
-              </span>
-            </div>
+                ) : status === 'modified' ? (
+                  <PencilSimpleIcon size={12} aria-hidden="true" className="shrink-0" />
+                ) : undefined
+              }
+            />
 
             {/* Two groups so a narrow window breaks between "what to format" and
                 "act on it" rather than orphaning a single icon on its own row. */}
-            <div className="ml-auto flex items-center gap-2">
+            <ToolbarGroup label="Formatting options" separated>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 <span className="max-[900px]:hidden">Language</span>
                 <Select
@@ -301,9 +298,9 @@ export default function CodeFormatter() {
                 <SlidersHorizontalIcon size={13} aria-hidden="true" />
                 Style
               </Button>
-            </div>
+            </ToolbarGroup>
 
-            <div className="flex items-center gap-2">
+            <ToolbarGroup label="Document actions" separated>
               <Button
                 variant="primary"
                 size="sm"
@@ -330,7 +327,7 @@ export default function CodeFormatter() {
               </Button>
               <CopyButton text={input} />
               <Button
-                variant="ghost"
+                variant="icon"
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasCode}
@@ -339,8 +336,8 @@ export default function CodeFormatter() {
               >
                 <FloppyDiskIcon size={15} aria-hidden="true" />
               </Button>
-            </div>
-          </div>
+            </ToolbarGroup>
+          </DocumentToolbar>
 
           {state.optionsOpen && (
             <div

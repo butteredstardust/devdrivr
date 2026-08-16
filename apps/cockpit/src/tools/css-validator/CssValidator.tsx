@@ -28,7 +28,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { openFileDialog, saveFileDialog, filenameFromPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -465,126 +465,116 @@ export default function CssValidator() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="flex min-h-14 items-center gap-2 px-3 max-[1000px]:flex-wrap max-[1000px]:py-2">
-          <FileCssIcon
-            size={16}
-            aria-hidden="true"
-            className="shrink-0 text-[var(--color-text-muted)]"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h1
-                data-testid="file-name"
-                className="truncate text-sm font-semibold text-[var(--color-text)]"
-                title={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}
-              >
-                {state.fileName ?? 'Untitled stylesheet'}
-              </h1>
-              <span
-                className={`shrink-0 text-2xs ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
-              >
-                {isDirty ? 'Modified' : 'Saved'}
-              </span>
-            </div>
-            <p
-              data-testid="validation-status"
-              role="status"
-              aria-live="polite"
-              className="mt-0.5 flex items-center gap-1 truncate text-2xs text-[var(--color-text-muted)]"
-            >
-              {hasInput && hasAnalyzed && issues.length === 0 && (
+        <DocumentToolbar border={false} aria-label="Stylesheet actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled stylesheet'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}
+            titleTestId="file-name"
+            icon={
+              <FileCssIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            stateLabel={isDirty ? 'Modified' : 'Saved'}
+            stateChanged={isDirty}
+            status={status}
+            statusTestId="validation-status"
+            statusIcon={
+              hasInput && hasAnalyzed && issues.length === 0 ? (
                 <CheckCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-success)]"
+                  className="shrink-0 text-[var(--color-success)]"
                 />
-              )}
-              {errorCount > 0 && (
+              ) : errorCount > 0 ? (
                 <WarningCircleIcon
                   size={12}
                   aria-hidden="true"
-                  className="text-[var(--color-error)]"
+                  className="shrink-0 text-[var(--color-error)]"
                 />
-              )}
-              {errorCount === 0 && warningCount > 0 && (
-                <WarningIcon size={12} aria-hidden="true" className="text-[var(--color-warning)]" />
-              )}
-              {status}
-            </p>
-          </div>
-        </div>
+              ) : errorCount === 0 && warningCount > 0 ? (
+                <WarningIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-warning)]"
+                />
+              ) : undefined
+            }
+          />
 
-        <Toolbar border={false} className="flex-wrap gap-x-2 gap-y-1 pt-0 pb-2">
-          <Button variant="ghost" size="sm" onClick={handleNew} className="gap-1">
-            <FilePlusIcon size={13} aria-hidden="true" />
-            New
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleOpen()}
-            className="gap-1"
-            title="Open a .css file (⌘O)"
-          >
-            <FolderOpenIcon size={13} aria-hidden="true" />
-            Open
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleSave()}
-            className="gap-1"
-            title="Save the stylesheet (⌘S)"
-          >
-            <FloppyDiskIcon size={13} aria-hidden="true" />
-            Save
-          </Button>
+          <ToolbarGroup label="Document actions" separated>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={handleNew}
+              title="New stylesheet"
+              aria-label="New stylesheet"
+            >
+              <FilePlusIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleOpen()}
+              title="Open a .css file (⌘O)"
+              aria-label="Open CSS file"
+            >
+              <FolderOpenIcon size={13} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleSave()}
+              title="Save the stylesheet (⌘S)"
+              aria-label="Save stylesheet"
+            >
+              <FloppyDiskIcon size={13} aria-hidden="true" />
+            </Button>
+          </ToolbarGroup>
 
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
+          <ToolbarGroup label="Template actions" separated>
+            <Select
+              aria-label="Starter template"
+              value={state.templateId}
+              onChange={(e) => updateState({ templateId: e.target.value })}
+            >
+              {TEMPLATES.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.label}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+              Load
+            </Button>
+          </ToolbarGroup>
 
-          <Select
-            aria-label="Starter template"
-            value={state.templateId}
-            onChange={(e) => updateState({ templateId: e.target.value })}
-          >
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.label}
-              </option>
-            ))}
-          </Select>
-          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
-            Load
-          </Button>
-
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden="true" />
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void handleFormat()}
-            // `useWorker` returns null until its effect runs; an enabled button
-            // that silently does nothing in that window is worse than a disabled one.
-            disabled={!hasInput || isFormatting || !formatter}
-            loading={isFormatting}
-            title="Reformat the stylesheet (⌘↵)"
-          >
-            Format
-            <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-              ⌘↵
-            </span>
-          </Button>
-          <CopyButton text={input} label="Copy CSS" />
+          <ToolbarGroup label="Stylesheet output" separated>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void handleFormat()}
+              disabled={!hasInput || isFormatting || !formatter}
+              loading={isFormatting}
+              title="Reformat the stylesheet (⌘↵)"
+            >
+              Format
+              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
+                ⌘↵
+              </span>
+            </Button>
+            <CopyButton text={input} label="Copy CSS" />
+          </ToolbarGroup>
 
           <Button
             variant={state.showRules ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => updateState({ showRules: !state.showRules })}
             aria-expanded={state.showRules}
-            // The panel is only in the tree when it is open, and a reference to
-            // an element that is not there reads as a broken relationship.
             {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
-            className="ml-auto gap-1"
+            className="gap-1"
           >
             <SlidersHorizontalIcon size={13} aria-hidden="true" />
             Rules
@@ -594,7 +584,7 @@ export default function CssValidator() {
               </span>
             )}
           </Button>
-        </Toolbar>
+        </DocumentToolbar>
 
         {state.showRules && (
           <section

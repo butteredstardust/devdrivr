@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { useUiStore } from '@/stores/ui.store'
+import { Button } from '@/components/shared/Button'
 
 type CopyButtonProps = {
   text: string
@@ -23,13 +25,22 @@ export function CopyButton({ text, label = 'Copy', className = '' }: CopyButtonP
   }
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
       onClick={() => {
         void handleCopy()
       }}
-      className={`min-w-[5rem] rounded border border-[var(--color-border)] px-2 py-1 text-xs transition-colors duration-150 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${copied ? 'border-[var(--color-success)] text-[var(--color-success)]' : ''} ${className}`}
+      aria-label={copied ? `${label}: copied` : label}
+      className={`min-w-[5rem] ${copied ? 'border-[var(--color-success)] text-[var(--color-success)]' : ''} ${className}`}
     >
-      {copied ? '✓ Copied' : label}
-    </button>
+      {copied ? (
+        <CheckIcon size={12} weight="bold" aria-hidden="true" />
+      ) : (
+        <CopyIcon size={12} aria-hidden="true" />
+      )}
+      {copied ? 'Copied' : label}
+    </Button>
   )
 }

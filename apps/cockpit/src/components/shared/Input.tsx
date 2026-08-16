@@ -17,7 +17,7 @@ const SIZE_CLASSES: Record<InputSize, string> = {
 }
 
 const BASE_CLASSES =
-  'rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)] transition-colors duration-150 disabled:opacity-50'
+  'rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)] transition-colors duration-150 disabled:opacity-50'
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ size = 'sm', className = '', ...props }, ref) => {

@@ -111,11 +111,11 @@ describe('PromptTemplates', () => {
     renderTool(PromptTemplates)
 
     expect(screen.getAllByText('Review: Detect Code Smells').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /fill variables/i })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('tab', { name: /fill variables/i })).toHaveAttribute(
+      'aria-selected',
       'true'
     )
-    fireEvent.click(screen.getByRole('button', { name: /preview/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /preview/i }))
     expect(screen.getByText('[ 03-PREVIEW ]')).toBeInTheDocument()
   })
 

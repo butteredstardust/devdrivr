@@ -7,6 +7,8 @@ import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { sendToTool } from '@/lib/tool-handoff'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { TextArea } from '@/components/shared/TextArea'
+import { Alert } from '@/components/shared/Alert'
 import { PlayIcon } from '@phosphor-icons/react'
 
 type CurlToFetchState = {
@@ -322,13 +324,14 @@ export default function CurlToFetch() {
           <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
             cURL Command
           </div>
-          <textarea
+          <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder={
               "curl 'https://api.example.com/data' \\\n  -H 'Authorization: Bearer token' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"key\": \"value\"}'"
             }
-            className="flex-1 resize-none border-none bg-[var(--color-bg)] p-4 font-mono text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+            monospace
+            className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
           />
         </div>
 
@@ -352,9 +355,9 @@ export default function CurlToFetch() {
               />
             </div>
           ) : state.input.trim() ? (
-            <div className="p-4 text-sm text-[var(--color-error)]">
+            <Alert variant="error" className="m-4">
               Could not parse cURL command
-            </div>
+            </Alert>
           ) : (
             <div className="p-4 text-sm text-[var(--color-text-muted)]">
               Paste a cURL command on the left

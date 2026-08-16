@@ -439,7 +439,7 @@ describe('MermaidEditor — templates', () => {
     renderTool(MermaidEditor)
     type('flowchart TD\n  A --> B')
 
-    fireEvent.click(screen.getByRole('button', { name: 'New' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New diagram' }))
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
 
     expect(editor().value).toBe('')
@@ -487,7 +487,7 @@ describe('MermaidEditor — files and export', () => {
     })
     renderTool(MermaidEditor)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Mermaid file' }))
 
     await waitFor(() => expect(screen.getByTestId('file-name')).toHaveTextContent('votes.mmd'))
     expect(screen.getByText('Saved')).toBeInTheDocument()

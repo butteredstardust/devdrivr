@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Alert } from '@/components/shared/Alert'
+import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 
 type DocsBrowserProps = {
   defaultLoadError?: boolean
@@ -38,8 +40,9 @@ export default function DocsBrowser({
       fullBleed
       toolbar={
         <>
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+          <Toolbar aria-label="Documentation navigation">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">DevDocs.io</span>
+            <ToolbarSpacer />
             <a
               href="https://devdocs.io"
               target="_blank"
@@ -49,9 +52,12 @@ export default function DocsBrowser({
             >
               Open externally
             </a>
-          </div>
+          </Toolbar>
           {(loading || loadError || showSlowFallback) && (
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs text-[var(--color-text-muted)]">
+            <Alert
+              variant={loadError ? 'error' : showSlowFallback ? 'warning' : 'info'}
+              className="rounded-none border-b border-[var(--color-border)] px-4 py-3"
+            >
               {loadError ? (
                 <div className="flex items-center justify-between gap-3">
                   <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
@@ -71,7 +77,7 @@ export default function DocsBrowser({
               ) : (
                 <span>Loading DevDocs…</span>
               )}
-            </div>
+            </Alert>
           )}
         </>
       }
