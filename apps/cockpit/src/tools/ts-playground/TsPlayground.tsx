@@ -256,8 +256,17 @@ export default function TsPlayground() {
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
               }
-              status={summary}
-              statusLive={!(isTranspiling && hasCode)}
+              // Only the settled result is announced. "Compiling…" goes in
+              // aria-hidden so a keystroke-triggered run does not speak twice,
+              // while the live region itself stays mounted — a region added and
+              // removed around each run announces nothing at all.
+              status={
+                isTranspiling && hasCode ? (
+                  <span aria-hidden="true">{summary}</span>
+                ) : (
+                  settledSummary
+                )
+              }
               statusIcon={
                 !isTranspiling && hasCode && !error && sorted.length === 0 ? (
                   <CheckCircleIcon

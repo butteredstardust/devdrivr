@@ -59,5 +59,13 @@ describe('Toolbar', () => {
     expect(screen.getByText('styles.css')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('No problems')
     expect(screen.getByText('Modified')).toHaveClass('text-[var(--color-accent)]')
+    expect(screen.getByText('Modified')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('leaves static context out of the live region', () => {
+    render(<DocumentIdentity title="notes.md" status="~/notes.md" statusLive={false} />)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByText('~/notes.md')).toBeInTheDocument()
   })
 })

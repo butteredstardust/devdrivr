@@ -381,7 +381,7 @@ export default function XmlTools() {
             </Button>
             <CopyButton text={input} label="Copy XML" />
             <Button
-              variant="ghost"
+              variant="icon"
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}

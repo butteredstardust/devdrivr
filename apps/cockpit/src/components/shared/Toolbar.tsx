@@ -85,6 +85,10 @@ type DocumentIdentityProps = {
   status?: ReactNode
   statusIcon?: ReactNode
   statusTestId?: string
+  /**
+   * Off for identity lines whose "status" is static context (a file path, say)
+   * rather than a result worth announcing. Keep it on for anything that settles.
+   */
   statusLive?: boolean
   className?: string
 }
@@ -115,6 +119,7 @@ export function DocumentIdentity({
       </span>
       {stateLabel && (
         <span
+          aria-live="polite"
           className={`shrink-0 text-2xs ${stateChanged ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}
         >
           {stateLabel}

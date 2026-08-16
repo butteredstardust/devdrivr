@@ -956,6 +956,9 @@ export default function MarkdownEditor() {
             stateLabel={isDirty ? 'Modified' : 'Saved'}
             stateChanged={isDirty}
             status={state.filePath ?? 'Local markdown workspace'}
+            // The path is context, not a result — announcing it on every open
+            // would talk over the Modified/Saved indicator that matters.
+            statusLive={false}
           />
 
           <ToolbarGroup label="View options" separated>
