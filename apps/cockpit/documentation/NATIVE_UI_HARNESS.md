@@ -10,15 +10,15 @@ file exists because a bug was invisible in both vitest and the browser harness.
 
 Files live in [`scripts/native-ui/`](../scripts/native-ui/).
 
-| File                         | Platform | Purpose                                                            |
-| ---------------------------- | -------- | ------------------------------------------------------------------ |
-| `mouse.swift`                | macOS    | CGEvent mouse driver — move/click/dblclick/drag with real motion   |
-| `window.sh`                  | macOS    | Window bounds, minimized state, cropped screenshots, keep-awake    |
-| `mouse.ps1`                  | Windows  | SendInput mouse driver, plus `selftest` for the input channel      |
-| `window.ps1`                 | Windows  | Bounds, DPI scale, min/max state, control coordinates, screenshots |
-| `native.psm1`                | Windows  | Shared Win32 interop behind the two Windows scripts                |
-| `verify-window-controls.ps1` | Windows  | Automated pass/fail run over every title-bar control               |
-| `DebugProbe.tsx`             | both     | In-app overlay: event targets, rejections, timed IPC health check  |
+| File                         | Platform | Purpose                                                             |
+| ---------------------------- | -------- | ------------------------------------------------------------------- |
+| `mouse.swift`                | macOS    | CGEvent mouse driver — move/click/dblclick/drag, plus `permissions` |
+| `window.sh`                  | macOS    | Bounds, minimized state, raise, single-instance check, screenshots  |
+| `mouse.ps1`                  | Windows  | SendInput mouse driver, plus `selftest` for the input channel       |
+| `window.ps1`                 | Windows  | Bounds, DPI scale, min/max state, control coordinates, screenshots  |
+| `native.psm1`                | Windows  | Shared Win32 interop behind the two Windows scripts                 |
+| `verify-window-controls.ps1` | Windows  | Automated pass/fail run over every title-bar control                |
+| `DebugProbe.tsx`             | both     | In-app overlay: event targets, rejections, timed IPC health check   |
 
 The two platforms are not interchangeable, and not only for tooling reasons: `WindowControls`
 renders a **different component** on each. macOS gets `MacTrafficLights` on the left, Windows and
@@ -34,13 +34,34 @@ Grant **Accessibility** (to post events) and **Screen Recording** (to capture) t
 agent that will drive the tests: System Settings → Privacy & Security. Without Accessibility the
 synthetic events are dropped with no error, and every result reads as "the app ignores clicks".
 
+The grant lands on the app at the top of the process tree, not on `/tmp/mouse` — running from a VS
+Code terminal it is **Visual Studio Code** in the Accessibility list, from Terminal it is
+**Terminal**. `mouse permissions` raises the system dialog, which a dropped CGEvent never does.
+
 ```bash
 cd apps/cockpit
 swiftc -O -o /tmp/mouse scripts/native-ui/mouse.swift
 chmod +x scripts/native-ui/window.sh
+/tmp/mouse permissions                # ALWAYS run this first — prompts if the grant is missing
 bun run tauri dev          # process name is `cockpit`, window title is `devdrivr`
+scripts/native-ui/window.sh solo      # exactly one build running?
 scripts/native-ui/window.sh awake     # stop the display sleeping mid-run
 ```
+
+### The screenshot lies if something is in front
+
+`bounds` finds a window by _process_; `screencapture -R` photographs whatever is on top at those
+coordinates. Measure one window while another covers it and you get a truthful rectangle around
+somebody else's pixels — a real screenshot of the wrong app, with nothing to tip you off.
+
+This has produced two confident, wrong findings, both in the session that added rounded corners:
+"synthetic clicks are being dropped" (the window was behind the editor, and Accessibility turned out
+to be granted all along) and "the corners are square when zoomed" (that was a second, older build of
+cockpit running alongside the dev one).
+
+`shot` now raises the window before capturing. When capturing a rect by hand, raise it yourself with
+`window.sh front` — and run `window.sh solo` first, because an installed release and a dev build are
+indistinguishable in a screenshot and only one of them has your change in it.
 
 Mount the probe when you need it, and remove it afterwards:
 
@@ -55,6 +76,7 @@ cp scripts/native-ui/DebugProbe.tsx src/app/__DebugProbe.tsx
 scripts/native-ui/window.sh bounds      # -> "220 130 900 600"  (x y w h, top-left origin)
 scripts/native-ui/window.sh titlebar    # same x/y, height 44
 scripts/native-ui/window.sh minimized   # -> true | false
+scripts/native-ui/window.sh front       # raise it — do this before any hand-rolled screencapture
 scripts/native-ui/window.sh shot /tmp/a.png
 
 /tmp/mouse click 260 152                # traffic lights: x+13/+33/+53, y+22
