@@ -512,6 +512,9 @@ export function CommandPalette() {
         }`}
       >
         <MagnifyingGlassIcon size={14} className="shrink-0 text-[var(--color-text-muted)]" />
+        {/* eslint-disable-next-line no-restricted-syntax -- the focus ring belongs to the wrapper,
+            not the field: the whole bar is one ARIA combobox, and a second ring on the input inside
+            it would draw a box within the lit box. InlineInput would supply exactly that ring. */}
         <input
           ref={inputRef}
           value={query}

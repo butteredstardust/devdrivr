@@ -45,6 +45,7 @@ import {
   withSourceLine,
   type MermaidError,
 } from '@/tools/mermaid-editor/mermaid-helpers'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type EditorMode = 'edit' | 'split' | 'preview'
 type ExportFormat = 'svg' | 'png'
@@ -121,6 +122,7 @@ export default function MermaidEditor() {
   const appTheme = useSettingsStore((s) => s.theme)
   const mermaidTheme = isLightEffectiveTheme(getEffectiveTheme(appTheme)) ? 'default' : 'dark'
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'mermaid-editor' })
 
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
@@ -509,13 +511,11 @@ export default function MermaidEditor() {
   }, [exportFormat, state.fileName, sizedSvg, renderPngBlob, setLastAction])
 
   const handleCopySource = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(content)
-      setLastAction('Source copied to clipboard', 'success')
-    } catch {
-      setLastAction('Clipboard write failed', 'error')
-    }
-  }, [content, setLastAction])
+    await copy(content, {
+      success: 'Source copied to clipboard',
+      failure: 'Clipboard write failed',
+    })
+  }, [content, copy])
 
   // ─── Render ───────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 type Props = {
   activeRequestId: string | null
@@ -283,33 +284,13 @@ export function CollectionsSidebar({
       </header>
 
       <div className="border-b border-[var(--color-border)] p-2">
-        <div className="relative">
-          <MagnifyingGlassIcon
-            size={13}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search requests"
-            aria-label="Search saved requests"
-            className="w-full pl-8 pr-7"
-          />
-          {search && (
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => setSearch('')}
-              aria-label="Clear request search"
-              className="absolute right-1 top-1/2 -translate-y-1/2"
-            >
-              <XIcon size={11} aria-hidden="true" />
-            </Button>
-          )}
-        </div>
+        <SearchInput
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Search requests"
+          aria-label="Search saved requests"
+          clearLabel="Clear request search"
+        />
         {needle && (
           <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]" aria-live="polite">
             {totalMatches} matching {totalMatches === 1 ? 'request' : 'requests'}
@@ -325,7 +306,7 @@ export function CollectionsSidebar({
             <div key={col.id} className="mb-2">
               <div className="group flex items-center gap-1 rounded px-1 hover:bg-[var(--color-surface-hover)]">
                 {isRenaming ? (
-                  <input
+                  <Input
                     ref={renameInputRef}
                     value={editingColName}
                     onChange={(e) => setEditingColName(e.target.value)}
@@ -335,7 +316,14 @@ export function CollectionsSidebar({
                       if (e.key === 'Enter') void commitRename(col)
                       if (e.key === 'Escape') setEditingColId(null)
                     }}
-                    className="my-1 min-w-0 flex-1 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-1 py-0.5 text-xs font-bold text-[var(--color-text)] outline-none"
+                    // Boxed rather than inline: the border is what tells you the
+                    // row has flipped into edit mode. The accent colour comes from
+                    // Input's own `focus:` border — the field is autofocused on entering
+                    // rename mode and commits on blur, so it is focused for its whole
+                    // life. Restating the accent as a plain class here would do nothing:
+                    // it ties with Input's resting border on specificity and loses on
+                    // stylesheet order.
+                    className="my-1 min-w-0 flex-1 font-bold"
                   />
                 ) : (
                   <>

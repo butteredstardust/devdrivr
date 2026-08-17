@@ -53,6 +53,7 @@ import {
 // the shared schema for every surface.
 import { markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -490,6 +491,7 @@ export default function MarkdownEditor() {
   })
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [html, setHtml] = useState('')
   const previewRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -682,14 +684,12 @@ export default function MarkdownEditor() {
 
   const copySelection = useCallback(
     async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text)
-        setLastAction('Selection copied to clipboard', 'success')
-      } catch {
-        setLastAction('Failed to copy selection', 'error')
-      }
+      await copy(text, {
+        success: 'Selection copied to clipboard',
+        failure: 'Failed to copy selection',
+      })
     },
-    [setLastAction]
+    [copy]
   )
 
   const copyPreviewQuote = useCallback(
@@ -698,14 +698,12 @@ export default function MarkdownEditor() {
         .split('\n')
         .map((line) => `> ${line}`)
         .join('\n')
-      try {
-        await navigator.clipboard.writeText(quote)
-        setLastAction('Quoted selection copied to clipboard', 'success')
-      } catch {
-        setLastAction('Failed to copy selection', 'error')
-      }
+      await copy(quote, {
+        success: 'Quoted selection copied to clipboard',
+        failure: 'Failed to copy selection',
+      })
     },
-    [setLastAction]
+    [copy]
   )
 
   const editorSelectionActions = useMemo(
@@ -806,14 +804,12 @@ export default function MarkdownEditor() {
   )
 
   const handleCopyHtml = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(await buildCurrentExportHtml(BASE_EXPORT_STYLES))
-      setLastAction('HTML copied to clipboard', 'success')
-    } catch {
-      setLastAction('Failed to copy HTML', 'error')
-    }
+    await copy(await buildCurrentExportHtml(BASE_EXPORT_STYLES), {
+      success: 'HTML copied to clipboard',
+      failure: 'Failed to copy HTML',
+    })
     setShowExport(false)
-  }, [buildCurrentExportHtml, setLastAction])
+  }, [buildCurrentExportHtml, copy])
 
   const handleDownload = useCallback(
     async (format: 'md' | 'html') => {

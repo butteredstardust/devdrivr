@@ -12,7 +12,6 @@ import {
   ChatCircleTextIcon,
   ClipboardTextIcon,
   DownloadSimpleIcon,
-  MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlusIcon,
   SparkleIcon,
@@ -60,6 +59,8 @@ import type {
   PromptTemplateValues,
   TokenTone,
 } from '@/tools/prompt-templates/types'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -782,6 +783,7 @@ export default function PromptTemplates() {
   const removeTemplate = usePromptTemplatesStore((s) => s.remove)
   const importTemplates = usePromptTemplatesStore((s) => s.importMany)
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [modalOpen, setModalOpen] = useState(false)
   const [editorState, setEditorState] = useState<{
     mode: 'create' | 'edit' | 'duplicate'
@@ -853,14 +855,14 @@ export default function PromptTemplates() {
       setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
       return
     }
-    try {
-      await navigator.clipboard.writeText(renderedPrompt)
-      setLastAction(`Copied ${selectedTemplate.name}`, 'success')
-      setModalOpen(false)
-    } catch {
-      setLastAction('Failed to copy prompt', 'error')
-    }
-  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction])
+    // Only dismiss once the text is actually on the clipboard — closing on a failed write
+    // loses the filled-in variables with nothing to show for them.
+    const copied = await copy(renderedPrompt, {
+      success: `Copied ${selectedTemplate.name}`,
+      failure: 'Failed to copy prompt',
+    })
+    if (copied) setModalOpen(false)
+  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction, copy])
 
   const handleSaveEditor = useCallback(
     async (draft: PromptTemplateDraft) => {
@@ -1034,34 +1036,14 @@ export default function PromptTemplates() {
         </header>
 
         <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <div className="relative">
-            <MagnifyingGlassIcon
-              size={13}
-              aria-hidden="true"
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-            />
-            <Input
-              ref={searchRef}
-              type="search"
-              value={state.search}
-              onChange={(event) => updateState({ search: event.target.value })}
-              placeholder="Search templates"
-              aria-label="Search prompt templates"
-              className="w-full pl-8 pr-8"
-            />
-            {state.search && (
-              <Button
-                type="button"
-                variant="icon"
-                size="xs"
-                onClick={() => updateState({ search: '' })}
-                aria-label="Clear template search"
-                className="absolute right-1.5 top-1/2 h-6 w-6 -translate-y-1/2"
-              >
-                <XIcon size={11} aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          <SearchInput
+            ref={searchRef}
+            value={state.search}
+            onValueChange={(search) => updateState({ search })}
+            placeholder="Search templates"
+            aria-label="Search prompt templates"
+            clearLabel="Clear template search"
+          />
           <Select
             value={state.category}
             onChange={(event) => updateState({ category: event.target.value as CategoryFilter })}

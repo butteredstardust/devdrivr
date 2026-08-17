@@ -15,7 +15,6 @@ import {
   CopyIcon,
   DownloadSimpleIcon,
   FolderOpenIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   ScissorsIcon,
   SidebarIcon,
@@ -29,12 +28,15 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { useMonacoOptions, useMonacoTheme } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 const FAVORITE_TAG = '⭐'
 
@@ -241,6 +243,7 @@ export default function SnippetsManager() {
   const updateSnippet = useSnippetsStore((state) => state.update)
   const removeSnippet = useSnippetsStore((state) => state.remove)
   const setLastAction = useUiStore((state) => state.setLastAction)
+  const copy = useCopyToClipboard()
 
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -525,13 +528,8 @@ export default function SnippetsManager() {
 
   const handleCopy = useCallback(async () => {
     if (!selected) return
-    try {
-      await navigator.clipboard.writeText(selected.content)
-      setLastAction('Copied to clipboard', 'success')
-    } catch {
-      setLastAction('Failed to copy to clipboard', 'error')
-    }
-  }, [selected, setLastAction])
+    await copy(selected.content)
+  }, [selected, copy])
 
   const clearFilters = useCallback(() => {
     setSearch('')
@@ -624,34 +622,13 @@ export default function SnippetsManager() {
         </header>
 
         <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <div className="relative">
-            <MagnifyingGlassIcon
-              size={13}
-              aria-hidden="true"
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-            />
-            <Input
-              ref={searchInputRef}
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search snippets"
-              aria-label="Search snippets"
-              className="w-full pl-8 pr-8"
-            />
-            {search && (
-              <Button
-                type="button"
-                variant="icon"
-                size="xs"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-              >
-                <XIcon size={11} aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          <SearchInput
+            ref={searchInputRef}
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search snippets"
+            aria-label="Search snippets"
+          />
 
           <div className="grid grid-cols-2 gap-2">
             <Select
@@ -862,7 +839,7 @@ export default function SnippetsManager() {
                   />
                 </Button>
                 <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
-                  <input
+                  <InlineInput
                     ref={setTitleInputRef}
                     value={selected.title}
                     onChange={(event) =>
@@ -870,7 +847,7 @@ export default function SnippetsManager() {
                     }
                     placeholder="Snippet title"
                     aria-label="Snippet title"
-                    className="w-full bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+                    className="w-full"
                   />
                   <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
                     {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}

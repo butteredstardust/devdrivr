@@ -8,6 +8,7 @@ import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
@@ -42,6 +43,8 @@ import {
   SidebarIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { formatBytes } from '@/lib/format'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -139,12 +142,6 @@ function detectResponseLanguage(headers: Record<string, string>): string {
   if (ct.includes('css')) return 'css'
   if (ct.includes('javascript')) return 'javascript'
   return 'plaintext'
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function interpolate(text: string, vars: Record<string, string>): string {
@@ -278,6 +275,7 @@ export default function ApiClient() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [response, setResponse] = useState<ResponseData | null>(null)
   const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
   const [loading, setLoading] = useState(false)
@@ -345,14 +343,12 @@ export default function ApiClient() {
 
   const copyResponseSelection = useCallback(
     async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text)
-        setLastAction('Response selection copied to clipboard', 'success')
-      } catch {
-        setLastAction('Failed to copy response selection', 'error')
-      }
+      await copy(text, {
+        success: 'Response selection copied to clipboard',
+        failure: 'Failed to copy response selection',
+      })
     },
-    [setLastAction]
+    [copy]
   )
 
   const sendResponseSelectionToJsonTools = useCallback(
@@ -481,7 +477,7 @@ export default function ApiClient() {
       void addRequestHistory({
         subTab: method,
         input: `${method} ${interpolatedUrl}`,
-        output: `${res.status} ${res.statusText} · ${time}ms · ${formatSize(size)}`,
+        output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
       })
     } catch (e) {
       const msg = (e as Error).message
@@ -756,13 +752,11 @@ export default function ApiClient() {
         collectionName: collection?.name ?? null,
       }
     })
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
-      setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
-    } catch {
-      setLastAction('Export failed — clipboard unavailable', 'error')
-    }
-  }, [collections, requests, setLastAction])
+    await copy(JSON.stringify(exportData, null, 2), {
+      success: `Exported ${exportData.length} requests to clipboard`,
+      failure: 'Export failed — clipboard unavailable',
+    })
+  }, [collections, requests, copy])
 
   // ---------------------------------------------------------------------------
   // Header management
@@ -867,12 +861,12 @@ export default function ApiClient() {
               </Button>
 
               <div className="min-w-0 flex-1 basis-40">
-                <input
+                <InlineInput
                   value={name}
                   onChange={(e) => updateDraft({ name: e.target.value })}
                   placeholder={DEFAULT_REQUEST_NAME}
                   aria-label="Request name"
-                  className="w-full truncate bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)] focus-visible:shadow-[var(--focus-ring)]"
+                  className="w-full truncate"
                 />
                 <p
                   className={`text-2xs ${
@@ -1227,7 +1221,7 @@ export default function ApiClient() {
                       {response.time}ms
                     </span>
                     <span className="text-2xs text-[var(--color-text-muted)]">
-                      {formatSize(response.size)}
+                      {formatBytes(response.size)}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
                       <CopyButton text={prettyBody} />

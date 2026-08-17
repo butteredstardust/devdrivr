@@ -50,6 +50,7 @@ import {
   type RuleConfig,
   type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type Panel = 'problems' | 'selectors'
 
@@ -94,6 +95,7 @@ export default function CssValidator() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'css-validator' })
   const rulesPanelId = useId()
 
@@ -429,10 +431,7 @@ export default function CssValidator() {
       void handleSave()
     }
     if (action.type === 'copy-output' && inputRef.current.trim()) {
-      void navigator.clipboard.writeText(inputRef.current).then(
-        () => setLastAction('Copied CSS', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(inputRef.current, { success: 'Copied CSS', failure: 'Copy failed' })
     }
   })
 

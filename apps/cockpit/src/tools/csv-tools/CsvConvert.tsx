@@ -2,6 +2,7 @@ import Editor from '@monaco-editor/react'
 import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Select'
+import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { FORMAT_LANGUAGES, OUTPUT_FORMATS, type OutputFormat } from './csv-helpers'
 
 type CsvConvertProps = {
@@ -17,7 +18,7 @@ export default function CsvConvert({ output, format, onFormatChange }: CsvConver
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+      <Toolbar aria-label="CSV conversion">
         <Select
           aria-label="Output format"
           value={format}
@@ -30,8 +31,9 @@ export default function CsvConvert({ output, format, onFormatChange }: CsvConver
             </option>
           ))}
         </Select>
-        <CopyButton text={output} label="Copy converted" className="ml-auto" />
-      </div>
+        <ToolbarSpacer />
+        <CopyButton text={output} label="Copy converted" />
+      </Toolbar>
 
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor

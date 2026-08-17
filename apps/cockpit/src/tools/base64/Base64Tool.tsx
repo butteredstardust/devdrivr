@@ -19,6 +19,7 @@ import {
   FileIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { formatBytes } from '@/lib/format'
 
 type Base64State = {
   input: string
@@ -77,12 +78,6 @@ function wrapLines(str: string, width: number): string {
     lines.push(str.slice(i, i + width))
   }
   return lines.join('\n')
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function detectImageMime(b64: string): string | null {
@@ -216,8 +211,8 @@ export default function Base64Tool() {
         setImgTransform(DEFAULT_IMG_TRANSFORM)
         setLastAction(`Encoded "${file.name}"`, 'success')
         record({
-          input: `Encode file: ${file.name} (${formatSize(file.size)})`,
-          output: `${file.type};base64 [${formatSize(dataUri.length)}]`,
+          input: `Encode file: ${file.name} (${formatBytes(file.size)})`,
+          output: `${file.type};base64 [${formatBytes(dataUri.length)}]`,
           subTab: 'encode-file',
           success: true,
         })
@@ -386,15 +381,15 @@ export default function Base64Tool() {
           <div className="flex items-center gap-2 text-2xs tabular-nums text-[var(--color-text-muted)]">
             {!droppedFile && state.input.trim() && (
               <>
-                <span>{formatSize(inputBytes)}</span>
+                <span>{formatBytes(inputBytes)}</span>
                 <span>→</span>
-                <span>{formatSize(outputBytes)}</span>
+                <span>{formatBytes(outputBytes)}</span>
                 {ratio && <span>({ratio}×)</span>}
               </>
             )}
             {droppedFile && (
               <span>
-                {formatSize(droppedFile.size)} → {formatSize(droppedFile.dataUri.length)}
+                {formatBytes(droppedFile.size)} → {formatBytes(droppedFile.dataUri.length)}
               </span>
             )}
           </div>
@@ -451,7 +446,7 @@ export default function Base64Tool() {
                   {droppedFile.name}
                 </div>
                 <div className="mt-0.5 text-2xs text-[var(--color-text-muted)]">
-                  {formatSize(droppedFile.size)}
+                  {formatBytes(droppedFile.size)}
                   {droppedFile.mimeType ? ` · ${droppedFile.mimeType}` : ''}
                 </div>
               </div>

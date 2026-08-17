@@ -28,7 +28,6 @@ import CsvAnalyze, { type SchemaLanguage } from './CsvAnalyze'
 import {
   DELIMITER_OPTIONS,
   FORMAT_EXTENSIONS,
-  formatBytes,
   generateSql,
   generateTypeScript,
   outputFileName,
@@ -41,6 +40,8 @@ import {
   type Delimiter,
   type OutputFormat,
 } from './csv-helpers'
+import { formatTextBytes } from '@/lib/format'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type CsvView = 'table' | 'convert' | 'analyze'
 
@@ -117,6 +118,7 @@ export default function CsvTools() {
   })
   const { record } = useToolHistory({ toolId: 'csv-tools' })
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
 
   const { input, view, delimiter, hasHeader, typed, format, schemaLanguage } = state
   const inputRef = useRef(input)
@@ -219,7 +221,7 @@ export default function CsvTools() {
           columns.length === 1 ? '' : 's'
         } · ${DELIMITER_LABELS[parsed.delimiter] ?? 'comma'}-separated${
           delimiter === 'auto' ? ' (detected)' : ''
-        } · ${formatBytes(parseSource)}${
+        } · ${formatTextBytes(parseSource)}${
           issues.length > 0 ? ` · ${issues.length} issue${issues.length === 1 ? '' : 's'}` : ''
         }`
 
@@ -313,10 +315,7 @@ export default function CsvTools() {
         setLastAction('Nothing to copy yet', 'info')
         return
       }
-      void navigator.clipboard.writeText(output).then(
-        () => setLastAction('Copied output', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(output, { success: 'Copied output', failure: 'Copy failed' })
     }
   })
 

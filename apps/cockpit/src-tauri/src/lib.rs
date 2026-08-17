@@ -1,7 +1,9 @@
 mod batch;
 mod mcp;
 mod window_commands;
+mod window_corners;
 
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[tauri::command]
@@ -72,6 +74,20 @@ pub fn run() {
     ];
 
     tauri::Builder::default()
+        .setup(|app| {
+            for window in app.webview_windows().values() {
+                window_corners::apply(&window.as_ref().window_ref());
+            }
+            Ok(())
+        })
+        // The radius depends on whether the window is fullscreen, and entering or leaving
+        // fullscreen always resizes. Matched on the resize event rather than a dedicated
+        // fullscreen hook because Tauri does not emit one.
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Resized(_)) {
+                window_corners::refresh(window);
+            }
+        })
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:cockpit.db", migrations)

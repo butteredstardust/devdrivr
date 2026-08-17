@@ -7,7 +7,6 @@ import {
   ClockCounterClockwiseIcon,
   CopyIcon,
   DotsSixVerticalIcon,
-  MagnifyingGlassIcon,
   NoteIcon,
   PaperPlaneTiltIcon,
   PlusIcon,
@@ -27,6 +26,8 @@ import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Note as NoteType, NoteColor } from '@/types/models'
+import { SearchInput } from '@/components/shared/SearchInput'
+import { InlineInput } from '@/components/shared/InlineInput'
 
 const MIN_WIDTH = 280
 const MAX_WIDTH = 600
@@ -266,12 +267,13 @@ function NoteEditor({
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-4">
-        <input
+        <InlineInput
           value={draft.title}
           onChange={(event) => scheduleSave({ ...draftRef.current, title: event.target.value })}
           placeholder="Note title"
           aria-label="Note title"
-          className="w-full bg-transparent text-lg font-semibold text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+          variant="display"
+          className="w-full"
           autoFocus
         />
         <textarea
@@ -311,7 +313,8 @@ function NoteEditor({
                 </button>
               </span>
             ))}
-            <input
+            <InlineInput
+              variant="plain"
               value={tagInput}
               onChange={(event) => setTagInput(event.target.value)}
               onKeyDown={(event) => {
@@ -323,7 +326,7 @@ function NoteEditor({
               onBlur={handleAddTag}
               placeholder="Add tag"
               aria-label="Add tag"
-              className="min-w-20 flex-1 bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+              className="min-w-20 flex-1 px-1 py-1"
             />
           </div>
         </div>
@@ -612,30 +615,14 @@ export function NotesDrawer() {
       ) : activeTab === 'notes' ? (
         <>
           <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2.5">
-            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1.5 focus-within:border-[var(--color-accent)] focus-within:shadow-[var(--focus-ring)]">
-              <MagnifyingGlassIcon
-                size={14}
-                className="shrink-0 text-[var(--color-text-muted)]"
-                aria-hidden="true"
-              />
-              <span className="sr-only">Search notes</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search notes..."
-                className="min-w-0 flex-1 bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  aria-label="Clear notes search"
-                  className="rounded text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-                >
-                  <XIcon size={12} aria-hidden="true" />
-                </button>
-              )}
-            </label>
+            <SearchInput
+              value={search}
+              onValueChange={setSearch}
+              placeholder="Search notes..."
+              aria-label="Search notes"
+              clearLabel="Clear notes search"
+              className="min-w-0 flex-1"
+            />
             <Button variant="primary" size="sm" onClick={() => void handleAddNote()}>
               <PlusIcon size={13} className="mr-1" aria-hidden="true" /> New
             </Button>

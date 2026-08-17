@@ -3,13 +3,15 @@ import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { InlineInput } from '@/components/shared/InlineInput'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type RegexTesterState = {
   pattern: string
@@ -97,7 +99,7 @@ export default function RegexTester() {
     testString: '',
     replacePattern: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
@@ -198,17 +200,12 @@ export default function RegexTester() {
               2
             )
           : matches.map((m) => m.full).join('\n')
-      try {
-        await navigator.clipboard.writeText(text)
-        setLastAction(
-          `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
-          'success'
-        )
-      } catch {
-        setLastAction('Failed to copy', 'error')
-      }
+      await copy(text, {
+        success: `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
+        failure: 'Failed to copy',
+      })
     },
-    [matches, truncated, setLastAction]
+    [matches, truncated, copy]
   )
 
   const matchCount = matches.length
@@ -219,14 +216,16 @@ export default function RegexTester() {
       <div className="flex h-full">
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Pattern bar */}
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Toolbar aria-label="Regex pattern" className="gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-            <input
+            <InlineInput
               ref={patternRef}
+              variant="code"
               value={state.pattern}
               onChange={(e) => updateState({ pattern: e.target.value })}
               placeholder="Enter regex pattern..."
-              className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+              aria-label="Regex pattern"
+              className="flex-1"
             />
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
             <div className="flex gap-1">
@@ -263,10 +262,10 @@ export default function RegexTester() {
                 Showing first {MAX_REGEX_MATCHES} matches
               </span>
             )}
-          </div>
+          </Toolbar>
 
           {/* Mode toggle + replace input */}
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+          <Toolbar aria-label="Regex mode">
             <SegmentedControl
               aria-label="Regex mode"
               options={MODE_OPTIONS}
@@ -274,27 +273,32 @@ export default function RegexTester() {
               onChange={setMode}
             />
             {mode === 'replace' && (
-              <div className="flex flex-1 items-center gap-2 px-3">
-                <input
+              <div className="flex flex-1 items-center gap-2">
+                <InlineInput
+                  variant="code"
                   value={state.replacePattern}
                   onChange={(e) => updateState({ replacePattern: e.target.value })}
                   placeholder="Replacement pattern ($1, $2, $<name>)..."
-                  className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+                  aria-label="Replacement pattern"
+                  className="flex-1"
                 />
                 <CopyButton text={replaceValue} label="Copy result" />
               </div>
             )}
             {mode === 'match' && matchCount > 0 && (
-              <div className="ml-auto flex items-center gap-1 pr-3">
-                <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
-                  Copy lines
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
-                  Copy JSON
-                </Button>
-              </div>
+              <>
+                <ToolbarSpacer />
+                <ToolbarGroup label="Export matches">
+                  <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
+                    Copy lines
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
+                    Copy JSON
+                  </Button>
+                </ToolbarGroup>
+              </>
             )}
-          </div>
+          </Toolbar>
 
           {/* Main panels */}
           <div className="flex flex-1 overflow-hidden">

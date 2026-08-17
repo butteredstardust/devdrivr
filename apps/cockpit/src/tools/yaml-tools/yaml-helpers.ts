@@ -1,4 +1,5 @@
 import * as yaml from 'js-yaml'
+import { formatBytes } from '@/lib/format'
 
 /** Where js-yaml says the problem is, 1-based so it can go straight to Monaco. */
 export type YamlErrorLocation = { line: number; column: number }
@@ -119,8 +120,7 @@ export function yamlStats(documents: unknown[]): { keys: number; depth: number; 
   try {
     for (const document of documents) walk(document, 0)
     const bytes = new Blob([JSON.stringify(documents)]).size
-    const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
-    return { keys: keyCount, depth: maxDepth, size }
+    return { keys: keyCount, depth: maxDepth, size: formatBytes(bytes) }
   } catch {
     return { keys: keyCount, depth: maxDepth, size: '0 B' }
   }

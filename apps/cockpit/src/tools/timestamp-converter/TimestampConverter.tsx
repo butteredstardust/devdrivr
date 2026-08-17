@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 
 type TimestampState = {
   input: string
@@ -185,18 +186,19 @@ export default function TimestampConverter() {
     <ToolLayout
       toolbar={
         <>
-          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+          <Toolbar aria-label="Timestamp presets">
             {PRESETS.map((p) => (
               <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
                 {p.label}
               </Button>
             ))}
-            <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
+            <ToolbarSpacer />
+            <span className="text-2xs text-[var(--color-text-muted)]">
               {getTimezoneLabel()} ({getUtcOffset(new Date())})
             </span>
-          </div>
+          </Toolbar>
 
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
+          <div className="flex items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
             <Input
               value={state.input}
               onChange={(e) => updateState({ input: e.target.value })}

@@ -98,6 +98,44 @@ export default [
           message:
             'Use the shared Select from @/components/shared/Select. If it genuinely does not fit, add an eslint-disable-next-line with the reason.',
         },
+        {
+          // Text-entry inputs only. checkbox/radio/file/color/range are native
+          // controls with no shared equivalent — they're exempted by type here
+          // rather than by fourteen disable comments that would say the same
+          // thing fourteen times.
+          //
+          // Without this, a tool can hand-roll a field that looks close enough
+          // to the shared Input to pass review while quietly dropping the focus
+          // ring, which is what happened to ImageTool's dimension fields and to
+          // the snippet title before they were migrated.
+          selector:
+            'JSXOpeningElement[name.name="input"]:not(:has(JSXAttribute[name.name="type"][value.value=/^(checkbox|radio|file|color|range)$/]))',
+          message:
+            'Use the shared Input (boxed), InlineInput (chrome-less) or SearchInput from @/components/shared. If none fits, add an eslint-disable-next-line with the reason.',
+        },
+      ],
+    },
+  },
+  {
+    // The shell gets the text-input guard but not the button/select ones.
+    //
+    // Not an oversight: the shell holds ~45 raw buttons that are genuinely bespoke — the window
+    // controls, the tab strip, the sidebar rows — and turning them all into disable comments would
+    // say nothing. Text fields are the opposite case. There are only a handful, none of them
+    // bespoke, and every hand-rolled one so far has shipped without a focus indicator: the sidebar
+    // filter tinted its border instead of drawing a ring, and the note title and tag entry had
+    // `outline-none` with nothing put back. That is invisible in review and invisible in a
+    // screenshot, which is exactly what a lint rule is for.
+    files: ['src/components/shell/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXOpeningElement[name.name="input"]:not(:has(JSXAttribute[name.name="type"][value.value=/^(checkbox|radio|file|color|range)$/]))',
+          message:
+            'Use the shared Input (boxed), InlineInput (chrome-less) or SearchInput from @/components/shared. If none fits, add an eslint-disable-next-line with the reason.',
+        },
       ],
     },
   },

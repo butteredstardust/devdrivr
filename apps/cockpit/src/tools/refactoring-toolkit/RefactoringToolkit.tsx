@@ -35,6 +35,7 @@ import {
   type Transform,
   type TransformCategory,
 } from '@/tools/refactoring-toolkit/transforms'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type RefactoringView = 'source' | 'diff'
 
@@ -135,6 +136,7 @@ export default function RefactoringToolkit() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   // The source the preview was computed from travels with it, so a diff shown
   // while the debounce is still catching up compares two consistent snapshots
   // instead of pairing new source with an old result.
@@ -294,10 +296,7 @@ export default function RefactoringToolkit() {
       handleSave()
     }
     if (action.type === 'copy-output' && hasCode) {
-      void navigator.clipboard.writeText(copyText).then(
-        () => setLastAction('Code copied', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(copyText, { success: 'Code copied', failure: 'Copy failed' })
     }
   })
 

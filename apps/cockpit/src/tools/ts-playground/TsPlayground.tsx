@@ -28,6 +28,7 @@ import { TS_PLAYGROUND_SAMPLE } from '@/lib/tool-samples'
 import type { Diagnostic } from '@/workers/typescript.api'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type TsPlaygroundState = {
   input: string
@@ -97,6 +98,7 @@ export default function TsPlayground() {
   const worker = useWorker<TypeScriptWorker>(() => new TypeScriptWorkerFactory(), ['transpile'])
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [output, setOutput] = useState('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [typesChecked, setTypesChecked] = useState(true)
@@ -223,10 +225,7 @@ export default function TsPlayground() {
       handleSave()
     }
     if (action.type === 'copy-output' && output) {
-      void navigator.clipboard.writeText(output).then(
-        () => setLastAction('Output copied', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(output, { success: 'Output copied', failure: 'Copy failed' })
     }
   })
 

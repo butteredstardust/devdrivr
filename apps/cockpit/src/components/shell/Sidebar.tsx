@@ -11,7 +11,8 @@ import { SidebarGroup } from './SidebarGroup'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarPinned } from './SidebarPinned'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
-import { CaretLeftIcon, CaretRightIcon, MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react'
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 // Bare "/" — no modifier. The shared shortcut dispatcher already ignores
 // non-mod combos while focus sits in another text field, so this never
@@ -82,10 +83,6 @@ export function Sidebar() {
     if (!isFiltering) return null
     return new Set(searchTools(trimmedFilter).map((t) => t.id))
   }, [isFiltering, trimmedFilter, searchTools])
-
-  const clearFilter = useCallback(() => {
-    setFilterQuery('')
-  }, [])
 
   const handleFilterKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -237,34 +234,15 @@ export function Sidebar() {
           </div>
 
           <div className="px-2 pb-1.5">
-            <div className="flex items-center gap-1.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 focus-within:border-[var(--color-accent)]/60">
-              <MagnifyingGlassIcon
-                size={12}
-                className="shrink-0 text-[var(--color-text-muted)]"
-                aria-hidden="true"
-              />
-              <input
-                ref={filterInputRef}
-                type="text"
-                role="searchbox"
-                value={filterQuery}
-                onChange={(e) => setFilterQuery(e.target.value)}
-                onKeyDown={handleFilterKeyDown}
-                placeholder="Filter tools... (/)"
-                aria-label="Filter tools"
-                className="min-w-0 flex-1 bg-transparent text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
-              />
-              {isFiltering && (
-                <button
-                  onClick={clearFilter}
-                  aria-label="Clear filter"
-                  title="Clear filter"
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-                >
-                  <XIcon size={10} />
-                </button>
-              )}
-            </div>
+            <SearchInput
+              ref={filterInputRef}
+              value={filterQuery}
+              onValueChange={setFilterQuery}
+              onKeyDown={handleFilterKeyDown}
+              placeholder="Filter tools... (/)"
+              aria-label="Filter tools"
+              clearLabel="Clear filter"
+            />
           </div>
 
           <div className="flex-1 overflow-y-auto py-1" onKeyDown={handleNavKeyDown}>

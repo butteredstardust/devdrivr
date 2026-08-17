@@ -3,6 +3,7 @@ import { useApiStore } from '@/stores/api.store'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { Input } from '@/components/shared/Input'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Alert } from '@/components/shared/Alert'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -199,7 +200,8 @@ export function EnvironmentModal({ onClose }: Props) {
           {activeEnv ? (
             <>
               <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] p-3">
-                <input
+                <InlineInput
+                  variant="heading"
                   value={nameDraft}
                   onChange={(e) => {
                     setNameDraft(e.target.value)
@@ -207,7 +209,7 @@ export function EnvironmentModal({ onClose }: Props) {
                   }}
                   aria-label="Environment name"
                   placeholder="Environment name"
-                  className="min-w-0 flex-1 basis-40 border-b border-transparent bg-transparent px-1 py-0.5 text-base font-bold text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+                  className="flex-1 basis-40 px-1 py-0.5"
                 />
                 <Button
                   type="button"

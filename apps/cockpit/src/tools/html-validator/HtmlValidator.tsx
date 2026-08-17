@@ -52,6 +52,7 @@ import {
   type HtmlIssue,
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -99,6 +100,7 @@ export default function HtmlValidator() {
   const monacoTheme = useMonacoTheme()
   const monacoOptions = useMonacoOptions()
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'html-validator' })
   const rulesPanelId = useId()
 
@@ -491,10 +493,7 @@ export default function HtmlValidator() {
       void handleSave()
     }
     if (action.type === 'copy-output' && inputRef.current.trim()) {
-      void navigator.clipboard.writeText(inputRef.current).then(
-        () => setLastAction('Copied HTML', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(inputRef.current, { success: 'Copied HTML', failure: 'Copy failed' })
     }
   })
 

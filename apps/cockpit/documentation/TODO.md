@@ -463,7 +463,11 @@ appears in `bun.lock` only transitively via `eslint-config-next` for the legacy 
 not resolvable from `apps/cockpit`), and `AGENTS.md` says to reach for what's already available
 before adding one. `no-restricted-syntax` is built into ESLint and needs nothing new.
 
-`input` is deliberately not covered: there is no shared `Input` primitive to point violators at.
+`input` was originally left out because there was no shared primitive to point violators at. There
+is now — boxed `Input` and chrome-less `InlineInput` — so a third selector covers it. It matches
+text-entry inputs only: `checkbox`, `radio`, `file`, `color` and `range` are native controls with no
+shared equivalent, and are exempted by `type` in the selector rather than by fourteen per-line
+disable comments that would all give the same reason.
 
 Escape hatch: a per-line `// eslint-disable-next-line no-restricted-syntax -- <reason>` immediately
 above the element. **The directive must be the last line of the comment** — with stacked `//` lines
@@ -477,6 +481,10 @@ tree disclosure rows, inline click-to-copy tokens inside syntax-highlighted outp
 headers, 10px chips and underlabels with no token below `text-xs`, and controls whose colour is
 state (`--color-warning`/`--color-success` borders, the crop switch, the decorative colour-mockup
 button).
+
+The crop switch is no longer among them: its exemption claimed no equivalent existed, but the shared
+`Toggle` is exactly that control, and moving to it also corrected the semantics from a button with
+`aria-pressed` to a `role="switch"` with `aria-checked`.
 
 ### [x] Contrast pass across all 22 themes
 
