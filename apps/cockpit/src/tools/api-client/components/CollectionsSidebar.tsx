@@ -325,7 +325,7 @@ export function CollectionsSidebar({
             <div key={col.id} className="mb-2">
               <div className="group flex items-center gap-1 rounded px-1 hover:bg-[var(--color-surface-hover)]">
                 {isRenaming ? (
-                  <input
+                  <Input
                     ref={renameInputRef}
                     value={editingColName}
                     onChange={(e) => setEditingColName(e.target.value)}
@@ -335,7 +335,10 @@ export function CollectionsSidebar({
                       if (e.key === 'Enter') void commitRename(col)
                       if (e.key === 'Escape') setEditingColId(null)
                     }}
-                    className="my-1 min-w-0 flex-1 rounded border border-[var(--color-accent)] bg-[var(--color-surface)] px-1 py-0.5 text-xs font-bold text-[var(--color-text)] outline-none"
+                    // Boxed rather than inline: the border is what tells you the
+                    // row has flipped into edit mode. The accent border overrides
+                    // Input's resting border to keep that signal.
+                    className="my-1 min-w-0 flex-1 border-[var(--color-accent)] font-bold"
                   />
                 ) : (
                   <>

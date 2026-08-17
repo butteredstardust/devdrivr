@@ -6,6 +6,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
@@ -222,12 +223,14 @@ export default function RegexTester() {
           {/* Pattern bar */}
           <Toolbar aria-label="Regex pattern" className="gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-            <input
+            <InlineInput
               ref={patternRef}
+              variant="code"
               value={state.pattern}
               onChange={(e) => updateState({ pattern: e.target.value })}
               placeholder="Enter regex pattern..."
-              className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+              aria-label="Regex pattern"
+              className="flex-1"
             />
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
             <div className="flex gap-1">
@@ -276,11 +279,13 @@ export default function RegexTester() {
             />
             {mode === 'replace' && (
               <div className="flex flex-1 items-center gap-2">
-                <input
+                <InlineInput
+                  variant="code"
                   value={state.replacePattern}
                   onChange={(e) => updateState({ replacePattern: e.target.value })}
                   placeholder="Replacement pattern ($1, $2, $<name>)..."
-                  className="flex-1 border-none bg-transparent font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+                  aria-label="Replacement pattern"
+                  className="flex-1"
                 />
                 <CopyButton text={replaceValue} label="Copy result" />
               </div>

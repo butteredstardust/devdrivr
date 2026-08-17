@@ -29,6 +29,7 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { useMonacoOptions, useMonacoTheme } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
@@ -862,7 +863,7 @@ export default function SnippetsManager() {
                   />
                 </Button>
                 <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
-                  <input
+                  <InlineInput
                     ref={setTitleInputRef}
                     value={selected.title}
                     onChange={(event) =>
@@ -870,7 +871,7 @@ export default function SnippetsManager() {
                     }
                     placeholder="Snippet title"
                     aria-label="Snippet title"
-                    className="w-full bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+                    className="w-full"
                   />
                   <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
                     {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}

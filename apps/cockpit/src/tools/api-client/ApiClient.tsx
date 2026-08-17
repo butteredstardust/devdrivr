@@ -8,6 +8,7 @@ import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
+import { InlineInput } from '@/components/shared/InlineInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
@@ -867,12 +868,12 @@ export default function ApiClient() {
               </Button>
 
               <div className="min-w-0 flex-1 basis-40">
-                <input
+                <InlineInput
                   value={name}
                   onChange={(e) => updateDraft({ name: e.target.value })}
                   placeholder={DEFAULT_REQUEST_NAME}
                   aria-label="Request name"
-                  className="w-full truncate bg-transparent text-sm font-semibold text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)] focus-visible:shadow-[var(--focus-ring)]"
+                  className="w-full truncate"
                 />
                 <p
                   className={`text-2xs ${
