@@ -19,9 +19,14 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * descendants of a native drag region; this keeps pointer and keyboard focus transitions under
  * normal browser control.
  *
- * Because that layer is absolutely positioned with `z-index: auto`, it paints above *any*
- * non-positioned sibling no matter the DOM order. Every interactive cluster in this bar must
- * therefore be positioned (`relative`) as well, or the drag layer silently eats its clicks.
+ * Layering inside the bar is explicit rather than inherited from DOM order: the drag layer is the
+ * floor (`z-0`) and every interactive cluster sits a tier above it (`relative z-10`). An
+ * absolutely-positioned `z-index: auto` layer paints above any *non-positioned* sibling no matter
+ * where it appears in the markup, so relying on source order alone is what let the drag layer
+ * swallow every Windows window-control click. Stating the tiers follows the same rule as the app's
+ * overlay scale in styles/tokens.css — layering must not depend on DOM position — and keeps this
+ * bar safe to reorder. Both tiers stay below the `z-[39]` window resize handles and the `--z-scrim`
+ * overlay tiers, which must still win over the title bar.
  */
 export function TitleBar() {
   const { isMac } = usePlatform()
@@ -44,18 +49,18 @@ export function TitleBar() {
         data-tauri-drag-region
         data-testid="titlebar-drag-region"
         aria-hidden="true"
-        className="absolute inset-0"
+        className="absolute inset-0 z-0"
       />
       {isMac && (
         <div
           data-testid="titlebar-mac-controls"
-          className="absolute left-3 top-1/2 -translate-y-1/2"
+          className="absolute left-3 top-1/2 z-10 -translate-y-1/2"
         >
           <WindowControls />
         </div>
       )}
 
-      <div className="relative flex items-center gap-1">
+      <div className="relative z-10 flex items-center gap-1">
         <button
           type="button"
           onClick={toggleNotes}
@@ -93,12 +98,15 @@ export function TitleBar() {
       {/* Absolutely centred on the full bar width (Safari-style) — stays centred regardless of
           how wide the left cluster or right-side window controls are, rather than merely sitting
           between two flex siblings. */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-2">
+      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-2">
         <CommandPalette />
       </div>
 
       {!isMac && (
-        <div data-testid="titlebar-right-controls" className="relative ml-auto flex items-center">
+        <div
+          data-testid="titlebar-right-controls"
+          className="relative z-10 ml-auto flex items-center"
+        >
           <WindowControls />
         </div>
       )}
