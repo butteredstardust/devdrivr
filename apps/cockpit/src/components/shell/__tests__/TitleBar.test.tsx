@@ -195,4 +195,61 @@ describe('TitleBar — drag region', () => {
       expect(button).not.toHaveAttribute('data-tauri-drag-region')
     })
   })
+
+  // The drag layer covers the whole bar and captures pointer events, so anything interactive must
+  // sit explicitly above it. Two separate ways to get this wrong, both of which have to fail here:
+  //   - a static wrapper: an absolutely-positioned layer paints above every non-positioned sibling
+  //     regardless of source order (this is how the Windows controls originally broke);
+  //   - a wrapper with no z-index: correct only while it happens to follow the drag layer in the
+  //     markup, so reordering the JSX silently re-breaks it.
+  // Asserting the z-tier rather than mere positioning is what makes the guarantee order-independent,
+  // matching the stacking rule documented in styles/tokens.css.
+  const zIndexOf = (el: HTMLElement): number | null => {
+    const match = /(?:^|\s)z-(\d+)(?:\s|$)/.exec(el.className)
+    return match?.[1] ? Number(match[1]) : null
+  }
+
+  it.each(['mac', 'windows'] as const)(
+    'stacks every interactive cluster explicitly above the drag layer on %s',
+    (platform) => {
+      mocks.platform.current = platform
+      const { container } = render(<TitleBar />)
+      const bar = container.firstElementChild as HTMLElement
+
+      const dragRegion = screen.getByTestId('titlebar-drag-region')
+      const dragZ = zIndexOf(dragRegion)
+      expect(dragZ, 'the drag layer must declare its own z-tier').not.toBeNull()
+
+      const buttons = Array.from(bar.querySelectorAll('button'))
+      expect(buttons.length).toBeGreaterThan(0)
+
+      for (const button of buttons) {
+        const label = button.getAttribute('aria-label')
+        let node: HTMLElement | null = button
+        let positioned = false
+        let z: number | null = null
+
+        while (node && node !== bar) {
+          if (!positioned && /(?:^|\s)(relative|absolute|fixed)(?:\s|$)/.test(node.className)) {
+            positioned = true
+          }
+          if (z === null) z = zIndexOf(node)
+          node = node.parentElement
+        }
+
+        expect(
+          positioned,
+          `"${label}" has no positioned wrapper — the drag region will eat its clicks`
+        ).toBe(true)
+        expect(
+          z,
+          `"${label}" has no z-tier, so it only works while it follows the drag layer`
+        ).not.toBeNull()
+        expect(
+          z as number,
+          `"${label}" sits at z-${z}, not above the drag layer's z-${dragZ}`
+        ).toBeGreaterThan(dragZ as number)
+      }
+    }
+  )
 })
