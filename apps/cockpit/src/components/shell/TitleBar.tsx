@@ -14,6 +14,10 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * Unified client-side-decorated title bar (Safari-style). Replaces the native titlebar removed
  * by `decorations: false` in tauri.conf.json.
  *
+ * That same flag also costs the window its rounded corners on macOS, which `src-tauri/src/
+ * window_corners.rs` puts back by clipping the content layer. If decorations are ever restored,
+ * that module becomes redundant — check it alongside this file.
+ *
  * A dedicated background layer carries `data-tauri-drag-region` so the window can be
  * dragged/double-click-zoomed from empty space. Interactive controls are siblings above it, never
  * descendants of a native drag region; this keeps pointer and keyboard focus transitions under
