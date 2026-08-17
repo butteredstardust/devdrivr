@@ -98,6 +98,21 @@ export default [
           message:
             'Use the shared Select from @/components/shared/Select. If it genuinely does not fit, add an eslint-disable-next-line with the reason.',
         },
+        {
+          // Text-entry inputs only. checkbox/radio/file/color/range are native
+          // controls with no shared equivalent — they're exempted by type here
+          // rather than by fourteen disable comments that would say the same
+          // thing fourteen times.
+          //
+          // Without this, a tool can hand-roll a field that looks close enough
+          // to the shared Input to pass review while quietly dropping the focus
+          // ring, which is what happened to ImageTool's dimension fields and to
+          // the snippet title before they were migrated.
+          selector:
+            'JSXOpeningElement[name.name="input"]:not(:has(JSXAttribute[name.name="type"][value.value=/^(checkbox|radio|file|color|range)$/]))',
+          message:
+            'Use the shared Input (boxed) or InlineInput (chrome-less) from @/components/shared. If neither fits, add an eslint-disable-next-line with the reason.',
+        },
       ],
     },
   },
