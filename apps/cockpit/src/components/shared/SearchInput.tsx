@@ -58,9 +58,13 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           size={size}
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
-          // WebKit — the engine this app actually ships on — draws its own clear button inside a
-          // `type="search"` field, so without this reset every one of these renders two X's side by
-          // side, only one of which the app controls.
+          // WebKit-derived engines — including the WKWebView this app ships in — draw their own
+          // clear button inside a focused `type="search"` field that has a value. That is precisely
+          // when the overlaid button is also showing, so without this reset the field grows a second
+          // X the moment someone starts typing, and only one of the two is under the app's control.
+          //
+          // Verified in Blink (focused: native X present; with this reset: absent). Unfocused,
+          // neither engine draws it, which is why the duplicate is easy to miss in a screenshot.
           className={`w-full ${geometry.padding} [&::-webkit-search-cancel-button]:appearance-none`}
           {...props}
         />
