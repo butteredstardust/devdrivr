@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -184,30 +185,33 @@ export default function CssSpecificity() {
       fullBleed
       toolbar={
         <>
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
-            <Button
-              variant={sorted ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setSorted(!sorted)}
-            >
-              Sort by specificity
-            </Button>
-            <Button
-              variant={showBreakdown ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setShowBreakdown(!showBreakdown)}
-            >
-              Breakdown
-            </Button>
+          <Toolbar aria-label="Specificity view options">
+            <ToolbarGroup label="View">
+              <Button
+                variant={sorted ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setSorted(!sorted)}
+              >
+                Sort by specificity
+              </Button>
+              <Button
+                variant={showBreakdown ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setShowBreakdown(!showBreakdown)}
+              >
+                Breakdown
+              </Button>
+            </ToolbarGroup>
             {results.length > 0 && (
-              <>
+              <ToolbarGroup label="Results" separated>
                 <span className="text-xs text-[var(--color-text-muted)]">
                   {results.length} selector(s)
                 </span>
                 <CopyButton text={exportText} label="Export" />
-              </>
+              </ToolbarGroup>
             )}
-            <div className="ml-auto flex items-center gap-2">
+            <ToolbarSpacer />
+            <ToolbarGroup label="Examples">
               {EXAMPLES.map((ex) => (
                 <Button
                   key={ex.label}
@@ -218,8 +222,8 @@ export default function CssSpecificity() {
                   {ex.label}
                 </Button>
               ))}
-            </div>
-          </div>
+            </ToolbarGroup>
+          </Toolbar>
 
           {/* Legend */}
           <div className="flex items-center gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1">

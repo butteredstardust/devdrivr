@@ -5,6 +5,7 @@ import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { TabBar } from '@/components/shared/TabBar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import {
   ImageIcon,
   UploadSimpleIcon,
@@ -568,7 +569,7 @@ export default function ImageTool() {
       fullBleed
       toolbar={
         <>
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Toolbar aria-label="Image actions" className="gap-3">
             <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
               <UploadSimpleIcon size={13} />
               Open Image
@@ -605,18 +606,21 @@ export default function ImageTool() {
             )}
 
             {originalImg && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleResetAll}
-                title="Reset all settings"
-                className="ml-auto gap-1"
-              >
-                <ArrowCounterClockwiseIcon size={13} />
-                Reset
-              </Button>
+              <>
+                <ToolbarSpacer />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleResetAll}
+                  title="Reset all settings"
+                  className="gap-1"
+                >
+                  <ArrowCounterClockwiseIcon size={13} />
+                  Reset
+                </Button>
+              </>
             )}
-          </div>
+          </Toolbar>
 
           <div className="border-b border-[var(--color-border)]">
             <TabBar

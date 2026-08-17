@@ -21,6 +21,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentToolbar } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import {
@@ -418,7 +419,10 @@ export default function JsonSchemaValidator() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-border)] px-4 py-2">
+        <DocumentToolbar aria-label="Schema validation actions">
+          {/* Not a ToolbarGroup: the group's `shrink-0` would stop `detail` from
+              truncating, and truncation is what keeps a broken document's parse
+              message from pushing the actions off the row. */}
           <div className="flex min-w-0 items-center gap-2">
             <StatusIcon status={report.status} />
             <span
@@ -512,7 +516,7 @@ export default function JsonSchemaValidator() {
               </Button>
             )}
           </div>
-        </div>
+        </DocumentToolbar>
       }
     >
       <div className="flex min-h-0 flex-1 flex-col">

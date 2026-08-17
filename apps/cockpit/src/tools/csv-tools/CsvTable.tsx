@@ -11,6 +11,7 @@ import {
 import { CaretDownIcon, CaretUpIcon, CaretUpDownIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
+import { Toolbar } from '@/components/shared/Toolbar'
 import type { CsvRow } from './csv-helpers'
 
 type CsvTableProps = {
@@ -78,7 +79,7 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+      <Toolbar aria-label="Table filter">
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -92,7 +93,7 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
             : `${rows.length} row${rows.length === 1 ? '' : 's'} · ${columns.length} column${columns.length === 1 ? '' : 's'}`}
           {matched.length > ROW_LIMIT && ` · showing first ${ROW_LIMIT}`}
         </span>
-      </div>
+      </Toolbar>
 
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-xs">

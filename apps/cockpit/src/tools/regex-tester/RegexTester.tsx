@@ -6,6 +6,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
@@ -219,7 +220,7 @@ export default function RegexTester() {
       <div className="flex h-full">
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Pattern bar */}
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
+          <Toolbar aria-label="Regex pattern" className="gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
             <input
               ref={patternRef}
@@ -263,10 +264,10 @@ export default function RegexTester() {
                 Showing first {MAX_REGEX_MATCHES} matches
               </span>
             )}
-          </div>
+          </Toolbar>
 
           {/* Mode toggle + replace input */}
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+          <Toolbar aria-label="Regex mode">
             <SegmentedControl
               aria-label="Regex mode"
               options={MODE_OPTIONS}
@@ -274,7 +275,7 @@ export default function RegexTester() {
               onChange={setMode}
             />
             {mode === 'replace' && (
-              <div className="flex flex-1 items-center gap-2 px-3">
+              <div className="flex flex-1 items-center gap-2">
                 <input
                   value={state.replacePattern}
                   onChange={(e) => updateState({ replacePattern: e.target.value })}
@@ -285,16 +286,19 @@ export default function RegexTester() {
               </div>
             )}
             {mode === 'match' && matchCount > 0 && (
-              <div className="ml-auto flex items-center gap-1 pr-3">
-                <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
-                  Copy lines
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
-                  Copy JSON
-                </Button>
-              </div>
+              <>
+                <ToolbarSpacer />
+                <ToolbarGroup label="Export matches">
+                  <Button variant="secondary" size="sm" onClick={() => void exportMatches('lines')}>
+                    Copy lines
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => void exportMatches('json')}>
+                    Copy JSON
+                  </Button>
+                </ToolbarGroup>
+              </>
             )}
-          </div>
+          </Toolbar>
 
           {/* Main panels */}
           <div className="flex flex-1 overflow-hidden">
