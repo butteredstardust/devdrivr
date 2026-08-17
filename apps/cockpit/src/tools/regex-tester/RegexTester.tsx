@@ -3,7 +3,6 @@ import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { InlineInput } from '@/components/shared/InlineInput'
@@ -12,6 +11,7 @@ import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type RegexTesterState = {
   pattern: string
@@ -99,7 +99,7 @@ export default function RegexTester() {
     testString: '',
     replacePattern: '',
   })
-  const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
@@ -200,17 +200,12 @@ export default function RegexTester() {
               2
             )
           : matches.map((m) => m.full).join('\n')
-      try {
-        await navigator.clipboard.writeText(text)
-        setLastAction(
-          `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
-          'success'
-        )
-      } catch {
-        setLastAction('Failed to copy', 'error')
-      }
+      await copy(text, {
+        success: `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
+        failure: 'Failed to copy',
+      })
     },
-    [matches, truncated, setLastAction]
+    [matches, truncated, copy]
   )
 
   const matchCount = matches.length

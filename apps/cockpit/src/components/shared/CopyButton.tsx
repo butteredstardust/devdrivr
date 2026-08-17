@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
-import { useUiStore } from '@/stores/ui.store'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { Button } from '@/components/shared/Button'
 
 type CopyButtonProps = {
@@ -11,17 +11,14 @@ type CopyButtonProps = {
 
 export function CopyButton({ text, label = 'Copy', className = '' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
-  const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
 
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setLastAction('Copied to clipboard', 'success')
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      setLastAction('Failed to copy to clipboard', 'error')
-    }
+    // The tick is the button's own claim that the text is on the clipboard, so it waits on the
+    // result rather than on the click.
+    if (!(await copy(text))) return
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   return (

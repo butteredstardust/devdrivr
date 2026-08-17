@@ -36,6 +36,7 @@ import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 const FAVORITE_TAG = '⭐'
 
@@ -242,6 +243,7 @@ export default function SnippetsManager() {
   const updateSnippet = useSnippetsStore((state) => state.update)
   const removeSnippet = useSnippetsStore((state) => state.remove)
   const setLastAction = useUiStore((state) => state.setLastAction)
+  const copy = useCopyToClipboard()
 
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -526,13 +528,8 @@ export default function SnippetsManager() {
 
   const handleCopy = useCallback(async () => {
     if (!selected) return
-    try {
-      await navigator.clipboard.writeText(selected.content)
-      setLastAction('Copied to clipboard', 'success')
-    } catch {
-      setLastAction('Failed to copy to clipboard', 'error')
-    }
-  }, [selected, setLastAction])
+    await copy(selected.content)
+  }, [selected, copy])
 
   const clearFilters = useCallback(() => {
     setSearch('')

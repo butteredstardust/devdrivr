@@ -37,6 +37,7 @@ import {
   yamlStats,
   type YamlParse,
 } from '@/tools/yaml-tools/yaml-helpers'
+import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type YamlView = 'source' | 'tree' | 'json'
 
@@ -77,19 +78,6 @@ function toText(value: unknown): string {
     : String(value)
 }
 
-function useCopy() {
-  const setLastAction = useUiStore((s) => s.setLastAction)
-  return useCallback(
-    (text: string, label: string) => {
-      void navigator.clipboard.writeText(text).then(
-        () => setLastAction(label, 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
-    },
-    [setLastAction]
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -110,7 +98,7 @@ export default function YamlTools() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const copy = useCopy()
+  const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const formattingRef = useRef(false)
@@ -314,7 +302,7 @@ export default function YamlTools() {
       handleSave()
     }
     if (action.type === 'copy-output') {
-      copy(inputRef.current, 'Copied YAML')
+      void copy(inputRef.current, { success: 'Copied YAML' })
     }
   })
 
@@ -528,7 +516,7 @@ function InspectorPane({
   keyCount: number
   monacoTheme: string
   monacoOptions: Record<string, unknown>
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
   jsonDraft: string | null
   onJsonDraftChange: (draft: string | null) => void
   onApplyJson: (json: string) => void
@@ -589,7 +577,7 @@ function TreePane({
 }: {
   documents: unknown[]
   keyCount: number
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
@@ -769,12 +757,18 @@ function YamlTree({
   data: unknown
   path: string
   defaultExpanded: boolean
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
-  const copyValue = useCallback((value: unknown) => onCopy(toText(value), 'Copied value'), [onCopy])
-  const copyPath = useCallback(() => onCopy(path, `Copied path ${path}`), [onCopy, path])
+  const copyValue = useCallback(
+    (value: unknown) => void onCopy(toText(value), { success: 'Copied value' }),
+    [onCopy]
+  )
+  const copyPath = useCallback(
+    () => void onCopy(path, { success: `Copied path ${path}` }),
+    [onCopy, path]
+  )
 
   if (data === null || data === undefined)
     return (

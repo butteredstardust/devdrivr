@@ -34,6 +34,7 @@ import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { formatBytes } from '@/lib/format'
+import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -292,19 +293,6 @@ function toText(value: unknown): string {
     : String(value ?? (value === null ? 'null' : ''))
 }
 
-function useCopy() {
-  const setLastAction = useUiStore((s) => s.setLastAction)
-  return useCallback(
-    (text: string, label: string) => {
-      void navigator.clipboard.writeText(text).then(
-        () => setLastAction(label, 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
-    },
-    [setLastAction]
-  )
-}
-
 type ParseResult =
   | { status: 'empty' }
   | { status: 'valid'; data: unknown }
@@ -332,7 +320,7 @@ export default function JsonTools() {
     ['format', 'detectLanguage', 'getSupportedLanguages']
   )
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const copy = useCopy()
+  const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const formattingRef = useRef(false)
@@ -719,7 +707,7 @@ function InspectorPane({
   parsed: ParseResult
   keyCount: number
   data: unknown
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
@@ -850,10 +838,16 @@ function JsonTree({
   defaultExpanded?: boolean
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const copy = useCopy()
+  const copy = useCopyToClipboard()
 
-  const copyPath = useCallback(() => copy(path, `Copied path ${path}`), [copy, path])
-  const copyValue = useCallback((val: unknown) => copy(toText(val), 'Copied value'), [copy])
+  const copyPath = useCallback(
+    () => void copy(path, { success: `Copied path ${path}` }),
+    [copy, path]
+  )
+  const copyValue = useCallback(
+    (val: unknown) => void copy(toText(val), { success: 'Copied value' }),
+    [copy]
+  )
 
   if (data === null)
     return (
@@ -973,13 +967,7 @@ function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
   return <Icon size={10} aria-hidden="true" className="text-[var(--color-text-muted)]" />
 }
 
-function JsonTable({
-  data,
-  onCopy,
-}: {
-  data: Record<string, unknown>[]
-  onCopy: (text: string, label: string) => void
-}) {
+function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: CopyToClipboard }) {
   const [sort, setSort] = useState<SortState>(null)
   // Roving cell cursor: the old table copied on click only, which left the
   // whole grid unreachable from the keyboard.
@@ -1055,7 +1043,7 @@ function JsonTable({
         event.preventDefault()
         const column = columns[safeCursor.column]
         const row = rows[safeCursor.row]
-        if (column && row) onCopy(toText(row[column]), `Copied ${column}`)
+        if (column && row) void onCopy(toText(row[column]), { success: `Copied ${column}` })
         break
       }
       default:
@@ -1127,7 +1115,7 @@ function JsonTable({
                   }}
                   tabIndex={isCursor ? 0 : -1}
                   onFocus={() => setCursor({ row: rowIndex, column: columnIndex })}
-                  onClick={() => onCopy(toText(value), `Copied ${col}`)}
+                  onClick={() => void onCopy(toText(value), { success: `Copied ${col}` })}
                   title="Copy cell"
                   className="cursor-pointer border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)] hover:bg-[var(--color-surface)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                 >

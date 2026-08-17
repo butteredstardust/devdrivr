@@ -40,6 +40,7 @@ import {
   TEMPLATES,
   findMatchingTemplate,
 } from '@/tools/json-schema-validator/templates'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type Pane = 'data' | 'schema'
 
@@ -80,6 +81,7 @@ export default function JsonSchemaValidator() {
   })
   const { record } = useToolHistory({ toolId: 'json-schema-validator' })
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
 
   const { data, schema, strict } = state
   // Handlers need the *current* buffers without re-subscribing every keystroke.
@@ -356,10 +358,7 @@ export default function JsonSchemaValidator() {
     }
     if (action.type === 'copy-output') {
       const text = lastFocused.current === 'schema' ? schemaRef.current : dataRef.current
-      void navigator.clipboard.writeText(text).then(
-        () => setLastAction('Copied', 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
+      void copy(text, { success: 'Copied', failure: 'Copy failed' })
     }
   })
 

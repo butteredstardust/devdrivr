@@ -44,6 +44,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -274,6 +275,7 @@ export default function ApiClient() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [response, setResponse] = useState<ResponseData | null>(null)
   const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
   const [loading, setLoading] = useState(false)
@@ -341,14 +343,12 @@ export default function ApiClient() {
 
   const copyResponseSelection = useCallback(
     async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text)
-        setLastAction('Response selection copied to clipboard', 'success')
-      } catch {
-        setLastAction('Failed to copy response selection', 'error')
-      }
+      await copy(text, {
+        success: 'Response selection copied to clipboard',
+        failure: 'Failed to copy response selection',
+      })
     },
-    [setLastAction]
+    [copy]
   )
 
   const sendResponseSelectionToJsonTools = useCallback(
@@ -752,13 +752,11 @@ export default function ApiClient() {
         collectionName: collection?.name ?? null,
       }
     })
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
-      setLastAction(`Exported ${exportData.length} requests to clipboard`, 'success')
-    } catch {
-      setLastAction('Export failed — clipboard unavailable', 'error')
-    }
-  }, [collections, requests, setLastAction])
+    await copy(JSON.stringify(exportData, null, 2), {
+      success: `Exported ${exportData.length} requests to clipboard`,
+      failure: 'Export failed — clipboard unavailable',
+    })
+  }, [collections, requests, copy])
 
   // ---------------------------------------------------------------------------
   // Header management

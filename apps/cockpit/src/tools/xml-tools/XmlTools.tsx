@@ -31,6 +31,7 @@ import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { XmlWorker } from '@/workers/xml.worker'
 import type { XmlInspection, XmlIssue, XmlTreeNode } from '@/workers/xml.api'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
+import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type XmlView = 'source' | 'tree' | 'json' | 'xpath'
 
@@ -104,19 +105,6 @@ function describeIssue(issue: XmlIssue): string {
   return `${issue.message}${where}`
 }
 
-function useCopy() {
-  const setLastAction = useUiStore((s) => s.setLastAction)
-  return useCallback(
-    (text: string, label: string) => {
-      void navigator.clipboard.writeText(text).then(
-        () => setLastAction(label, 'success'),
-        () => setLastAction('Copy failed', 'error')
-      )
-    },
-    [setLastAction]
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -139,7 +127,7 @@ export default function XmlTools() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const copy = useCopy()
+  const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
   const [inspection, setInspection] = useState<XmlInspection | null>(null)
   const [isBusy, setIsBusy] = useState(false)
@@ -282,7 +270,7 @@ export default function XmlTools() {
       handleSave()
     }
     if (action.type === 'copy-output' && inputRef.current.trim()) {
-      copy(inputRef.current, 'Copied XML')
+      void copy(inputRef.current, { success: 'Copied XML' })
     }
   })
 
@@ -513,7 +501,7 @@ function InspectorPane({
   onXPathChange: (next: string) => void
   monacoTheme: string
   monacoOptions: Record<string, unknown>
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   const hasInput = input.trim().length > 0
 
@@ -583,7 +571,7 @@ function TreePane({
   input: string
   worker: WorkerRpc<XmlWorker> | null
   elementCount: number
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   // A 5000-element document rendered fully expanded janks the pane on open, so
   // the default follows the document size until the user overrides it.
@@ -678,7 +666,7 @@ function TreeNodeRow({
   node: XmlTreeNode
   depth?: number
   defaultExpanded: boolean
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const indent = depth * 16
@@ -759,7 +747,7 @@ function TreeNodeRow({
           variant="ghost"
           size="xs"
           className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-          onClick={() => onCopy(nodeToXml(node), `Copied <${node.name}>`)}
+          onClick={() => void onCopy(nodeToXml(node), { success: `Copied <${node.name}>` })}
           aria-label={`Copy <${node.name}> element`}
           title="Copy this element"
         >
@@ -874,7 +862,7 @@ function XPathPane({
   worker: WorkerRpc<XmlWorker> | null
   xpath: string
   onXPathChange: (next: string) => void
-  onCopy: (text: string, label: string) => void
+  onCopy: CopyToClipboard
 }) {
   const [matches, setMatches] = useState<string[]>([])
   const [failure, setFailure] = useState<string | null>(null)
@@ -965,7 +953,7 @@ function XPathPane({
                 <Button
                   variant="ghost"
                   size="xs"
-                  onClick={() => onCopy(match, 'Copied match')}
+                  onClick={() => void onCopy(match, { success: 'Copied match' })}
                   aria-label={`Copy match ${i + 1}`}
                 >
                   Copy

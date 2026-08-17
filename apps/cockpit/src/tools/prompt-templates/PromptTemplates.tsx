@@ -60,6 +60,7 @@ import type {
   PromptTemplateValues,
   TokenTone,
 } from '@/tools/prompt-templates/types'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -782,6 +783,7 @@ export default function PromptTemplates() {
   const removeTemplate = usePromptTemplatesStore((s) => s.remove)
   const importTemplates = usePromptTemplatesStore((s) => s.importMany)
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const [modalOpen, setModalOpen] = useState(false)
   const [editorState, setEditorState] = useState<{
     mode: 'create' | 'edit' | 'duplicate'
@@ -853,14 +855,14 @@ export default function PromptTemplates() {
       setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
       return
     }
-    try {
-      await navigator.clipboard.writeText(renderedPrompt)
-      setLastAction(`Copied ${selectedTemplate.name}`, 'success')
-      setModalOpen(false)
-    } catch {
-      setLastAction('Failed to copy prompt', 'error')
-    }
-  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction])
+    // Only dismiss once the text is actually on the clipboard — closing on a failed write
+    // loses the filled-in variables with nothing to show for them.
+    const copied = await copy(renderedPrompt, {
+      success: `Copied ${selectedTemplate.name}`,
+      failure: 'Failed to copy prompt',
+    })
+    if (copied) setModalOpen(false)
+  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction, copy])
 
   const handleSaveEditor = useCallback(
     async (draft: PromptTemplateDraft) => {
