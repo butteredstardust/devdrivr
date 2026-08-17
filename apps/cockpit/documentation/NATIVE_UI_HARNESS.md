@@ -117,7 +117,7 @@ pwsh -File scripts/native-ui/verify-window-controls.ps1              # last chec
 pwsh -File scripts/native-ui/verify-window-controls.ps1 -SkipClose   # leave it running
 ```
 
-Nine checks: minimize, maximize, restore-via-maximize, double-click zoom and restore on the drag
+Seven checks: minimize, maximize, restore-via-maximize, double-click zoom and restore on the drag
 region, a drag that moves the window, and close. Each one clicks a real control and then asserts
 against the **OS** — `IsIconic`, `IsZoomed`, window destroyed — never against the DOM, because a
 click the drag region absorbs leaves the DOM looking perfectly healthy. Failures write a cropped
