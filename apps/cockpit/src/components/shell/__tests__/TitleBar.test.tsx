@@ -195,4 +195,36 @@ describe('TitleBar — drag region', () => {
       expect(button).not.toHaveAttribute('data-tauri-drag-region')
     })
   })
+
+  // The drag layer is `absolute inset-0` with z-index auto, so it paints above every
+  // *non-positioned* sibling regardless of DOM order — a static wrapper puts its buttons
+  // underneath the layer and the drag region swallows their clicks. Windows/Linux window
+  // controls regressed exactly this way; assert the invariant on both platforms.
+  it.each(['mac', 'windows'] as const)(
+    'keeps every interactive cluster positioned above the drag layer on %s',
+    (platform) => {
+      mocks.platform.current = platform
+      const { container } = render(<TitleBar />)
+      const bar = container.firstElementChild as HTMLElement
+
+      const buttons = Array.from(bar.querySelectorAll('button'))
+      expect(buttons.length).toBeGreaterThan(0)
+
+      for (const button of buttons) {
+        let node: HTMLElement | null = button
+        let positioned = false
+        while (node && node !== bar) {
+          if (/(^|\s)(relative|absolute|fixed)(\s|$)/.test(node.className)) {
+            positioned = true
+            break
+          }
+          node = node.parentElement
+        }
+        expect(
+          positioned,
+          `"${button.getAttribute('aria-label')}" has no positioned wrapper — the drag region will eat its clicks`
+        ).toBe(true)
+      }
+    }
+  )
 })

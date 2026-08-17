@@ -15,6 +15,13 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      // Never watch the Rust side. `tauri dev` compiles into src-tauri/target while this watcher
+      // is crawling it; on Windows the watcher hits a half-written .dll and chokidar throws
+      // EBUSY, killing the dev server mid-build. Windows holds exclusive locks on files open for
+      // writing, so this is fatal there and merely wasteful on macOS/Linux.
+      ignored: ['**/src-tauri/**'],
+    },
   },
   envPrefix: ['VITE_', 'TAURI_'],
   build: {

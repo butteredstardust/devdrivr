@@ -18,6 +18,10 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * dragged/double-click-zoomed from empty space. Interactive controls are siblings above it, never
  * descendants of a native drag region; this keeps pointer and keyboard focus transitions under
  * normal browser control.
+ *
+ * Because that layer is absolutely positioned with `z-index: auto`, it paints above *any*
+ * non-positioned sibling no matter the DOM order. Every interactive cluster in this bar must
+ * therefore be positioned (`relative`) as well, or the drag layer silently eats its clicks.
  */
 export function TitleBar() {
   const { isMac } = usePlatform()
@@ -94,7 +98,7 @@ export function TitleBar() {
       </div>
 
       {!isMac && (
-        <div data-testid="titlebar-right-controls" className="ml-auto flex items-center">
+        <div data-testid="titlebar-right-controls" className="relative ml-auto flex items-center">
           <WindowControls />
         </div>
       )}
