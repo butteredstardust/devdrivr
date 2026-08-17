@@ -1,6 +1,6 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
 
-type InlineInputVariant = 'title' | 'heading' | 'code'
+type InlineInputVariant = 'title' | 'heading' | 'code' | 'plain'
 
 export type InlineInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
   variant?: InlineInputVariant
@@ -21,6 +21,9 @@ const VARIANT_CLASSES: Record<InlineInputVariant, string> = {
   heading: 'text-base font-bold',
   /** Code the user is composing rather than prose — regex pattern, replacement. */
   code: 'font-mono text-sm',
+  /** Ordinary text at the ambient size, sitting inside a control that draws its own box — the
+   *  tag entry at the end of a chip row. */
+  plain: 'text-xs',
 }
 
 // The focus ring is the whole point of the shared component: it's the one thing

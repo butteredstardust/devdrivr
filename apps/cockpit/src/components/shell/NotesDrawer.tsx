@@ -27,6 +27,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Note as NoteType, NoteColor } from '@/types/models'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { InlineInput } from '@/components/shared/InlineInput'
 
 const MIN_WIDTH = 280
 const MAX_WIDTH = 600
@@ -266,12 +267,12 @@ function NoteEditor({
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-4">
-        <input
+        <InlineInput
           value={draft.title}
           onChange={(event) => scheduleSave({ ...draftRef.current, title: event.target.value })}
           placeholder="Note title"
           aria-label="Note title"
-          className="w-full bg-transparent text-lg font-semibold text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+          className="w-full text-lg"
           autoFocus
         />
         <textarea
@@ -311,7 +312,8 @@ function NoteEditor({
                 </button>
               </span>
             ))}
-            <input
+            <InlineInput
+              variant="plain"
               value={tagInput}
               onChange={(event) => setTagInput(event.target.value)}
               onKeyDown={(event) => {
@@ -323,7 +325,7 @@ function NoteEditor({
               onBlur={handleAddTag}
               placeholder="Add tag"
               aria-label="Add tag"
-              className="min-w-20 flex-1 bg-transparent px-1 py-1 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+              className="min-w-20 flex-1 px-1 py-1"
             />
           </div>
         </div>

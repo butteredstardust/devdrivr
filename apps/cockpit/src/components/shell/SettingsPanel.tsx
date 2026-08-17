@@ -39,6 +39,7 @@ import { Select } from '@/components/shared/Select'
 import { ThemePicker } from '@/components/shell/ThemePicker'
 import { ALL_THEMES } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
+import { Input } from '@/components/shared/Input'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -587,7 +588,7 @@ function DataTab() {
       {/* Retention & Timezone */}
       <div className="space-y-1">
         <SettingRow label="History per Tool" hint={`Max entries retained per tool`}>
-          <input
+          <Input
             type="number"
             value={historyRetentionPerTool}
             onChange={(e) =>
@@ -598,7 +599,7 @@ function DataTab() {
             }
             min={10}
             max={5000}
-            className="w-20 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+            className="w-20 text-right"
           />
         </SettingRow>
         <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
@@ -891,7 +892,7 @@ function McpTab() {
         </SettingRow>
         <SettingRow label="Port" hint="Localhost port for Streamable HTTP">
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="number"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -899,7 +900,7 @@ function McpTab() {
               onChange={(event) => setPortDraft(event.target.value)}
               min={MIN_MCP_PORT}
               max={MAX_MCP_PORT}
-              className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-right text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+              className="w-24 text-right"
             />
             <button
               type="button"

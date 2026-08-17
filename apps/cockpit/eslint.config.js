@@ -111,7 +111,30 @@ export default [
           selector:
             'JSXOpeningElement[name.name="input"]:not(:has(JSXAttribute[name.name="type"][value.value=/^(checkbox|radio|file|color|range)$/]))',
           message:
-            'Use the shared Input (boxed) or InlineInput (chrome-less) from @/components/shared. If neither fits, add an eslint-disable-next-line with the reason.',
+            'Use the shared Input (boxed), InlineInput (chrome-less) or SearchInput from @/components/shared. If none fits, add an eslint-disable-next-line with the reason.',
+        },
+      ],
+    },
+  },
+  {
+    // The shell gets the text-input guard but not the button/select ones.
+    //
+    // Not an oversight: the shell holds ~45 raw buttons that are genuinely bespoke — the window
+    // controls, the tab strip, the sidebar rows — and turning them all into disable comments would
+    // say nothing. Text fields are the opposite case. There are only a handful, none of them
+    // bespoke, and every hand-rolled one so far has shipped without a focus indicator: the sidebar
+    // filter tinted its border instead of drawing a ring, and the note title and tag entry had
+    // `outline-none` with nothing put back. That is invisible in review and invisible in a
+    // screenshot, which is exactly what a lint rule is for.
+    files: ['src/components/shell/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXOpeningElement[name.name="input"]:not(:has(JSXAttribute[name.name="type"][value.value=/^(checkbox|radio|file|color|range)$/]))',
+          message:
+            'Use the shared Input (boxed), InlineInput (chrome-less) or SearchInput from @/components/shared. If none fits, add an eslint-disable-next-line with the reason.',
         },
       ],
     },

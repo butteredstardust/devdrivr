@@ -13,7 +13,7 @@ describe('InlineInput', () => {
   it('always draws the keyboard focus ring', () => {
     // A borderless field has no other focus affordance, so every variant must
     // carry the ring — this is the regression the component was extracted to stop.
-    for (const variant of ['title', 'heading', 'code'] as const) {
+    for (const variant of ['title', 'heading', 'code', 'plain'] as const) {
       const { unmount } = render(<InlineInput aria-label={variant} variant={variant} readOnly />)
       expect(screen.getByRole('textbox', { name: variant }).className).toContain(
         'focus-visible:shadow-[var(--focus-ring)]'
