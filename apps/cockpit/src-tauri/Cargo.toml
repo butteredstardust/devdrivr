@@ -31,13 +31,13 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # Rounding the window corners is an AppKit-level change (see src/window_corners.rs). These are
 # already in the dependency graph via tao/wry, so this pins names rather than pulling new crates.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = [
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
   "NSColor",
-  "NSGraphics",
   "NSResponder",
   "NSView",
   "NSWindow",
   "objc2-quartz-core",
 ] }
-objc2-quartz-core = { version = "0.3", features = ["CALayer"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer", "objc2-core-foundation"] }
