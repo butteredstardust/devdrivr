@@ -225,27 +225,26 @@ describe('ImageTool', () => {
     expect(screen.getByText(/open an image to get started/i)).toBeInTheDocument()
   })
 
-  it('uses a keyboard-operable crop toggle with pressed state', async () => {
+  it('uses a keyboard-operable crop switch with checked state', async () => {
     await loadMockImage()
 
     fireEvent.click(screen.getByText('Crop'))
-    const toggle = screen.getByRole('button', { name: 'Enable crop' })
+    // Shared Toggle: role="switch" + aria-checked. The label names the control
+    // and stays "Enable crop" in both states — the state lives on aria-checked.
+    const toggle = screen.getByRole('switch', { name: 'Enable crop' })
 
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
 
     fireEvent.keyDown(toggle, { key: 'Enter' })
     fireEvent.click(toggle)
 
-    expect(screen.getByRole('button', { name: 'Disable crop' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
   })
 
   it('stops crop dragging when mouse is released outside the preview', async () => {
     const preview = await loadMockImage()
     fireEvent.click(screen.getByText('Crop'))
-    fireEvent.click(screen.getByRole('button', { name: 'Enable crop' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable crop' }))
     await waitFor(() => expect(screen.getByTestId('crop-box')).toBeInTheDocument())
 
     const xInput = screen.getAllByRole('spinbutton')[0]!
@@ -261,7 +260,7 @@ describe('ImageTool', () => {
   it('clamps manual crop inputs to the image bounds', async () => {
     await loadMockImage()
     fireEvent.click(screen.getByText('Crop'))
-    fireEvent.click(screen.getByRole('button', { name: 'Enable crop' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable crop' }))
 
     const [xInput, yInput, widthInput, heightInput] = screen.getAllByRole('spinbutton')
 

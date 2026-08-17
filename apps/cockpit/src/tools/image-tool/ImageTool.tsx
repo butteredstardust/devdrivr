@@ -3,7 +3,9 @@ import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
+import { Input } from '@/components/shared/Input'
 import { TabBar } from '@/components/shared/TabBar'
+import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import {
@@ -68,6 +70,10 @@ const FORMAT_TABS = [
   { id: 'jpeg', label: 'JPEG' },
   { id: 'webp', label: 'WebP' },
 ]
+
+// The resize/crop dimension fields. `Input` owns the border, background, radius
+// and focus ring; only the monospace digits and the full-width fill are local.
+const NUMBER_FIELD_CLASS = 'w-full py-1 font-mono'
 
 const PRESET_SIZES = [
   { label: '1:1', w: 1, h: 1 },
@@ -889,9 +895,6 @@ function ResizePanel({
   onReset: () => void
   onPreset: (w: number, h: number) => void
 }) {
-  const inputClass =
-    'w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 font-mono text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
-
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -901,13 +904,13 @@ function ResizePanel({
         <div className="flex items-center gap-2">
           <div className="flex flex-1 flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
-            <input
+            <Input
               type="number"
               min={1}
               value={resizeW ?? ''}
               onChange={(e) => onResizeW(Number(e.target.value))}
               placeholder="Width"
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
 
@@ -924,13 +927,13 @@ function ResizePanel({
 
           <div className="flex flex-1 flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
-            <input
+            <Input
               type="number"
               min={1}
               value={resizeH ?? ''}
               onChange={(e) => onResizeH(Number(e.target.value))}
               placeholder="Height"
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
         </div>
@@ -999,28 +1002,9 @@ function CropPanel({
   onChange: (x: number, y: number, w: number, h: number) => void
   onReset: () => void
 }) {
-  const inputClass =
-    'w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 font-mono text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] disabled:opacity-40'
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Enable toggle */}
-      <div className="flex items-center gap-2">
-        {/* eslint-disable-next-line no-restricted-syntax -- switch: a track-and-thumb toggle
-            whose whole appearance is the state indicator, with no Button variant equivalent. */}
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-pressed={enabled}
-          aria-label={enabled ? 'Disable crop' : 'Enable crop'}
-          className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}`}
-        >
-          <div
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-[var(--color-bg)] shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`}
-          />
-        </button>
-        <span className="text-xs text-[var(--color-text)]">Enable crop</span>
-      </div>
+      <Toggle checked={enabled} onChange={onToggle} label="Enable crop" />
 
       {/* Crop coordinates */}
       <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
@@ -1030,26 +1014,26 @@ function CropPanel({
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">X (px)</label>
-            <input
+            <Input
               type="number"
               min={0}
               max={maxW - 1}
               value={x}
               disabled={!enabled}
               onChange={(e) => onChange(Number(e.target.value), y, w, h)}
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Y (px)</label>
-            <input
+            <Input
               type="number"
               min={0}
               max={maxH - 1}
               value={y}
               disabled={!enabled}
               onChange={(e) => onChange(x, Number(e.target.value), w, h)}
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
         </div>
@@ -1060,26 +1044,26 @@ function CropPanel({
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
-            <input
+            <Input
               type="number"
               min={1}
               max={maxW}
               value={w}
               disabled={!enabled}
               onChange={(e) => onChange(x, y, Number(e.target.value), h)}
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
-            <input
+            <Input
               type="number"
               min={1}
               max={maxH}
               value={h}
               disabled={!enabled}
               onChange={(e) => onChange(x, y, w, Number(e.target.value))}
-              className={inputClass}
+              className={NUMBER_FIELD_CLASS}
             />
           </div>
         </div>
