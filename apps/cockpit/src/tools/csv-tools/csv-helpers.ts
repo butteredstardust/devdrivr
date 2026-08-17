@@ -576,13 +576,6 @@ export function generateSql(summaries: ColumnSummary[], tableName = 'csv_data'):
 // Misc
 // ---------------------------------------------------------------------------
 
-export function formatBytes(text: string): string {
-  const bytes = new TextEncoder().encode(text).length
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 /** The source name with the exported format's extension (`report.csv` → `report.json`). */
 export function outputFileName(source: string | null, extension: string): string {
   const base = (source ?? 'data').replace(/\.[^./\\]+$/, '')

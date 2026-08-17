@@ -17,6 +17,7 @@ import {
   DownloadSimpleIcon,
   CopyIcon,
 } from '@phosphor-icons/react'
+import { formatBytes } from '@/lib/format'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -83,12 +84,6 @@ const PRESET_SIZES = [
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
 
 // Estimate compressed file size from data URL length
 function estimateSizeFromDataUrl(dataUrl: string): number {

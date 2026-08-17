@@ -10,6 +10,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { Toggle } from '@/components/shared/Toggle'
 import { CheckCircleIcon, HashIcon, XCircleIcon } from '@phosphor-icons/react'
 import { computeHashes, computeHmac, type Hashes } from './hash-utils'
+import { formatBytes } from '@/lib/format'
 
 type HashGeneratorState = {
   input: string
@@ -17,12 +18,6 @@ type HashGeneratorState = {
   uppercase: boolean
   hmacMode: boolean
   hmacKey: string
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export default function HashGenerator() {

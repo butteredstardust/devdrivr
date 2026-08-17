@@ -33,6 +33,7 @@ import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
+import { formatBytes } from '@/lib/format'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -93,8 +94,7 @@ function jsonStats(data: unknown): { keys: number; depth: number; size: string }
 
   walk(data, 0)
   const bytes = new Blob([JSON.stringify(data)]).size
-  const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
-  return { keys: keyCount, depth: maxDepth, size }
+  return { keys: keyCount, depth: maxDepth, size: formatBytes(bytes) }
 }
 
 class JsonScanError {

@@ -28,7 +28,6 @@ import CsvAnalyze, { type SchemaLanguage } from './CsvAnalyze'
 import {
   DELIMITER_OPTIONS,
   FORMAT_EXTENSIONS,
-  formatBytes,
   generateSql,
   generateTypeScript,
   outputFileName,
@@ -41,6 +40,7 @@ import {
   type Delimiter,
   type OutputFormat,
 } from './csv-helpers'
+import { formatTextBytes } from '@/lib/format'
 
 type CsvView = 'table' | 'convert' | 'analyze'
 
@@ -219,7 +219,7 @@ export default function CsvTools() {
           columns.length === 1 ? '' : 's'
         } · ${DELIMITER_LABELS[parsed.delimiter] ?? 'comma'}-separated${
           delimiter === 'auto' ? ' (detected)' : ''
-        } · ${formatBytes(parseSource)}${
+        } · ${formatTextBytes(parseSource)}${
           issues.length > 0 ? ` · ${issues.length} issue${issues.length === 1 ? '' : 's'}` : ''
         }`
 

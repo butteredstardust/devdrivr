@@ -43,6 +43,7 @@ import {
   SidebarIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { formatBytes } from '@/lib/format'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -140,12 +141,6 @@ function detectResponseLanguage(headers: Record<string, string>): string {
   if (ct.includes('css')) return 'css'
   if (ct.includes('javascript')) return 'javascript'
   return 'plaintext'
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function interpolate(text: string, vars: Record<string, string>): string {
@@ -482,7 +477,7 @@ export default function ApiClient() {
       void addRequestHistory({
         subTab: method,
         input: `${method} ${interpolatedUrl}`,
-        output: `${res.status} ${res.statusText} · ${time}ms · ${formatSize(size)}`,
+        output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
       })
     } catch (e) {
       const msg = (e as Error).message
@@ -1228,7 +1223,7 @@ export default function ApiClient() {
                       {response.time}ms
                     </span>
                     <span className="text-2xs text-[var(--color-text-muted)]">
-                      {formatSize(response.size)}
+                      {formatBytes(response.size)}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
                       <CopyButton text={prettyBody} />
