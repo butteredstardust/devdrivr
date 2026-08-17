@@ -272,7 +272,8 @@ function NoteEditor({
           onChange={(event) => scheduleSave({ ...draftRef.current, title: event.target.value })}
           placeholder="Note title"
           aria-label="Note title"
-          className="w-full text-lg"
+          variant="display"
+          className="w-full"
           autoFocus
         />
         <textarea

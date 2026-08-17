@@ -120,8 +120,11 @@ pub fn refresh(window: &tauri::Window) {
     // SAFETY: called from Tauri's window event handler, which runs on the main thread.
     unsafe {
         if let Some((_, layer)) = content_layer(window) {
-            // Core Animation short-circuits a write of the value already set, so the common case —
-            // an ordinary resize, radius unchanged — costs one property read.
+            // The guard exists to keep an ordinary resize — radius unchanged — from touching the
+            // layer at all, since a write would dirty it for recompositing. It is not free:
+            // reaching this point already cost the `content_layer` lookup above (three ObjC sends
+            // and a redundant `setWantsLayer`). That is cheap enough at resize frequency to leave
+            // alone, but it is more than the property read this comment used to claim.
             if layer.cornerRadius() != radius {
                 layer.setCornerRadius(radius);
             }

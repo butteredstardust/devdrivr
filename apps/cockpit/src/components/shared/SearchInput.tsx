@@ -5,7 +5,7 @@ import { Button } from '@/components/shared/Button'
 
 type SearchInputSize = 'sm' | 'md'
 
-type SearchInputProps = Omit<
+export type SearchInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'size' | 'type' | 'value' | 'onChange'
 > & {

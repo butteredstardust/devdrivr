@@ -1,6 +1,6 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
 
-type InlineInputVariant = 'title' | 'heading' | 'code' | 'plain'
+type InlineInputVariant = 'title' | 'heading' | 'display' | 'code' | 'plain'
 
 export type InlineInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
   variant?: InlineInputVariant
@@ -14,11 +14,20 @@ export type InlineInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size
 // name, regex pattern, regex replacement) had each hand-rolled the same idea
 // with a different class string — and two of them shipped without any focus
 // indicator, so keyboard users could not see where they were.
+//
+// Typography comes from the variant and *only* from the variant. Passing a `text-*`
+// utility through `className` does not work: the variant class and the override have
+// equal specificity, so the winner is whichever Tailwind emits later in the sheet, not
+// whichever appears later in the class string. `text-lg` loses to `text-sm` that way,
+// which is how the note title silently shrank when it was first migrated here. Add a
+// variant instead — the compiler will then tell you if the name does not exist.
 const VARIANT_CLASSES: Record<InlineInputVariant, string> = {
   /** Document title sitting above a metadata line — snippet title, request name. */
   title: 'text-sm font-semibold',
   /** Larger single heading that titles a whole pane — environment name. */
   heading: 'text-base font-bold',
+  /** The largest of the three — a document title that owns the pane it opens in, the note editor. */
+  display: 'text-lg font-semibold',
   /** Code the user is composing rather than prose — regex pattern, replacement. */
   code: 'font-mono text-sm',
   /** Ordinary text at the ambient size, sitting inside a control that draws its own box — the

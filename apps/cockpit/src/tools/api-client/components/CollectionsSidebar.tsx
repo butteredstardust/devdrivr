@@ -317,9 +317,13 @@ export function CollectionsSidebar({
                       if (e.key === 'Escape') setEditingColId(null)
                     }}
                     // Boxed rather than inline: the border is what tells you the
-                    // row has flipped into edit mode. The accent border overrides
-                    // Input's resting border to keep that signal.
-                    className="my-1 min-w-0 flex-1 border-[var(--color-accent)] font-bold"
+                    // row has flipped into edit mode. The accent colour comes from
+                    // Input's own `focus:` border — the field is autofocused on entering
+                    // rename mode and commits on blur, so it is focused for its whole
+                    // life. Restating the accent as a plain class here would do nothing:
+                    // it ties with Input's resting border on specificity and loses on
+                    // stylesheet order.
+                    className="my-1 min-w-0 flex-1 font-bold"
                   />
                 ) : (
                   <>

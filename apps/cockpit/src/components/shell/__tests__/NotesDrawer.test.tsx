@@ -170,6 +170,19 @@ describe('NotesDrawer', () => {
     vi.useRealTimers()
   })
 
+  it('renders the note title at display size, not the variant default', () => {
+    // The title is the one field in the drawer that is meant to be larger than body text.
+    // When it was migrated to InlineInput it was written as `className="w-full text-lg"`,
+    // which loses to the default variant's `text-sm` on stylesheet order and shrank the
+    // title with no diff, no test and no lint error to show for it. Asserting the absence
+    // of `text-sm` is the half that catches a regression back to the className form.
+    render(<NotesDrawer />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Test note' }))
+    const title = screen.getByRole('textbox', { name: 'Note title' })
+    expect(title.className).toContain('text-lg')
+    expect(title.className).not.toContain('text-sm')
+  })
+
   it('requires confirmation before deleting a note', async () => {
     const remove = vi.fn().mockResolvedValue(undefined)
     useNotesStore.setState({ remove })
