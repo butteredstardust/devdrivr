@@ -18,6 +18,7 @@ import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 type Props = {
   activeRequestId: string | null
@@ -283,33 +284,13 @@ export function CollectionsSidebar({
       </header>
 
       <div className="border-b border-[var(--color-border)] p-2">
-        <div className="relative">
-          <MagnifyingGlassIcon
-            size={13}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search requests"
-            aria-label="Search saved requests"
-            className="w-full pl-8 pr-7"
-          />
-          {search && (
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => setSearch('')}
-              aria-label="Clear request search"
-              className="absolute right-1 top-1/2 -translate-y-1/2"
-            >
-              <XIcon size={11} aria-hidden="true" />
-            </Button>
-          )}
-        </div>
+        <SearchInput
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Search requests"
+          aria-label="Search saved requests"
+          clearLabel="Clear request search"
+        />
         {needle && (
           <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]" aria-live="polite">
             {totalMatches} matching {totalMatches === 1 ? 'request' : 'requests'}

@@ -15,7 +15,6 @@ import {
   CopyIcon,
   DownloadSimpleIcon,
   FolderOpenIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   ScissorsIcon,
   SidebarIcon,
@@ -37,6 +36,7 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 const FAVORITE_TAG = '⭐'
 
@@ -622,34 +622,13 @@ export default function SnippetsManager() {
         </header>
 
         <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <div className="relative">
-            <MagnifyingGlassIcon
-              size={13}
-              aria-hidden="true"
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-            />
-            <Input
-              ref={searchInputRef}
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search snippets"
-              aria-label="Search snippets"
-              className="w-full pl-8 pr-8"
-            />
-            {search && (
-              <Button
-                type="button"
-                variant="icon"
-                size="xs"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-              >
-                <XIcon size={11} aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          <SearchInput
+            ref={searchInputRef}
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search snippets"
+            aria-label="Search snippets"
+          />
 
           <div className="grid grid-cols-2 gap-2">
             <Select

@@ -12,7 +12,6 @@ import {
   ChatCircleTextIcon,
   ClipboardTextIcon,
   DownloadSimpleIcon,
-  MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlusIcon,
   SparkleIcon,
@@ -61,6 +60,7 @@ import type {
   TokenTone,
 } from '@/tools/prompt-templates/types'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { SearchInput } from '@/components/shared/SearchInput'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -1036,34 +1036,14 @@ export default function PromptTemplates() {
         </header>
 
         <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <div className="relative">
-            <MagnifyingGlassIcon
-              size={13}
-              aria-hidden="true"
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-            />
-            <Input
-              ref={searchRef}
-              type="search"
-              value={state.search}
-              onChange={(event) => updateState({ search: event.target.value })}
-              placeholder="Search templates"
-              aria-label="Search prompt templates"
-              className="w-full pl-8 pr-8"
-            />
-            {state.search && (
-              <Button
-                type="button"
-                variant="icon"
-                size="xs"
-                onClick={() => updateState({ search: '' })}
-                aria-label="Clear template search"
-                className="absolute right-1.5 top-1/2 h-6 w-6 -translate-y-1/2"
-              >
-                <XIcon size={11} aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          <SearchInput
+            ref={searchRef}
+            value={state.search}
+            onValueChange={(search) => updateState({ search })}
+            placeholder="Search templates"
+            aria-label="Search prompt templates"
+            clearLabel="Clear template search"
+          />
           <Select
             value={state.category}
             onChange={(event) => updateState({ category: event.target.value as CategoryFilter })}
