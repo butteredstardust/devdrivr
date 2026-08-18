@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { TabBar } from '@/components/shared/TabBar'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -234,8 +234,7 @@ function applyMethodDefaults(draft: RequestDraft, nextMethod: string): RequestDr
 
 export default function ApiClient() {
   const responsePaneId = useId()
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const init = useApiStore((s) => s.init)
   const environments = useApiStore((s) => s.environments)
   const activeEnvironmentId = useApiStore((s) => s.activeEnvironmentId)

@@ -19,7 +19,7 @@ import {
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
@@ -97,8 +97,7 @@ const VALIDATE_DEBOUNCE_MS = 300
 const PREVIEW_DEBOUNCE_MS = 400
 
 export default function HtmlValidator() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'html-validator' })

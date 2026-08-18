@@ -11,7 +11,7 @@ import {
   TrashIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -223,8 +223,7 @@ function EditorPane({
 
 export default function DiffViewer() {
   const optionsId = useId()
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   // Merged once: spreading inline made a new object every render, which
   // @monaco-editor/react re-applies to both editors on every keystroke.
   const editorOptions = useMemo(

@@ -13,7 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker, type WorkerRpc } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -110,8 +110,7 @@ function describeIssue(issue: XmlIssue): string {
 // ---------------------------------------------------------------------------
 
 export default function XmlTools() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<XmlToolsState>('xml-tools', {
     input: '',
     fileName: null,

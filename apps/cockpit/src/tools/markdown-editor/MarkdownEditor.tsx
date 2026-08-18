@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
@@ -478,8 +478,7 @@ export async function renderMarkdownContent(content: string): Promise<string> {
 
 export default function MarkdownEditor() {
   const isInstanceActive = useIsInstanceActive()
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
     content: '',
     fileName: null,

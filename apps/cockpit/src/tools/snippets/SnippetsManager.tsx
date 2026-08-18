@@ -29,7 +29,7 @@ import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { InlineInput } from '@/components/shared/InlineInput'
-import { useMonacoOptions, useMonacoTheme } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -233,8 +233,7 @@ export default function SnippetsManager() {
   const tagSuggestionsId = useId()
   const snippetOptionsId = useId()
   const isInstanceActive = useIsInstanceActive()
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const snippets = useSnippetsStore((state) => state.snippets)
   const saving = useSnippetsStore((state) => state.saving)
   const activeFolder = useSnippetsStore((state) => state.activeFolder)
