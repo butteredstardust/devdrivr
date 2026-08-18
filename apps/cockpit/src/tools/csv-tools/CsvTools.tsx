@@ -11,7 +11,7 @@ import {
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -104,8 +104,7 @@ function outputFor(source: string, parse: CsvParse, options: OutputOptions): str
 }
 
 export default function CsvTools() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CsvToolsState>('csv-tools', {
     input: '',
     fileName: null,

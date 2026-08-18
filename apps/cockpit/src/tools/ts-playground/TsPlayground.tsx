@@ -11,7 +11,7 @@ import {
   XCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -75,8 +75,7 @@ export function describeProblems(diagnostics: Diagnostic[]): string {
 }
 
 export default function TsPlayground() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   // Merged once: a fresh options object on every keystroke makes
   // @monaco-editor/react re-apply the whole configuration to both editors.
   const editorOptions = useMemo(

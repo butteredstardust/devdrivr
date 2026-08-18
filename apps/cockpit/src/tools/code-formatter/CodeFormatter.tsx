@@ -10,7 +10,7 @@ import {
   SlidersHorizontalIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
@@ -74,8 +74,7 @@ function describeStatus(status: FormatStatus): string {
 }
 
 export default function CodeFormatter() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
     fileName: null,

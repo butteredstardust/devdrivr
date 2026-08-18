@@ -10,7 +10,7 @@ import {
   GraphIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { Alert } from '@/components/shared/Alert'
@@ -117,8 +117,7 @@ function removeMermaidScratchNodes(renderId: string) {
 }
 
 export default function MermaidEditor() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const appTheme = useSettingsStore((s) => s.theme)
   const mermaidTheme = isLightEffectiveTheme(getEffectiveTheme(appTheme)) ? 'default' : 'dark'
   const setLastAction = useUiStore((s) => s.setLastAction)

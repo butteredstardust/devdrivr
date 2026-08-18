@@ -62,7 +62,6 @@ const LIGHT_THEME: MonacoThemeData = {
 }
 
 let themesRegistered = false
-const EMPTY_OVERRIDES: Record<string, unknown> = {}
 
 /**
  * Convert an rgb()/rgba() string returned by getComputedStyle to a Monaco-compatible hex.
@@ -401,11 +400,18 @@ export function useMonacoSettings() {
 
       monaco.editor.setTheme(resolvedTheme)
 
+      // Force-load the configured font before any editor measures character
+      // widths. The @fontsource fonts use font-display:swap, so the browser
+      // won't fetch the woff2 until text actually renders with that family.
+      // document.fonts.ready resolves instantly when nothing is loading yet,
+      // which means remeasureFonts() below would fire before the real font is
+      // available — leaving Monaco with stale fallback-font measurements and
+      // the cursor offset from click positions by several characters.
       try {
-        await document.fonts?.ready
+        await document.fonts.load(`400 1em "${editorFont}"`)
       } catch {
-        // Font readiness can reject in constrained webview environments. Monaco still
-        // falls back to its current measurements in that case.
+        // Font loading can reject in constrained webview environments. Monaco
+        // still falls back to its current measurements in that case.
       }
 
       if (!cancelled && typeof monaco.editor.remeasureFonts === 'function') {
@@ -426,15 +432,10 @@ export function useMonacoSettings() {
   }
 }
 
-export function useMonacoTheme(): string {
-  const { theme } = useMonacoSettings()
-  return theme
-}
-
-export function useMonacoOptions(overrides: Record<string, unknown> = EMPTY_OVERRIDES) {
+export function useMonaco() {
   const settings = useMonacoSettings()
 
-  return useMemo(
+  const options = useMemo(
     () => ({
       ...EDITOR_OPTIONS,
       fontSize: settings.fontSize,
@@ -442,10 +443,11 @@ export function useMonacoOptions(overrides: Record<string, unknown> = EMPTY_OVER
       lineHeight: Math.max(20, Math.ceil(settings.fontSize * 1.5)),
       tabSize: settings.tabSize,
       formatOnPaste: settings.formatOnPaste,
-      ...overrides,
     }),
-    [settings.fontSize, settings.fontFamily, settings.tabSize, settings.formatOnPaste, overrides]
+    [settings.fontSize, settings.fontFamily, settings.tabSize, settings.formatOnPaste]
   )
+
+  return { theme: settings.theme, options }
 }
 
 /**

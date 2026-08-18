@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -216,8 +216,7 @@ const METHOD_COLORS: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────
 
 export default function CurlToFetch() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CurlToFetchState>('curl-to-fetch', {
     input: '',
     outputTab: 'fetch',

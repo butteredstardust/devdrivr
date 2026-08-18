@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Select'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
@@ -13,8 +13,7 @@ type CsvConvertProps = {
 }
 
 export default function CsvConvert({ output, format, onFormatChange }: CsvConvertProps) {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
 
   return (
     <div className="flex h-full min-h-0 flex-col">

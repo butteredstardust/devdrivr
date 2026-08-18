@@ -15,7 +15,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useMonacoTheme, useMonacoOptions } from '@/hooks/useMonaco'
+import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -69,8 +69,7 @@ const FETCH_TIMEOUT_MS = 15_000
 // ---------------------------------------------------------------------------
 
 export default function JsonSchemaValidator() {
-  const monacoTheme = useMonacoTheme()
-  const monacoOptions = useMonacoOptions()
+  const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<JsonSchemaState>('json-schema-validator', {
     data: '',
     schema: DEFAULT_TEMPLATE ? JSON.stringify(DEFAULT_TEMPLATE.schema, null, 2) : '',
