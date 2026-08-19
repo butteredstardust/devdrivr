@@ -14,12 +14,40 @@ type SplitPaneProps = {
   storageKey?: string
   /** Smallest share either pane can be dragged to, 0–0.5. Keeps a pane from vanishing. */
   minRatio?: number
+  /**
+   * Viewport width (px) below which the panes stack and the divider disappears.
+   *
+   * Several tools already did this by hand with `max-[900px]:flex-col`, and without it here they
+   * couldn't adopt `SplitPane` at all — a ratio applied as an inline `width` beats any Tailwind
+   * breakpoint, so the responsive behaviour would silently stop working. Below the breakpoint
+   * there's no useful ratio to drag anyway: the panes want the full width and share the height.
+   */
+  stackBelow?: number
   'aria-label'?: string
   className?: string
 }
 
 const STORAGE_PREFIX = 'cockpit.split.'
 const KEYBOARD_STEP = 0.02
+
+/** `null` disables the query entirely, so `stackBelow` stays optional without a conditional hook. */
+function useMediaQuery(query: string | null): boolean {
+  const [matches, setMatches] = useState(false)
+
+  useEffect(() => {
+    if (!query) {
+      setMatches(false)
+      return
+    }
+    const list = window.matchMedia(query)
+    setMatches(list.matches)
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
+    list.addEventListener('change', onChange)
+    return () => list.removeEventListener('change', onChange)
+  }, [query])
+
+  return matches
+}
 
 function readStoredRatio(storageKey: string | undefined, fallback: number): number {
   if (!storageKey) return fallback
@@ -50,13 +78,15 @@ export function SplitPane({
   defaultRatio = 0.5,
   storageKey,
   minRatio = 0.15,
+  stackBelow,
   'aria-label': ariaLabel,
   className = '',
 }: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => readStoredRatio(storageKey, defaultRatio))
   const [dragging, setDragging] = useState(false)
-  const isHorizontal = direction === 'horizontal'
+  const stacked = useMediaQuery(stackBelow ? `(max-width: ${stackBelow - 1}px)` : null)
+  const isHorizontal = direction === 'horizontal' && !stacked
   const labelId = useId()
 
   const clamp = useCallback(
@@ -136,6 +166,17 @@ export function SplitPane({
 
   const [first, second] = children
   const percent = `${(ratio * 100).toFixed(2)}%`
+
+  if (stacked) {
+    return (
+      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${className}`}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{first}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border)]">
+          {second}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

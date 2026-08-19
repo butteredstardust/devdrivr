@@ -69,6 +69,29 @@ describe('SplitPane', () => {
     expect(window.localStorage.length).toBe(0)
   })
 
+  it('stacks with no divider below stackBelow', () => {
+    // A ratio applied as an inline width beats any Tailwind breakpoint, so without this the tools
+    // that stack at 900px could not adopt SplitPane without losing their responsive behaviour.
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+
+    renderSplit({ stackBelow: 900 })
+    expect(screen.getByText('Left pane')).toBeInTheDocument()
+    expect(screen.getByText('Right pane')).toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+
+    window.matchMedia = original
+  })
+
   it('uses row orientation when vertical', () => {
     renderSplit({ direction: 'vertical' })
     expect(screen.getByRole('separator')).toHaveAttribute('aria-orientation', 'horizontal')
