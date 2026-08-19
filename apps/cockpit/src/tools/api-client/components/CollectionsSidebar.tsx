@@ -279,7 +279,7 @@ export function CollectionsSidebar({
           title="New collection"
           aria-label="New collection"
         >
-          <FolderPlusIcon size={15} aria-hidden="true" />
+          <FolderPlusIcon size={16} aria-hidden="true" />
         </Button>
       </header>
 
@@ -336,9 +336,9 @@ export function CollectionsSidebar({
                       className="min-w-0 flex-1 justify-start gap-1.5 py-1.5 text-left"
                     >
                       {isExpanded ? (
-                        <CaretDownIcon size={11} weight="bold" aria-hidden="true" />
+                        <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
                       ) : (
-                        <CaretRightIcon size={11} weight="bold" aria-hidden="true" />
+                        <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
                       )}
                       <span className="min-w-0 flex-1 truncate text-xs font-bold text-[var(--color-text)]">
                         {col.name}
@@ -456,11 +456,11 @@ export function CollectionsSidebar({
               onClick={() => setExpandedHistory((v) => !v)}
             >
               {expandedHistory ? (
-                <CaretDownIcon size={10} weight="bold" aria-hidden="true" />
+                <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
               ) : (
-                <CaretRightIcon size={10} weight="bold" aria-hidden="true" />
+                <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
               )}
-              <ClockCounterClockwiseIcon size={11} aria-hidden="true" />
+              <ClockCounterClockwiseIcon size={12} aria-hidden="true" />
               <span>History</span>
               <span className="ml-auto normal-case">{requestHistory.length}</span>
             </Button>
@@ -481,7 +481,7 @@ export function CollectionsSidebar({
                       onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
                     >
                       <span
-                        className={`shrink-0 text-[9px] font-bold ${getMethodColor(method ?? 'GET')}`}
+                        className={`shrink-0 text-2xs font-bold ${getMethodColor(method ?? 'GET')}`}
                       >
                         {method}
                       </span>
@@ -511,7 +511,7 @@ export function CollectionsSidebar({
             title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
             aria-label="Import requests"
           >
-            <UploadSimpleIcon size={13} aria-hidden="true" />
+            <UploadSimpleIcon size={14} aria-hidden="true" />
           </Button>
           <Button
             type="button"
@@ -522,7 +522,7 @@ export function CollectionsSidebar({
             aria-label="Export requests"
             disabled={requests.length === 0}
           >
-            <DownloadSimpleIcon size={13} aria-hidden="true" />
+            <DownloadSimpleIcon size={14} aria-hidden="true" />
           </Button>
         </div>
       </div>
@@ -704,7 +704,7 @@ function RequestRow({
         title={`${req.method} ${req.url}`}
       >
         <span className="min-w-0 flex-1 truncate">{req.name}</span>
-        <span className={`shrink-0 text-[9px] font-bold ${getMethodColor(req.method)}`}>
+        <span className={`shrink-0 text-2xs font-bold ${getMethodColor(req.method)}`}>
           {req.method}
         </span>
       </Button>

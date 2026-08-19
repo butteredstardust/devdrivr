@@ -856,7 +856,7 @@ export default function ApiClient() {
                     : 'text-[var(--color-text-muted)]'
                 }
               >
-                <SidebarIcon size={15} aria-hidden="true" />
+                <SidebarIcon size={16} aria-hidden="true" />
               </Button>
 
               <div className="min-w-0 flex-1 basis-40">
@@ -885,7 +885,7 @@ export default function ApiClient() {
                 title="New request"
                 aria-label="New request"
               >
-                <FilePlusIcon size={15} aria-hidden="true" />
+                <FilePlusIcon size={16} aria-hidden="true" />
               </Button>
 
               <div className="flex items-center gap-1">
@@ -911,7 +911,7 @@ export default function ApiClient() {
                   title="Manage environments"
                   aria-label="Manage environments"
                 >
-                  <GearSixIcon size={15} aria-hidden="true" />
+                  <GearSixIcon size={16} aria-hidden="true" />
                 </Button>
               </div>
 
@@ -967,7 +967,7 @@ export default function ApiClient() {
                 className="gap-1.5"
                 title="Send request (⌘↵)"
               >
-                <PaperPlaneTiltIcon size={13} aria-hidden="true" />
+                <PaperPlaneTiltIcon size={14} aria-hidden="true" />
                 Send
               </Button>
               <Button
@@ -1016,7 +1016,7 @@ export default function ApiClient() {
                     onClick={addParam}
                     className="gap-1"
                   >
-                    <PlusIcon size={10} aria-hidden="true" />
+                    <PlusIcon size={12} aria-hidden="true" />
                     Add
                   </Button>
                 </div>
@@ -1079,7 +1079,7 @@ export default function ApiClient() {
                     onClick={addHeader}
                     className="gap-1"
                   >
-                    <PlusIcon size={10} aria-hidden="true" />
+                    <PlusIcon size={12} aria-hidden="true" />
                     Add
                   </Button>
                 </div>
@@ -1232,7 +1232,7 @@ export default function ApiClient() {
                         title="Save response to a file (⌘S)"
                         aria-label="Save response to a file"
                       >
-                        <DownloadSimpleIcon size={13} aria-hidden="true" />
+                        <DownloadSimpleIcon size={14} aria-hidden="true" />
                       </Button>
                     </div>
                   </div>

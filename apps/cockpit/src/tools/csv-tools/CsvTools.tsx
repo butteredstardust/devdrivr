@@ -337,7 +337,7 @@ export default function CsvTools() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
             <div className="flex min-w-0 items-center gap-2">
               <FileCsvIcon
-                size={15}
+                size={16}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />
@@ -410,7 +410,7 @@ export default function CsvTools() {
               />
               {undoBuffer && (
                 <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
-                  <ArrowUUpLeftIcon size={13} aria-hidden="true" />
+                  <ArrowUUpLeftIcon size={14} aria-hidden="true" />
                   Undo {undoBuffer.label.toLowerCase()}
                 </Button>
               )}
@@ -423,7 +423,7 @@ export default function CsvTools() {
                 title="Save the current view to a file (⌘S)"
                 aria-label="Save output to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </div>
           </div>

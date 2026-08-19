@@ -510,7 +510,7 @@ export default function CssValidator() {
               title="New stylesheet"
               aria-label="New stylesheet"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -519,7 +519,7 @@ export default function CssValidator() {
               title="Open a .css file (⌘O)"
               aria-label="Open CSS file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -528,7 +528,7 @@ export default function CssValidator() {
               title="Save the stylesheet (⌘S)"
               aria-label="Save stylesheet"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -574,7 +574,7 @@ export default function CssValidator() {
             {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
             className="gap-1"
           >
-            <SlidersHorizontalIcon size={13} aria-hidden="true" />
+            <SlidersHorizontalIcon size={14} aria-hidden="true" />
             Rules
             {overrideCount > 0 && (
               <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
@@ -857,13 +857,13 @@ function ResultsPanel({
                     >
                       {issue.type === 'error' ? (
                         <WarningCircleIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-error)]"
                         />
                       ) : (
                         <WarningIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-warning)]"
                         />

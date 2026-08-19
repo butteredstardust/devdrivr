@@ -543,7 +543,7 @@ export function CommandPalette() {
             Actions
           </span>
         ) : (
-          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
+          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-2xs text-[var(--color-text-muted)]">
             {modSymbol}K
           </kbd>
         )}
@@ -579,7 +579,7 @@ export function CommandPalette() {
                     <div
                       key={`header-${section.label}`}
                       role="presentation"
-                      className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                      className="px-3 pb-0.5 pt-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
                     >
                       {section.label}
                     </div>

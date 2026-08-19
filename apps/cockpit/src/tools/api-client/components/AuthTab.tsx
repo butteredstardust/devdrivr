@@ -31,9 +31,9 @@ function RevealButton({ revealed, onToggle }: { revealed: boolean; onToggle: () 
       title={revealed ? 'Hide value' : 'Reveal value'}
     >
       {revealed ? (
-        <EyeSlashIcon size={15} aria-hidden="true" />
+        <EyeSlashIcon size={16} aria-hidden="true" />
       ) : (
-        <EyeIcon size={15} aria-hidden="true" />
+        <EyeIcon size={16} aria-hidden="true" />
       )}
     </Button>
   )

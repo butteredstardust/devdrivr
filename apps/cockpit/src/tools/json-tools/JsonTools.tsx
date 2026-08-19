@@ -477,7 +477,7 @@ export default function JsonTools() {
               title={state.fileName ?? 'Untitled'}
               icon={
                 <BracketsCurlyIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -532,7 +532,7 @@ export default function JsonTools() {
                 {...(state.queryOpen ? { 'aria-controls': queryId } : {})}
                 className="gap-1"
               >
-                <MagnifyingGlassIcon size={13} aria-hidden="true" />
+                <MagnifyingGlassIcon size={14} aria-hidden="true" />
                 Path
               </Button>
               <SegmentedControl
@@ -567,7 +567,7 @@ export default function JsonTools() {
                 disabled={!isValid}
                 className="gap-1"
               >
-                <SortAscendingIcon size={13} aria-hidden="true" />
+                <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
               <CopyButton text={input} label="Copy JSON" />
@@ -579,7 +579,7 @@ export default function JsonTools() {
                 title="Save to a file (⌘S)"
                 aria-label="Save JSON to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -963,7 +963,7 @@ function compareValues(a: unknown, b: unknown): number {
 function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
   const Icon =
     direction === 'asc' ? CaretUpIcon : direction === 'desc' ? CaretDownIcon : ArrowsDownUpIcon
-  return <Icon size={10} aria-hidden="true" className="text-[var(--color-text-muted)]" />
+  return <Icon size={12} aria-hidden="true" className="text-[var(--color-text-muted)]" />
 }
 
 function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: CopyToClipboard }) {

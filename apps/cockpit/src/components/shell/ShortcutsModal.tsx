@@ -51,7 +51,7 @@ function getCategories(mod: string): ShortcutCategory[] {
 
 function Kbd({ children }: { children: string }) {
   return (
-    <kbd className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--color-text)]">
+    <kbd className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-xs text-[var(--color-text)]">
       {children}
     </kbd>
   )

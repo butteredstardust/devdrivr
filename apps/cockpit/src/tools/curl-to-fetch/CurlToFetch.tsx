@@ -310,7 +310,7 @@ export default function CurlToFetch() {
               title="Open this request in API Client"
               className="ml-auto shrink-0 gap-1"
             >
-              <PlayIcon size={11} />
+              <PlayIcon size={12} />
               Test in API Client
             </Button>
           </div>

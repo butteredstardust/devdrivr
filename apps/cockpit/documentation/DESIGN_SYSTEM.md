@@ -1,404 +1,362 @@
 # DESIGN SYSTEM — devdrivr cockpit
 
-> Visual language reference. Before touching any UI — colours, spacing, typography, components — read this first.
+> Visual language reference. Before touching any UI — colours, spacing, typography, components —
+> read this first.
+
+Verified against source on 2026-08-19. Where this document and the code disagree, the code is
+authoritative and this document is a bug — fix it in the same commit.
 
 ---
 
-## Core Principle
+## Core principle
 
-**All visual values come from CSS custom properties.** Never hardcode hex values, `rgb()`, or Tailwind palette utilities like `bg-zinc-900`. Using tokens means themes switch correctly at runtime; hardcoding means the app looks broken in light mode or after a theme update.
+**All visual values come from CSS custom properties.** Never hardcode a hex value, an `rgb()`, or a
+Tailwind palette utility like `bg-zinc-900`.
+
+This is not a style preference. The app ships **22 themes**. A hardcoded colour is correct under
+exactly one of them and silently wrong under the other 21 — and it will look fine to whoever wrote
+it, because they only ran the theme they were using.
+
+`bun run lint:ds` fails the build on hardcoded colours, off-scale type, off-scale icons, and
+non-standard focus rings. See § Enforcement.
 
 ---
 
-## Colour Tokens
+## Where things live
 
-Defined in `src/index.css` under `:root` (dark, default) and `.light` (overrides).
+| File                              | Contains                                                             |
+| --------------------------------- | -------------------------------------------------------------------- |
+| `src/styles/tokens.css`           | All tokens: 22 theme palettes, z-index, spacing, radius, type, focus |
+| `src/index.css`                   | Font imports, `@theme` font families, keyframes, reduced-motion      |
+| `src/styles/highlight-themes.css` | Syntax-highlighting palettes                                         |
 
-### Background & Surface
+`index.css:21` imports `tokens.css`. Do not add tokens to `index.css`.
 
-| Token                    | Dark      | Light     | When to use                            |
-| ------------------------ | --------- | --------- | -------------------------------------- |
-| `--color-bg`             | `#0a0a0a` | `#faf8f0` | Main window / page background          |
-| `--color-surface`        | `#181818` | `#f5f3eb` | Sidebar, panels, cards, tool workspace |
-| `--color-surface-raised` | `#1e1e1e` | `#ffffff` | Modals, dropdowns, command palette     |
-| `--color-surface-hover`  | `#282828` | `#ece9e0` | Hover fill on buttons, list items      |
+---
 
-**Rule of thumb:** Nest surfaces by elevation — bg → surface → surface-raised.
+## Colour tokens
 
-### Text
+Values are **per-theme** and there are 22 themes, so this table documents each token's _role_
+rather than a value that would be wrong for 21 of them. Read the actual values from
+`src/styles/tokens.css`.
 
-| Token                | Dark      | Light     | When to use                           |
-| -------------------- | --------- | --------- | ------------------------------------- |
-| `--color-text`       | `#e0e0e0` | `#1a1a1a` | Primary body text, labels, headings   |
-| `--color-text-muted` | `#888888` | `#666666` | Placeholders, secondary labels, hints |
+### Surfaces
 
-Never use a hex value for text. Always pick one of these two.
+| Token                    | Role                                                 |
+| ------------------------ | ---------------------------------------------------- |
+| `--color-bg`             | Main window / workspace background                   |
+| `--color-surface`        | Sidebar, toolbars, panels, cards                     |
+| `--color-surface-raised` | Modals, dropdowns, command palette — above `surface` |
+| `--color-surface-sunken` | Wells and inset areas — below `surface`              |
+| `--color-surface-hover`  | Hover fill on buttons and list rows                  |
 
-### Borders
+**Rule of thumb:** nest by elevation — `sunken → bg → surface → raised`.
 
-| Token            | Dark      | Light     | When to use                           |
-| ---------------- | --------- | --------- | ------------------------------------- |
-| `--color-border` | `#333333` | `#d4d0c8` | All borders: panels, inputs, dividers |
+### Text and borders
 
-One border token. All edges in the UI use it.
+| Token                | Role                                  |
+| -------------------- | ------------------------------------- |
+| `--color-text`       | Primary body text, labels, headings   |
+| `--color-text-muted` | Placeholders, secondary labels, hints |
+| `--color-border`     | Every border in the app — one token   |
 
-### Accent (Brand)
+Never use a hex for text. There are exactly two text colours.
 
-| Token                | Dark                   | Light            | When to use                                                |
-| -------------------- | ---------------------- | ---------------- | ---------------------------------------------------------- |
-| `--color-accent`     | `#39ff14` (neon green) | `#00875a` (teal) | Active states, focused inputs, highlights, primary buttons |
-| `--color-accent-dim` | `#1a7a0a`              | `#b3e0d0`        | Hover fill backgrounds behind accent-coloured text         |
+### Accent and semantics
 
-Use `accent` sparingly — it's the single point of visual focus. Use `accent-dim` for hover/selected fill so the accent text remains readable.
+| Token                | Role                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| `--color-accent`     | Active state, focus, primary button fill, highlights                |
+| `--color-accent-dim` | Selected/hover fill _behind_ accent text, so the text stays legible |
+| `--color-error`      | Errors, destructive actions, validation failures                    |
+| `--color-warning`    | Warnings, deprecations                                              |
+| `--color-success`    | Success states, copy confirmation                                   |
+| `--color-info`       | Informational callouts, neutral status                              |
+| `--color-shadow`     | Every `box-shadow` colour                                           |
+| `--color-scrim`      | Modal backdrop dim                                                  |
 
-### Semantic Colours
+Accent is the single point of visual focus — use it sparingly. Prefer the semantic variants on
+`Alert` / `StatusBadge` over colouring text at the call site.
 
-| Token             | Dark      | Light     | When to use                                              |
-| ----------------- | --------- | --------- | -------------------------------------------------------- |
-| `--color-error`   | `#ef4444` | `#dc2626` | Error messages, destructive actions, validation failures |
-| `--color-warning` | `#f59e0b` | `#d97706` | Warnings, deprecation notices                            |
-| `--color-success` | `#22c55e` | `#16a34a` | Success states, copy confirmations                       |
-| `--color-info`    | `#3b82f6` | `#2563eb` | Informational callouts, neutral status                   |
+### Stacking
 
-### Shadows
+One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
 
-| Token            | Dark              | Light             | When to use         |
-| ---------------- | ----------------- | ----------------- | ------------------- |
-| `--color-shadow` | `rgba(0,0,0,0.4)` | `rgba(0,0,0,0.1)` | `box-shadow` values |
-
-Always use this token for shadows rather than hardcoding an alpha value.
-
-### Usage Examples
-
-```typescript
-// Panel background
-className="bg-[var(--color-surface)]"
-
-// Card with border
-className="bg-[var(--color-surface)] border border-[var(--color-border)]"
-
-// Active tab
-className="border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]"
-
-// Destructive button text
-className="text-[var(--color-error)]"
-
-// Hover fill
-className="hover:bg-[var(--color-surface-hover)]"
-
-// Muted placeholder
-className="text-[var(--color-text-muted)] placeholder:text-[var(--color-text-muted)]"
-
-// Shadow
-style={{ boxShadow: `0 4px 16px var(--color-shadow)` }}
-```
+| Token         | Value | Layer                             |
+| ------------- | ----- | --------------------------------- |
+| `--z-scrim`   | 40    | Backdrop behind a modal/palette   |
+| `--z-modal`   | 50    | Dialogs, command palette          |
+| `--z-popover` | 60    | Context menus, dropdowns, flyouts |
+| `--z-tooltip` | 70    | Hover tooltips                    |
+| `--z-toast`   | 80    | Toasts — always topmost           |
 
 ---
 
 ## Typography
 
-### Fonts
+### Families
 
-| Token          | Value                                      | When to use                                         |
-| -------------- | ------------------------------------------ | --------------------------------------------------- |
-| `--font-mono`  | `'JetBrains Mono', 'Fira Code', monospace` | All code, input fields, output areas, Monaco editor |
-| `--font-pixel` | `'Silkscreen', monospace`                  | App logo / branding only                            |
+| Token          | Value                                            | Use                                            |
+| -------------- | ------------------------------------------------ | ---------------------------------------------- |
+| `--font-ui`    | `system-ui, -apple-system, …`                    | UI chrome: buttons, labels, toolbars, headings |
+| `--font-mono`  | `'Source Code Pro', monospace` (theme-dependent) | Code, editors, values, IDs, output             |
+| `--font-pixel` | `'Silkscreen', monospace`                        | App logo / branding only                       |
 
-The system sans-serif (default browser font) is used for all UI chrome — labels, buttons, headings.
+Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
+`font-[family-name:var(--font-mono)]`).
 
-```typescript
-// Code/monospace content
-className = 'font-[family-name:var(--font-mono)] text-sm'
+**The split is semantic, not decorative:** chrome is `font-ui`, content the user typed or the tool
+produced is `font-mono`. A _label naming_ a monospace region is chrome and takes `font-ui`.
 
-// Logo
-className = 'font-[family-name:var(--font-pixel)]'
-```
+### Size scale
 
-### Text Size Scale
+Five sizes. Nothing else. `text-[13px]` and friends are a lint error.
 
-Use Tailwind's text scale. Common sizes in use:
+| Class       | rem   | px  | Use                                                       |
+| ----------- | ----- | --- | --------------------------------------------------------- |
+| `text-2xs`  | 0.625 | 10  | Section labels, status lines, metadata, keyboard hints    |
+| `text-xs`   | 0.75  | 12  | The workhorse: buttons, inputs, toolbars, list rows, body |
+| `text-sm`   | 0.875 | 14  | Tool/panel titles, modal titles                           |
+| `text-base` | 1     | 16  | Rare — large empty-state headings                         |
+| `text-lg`   | 1.125 | 18  | Rare — onboarding                                         |
 
-| Class                 | Use case                                             |
-| --------------------- | ---------------------------------------------------- |
-| `text-xs`             | Button labels, status bar, tab labels, sidebar items |
-| `text-sm`             | Body text, tool labels, form inputs                  |
-| `text-base`           | Section headings                                     |
-| `text-lg` / `text-xl` | Modal titles (rare)                                  |
+The app is dense by design; `text-xs` is the default body size, not a small variant.
 
-The Monaco editor font size follows `settings.editorFontSize` (default: 14px, range 10–20).
+Monaco's font size follows `settings.editorFontSize` (default 14, range 10–20) and is independent
+of this scale.
 
 ---
 
-## Spacing & Layout
+## Spacing, radius, elevation
 
-The app uses Tailwind's default spacing scale. No custom spacing tokens — use the scale directly.
+Tailwind's default spacing scale, on a 4px rhythm. `--space-1..8` exist in `tokens.css` for use in
+inline `style`, but in `className` prefer the Tailwind utilities.
 
-### Common Layout Patterns
+| Token           | Value    | Use                             |
+| --------------- | -------- | ------------------------------- |
+| `--radius-sm`   | 0.125rem | Buttons, inputs, small controls |
+| `--radius-md`   | 0.25rem  | Panels, cards                   |
+| `--radius-lg`   | 0.5rem   | Modals, large surfaces          |
+| `--elevation-1` | —        | Resting raised surface          |
+| `--elevation-2` | —        | Dropdowns, popovers             |
+| `--elevation-3` | —        | Modals                          |
 
-**Full-height tool workspace:**
+### Chrome padding scale
 
-```typescript
-<div className="flex h-full flex-col gap-2 p-3">
-  {/* header row */}
-  <div className="flex items-center gap-2">...</div>
-  {/* expanding content area */}
-  <div className="flex min-h-0 flex-1 flex-col">...</div>
-</div>
-```
+Chrome rows use two paddings and no others. This is what `Toolbar` and `PaneHeader` encode; if you
+are writing either by hand, you are writing a bug.
 
-**Side-by-side panels:**
-
-```typescript
-<div className="flex h-full min-h-0 gap-2">
-  <div className="flex flex-1 flex-col">Left</div>
-  <div className="flex flex-1 flex-col">Right</div>
-</div>
-```
-
-**Toolbar row:**
-
-```typescript
-<div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
-  ...
-</div>
-```
-
-**Key layout rule:** Tools must be `flex h-full flex-col` at the root. Without `h-full`, the tool won't fill the workspace.
+| Padding       | Use                                       |
+| ------------- | ----------------------------------------- |
+| `px-4 py-2`   | Tool toolbar row (`Toolbar`, `min-h-10`)  |
+| `px-3 py-1.5` | Pane header inside a split (`PaneHeader`) |
 
 ---
 
 ## Icons
 
-All icons use **Phosphor Icons** (`@phosphor-icons/react`). No inline SVGs, no emoji, no other icon libraries.
+**Phosphor Icons** (`@phosphor-icons/react`) only. No inline SVG, no emoji, no second icon library.
 
-```typescript
-import { ArrowRight, Clipboard, Lightning, Code, Gear } from '@phosphor-icons/react'
+Three sizes. 10/11/13/15 are lint errors — they existed, they meant nothing, they are gone.
 
-// Standard sizes
-<Gear size={16} />           // toolbar / button icons
-<Code size={20} />           // sidebar group icons
-<Lightning size={14} />      // status bar
+| `size` | Use                                                        |
+| ------ | ---------------------------------------------------------- |
+| `12`   | Dense/inline: inside `text-2xs` rows, status lines, chips  |
+| `14`   | Toolbar and button icons — the default                     |
+| `16`   | Navigation and identity: sidebar groups, document identity |
 
-// Weights
-weight="regular"   // default
-weight="bold"      // emphasis, active states
-weight="fill"      // filled/active icon variant
-weight="duotone"   // decorative, two-tone
-weight="light"     // subtle, secondary icons
-weight="thin"      // very subtle
-```
+Decorative icons need `aria-hidden="true"`. Icons that _are_ the control need the `aria-label` on
+the button, not the icon.
 
-**Choosing weight by context:**
-
-- Sidebar group headers: `weight="bold"` at `size={16}`
-- Toolbar actions: `weight="regular"` at `size={14}` or `size={16}`
-- Status indicators: `weight="fill"` (solid, immediately readable at small sizes)
-- Empty state illustrations: `weight="duotone"` at larger sizes
+Weights: `regular` default; `bold` for emphasis and active states; `fill` for status indicators
+(solid reads better at 12px); `duotone` for empty-state illustrations.
 
 ---
 
-## Shared Components
+## Layout contract
 
-### `Button`
+Every tool renders through `ToolLayout`. No exceptions.
 
-```typescript
-import { Button } from '@/components/shared/Button'
-
-// Variants
-<Button variant="primary">Run</Button>        // accent background — main CTA
-<Button variant="secondary">Cancel</Button>   // border style — default
-<Button variant="ghost">Settings</Button>     // text only — minimal chrome
-<Button variant="danger">Delete</Button>      // destructive action
-<Button variant="icon" aria-label="Save">…</Button> // icon-only action
-
-// Sizes
-<Button size="md">Default</Button>            // px-4 py-2
-<Button size="sm">Compact</Button>            // px-2 py-1
-<Button size="xs">Dense toolbar</Button>       // px-1.5 py-0.5
-
-// All standard HTMLButtonElement props pass through
-<Button variant="primary" loading={loading} onClick={handleRun}>
-  Run
-</Button>
+```
+ToolLayout
+  toolbar: Toolbar | DocumentToolbar     ← chrome only
+    ToolbarGroup (+ separated)           ← action families
+    ToolbarSpacer
+  body:
+    fullBleed  → SplitPane / editors, each pane headed by PaneHeader
+    otherwise  → maxWidth-capped stack of Panel sections
 ```
 
-**When to use which variant:**
+**The `toolbar` slot is for chrome.** Not a form, not a `TextArea`, not an editor. If the thing you
+want to put there accepts typed input longer than a filename, it belongs in the body.
 
-- `primary` — one per tool, the main action (Format, Run, Generate, etc.)
-- `secondary` — secondary actions (Clear, Reset, Copy as…)
+**Tools must be `flex h-full flex-col` at the root** — `ToolLayout` handles this; hand-rolled roots
+without `h-full` silently collapse.
+
+---
+
+## Shared components
+
+Import from `@/components/shared/<Name>`.
+
+### Layout
+
+| Component            | Use                                                                     |
+| -------------------- | ----------------------------------------------------------------------- |
+| `ToolLayout`         | Every tool's outer shell. `fullBleed` for editors, `maxWidth` for forms |
+| `Toolbar`            | The chrome row. `ToolbarGroup` for families, `ToolbarSpacer` to push    |
+| `DocumentToolbar`    | Wrapping variant for document tools; pairs with `DocumentIdentity`      |
+| `PaneHeader`         | Header strip for one pane of a split — title, optional status/actions   |
+| `Panel`              | Bordered section container with optional title + actions                |
+| `SplitPane`          | Resizable two-pane split; persists ratio via `storageKey`               |
+| `MasterDetailLayout` | Sidebar + detail shell for library-style tools                          |
+
+### Controls
+
+| Component                       | Notes                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `Button`                        | Variants `primary`/`secondary`/`ghost`/`danger`/`icon`; sizes `xs`/`sm`/`md` |
+| `CopyButton`                    | Copy + 1.5s confirmation + success toast                                     |
+| `Input` / `TextArea` / `Select` | Boxed form controls                                                          |
+| `InlineInput`                   | Chrome-less input for editable titles                                        |
+| `SearchInput`                   | Search field with clear affordance                                           |
+| `Field`                         | Label + control + hint/error. **Use this instead of a raw `<label>`**        |
+| `Toggle`                        | Boolean switch with label                                                    |
+| `SegmentedControl`              | Pick one view mode                                                           |
+| `TabBar`                        | ARIA tabs for multi-mode tools; arrow/Home/End nav                           |
+| `Kbd`                           | Keyboard hint. `<Kbd keys="mod+enter" />` — resolves `mod` per platform      |
+
+`SegmentedControl` switches a _view_ of the same thing; `TabBar` switches _what you're working on_.
+
+### Feedback
+
+| Component      | Use                                                              |
+| -------------- | ---------------------------------------------------------------- |
+| `Alert`        | A message needing attention, or an operation outcome             |
+| `StatusBadge`  | A compact state or metadata value (HTTP status, validity)        |
+| `EmptyState`   | Replaces an ambiguous blank pane; may carry one next-step action |
+| `Spinner`      | Indeterminate progress                                           |
+| `SectionLabel` | The small uppercase label naming a region                        |
+| `Dialog`       | Modal; owns focus trap, escape, and backdrop                     |
+
+Use semantic variants (`info`/`success`/`warning`/`error`) rather than styling status text at the
+call site. Do not add check marks, warning glyphs, emoji, or custom SVG — the component or a
+Phosphor icon supplies the cue.
+
+### `SectionLabel`
+
+The one label idiom. Before it existed there were seven, differing on font, weight, and tracking
+with no rule distinguishing them.
+
+```tsx
+<SectionLabel>Output</SectionLabel>                        // <span>, chrome
+<SectionLabel as="h2">Validate &amp; parse</SectionLabel>  // real heading
+<SectionLabel hint={`${count} matches`}>Results</SectionLabel>
+```
+
+Renders `font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`.
+Pick `as` for the _document structure_ you need; the visual is identical either way.
+
+### `Button` variants
+
+- `primary` — the main action. **At most one per tool.** Tools that compute live as you type
+  (`case-converter`, `regex-tester`, `hash-generator`, …) correctly have _none_; do not add one
+  just to fill the slot.
+- `secondary` — ordinary actions (Clear, Reset, Swap)
 - `ghost` — tertiary actions and navigation
-- `danger` — destructive actions only
-- `icon` — icon-only controls; always provide `aria-label` (it also becomes the tooltip)
+- `danger` — destructive only
+- `icon` — icon-only; **always** pass `aria-label` (it also becomes the tooltip)
 
-Use `loading` for asynchronous actions. It preserves the button width, announces busy state, and
-disables repeat clicks. Use one `primary` action per action group, not one per screen.
+Use `loading` for async actions: it preserves width, announces busy, and blocks repeat clicks.
 
-### `CopyButton`
+### Toasts
 
-```typescript
-import { CopyButton } from '@/components/shared/CopyButton'
+Triggered through the UI store, never rendered directly:
 
-<CopyButton text={output} />
-<CopyButton text={output} label="Copy JSON" />
-<CopyButton text={output} className="ml-auto" />
-```
-
-Shows a check icon and "Copied" for 1.5s after click. Triggers a success toast automatically.
-
-### `TabBar`
-
-```typescript
-import { TabBar } from '@/components/shared/TabBar'
-
-const TABS = [
-  { id: 'format', label: 'Format' },
-  { id: 'minify', label: 'Minify' },
-]
-
-<TabBar
-  tabs={TABS}
-  activeTab={state.tab}
-  onTabChange={(id) => updateState({ tab: id })}
-/>
-```
-
-Active tab has a 2px bottom border in `--color-accent`. Use `TabBar` for multi-mode tools.
-It exposes the ARIA tab pattern, supports arrow/Home/End navigation, and scrolls horizontally when
-the available width is narrow. Use `SegmentedControl` for a view mode rather than document sections.
-
-### `Toolbar` and `ToolbarGroup`
-
-```typescript
-import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
-
-<Toolbar aria-label="Editor actions">
-  <ToolbarGroup label="Document actions">…</ToolbarGroup>
-  <ToolbarGroup label="Formatting" separated>…</ToolbarGroup>
-  <ToolbarSpacer />
-  <ToolbarGroup label="Export actions">…</ToolbarGroup>
-</Toolbar>
-```
-
-Place document-wide actions in the tool toolbar. Use groups and separators for different action
-families; keep actions for a specific pane in that pane's header.
-
-### `Input`, `Select`, and `TextArea`
-
-Use these primitives for native form controls instead of duplicating border, radius, focus, and
-disabled styles. Set `monospace` on `TextArea` for source/code. Full-bleed editor textareas may
-override radius and border while retaining the shared typography and focus contract.
-
-### `Alert`, `StatusBadge`, and `EmptyState`
-
-- `Alert` is for a message that needs attention or explains an operation outcome.
-- `StatusBadge` is for a compact state or metadata value, such as HTTP status or validity.
-- `EmptyState` replaces ambiguous blank panes and may include a single next-step action.
-
-Use semantic variants (`info`, `success`, `warning`, `error`) rather than styling status text at the
-call site. Do not add check marks, warning glyphs, emoji, or custom SVG; the shared component or a
-Phosphor icon supplies the visual cue.
-
-### `Toggle`
-
-```typescript
-import { Toggle } from '@/components/shared/Toggle'
-
-<Toggle
-  checked={state.wrap}
-  onChange={(v) => updateState({ wrap: v })}
-  label="Word wrap"
-/>
-```
-
-### `Toast` / Status feedback
-
-Toasts are triggered via the UI store, not rendered directly:
-
-```typescript
+```tsx
 const setLastAction = useUiStore((s) => s.setLastAction)
-
-// Success (green)
 setLastAction('Formatted successfully', 'success')
-
-// Error (red)
 setLastAction('Invalid JSON', 'error')
-
-// Info (accent)
 setLastAction('Copied to clipboard', 'info')
 ```
 
-Toasts auto-dismiss after 3 seconds and can be dismissed by click. They appear bottom-right at `fixed bottom-12 right-4`.
-
-### `SendToMenu`
-
-Allows sending text content from one tool to another:
-
-```typescript
-import { SendToMenu } from '@/components/shared/SendToMenu'
-
-<SendToMenu content={state.output} />
-```
-
-The menu lists all other tools that accept `open-file` / `send-to` actions.
+Auto-dismiss after 3s, dismissable by click, bottom-right.
 
 ---
 
-## Animations
+## Focus
 
-One animation is defined globally:
+Two treatments, both tokens. Anything else is drift and fails `lint:ds`.
 
-```css
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+```tsx
+// Standard — control with room around it
+className = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]'
+
+// Inset — control flush in a dense container (sidebar row, tab strip, list item)
+className = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]'
 ```
 
-Used for modals, toasts, and panels appearing. Apply with:
+`--focus-ring` draws 4px _outside_ the element, with a background-coloured inner layer so it stays
+visible on any surface. In a dense container that ring gets clipped or lands on the neighbouring
+row, which is what `--focus-ring-inset` is for. Reach for inset only when the standard ring is
+actually clipped.
 
-```typescript
-className = 'animate-[fade-in_150ms_ease-out]'
-```
-
-Keep all animations under 200ms. The app is a utility — it should feel instant.
+Every interactive element needs a visible focus state. Icon-only buttons need `aria-label`. Use
+semantic HTML (`<button>`, `<input>`, `<label>`) over a `<div>` with `onClick`. The app is
+keyboard-first — every core action must be reachable without a mouse (`useGlobalShortcuts`).
 
 ---
 
-## Monaco Editor
+## Animation
 
-Tools using Monaco import shared theme sync and options:
+One shared animation:
 
-```typescript
+```tsx
+className = 'animate-fade-in' // 150ms ease-out, 8px rise
+```
+
+Defined at `index.css:89`. Keep everything under 200ms — this is a utility app, it should feel
+instant. `index.css` disables animation under `prefers-reduced-motion` globally, so don't add
+per-component guards.
+
+---
+
+## Monaco editor
+
+```tsx
 import { useMonacoTheme, EDITOR_OPTIONS } from '@/hooks/useMonaco'
 
-export default function MyTool() {
-  useMonacoTheme()   // keeps Monaco in sync with app theme — must be called
+useMonacoTheme() // keeps Monaco in sync with the app theme — must be called
 
-  return (
-    <Editor
-      options={EDITOR_OPTIONS}   // shared base options (minimap off, line numbers, etc.)
-      theme="cockpit-dark"       // set by useMonacoTheme
-      language="javascript"
-      value={state.input}
-      onChange={(v) => updateState({ input: v ?? '' })}
-    />
-  )
-}
+<Editor options={EDITOR_OPTIONS} theme={monacoTheme} language="json" … />
 ```
 
-Always use `EDITOR_OPTIONS` as the base. Override individual options if needed, but don't replace the whole object.
+Always base off `EDITOR_OPTIONS`; override individual keys rather than replacing the object.
+**Always pass `theme` explicitly** — `DiffEditor` defaults to light, and `setTheme` is global.
 
 ---
 
-## Accessibility Notes
+## Enforcement
 
-- All interactive elements must have visible focus states (Tailwind's `focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]`)
-- Icon-only buttons need an `aria-label`
-- Use semantic HTML (`<button>`, `<input>`, `<label>`) over generic `<div>` with `onClick`
-- The app is keyboard-first — every core action must be reachable without a mouse (see `useGlobalShortcuts`)
+`bun run lint` runs ESLint and then `bun run lint:ds`
+(`scripts/lint-design-system.mjs`).
+
+ESLint (`eslint.config.js`) blocks raw `<button>`, `<select>`, and text `<input>` in `src/tools`,
+and raw text `<input>` in `src/components/shell`. Per-line
+`// eslint-disable-next-line no-restricted-syntax` with a stated reason is the escape hatch.
+
+`lint:ds` walks raw source — including template literals, where most of the historical drift hid —
+and blocks:
+
+| Rule                | Blocks                                 |
+| ------------------- | -------------------------------------- |
+| `off-scale-text`    | `text-[Npx]`                           |
+| `off-scale-icon`    | `size={10\|11\|13\|15}`                |
+| `legacy-focus-ring` | `focus-visible:ring-*`                 |
+| `hardcoded-colour`  | hex / `rgb()` inside a class attribute |
+| `tailwind-palette`  | `bg-zinc-900` and friends              |
+
+Escape hatch: `/* design-system-ignore: <reason> */` on the preceding line. The reason is required.
+
+If you need to change a rule, change this document in the same commit. A gate that disagrees with
+its documentation teaches contributors to ignore both.

@@ -289,7 +289,7 @@ export default function XmlTools() {
             title={state.fileName ?? 'Untitled'}
             icon={
               <BracketsAngleIcon
-                size={15}
+                size={16}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />
@@ -375,7 +375,7 @@ export default function XmlTools() {
               title="Save to a file (⌘S)"
               aria-label="Save XML to file"
             >
-              <FloppyDiskIcon size={15} aria-hidden="true" />
+              <FloppyDiskIcon size={16} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>
@@ -724,7 +724,7 @@ function TreeNodeRow({
           disabled={!hasChildren}
         >
           <span className="w-3 shrink-0 text-[var(--color-text-muted)]">
-            {hasChildren && <Caret size={10} aria-hidden="true" />}
+            {hasChildren && <Caret size={12} aria-hidden="true" />}
           </span>
           {/* One span, no flex gap: the pieces of a tag have to read as a tag,
               not as `<catalog >`. */}

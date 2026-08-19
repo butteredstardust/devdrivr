@@ -203,7 +203,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
                 variant="ghost"
                 size="xs"
                 onClick={() => scrollToHeading(entry.id)}
-                className="block w-full truncate rounded-none p-0 text-left text-[11px] leading-relaxed text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-accent)]"
+                className="block w-full truncate rounded-none p-0 text-left text-xs leading-relaxed text-[var(--color-text-muted)] hover:bg-transparent hover:text-[var(--color-accent)]"
                 style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
                 title={entry.text}
               >

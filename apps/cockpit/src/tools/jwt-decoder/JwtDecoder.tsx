@@ -173,7 +173,7 @@ export default function JwtDecoder() {
         />
         {/* Color-coded token preview */}
         {tokenParts && decoded && (
-          <div className="mt-2 break-all font-mono text-[11px] leading-relaxed">
+          <div className="mt-2 break-all font-mono text-xs leading-relaxed">
             <span className="text-[var(--color-info)]">{tokenParts[0]}</span>
             <span className="text-[var(--color-text-muted)]">.</span>
             <span className="text-[var(--color-success)]">{tokenParts[1]}</span>

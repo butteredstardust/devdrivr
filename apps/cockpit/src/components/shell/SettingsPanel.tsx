@@ -293,8 +293,8 @@ function GeneralTab() {
 
       {/* Updates */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <ArrowCircleUpIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <ArrowCircleUpIcon size={12} />
           Updates
         </h4>
         <div className="space-y-1">
@@ -613,8 +613,8 @@ function DataTab() {
 
       {/* Storage Stats */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <InfoIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <InfoIcon size={12} />
           Storage
         </h4>
         <div className="grid grid-cols-3 gap-2">
@@ -626,8 +626,8 @@ function DataTab() {
 
       {/* Data Management */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <TrashIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <TrashIcon size={12} />
           Clear Data
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -660,8 +660,8 @@ function DataTab() {
 
       {/* Export / Import / Reset */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <ExportIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <ExportIcon size={12} />
           Settings Transfer
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -703,7 +703,7 @@ function StatCard({ label, count }: { label: string; count: number }) {
   return (
     <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-center">
       <div className="font-mono text-sm font-bold text-[var(--color-text)]">{count}</div>
-      <div className="text-[11px] text-[var(--color-text-muted)]">{label}</div>
+      <div className="text-xs text-[var(--color-text-muted)]">{label}</div>
     </div>
   )
 }
@@ -848,7 +848,7 @@ function McpTab() {
             <button
               type="button"
               onClick={() => void copyText(status.url, 'MCP URL copied')}
-              className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+              className="mt-1 font-mono text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               {status.url}
             </button>
@@ -875,7 +875,7 @@ function McpTab() {
           </div>
         </div>
         {status.lastError && (
-          <div className="mt-2 rounded border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-2 py-1 text-[11px] text-[var(--color-error)]">
+          <div className="mt-2 rounded border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-2 py-1 text-xs text-[var(--color-error)]">
             {status.lastError}
           </div>
         )}
@@ -915,13 +915,13 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <KeyIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <KeyIcon size={12} />
           Authentication
         </h4>
         <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2">
           <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded bg-[var(--color-surface)] px-2 py-1 font-mono text-[11px] text-[var(--color-text)]">
+            <code className="min-w-0 flex-1 truncate rounded bg-[var(--color-surface)] px-2 py-1 font-mono text-xs text-[var(--color-text)]">
               {keyVisible ? settings.apiKey : '•'.repeat(Math.min(32, settings.apiKey.length))}
             </code>
             <button
@@ -930,7 +930,7 @@ function McpTab() {
               className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               aria-label={keyVisible ? 'Hide MCP key' : 'Show MCP key'}
             >
-              {keyVisible ? <EyeSlashIcon size={13} /> : <EyeIcon size={13} />}
+              {keyVisible ? <EyeSlashIcon size={14} /> : <EyeIcon size={14} />}
             </button>
             <button
               type="button"
@@ -938,7 +938,7 @@ function McpTab() {
               className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               aria-label="Copy MCP key"
             >
-              <CopyIcon size={13} />
+              <CopyIcon size={14} />
             </button>
             <button
               type="button"
@@ -953,8 +953,8 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <ShieldCheckIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <ShieldCheckIcon size={12} />
           Permissions
         </h4>
         <div className="overflow-hidden rounded border border-[var(--color-border)]">
@@ -1007,8 +1007,8 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-          <PlugsConnectedIcon size={10} />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <PlugsConnectedIcon size={12} />
           Client Setup
         </h4>
         <div className="space-y-2">
@@ -1026,8 +1026,8 @@ function McpTab() {
               onClick={() => void copyText(command, `${label} setup copied`)}
               className="flex w-full items-start gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-2 text-left transition-colors hover:border-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
-              <CopyIcon size={13} className="mt-0.5 shrink-0 text-[var(--color-text-muted)]" />
-              <span className="min-w-24 text-[11px] font-semibold text-[var(--color-text)]">
+              <CopyIcon size={14} className="mt-0.5 shrink-0 text-[var(--color-text-muted)]" />
+              <span className="min-w-24 text-xs font-semibold text-[var(--color-text)]">
                 {label}
               </span>
               <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-2xs text-[var(--color-text-muted)]">

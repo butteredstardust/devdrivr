@@ -563,7 +563,7 @@ export default function MermaidEditor() {
               title="New diagram"
               aria-label="New diagram"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -572,7 +572,7 @@ export default function MermaidEditor() {
               title="Open a .mmd file (⌘O)"
               aria-label="Open Mermaid file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -581,7 +581,7 @@ export default function MermaidEditor() {
               title="Save the source (⌘S)"
               aria-label="Save Mermaid source"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -639,7 +639,7 @@ export default function MermaidEditor() {
               loading={isExporting}
               className="gap-1"
             >
-              <CopyIcon size={13} aria-hidden="true" />
+              <CopyIcon size={14} aria-hidden="true" />
               Copy {exportFormat.toUpperCase()}
             </Button>
             <Button
@@ -650,7 +650,7 @@ export default function MermaidEditor() {
               loading={isExporting}
               className="gap-1"
             >
-              <DownloadSimpleIcon size={13} aria-hidden="true" />
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
               Export
             </Button>
           </ToolbarGroup>
@@ -661,7 +661,7 @@ export default function MermaidEditor() {
             onClick={() => void handleCopySource()}
             className="gap-1"
           >
-            <CopyIcon size={13} aria-hidden="true" />
+            <CopyIcon size={14} aria-hidden="true" />
             Copy source
           </Button>
         </DocumentToolbar>

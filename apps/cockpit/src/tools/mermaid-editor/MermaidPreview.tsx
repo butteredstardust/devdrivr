@@ -222,7 +222,7 @@ export default function MermaidPreview({
           aria-label="Zoom out"
           title="Zoom out (−)"
         >
-          <MagnifyingGlassMinusIcon size={13} aria-hidden="true" />
+          <MagnifyingGlassMinusIcon size={14} aria-hidden="true" />
         </Button>
         <span
           className="w-12 text-center font-mono text-2xs text-[var(--color-text-muted)] tabular-nums"
@@ -237,7 +237,7 @@ export default function MermaidPreview({
           aria-label="Zoom in"
           title="Zoom in (+)"
         >
-          <MagnifyingGlassPlusIcon size={13} aria-hidden="true" />
+          <MagnifyingGlassPlusIcon size={14} aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
@@ -247,7 +247,7 @@ export default function MermaidPreview({
           className="gap-1"
           title="Fit the whole diagram in the pane (F)"
         >
-          <ArrowsOutSimpleIcon size={13} aria-hidden="true" />
+          <ArrowsOutSimpleIcon size={14} aria-hidden="true" />
           Fit
         </Button>
         <Button
@@ -257,7 +257,7 @@ export default function MermaidPreview({
           className="gap-1"
           title="Back to 100% (0)"
         >
-          <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+          <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
           Reset
         </Button>
 

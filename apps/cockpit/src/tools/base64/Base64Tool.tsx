@@ -413,7 +413,7 @@ export default function Base64Tool() {
                   title="Encode a file to Base64"
                   className="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
-                  <UploadSimpleIcon size={11} />
+                  <UploadSimpleIcon size={12} />
                   Encode File
                 </Button>
                 <input

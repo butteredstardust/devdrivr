@@ -238,7 +238,7 @@ export default function CodeFormatter() {
               title={state.fileName ?? 'Untitled'}
               icon={
                 <CodeBlockIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -282,7 +282,7 @@ export default function CodeFormatter() {
                 title="Guess the language from the code"
                 className="gap-1"
               >
-                <MagicWandIcon size={13} aria-hidden="true" />
+                <MagicWandIcon size={14} aria-hidden="true" />
                 Auto-detect
               </Button>
               <Button
@@ -294,7 +294,7 @@ export default function CodeFormatter() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Style
               </Button>
             </ToolbarGroup>
@@ -321,7 +321,7 @@ export default function CodeFormatter() {
                 title="Restore the code as it was before formatting"
                 className="gap-1"
               >
-                <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+                <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
                 Revert
               </Button>
               <CopyButton text={input} />
@@ -333,7 +333,7 @@ export default function CodeFormatter() {
                 title="Save to a file (⌘S)"
                 aria-label="Save to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

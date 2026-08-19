@@ -723,7 +723,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                     </label>
                     {variable.type === 'select' && (
                       <label className="col-span-3 block">
-                        <span className="mb-1 block font-mono text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                        <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
                           Options
                         </span>
                         <Input
@@ -1130,7 +1130,7 @@ export default function PromptTemplates() {
                   <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
                     {template.description}
                   </span>
-                  <span className="mt-1.5 block text-[9px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <span className="mt-1.5 block text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
                     {CATEGORY_LABELS[template.category]} · {template.optimizedFor}
                   </span>
                 </span>
@@ -1211,7 +1211,7 @@ export default function PromptTemplates() {
               onClick={() => setModalOpen(true)}
               className="gap-1.5"
             >
-              <SparkleIcon size={13} aria-hidden="true" /> Focus mode
+              <SparkleIcon size={14} aria-hidden="true" /> Focus mode
             </Button>
             <Button
               type="button"
@@ -1220,7 +1220,7 @@ export default function PromptTemplates() {
               onClick={() => void copyRenderedPrompt()}
               className="gap-1.5"
             >
-              <ClipboardTextIcon size={13} aria-hidden="true" /> Copy prompt
+              <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
             </Button>
           </div>
           <div className="flex items-center border-t border-[var(--color-border)] pr-4">

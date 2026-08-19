@@ -249,7 +249,7 @@ export default function TsPlayground() {
               title={state.fileName ?? 'Untitled.ts'}
               icon={
                 <FileTsIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -294,7 +294,7 @@ export default function TsPlayground() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Options
               </Button>
               <Button
@@ -320,7 +320,7 @@ export default function TsPlayground() {
                 title="Save the JavaScript output to a file (⌘S)"
                 aria-label="Save output to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -497,7 +497,7 @@ export default function TsPlayground() {
                     className="flex items-start gap-2 py-0.5 text-xs"
                   >
                     <Icon
-                      size={13}
+                      size={14}
                       aria-hidden="true"
                       className="mt-0.5 shrink-0"
                       style={{ color: SEVERITY_COLOR[d.category] }}

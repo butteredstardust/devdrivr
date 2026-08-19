@@ -572,7 +572,7 @@ export default function ImageTool() {
         <>
           <Toolbar aria-label="Image actions" className="gap-3">
             <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <UploadSimpleIcon size={13} />
+              <UploadSimpleIcon size={14} />
               Open Image
             </Button>
             <input
@@ -616,7 +616,7 @@ export default function ImageTool() {
                   title="Reset all settings"
                   className="gap-1"
                 >
-                  <ArrowCounterClockwiseIcon size={13} />
+                  <ArrowCounterClockwiseIcon size={14} />
                   Reset
                 </Button>
               </>
@@ -1149,7 +1149,7 @@ function ExportPanel({
             onChange={(e) => onQualityChange(Number(e.target.value))}
             className="w-full accent-[var(--color-accent)]"
           />
-          <div className="mt-1 flex justify-between text-[9px] text-[var(--color-text-muted)]">
+          <div className="mt-1 flex justify-between text-2xs text-[var(--color-text-muted)]">
             <span>Smaller</span>
             <span>Higher quality</span>
           </div>
@@ -1190,7 +1190,7 @@ function ExportPanel({
             void onDownload()
           }}
         >
-          <DownloadSimpleIcon size={13} />
+          <DownloadSimpleIcon size={14} />
           Download {format.toUpperCase()}
         </Button>
         <Button
@@ -1200,7 +1200,7 @@ function ExportPanel({
             void onCopy()
           }}
         >
-          <CopyIcon size={13} />
+          <CopyIcon size={14} />
           Copy as PNG
         </Button>
       </div>

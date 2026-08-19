@@ -738,7 +738,7 @@ export default function SnippetsManager() {
                 tabIndex={isSelected || (!selectedId && filtered[0]?.id === snippet.id) ? 0 : -1}
                 onClick={() => setSelectedId(snippet.id)}
                 onKeyDown={(event) => handleListKeyDown(event, snippet.id)}
-                className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[inset_var(--focus-ring)] ${
+                className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
                   isSelected
                     ? 'bg-[var(--color-accent-dim)]'
                     : 'hover:bg-[var(--color-surface-hover)]'
@@ -746,7 +746,7 @@ export default function SnippetsManager() {
               >
                 <div className="flex items-start gap-2">
                   <span
-                    className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
+                    className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-2xs font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
                   >
                     {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
                   </span>
@@ -757,7 +757,7 @@ export default function SnippetsManager() {
                       </span>
                       {isFavorite(snippet.tags) && (
                         <StarIcon
-                          size={11}
+                          size={12}
                           weight="fill"
                           aria-label="Favorite"
                           className="shrink-0 text-[var(--color-warning)]"
@@ -771,7 +771,7 @@ export default function SnippetsManager() {
                       {contentPreview(snippet.content) || 'Empty snippet'}
                     </span>
                     {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
-                      <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-[9px] text-[var(--color-text-muted)]">
+                      <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-2xs text-[var(--color-text-muted)]">
                         {snippet.folder && (
                           <span className="flex min-w-0 items-center gap-1 truncate">
                             <FolderOpenIcon size={9} aria-hidden="true" />
@@ -832,7 +832,7 @@ export default function SnippetsManager() {
                   className={isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : ''}
                 >
                   <StarIcon
-                    size={15}
+                    size={16}
                     weight={isFavorite(selected.tags) ? 'fill' : 'regular'}
                     aria-hidden="true"
                   />
@@ -969,7 +969,7 @@ export default function SnippetsManager() {
 
                   <div className="mt-5">
                     <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-                      <TagIcon size={11} aria-hidden="true" />
+                      <TagIcon size={12} aria-hidden="true" />
                       Tags
                     </div>
                     <div className="flex flex-wrap gap-1.5">

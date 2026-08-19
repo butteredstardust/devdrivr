@@ -1028,7 +1028,7 @@ export default function MarkdownEditor() {
             onClick={() => void handleSave()}
             className="gap-1.5"
           >
-            <FloppyDiskIcon size={13} aria-hidden="true" /> Save
+            <FloppyDiskIcon size={14} aria-hidden="true" /> Save
           </Button>
 
           <div ref={fileMenuRef} className="relative">
@@ -1043,7 +1043,7 @@ export default function MarkdownEditor() {
               aria-expanded={showFileMenu}
               aria-haspopup="menu"
             >
-              File <CaretDownIcon size={10} aria-hidden="true" className="ml-1" />
+              File <CaretDownIcon size={12} aria-hidden="true" className="ml-1" />
             </Button>
             {showFileMenu && (
               <div
@@ -1147,7 +1147,7 @@ export default function MarkdownEditor() {
               aria-expanded={showExport}
               aria-haspopup="menu"
             >
-              Export <CaretDownIcon size={10} aria-hidden="true" />
+              Export <CaretDownIcon size={12} aria-hidden="true" />
             </Button>
             {showExport && (
               <div

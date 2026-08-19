@@ -129,11 +129,11 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {sorted === 'asc' ? (
-                          <CaretUpIcon size={11} aria-hidden="true" />
+                          <CaretUpIcon size={12} aria-hidden="true" />
                         ) : sorted === 'desc' ? (
-                          <CaretDownIcon size={11} aria-hidden="true" />
+                          <CaretDownIcon size={12} aria-hidden="true" />
                         ) : (
-                          <CaretUpDownIcon size={11} aria-hidden="true" className="opacity-40" />
+                          <CaretUpDownIcon size={12} aria-hidden="true" className="opacity-40" />
                         )}
                       </Button>
                     </th>

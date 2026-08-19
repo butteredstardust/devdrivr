@@ -484,7 +484,7 @@ export default function JsonSchemaValidator() {
               className="gap-1"
               title="Replace the schema with one inferred from the data"
             >
-              <MagicWandIcon size={13} aria-hidden="true" />
+              <MagicWandIcon size={14} aria-hidden="true" />
               Infer schema
             </Button>
             <Button
@@ -509,7 +509,7 @@ export default function JsonSchemaValidator() {
             </Button>
             {undoBuffer && (
               <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
-                <ArrowUUpLeftIcon size={13} aria-hidden="true" />
+                <ArrowUUpLeftIcon size={14} aria-hidden="true" />
                 Undo {undoBuffer.label.toLowerCase()}
               </Button>
             )}
@@ -729,7 +729,7 @@ function EditorPane({
           aria-label={`Save ${title.toLowerCase()} to file`}
           title="Save to a file (⌘S)"
         >
-          <FloppyDiskIcon size={13} aria-hidden="true" />
+          <FloppyDiskIcon size={14} aria-hidden="true" />
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">

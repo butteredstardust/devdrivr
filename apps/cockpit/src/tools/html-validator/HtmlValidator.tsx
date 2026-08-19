@@ -581,7 +581,7 @@ export default function HtmlValidator() {
               title="New HTML document"
               aria-label="New HTML document"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -590,7 +590,7 @@ export default function HtmlValidator() {
               title="Open an .html file (⌘O)"
               aria-label="Open HTML file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -599,7 +599,7 @@ export default function HtmlValidator() {
               title="Save the document (⌘S)"
               aria-label="Save HTML document"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -645,7 +645,7 @@ export default function HtmlValidator() {
             aria-controls={rulesPanelId}
             className="gap-1"
           >
-            <SlidersHorizontalIcon size={13} aria-hidden="true" />
+            <SlidersHorizontalIcon size={14} aria-hidden="true" />
             Rules
             {overrideCount > 0 && (
               <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
@@ -1004,13 +1004,13 @@ function ResultsPanel({
                     >
                       {issue.type === 'error' ? (
                         <WarningCircleIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-error)]"
                         />
                       ) : (
                         <WarningIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-warning)]"
                         />

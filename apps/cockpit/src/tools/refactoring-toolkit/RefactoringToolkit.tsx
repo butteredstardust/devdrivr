@@ -322,7 +322,7 @@ export default function RefactoringToolkit() {
             title={state.fileName ?? 'Untitled'}
             icon={
               <ArrowsClockwiseIcon
-                size={15}
+                size={16}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />
@@ -354,7 +354,7 @@ export default function RefactoringToolkit() {
               {...(state.panelOpen ? { 'aria-controls': panelId } : {})}
               className="gap-1"
             >
-              <SlidersHorizontalIcon size={13} aria-hidden="true" />
+              <SlidersHorizontalIcon size={14} aria-hidden="true" />
               Transforms
               {selectedCount > 0 && (
                 <span className="ml-1 text-2xs tabular-nums opacity-70">{selectedCount}</span>
@@ -420,7 +420,7 @@ export default function RefactoringToolkit() {
               title="Restore the code from before the last apply"
               className="gap-1"
             >
-              <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+              <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
               Undo
             </Button>
             <CopyButton text={copyText} label={showDiff ? 'Copy transformed code' : 'Copy code'} />
@@ -432,7 +432,7 @@ export default function RefactoringToolkit() {
               title="Save the code to a file (⌘S)"
               aria-label="Save code to file"
             >
-              <FloppyDiskIcon size={15} aria-hidden="true" />
+              <FloppyDiskIcon size={16} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>
@@ -457,7 +457,7 @@ export default function RefactoringToolkit() {
           >
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
               <MagnifyingGlassIcon
-                size={13}
+                size={14}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />

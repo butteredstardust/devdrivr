@@ -75,6 +75,12 @@
   --elevation-3: 0 4px 16px -4px var(--color-shadow);
 
   --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+
+  /* Inset variant for controls that sit flush in a dense container — sidebar rows, tab strips,
+     list items. The outer ring draws 4px beyond the element, which those containers clip or
+     overlap onto the neighbouring row, so the indicator has to come inward instead. Two focus
+     treatments, both documented; anything else is drift (see DESIGN_SYSTEM.md § Focus). */
+  --focus-ring-inset: inset 0 0 0 1px var(--color-bg), inset 0 0 0 3px var(--color-accent);
 }
 
 .midnight {

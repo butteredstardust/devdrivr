@@ -205,7 +205,7 @@ function EditorPane({
           aria-label={`Clear ${title.toLowerCase()}`}
           title={`Clear ${title.toLowerCase()}`}
         >
-          <TrashIcon size={13} aria-hidden="true" />
+          <TrashIcon size={14} aria-hidden="true" />
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
@@ -454,7 +454,7 @@ export default function DiffViewer() {
                   aria-hidden="true"
                   className="flex items-center gap-1 text-[var(--color-success)]"
                 >
-                  <CheckCircleIcon size={13} />
+                  <CheckCircleIcon size={14} />
                   Identical
                 </span>
               ) : stats ? (
@@ -479,7 +479,7 @@ export default function DiffViewer() {
                 title="Swap left and right"
                 className="gap-1"
               >
-                <ArrowsLeftRightIcon size={13} aria-hidden="true" />
+                <ArrowsLeftRightIcon size={14} aria-hidden="true" />
                 Swap
               </Button>
               <Button
@@ -490,7 +490,7 @@ export default function DiffViewer() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Options
               </Button>
               <Button

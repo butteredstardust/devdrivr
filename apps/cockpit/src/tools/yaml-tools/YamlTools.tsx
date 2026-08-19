@@ -322,7 +322,7 @@ export default function YamlTools() {
               title={state.fileName ?? 'Untitled'}
               icon={
                 <FileCodeIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -387,7 +387,7 @@ export default function YamlTools() {
                 disabled={!hasInput}
                 className="gap-1"
               >
-                <SortAscendingIcon size={13} aria-hidden="true" />
+                <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
               <Button variant="secondary" size="sm" onClick={handleCompact} disabled={!hasInput}>
@@ -395,7 +395,7 @@ export default function YamlTools() {
               </Button>
               {undoBuffer && (
                 <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
-                  <ArrowUUpLeftIcon size={13} aria-hidden="true" />
+                  <ArrowUUpLeftIcon size={14} aria-hidden="true" />
                   Undo {undoBuffer.label.toLowerCase()}
                 </Button>
               )}
@@ -408,7 +408,7 @@ export default function YamlTools() {
                 title="Save to a file (⌘S)"
                 aria-label="Save YAML to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

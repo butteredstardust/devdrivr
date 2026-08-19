@@ -26,8 +26,8 @@ export function SidebarPinned({ filterToolIds = null }: SidebarPinnedProps) {
   return (
     <div className="mb-1">
       <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
-        <PushPinIcon size={10} className="shrink-0" />
-        <span className="text-[11px] font-bold uppercase tracking-normal">[Pinned]</span>
+        <PushPinIcon size={12} className="shrink-0" />
+        <span className="text-xs font-bold uppercase tracking-normal">[Pinned]</span>
       </div>
       <div className="flex flex-col gap-1 px-1">
         {pinnedTools.map((tool) => (
