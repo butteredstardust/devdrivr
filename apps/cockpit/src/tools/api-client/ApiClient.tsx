@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
@@ -13,6 +13,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Alert } from '@/components/shared/Alert'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useUiStore } from '@/stores/ui.store'
@@ -227,6 +229,24 @@ function applyMethodDefaults(draft: RequestDraft, nextMethod: string): RequestDr
       ? draft.headers
       : [{ key: 'Content-Type', value: 'application/json', enabled: true }, ...draft.headers],
   }
+}
+
+/**
+ * Request beside response when both are up, request alone when the response pane is hidden.
+ *
+ * A local wrapper rather than a conditional at the call site: the two panels are ~300 lines of
+ * JSX, and lifting them into consts purely to choose a container is a lot of churn for one
+ * branch. `false` is the shape `{cond && <section/>}` actually produces.
+ */
+function RequestResponseLayout({ children }: { children: [ReactNode, ReactNode | false] }) {
+  const [request, response] = children
+  if (!response) return <div className="flex min-h-0 flex-1">{request}</div>
+  return (
+    <SplitPane storageKey="api-client" stackBelow={1000} aria-label="Resize request and response">
+      {request}
+      {response}
+    </SplitPane>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -842,7 +862,7 @@ export default function ApiClient() {
         toolbar={
           <>
             {/* Request identity + save actions */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+            <Toolbar aria-label="Request identity and save actions">
               <Button
                 type="button"
                 variant="icon"
@@ -889,7 +909,7 @@ export default function ApiClient() {
                 <FilePlusIcon size={16} aria-hidden="true" />
               </Button>
 
-              <div className="flex items-center gap-1">
+              <ToolbarGroup>
                 <Select
                   value={activeEnvironmentId || ''}
                   onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
@@ -914,9 +934,9 @@ export default function ApiClient() {
                 >
                   <GearSixIcon size={16} aria-hidden="true" />
                 </Button>
-              </div>
+              </ToolbarGroup>
 
-              <div className="flex items-center gap-1.5">
+              <ToolbarGroup>
                 <Button
                   type="button"
                   variant={dirty ? 'primary' : 'secondary'}
@@ -931,11 +951,11 @@ export default function ApiClient() {
                 <Button type="button" variant="secondary" size="sm" onClick={handleSaveAs}>
                   Save As
                 </Button>
-              </div>
-            </div>
+              </ToolbarGroup>
+            </Toolbar>
 
             {/* URL bar */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
+            <Toolbar aria-label="Request URL and send">
               <Select
                 value={method}
                 onChange={(e) => handleMethodChange(e.target.value)}
@@ -981,25 +1001,15 @@ export default function ApiClient() {
               >
                 {responseVisible ? 'Hide Response' : 'Show Response'}
               </Button>
-            </div>
+            </Toolbar>
           </>
         }
       >
-        <div
-          className={`grid min-h-0 flex-1 ${
-            responseVisible
-              ? 'grid-cols-2 max-[1000px]:grid-cols-1 max-[1000px]:grid-rows-2'
-              : 'grid-cols-1'
-          }`}
-        >
+        <RequestResponseLayout>
           {/* ── Request panel ─────────────────────────────────── */}
           <section
             aria-label="Request"
-            className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${
-              responseVisible
-                ? 'border-r border-[var(--color-border)] max-[1000px]:border-b max-[1000px]:border-r-0'
-                : ''
-            }`}
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
           >
             <TabBar tabs={requestTabs} activeTab={requestTab} onTabChange={setRequestTab} />
 
@@ -1141,7 +1151,7 @@ export default function ApiClient() {
             {/* Body tab */}
             {requestTab === 'body' && (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
+                <Toolbar className="gap-1" aria-label="Request body format">
                   {BODY_MODES.map((mode) => (
                     <Button
                       key={mode.id}
@@ -1164,7 +1174,7 @@ export default function ApiClient() {
                       Body not available for {method}
                     </span>
                   )}
-                </div>
+                </Toolbar>
                 {showBody ? (
                   <div className="min-h-0 flex-1 overflow-hidden">
                     <Editor
@@ -1198,7 +1208,7 @@ export default function ApiClient() {
             <section
               id={responsePaneId}
               aria-label="Response"
-              className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
             >
               {error && (
                 <Alert
@@ -1210,7 +1220,7 @@ export default function ApiClient() {
               )}
               {response && (
                 <>
-                  <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
+                  <Toolbar aria-label="Response summary and actions">
                     <StatusBadge
                       variant={response.status < 400 ? 'success' : 'error'}
                       className="font-mono"
@@ -1223,7 +1233,8 @@ export default function ApiClient() {
                     <span className="text-2xs text-[var(--color-text-muted)]">
                       {formatBytes(response.size)}
                     </span>
-                    <div className="ml-auto flex items-center gap-1">
+                    <ToolbarSpacer />
+                    <ToolbarGroup>
                       <CopyButton text={prettyBody} />
                       <Button
                         type="button"
@@ -1235,8 +1246,8 @@ export default function ApiClient() {
                       >
                         <DownloadSimpleIcon size={14} aria-hidden="true" />
                       </Button>
-                    </div>
-                  </div>
+                    </ToolbarGroup>
+                  </Toolbar>
                   <TabBar
                     tabs={RESPONSE_TABS}
                     activeTab={responseTab}
@@ -1287,7 +1298,7 @@ export default function ApiClient() {
               )}
             </section>
           )}
-        </div>
+        </RequestResponseLayout>
       </ToolLayout>
 
       {showEnvModal && <EnvironmentModal onClose={() => setShowEnvModal(false)} />}

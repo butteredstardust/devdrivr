@@ -364,8 +364,14 @@ deliberately.
 
 ### P5 — Behaviour and polish
 
-- [ ] **F7:** adopt `SplitPane` in the 15 fixed-50/50 tools, persisting ratio per tool via
-      `storageKey`. Prioritise `diff-viewer`, `json-tools`, `markdown-editor`, `regex-tester`.
+- [x] **F7** (`cef7a62`, `9add8b6`) — eight tools onto `SplitPane`, each with its own `storageKey`:
+      `base64`, `regex-tester`, `url-codec`, `css-to-tailwind`, `json-tools`, `markdown-editor`,
+      `mermaid-editor`, `html-validator`. `SplitPane` gained `stackBelow` first, because four of
+      those already stacked by hand at 900/1000px and an inline ratio `width` beats any Tailwind
+      breakpoint — without it, adoption would have silently deleted their responsive behaviour.
+      The tools with a toggleable pane lift each pane into a local const so the split and
+      single-pane branches share one definition. `diff-viewer` is **not** in the list: it renders
+      Monaco's `DiffEditor`, which owns its own internal split and has none to convert.
 - [ ] **F11:** write down the primary-action rule ("live-computing tools have no primary action;
       action-triggered tools have exactly one"), then fix the 5 tools with 2+.
 - [ ] **F12 follow-up:** re-verify `DESIGN_SYSTEM.md` against the post-P4 code and add a short
