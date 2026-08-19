@@ -308,69 +308,38 @@ All six landed with tests, `DESIGN_SYSTEM.md` entries, and zero call sites chang
 **Acceptance:** ✅ 114 test files / 1338 tests passing (was 109/1314); `SplitPane` keyboard resize,
 clamping, and persistence all covered.
 
-### P1 — Decide the scale, fix the docs
+### P3 — Convergence sweep: labels, panes, keys ✅
 
-No code changes to tools. This phase exists so P2–P5 have something to converge _on_.
+Landed as five commits, split by finding rather than by tool so each diff stays reviewable.
 
-- [ ] Decide and record the **label scale**: one `SectionLabel` with at most two variants. Proposal:
-      `font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`
-      (idiom A — already the plurality at 6 uses and the only one that is `font-ui`, matching the
-      chrome/mono split the design system already draws).
-- [ ] Decide the **icon scale**: proposal — `12` dense/inline, `14` toolbar, `16` navigation. Retire
-      10/11/13/15.
-- [ ] Decide the **chrome padding scale**: `px-4 py-2` for tool toolbars (the existing `Toolbar`
-      contract), `px-3 py-1.5` for pane headers. Retire `px-3 py-1`, `px-3 py-2`, `px-4 py-3` from
-      chrome rows.
-- [ ] Rewrite `DESIGN_SYSTEM.md` against reality — every item in F12. Regenerate the colour tables
-      from `src/styles/tokens.css` rather than retyping them, so they cannot drift again.
-- [ ] Add an ESLint rule or a `bun run lint:ui` grep gate rejecting: hardcoded `text-[Npx]`,
-      `focus-visible:ring-*` in `src/`, and raw hex/`rgb()` in `className`.
+- [x] **F1** (`c66a39f`) — 32 label sites across 16 files onto `SectionLabel`. `SectionLabel` gained
+      `legend`/`h5` in its `as` union and HTML-attribute passthrough, so a conversion can't silently
+      drop an `id` that an `aria-labelledby` points at. The `<label><span>` pairs were deliberately
+      left for F9 — they label controls, they don't name regions.
+- [x] **F2** (`8f54e1e`) — 11 pane headers across 10 tools. `yaml-tools` and `xml-tools` had each
+      grown a _local_ `PaneHeader` component with the same class string; both deleted. The
+      `hint`/`status` split earned its keep immediately: the schema validator's problem count had to
+      move to `hint` because the tool's summary bar already announces it, and two live regions read
+      the same number twice.
+- [x] **F6** (`3525279`) — both shell `<kbd>` copies and nine tool hint sites onto `Kbd`.
+      `ShortcutsModal`'s table rewritten from pre-rendered symbol arrays into combo notation.
+      `Kbd` gained an `inline` variant for the hint that sits _inside_ the control it describes,
+      where the boxed treatment reads as a button nested in a button.
+- [x] **F9** (`a1d1888`) — 16 fields across 7 files onto `Field`, which fixed a real a11y bug rather
+      than just a visual one: most hand-rolled sites were a bare `<label>` sibling with no `htmlFor`
+      and nothing wrapped, so the input was announced unnamed. `Field` now makes the wrapper _be_
+      the label when no `htmlFor` is given.
+- [x] **F13** (`36d4367`) — `[Recent]`/`[Pinned]`/`[ 03-PREVIEW ]` retired; HTTP method colours
+      extracted to `lib/http-method.ts`. The two maps disagreed on POST and PATCH, so the same
+      request read a different colour depending on which tool opened it.
+- [x] **F8** and **F10** were completed during P1's scale sweep.
 
-**Acceptance:** `DESIGN_SYSTEM.md` claims verified line-by-line against source; the new gate fails on
-a deliberately-introduced `text-[9px]` and passes on `main`.
+**Still open, recorded rather than half-done:** the `⌘` literals inside `title=` and `description=`
+prose strings. Those need a `modSymbol` interpolation per site rather than a component, and the
+markdown editor's toolbar table is module-level where a hook can't reach. Tracked as F6b.
 
-### P2 — Land the primitives
-
-Each with a test, a `DESIGN_SYSTEM.md` entry, and **zero call sites changed** in this phase.
-
-- [ ] `SectionLabel` — `{ children, as?: 'span' | 'h2' | 'h3', hint?: ReactNode }`. Renders the P1
-      scale. `as` exists so the visual and the heading level can be chosen independently — several
-      current call sites are `<h2>` where a `<span>` is correct, and vice versa.
-- [ ] `PaneHeader` — `{ title, actions?, status? }`. The F2 string, once, at the P1 padding.
-      `actions` is the slot the five copies currently lack, which is why `CopyButton` placement
-      varies pane to pane.
-- [ ] `Kbd` — `{ keys: string }`, e.g. `<Kbd keys="mod+enter" />`, resolving `mod` via
-      `usePlatform()`. Replaces the two disagreeing shell copies and the bare spans.
-- [ ] `SplitPane` — `{ children: [ReactNode, ReactNode], direction?, defaultRatio?, storageKey? }`.
-      Draggable divider with `role="separator"` + `aria-orientation` + arrow-key resize. Lift the
-      drag logic out of `shell/NotesDrawer.tsx:592` rather than writing it twice.
-- [ ] `MasterDetailLayout` — `{ sidebar, children, sidebarWidth?, collapsible? }`. The shell shared by
-      `snippets`, `prompt-templates`, and `api-client`.
-- [ ] `Panel` — keep as-is; add the `SectionLabel`-based header. Its API already fits the four
-      hand-rolled sites.
-
-**Acceptance:** each primitive has a unit test covering its ARIA contract; `SplitPane` has a
-keyboard-resize test; bundle size delta recorded.
-
-### P3 — Convergence sweep: labels, panes, keys
-
-The mechanical bulk. Split into 3–4 PRs by finding, not by tool, so review stays diffable.
-
-- [ ] **F1:** replace all 7 label idioms with `SectionLabel`. ~25 files. Watch for the `<h2>`/`<span>`
-      distinction — do not silently change heading structure, it is a11y-visible.
-- [ ] **F2:** replace the 5 verbatim pane headers plus the `snippets`/`prompt-templates`/`json-tools`
-      family variants with `PaneHeader`.
-- [ ] **F6:** replace the 55 `⌘` sites with `Kbd`; delete the two shell copies. Keep `title=` tooltips
-      as-is where they are the only affordance.
-- [ ] **F9:** adopt `Field` in the 16 hand-rolled `<label>` files. If `Field`'s API does not fit a
-      site, extend `Field` — do not fork.
-- [ ] **F10:** convert the ~8 `focus-visible:ring-*` sites to `--focus-ring`.
-- [ ] **F8:** normalise icon sizes to the P1 scale.
-- [ ] **F13:** delete the `[ 03-PREVIEW ]` idiom; extract HTTP-method colours into one shared map used
-      by both `curl-to-fetch` and `api-client`.
-
-**Acceptance:** grep for each retired class string returns zero hits in `src/tools`; the P1 lint gate
-passes; visual diff against the P0 screenshots shows only intended changes.
+**Acceptance:** ✅ all four gates green after each commit; retired class strings return zero hits.
+Visual diff against the P0 screenshots was **not** possible — see P0.
 
 ### P4 — Structural convergence
 
@@ -411,13 +380,13 @@ deliberately.
 
 Baseline recorded 2026-08-19 at `19af685`, all from `apps/cockpit` (never the monorepo root).
 
-| Gate       | Command                          | Baseline         | After P2         |
-| ---------- | -------------------------------- | ---------------- | ---------------- |
-| TypeScript | `npx tsc --noEmit`               | Pass             | Pass             |
-| Tests      | `bunx vitest run`                | 109 files / 1314 | 114 files / 1338 |
-| ESLint     | `bun run lint`                   | Pass, 0 warnings | Pass, 0 warnings |
-| Design sys | `bun run lint:ds`                | 153 violations   | 0 violations     |
-| Rust       | `cargo check` (from `src-tauri`) | Pass             | Pass (untouched) |
+| Gate       | Command                          | Baseline         | After P2         | After P3         |
+| ---------- | -------------------------------- | ---------------- | ---------------- | ---------------- |
+| TypeScript | `npx tsc --noEmit`               | Pass             | Pass             | Pass             |
+| Tests      | `bunx vitest run`                | 109 files / 1314 | 114 files / 1338 | 114 files / 1340 |
+| ESLint     | `bun run lint`                   | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings |
+| Design sys | `bun run lint:ds`                | 153 violations   | 0 violations     | 0 violations     |
+| Rust       | `cargo check` (from `src-tauri`) | Pass             | Pass (untouched) | Pass (untouched) |
 
 Re-run and update this table at the end of every phase.
 
