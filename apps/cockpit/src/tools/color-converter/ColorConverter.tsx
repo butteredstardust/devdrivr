@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Field } from '@/components/shared/Field'
+import { Panel } from '@/components/shared/Panel'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
@@ -589,8 +590,7 @@ export default function ColorConverter() {
     <ToolLayout maxWidth="max-w-4xl">
       <div className="flex flex-col gap-4">
         {/* ── Input ──────────────────────────────────────── */}
-        <section>
-          <h2 className="mb-2 font-mono text-sm text-[var(--color-text)]">Color Input</h2>
+        <Panel title="Color Input">
           <div className="flex items-center gap-3">
             <Input
               value={state.input}
@@ -604,7 +604,7 @@ export default function ColorConverter() {
               value={color?.hex ?? '#000000'}
               onChange={(e) => handleInputChange(e.target.value)}
               title="Pick a color"
-              className="h-10 w-10 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
+              className="h-10 w-10 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-0.5"
             />
             {color && (
               <div
@@ -631,7 +631,7 @@ export default function ColorConverter() {
               ))}
             </div>
           )}
-        </section>
+        </Panel>
 
         {/* ── Section Tabs ──────────────────────────────── */}
         {color && (
@@ -828,8 +828,7 @@ export default function ColorConverter() {
         )}
 
         {/* ── Contrast Ratio ─────────────────────────────── */}
-        <section>
-          <h2 className="mb-2 font-mono text-sm text-[var(--color-text)]">Contrast Ratio (WCAG)</h2>
+        <Panel title="Contrast Ratio (WCAG)">
           <ContrastInputs
             contrastFg={state.contrastFg}
             contrastBg={state.contrastBg}
@@ -839,7 +838,7 @@ export default function ColorConverter() {
           />
           {contrast && (
             <div className="mt-3 flex items-center gap-4">
-              <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2">
                 <div className="text-xs text-[var(--color-text-muted)]">Ratio</div>
                 <div className="font-mono text-lg font-bold text-[var(--color-text)]">
                   {contrast.ratio}:1
@@ -869,7 +868,7 @@ export default function ColorConverter() {
               </div>
             </div>
           )}
-        </section>
+        </Panel>
       </div>
     </ToolLayout>
   )

@@ -11,7 +11,11 @@ type FieldProps = {
    * the association is structural and there's no id to keep in sync.
    */
   htmlFor?: string
-  hint?: string
+  /**
+   * `ReactNode` rather than `string` because a hint is often a live read-out of the control above
+   * it — a detected case, a byte count, a match badge — not a static sentence.
+   */
+  hint?: ReactNode
   error?: string
   required?: boolean
   children: ReactNode
