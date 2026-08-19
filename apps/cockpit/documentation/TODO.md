@@ -345,22 +345,43 @@ Visual diff against the P0 screenshots was **not** possible — see P0.
 
 Higher-risk, one PR per tool group.
 
-- [ ] **F3 (chrome):** move the 16 bypassing tools onto `Toolbar`/`ToolbarGroup`. Start with
-      `api-client` — it is the closest (a hand-rolled row that is one prop from correct) and the most
-      visible.
-- [ ] **F3 (slot abuse):** move `case-converter` and `hash-generator`'s input forms out of the
-      `toolbar` slot into the body. These two will look different afterwards; that is the point.
-- [ ] **F5:** move `snippets`, `prompt-templates`, and `api-client` onto `MasterDetailLayout`
-      wrapped in `ToolLayout`. Decide at this point whether the `ToolLayout.header` slot earns its
-      keep — if `MasterDetailLayout` owns the sidebar title, delete the slot (F5 says it is dead).
-- [ ] **F4:** adopt `Panel` at the 4 hand-rolled sites, and for the section stacks in
-      `uuid-generator` and `color-converter` (currently bare `<section>` + `<h2>`).
-- [ ] **F13 (csv):** define which level owns the toolbar in `csv-tools` and collapse the stacked
-      toolbars accordingly.
+- [x] **F3 (chrome)** (`4559d08`, `6b638b5`) — `api-client`, `diff-viewer`, `curl-to-fetch`,
+      `csv-tools` and `mermaid-editor/MermaidPreview` moved onto `Toolbar`/`ToolbarGroup`. The
+      count of 16 was measured before P1–P3: the `SectionLabel`, `PaneHeader` and `Field` sweeps
+      had already converted or dissolved the rest of the list, so what remained was these five
+      plus the three master–detail tools handled under F5.
+- [x] **F3 (slot abuse)** (`a78dfb7`) — `case-converter` and `hash-generator`'s forms moved out of
+      the `toolbar` slot into the body, wrapped in `Field`. `Field.hint` widened from `string` to
+      `ReactNode` first: both hints are live read-outs (detected case, byte count, match badge),
+      not sentences. `hash-generator`'s compare row uses `htmlFor` rather than a wrapping label,
+      because the badge beside the input is labelable and would otherwise steal the click.
+- [x] **F5** (`6b638b5`) — all three master–detail tools now render `MasterDetailLayout`.
+      `api-client` is **inverted** rather than lifted: `CollectionsSidebar` takes the detail as
+      `children` and renders the layout itself, because the sidebar heading's one action (new
+      collection) drives sidebar-local collapse and rename state that has no business moving up.
+      Its context menu and confirm dialogs moved outside the layout — a collapsed sidebar is
+      `w-0 overflow-hidden`, which clips a `position: fixed` menu rendered inside it.
+      `ToolLayout.header` is **deleted**: it reached zero consumers while two tools hand-rolled the
+      heading it couldn't express, and that heading names a collection, which is
+      `MasterDetailLayout`'s job.
+- [x] **F4** (`a78dfb7`) — `Panel` adopted for the section stacks in `uuid-generator` (×4) and
+      `color-converter` (×2). Chips nested inside them flipped `bg-surface` → `bg-bg`: `Panel` is
+      itself `bg-surface`, so a surface box inside it has no edge left to read, and `bg-bg` reads
+      as inset across all 22 themes.
+- [x] **F13 (csv)** (`a78dfb7`) — `csv-tools` chrome moved to `DocumentToolbar`/`DocumentIdentity`
+      and its body to `SplitPane` (`stackBelow={900}`, preserving the hand-rolled breakpoint).
+      Note the finding overstated the problem: `csv-tools` had **one** chrome row, not stacked
+      toolbars — the sub-tools' toolbars are alternatives, never rendered together.
 
-**Acceptance:** all 30 tools render through `ToolLayout`; `grep -L ToolLayout src/tools/*/[A-Z]*.tsx`
-returns only sub-components; no tool has more than one chrome row unless it uses `Toolbar` twice
-deliberately.
+**Acceptance:** ✅ every tool renders through `ToolLayout` or `MasterDetailLayout`;
+`grep -rL "ToolLayout\|MasterDetailLayout" src/tools/*/[A-Z]*.tsx` returns only the five
+sub-components (`CsvAnalyze`, `CsvConvert`, `CsvTable`, `MarkdownPreview`, `MermaidPreview`); no
+tool has more than one chrome row unless it uses `Toolbar` twice deliberately. All four gates green.
+
+The acceptance criterion was written as "all 30 tools render through `ToolLayout`". That turned out
+to be the wrong shape: the master–detail tools render `MasterDetailLayout`, whose sidebar is a
+sibling of the detail pane, and nesting a `ToolLayout` around the pair would add a wrapper that
+positions nothing.
 
 ### P5 — Behaviour and polish
 
@@ -372,13 +393,30 @@ deliberately.
       The tools with a toggleable pane lift each pane into a local const so the split and
       single-pane branches share one definition. `diff-viewer` is **not** in the list: it renders
       Monaco's `DiffEditor`, which owns its own internal split and has none to convert.
-- [ ] **F11:** write down the primary-action rule ("live-computing tools have no primary action;
-      action-triggered tools have exactly one"), then fix the 5 tools with 2+.
-- [ ] **F12 follow-up:** re-verify `DESIGN_SYSTEM.md` against the post-P4 code and add a short
-      "adding a new tool" checklist pointing at the target contract in §4.
-- [ ] Re-shoot the P0 screenshots and diff. Attach the before/after to the final PR.
+- [x] **F11** (`93be8b9`) — the rule is now in `DESIGN_SYSTEM.md` §3 with its carve-outs, and three
+      tools were fixed: `image-tool` (Open image is primary only until an image exists, then
+      Download takes over), `uuid-generator` (bulk generate is the same operation with a count, not
+      a second headline), `yaml-tools` (Apply to YAML is a conditional row, not a rival to Format).
+      The audit said five. Two of them — a modal's confirm button and an `EmptyState` CTA — turned
+      out not to be tool chrome at all, so demoting them would have made those surfaces worse. The
+      rule as written carves them out rather than pretending the count was five.
+- [x] **F6b** (`93be8b9`) — `lib/shortcut-label.ts` exports `formatShortcut`, which `Kbd` now
+      renders through, and 40 prose literals across 17 files interpolate. Writing the shared
+      formatter exposed that `Kbd` had the same bug the literals did in milder form: it used Mac
+      glyphs on every platform, so Windows read `Ctrl+↵`. The symbol table is now split by
+      convention — glyphs for macOS, words for everywhere else.
+- [x] **F12 follow-up** (`93be8b9`) — `DESIGN_SYSTEM.md` re-verified against post-P4 code:
+      `MasterDetailLayout` documented beside `ToolLayout`, the no-title rule and the
+      primary-action rule written down, and a 13-item "adding a new tool" checklist added.
+- [ ] **Blocked — needs a human.** Re-shoot the P0 screenshots and diff, then attach the
+      before/after to the final PR. Same blocker as P0: the Tauri WebView on macOS can be
+      screenshotted and resized by script, but not clicked or typed into, so an agent can't drive a
+      tool into the state worth photographing. Every other verification route was used instead —
+      the four gates, the design-system linter, and the DOM assertions in the test suite.
 
-**Acceptance:** all four gates green; screenshot diff reviewed; `DESIGN_SYSTEM.md` re-verified.
+**Acceptance:** ✅ all four gates green (115 files / 1344 tests, 0 design-system violations);
+✅ `DESIGN_SYSTEM.md` re-verified against post-P4 code. ⬜ Screenshot diff outstanding and blocked
+on manual capture — it is the one claim in this document no automated check backs.
 
 ---
 
@@ -386,15 +424,19 @@ deliberately.
 
 Baseline recorded 2026-08-19 at `19af685`, all from `apps/cockpit` (never the monorepo root).
 
-| Gate       | Command                          | Baseline         | After P2         | After P3         |
-| ---------- | -------------------------------- | ---------------- | ---------------- | ---------------- |
-| TypeScript | `npx tsc --noEmit`               | Pass             | Pass             | Pass             |
-| Tests      | `bunx vitest run`                | 109 files / 1314 | 114 files / 1338 | 114 files / 1340 |
-| ESLint     | `bun run lint`                   | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings |
-| Design sys | `bun run lint:ds`                | 153 violations   | 0 violations     | 0 violations     |
-| Rust       | `cargo check` (from `src-tauri`) | Pass             | Pass (untouched) | Pass (untouched) |
+| Gate       | Command                          | Baseline         | After P2         | After P3         | After P4         | After P5         |
+| ---------- | -------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| TypeScript | `npx tsc --noEmit`               | Pass             | Pass             | Pass             | Pass             | Pass             |
+| Tests      | `bunx vitest run`                | 109 files / 1314 | 114 files / 1338 | 114 files / 1340 | 114 files / 1340 | 115 files / 1344 |
+| ESLint     | `bun run lint`                   | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings |
+| Design sys | `bun run lint:ds`                | 153 violations   | 0 violations     | 0 violations     | 0 violations     | 0 violations     |
+| Rust       | `cargo check` (from `src-tauri`) | Pass             | Pass (untouched) | Pass (untouched) | Pass (untouched) | Pass (untouched) |
 
 Re-run and update this table at the end of every phase.
+
+P4 moved three tools onto `MasterDetailLayout` without changing what they assert, so the test count
+held at 1340; the four new tests in P5 are `shortcut-label`'s. The Rust column has read "untouched"
+since the baseline because this whole effort is frontend-only — see §8.
 
 ---
 
