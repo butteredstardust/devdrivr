@@ -20,6 +20,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Alert } from '@/components/shared/Alert'
@@ -625,9 +626,9 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
 
           <div className="flex min-h-0 flex-col overflow-hidden">
             <label className="flex min-h-0 flex-1 flex-col">
-              <span className="border-b border-[var(--color-border)] px-4 py-2 font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
+              <SectionLabel className="border-b border-[var(--color-border)] px-4 py-2">
                 Prompt Body
-              </span>
+              </SectionLabel>
               <TextArea
                 value={draft.prompt}
                 onChange={(event) => {
@@ -645,10 +646,10 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
               />
             </label>
             <div className="max-h-56 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <div className="mb-2 flex items-center justify-between font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
+              <SectionLabel as="div" className="mb-2 justify-between">
                 <span>Variables</span>
                 <span>{draft.variables.length}</span>
-              </div>
+              </SectionLabel>
               <div className="space-y-2">
                 {draft.variables.map((variable) => (
                   <div

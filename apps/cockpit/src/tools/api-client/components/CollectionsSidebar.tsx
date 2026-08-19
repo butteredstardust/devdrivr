@@ -15,6 +15,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -402,9 +403,9 @@ export function CollectionsSidebar({
 
         {unassigned.length > 0 && (
           <div className="mt-3">
-            <h3 className="mb-1 px-2 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <SectionLabel as="h3" className="mb-1 px-2">
               Unassigned
-            </h3>
+            </SectionLabel>
             <div className="flex flex-col gap-0.5">
               {unassigned.map((req) => (
                 <RequestRow

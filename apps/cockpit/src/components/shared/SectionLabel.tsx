@@ -1,6 +1,6 @@
-import type { ElementType, ReactNode } from 'react'
+import type { ElementType, HTMLAttributes, ReactNode } from 'react'
 
-type SectionLabelProps = {
+type SectionLabelProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode
   /**
    * Document structure, chosen independently of the visual — which is identical either way.
@@ -10,7 +10,7 @@ type SectionLabelProps = {
    * Pick `span` for a label that names a region of the current view, and a heading level for
    * something that belongs in the document outline.
    */
-  as?: Extract<ElementType, 'span' | 'div' | 'h2' | 'h3' | 'h4'>
+  as?: Extract<ElementType, 'span' | 'div' | 'legend' | 'h2' | 'h3' | 'h4' | 'h5'>
   /** Trailing muted detail on the same line — a count, a size, a state. Not uppercased. */
   hint?: ReactNode
   className?: string
@@ -29,9 +29,11 @@ export function SectionLabel({
   as: Tag = 'span',
   hint,
   className = '',
+  ...rest
 }: SectionLabelProps) {
   return (
     <Tag
+      {...rest}
       className={`font-ui flex items-center gap-2 text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] ${className}`}
     >
       {children}

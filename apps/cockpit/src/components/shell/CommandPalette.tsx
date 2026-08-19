@@ -26,6 +26,7 @@ import {
   SidebarIcon,
   type Icon,
 } from '@phosphor-icons/react'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -576,13 +577,14 @@ export function CommandPalette() {
               {sections.map((section) => {
                 if (section.type === 'header') {
                   return (
-                    <div
+                    <SectionLabel
+                      as="div"
                       key={`header-${section.label}`}
                       role="presentation"
-                      className="px-3 pb-0.5 pt-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                      className="px-3 pb-0.5 pt-2"
                     >
                       {section.label}
-                    </div>
+                    </SectionLabel>
                   )
                 }
 

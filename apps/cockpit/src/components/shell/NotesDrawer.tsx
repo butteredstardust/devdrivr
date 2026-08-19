@@ -16,6 +16,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Select'
@@ -291,9 +292,9 @@ function NoteEditor({
         />
 
         <div className="mt-5 border-t border-[var(--color-border)] pt-4">
-          <div className="mb-2 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <SectionLabel as="div" className="mb-2">
             <TagIcon size={12} aria-hidden="true" /> Tags
-          </div>
+          </SectionLabel>
           <div className="flex flex-wrap items-center gap-1.5">
             {note.tags.map((tag) => (
               <span
@@ -332,9 +333,9 @@ function NoteEditor({
         </div>
 
         <fieldset className="mt-5 border-t border-[var(--color-border)] pt-4">
-          <legend className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <SectionLabel as="legend" className="mb-2">
             Color
-          </legend>
+          </SectionLabel>
           <div className="flex flex-wrap gap-2">
             {NOTE_COLORS.map((color) => (
               <button
@@ -659,10 +660,10 @@ export function NotesDrawer() {
             )}
             {noteSections.map((section) => (
               <section key={section.id} className="mb-4">
-                <div className="mb-1.5 flex items-center justify-between px-1 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <SectionLabel as="div" className="mb-1.5 justify-between px-1">
                   <span>{section.label}</span>
                   <span>{section.notes.length}</span>
-                </div>
+                </SectionLabel>
                 <div className="space-y-2">
                   {section.notes.map((note, noteIndex) => {
                     const previousNote = section.notes[noteIndex - 1]

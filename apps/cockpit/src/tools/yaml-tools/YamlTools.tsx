@@ -16,6 +16,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -624,9 +625,9 @@ function TreePane({
         {documents.map((document, i) => (
           <div key={i}>
             {documents.length > 1 && (
-              <div className="mt-2 text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
+              <SectionLabel as="div" className="mt-2">
                 Document {i + 1}
-              </div>
+              </SectionLabel>
             )}
             <YamlTree
               data={document}

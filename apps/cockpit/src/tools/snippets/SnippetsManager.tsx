@@ -25,6 +25,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
@@ -968,10 +969,10 @@ export default function SnippetsManager() {
                   </datalist>
 
                   <div className="mt-5">
-                    <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                    <SectionLabel as="div" className="mb-2">
                       <TagIcon size={12} aria-hidden="true" />
                       Tags
-                    </div>
+                    </SectionLabel>
                     <div className="flex flex-wrap gap-1.5">
                       {visibleTags(selected.tags).map((tag) => (
                         <span

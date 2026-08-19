@@ -34,6 +34,7 @@ import {
   ShieldCheckIcon,
 } from '@phosphor-icons/react'
 import { Dialog } from '@/components/shared/Dialog'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
 import { Select } from '@/components/shared/Select'
 import { ThemePicker } from '@/components/shell/ThemePicker'
@@ -293,10 +294,10 @@ function GeneralTab() {
 
       {/* Updates */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <ArrowCircleUpIcon size={12} />
           Updates
-        </h4>
+        </SectionLabel>
         <div className="space-y-1">
           <SettingRow label="Check for updates automatically" hint="Check on every app launch">
             <Toggle
@@ -613,10 +614,10 @@ function DataTab() {
 
       {/* Storage Stats */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <InfoIcon size={12} />
           Storage
-        </h4>
+        </SectionLabel>
         <div className="grid grid-cols-3 gap-2">
           <StatCard label="Notes" count={noteCount} />
           <StatCard label="Snippets" count={snippetCount} />
@@ -626,10 +627,10 @@ function DataTab() {
 
       {/* Data Management */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <TrashIcon size={12} />
           Clear Data
-        </h4>
+        </SectionLabel>
         <div className="flex flex-wrap gap-2">
           <DangerButton
             label={`Clear Notes (${noteCount})`}
@@ -660,10 +661,10 @@ function DataTab() {
 
       {/* Export / Import / Reset */}
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <ExportIcon size={12} />
           Settings Transfer
-        </h4>
+        </SectionLabel>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -915,10 +916,10 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <KeyIcon size={12} />
           Authentication
-        </h4>
+        </SectionLabel>
         <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2">
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded bg-[var(--color-surface)] px-2 py-1 font-mono text-xs text-[var(--color-text)]">
@@ -953,10 +954,10 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <ShieldCheckIcon size={12} />
           Permissions
-        </h4>
+        </SectionLabel>
         <div className="overflow-hidden rounded border border-[var(--color-border)]">
           <div className="grid grid-cols-[1.4fr_repeat(4,0.7fr)] border-b border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1.5 text-2xs uppercase tracking-wider text-[var(--color-text-muted)]">
             <span>Resource</span>
@@ -1007,10 +1008,10 @@ function McpTab() {
       </div>
 
       <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="h4" className="mb-2">
           <PlugsConnectedIcon size={12} />
           Client Setup
-        </h4>
+        </SectionLabel>
         <div className="space-y-2">
           {(
             [

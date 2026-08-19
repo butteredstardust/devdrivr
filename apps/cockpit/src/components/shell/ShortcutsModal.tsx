@@ -1,4 +1,5 @@
 import { Dialog } from '@/components/shared/Dialog'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { useUiStore } from '@/stores/ui.store'
 import { usePlatform } from '@/hooks/usePlatform'
 
@@ -77,9 +78,9 @@ export function ShortcutsModal() {
     >
       {categories.map((cat) => (
         <div key={cat.label} className="mb-4 last:mb-0">
-          <h3 className="mb-2 text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+          <SectionLabel as="h3" className="mb-2">
             {cat.label}
-          </h3>
+          </SectionLabel>
           <div className="flex flex-col gap-1">
             {cat.shortcuts.map((s) => (
               <div key={s.action} className="flex items-center justify-between py-1.5">

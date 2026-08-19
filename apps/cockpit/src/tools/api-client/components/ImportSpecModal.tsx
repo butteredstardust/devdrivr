@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
@@ -153,9 +154,9 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
             </div>
             {preview.warnings.length > 0 && (
               <div className="mt-3 max-h-32 overflow-y-auto rounded border border-[var(--color-border)] p-2">
-                <div className="mb-1 font-mono text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
+                <SectionLabel as="div" className="mb-1">
                   Warnings
-                </div>
+                </SectionLabel>
                 <ul className="flex flex-col gap-1 text-xs text-[var(--color-warning)]">
                   {preview.warnings.map((warning, index) => (
                     <li key={`${index}-${warning}`}>{warning}</li>

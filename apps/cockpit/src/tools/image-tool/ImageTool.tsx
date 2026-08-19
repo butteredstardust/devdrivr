@@ -3,6 +3,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Input } from '@/components/shared/Input'
 import { TabBar } from '@/components/shared/TabBar'
 import { Toggle } from '@/components/shared/Toggle'
@@ -893,9 +894,9 @@ function ResizePanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Dimensions
-        </div>
+        </SectionLabel>
         <div className="flex items-center gap-2">
           <div className="flex flex-1 flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
@@ -945,9 +946,9 @@ function ResizePanel({
       </div>
 
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Aspect Ratio Presets
-        </div>
+        </SectionLabel>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_SIZES.map(({ label, w, h }) => (
             // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
@@ -1003,9 +1004,9 @@ function CropPanel({
 
       {/* Crop coordinates */}
       <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Offset
-        </div>
+        </SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">X (px)</label>
@@ -1033,9 +1034,9 @@ function CropPanel({
           </div>
         </div>
 
-        <div className="mb-2 mt-3 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2 mt-3">
           Size
-        </div>
+        </SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
@@ -1122,9 +1123,9 @@ function ExportPanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Format
-        </div>
+        </SectionLabel>
         <TabBar tabs={FORMAT_TABS} activeTab={format} onTabChange={onFormatChange} />
         <div className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
           {format === 'png' && 'Lossless · Supports transparency'}
@@ -1136,9 +1137,7 @@ function ExportPanel({
       {isLossy && (
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Quality
-            </div>
+            <SectionLabel as="div">Quality</SectionLabel>
             <span className="font-mono text-xs text-[var(--color-text)]">{quality}%</span>
           </div>
           <input
@@ -1157,9 +1156,9 @@ function ExportPanel({
       )}
 
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Output Info
-        </div>
+        </SectionLabel>
         <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
           <div>
             Dimensions:{' '}

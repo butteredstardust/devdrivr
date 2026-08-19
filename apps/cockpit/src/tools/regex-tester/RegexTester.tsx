@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
@@ -439,9 +440,9 @@ export default function RegexTester() {
             </div>
             {REFERENCE_CATEGORIES.map((cat) => (
               <div key={cat.label} className="mb-3">
-                <div className="mb-1 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <SectionLabel as="div" className="mb-1">
                   {cat.label}
-                </div>
+                </SectionLabel>
                 {cat.items.map((r) => (
                   <Button
                     key={r.pattern}

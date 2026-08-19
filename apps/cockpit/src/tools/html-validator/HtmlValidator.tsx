@@ -23,6 +23,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
@@ -679,9 +680,9 @@ export default function HtmlValidator() {
             <div className="grid gap-x-8 gap-y-3 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-4">
               {RULE_CATEGORIES.map((category) => (
                 <div key={category.id}>
-                  <h2 className="mb-1 text-2xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <SectionLabel as="h2" className="mb-1">
                     {category.label}
-                  </h2>
+                  </SectionLabel>
                   {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
                     const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
                     return (
