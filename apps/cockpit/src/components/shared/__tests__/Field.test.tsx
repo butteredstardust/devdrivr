@@ -12,6 +12,18 @@ describe('Field', () => {
     expect(screen.getByLabelText('Request Name')).toBeInTheDocument()
   })
 
+  it('wraps the control when no htmlFor is given, so the caller needs no id', () => {
+    // The hand-rolled version this replaces was a bare <label> sibling with no `for` — it
+    // rendered identically and labelled nothing, which is invisible until a screen reader
+    // reads the input unnamed.
+    render(
+      <Field label="Alt Text">
+        <input />
+      </Field>
+    )
+    expect(screen.getByLabelText('Alt Text')).toBeInTheDocument()
+  })
+
   it('shows a hint when there is no error', () => {
     render(
       <Field label="URL" hint="Must include protocol">

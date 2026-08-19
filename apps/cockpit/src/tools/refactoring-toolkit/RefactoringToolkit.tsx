@@ -15,6 +15,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
@@ -36,6 +37,7 @@ import {
   type TransformCategory,
 } from '@/tools/refactoring-toolkit/transforms'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type RefactoringView = 'source' | 'diff'
 
@@ -322,7 +324,7 @@ export default function RefactoringToolkit() {
             title={state.fileName ?? 'Untitled'}
             icon={
               <ArrowsClockwiseIcon
-                size={15}
+                size={16}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />
@@ -354,7 +356,7 @@ export default function RefactoringToolkit() {
               {...(state.panelOpen ? { 'aria-controls': panelId } : {})}
               className="gap-1"
             >
-              <SlidersHorizontalIcon size={13} aria-hidden="true" />
+              <SlidersHorizontalIcon size={14} aria-hidden="true" />
               Transforms
               {selectedCount > 0 && (
                 <span className="ml-1 text-2xs tabular-nums opacity-70">{selectedCount}</span>
@@ -403,14 +405,12 @@ export default function RefactoringToolkit() {
               disabled={!canApply}
               title={
                 hasDestructive
-                  ? 'Apply the transforms — this removes code (⌘↵)'
-                  : 'Apply the transforms to the buffer (⌘↵)'
+                  ? `Apply the transforms — this removes code (${formatShortcut('mod+enter')})`
+                  : `Apply the transforms to the buffer (${formatShortcut('mod+enter')})`
               }
             >
               {hasDestructive ? 'Apply (removes code)' : 'Apply'}
-              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                ⌘↵
-              </span>
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
             <Button
               variant="ghost"
@@ -420,7 +420,7 @@ export default function RefactoringToolkit() {
               title="Restore the code from before the last apply"
               className="gap-1"
             >
-              <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+              <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
               Undo
             </Button>
             <CopyButton text={copyText} label={showDiff ? 'Copy transformed code' : 'Copy code'} />
@@ -429,10 +429,10 @@ export default function RefactoringToolkit() {
               size="sm"
               onClick={handleSave}
               disabled={!hasCode}
-              title="Save the code to a file (⌘S)"
+              title={`Save the code to a file (${formatShortcut('mod+s')})`}
               aria-label="Save code to file"
             >
-              <FloppyDiskIcon size={15} aria-hidden="true" />
+              <FloppyDiskIcon size={16} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>
@@ -457,7 +457,7 @@ export default function RefactoringToolkit() {
           >
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
               <MagnifyingGlassIcon
-                size={13}
+                size={14}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />

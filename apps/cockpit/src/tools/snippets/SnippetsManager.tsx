@@ -25,10 +25,13 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { InlineInput } from '@/components/shared/InlineInput'
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
@@ -37,6 +40,7 @@ import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 const FAVORITE_TAG = '⭐'
 
@@ -599,18 +603,18 @@ export default function SnippetsManager() {
   }, [handleDuplicate, handleExportAll, handleImport, handleNew, isInstanceActive, selected])
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <header className="flex min-h-14 items-center gap-3 border-b border-[var(--color-border)] px-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="font-ui text-sm font-semibold text-[var(--color-text)]">Snippets</h1>
-            <p className="text-2xs text-[var(--color-text-muted)]">
-              {snippets.length} saved locally
-            </p>
-          </div>
+    <>
+      <MasterDetailLayout
+        title="Snippets"
+        subtitle={`${snippets.length} saved locally`}
+        sidebarActions={
+          // Secondary for the same reason as prompt-templates: the sidebar heading never carries
+          // the accent. Snippets saves as you type, so when one is selected the tool has no
+          // primary at all — correct for a live-editing tool. The empty state's CTA covers the
+          // one moment there's nothing to edit.
           <Button
             type="button"
-            variant="primary"
+            variant="secondary"
             size="sm"
             onClick={() => void handleNew()}
             className="gap-1.5"
@@ -618,509 +622,517 @@ export default function SnippetsManager() {
             <PlusIcon size={12} aria-hidden="true" />
             New
           </Button>
-        </header>
-
-        <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <SearchInput
-            ref={searchInputRef}
-            value={search}
-            onValueChange={setSearch}
-            placeholder="Search snippets"
-            aria-label="Search snippets"
-          />
-
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={activeFolder}
-              onChange={(event) => setActiveFolder(event.target.value)}
-              aria-label="Filter by folder"
-              title="Filter by folder"
-            >
-              <option value="">All folders</option>
-              {allFolders.map((folder) => (
-                <option key={folder} value={folder}>
-                  {folder}
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              aria-label="Sort snippets"
-              title="Sort snippets"
-            >
-              <option value="updated">Recently edited</option>
-              <option value="created">Recently created</option>
-              <option value="title">Title A–Z</option>
-              <option value="language">Language</option>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-pressed={favoritesOnly}
-              onClick={() => setFavoritesOnly((current) => !current)}
-              className={`gap-1.5 ${favoritesOnly ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
-            >
-              <StarIcon size={12} weight={favoritesOnly ? 'fill' : 'regular'} aria-hidden="true" />
-              Favorites
-            </Button>
-            {allTags.length > 0 && (
-              <Select
-                value={filterTag}
-                onChange={(event) => setFilterTag(event.target.value)}
-                aria-label="Filter by tag"
-                title="Filter by tag"
-                className="min-w-0 flex-1"
-              >
-                <option value="">All tags</option>
-                {allTags.map((tag) => (
-                  <option key={tag} value={tag}>
-                    #{tag}
-                  </option>
-                ))}
-              </Select>
-            )}
-            {hasFilters && (
-              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-          <span>
-            {filtered.length === snippets.length ? 'Library' : `${filtered.length} results`}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => void handleImport()}
-              title="Import snippets from JSON"
-              aria-label="Import snippets from JSON"
-            >
-              <UploadSimpleIcon size={12} aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => void handleExportAll()}
-              title="Export snippets as JSON"
-              aria-label="Export snippets as JSON"
-              disabled={snippets.length === 0}
-            >
-              <DownloadSimpleIcon size={12} aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Snippets">
-          {filtered.map((snippet) => {
-            const isSelected = snippet.id === selectedId
-            const matches = isSelected ? undefined : matchMap.get(snippet.id)
-            const tone = LANG_TONES[snippet.language] ?? 'accent'
-            return (
-              <Button
-                key={snippet.id}
-                id={`${snippetOptionsId}-option-${snippet.id}`}
-                type="button"
-                variant="ghost"
-                size="xs"
-                role="option"
-                aria-selected={isSelected}
-                tabIndex={isSelected || (!selectedId && filtered[0]?.id === snippet.id) ? 0 : -1}
-                onClick={() => setSelectedId(snippet.id)}
-                onKeyDown={(event) => handleListKeyDown(event, snippet.id)}
-                className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[inset_var(--focus-ring)] ${
-                  isSelected
-                    ? 'bg-[var(--color-accent-dim)]'
-                    : 'hover:bg-[var(--color-surface-hover)]'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <span
-                    className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
-                  >
-                    {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
-                        {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
-                      </span>
-                      {isFavorite(snippet.tags) && (
-                        <StarIcon
-                          size={11}
-                          weight="fill"
-                          aria-label="Favorite"
-                          className="shrink-0 text-[var(--color-warning)]"
-                        />
-                      )}
-                      <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                        {relativeTime(snippet.updatedAt)}
-                      </span>
-                    </span>
-                    <span className="mt-1 block truncate text-2xs text-[var(--color-text-muted)]">
-                      {contentPreview(snippet.content) || 'Empty snippet'}
-                    </span>
-                    {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
-                      <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-[9px] text-[var(--color-text-muted)]">
-                        {snippet.folder && (
-                          <span className="flex min-w-0 items-center gap-1 truncate">
-                            <FolderOpenIcon size={9} aria-hidden="true" />
-                            {snippet.folder}
-                          </span>
-                        )}
-                        {visibleTags(snippet.tags)
-                          .slice(0, 2)
-                          .map((tag) => (
-                            <span key={tag} className="truncate">
-                              #{tag}
-                            </span>
-                          ))}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              </Button>
-            )
-          })}
-
-          {filtered.length === 0 && (
-            <EmptyState
-              icon={ScissorsIcon}
-              size="sm"
-              title={snippets.length === 0 ? 'No snippets yet' : 'No matches'}
-              description={
-                snippets.length === 0
-                  ? 'Save reusable code and commands here.'
-                  : 'Try a different search or clear the filters.'
-              }
-              action={
-                snippets.length === 0 ? null : (
-                  <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                )
-              }
-            />
-          )}
-        </div>
-      </aside>
-
-      <main className="flex min-h-0 min-w-0 flex-col">
-        {selected ? (
+        }
+        sidebar={
           <>
-            <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-              <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => void handleToggleFavorite()}
-                  title={isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'}
-                  aria-label={
-                    isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'
-                  }
-                  className={isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : ''}
-                >
-                  <StarIcon
-                    size={15}
-                    weight={isFavorite(selected.tags) ? 'fill' : 'regular'}
-                    aria-hidden="true"
-                  />
-                </Button>
-                <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
-                  <InlineInput
-                    ref={setTitleInputRef}
-                    value={selected.title}
-                    onChange={(event) =>
-                      void updateSnippet(selected.id, { title: event.target.value })
-                    }
-                    placeholder="Snippet title"
-                    aria-label="Snippet title"
-                    className="w-full"
-                  />
-                  <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
-                    {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}
-                  </p>
-                </div>
+            <div className="space-y-2 border-b border-[var(--color-border)] p-3">
+              <SearchInput
+                ref={searchInputRef}
+                value={search}
+                onValueChange={setSearch}
+                placeholder="Search snippets"
+                aria-label="Search snippets"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
                 <Select
-                  value={selected.language}
-                  onChange={(event) =>
-                    void updateSnippet(selected.id, { language: event.target.value })
-                  }
-                  aria-label="Snippet language"
-                  title="Snippet language"
-                  className="w-32"
+                  value={activeFolder}
+                  onChange={(event) => setActiveFolder(event.target.value)}
+                  aria-label="Filter by folder"
+                  title="Filter by folder"
                 >
-                  {LANGUAGES.map((language) => (
-                    <option key={language} value={language}>
-                      {language}
+                  <option value="">All folders</option>
+                  {allFolders.map((folder) => (
+                    <option key={folder} value={folder}>
+                      {folder}
                     </option>
                   ))}
                 </Select>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => void handleCopy()}
-                  title="Copy snippet"
-                  aria-label="Copy snippet"
+                <Select
+                  value={sortMode}
+                  onChange={(event) => setSortMode(event.target.value as SortMode)}
+                  aria-label="Sort snippets"
+                  title="Sort snippets"
                 >
-                  <ClipboardTextIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => void handleDuplicate()}
-                  title="Duplicate snippet (⌘⇧D)"
-                  aria-label="Duplicate snippet"
-                >
-                  <CopyIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => void handleDownload()}
-                  title="Save snippet as file"
-                  aria-label="Save snippet as file"
-                >
-                  <DownloadSimpleIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => setDetailsOpen((current) => !current)}
-                  title={detailsOpen ? 'Hide details' : 'Show details'}
-                  aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
-                  aria-expanded={detailsOpen}
-                  className={
-                    detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-                  }
-                >
-                  <SidebarIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => setDeleteDialogOpen(true)}
-                  title="Delete snippet"
-                  aria-label="Delete snippet"
-                  className="hover:text-[var(--color-error)]"
-                >
-                  <TrashIcon size={14} aria-hidden="true" />
-                </Button>
-              </div>
-            </header>
-
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-              <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
-                <Editor
-                  theme={monacoTheme}
-                  language={selected.language}
-                  value={selected.content}
-                  onChange={(value) => void updateSnippet(selected.id, { content: value ?? '' })}
-                  options={{
-                    ...monacoOptions,
-                    minimap: { enabled: false },
-                    lineNumbers: 'on',
-                    padding: { top: 12, bottom: 12 },
-                    scrollBeyondLastLine: false,
-                  }}
-                />
+                  <option value="updated">Recently edited</option>
+                  <option value="created">Recently created</option>
+                  <option value="title">Title A–Z</option>
+                  <option value="language">Language</option>
+                </Select>
               </div>
 
-              {detailsOpen && (
-                <aside
-                  aria-label="Snippet details"
-                  className="absolute inset-y-0 right-0 z-10 w-60 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg max-[1000px]:w-52"
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-pressed={favoritesOnly}
+                  onClick={() => setFavoritesOnly((current) => !current)}
+                  className={`gap-1.5 ${favoritesOnly ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
                 >
-                  <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
-
-                  <label className="block text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-                    Folder
-                    <Input
-                      value={selected.folder}
-                      onChange={(event) =>
-                        void updateSnippet(selected.id, { folder: event.target.value })
-                      }
-                      placeholder="No folder"
-                      list={folderListId}
-                      className="mt-1.5 w-full"
-                    />
-                  </label>
-                  <datalist id={folderListId}>
-                    {allFolders.map((folder) => (
-                      <option key={folder} value={folder} />
+                  <StarIcon
+                    size={12}
+                    weight={favoritesOnly ? 'fill' : 'regular'}
+                    aria-hidden="true"
+                  />
+                  Favorites
+                </Button>
+                {allTags.length > 0 && (
+                  <Select
+                    value={filterTag}
+                    onChange={(event) => setFilterTag(event.target.value)}
+                    aria-label="Filter by tag"
+                    title="Filter by tag"
+                    className="min-w-0 flex-1"
+                  >
+                    <option value="">All tags</option>
+                    {allTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        #{tag}
+                      </option>
                     ))}
-                  </datalist>
+                  </Select>
+                )}
+                {hasFilters && (
+                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
 
-                  <div className="mt-5">
-                    <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-                      <TagIcon size={11} aria-hidden="true" />
-                      Tags
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {visibleTags(selected.tags).map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
-                        >
-                          {tag}
-                          <Button
-                            type="button"
-                            variant="icon"
-                            size="xs"
-                            onClick={() => void handleRemoveTag(tag)}
-                            aria-label={`Remove ${tag} tag`}
-                            className="rounded-full p-0 hover:bg-transparent hover:text-[var(--color-error)]"
-                          >
-                            <XIcon size={9} aria-hidden="true" />
-                          </Button>
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+              <span>
+                {filtered.length === snippets.length ? 'Library' : `${filtered.length} results`}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={() => void handleImport()}
+                  title="Import snippets from JSON"
+                  aria-label="Import snippets from JSON"
+                >
+                  <UploadSimpleIcon size={12} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={() => void handleExportAll()}
+                  title="Export snippets as JSON"
+                  aria-label="Export snippets as JSON"
+                  disabled={snippets.length === 0}
+                >
+                  <DownloadSimpleIcon size={12} aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Snippets">
+              {filtered.map((snippet) => {
+                const isSelected = snippet.id === selectedId
+                const matches = isSelected ? undefined : matchMap.get(snippet.id)
+                const tone = LANG_TONES[snippet.language] ?? 'accent'
+                return (
+                  <Button
+                    key={snippet.id}
+                    id={`${snippetOptionsId}-option-${snippet.id}`}
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    role="option"
+                    aria-selected={isSelected}
+                    tabIndex={
+                      isSelected || (!selectedId && filtered[0]?.id === snippet.id) ? 0 : -1
+                    }
+                    onClick={() => setSelectedId(snippet.id)}
+                    onKeyDown={(event) => handleListKeyDown(event, snippet.id)}
+                    className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
+                      isSelected
+                        ? 'bg-[var(--color-accent-dim)]'
+                        : 'hover:bg-[var(--color-surface-hover)]'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-2xs font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
+                      >
+                        {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
+                            {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
+                          </span>
+                          {isFavorite(snippet.tags) && (
+                            <StarIcon
+                              size={12}
+                              weight="fill"
+                              aria-label="Favorite"
+                              className="shrink-0 text-[var(--color-warning)]"
+                            />
+                          )}
+                          <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+                            {relativeTime(snippet.updatedAt)}
+                          </span>
                         </span>
-                      ))}
+                        <span className="mt-1 block truncate text-2xs text-[var(--color-text-muted)]">
+                          {contentPreview(snippet.content) || 'Empty snippet'}
+                        </span>
+                        {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
+                          <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-2xs text-[var(--color-text-muted)]">
+                            {snippet.folder && (
+                              <span className="flex min-w-0 items-center gap-1 truncate">
+                                <FolderOpenIcon size={9} aria-hidden="true" />
+                                {snippet.folder}
+                              </span>
+                            )}
+                            {visibleTags(snippet.tags)
+                              .slice(0, 2)
+                              .map((tag) => (
+                                <span key={tag} className="truncate">
+                                  #{tag}
+                                </span>
+                              ))}
+                          </span>
+                        )}
+                      </span>
                     </div>
+                  </Button>
+                )
+              })}
 
-                    <div className="relative mt-2">
-                      <Input
-                        ref={tagInputRef}
-                        role="combobox"
-                        aria-label="Add tag"
-                        aria-autocomplete="list"
-                        aria-expanded={tagSuggestions.length > 0}
-                        aria-controls={tagSuggestions.length > 0 ? tagSuggestionsId : undefined}
-                        aria-activedescendant={
-                          suggestionIndex >= 0
-                            ? `${tagSuggestionsId}-option-${suggestionIndex}`
-                            : undefined
-                        }
-                        value={tagInput}
-                        onChange={(event) => {
-                          setTagInput(event.target.value)
-                          setSuggestionIndex(-1)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'ArrowDown') {
-                            event.preventDefault()
-                            setSuggestionIndex((current) =>
-                              Math.min(current + 1, tagSuggestions.length - 1)
-                            )
-                          } else if (event.key === 'ArrowUp') {
-                            event.preventDefault()
-                            setSuggestionIndex((current) => Math.max(current - 1, -1))
-                          } else if (event.key === 'Enter') {
-                            event.preventDefault()
-                            const suggestion = tagSuggestions[suggestionIndex]
-                            void handleAddTag(suggestion)
-                          } else if (event.key === 'Escape') {
-                            setTagInput('')
-                            setSuggestionIndex(-1)
-                          }
-                        }}
-                        placeholder="Add a tag"
-                        className="w-full"
-                      />
-                      {tagSuggestions.length > 0 && (
-                        <div
-                          id={tagSuggestionsId}
-                          role="listbox"
-                          aria-label="Tag suggestions"
-                          data-testid="tag-suggestions"
-                          className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
-                        >
-                          {tagSuggestions.map((suggestion, index) => (
-                            <Button
-                              key={suggestion}
-                              id={`${tagSuggestionsId}-option-${index}`}
-                              type="button"
-                              variant="ghost"
-                              size="xs"
-                              role="option"
-                              aria-selected={index === suggestionIndex}
-                              onMouseDown={(event) => {
-                                event.preventDefault()
-                                void handleAddTag(suggestion)
-                              }}
-                              className={`block w-full rounded-none px-2 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] ${
-                                index === suggestionIndex ? 'bg-[var(--color-surface-hover)]' : ''
-                              }`}
-                            >
-                              {suggestion}
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {editorStats && (
-                    <dl className="mt-6 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
-                      <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-muted)]">Lines</dt>
-                        <dd className="text-[var(--color-text)]">{editorStats.lines}</dd>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-muted)]">Characters</dt>
-                        <dd className="text-[var(--color-text)]">{editorStats.characters}</dd>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <dt className="text-[var(--color-text-muted)]">Bytes</dt>
-                        <dd className="text-[var(--color-text)]">{editorStats.bytes}</dd>
-                      </div>
-                    </dl>
-                  )}
-
-                  <dl className="mt-5 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
-                    <div>
-                      <dt className="text-[var(--color-text-muted)]">Created</dt>
-                      <dd className="mt-0.5 text-[var(--color-text)]">
-                        {formatTimestamp(selected.createdAt)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--color-text-muted)]">Last edited</dt>
-                      <dd className="mt-0.5 text-[var(--color-text)]">
-                        {formatTimestamp(selected.updatedAt)}
-                      </dd>
-                    </div>
-                  </dl>
-                </aside>
+              {filtered.length === 0 && (
+                <EmptyState
+                  icon={ScissorsIcon}
+                  size="sm"
+                  title={snippets.length === 0 ? 'No snippets yet' : 'No matches'}
+                  description={
+                    snippets.length === 0
+                      ? 'Save reusable code and commands here.'
+                      : 'Try a different search or clear the filters.'
+                  }
+                  action={
+                    snippets.length === 0 ? null : (
+                      <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    )
+                  }
+                />
               )}
             </div>
           </>
-        ) : (
-          <EmptyState
-            icon={ScissorsIcon}
-            title="Build your snippet library"
-            description="Create a snippet or import an existing JSON backup to get started."
-            className="h-full"
-            action={
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="primary" onClick={() => void handleNew()}>
-                  <PlusIcon size={12} aria-hidden="true" className="mr-1.5" />
-                  New snippet
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => void handleImport()}>
-                  <UploadSimpleIcon size={12} aria-hidden="true" className="mr-1.5" />
-                  Import JSON
-                </Button>
+        }
+      >
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {selected ? (
+            <>
+              <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+                <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => void handleToggleFavorite()}
+                    title={isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-label={
+                      isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'
+                    }
+                    className={isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : ''}
+                  >
+                    <StarIcon
+                      size={16}
+                      weight={isFavorite(selected.tags) ? 'fill' : 'regular'}
+                      aria-hidden="true"
+                    />
+                  </Button>
+                  <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
+                    <InlineInput
+                      ref={setTitleInputRef}
+                      value={selected.title}
+                      onChange={(event) =>
+                        void updateSnippet(selected.id, { title: event.target.value })
+                      }
+                      placeholder="Snippet title"
+                      aria-label="Snippet title"
+                      className="w-full"
+                    />
+                    <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+                      {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}
+                    </p>
+                  </div>
+                  <Select
+                    value={selected.language}
+                    onChange={(event) =>
+                      void updateSnippet(selected.id, { language: event.target.value })
+                    }
+                    aria-label="Snippet language"
+                    title="Snippet language"
+                    className="w-32"
+                  >
+                    {LANGUAGES.map((language) => (
+                      <option key={language} value={language}>
+                        {language}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => void handleCopy()}
+                    title="Copy snippet"
+                    aria-label="Copy snippet"
+                  >
+                    <ClipboardTextIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => void handleDuplicate()}
+                    title={`Duplicate snippet (${formatShortcut('mod+shift+d')})`}
+                    aria-label="Duplicate snippet"
+                  >
+                    <CopyIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => void handleDownload()}
+                    title="Save snippet as file"
+                    aria-label="Save snippet as file"
+                  >
+                    <DownloadSimpleIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => setDetailsOpen((current) => !current)}
+                    title={detailsOpen ? 'Hide details' : 'Show details'}
+                    aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
+                    aria-expanded={detailsOpen}
+                    className={
+                      detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                    }
+                  >
+                    <SidebarIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    title="Delete snippet"
+                    aria-label="Delete snippet"
+                    className="hover:text-[var(--color-error)]"
+                  >
+                    <TrashIcon size={14} aria-hidden="true" />
+                  </Button>
+                </div>
+              </header>
+
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
+                  <Editor
+                    theme={monacoTheme}
+                    language={selected.language}
+                    value={selected.content}
+                    onChange={(value) => void updateSnippet(selected.id, { content: value ?? '' })}
+                    options={{
+                      ...monacoOptions,
+                      minimap: { enabled: false },
+                      lineNumbers: 'on',
+                      padding: { top: 12, bottom: 12 },
+                      scrollBeyondLastLine: false,
+                    }}
+                  />
+                </div>
+
+                {detailsOpen && (
+                  <aside
+                    aria-label="Snippet details"
+                    className="absolute inset-y-0 right-0 z-10 w-60 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg max-[1000px]:w-52"
+                  >
+                    <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
+
+                    <Field label="Folder">
+                      <Input
+                        value={selected.folder}
+                        onChange={(event) =>
+                          void updateSnippet(selected.id, { folder: event.target.value })
+                        }
+                        placeholder="No folder"
+                        list={folderListId}
+                        className="w-full"
+                      />
+                    </Field>
+                    <datalist id={folderListId}>
+                      {allFolders.map((folder) => (
+                        <option key={folder} value={folder} />
+                      ))}
+                    </datalist>
+
+                    <div className="mt-5">
+                      <SectionLabel as="div" className="mb-2">
+                        <TagIcon size={12} aria-hidden="true" />
+                        Tags
+                      </SectionLabel>
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleTags(selected.tags).map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
+                          >
+                            {tag}
+                            <Button
+                              type="button"
+                              variant="icon"
+                              size="xs"
+                              onClick={() => void handleRemoveTag(tag)}
+                              aria-label={`Remove ${tag} tag`}
+                              className="rounded-full p-0 hover:bg-transparent hover:text-[var(--color-error)]"
+                            >
+                              <XIcon size={9} aria-hidden="true" />
+                            </Button>
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="relative mt-2">
+                        <Input
+                          ref={tagInputRef}
+                          role="combobox"
+                          aria-label="Add tag"
+                          aria-autocomplete="list"
+                          aria-expanded={tagSuggestions.length > 0}
+                          aria-controls={tagSuggestions.length > 0 ? tagSuggestionsId : undefined}
+                          aria-activedescendant={
+                            suggestionIndex >= 0
+                              ? `${tagSuggestionsId}-option-${suggestionIndex}`
+                              : undefined
+                          }
+                          value={tagInput}
+                          onChange={(event) => {
+                            setTagInput(event.target.value)
+                            setSuggestionIndex(-1)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'ArrowDown') {
+                              event.preventDefault()
+                              setSuggestionIndex((current) =>
+                                Math.min(current + 1, tagSuggestions.length - 1)
+                              )
+                            } else if (event.key === 'ArrowUp') {
+                              event.preventDefault()
+                              setSuggestionIndex((current) => Math.max(current - 1, -1))
+                            } else if (event.key === 'Enter') {
+                              event.preventDefault()
+                              const suggestion = tagSuggestions[suggestionIndex]
+                              void handleAddTag(suggestion)
+                            } else if (event.key === 'Escape') {
+                              setTagInput('')
+                              setSuggestionIndex(-1)
+                            }
+                          }}
+                          placeholder="Add a tag"
+                          className="w-full"
+                        />
+                        {tagSuggestions.length > 0 && (
+                          <div
+                            id={tagSuggestionsId}
+                            role="listbox"
+                            aria-label="Tag suggestions"
+                            data-testid="tag-suggestions"
+                            className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
+                          >
+                            {tagSuggestions.map((suggestion, index) => (
+                              <Button
+                                key={suggestion}
+                                id={`${tagSuggestionsId}-option-${index}`}
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                role="option"
+                                aria-selected={index === suggestionIndex}
+                                onMouseDown={(event) => {
+                                  event.preventDefault()
+                                  void handleAddTag(suggestion)
+                                }}
+                                className={`block w-full rounded-none px-2 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] ${
+                                  index === suggestionIndex ? 'bg-[var(--color-surface-hover)]' : ''
+                                }`}
+                              >
+                                {suggestion}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {editorStats && (
+                      <dl className="mt-6 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-[var(--color-text-muted)]">Lines</dt>
+                          <dd className="text-[var(--color-text)]">{editorStats.lines}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-[var(--color-text-muted)]">Characters</dt>
+                          <dd className="text-[var(--color-text)]">{editorStats.characters}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-[var(--color-text-muted)]">Bytes</dt>
+                          <dd className="text-[var(--color-text)]">{editorStats.bytes}</dd>
+                        </div>
+                      </dl>
+                    )}
+
+                    <dl className="mt-5 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
+                      <div>
+                        <dt className="text-[var(--color-text-muted)]">Created</dt>
+                        <dd className="mt-0.5 text-[var(--color-text)]">
+                          {formatTimestamp(selected.createdAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[var(--color-text-muted)]">Last edited</dt>
+                        <dd className="mt-0.5 text-[var(--color-text)]">
+                          {formatTimestamp(selected.updatedAt)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </aside>
+                )}
               </div>
-            }
-          />
-        )}
-      </main>
+            </>
+          ) : (
+            <EmptyState
+              icon={ScissorsIcon}
+              title="Build your snippet library"
+              description="Create a snippet or import an existing JSON backup to get started."
+              className="h-full"
+              action={
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="primary" onClick={() => void handleNew()}>
+                    <PlusIcon size={12} aria-hidden="true" className="mr-1.5" />
+                    New snippet
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => void handleImport()}>
+                    <UploadSimpleIcon size={12} aria-hidden="true" className="mr-1.5" />
+                    Import JSON
+                  </Button>
+                </div>
+              }
+            />
+          )}
+        </main>
+      </MasterDetailLayout>
 
       {deleteDialogOpen && selected && (
         <Dialog
@@ -1149,6 +1161,6 @@ export default function SnippetsManager() {
           </p>
         </Dialog>
       )}
-    </div>
+    </>
   )
 }

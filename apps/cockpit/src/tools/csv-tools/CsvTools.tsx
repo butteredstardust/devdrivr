@@ -19,6 +19,8 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Select } from '@/components/shared/Select'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -42,6 +44,7 @@ import {
 } from './csv-helpers'
 import { formatTextBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type CsvView = 'table' | 'convert' | 'analyze'
 
@@ -333,107 +336,100 @@ export default function CsvTools() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="border-b border-[var(--color-border)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
-            <div className="flex min-w-0 items-center gap-2">
+        <DocumentToolbar aria-label="CSV document actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled'}
+            icon={
               <FileCsvIcon
-                size={15}
+                size={16}
                 aria-hidden="true"
                 className="shrink-0 text-[var(--color-text-muted)]"
               />
-              <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-                {state.fileName ?? 'Untitled'}
-              </span>
-              <span
-                role="status"
-                aria-live="polite"
-                className="flex min-w-0 items-center gap-1 text-2xs text-[var(--color-text-muted)]"
-              >
-                {parsed.status === 'parsed' && issues.length === 0 && (
-                  <CheckCircleIcon
-                    size={12}
-                    aria-hidden="true"
-                    className="shrink-0 text-[var(--color-success)]"
-                  />
-                )}
-                {issues.length > 0 && (
-                  <WarningCircleIcon
-                    size={12}
-                    aria-hidden="true"
-                    className="shrink-0 text-[var(--color-warning)]"
-                  />
-                )}
-                <span className="truncate">{status}</span>
-              </span>
-              {issues.length > 0 && issues[0] && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={handleGoToIssue}
-                  title={`${issues[0].message} (line ${issues[0].line})`}
-                  className="shrink-0 gap-1"
-                >
-                  <CrosshairSimpleIcon size={12} aria-hidden="true" />
-                  Go to issue
-                </Button>
-              )}
-            </div>
+            }
+            status={status}
+            statusIcon={
+              parsed.status === 'parsed' && issues.length === 0 ? (
+                <CheckCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-success)]"
+                />
+              ) : issues.length > 0 ? (
+                <WarningCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-warning)]"
+                />
+              ) : undefined
+            }
+          />
+          {issues.length > 0 && issues[0] && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleGoToIssue}
+              title={`${issues[0].message} (line ${issues[0].line})`}
+              className="shrink-0 gap-1"
+            >
+              <CrosshairSimpleIcon size={12} aria-hidden="true" />
+              Go to issue
+            </Button>
+          )}
 
-            <div className="ml-auto flex flex-wrap items-center gap-3">
-              <Select
-                aria-label="Delimiter"
-                value={delimiter}
-                onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
-                className="w-32"
-              >
-                {DELIMITER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <Toggle
-                checked={hasHeader}
-                onChange={(checked) => updateState({ hasHeader: checked })}
-                label="Header row"
-              />
-              <Toggle
-                checked={typed}
-                onChange={(checked) => updateState({ typed: checked })}
-                label="Typed values"
-              />
-              <SegmentedControl
-                aria-label="View"
-                value={view}
-                onChange={(next) => updateState({ view: next })}
-                options={VIEW_OPTIONS}
-              />
-              {undoBuffer && (
-                <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
-                  <ArrowUUpLeftIcon size={13} aria-hidden="true" />
-                  Undo {undoBuffer.label.toLowerCase()}
-                </Button>
-              )}
-              <CopyButton text={activeOutput} label="Copy output" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasInput}
-                title="Save the current view to a file (⌘S)"
-                aria-label="Save output to file"
-              >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+          <ToolbarGroup className="gap-3">
+            <Select
+              aria-label="Delimiter"
+              value={delimiter}
+              onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
+              className="w-32"
+            >
+              {DELIMITER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <Toggle
+              checked={hasHeader}
+              onChange={(checked) => updateState({ hasHeader: checked })}
+              label="Header row"
+            />
+            <Toggle
+              checked={typed}
+              onChange={(checked) => updateState({ typed: checked })}
+              label="Typed values"
+            />
+            <SegmentedControl
+              aria-label="View"
+              value={view}
+              onChange={(next) => updateState({ view: next })}
+              options={VIEW_OPTIONS}
+            />
+            {undoBuffer && (
+              <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
+                <ArrowUUpLeftIcon size={14} aria-hidden="true" />
+                Undo {undoBuffer.label.toLowerCase()}
               </Button>
-            </div>
-          </div>
-        </div>
+            )}
+            <CopyButton text={activeOutput} label="Copy output" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={!hasInput}
+              title={`Save the current view to a file (${formatShortcut('mod+s')})`}
+              aria-label="Save output to file"
+            >
+              <FloppyDiskIcon size={16} aria-hidden="true" />
+            </Button>
+          </ToolbarGroup>
+        </DocumentToolbar>
       }
     >
-      <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
+      <SplitPane storageKey="csv-tools" stackBelow={900} aria-label="Resize source and output">
         <section
           aria-label="CSV source"
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-[var(--color-border)] max-[900px]:border-b min-[901px]:border-r"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         >
           <Editor
             theme={monacoTheme}
@@ -499,7 +495,7 @@ export default function CsvTools() {
             />
           )}
         </section>
-      </div>
+      </SplitPane>
     </ToolLayout>
   )
 }

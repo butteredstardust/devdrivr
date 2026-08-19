@@ -16,6 +16,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
@@ -29,6 +30,7 @@ import type { Diagnostic } from '@/workers/typescript.api'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type TsPlaygroundState = {
   input: string
@@ -249,7 +251,7 @@ export default function TsPlayground() {
               title={state.fileName ?? 'Untitled.ts'}
               icon={
                 <FileTsIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -294,7 +296,7 @@ export default function TsPlayground() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Options
               </Button>
               <Button
@@ -304,12 +306,10 @@ export default function TsPlayground() {
                 disabled={!hasCode}
                 // Deliberately not `loading`: a background auto-compile would
                 // then disable the very button that requests an announced one.
-                title="Compile now (⌘↵)"
+                title={`Compile now (${formatShortcut('mod+enter')})`}
               >
                 Compile
-                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                  ⌘↵
-                </span>
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
               <CopyButton text={output} label="Copy output" />
               <Button
@@ -317,10 +317,10 @@ export default function TsPlayground() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!output}
-                title="Save the JavaScript output to a file (⌘S)"
+                title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save output to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -497,7 +497,7 @@ export default function TsPlayground() {
                     className="flex items-start gap-2 py-0.5 text-xs"
                   >
                     <Icon
-                      size={13}
+                      size={14}
                       aria-hidden="true"
                       className="mt-0.5 shrink-0"
                       style={{ color: SEVERITY_COLOR[d.category] }}

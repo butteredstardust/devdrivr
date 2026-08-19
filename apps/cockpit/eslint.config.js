@@ -82,8 +82,10 @@ export default [
     // for what's already available before adding one.
     //
     // Exemptions are per-line `eslint-disable-next-line no-restricted-syntax`
-    // comments with a stated reason — see the P2 section of documentation/TODO.md
-    // for the categories that legitimately survive.
+    // comments with a stated reason. The class-string half of the same contract
+    // (type scale, icon scale, focus rings, colour tokens) is enforced by
+    // scripts/lint-design-system.mjs, which `bun run lint` chains after ESLint —
+    // see documentation/DESIGN_SYSTEM.md § Enforcement.
     files: ['src/tools/**/*.tsx'],
     rules: {
       'no-restricted-syntax': [

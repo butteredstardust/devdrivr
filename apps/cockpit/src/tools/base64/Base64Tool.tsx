@@ -2,7 +2,10 @@ import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
@@ -355,7 +358,7 @@ export default function Base64Tool() {
               <ArrowsLeftRightIcon size={12} aria-hidden="true" />
               Swap
             </Button>
-            <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+            <Kbd keys="mod+enter" />
           </ToolbarGroup>
 
           <ToolbarGroup label="Encoding options" separated>
@@ -397,45 +400,48 @@ export default function Base64Tool() {
       }
     >
       {/* ── Panels ────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <SplitPane storageKey="base64" aria-label="Resize input and output">
         {/* ── Input panel ─────────────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              Input ({state.mode === 'encode' ? 'Text' : 'Base64'})
-            </span>
-            {state.mode === 'encode' && !droppedFile && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PaneHeader
+            title="Input"
+            hint={state.mode === 'encode' ? 'Text' : 'Base64'}
+            actions={
               <>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Encode a file to Base64"
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                >
-                  <UploadSimpleIcon size={11} />
-                  Encode File
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileInputChange}
-                />
+                {state.mode === 'encode' && !droppedFile && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Encode a file to Base64"
+                      className="gap-1"
+                    >
+                      <UploadSimpleIcon size={12} />
+                      Encode File
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileInputChange}
+                    />
+                  </>
+                )}
+                {droppedFile && (
+                  <Button
+                    variant="icon"
+                    size="xs"
+                    onClick={() => setDroppedFile(null)}
+                    title="Clear file"
+                    className="hover:text-[var(--color-error)]"
+                  >
+                    <XIcon size={12} />
+                  </Button>
+                )}
               </>
-            )}
-            {droppedFile && (
-              <Button
-                variant="icon"
-                size="xs"
-                onClick={() => setDroppedFile(null)}
-                title="Clear file"
-                className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
-              >
-                <XIcon size={12} />
-              </Button>
-            )}
-          </div>
+            }
+          />
 
           {droppedFile ? (
             /* File info view */
@@ -499,15 +505,12 @@ export default function Base64Tool() {
         </div>
 
         {/* ── Output panel ────────────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {droppedFile
-                ? 'Output (Base64 Data URI)'
-                : `Output (${state.mode === 'encode' ? 'Base64' : 'Text'})`}
-            </span>
-            <div className="flex items-center gap-1">
-              {droppedFile ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PaneHeader
+            title="Output"
+            hint={droppedFile ? 'Base64 Data URI' : state.mode === 'encode' ? 'Base64' : 'Text'}
+            actions={
+              droppedFile ? (
                 <>
                   <CopyButton text={droppedFile.dataUri.split(',')[1] ?? ''} label="Copy Base64" />
                   <CopyButton text={droppedFile.dataUri} label="Copy data URI" />
@@ -519,9 +522,9 @@ export default function Base64Tool() {
                   )}
                   <CopyButton text={output.text} />
                 </>
-              )}
-            </div>
-          </div>
+              )
+            }
+          />
 
           {droppedFile ? (
             /* File encode output: base64 text (truncated) + zoomable image */
@@ -636,7 +639,7 @@ export default function Base64Tool() {
             </div>
           )}
         </div>
-      </div>
+      </SplitPane>
     </ToolLayout>
   )
 }

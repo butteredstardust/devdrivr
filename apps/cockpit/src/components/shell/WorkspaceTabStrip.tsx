@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { XIcon, PlusIcon } from '@phosphor-icons/react'
 import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type ContextMenu = {
   tabId: string
@@ -188,7 +189,7 @@ export function WorkspaceTabStrip() {
                   setActiveTab(tab.id)
                 }
               }}
-              className={`group relative flex max-w-[180px] min-w-[80px] shrink-0 cursor-pointer select-none items-center gap-1.5 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--color-accent)] ${
+              className={`group relative flex max-w-[180px] min-w-[80px] shrink-0 cursor-pointer select-none items-center gap-1.5 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
                 isActive
                   ? 'bg-[var(--color-bg)] text-[var(--color-accent)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
@@ -219,7 +220,7 @@ export function WorkspaceTabStrip() {
                 aria-label={`Close ${title}`}
                 className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               >
-                <XIcon size={10} />
+                <XIcon size={12} />
               </button>
 
               {/* Bottom pill indicator for active tab */}
@@ -248,8 +249,8 @@ export function WorkspaceTabStrip() {
       {/* + button pinned outside the scroll area */}
       <button
         onClick={toggleCommandPalette}
-        aria-label="Open new tool (⌘K)"
-        title="Open new tool (⌘K)"
+        aria-label={`Open new tool (${formatShortcut('mod+k')})`}
+        title={`Open new tool (${formatShortcut('mod+k')})`}
         className="flex h-full w-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />

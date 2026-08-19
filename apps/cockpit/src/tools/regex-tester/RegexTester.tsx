@@ -2,6 +2,9 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
@@ -301,11 +304,9 @@ export default function RegexTester() {
           </Toolbar>
 
           {/* Main panels */}
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-                Test String
-              </div>
+          <SplitPane storageKey="regex-tester" aria-label="Resize test string and matches">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <PaneHeader title="Test String" />
               <TextArea
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}
@@ -315,21 +316,21 @@ export default function RegexTester() {
                 className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
             </div>
-            <div className="flex w-1/2 flex-col">
-              <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
-                </span>
-                {mode === 'replace' && state.pattern && state.testString && !replaceError && (
-                  <div className="flex items-center gap-2">
-                    {diffStats && (
-                      <span className="font-mono text-2xs text-[var(--color-text-muted)]">
-                        <span className="text-[var(--color-success)]">+{diffStats.added}</span>
-                        {' / '}
-                        <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
-                        {' chars'}
-                      </span>
-                    )}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <PaneHeader
+                title={mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
+                status={
+                  diffStats && mode === 'replace' && state.pattern && !replaceError ? (
+                    <>
+                      <span className="text-[var(--color-success)]">+{diffStats.added}</span>
+                      {' / '}
+                      <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
+                      {' chars'}
+                    </>
+                  ) : undefined
+                }
+                actions={
+                  mode === 'replace' && state.pattern && state.testString && !replaceError ? (
                     <Button
                       variant={showDiff ? 'secondary' : 'ghost'}
                       size="xs"
@@ -338,9 +339,9 @@ export default function RegexTester() {
                     >
                       Diff
                     </Button>
-                  </div>
-                )}
-              </div>
+                  ) : undefined
+                }
+              />
               {mode === 'replace' ? (
                 <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
                   {replaceError ? (
@@ -385,7 +386,7 @@ export default function RegexTester() {
                 />
               )}
             </div>
-          </div>
+          </SplitPane>
 
           {/* Match details */}
           {matchCount > 0 && (
@@ -439,9 +440,9 @@ export default function RegexTester() {
             </div>
             {REFERENCE_CATEGORIES.map((cat) => (
               <div key={cat.label} className="mb-3">
-                <div className="mb-1 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <SectionLabel as="div" className="mb-1">
                   {cat.label}
-                </div>
+                </SectionLabel>
                 {cat.items.map((r) => (
                   <Button
                     key={r.pattern}

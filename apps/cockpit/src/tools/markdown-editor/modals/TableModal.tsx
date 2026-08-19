@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { Input } from '@/components/shared/Input'
 import { useIsInstanceActive } from '@/app/tool-instance'
@@ -57,8 +59,7 @@ export function TableModal({ onInsert, onClose }: Props) {
     >
       <div className="flex flex-col gap-4">
         <div className="flex gap-6">
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-[var(--color-text-muted)]">Rows (1–10)</label>
+          <Field label="Rows (1–10)">
             <Input
               type="number"
               min={1}
@@ -68,11 +69,8 @@ export function TableModal({ onInsert, onClose }: Props) {
               size="md"
               className="w-20"
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-[var(--color-text-muted)]">
-              Columns (1–10)
-            </label>
+          </Field>
+          <Field label="Columns (1–10)">
             <Input
               type="number"
               min={1}
@@ -82,11 +80,12 @@ export function TableModal({ onInsert, onClose }: Props) {
               size="md"
               className="w-20"
             />
-          </div>
+          </Field>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Preview</label>
+          {/* Not a Field: this names a preview, it doesn't label a control. */}
+          <SectionLabel>Preview</SectionLabel>
           <pre className="overflow-x-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
             {preview}
           </pre>

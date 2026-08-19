@@ -7,6 +7,7 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
+import { Panel } from '@/components/shared/Panel'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 
 // ── UUID Generation ──────────────────────────────────────────────────
@@ -237,8 +238,7 @@ export default function UuidGenerator() {
     <ToolLayout maxWidth="max-w-4xl">
       <div className="flex flex-col gap-4">
         {/* ── Generate ─────────────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-sm text-[var(--color-text)]">Generate</h2>
+        <Panel title="Generate">
           <div className="flex flex-wrap items-center gap-3">
             <Select
               value={state.version}
@@ -255,39 +255,37 @@ export default function UuidGenerator() {
             </Button>
             {state.lastGenerated && (
               <div className="flex items-center gap-2">
-                <code className="rounded bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
+                <code className="rounded bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)]">
                   {state.lastGenerated}
                 </code>
                 <CopyButton text={state.lastGenerated} />
               </div>
             )}
           </div>
-        </section>
+        </Panel>
 
         {/* ── Constants ────────────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-sm text-[var(--color-text)]">Constants</h2>
+        <Panel title="Constants">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
+              <code className="rounded bg-[var(--color-bg)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
                 {NIL_UUID}
               </code>
               <span className="text-xs text-[var(--color-text-muted)]">Nil</span>
               <CopyButton text={NIL_UUID} />
             </div>
             <div className="flex items-center gap-2">
-              <code className="rounded bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
+              <code className="rounded bg-[var(--color-bg)] px-3 py-1.5 text-xs text-[var(--color-text-muted)]">
                 {MAX_UUID}
               </code>
               <span className="text-xs text-[var(--color-text-muted)]">Max</span>
               <CopyButton text={MAX_UUID} />
             </div>
           </div>
-        </section>
+        </Panel>
 
         {/* ── Bulk Generate ────────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-sm text-[var(--color-text)]">Bulk Generate</h2>
+        <Panel title="Bulk Generate">
           <div className="flex flex-wrap items-center gap-3">
             <Input
               type="number"
@@ -306,21 +304,22 @@ export default function UuidGenerator() {
               <option value="json">JSON array</option>
               <option value="csv">CSV</option>
             </Select>
-            <Button variant="primary" size="md" onClick={generateBulk}>
+            {/* Secondary: the tool's one primary is Generate at the top. Bulk is the same
+                operation with a count, not a second headline action. */}
+            <Button variant="secondary" size="md" onClick={generateBulk}>
               Generate
             </Button>
             {bulkUuids.length > 0 && <CopyButton text={bulkOutput} label="Copy All" />}
           </div>
           {bulkOutput && (
-            <pre className="max-h-60 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text)]">
+            <pre className="mt-3 max-h-60 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-xs text-[var(--color-text)]">
               {bulkOutput}
             </pre>
           )}
-        </section>
+        </Panel>
 
         {/* ── Validate & Parse ─────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <h2 className="font-mono text-sm text-[var(--color-text)]">Validate & Parse</h2>
+        <Panel title="Validate & Parse">
           <Input
             type="text"
             value={state.validateInput}
@@ -330,7 +329,7 @@ export default function UuidGenerator() {
             className="w-full max-w-xl font-mono"
           />
           {parsed && (
-            <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+            <div className="mt-3 rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
               {parsed.valid ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
@@ -365,7 +364,7 @@ export default function UuidGenerator() {
               )}
             </div>
           )}
-        </section>
+        </Panel>
       </div>
     </ToolLayout>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, MonitorIcon } from '@phosphor-icons/react'
 import type { Theme } from '@/types/models'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { ALL_THEMES, THEME_META, getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import type { EffectiveTheme } from '@/lib/theme'
 
@@ -244,22 +245,16 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
       <div>{renderChip('system')}</div>
 
       <div role="group" aria-labelledby="theme-group-dark">
-        <h5
-          id="theme-group-dark"
-          className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
-        >
+        <SectionLabel as="h5" id="theme-group-dark" className="mb-1.5">
           Dark
-        </h5>
+        </SectionLabel>
         <div className="grid grid-cols-3 gap-2">{DARK_THEMES.map(renderChip)}</div>
       </div>
 
       <div role="group" aria-labelledby="theme-group-light">
-        <h5
-          id="theme-group-light"
-          className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
-        >
+        <SectionLabel as="h5" id="theme-group-light" className="mb-1.5">
           Light
-        </h5>
+        </SectionLabel>
         <div className="grid grid-cols-3 gap-2">{LIGHT_THEMES.map(renderChip)}</div>
       </div>
     </div>

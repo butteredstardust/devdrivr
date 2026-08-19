@@ -21,8 +21,11 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -35,6 +38,7 @@ import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -467,6 +471,55 @@ export default function JsonTools() {
           ? `Valid JSON · ${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
           : 'Valid JSON'
 
+  // Lifted out of the JSX below because the source pane appears in two shapes — alone when the
+  // inspector is hidden, and as a SplitPane child when it isn't — and duplicating fifty lines of
+  // editor wiring to express that is how the two copies drift apart.
+  const sourcePane = (
+    <section
+      aria-label="JSON source"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Editor
+        theme={monacoTheme}
+        language="json"
+        value={input}
+        onChange={(v) => {
+          updateState({ input: v ?? '' })
+          // The banner reports a failed format of the *old* text; leaving it
+          // up contradicts the status line as soon as the user fixes things.
+          setError(null)
+        }}
+        options={monacoOptions}
+        onMount={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+      {!hasInput && (
+        // Click-through: the hint must never sit between the user and the caret.
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <EmptyState
+            icon={BracketsCurlyIcon}
+            title="Paste or open a JSON document"
+            description={`Format with ${formatShortcut('mod+enter')}, inspect it as a tree or table, and query values by path.`}
+            action={
+              TOOL_SAMPLES['json-tools'] ? (
+                <span className="pointer-events-auto">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
+                  >
+                    Load sample
+                  </Button>
+                </span>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <ToolLayout
       fullBleed
@@ -477,7 +530,7 @@ export default function JsonTools() {
               title={state.fileName ?? 'Untitled'}
               icon={
                 <BracketsCurlyIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -532,7 +585,7 @@ export default function JsonTools() {
                 {...(state.queryOpen ? { 'aria-controls': queryId } : {})}
                 className="gap-1"
               >
-                <MagnifyingGlassIcon size={13} aria-hidden="true" />
+                <MagnifyingGlassIcon size={14} aria-hidden="true" />
                 Path
               </Button>
               <SegmentedControl
@@ -550,12 +603,10 @@ export default function JsonTools() {
                 onClick={() => void handleFormat()}
                 disabled={!hasInput || isFormatting}
                 loading={isFormatting}
-                title="Format the document (⌘↵)"
+                title={`Format the document (${formatShortcut('mod+enter')})`}
               >
                 Format
-                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                  ⌘↵
-                </span>
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
               <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!isValid}>
                 Minify
@@ -567,7 +618,7 @@ export default function JsonTools() {
                 disabled={!isValid}
                 className="gap-1"
               >
-                <SortAscendingIcon size={13} aria-hidden="true" />
+                <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
               <CopyButton text={input} label="Copy JSON" />
@@ -576,10 +627,10 @@ export default function JsonTools() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasInput}
-                title="Save to a file (⌘S)"
+                title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save JSON to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -632,52 +683,15 @@ export default function JsonTools() {
           {error}
         </Alert>
       )}
-      <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
-        <section
-          aria-label="JSON source"
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      {view === 'source' ? (
+        <div className="flex min-h-0 flex-1">{sourcePane}</div>
+      ) : (
+        <SplitPane
+          storageKey="json-tools"
+          stackBelow={900}
+          aria-label="Resize source and inspector"
         >
-          <Editor
-            theme={monacoTheme}
-            language="json"
-            value={input}
-            onChange={(v) => {
-              updateState({ input: v ?? '' })
-              // The banner reports a failed format of the *old* text; leaving it
-              // up contradicts the status line as soon as the user fixes things.
-              setError(null)
-            }}
-            options={monacoOptions}
-            onMount={(editor) => {
-              editorRef.current = editor
-            }}
-          />
-          {!hasInput && (
-            // Click-through: the hint must never sit between the user and the caret.
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-              <EmptyState
-                icon={BracketsCurlyIcon}
-                title="Paste or open a JSON document"
-                description="Format with ⌘↵, inspect it as a tree or table, and query values by path."
-                action={
-                  TOOL_SAMPLES['json-tools'] ? (
-                    <span className="pointer-events-auto">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
-                      >
-                        Load sample
-                      </Button>
-                    </span>
-                  ) : undefined
-                }
-              />
-            </div>
-          )}
-        </section>
-
-        {view !== 'source' && (
+          {sourcePane}
           <InspectorPane
             view={view}
             parsed={parsed}
@@ -685,8 +699,8 @@ export default function JsonTools() {
             data={data}
             onCopy={copy}
           />
-        )}
-      </div>
+        </SplitPane>
+      )}
     </ToolLayout>
   )
 }
@@ -725,47 +739,50 @@ function InspectorPane({
   return (
     <section
       aria-label={view === 'tree' ? 'Tree view' : 'Table view'}
-      className="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--color-border)] max-[900px]:max-h-[45%] max-[900px]:border-l-0 max-[900px]:border-t"
+      /* SplitPane owns the divider and the stacked border, so the pane itself carries neither. */
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
     >
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-        <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-          {view === 'tree' ? 'Tree' : 'Table'}
-        </span>
-        {view === 'tree' && parsed.status === 'valid' && (
+      <PaneHeader
+        title={view === 'tree' ? 'Tree' : 'Table'}
+        actions={
           <>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(true)}
-              className="gap-1"
-              title="Expand every node"
-            >
-              <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
-              Expand all
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(false)}
-              className="gap-1"
-              title="Collapse every node"
-            >
-              <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
-              Collapse all
-            </Button>
-            {expandAll === null && !autoExpanded && (
+            {view === 'tree' && parsed.status === 'valid' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setExpansion(true)}
+                  className="gap-1"
+                  title="Expand every node"
+                >
+                  <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
+                  Expand all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setExpansion(false)}
+                  className="gap-1"
+                  title="Collapse every node"
+                >
+                  <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
+                  Collapse all
+                </Button>
+                {expandAll === null && !autoExpanded && (
+                  <span className="text-2xs text-[var(--color-text-muted)]">
+                    Collapsed — {keyCount} keys
+                  </span>
+                )}
+              </>
+            )}
+            {view === 'table' && parsed.status === 'valid' && tabular && (
               <span className="text-2xs text-[var(--color-text-muted)]">
-                Collapsed — {keyCount} keys
+                {data.length} row{data.length === 1 ? '' : 's'}
               </span>
             )}
           </>
-        )}
-        {view === 'table' && parsed.status === 'valid' && tabular && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            {data.length} row{data.length === 1 ? '' : 's'}
-          </span>
-        )}
-      </div>
+        }
+      />
 
       <div className="min-h-0 flex-1 overflow-auto">
         {parsed.status === 'empty' && (
@@ -963,7 +980,7 @@ function compareValues(a: unknown, b: unknown): number {
 function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
   const Icon =
     direction === 'asc' ? CaretUpIcon : direction === 'desc' ? CaretDownIcon : ArrowsDownUpIcon
-  return <Icon size={10} aria-hidden="true" className="text-[var(--color-text-muted)]" />
+  return <Icon size={12} aria-hidden="true" className="text-[var(--color-text-muted)]" />
 }
 
 function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: CopyToClipboard }) {

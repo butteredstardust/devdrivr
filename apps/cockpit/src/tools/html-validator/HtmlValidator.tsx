@@ -23,6 +23,10 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { Kbd } from '@/components/shared/Kbd'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SectionLabel } from '@/components/shared/SectionLabel'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
@@ -53,6 +57,7 @@ import {
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -522,6 +527,87 @@ export default function HtmlValidator() {
         ? `No problems · ${stats?.elements ?? 0} element${stats?.elements === 1 ? '' : 's'} · depth ${stats?.depth ?? 0}`
         : `${errorCount} error${errorCount === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'}`
 
+  // Each pane renders identically whether it's alone or beside the other, so it's defined once
+  // here and placed by the layout below rather than written out under both branches.
+  const sourcePane = (
+    <section
+      aria-label="HTML source"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Editor
+        theme={monacoTheme}
+        language="html"
+        value={input}
+        onChange={handleChange}
+        onMount={handleEditorMount}
+        options={monacoOptions}
+      />
+      {!hasInput && (
+        // Click-through: the hint must never sit between the user and the caret.
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <EmptyState
+            icon={FileHtmlIcon}
+            title="Paste or open an HTML document"
+            description={`It is checked as you type, previewed beside the source, and reformatted with ${formatShortcut('mod+enter')}.`}
+            action={
+              TOOL_SAMPLES['html-validator'] ? (
+                <span className="pointer-events-auto">
+                  <Button variant="secondary" size="sm" onClick={handleLoadSample}>
+                    Load sample
+                  </Button>
+                </span>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
+    </section>
+  )
+
+  const previewPane = (
+    <section aria-label="Rendered preview" className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <PaneHeader
+        title="Preview"
+        actions={
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => setIsPopoutOpen(true)}
+            disabled={!hasInput}
+            className="gap-1"
+            title="Expand to a full-size preview (Esc to close)"
+          >
+            <FrameCornersIcon size={12} aria-hidden="true" />
+            Expand
+          </Button>
+        }
+      />
+      <div className="min-h-0 flex-1 bg-[var(--color-bg)]">
+        {/* Deliberate palette exception below: the preview is a page
+            canvas, not app chrome, and user HTML assumes a white
+            background — on --color-bg its black body text is unreadable. */}
+        {previewHtml ? (
+          <iframe
+            title="HTML preview"
+            sandbox=""
+            srcDoc={previewHtml}
+            className="h-full w-full border-none bg-white"
+          />
+        ) : (
+          <EmptyState
+            size="sm"
+            title={hasInput ? 'Rendering…' : 'Nothing to preview'}
+            description={
+              hasInput
+                ? 'The preview follows the source a moment behind.'
+                : 'Type or open HTML in the source pane.'
+            }
+          />
+        )}
+      </div>
+    </section>
+  )
+
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -581,25 +667,25 @@ export default function HtmlValidator() {
               title="New HTML document"
               aria-label="New HTML document"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open an .html file (⌘O)"
+              title={`Open an .html file (${formatShortcut('mod+o')})`}
               aria-label="Open HTML file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the document (⌘S)"
+              title={`Save the document (${formatShortcut('mod+s')})`}
               aria-label="Save HTML document"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -627,12 +713,10 @@ export default function HtmlValidator() {
               onClick={() => void handleFormat()}
               disabled={!hasInput || isFormatting}
               loading={isFormatting}
-              title="Reformat the markup (⌘↵)"
+              title={`Reformat the markup (${formatShortcut('mod+enter')})`}
             >
               Format
-              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                ⌘↵
-              </span>
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
             <CopyButton text={input} label="Copy HTML" />
           </ToolbarGroup>
@@ -645,7 +729,7 @@ export default function HtmlValidator() {
             aria-controls={rulesPanelId}
             className="gap-1"
           >
-            <SlidersHorizontalIcon size={13} aria-hidden="true" />
+            <SlidersHorizontalIcon size={14} aria-hidden="true" />
             Rules
             {overrideCount > 0 && (
               <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
@@ -679,9 +763,9 @@ export default function HtmlValidator() {
             <div className="grid gap-x-8 gap-y-3 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-4">
               {RULE_CATEGORIES.map((category) => (
                 <div key={category.id}>
-                  <h2 className="mb-1 text-2xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <SectionLabel as="h2" className="mb-1">
                     {category.label}
-                  </h2>
+                  </SectionLabel>
                   {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
                     const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
                     return (
@@ -724,94 +808,23 @@ export default function HtmlValidator() {
         </Alert>
       )}
 
-      {/* Below ~900px a 50/50 split leaves two unusable columns, so the panes stack. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden max-[900px]:flex-col">
-        {showEditor && (
-          <section
-            aria-label="HTML source"
-            className={`relative flex min-h-0 min-w-0 flex-col overflow-hidden ${
-              showPreview
-                ? 'w-1/2 border-r border-[var(--color-border)] max-[900px]:w-full max-[900px]:border-r-0 max-[900px]:border-b'
-                : 'w-full'
-            }`}
-          >
-            <Editor
-              theme={monacoTheme}
-              language="html"
-              value={input}
-              onChange={handleChange}
-              onMount={handleEditorMount}
-              options={monacoOptions}
-            />
-            {!hasInput && (
-              // Click-through: the hint must never sit between the user and the caret.
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-                <EmptyState
-                  icon={FileHtmlIcon}
-                  title="Paste or open an HTML document"
-                  description="It is checked as you type, previewed beside the source, and reformatted with ⌘↵."
-                  action={
-                    TOOL_SAMPLES['html-validator'] ? (
-                      <span className="pointer-events-auto">
-                        <Button variant="secondary" size="sm" onClick={handleLoadSample}>
-                          Load sample
-                        </Button>
-                      </span>
-                    ) : undefined
-                  }
-                />
-              </div>
-            )}
-          </section>
-        )}
-
-        {showPreview && (
-          <section
-            aria-label="Rendered preview"
-            className={`flex min-h-0 min-w-0 flex-col ${showEditor ? 'w-1/2 max-[900px]:w-full' : 'w-full'}`}
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-              <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                Preview
-              </span>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setIsPopoutOpen(true)}
-                disabled={!hasInput}
-                className="gap-1"
-                title="Expand to a full-size preview (Esc to close)"
-              >
-                <FrameCornersIcon size={12} aria-hidden="true" />
-                Expand
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1 bg-[var(--color-bg)]">
-              {/* Deliberate palette exception below: the preview is a page
-                  canvas, not app chrome, and user HTML assumes a white
-                  background — on --color-bg its black body text is unreadable. */}
-              {previewHtml ? (
-                <iframe
-                  title="HTML preview"
-                  sandbox=""
-                  srcDoc={previewHtml}
-                  className="h-full w-full border-none bg-white"
-                />
-              ) : (
-                <EmptyState
-                  size="sm"
-                  title={hasInput ? 'Rendering…' : 'Nothing to preview'}
-                  description={
-                    hasInput
-                      ? 'The preview follows the source a moment behind.'
-                      : 'Type or open HTML in the source pane.'
-                  }
-                />
-              )}
-            </div>
-          </section>
-        )}
-      </div>
+      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
+          Below ~900px SplitPane stacks them, because a 50/50 split there leaves two unusable
+          columns. */}
+      {showEditor && showPreview ? (
+        <SplitPane
+          storageKey="html-validator"
+          stackBelow={900}
+          aria-label="Resize source and preview"
+        >
+          {sourcePane}
+          {previewPane}
+        </SplitPane>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {showEditor ? sourcePane : previewPane}
+        </div>
+      )}
 
       <ResultsPanel
         panel={state.panel}
@@ -1004,13 +1017,13 @@ function ResultsPanel({
                     >
                       {issue.type === 'error' ? (
                         <WarningCircleIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-error)]"
                         />
                       ) : (
                         <WarningIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-warning)]"
                         />

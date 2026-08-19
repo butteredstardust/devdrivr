@@ -26,6 +26,8 @@ import {
   SidebarIcon,
   type Icon,
 } from '@phosphor-icons/react'
+import { SectionLabel } from '@/components/shared/SectionLabel'
+import { Kbd } from '@/components/shared/Kbd'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -543,9 +545,7 @@ export function CommandPalette() {
             Actions
           </span>
         ) : (
-          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
-            {modSymbol}K
-          </kbd>
+          <Kbd keys="mod+k" />
         )}
       </div>
 
@@ -576,13 +576,14 @@ export function CommandPalette() {
               {sections.map((section) => {
                 if (section.type === 'header') {
                   return (
-                    <div
+                    <SectionLabel
+                      as="div"
                       key={`header-${section.label}`}
                       role="presentation"
-                      className="px-3 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                      className="px-3 pb-0.5 pt-2"
                     >
                       {section.label}
-                    </div>
+                    </SectionLabel>
                   )
                 }
 

@@ -97,7 +97,7 @@ export function SidebarGroup({
         onKeyDown={handleKeyDown}
         aria-expanded={!collapsed}
         data-sidebar-group={group.id}
-        className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--color-accent)]/60"
+        className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
       >
         {/* Chevron: size 12 (was 10), rotate-90 when expanded with smooth ease-in-out */}
         <CaretRightIcon

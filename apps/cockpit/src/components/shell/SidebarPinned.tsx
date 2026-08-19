@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { PushPinIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { useSettingsStore } from '@/stores/settings.store'
 import { SidebarItem } from './SidebarItem'
 
@@ -25,10 +26,10 @@ export function SidebarPinned({ filterToolIds = null }: SidebarPinnedProps) {
 
   return (
     <div className="mb-1">
-      <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
-        <PushPinIcon size={10} className="shrink-0" />
-        <span className="text-[11px] font-bold uppercase tracking-normal">[Pinned]</span>
-      </div>
+      <SectionLabel as="h3" className="px-2 py-1">
+        <PushPinIcon size={12} className="shrink-0" aria-hidden="true" />
+        Pinned
+      </SectionLabel>
       <div className="flex flex-col gap-1 px-1">
         {pinnedTools.map((tool) => (
           <SidebarItem key={tool.id} id={tool.id} name={tool.name} icon={tool.icon} tabIndex={0} />

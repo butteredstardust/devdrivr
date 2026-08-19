@@ -21,6 +21,8 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { Kbd } from '@/components/shared/Kbd'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
@@ -51,6 +53,7 @@ import {
   type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type Panel = 'problems' | 'selectors'
 
@@ -510,25 +513,25 @@ export default function CssValidator() {
               title="New stylesheet"
               aria-label="New stylesheet"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open a .css file (⌘O)"
+              title={`Open a .css file (${formatShortcut('mod+o')})`}
               aria-label="Open CSS file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the stylesheet (⌘S)"
+              title={`Save the stylesheet (${formatShortcut('mod+s')})`}
               aria-label="Save stylesheet"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -556,12 +559,10 @@ export default function CssValidator() {
               onClick={() => void handleFormat()}
               disabled={!hasInput || isFormatting || !formatter}
               loading={isFormatting}
-              title="Reformat the stylesheet (⌘↵)"
+              title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
             >
               Format
-              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                ⌘↵
-              </span>
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
             <CopyButton text={input} label="Copy CSS" />
           </ToolbarGroup>
@@ -574,7 +575,7 @@ export default function CssValidator() {
             {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
             className="gap-1"
           >
-            <SlidersHorizontalIcon size={13} aria-hidden="true" />
+            <SlidersHorizontalIcon size={14} aria-hidden="true" />
             Rules
             {overrideCount > 0 && (
               <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
@@ -608,9 +609,9 @@ export default function CssValidator() {
             <div className="grid gap-x-8 gap-y-3 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3">
               {RULE_CATEGORIES.map((category) => (
                 <div key={category.id}>
-                  <h2 className="mb-1 text-2xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <SectionLabel as="h2" className="mb-1">
                     {category.label}
-                  </h2>
+                  </SectionLabel>
                   {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
                     const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
                     return (
@@ -668,7 +669,7 @@ export default function CssValidator() {
             <EmptyState
               icon={FileCssIcon}
               title="Paste or open a stylesheet"
-              description="It is checked against the CSS specification as you type, and reformatted with ⌘↵."
+              description={`It is checked against the CSS specification as you type, and reformatted with ${formatShortcut('mod+enter')}.`}
               action={
                 TOOL_SAMPLES['css-validator'] ? (
                   <span className="pointer-events-auto">
@@ -857,13 +858,13 @@ function ResultsPanel({
                     >
                       {issue.type === 'error' ? (
                         <WarningCircleIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-error)]"
                         />
                       ) : (
                         <WarningIcon
-                          size={13}
+                          size={14}
                           aria-hidden="true"
                           className="shrink-0 text-[var(--color-warning)]"
                         />

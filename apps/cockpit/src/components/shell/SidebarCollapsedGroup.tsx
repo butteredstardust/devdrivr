@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
 import { useUiStore } from '@/stores/ui.store'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 
 type Props = {
   group: ToolGroupMeta
@@ -127,7 +128,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         createPortal(
           <div
             style={tooltipStyle}
-            className="font-ui pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-[11px] text-[var(--color-text)] shadow-md"
+            className="font-ui pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md"
           >
             {group.label}
           </div>,
@@ -142,9 +143,9 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
             style={flyoutStyle}
             className="font-ui min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
           >
-            <div className="px-2.5 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+            <SectionLabel as="div" className="px-2.5 pb-1 pt-1">
               {group.label}
-            </div>
+            </SectionLabel>
             {tools.map((tool) => {
               const isActive = tool.id === activeTool
               return (

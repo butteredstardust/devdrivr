@@ -1,759 +1,504 @@
-# TODO - Cockpit Backlog
+# TODO — Cockpit Tool UI Consistency Programme
 
-Last updated: 2026-08-14
+Last updated: 2026-08-19
+Branch: `chore/tool-ui-consistency-audit`
 
-This is the working backlog for `apps/cockpit`. Keep this document focused on actionable engineering
-work: every item should have evidence, an expected outcome, acceptance criteria, and a verification
-path.
+This file was reset on 2026-08-19. The previous backlog (July reliability work + the 2026-08-13 UI
+modernisation programme) was complete or superseded; see git history for `documentation/TODO.md` if
+you need the closure notes.
 
-The 2026-07-30/31 reliability backlog (P0 and P1 in full, and most of P2) is complete and has been
-removed from this file — see git history for `documentation/TODO.md` if you need the closure notes.
-What survives below is the four quality items that were never started, plus the UI modernisation
-programme filed on 2026-08-13.
-
-**The UI modernisation programme is now complete** (P0–P5). Note for anyone reading the history:
-four items in it — sidebar filter box, group collapse persistence, truncated-name tooltips, and
-ImageTool's `ToolLayout` pass — actually shipped in #81 but were left unchecked; they were verified
-against the running code and corrected on 2026-08-14. Trust the code over the checkbox if you find
-another one. The only open work below is the four-item quality backlog carried over from July.
-
-## Current Snapshot
-
-Frontend gates verified locally from `apps/cockpit` on 2026-08-14; the Rust and release rows were
-last verified 2026-07-31 and are unchanged by this work (no `src-tauri` changes).
-
-| Gate        | Command                                        | Result                          |
-| ----------- | ---------------------------------------------- | ------------------------------- |
-| TypeScript  | `npx tsc --noEmit`                             | Passing                         |
-| Tests       | `bunx vitest run`                              | Passing: 100 files, 939 tests   |
-| ESLint      | `bun run lint`                                 | Passing with zero warnings      |
-| Rust check  | `cargo check` from `src-tauri`                 | Passing                         |
-| Rust clippy | `cargo clippy -- -D warnings` from `src-tauri` | Passing                         |
-| Release     | `bun run tauri build`                          | Passing: builds `.app` + `.dmg` |
-
-Commands no longer need a `PATH="/opt/homebrew/bin:$PATH"` prefix; older entries in this file still
-show one. See the PATH section in `CLAUDE.md` for what changed.
-
-## How To Use This Backlog
-
-- Work P0 before P1, and P1 before P2 unless a lower-priority item is blocking current release work.
-- Convert broad TODOs into small PRs with one clear risk area per PR.
-- Keep completed items in this file until the next release branch is cut, then move notable outcomes
-  into release notes or the relevant documentation.
-- For each PR, update the item with links to tests, manual smoke notes, or follow-up issues.
+**Scope of this document:** an audit of every tool's chrome — title, toolbar, pane headers, buttons,
+labels, empty/error states — and a phased plan to converge them on a small set of reusable,
+maintainable primitives.
 
 ---
 
-## UI Modernisation Programme
+## 1. Method
 
-Filed 2026-08-13 after a hands-on audit of the running app. Reference screenshots are in
-`/screenshots/ui-audit-*.png` at the repo root.
+Static audit of `src/tools/**` (36 non-test `.tsx` files across 30 tools) plus
+`src/components/shared/**` and `src/styles/tokens.css`, on 2026-08-19 at commit `19af685`.
 
-Scope: the shell (sidebar, tab strip, status bar, palette, settings) and the visual language shared
-across the 30 tools. Not a rewrite — no new UI framework, no component library, no design-system
-package. Tailwind 4 plus CSS custom properties stay.
-
-## How the audit was run
-
-The app hard-fails outside Tauri: `getCurrentWindow()` throws at `src/app/providers.tsx:30` and the
-UI renders the "Failed to initialize" retry screen. Stubbing `window.__TAURI_INTERNALS__` before page
-load — `metadata.currentWindow`, `plugin:sql|load` / `|select` / `|execute` returning empty results,
-`plugin:event|listen` returning an id — boots the entire shell against an empty database in a normal
-browser, which is what made a Playwright review possible. See the Phase 5 item on keeping that
-harness.
-
-## Measured baseline
-
-From `apps/cockpit/src`, excluding tests, on 2026-08-13:
-
-| Signal                                              | Count   |
-| --------------------------------------------------- | ------- |
-| Arbitrary Tailwind values in tools + components     | 1149    |
-| Hardcoded `text-xs`                                 | 332     |
-| Raw `<button>` in `src/tools`                       | 130     |
-| Files importing `shared/Button`                     | 29      |
-| Raw `<input>` vs files importing `shared/Input`     | 53 / 18 |
-| Unstyled native `<select>`                          | 7       |
-| `prefers-reduced-motion` handling anywhere in `src` | 0       |
-
-## P0 - Broken behaviour
-
-### [x] Unmount the inactive sidebar variant instead of fading it to `opacity: 0`
-
-Area: shell / accessibility / hit-testing
-
-Problem: `src/components/shell/Sidebar.tsx` renders the expanded and collapsed trees at the same time
-and cross-fades between them with `opacity`. The hidden tree keeps real geometry, real focus order,
-and real hit-testing.
-
-Evidence: with the sidebar expanded, `document.querySelectorAll('button[aria-label="Open settings"]')`
-returns two buttons — the visible one at `(44, 836)` and an invisible one at `(94.5, 796)` whose
-ancestor has `opacity: 0`. `elementFromPoint` over the invisible one returns a "Prompt Templates"
-button from the collapsed tree. Playwright could not click the sidebar footer at all: every attempt
-reported the collapsed tree intercepting pointer events. Screen readers see all 30 tools twice, and
-Tab walks through a tree the user cannot see.
-
-Expected outcome: exactly one sidebar tree is present, focusable, and hit-testable at any time.
-
-Acceptance criteria:
-
-- The inactive variant is either conditionally rendered or marked `hidden` + `inert`; a CSS-only
-  `pointer-events-none` is not sufficient because it leaves the tab order and accessibility tree
-  intact.
-- The collapse/expand transition still reads as a transition rather than a snap.
-- A test asserts exactly one `[aria-label="Open settings"]` and exactly one node per tool id in the
-  DOM, in both collapsed and expanded states. Confirm it fails against the current code first.
-
-Verification:
-
-```bash
-cd apps/cockpit
-bunx vitest run src/components/shell
-npx tsc --noEmit
-```
-
-Done in `9f04c4d` — only one variant is rendered at a time, keyed so the fade still reads as a
-transition. `sidebar.test.tsx` pins one `Open settings` button and one node per tool id in both
-states. Re-confirmed in the running app on 2026-08-14: one match when expanded (x=44) and one when
-collapsed (x=6), with no `opacity: 0` ancestor and no duplicate tool buttons in either state.
-
-### [x] Make overlay scrims actually visible, and give overlays one stacking order
-
-Area: shell / modals
-
-Problem: overlays _do_ have scrims — the first version of this item said they did not, which was
-wrong. The scrims are simply invisible in half the themes. `Dialog.tsx` and `CommandPalette.tsx` both
-paint their backdrop with `color-mix(in srgb, var(--color-shadow) 50%, transparent)`, and
-`--color-shadow` is a **box-shadow** colour, not a scrim colour. Light themes set it faint by design:
-`soft-focus` uses `rgba(0, 0, 0, 0.05)`, so after the 50% mix the scrim computes to
-`color(srgb 0 0 0 / 0.0254902)` — 2.5% black, measured in the running app. `catppuccin-latte`,
-`github-light`, `solarized-light`, and `tokyo-night-light` are in the same range (0.05-0.1 before the
-mix). Dark themes land at 20-30%, which reads correctly. So the layer disappears in exactly the
-themes where a scrim matters most, which is why `ui-audit-08-settings.png` looks like a rendering
-fault.
-
-Positioning is fine and should not be changed: the palette is `fixed left-1/2 top-[15%]` with
-`-translate-x-1/2` (measured centred at x=720 in a 1440px viewport) and `Dialog` centres both axes.
-
-Secondary problem: stacking is ad-hoc. Values in use are `z-40` (palette backdrop, file-drop
-overlay), `z-50` (Dialog, Toast, SendToMenu, 4 markdown modals, 2 prompt-template modals, HTML
-validator preview), `z-[70]` (SelectionContextToolbar), `z-[9999]` (tab-strip context menu, sidebar
-flyout and tooltip), and inline `zIndex: 100` / `101` (API client context menu and submenu). Nothing
-documents which should sit above which.
-
-Expected outcome: overlays read as a layer above the app in every theme, and there is one documented
-stacking order.
-
-Acceptance criteria:
-
-- A dedicated `--color-scrim` token per theme, independent of `--color-shadow`, tuned so the scrim is
-  visibly dimming in all 22 themes (target roughly 30-50% effective alpha; verify in at least one
-  light and one dark theme by measuring the computed value, not by eye).
-- `Dialog.tsx` and `CommandPalette.tsx` consume it; the 4 markdown-editor modals and the 2
-  prompt-templates modals — which hand-roll `bg-black/50` and `bg-[var(--color-bg)]/80` — use the
-  same token. Migrating those six onto `Dialog` outright is preferred if it does not regress their
-  focus traps; if it does, just unify the scrim and say so.
-- A documented z-index scale (tokens or a short comment block listing the layers) replacing the
-  ad-hoc values above. The `zIndex: 100/101` inline styles in `CollectionsSidebar.tsx` join it.
-- Existing focus-trap, Esc-to-close, and click-outside behaviour is preserved, and the scrim does not
-  swallow the events those depend on.
-- The scrim respects the reduced-motion item below (no fade when reduced motion is requested).
-
-Verification:
-
-```bash
-cd apps/cockpit
-bunx vitest run src/components
-npx tsc --noEmit
-```
-
-### [x] Give the 12 cockpit-native themes real Monaco token rules
-
-Area: editors / theming
-
-Problem: `src/hooks/useMonaco.ts` builds themes for the 12 cockpit-native app themes from CSS custom
-properties via `buildCockpitTheme()`, which returns `rules: []`. Monaco falls back to the bare `vs` /
-`vs-dark` base, so code in those themes renders with little to no syntax differentiation. Only the 10
-imported `monaco-themes` JSONs (dracula, monokai, nord, night-owl, github-\_, solarized-\_,
-tomorrow-night, oceanic-next) highlight properly. The default theme is one of the good ones, which is
-why this is easy to miss.
-
-Expected outcome: every app theme highlights code.
-
-Acceptance criteria:
-
-- `buildCockpitTheme()` emits a token rule set covering at least comment, string, number, keyword,
-  type, function, and operator, derived from the theme's existing `--color-accent`, `--color-info`,
-  `--color-success`, `--color-warning`, and `--color-text-muted` variables.
-- Contrast against `--color-surface` is checked for each derived colour; nothing lands below ~3:1.
-- A test asserts the built theme has a non-empty `rules` array for a cockpit-native theme.
-- No new dependency: the derivation uses the existing `getCssColor` helper.
-
-Verification:
-
-```bash
-cd apps/cockpit
-bunx vitest run src/hooks
-npx tsc --noEmit
-```
-
-### [x] Honour `prefers-reduced-motion`
-
-Area: accessibility
-
-Problem: `src` contains no `prefers-reduced-motion` handling at all, while the shell animates sidebar
-collapse, tab transitions, toasts, the status-bar fade, and a spinner.
-
-Expected outcome: users who ask the OS for reduced motion get a still interface.
-
-Acceptance criteria:
-
-- One `@media (prefers-reduced-motion: reduce)` block neutralising transition and animation duration
-  app-wide, with any genuinely necessary exception documented inline.
-- Spinners degrade to a static or opacity-only indicator rather than disappearing.
-
-Verification:
-
-```bash
-cd apps/cockpit
-bun run lint
-```
-
-## P1 - Design tokens
-
-### [x] Split `index.css` and add the missing scales
-
-Area: theming / CSS architecture
-
-Problem: `src/index.css` is 869 lines mixing font imports, theme custom properties for 22 themes, and
-highlight.js token colours for those same 22 themes. There are no tokens for spacing, radius, type
-scale, or elevation, which is why tools hardcode `p-1.5`, `text-xs`, and `rounded` inline 1149 times.
-`--color-surface-hover` and `--color-surface-raised` are also identical in most themes, so hover
-states have nowhere to go.
-
-Expected outcome: a token layer worth building components against.
-
-Acceptance criteria:
-
-- Highlight.js blocks move to `src/styles/highlight-themes.css`; theme variables move to
-  `src/styles/tokens.css`; `index.css` imports both and keeps only global element styles.
-- New tokens: `--space-1..8`, `--radius-sm/md/lg`, `--text-xs/sm/base/lg`, `--elevation-1/2/3`,
-  `--focus-ring`, `--color-surface-sunken`, and a `--color-surface-hover` that differs from
-  `--color-surface-raised` in every theme.
-- No visual regression: the 22 themes still resolve every variable they resolved before. A test or
-  script asserting every theme class defines the full token set is preferred over eyeballing.
-
-### [x] Introduce a UI font distinct from the code font
-
-Area: typography
-
-Problem: every label, button, settings row, and menu item renders in Source Code Pro. Monospace for
-chrome costs horizontal space and legibility, and it is why sidebar labels truncate at ~14 characters
-("TypeScript Playgr…", "JSON Schema Valid…").
-
-Acceptance criteria:
-
-- A `--font-ui` token, defaulting to a system UI stack, applied to shell chrome and form labels.
-- `--font-mono` stays on values, editors, code output, and anything the user might diff by eye.
-- Themes can opt back into full-mono by pointing `--font-ui` at `--font-mono`; at least one theme
-  keeps the all-mono look so the aesthetic is still available.
-
-## P2 - Shared primitives
-
-### [x] Extend the primitive set
-
-Area: `src/components/shared`
-
-Problem: `Button.tsx` offers 3 variants and 2 sizes that both render `text-xs`. There is no `Select`,
-no `Field`, no `EmptyState`, no `Toolbar`, and no segmented control — so Match/Replace,
-Edit/Split/Preview, and Formats/Shades/Harmony are three separate hand-rolled implementations of the
-same control.
-
-Acceptance criteria:
-
-- `Button` gains `danger` and `icon` variants, an `xs` size, a `loading` state, and a focus-visible
-  ring drawn from `--focus-ring`.
-- New primitives: `Select` (replacing all 7 native selects), `Field`, `EmptyState`, `Panel`,
-  `Toolbar`, `SegmentedControl`.
-- Every primitive consumes the Phase 1 tokens; no raw pixel values.
-- Each primitive has a focused test in `src/components/shared/__tests__/`.
-
-### [ ] Add a `ToolLayout` and migrate tools onto it
-
-Area: cross-tool consistency
-
-Problem: no layout contract exists between tools. Color Converter pads its content 34px, Regex Tester
-is edge-to-edge at 0px, JSON Tools puts its tab row flush at the top while Regex Tester puts one
-under a control bar, and nothing constrains content width — a 7-character hex value gets a 1200px row
-with its Copy button roughly 1100px away from the value it copies.
-
-Acceptance criteria:
-
-- `ToolLayout` provides an optional header (title, description, actions), an optional toolbar slot, a
-  body with consistent padding, a `max-w` for form-style tools, and a full-bleed opt-out for
-  editor-style tools.
-- Tools migrate one group per PR, starting with CONVERT (9 tools, simplest markup).
-  - [x] CONVERT (9 tools) — `ToolLayout` itself is built and tested.
-  - [x] CODE (4), DATA (5), WEB (4), TEST (2), NETWORK (2), WRITE (4).
-
-Migration complete. Two structural exemptions, both deliberate:
-
-- **Snippets and Prompt Templates** keep their own grid roots. Both are three-column layouts with a
-  command bar spanning all columns; `ToolLayout`'s single-column header/toolbar/body contract cannot
-  express that without redesigning them. They did adopt the shared `Button`/`Select`.
-- **Tree views** (JSON/YAML/XML) keep raw `<button>` for leaves and chevrons — the content is custom
-  inline JSX that no `Button` variant fits.
-
-### Ratchet — corrected
-
-The arbitrary-value figure previously recorded here (1551, later re-measured as 1635) was an artifact
-of a bad command: `grep -o "\[[^]]*\]"` counts every bracket pair in the file, so JS dependency
-arrays (`[state, updateState]`), regex character classes (`[0-9a-f]`) and empty arrays (`[]`) were
-all being counted as Tailwind. Use this instead, which matches a utility with an arbitrary value and
-ignores `var()` token references:
-
-```bash
-grep -rhoP '[a-zA-Z][a-zA-Z0-9:_-]_-\[(?!var\()[^\]]+\]' --include='_.tsx' src/tools | wc -l
-```
-
-| Metric                        | Target | Before migration | After #81 | Now (2026-08-14) |
-| ----------------------------- | ------ | ---------------- | --------- | ---------------- |
-| raw `<button>` in `src/tools` | < 30   | 125              | 20        | 20               |
-| arbitrary Tailwind values     | < 400  | 202              | 202       | 60               |
-
-Count raw buttons with `grep -rc '<button' src/tools --include='*.tsx'` minus the four in
-`src/tools/__tests__/` (lint-ignored) and the one in `HtmlValidator.tsx`, which is HTML sample data
-inside a template string, not JSX. All 20 that remain carry an `eslint-disable-next-line` with a
-stated reason — the rule below now holds the line.
-
-Raw buttons met the target. Arbitrary values were already under it once measured correctly.
-
-**The `text-[10px]` decision is now resolved (2026-08-14): a `--text-2xs` token was added and swept.**
-142 of the 202 remaining arbitrary values were `text-[10px]`, because the smallest `--text-*` token
-was `--text-xs` at 12px. The options were to add a `--text-2xs: 0.625rem` token and sweep, or to
-decide 10px chrome text should become 12px. **We took the token route**, because it is provably a
-no-op visually: `0.625rem × 16px root = 10px` exactly, confirmed live in Chromium
-(`getComputedStyle` on a `.text-2xs` probe returns `10px`, root returns `16px`). Rounding up to
-`text-xs` was rejected for the reason originally recorded here — it silently enlarges dense toolbars.
-
-Mechanism: `--text-2xs: 0.625rem` was added to the `@theme` block in `src/index.css`, which is how
-this project generates real Tailwind 4 utilities (the `--text-*` entries in `tokens.css` only
-document Tailwind's built-in scale; they do not generate anything). It was mirrored into
-`tokens.css` for scale consistency. All 173 occurrences swept — 142 in `src/tools`, 31 in
-`src/components` — taking tools from 202 arbitrary values to 60.
-
-### [x] Remaining: Image Tool
-
-`src/tools/image-tool/ImageTool.tsx` was missed in the CONVERT sweep. Its Reset and aspect-lock
-controls are now shared `Button`s (verified live: lock flips `aria-pressed`/title and stops height
-tracking width; Reset restores 64 × 64).
-
-Done in #81 — the `ToolLayout` pass landed (`ImageTool.tsx:567`, `fullBleed` with a `toolbar` slot)
-but this item was left unchecked. The four raw buttons left are exempted by category, not oversight:
-two 10px underlabels, the 10px preset chip grid, and the crop switch.
-
-## P3 - Shell UX
-
-### [x] Sidebar filter box
-
-All 30 tools sit in 8 always-expanded groups, so at 900px height the bottom third is permanently
-below the fold. Add a filter input at the top of the sidebar, focused by `/`, reusing the Fuse.js
-scoring already implemented in `CommandPalette.tsx` rather than a second search implementation.
-Filtering collapses groups with no matches.
-
-Done in #81 — this item was left unchecked by mistake and is being corrected on 2026-08-14. The
-filter lives in `Sidebar.tsx` and shares scoring through the `useFuseSearch` hook, so there is one
-search implementation, not two. `/` focuses it (expanding the sidebar first if collapsed), ArrowDown
-drops into the filtered results, and Escape clears. Covered by `sidebar.test.tsx` "Filter Box".
-
-### [x] Persist group collapse state
-
-Default to collapsing groups the user has never opened a tool from, and remember explicit
-collapse/expand choices across launches.
-
-Done in #81 — also left unchecked by mistake. State lives in `openedSidebarGroups` on the settings
-store. Covered by `sidebar.test.tsx` "Group Collapse Defaults", including the first-run freeze gate.
-
-### [x] Tool icons in tabs
-
-Every tool has an icon in `src/app/tool-registry.ts`, but `WorkspaceTabStrip` renders text only, so a
-six-tab strip has no shape to scan by. The strip's overflow scrolling and fade affordances already
-work and should not be disturbed.
-
-Done. The icon is decorative (`aria-hidden`), so tab accessible names are unchanged. Verified at
-eight open tabs: overflow still engages (1133px of tabs in a 950px strip) and both edge fades still
-flip with scroll position.
-
-### [x] Theme picker with swatches
-
-23 themes in a native `<select>` with no preview. Replace with a grid of preview chips (bg, surface,
-accent, text) grouped Dark / Light, live-previewing on hover and reverting if the user cancels.
-
-Done — `src/components/shell/ThemePicker.tsx`. Each swatch applies the theme's own class to a scoped
-wrapper, so its colours resolve from `tokens.css` rather than from a duplicated JS palette. The
-Dark/Light split derives from `isLightEffectiveTheme` in `src/lib/theme.ts`; `useMonaco.ts` no longer
-keeps its own light-theme list.
-
-`role="listbox"` with manual activation, not `radiogroup`: radio semantics imply selection follows
-focus, which is the opposite of preview-then-commit. Arrow keys move a roving tabindex and preview;
-`aria-selected` only moves on Enter/Space/click. Preview swaps the `<html>` class only — it never
-touches the `theme-cache` localStorage key that `index.html` reads at boot, so quitting mid-hover
-can't change the theme on next launch. Verified live: hovering previews and reverts on leave,
-ArrowDown from System previews Midnight without moving the selection, Enter commits and writes
-`theme-cache`, and closing the panel mid-hover reverts to the committed theme.
-
-### [x] Better empty states
-
-The workspace placeholder ("Select a tool to get started") should surface recent and pinned tools as
-clickable chips. Per-tool empty panes should offer a "Load sample" action.
-
-Done. `src/components/shell/WorkspaceEmptyState.tsx` renders pinned and recent chips through the
-existing `EmptyState` primitive (no changes to the primitive were needed — its `action` slot already
-takes arbitrary nodes). Recency came from `recentToolIds` in `ui.store.ts`, which already existed and
-already feeds `SidebarRecent`; no new persisted list was added. Recent chips exclude anything already
-pinned.
-
-Samples live in `src/lib/tool-samples.ts` and cover JSON, XML and YAML Tools, the JWT decoder and the
-Diff Viewer. Loading a sample calls the same `updateState` setter the editors' `onChange` uses, so
-validation, history and undo behave exactly as they do for typed input — confirmed live: the JSON
-sample loads and immediately reports "✓ Valid · 11 keys · depth 3", the diff sample computes
-"+2 / −2", and the (obviously fake, unsigned) JWT sample decodes into header/payload. The button
-disappears once the input is non-empty.
-
-Correction to this item as originally written: `apps/cockpit/samples/` is snippet-library markdown
-for the Snippets importer, not per-tool sample inputs, so it was not a usable source. There is also
-no cron parser tool in the registry, so it was skipped rather than invented.
-
-### [x] Tooltip or wrap for truncated tool names
-
-At the current 218px sidebar width, several tool names truncate mid-word with no way to read them.
-
-Done in #81 — also left unchecked by mistake. `SidebarItem` compares `scrollWidth` against
-`clientWidth` and only sets `title` when the label is actually clipped, so tools whose names fit
-don't get a redundant tooltip. Covered by `sidebar.test.tsx` "Truncation Tooltip".
-
-## P4 - Guardrails
-
-### [x] Keep the browser harness
-
-Check in the Playwright init script that stubs `__TAURI_INTERNALS__` (see "How the audit was run"
-above) plus a small script that boots the dev server and captures the shell. This is the basis for
-screenshot review and, later, visual regression. It must not ship in the app bundle.
-
-Done — `scripts/tauri-browser-stub.js` exports `installTauriStub()`, documented in
-`documentation/BROWSER_HARNESS.md` alongside `bun run dev` (port 1420) usage. It stubs
-`metadata.currentWindow`/`currentWebview`, and returns array/tuple shapes the callers destructure
-(`plugin:sql|select` → `[]`, `plugin:sql|execute` → `[0, 0]`, `plugin:sql|load` → an id). It also
-sets `window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} }`, which
-`@tauri-apps/api/event`'s `_unlisten()` reads directly (`node_modules/@tauri-apps/api/event.js`) —
-without it, every listener teardown (`useFileDropZone`'s 4 drag-event listeners included) throws
-`Cannot read properties of undefined (reading 'unregisterListener')`. Verified live in Chromium via
-the Playwright MCP tool: with the field stubbed out, switching between an open-file tool and a
-non-open-file tool (retriggering `useFileDropZone`'s effect) throws 20 of those errors across 5
-switches; with the checked-in stub, the same sequence plus several more tool switches produces zero
-console errors. Not reachable from the production bundle — nothing under `src/` imports it, and it
-lives outside `index.html`'s module graph.
-
-### [x] Lint rule against raw form elements in `src/tools`
-
-Landed as a flat-config `no-restricted-syntax` block in `eslint.config.js` scoped to
-`src/tools/**/*.tsx`, with `JSXOpeningElement[name.name="button"]` and `…="select"` selectors.
-`react/forbid-elements` was not used: `eslint-plugin-react` is not a dependency of this project (it
-appears in `bun.lock` only transitively via `eslint-config-next` for the legacy `apps/next`, and is
-not resolvable from `apps/cockpit`), and `AGENTS.md` says to reach for what's already available
-before adding one. `no-restricted-syntax` is built into ESLint and needs nothing new.
-
-`input` was originally left out because there was no shared primitive to point violators at. There
-is now — boxed `Input` and chrome-less `InlineInput` — so a third selector covers it. It matches
-text-entry inputs only: `checkbox`, `radio`, `file`, `color` and `range` are native controls with no
-shared equivalent, and are exempted by `type` in the selector rather than by fourteen per-line
-disable comments that would all give the same reason.
-
-Escape hatch: a per-line `// eslint-disable-next-line no-restricted-syntax -- <reason>` immediately
-above the element. **The directive must be the last line of the comment** — with stacked `//` lines
-ESLint applies it to the following comment line, not to the JSX, so it silently no-ops and reports
-an unused-directive warning. Keep the reason on that one line, or use a `{/_ … _/}` block comment.
-
-The 25 sites the rule first flagged resolved as: 3 migrated (`ImageTool`'s Reset and aspect-lock to
-`Button`, `CurlToFetch`'s "Test in API Client" to `Button`), 2 replaced by `SegmentedControl`
-(`YamlTools`' YAML→JSON / JSON→YAML direction toggle), and 20 exempted in five categories —
-tree disclosure rows, inline click-to-copy tokens inside syntax-highlighted output, accordion panel
-headers, 10px chips and underlabels with no token below `text-xs`, and controls whose colour is
-state (`--color-warning`/`--color-success` borders, the crop switch, the decorative colour-mockup
-button).
-
-The crop switch is no longer among them: its exemption claimed no equivalent existed, but the shared
-`Toggle` is exactly that control, and moving to it also corrected the semantics from a button with
-`aria-pressed` to a `role="switch"` with `aria-checked`.
-
-### [x] Contrast pass across all 22 themes
-
-**Fixed 2026-08-14** — see Outcome below. The ratios in this section are the _original_, pre-fix
-measurements, kept for the record. They are `--color-text-muted` composited over `--color-surface`
-and over `--color-bg`, taken live in Chromium by applying each theme class to `<html>` and reading
-computed values (the alpha in most tokens has to be flattened against the backdrop first — comparing
-the raw `rgba` against the surface overstates every dark theme).
-
-Five themes fail WCAG AA for normal text (4.5:1) on surface:
-
-| Theme               | muted token             | on surface | on bg |
-| ------------------- | ----------------------- | ---------- | ----- |
-| `solarized-light`   | `rgb(88,110,117)` α0.6  | **2.23**   | 2.37  |
-| `solarized-dark`    | `rgb(131,148,150)` α0.6 | **2.59**   | 2.79  |
-| `tokyo-night-light` | `rgb(108,110,117)`      | **3.48**   | 4.13  |
-| `soft-focus`        | `rgb(45,52,54)` α0.6    | **3.49**   | 3.65  |
-| `github-light`      | `rgb(36,41,46)` α0.6    | **3.96**   | 4.05  |
-
-Borderline (AA for large text only, and `--color-text-muted` is used at 10–12px throughout):
-`catppuccin-latte` 4.06, `earth-code` 4.07, `tomorrow-night` 4.41, `nord` 4.42, `oceanic-next` 4.48.
-The remaining 12 clear 5:1.
-
-Both Solarized themes are the real problem — their muted token is Solarized's own base01/base1
-comment colour at 60% opacity, which halves an already low-contrast pairing. `soft-focus` is the
-default light theme, so its 3.49 is the one users hit first. Fix by raising the alpha (or dropping
-it entirely, as `tokyo-night` and the Catppuccin variants already do) rather than by shifting hue,
-so each theme keeps its palette identity.
-
-Re-measure with the snippet in `documentation/BROWSER_HARNESS.md` after any token change; the
-in-app WCAG checker in Color Converter can confirm individual pairs by hand.
-
-**Outcome.** All 10 sub-4.5 themes now clear AA on _both_ surface and bg. Worth noting: every one of
-the 10 was failing on bg as well, which the table above did not capture — it only recorded the
-surface ratio. Alpha was raised (or dropped to opaque) in preference to shifting hue, exactly as
-this item specified; only `solarized-light`, `tokyo-night-light`, and `catppuccin-latte` needed a
-lightness shift along their existing hue, because alpha alone could not reach 4.5.
-
-| Theme             | surface before → after | change                            |
-| ----------------- | ---------------------- | --------------------------------- |
-| solarized-light   | 2.23 → 4.85            | `rgba(88,110,117,.6)` → `#53676e` |
-| solarized-dark    | 2.59 → 4.75            | alpha dropped, hue kept           |
-| tokyo-night-light | 3.48 → 4.84            | `#6c6e75` → `#57585e`             |
-| soft-focus        | 3.49 → 5.23            | alpha 0.6 → 0.75                  |
-| github-light      | 3.96 → 5.35            | alpha 0.6 → 0.7                   |
-| catppuccin-latte  | 4.06 → 4.85            | `#6c6f85` → `#616377`             |
-| earth-code        | 4.07 → 4.92            | alpha 0.6 → 0.7                   |
-| tomorrow-night    | 4.41 → 5.04            | alpha 0.6 → 0.66                  |
-| nord              | 4.42 → 5.00            | alpha 0.6 → 0.66                  |
-| oceanic-next      | 4.48 → 4.99            | alpha 0.6 → 0.65                  |
-
-Worst case across all 22 themes is now **4.75:1** (`solarized-dark` on surface). Values were kept in
-a ~4.6–6:1 band deliberately: muted text still has to read as muted, so overshooting into
-full-contrast text would have been its own regression. Confirmed by eye in `soft-focus` (the default
-light theme, and the one users hit first) — secondary text is legible without competing with primary.
-
-Regression guard: `src/styles/__tests__/contrast.test.ts` parses `tokens.css`, flattens alpha against
-the backdrop, and asserts every theme clears 4.5:1 on both surface and bg. It asserts the parsed
-theme count is 22, so a parser regression cannot make it pass vacuously. Node-side numbers match
-live Chromium measurements to 2dp.
-
-## P5 - Polish pass (filed and completed 2026-08-14)
-
-Found by re-auditing the app after #81 landed, rather than from the original audit.
-
-### [x] One focus treatment everywhere
-
-Area: accessibility / shared primitives
-
-Problem: a `--focus-ring` token existed but only 13 files used `focus-visible`. `Toggle` and
-`CopyButton` had no focus styling at all, `TabBar` buttons had none, and several places used
-`focus:` — which also fires on mouse click, so clicking a control left a ring stuck on it.
-
-Done. Canonical treatment is `focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]`,
-matching what `Button`/`Select`/`SegmentedControl` already did. Applied across `src/components/**`:
-`Toggle`, `CopyButton`, `TabBar`, `Dialog`'s close button, `SelectionContextToolbar`, `SendToMenu`,
-`ErrorBoundary`, and every previously-unstyled interactive element in the shell (tab strip, sidebar,
-footer, status bar, update notification, notes drawer, settings panel).
-
-Deliberate exceptions, each for a reason rather than by oversight:
-
-- **`Input.tsx` keeps its `focus:border` accent** and gained the ring on top. An always-on active-field
-  border is correct UX for text inputs — users want to see which field is live whether they clicked
-  or tabbed. Removing it to satisfy a lint-shaped rule would have been a regression.
-- **`SidebarGroup`, `SidebarItem`, and the tab-row** keep their existing `focus-visible:ring-1
-ring-inset` treatment. They already satisfy keyboard-only visibility; the canonical token draws an
-  _outward_ 2px+4px glow that would clip inside those overflow-hidden scroll containers.
-- **`CommandPalette` and `SendToMenu` filter inputs** get no ring — they are focused programmatically
-  the instant the surface opens, so "you tabbed here" is never meaningful.
-- **`CommandPalette` result buttons** are `tabIndex={-1}` under the ARIA combobox pattern
-  (AGENTS.md rule 23); they never take DOM focus, so `focus-visible` could never fire.
-
-### [x] One spinner, and loading states only where they earn their place
-
-Area: shared primitives / perceived performance
-
-`Button` had an inline spinner and nothing else did. Extracted it into
-`src/components/shared/Spinner.tsx`; `Button` now consumes it, so there is exactly one spinner in the
-codebase. It inherits reduced-motion handling for free from the existing global
-`.animate-spin { animation: none !important; opacity: 1 }` rule — it degrades to a static ring rather
-than vanishing, which the P0 reduced-motion item requires.
-
-`useDelayedLoading(active, delay = 150)` ships alongside it: a single anti-flash implementation that
-only reports `true` once a load has held for 150ms, and drops to `false` immediately on completion.
-Tools import it rather than each re-implementing a timer.
-
-Instrumented: `TsPlayground` (worker compilation), `RefactoringToolkit` (AST transform preview),
-`XmlTools` (five worker round-trips, wired through `Button`'s existing `loading` prop).
-
-**Deliberately skipped, which is the more important half of this item** — a spinner that flashes for
-20ms is worse than no spinner:
-
-- `JsonSchemaValidator` — Ajv runs synchronously inside the debounce callback, so React cannot paint
-  a spinner mid-block. It would either never render or always render for the whole block.
-- `CodeFormatter` — `handleFormat` already had `Button loading`; `handleAutoDetect` is a handful of
-  cheap regex tests, never realistically >200ms.
-- `YamlTools` — format/convert already had `Button loading`; minify and sort-keys are synchronous on
-  already-parsed data.
-- `DiffViewer` — already had `Button loading={isComparing}`.
-
-### [x] Unify error presentation
-
-Area: accessibility / cross-tool consistency
-
-A shared `Alert` (`role="alert"`, `aria-live`) existed and 9 tools used it; four hand-rolled errors
-as bare colour-coded text with no role, so a screen reader never announced a validation failure.
-
-Migrated to `Alert`: `ApiClient` request errors, `RegexTester`'s `matchError` and `replaceError`.
-
-Exempted, because forcing the component would have been worse than the problem:
-
-- **`CssValidator`** renders a _list_ of diagnostics, potentially hundreds. Wrapping each in a banner
-  would be far worse than the status quo. Gave the list container `role="status"` /
-  `aria-live="polite"` instead, so it announces as one region.
-- **`MarkdownEditor`** bakes its render error into an HTML _string_ injected via
-  `dangerouslySetInnerHTML`, so there is no JSX pass to drop a React component into. Put
-  `role="alert"` / `aria-live="assertive"` directly on the generated tag for equivalent semantics.
+Every finding below carries a count and at least one file reference. Counts came from grep over
+`src/tools` excluding `__tests__`. No runtime/visual inspection was performed — Phase 0 includes a
+screenshot pass to catch anything static analysis cannot see.
 
 ---
 
-## Remaining quality backlog
+## 2. Where we actually are
 
-Carried over from the 2026-07-30 reliability audit; these four were never started.
+The good news first, because it shapes the plan: **the primitive layer is already broadly adopted.**
+This is a convergence job, not a rewrite.
 
-### [ ] Add a no-regression audit for cockpit non-negotiables
+| Primitive          | Tool files importing it | Verdict                       |
+| ------------------ | ----------------------- | ----------------------------- |
+| `Button`           | 33 / 36                 | Near-universal                |
+| `CopyButton`       | 26 / 36                 | Near-universal                |
+| `ToolLayout`       | 27 / 36                 | Strong                        |
+| `Alert`            | 22 / 36                 | Strong                        |
+| `EmptyState`       | 18 / 36                 | Partial                       |
+| `Toolbar`          | 20 / 36                 | Partial — the main gap        |
+| `SegmentedControl` | 13 / 36                 | Fine (view-mode tools only)   |
+| `TabBar`           | 4 / 36                  | Fine (multi-mode tools only)  |
+| `Field`            | 1 / 36                  | **Effectively unadopted**     |
+| `Panel`            | 0 / 36                  | **Dead — tested, never used** |
 
-Area: contributor safety / architecture guardrails
+There are **zero** raw `<input>`, `<textarea>`, or `<select>` elements in the tool layer, and only 12
+raw `<button>` elements across 5 files. Form controls and buttons are solved. What is _not_ solved is
+everything **around** them: the container, the section label, the pane header, and the scale.
 
-Problem: `AGENTS.md` lists critical rules that prevent known failures: DB singleton access, no
-StrictMode, no new Tauri windows, DPI conversion, worker imports, theme timing, CSS variables, and
-Phosphor icons. Some are checked by hooks, but the coverage should be explicit and easy to run.
+---
 
-Expected outcome: New PRs get fast, deterministic feedback for cockpit-specific architecture rules.
+## 3. Findings
 
-Acceptance criteria:
+### F1 — Section labels have ~7 competing visual idioms (highest impact)
 
-- Add or document a single audit command that checks the non-negotiables.
-- Audit covers `Database.load()` outside `src/lib/db.ts`, `React.StrictMode`,
-  `new WebviewWindow`, Comlink `expose`, module worker construction, module-level `applyTheme`,
-  missing DPI conversion near window APIs, hardcoded colors, npm/yarn commands, and non-Phosphor
-  icons.
-- The audit runs in CI or is explicitly required in the PR checklist.
+The same semantic thing — "a small label naming a region" — is styled seven different ways. Grep for
+`uppercase` in `src/tools` returns 21 distinct class strings.
 
-Verification:
+| Idiom                                                       | Uses | Example                                    |
+| ----------------------------------------------------------- | ---- | ------------------------------------------ |
+| A. `font-ui text-2xs font-semibold uppercase tracking-wide` | 6    | `json-tools/JsonTools.tsx:731`             |
+| B. `text-2xs font-semibold uppercase tracking-wider`        | 5    | `image-tool/ImageTool.tsx:896`             |
+| C. `font-mono text-2xs uppercase tracking-widest`           | 6    | `prompt-templates/PromptTemplates.tsx:628` |
+| D. `font-mono text-xs text-muted` (sentence case)           | 3    | `hash-generator/HashGenerator.tsx:114`     |
+| E. `text-2xs font-bold uppercase tracking-wide` (as `<h2>`) | 3    | `css-validator/CssValidator.tsx:611`       |
+| F. `font-mono text-sm` (as `<h2>`)                          | 6    | `uuid-generator/UuidGenerator.tsx:241`     |
+| G. `text-[9px] uppercase tracking-wide` (off-scale)         | 2    | `color-converter/ColorConverter.tsx`       |
 
-```bash
-cd apps/cockpit
-bun run lint
-npx tsc --noEmit
+Three axes vary independently and meaninglessly: font (`font-ui` vs `font-mono`), weight
+(`medium`/`semibold`/`bold`), and tracking (`wide`/`wider`/`widest`). Idiom G escapes the type scale
+entirely with a hardcoded `text-[9px]`.
+
+**This is the single biggest source of "these tools feel like different apps."**
+
+### F2 — Pane headers are copy-pasted, not shared
+
+Five tools carry this string **verbatim**:
+
+```
+border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]
 ```
 
-### [ ] Improve updater behavior coverage
+`regex-tester/RegexTester.tsx:306`, `css-specificity/CssSpecificity.tsx:246`,
+`url-codec/UrlCodec.tsx:197`, `curl-to-fetch/CurlToFetch.tsx:323`,
+`css-to-tailwind/CssToTailwind.tsx:335`.
 
-Area: updater / release channel reliability
+Meanwhile `snippets` and `prompt-templates` use `px-3 py-1.5 text-2xs` for the same role, and
+`json-tools`/`yaml-tools`/`xml-tools` use idiom A in a differently-padded row. Same element, three
+paddings, three type sizes. There is no `PaneHeader` component.
 
-Problem: The updater depends on GitHub release assets and `latest.json`. Release workflow verifies
-asset presence, but UI behavior around network errors, manual checks, automatic checks, and silent
-downloads needs focused coverage.
+### F3 — 16 tools bypass the `Toolbar` primitive
 
-Expected outcome: Update checks are reliable, non-blocking, and clear when offline or when the
-manifest is incomplete.
+These import no `Toolbar`/`ToolbarGroup` and hand-roll their top row:
 
-Acceptance criteria:
+`api-client`, `case-converter`, `color-converter`, `css-to-tailwind`, `csv-tools` (+`CsvAnalyze`),
+`curl-to-fetch`, `diff-viewer`, `hash-generator`, `jwt-decoder`, `prompt-templates`, `snippets`,
+`uuid-generator`, `markdown-editor/MarkdownPreview`, `mermaid-editor/MermaidPreview`, `placeholder`.
 
-- Tests cover available update, no update, network failure, malformed manifest, missing platform,
-  dismissed notifications, and manual retry.
-- Manual smoke confirms automatic checks do not block startup.
-- Release workflow still fails when expected platform assets or `latest.json` are missing.
+The consequence is measurable padding drift. Horizontal padding across tool chrome rows:
 
-Verification:
+| Padding       | Occurrences                 |
+| ------------- | --------------------------- |
+| `px-4 py-2`   | 20 (the `Toolbar` contract) |
+| `px-3 py-2`   | 19                          |
+| `px-3 py-1.5` | 19                          |
+| `px-3 py-1`   | 15                          |
+| `px-4 py-3`   | 4                           |
+| `px-2 py-*`   | 18                          |
 
-```bash
-cd apps/cockpit
-bunx vitest run src/stores src/components
+`api-client/ApiClient.tsx:843` is the clearest case: it renders a hand-rolled
+`flex flex-wrap items-center gap-2 border-b … px-3 py-2` inside `ToolLayout`'s `toolbar` slot —
+`Toolbar` with `px-4`, one prop away, but 1 unit narrower than every neighbouring tool.
+
+`case-converter` and `hash-generator` go further and put a **whole input form** (`p-4` + `TextArea`)
+in the `toolbar` slot, which is a layout slot, not a content slot.
+
+### F4 — `Panel` is dead code; 4 tools hand-roll its exact styling
+
+`Panel.tsx` exists, has a test (`shared/__tests__/Panel.test.tsx`), and has **zero** consumers in
+`src/tools` or `src/components/shell`. Its comment claims it replaces "the repeated
+`rounded border border-[var(--color-border)] bg-[var(--color-surface)]` wrapper hand-rolled
+throughout the tools" — which is still hand-rolled in `csv-tools/CsvAnalyze.tsx` (×2),
+`prompt-templates/PromptTemplates.tsx`, and `api-client/components/CollectionsSidebar.tsx`.
+
+Either adopt it or delete it. Shipping a tested component nobody uses is worse than either.
+
+### F5 — `ToolLayout`'s `header` slot is dead; two tools reinvent it anyway
+
+`header={...}` is used **zero** times. The tab strip supplies the tool name, which is the right call.
+But `snippets/SnippetsManager.tsx:606` and `prompt-templates/PromptTemplates.tsx:1020` both render
+their own `<h1 className="font-ui text-sm font-semibold">` inside a hand-rolled `<aside>` — so the
+app _does_ have tools that show their own title, just not through the slot built for it, and not
+through `ToolLayout` at all (neither tool uses it).
+
+`api-client` is the third master–detail tool and takes yet a third approach: `ToolLayout fullBleed`
+with the sidebar rendered as a sibling. Three master–detail tools, three shells.
+
+### F6 — No keyboard-hint primitive
+
+`⌘` appears in 55 places across 17 tool files. It is rendered three ways:
+
+- Bare span: `<span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>`
+  (`base64/Base64Tool.tsx:358`, `url-codec/UrlCodec.tsx:165`)
+- Inside `title=` tooltips (most tools)
+- A real `<kbd>` with border + surface + `font-mono` — but only in the shell, and duplicated between
+  `shell/CommandPalette.tsx:546` (`text-[10px]`) and `shell/ShortcutsModal.tsx:54` (`text-[11px]`),
+  which disagree with each other and both sit off the type scale.
+
+### F7 — No shared split-pane; every split is a fixed 50/50
+
+15 tools render side-by-side panes via `w-1/2` or `grid-cols-2`. **None** is resizable. The only
+draggable divider in the app is `shell/NotesDrawer.tsx:592`. For a tool like `diff-viewer` or
+`json-tools`, where one side is routinely much denser than the other, a fixed 50/50 is a real usability
+cost, not just a consistency one.
+
+### F8 — Icon size scale has drifted from the documented one
+
+| `size=` | Uses |
+| ------- | ---- |
+| 12      | 65   |
+| 13      | 54   |
+| 14      | 29   |
+| 15      | 22   |
+| 11      | 10   |
+| 10      | 9    |
+| 16      | 5    |
+
+`DESIGN_SYSTEM.md` documents 14/16 for toolbar icons and 20 for sidebar. Actual practice is 12/13,
+with 10/11/15 sprinkled in. Six sizes for what should be two or three. The docs are wrong, not the
+code — but nothing tells a contributor which of the six to pick.
+
+### F9 — `Field` unadopted; 16 files hand-roll `<label>`
+
+`Field` (label + control + hint/error) is imported by exactly one file
+(`api-client/components/AuthTab.tsx`). Sixteen other files hand-roll `<label>` wrappers —
+`prompt-templates` alone has 10, `image-tool` 6, `color-converter` 3. Label styling therefore
+inherits all of F1's variance.
+
+### F10 — Focus-ring convention has a minority dialect
+
+The standard is `focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]` (56 uses).
+A minority use `focus-visible:ring-1` / `focus-visible:ring-[var(--color-accent)]/60` /
+`focus-visible:ring-inset` (~8 uses). These render differently — a ring, not the two-layer offset
+shadow — so focus is visibly inconsistent between neighbouring controls.
+
+### F11 — Primary-action discipline is uneven
+
+`variant="primary"` per tool: 15 tools have exactly 1 (correct), **13 tools have 0**, and 5 have 2–4
+(`prompt-templates` 4, `image-tool`/`snippets`/`uuid-generator`/`yaml-tools` 2).
+
+Tools with zero primary action include `case-converter`, `color-converter`, `hash-generator`,
+`jwt-decoder`, `regex-tester`, `timestamp-converter`, `refactoring-toolkit` — all live-computing
+tools where "no button to press" is arguably correct. That should be a **stated rule**, not an
+accident, so reviewers stop adding one.
+
+### F12 — `DESIGN_SYSTEM.md` is materially stale
+
+It is the document contributors are told to read first, and it currently misinforms them:
+
+- Says tokens live in `src/index.css`; they live in `src/styles/tokens.css` (imported at `index.css:21`).
+- Every colour value in its tables is wrong (`--color-bg` documented `#0a0a0a`, actual `#0a0f1c`).
+- Prescribes `focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]`; the codebase uses
+  `--focus-ring` (F10). The doc actively teaches the minority dialect.
+- Documents `animate-[fade-in_150ms_ease-out]` — **zero** uses. Actual class is `animate-fade-in` (7 uses).
+- No mention of `ToolLayout`, `DocumentToolbar`, `DocumentIdentity`, `Panel`, `Field`, `InlineInput`,
+  `SearchInput`, `Dialog`, `Spinner`, `SegmentedControl` — i.e. most of the layer this plan is about.
+- No mention of `text-2xs` (45 files use it) or the `--radius-*` / `--elevation-*` tokens.
+
+### F13 — Assorted one-offs
+
+- `prompt-templates/PromptTemplates.tsx:189` renders a `[ 03-PREVIEW ]` bracketed mono label — an
+  idiom that exists nowhere else in the app.
+- `curl-to-fetch/CurlToFetch.tsx:285` computes HTTP-method chip colours inline with `color-mix()` and
+  a local `METHOD_COLORS` map; `api-client` has its own method-colour treatment. Two sources of truth
+  for the same visual vocabulary.
+- `csv-tools/CsvTools.tsx` renders sub-tools (`CsvTable`, `CsvAnalyze`, `CsvConvert`) that each carry
+  their own `Toolbar`, producing stacked toolbars with no shared rule about which level owns what.
+
+---
+
+## 4. Target contract
+
+The rule we are converging on, stated once so it can be reviewed against:
+
+```
+ToolLayout                        ← every tool, no exceptions
+  toolbar: Toolbar | DocumentToolbar   ← chrome only. Never a form, never an editor.
+    ToolbarGroup (+ separated)         ← action families
+    ToolbarSpacer
+  body:
+    fullBleed  → SplitPane / editor panes, each with PaneHeader
+    otherwise  → maxWidth-capped stack of Panel sections
 ```
 
-### [ ] Add performance budgets for large inputs
+Five new or revived primitives close every finding above:
 
-Area: tool responsiveness / desktop UX
+| Primitive            | Status | Closes |
+| -------------------- | ------ | ------ |
+| `SectionLabel`       | new    | F1, F9 |
+| `PaneHeader`         | new    | F2     |
+| `Panel`              | revive | F4     |
+| `Kbd`                | new    | F6     |
+| `SplitPane`          | new    | F7     |
+| `MasterDetailLayout` | new    | F5     |
 
-Problem: Several tools can process large text, CSV, XML, images, or generated history. Regressions
-may show up as UI stalls rather than test failures.
+Plus one non-component deliverable: a **scale decision** (F8, F10) recorded in `DESIGN_SYSTEM.md`
+and enforced by lint where possible.
 
-Expected outcome: Large-input handling has practical budgets and protects the main thread where
-possible.
+---
 
-Acceptance criteria:
+## 5. Plan
 
-- Define representative large-input fixtures for JSON, XML, CSV, Markdown, Diff Viewer, Regex
-  Tester, and Image Tool.
-- Measure parse/format/render behavior with repeatable local scripts or Vitest performance checks.
-- Add debouncing, workers, chunking, or limits where a tool blocks interaction beyond the agreed
-  budget.
-- Document any intentional input-size limits in tool UI or troubleshooting docs.
+Phases are ordered so that each one is independently shippable and reviewable. Do not batch them into
+one PR — F1 alone touches ~25 files.
 
-Verification:
+### P0 — Baseline and guardrails ✅
 
-```bash
-cd apps/cockpit
-bunx vitest run src/tools/__tests__
-```
+- [x] Record the current gate results in §6. All four green at `19af685`.
+- [ ] ~~Screenshot every tool at 1280×800 and 900×700 via the native harness.~~ **Not done — blocked.**
+      Capturing 30 tools requires navigating between them, and clicks/typing into the WebView are
+      not scriptable on macOS (`documentation/NATIVE_UI_HARNESS.md`); only screenshot and resize
+      are. A screenshot of whichever tool happens to be open is not a baseline. This is a real gap
+      in the plan's verification story and it is not closed by anything below — the mitigation is
+      that P3's sweeps are pure substitutions with unchanged DOM structure, and that P4/P5 are
+      per-tool commits reviewable in isolation.
+- [ ] ~~Append visual-only findings as F14+.~~ Superseded by the above.
 
-### [ ] Keep quality docs synchronized
+**Acceptance:** all four gates green and recorded ✅; screenshot baseline **not achieved** — see above.
 
-Area: documentation / contributor onboarding
+### P1 — Decide the scale, fix the docs ✅
 
-Problem: `README.md`, `PRODUCT_MAP.md`, `TESTING.md`, `RELEASE_SMOKE_TESTS.md`, `AGENTS.md`, and
-this backlog can drift as quality work lands.
+- [x] **Label scale** decided: idiom A —
+      `font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`.
+- [x] **Icon scale** decided: `12` dense/inline, `14` toolbar, `16` navigation. 10/11/13/15 retired.
+      Applied app-wide: 10,11→12; 13→14; 15→16.
+- [x] **Chrome padding** decided: `px-4 py-2` tool toolbar, `px-3 py-1.5` pane header.
+- [x] **Off-scale type** retired: `text-[9px]`/`text-[10px]`→`text-2xs`, `text-[11px]`→`text-xs`.
+- [x] **Focus** resolved. The four `focus-visible:ring-*` sites turned out not to be drift — they
+      are _inset_ rings in dense containers (sidebar rows, tab strip) where the outer ring clips.
+      Added `--focus-ring-inset` to `tokens.css` and moved them onto it, rather than forcing them
+      onto a treatment that would render wrong. Also fixed `SnippetsManager`'s
+      `shadow-[inset_var(--focus-ring)]`, which only inset the _first_ of the token's two shadow
+      layers — a real bug the audit surfaced by accident.
+- [x] `DESIGN_SYSTEM.md` rewritten against source. The per-theme colour tables are gone: the app
+      ships 22 themes, so a two-column dark/light table was wrong 20 ways and encouraged
+      contributors to copy literal values. Documents roles instead.
+- [x] `scripts/lint-design-system.mjs` + `bun run lint:ds`, chained into `bun run lint`.
 
-Expected outcome: Contributors can find the current source of truth without stale test counts,
-commands, or status claims.
+**Scope note:** the scale sweep deliberately extended past `src/tools` into `src/components/shell`
+(49 of the 153 violations). A design scale the shell is exempt from is not a scale. Structural work
+in §5 P4/P5 remains tool-only per §8.
 
-Acceptance criteria:
+**Acceptance:** ✅ gate fails on a deliberate `text-[9px]`, passes on the swept tree; every
+`DESIGN_SYSTEM.md` claim re-derived from source.
 
-- Update test counts in docs when the suite changes materially.
-- Move completed release-smoke or testing improvements into `TESTING.md` and
-  `RELEASE_SMOKE_TESTS.md`.
-- Keep `AGENTS.md` command guidance aligned with CI and package scripts.
-- Link new quality artifacts from the README documentation table when they become permanent.
+### P2 — Land the primitives ✅
 
-Verification:
+All six landed with tests, `DESIGN_SYSTEM.md` entries, and zero call sites changed.
 
-```bash
-cd apps/cockpit
-bunx vitest run
-bun run lint
-```
+- [x] `SectionLabel` — `{ children, as, hint }`. `as` decouples heading level from visual.
+- [x] `PaneHeader` — `{ title, hint, status, actions }`. `actions` is the slot all five
+      hand-rolled copies lacked, which is why `CopyButton` placement wandered.
+- [x] `Kbd` — `{ keys }`, `mod` resolved per platform via `usePlatform()`.
+- [x] `SplitPane` — draggable + **keyboard-resizable** (arrows/Home/End/Enter-to-reset),
+      `role="separator"` with `aria-valuenow`, ratio persisted under `cockpit.split.<key>`.
+- [x] `MasterDetailLayout` — `{ sidebar, title, subtitle, sidebarActions, sidebarOpen, onToggleSidebar }`.
+- [x] `Panel` — kept as-is (its existing API already fits the four hand-rolled sites).
 
-## Release Readiness Checklist
+**Acceptance:** ✅ 114 test files / 1338 tests passing (was 109/1314); `SplitPane` keyboard resize,
+clamping, and persistence all covered.
 
-Before cutting or promoting a cockpit release, confirm:
+### P3 — Convergence sweep: labels, panes, keys ✅
 
-- [ ] Cockpit CI is green for the release commit.
-- [ ] Frontend typecheck, lint, and Vitest pass locally.
-- [ ] Rust `cargo check` and `cargo clippy -- -D warnings` pass locally or have a documented,
-      environment-specific exception.
-- [ ] Release workflow produced all expected platform artifacts.
-- [ ] `latest.json` exists and maps `darwin-aarch64`, `darwin-x86_64`, `windows-x86_64`, and
-      `linux-x86_64`.
-- [ ] Cross-platform smoke results are recorded against downloaded release artifacts.
-- [ ] Any platform-specific defect is documented before the release leaves internal validation.
+Landed as five commits, split by finding rather than by tool so each diff stays reviewable.
 
-## Maintenance Notes
+- [x] **F1** (`c66a39f`) — 32 label sites across 16 files onto `SectionLabel`. `SectionLabel` gained
+      `legend`/`h5` in its `as` union and HTML-attribute passthrough, so a conversion can't silently
+      drop an `id` that an `aria-labelledby` points at. The `<label><span>` pairs were deliberately
+      left for F9 — they label controls, they don't name regions.
+- [x] **F2** (`8f54e1e`) — 11 pane headers across 10 tools. `yaml-tools` and `xml-tools` had each
+      grown a _local_ `PaneHeader` component with the same class string; both deleted. The
+      `hint`/`status` split earned its keep immediately: the schema validator's problem count had to
+      move to `hint` because the tool's summary bar already announces it, and two live regions read
+      the same number twice.
+- [x] **F6** (`3525279`) — both shell `<kbd>` copies and nine tool hint sites onto `Kbd`.
+      `ShortcutsModal`'s table rewritten from pre-rendered symbol arrays into combo notation.
+      `Kbd` gained an `inline` variant for the hint that sits _inside_ the control it describes,
+      where the boxed treatment reads as a button nested in a button.
+- [x] **F9** (`a1d1888`) — 16 fields across 7 files onto `Field`, which fixed a real a11y bug rather
+      than just a visual one: most hand-rolled sites were a bare `<label>` sibling with no `htmlFor`
+      and nothing wrapped, so the input was announced unnamed. `Field` now makes the wrapper _be_
+      the label when no `htmlFor` is given.
+- [x] **F13** (`36d4367`) — `[Recent]`/`[Pinned]`/`[ 03-PREVIEW ]` retired; HTTP method colours
+      extracted to `lib/http-method.ts`. The two maps disagreed on POST and PATCH, so the same
+      request read a different colour depending on which tool opened it.
+- [x] **F8** and **F10** were completed during P1's scale sweep.
 
-- Prefer small PRs that improve one risk area at a time.
-- Do not add new npm packages for quality work unless platform APIs and existing tools are
-  insufficient.
-- New tests should follow established locations: tool tests in `src/tools/__tests__/`, library tests
-  in `src/lib/__tests__/`, store tests in `src/stores/__tests__/`, and component tests colocated per
-  subdirectory in `src/components/<subdir>/__tests__/` (e.g. `src/components/shell/__tests__/`,
-  `src/components/shared/__tests__/`) — there is no single flat `src/components/__tests__/`.
-- Keep commands Bun-first and run cockpit commands from `apps/cockpit`.
+**Still open, recorded rather than half-done:** the `⌘` literals inside `title=` and `description=`
+prose strings. Those need a `modSymbol` interpolation per site rather than a component, and the
+markdown editor's toolbar table is module-level where a hook can't reach. Tracked as F6b.
+
+**Acceptance:** ✅ all four gates green after each commit; retired class strings return zero hits.
+Visual diff against the P0 screenshots was **not** possible — see P0.
+
+### P4 — Structural convergence
+
+Higher-risk, one PR per tool group.
+
+- [x] **F3 (chrome)** (`4559d08`, `6b638b5`) — `api-client`, `diff-viewer`, `curl-to-fetch`,
+      `csv-tools` and `mermaid-editor/MermaidPreview` moved onto `Toolbar`/`ToolbarGroup`. The
+      count of 16 was measured before P1–P3: the `SectionLabel`, `PaneHeader` and `Field` sweeps
+      had already converted or dissolved the rest of the list, so what remained was these five
+      plus the three master–detail tools handled under F5.
+- [x] **F3 (slot abuse)** (`a78dfb7`) — `case-converter` and `hash-generator`'s forms moved out of
+      the `toolbar` slot into the body, wrapped in `Field`. `Field.hint` widened from `string` to
+      `ReactNode` first: both hints are live read-outs (detected case, byte count, match badge),
+      not sentences. `hash-generator`'s compare row uses `htmlFor` rather than a wrapping label,
+      because the badge beside the input is labelable and would otherwise steal the click.
+- [x] **F5** (`6b638b5`) — all three master–detail tools now render `MasterDetailLayout`.
+      `api-client` is **inverted** rather than lifted: `CollectionsSidebar` takes the detail as
+      `children` and renders the layout itself, because the sidebar heading's one action (new
+      collection) drives sidebar-local collapse and rename state that has no business moving up.
+      Its context menu and confirm dialogs moved outside the layout — a collapsed sidebar is
+      `w-0 overflow-hidden`, which clips a `position: fixed` menu rendered inside it.
+      `ToolLayout.header` is **deleted**: it reached zero consumers while two tools hand-rolled the
+      heading it couldn't express, and that heading names a collection, which is
+      `MasterDetailLayout`'s job.
+- [x] **F4** (`a78dfb7`) — `Panel` adopted for the section stacks in `uuid-generator` (×4) and
+      `color-converter` (×2). Chips nested inside them flipped `bg-surface` → `bg-bg`: `Panel` is
+      itself `bg-surface`, so a surface box inside it has no edge left to read, and `bg-bg` reads
+      as inset across all 22 themes.
+- [x] **F13 (csv)** (`a78dfb7`) — `csv-tools` chrome moved to `DocumentToolbar`/`DocumentIdentity`
+      and its body to `SplitPane` (`stackBelow={900}`, preserving the hand-rolled breakpoint).
+      Note the finding overstated the problem: `csv-tools` had **one** chrome row, not stacked
+      toolbars — the sub-tools' toolbars are alternatives, never rendered together.
+
+**Acceptance:** ✅ every tool renders through `ToolLayout` or `MasterDetailLayout`;
+`grep -rL "ToolLayout\|MasterDetailLayout" src/tools/*/[A-Z]*.tsx` returns only the five
+sub-components (`CsvAnalyze`, `CsvConvert`, `CsvTable`, `MarkdownPreview`, `MermaidPreview`); no
+tool has more than one chrome row unless it uses `Toolbar` twice deliberately. All four gates green.
+
+The acceptance criterion was written as "all 30 tools render through `ToolLayout`". That turned out
+to be the wrong shape: the master–detail tools render `MasterDetailLayout`, whose sidebar is a
+sibling of the detail pane, and nesting a `ToolLayout` around the pair would add a wrapper that
+positions nothing.
+
+### P5 — Behaviour and polish
+
+- [x] **F7** (`cef7a62`, `9add8b6`) — eight tools onto `SplitPane`, each with its own `storageKey`:
+      `base64`, `regex-tester`, `url-codec`, `css-to-tailwind`, `json-tools`, `markdown-editor`,
+      `mermaid-editor`, `html-validator`. `SplitPane` gained `stackBelow` first, because four of
+      those already stacked by hand at 900/1000px and an inline ratio `width` beats any Tailwind
+      breakpoint — without it, adoption would have silently deleted their responsive behaviour.
+      The tools with a toggleable pane lift each pane into a local const so the split and
+      single-pane branches share one definition. `diff-viewer` is **not** in the list: it renders
+      Monaco's `DiffEditor`, which owns its own internal split and has none to convert.
+- [x] **F11** (`93be8b9`) — the rule is now in `DESIGN_SYSTEM.md` §3 with its carve-outs, and three
+      tools were fixed: `image-tool` (Open image is primary only until an image exists, then
+      Download takes over), `uuid-generator` (bulk generate is the same operation with a count, not
+      a second headline), `yaml-tools` (Apply to YAML is a conditional row, not a rival to Format).
+      The audit said five. Two of them — a modal's confirm button and an `EmptyState` CTA — turned
+      out not to be tool chrome at all, so demoting them would have made those surfaces worse. The
+      rule as written carves them out rather than pretending the count was five.
+- [x] **F6b** (`93be8b9`) — `lib/shortcut-label.ts` exports `formatShortcut`, which `Kbd` now
+      renders through, and 40 prose literals across 17 files interpolate. Writing the shared
+      formatter exposed that `Kbd` had the same bug the literals did in milder form: it used Mac
+      glyphs on every platform, so Windows read `Ctrl+↵`. The symbol table is now split by
+      convention — glyphs for macOS, words for everywhere else.
+- [x] **F12 follow-up** (`93be8b9`) — `DESIGN_SYSTEM.md` re-verified against post-P4 code:
+      `MasterDetailLayout` documented beside `ToolLayout`, the no-title rule and the
+      primary-action rule written down, and a 13-item "adding a new tool" checklist added.
+- [ ] **Blocked — needs a human.** Re-shoot the P0 screenshots and diff, then attach the
+      before/after to the final PR. Same blocker as P0: the Tauri WebView on macOS can be
+      screenshotted and resized by script, but not clicked or typed into, so an agent can't drive a
+      tool into the state worth photographing. Every other verification route was used instead —
+      the four gates, the design-system linter, and the DOM assertions in the test suite.
+
+**Acceptance:** ✅ all four gates green (115 files / 1344 tests, 0 design-system violations);
+✅ `DESIGN_SYSTEM.md` re-verified against post-P4 code. ⬜ Screenshot diff outstanding and blocked
+on manual capture — it is the one claim in this document no automated check backs.
+
+---
+
+## 6. Current snapshot
+
+Baseline recorded 2026-08-19 at `19af685`, all from `apps/cockpit` (never the monorepo root).
+
+| Gate       | Command                          | Baseline         | After P2         | After P3         | After P4         | After P5         |
+| ---------- | -------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| TypeScript | `npx tsc --noEmit`               | Pass             | Pass             | Pass             | Pass             | Pass             |
+| Tests      | `bunx vitest run`                | 109 files / 1314 | 114 files / 1338 | 114 files / 1340 | 114 files / 1340 | 115 files / 1344 |
+| ESLint     | `bun run lint`                   | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings | Pass, 0 warnings |
+| Design sys | `bun run lint:ds`                | 153 violations   | 0 violations     | 0 violations     | 0 violations     | 0 violations     |
+| Rust       | `cargo check` (from `src-tauri`) | Pass             | Pass (untouched) | Pass (untouched) | Pass (untouched) | Pass (untouched) |
+
+Re-run and update this table at the end of every phase.
+
+P4 moved three tools onto `MasterDetailLayout` without changing what they assert, so the test count
+held at 1340; the four new tests in P5 are `shortcut-label`'s. The Rust column has read "untouched"
+since the baseline because this whole effort is frontend-only — see §8.
+
+---
+
+## 7. Per-tool worklist
+
+`T` = `Toolbar` adoption (F3) · `L` = `SectionLabel` (F1) · `P` = `PaneHeader` (F2) ·
+`S` = `SplitPane` (F7) · `K` = `Kbd` (F6) · `F` = `Field` (F9) · `N` = `Panel` (F4) ·
+`M` = `MasterDetailLayout` (F5)
+
+| Tool                  | Work        | Notes                                                    |
+| --------------------- | ----------- | -------------------------------------------------------- |
+| api-client            | T L P S K M | Hand-rolled `px-3 py-2` row; third master–detail shell   |
+| base64                | K S         | Already exemplary — use as the reference implementation  |
+| case-converter        | T L S       | Input form lives in the `toolbar` slot                   |
+| code-formatter        | K           | `DocumentToolbar` user; near-clean                       |
+| color-converter       | T L N F     | `text-[9px]` off-scale; `font-mono` `<h2>` sections      |
+| css-specificity       | P L         | Verbatim pane-header copy                                |
+| css-to-tailwind       | T P S       | Verbatim pane-header copy; no `Toolbar`                  |
+| css-validator         | L K         | `<h2>` label idiom E                                     |
+| csv-tools (+3 subs)   | T L N       | Stacked sub-tool toolbars; 2 hand-rolled panels          |
+| curl-to-fetch         | T P S       | Inline `color-mix` method chip → shared map              |
+| diff-viewer           | T S K       | Highest-value `SplitPane` target                         |
+| docs-browser          | —           | Clean                                                    |
+| hash-generator        | T L S       | Input form in the `toolbar` slot                         |
+| html-validator        | L K         | Label idioms A + E in one file                           |
+| image-tool            | L F         | 5× idiom B; 6 hand-rolled labels; 3 raw `<button>`       |
+| json-schema-validator | L S K       | 2× idiom A                                               |
+| json-tools            | L S K       | 3 raw `<button>`; prime `SplitPane` target               |
+| jwt-decoder           | T L S       | No `ToolLayout` toolbar at all                           |
+| markdown-editor       | S K         | `SelectionContextToolbar` user; otherwise clean          |
+| mermaid-editor        | S K         | Clean chrome                                             |
+| placeholder           | —           | Trivial                                                  |
+| prompt-templates      | T L P S M F | Worst offender: `[ 03-PREVIEW ]`, 10 labels, 4 primaries |
+| refactoring-toolkit   | L K         | Clean chrome                                             |
+| regex-tester          | P S         | Verbatim pane-header copy                                |
+| snippets              | T L P S M K | Own `<h1>`; no `ToolLayout`                              |
+| timestamp-converter   | L           | Second chrome row hand-rolled at `px-4 py-3`             |
+| ts-playground         | L K         | —                                                        |
+| url-codec             | T P S K     | Verbatim pane-header copy; bare `⌘↵` span                |
+| uuid-generator        | T L N       | 4× `font-mono text-sm` `<h2>`; 2 primaries               |
+| xml-tools             | L K         | 1 raw `<button>`                                         |
+| yaml-tools            | L K         | 3 raw `<button>`; 2 primaries                            |
+
+---
+
+## 8. Out of scope
+
+- Shell chrome (`Sidebar`, `TitleBar`, `StatusBar`, `CommandPalette`, `SettingsPanel`,
+  `NotesDrawer`) — except where P2 lifts code _out_ of it (`SplitPane` from `NotesDrawer`, `Kbd` from
+  `CommandPalette`/`ShortcutsModal`).
+- Theming and the token set itself. Tokens are sound; this programme changes how tools _consume_
+  them, not what they are.
+- Any change to tool behaviour, parsing, or output. This is chrome only.
+- New tools. The Cron Parser gap tracked previously is still open and unaffected by this work.
+
+## 9. Risks
+
+- **P3 is a wide mechanical diff.** ~25 files of class-string replacement is exactly the shape of
+  change where a subtle regression hides. Mitigation: the P0 screenshots, and splitting P3 by
+  finding rather than by tool so each diff is one substitution repeated.
+- **Tests assert on class strings in places.** Expect breakage in `src/components/shared/__tests__`
+  and in tool tests that query by styled text. Prefer fixing the test to assert on role/text over
+  re-asserting the new class string.
+- **`SplitPane` (P5) changes layout maths in 15 tools** and is the only phase touching behaviour.
+  It is last for that reason and can be dropped without invalidating P1–P4.

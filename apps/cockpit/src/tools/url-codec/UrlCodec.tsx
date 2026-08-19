@@ -2,6 +2,9 @@ import { useCallback, useMemo, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -162,7 +165,7 @@ export default function UrlCodec() {
               <ArrowsLeftRightIcon size={12} aria-hidden="true" />
               Swap
             </Button>
-            <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+            <Kbd keys="mod+enter" />
           </ToolbarGroup>
           <ToolbarGroup label="Encoding options" separated>
             <Select
@@ -192,11 +195,9 @@ export default function UrlCodec() {
       }
     >
       {/* Input / Output panels */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            Input ({state.mode === 'encode' ? 'Text' : 'Encoded'})
-          </div>
+      <SplitPane storageKey="url-codec" aria-label="Resize input and output">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PaneHeader title="Input" hint={state.mode === 'encode' ? 'Text' : 'Encoded'} />
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
@@ -206,13 +207,12 @@ export default function UrlCodec() {
             className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
           />
         </div>
-        <div className="flex w-1/2 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              Output ({state.mode === 'encode' ? 'Encoded' : 'Text'})
-            </span>
-            <CopyButton text={output.text} />
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PaneHeader
+            title="Output"
+            hint={state.mode === 'encode' ? 'Encoded' : 'Text'}
+            actions={<CopyButton text={output.text} />}
+          />
           {output.error ? (
             <Alert variant="error" className="m-4">
               {output.error}
@@ -223,7 +223,7 @@ export default function UrlCodec() {
             </pre>
           )}
         </div>
-      </div>
+      </SplitPane>
 
       {/* URL parts panel */}
       {urlParts && (

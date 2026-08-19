@@ -16,6 +16,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Select'
@@ -229,7 +230,7 @@ function NoteEditor({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2">
         <Button variant="icon" size="sm" onClick={handleBack} aria-label="Back to all notes">
-          <ArrowLeftIcon size={15} aria-hidden="true" />
+          <ArrowLeftIcon size={16} aria-hidden="true" />
         </Button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-[var(--color-text)]">
@@ -251,7 +252,7 @@ function NoteEditor({
           title={note.pinned ? 'Unpin' : 'Pin'}
           className={note.pinned ? 'text-[var(--color-accent)]' : ''}
         >
-          <PushPinIcon size={15} weight={note.pinned ? 'fill' : 'regular'} aria-hidden="true" />
+          <PushPinIcon size={16} weight={note.pinned ? 'fill' : 'regular'} aria-hidden="true" />
         </Button>
         <Button
           variant="icon"
@@ -259,10 +260,10 @@ function NoteEditor({
           onClick={() => onCopy(draftRef.current.content)}
           aria-label="Copy note content"
         >
-          <CopyIcon size={15} aria-hidden="true" />
+          <CopyIcon size={16} aria-hidden="true" />
         </Button>
         <Button variant="icon" size="sm" onClick={handleDeleteRequest} aria-label="Delete note">
-          <TrashIcon size={15} aria-hidden="true" />
+          <TrashIcon size={16} aria-hidden="true" />
         </Button>
       </div>
 
@@ -291,9 +292,9 @@ function NoteEditor({
         />
 
         <div className="mt-5 border-t border-[var(--color-border)] pt-4">
-          <div className="mb-2 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <SectionLabel as="div" className="mb-2">
             <TagIcon size={12} aria-hidden="true" /> Tags
-          </div>
+          </SectionLabel>
           <div className="flex flex-wrap items-center gap-1.5">
             {note.tags.map((tag) => (
               <span
@@ -309,7 +310,7 @@ function NoteEditor({
                   aria-label={`Remove ${tag} tag`}
                   className="rounded-full focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                 >
-                  <XIcon size={10} aria-hidden="true" />
+                  <XIcon size={12} aria-hidden="true" />
                 </button>
               </span>
             ))}
@@ -332,9 +333,9 @@ function NoteEditor({
         </div>
 
         <fieldset className="mt-5 border-t border-[var(--color-border)] pt-4">
-          <legend className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <SectionLabel as="legend" className="mb-2">
             Color
-          </legend>
+          </SectionLabel>
           <div className="flex flex-wrap gap-2">
             {NOTE_COLORS.map((color) => (
               <button
@@ -368,7 +369,7 @@ function NoteEditor({
           onClick={() => onUseAsInput(draftRef.current.content)}
           disabled={!draft.content}
         >
-          <PaperPlaneTiltIcon size={13} aria-hidden="true" className="mr-1.5" />
+          <PaperPlaneTiltIcon size={14} aria-hidden="true" className="mr-1.5" />
           Use as input
         </Button>
       </div>
@@ -624,7 +625,7 @@ export function NotesDrawer() {
               className="min-w-0 flex-1"
             />
             <Button variant="primary" size="sm" onClick={() => void handleAddNote()}>
-              <PlusIcon size={13} className="mr-1" aria-hidden="true" /> New
+              <PlusIcon size={14} className="mr-1" aria-hidden="true" /> New
             </Button>
           </div>
 
@@ -651,7 +652,7 @@ export function NotesDrawer() {
                 action={
                   !search ? (
                     <Button variant="primary" size="sm" onClick={() => void handleAddNote()}>
-                      <PlusIcon size={13} className="mr-1" aria-hidden="true" /> New note
+                      <PlusIcon size={14} className="mr-1" aria-hidden="true" /> New note
                     </Button>
                   ) : undefined
                 }
@@ -659,10 +660,10 @@ export function NotesDrawer() {
             )}
             {noteSections.map((section) => (
               <section key={section.id} className="mb-4">
-                <div className="mb-1.5 flex items-center justify-between px-1 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <SectionLabel as="div" className="mb-1.5 justify-between px-1">
                   <span>{section.label}</span>
                   <span>{section.notes.length}</span>
-                </div>
+                </SectionLabel>
                 <div className="space-y-2">
                   {section.notes.map((note, noteIndex) => {
                     const previousNote = section.notes[noteIndex - 1]
@@ -694,7 +695,7 @@ export function NotesDrawer() {
                               aria-label={`Drag ${note.title || 'untitled note'} to reorder`}
                               className="mt-0.5 inline-flex min-h-6 min-w-5 cursor-grab items-center justify-center rounded text-[var(--color-text-muted)] opacity-60 focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:opacity-100"
                             >
-                              <DotsSixVerticalIcon size={13} aria-hidden="true" />
+                              <DotsSixVerticalIcon size={14} aria-hidden="true" />
                             </button>
                           )}
                           <button
@@ -706,7 +707,7 @@ export function NotesDrawer() {
                             <span className="flex items-center gap-1.5">
                               {note.pinned && (
                                 <PushPinIcon
-                                  size={11}
+                                  size={12}
                                   weight="fill"
                                   className="shrink-0 text-[var(--color-accent)]"
                                   aria-hidden="true"

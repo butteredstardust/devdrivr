@@ -13,6 +13,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -26,6 +27,7 @@ import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/sh
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
+import { formatShortcut } from '@/lib/shortcut-label'
 import {
   LANGUAGES,
   extensionForLanguage,
@@ -238,7 +240,7 @@ export default function CodeFormatter() {
               title={state.fileName ?? 'Untitled'}
               icon={
                 <CodeBlockIcon
-                  size={15}
+                  size={16}
                   aria-hidden="true"
                   className="shrink-0 text-[var(--color-text-muted)]"
                 />
@@ -282,7 +284,7 @@ export default function CodeFormatter() {
                 title="Guess the language from the code"
                 className="gap-1"
               >
-                <MagicWandIcon size={13} aria-hidden="true" />
+                <MagicWandIcon size={14} aria-hidden="true" />
                 Auto-detect
               </Button>
               <Button
@@ -294,7 +296,7 @@ export default function CodeFormatter() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Style
               </Button>
             </ToolbarGroup>
@@ -306,12 +308,10 @@ export default function CodeFormatter() {
                 onClick={() => void handleFormat()}
                 disabled={!canFormat}
                 loading={isFormatting}
-                title="Format the code (⌘↵)"
+                title={`Format the code (${formatShortcut('mod+enter')})`}
               >
                 Format
-                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                  ⌘↵
-                </span>
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
               <Button
                 variant="secondary"
@@ -321,7 +321,7 @@ export default function CodeFormatter() {
                 title="Restore the code as it was before formatting"
                 className="gap-1"
               >
-                <ArrowCounterClockwiseIcon size={13} aria-hidden="true" />
+                <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
                 Revert
               </Button>
               <CopyButton text={input} />
@@ -330,10 +330,10 @@ export default function CodeFormatter() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasCode}
-                title="Save to a file (⌘S)"
+                title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
               >
-                <FloppyDiskIcon size={15} aria-hidden="true" />
+                <FloppyDiskIcon size={16} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -423,7 +423,8 @@ export default function CodeFormatter() {
             <CodeBlockIcon size={36} weight="light" aria-hidden="true" />
             <p className="text-sm">Paste or type code to format</p>
             <p className="max-w-sm text-xs opacity-60">
-              {LANGUAGES.length} languages supported. Press ⌘↵ to format, or open a file with ⌘O.
+              {LANGUAGES.length} languages supported. Press <Kbd keys="mod+enter" /> to format, or
+              open a file with <Kbd keys="mod+o" />.
             </p>
           </div>
         )}

@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { ToolboxIcon } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { ToolDefinition } from '@/types/tools'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 function resolveTools(ids: string[]): ToolDefinition[] {
   return ids
@@ -21,9 +23,7 @@ type ChipRowProps = {
 function ChipRow({ label, tools, onSelect }: ChipRowProps) {
   return (
     <div className="flex flex-col items-center gap-[var(--space-1)]">
-      <span className="text-2xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
-        {label}
-      </span>
+      <SectionLabel>{label}</SectionLabel>
       <div className="flex flex-wrap items-center justify-center gap-[var(--space-2)]">
         {tools.map((tool) => (
           <button
@@ -63,7 +63,7 @@ export function WorkspaceEmptyState() {
     <EmptyState
       icon={ToolboxIcon}
       title="Select a tool to get started"
-      description="Use the sidebar or press ⌘K"
+      description={`Use the sidebar or press ${formatShortcut('mod+k')}`}
       action={
         hasChips ? (
           <div className="flex flex-col items-center gap-[var(--space-3)]">

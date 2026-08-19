@@ -18,6 +18,7 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Select } from '@/components/shared/Select'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
@@ -46,6 +47,7 @@ import {
   type MermaidError,
 } from '@/tools/mermaid-editor/mermaid-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type EditorMode = 'edit' | 'split' | 'preview'
 type ExportFormat = 'svg' | 'png'
@@ -526,6 +528,50 @@ export default function MermaidEditor() {
       ].join(' · ')
     : 'Empty diagram'
 
+  // Each pane renders identically whether it's alone or beside the other, so it's defined once
+  // here and placed by the layout below rather than written out under both branches.
+  const editorPane = (
+    <div className="min-h-0 flex-1 overflow-hidden">
+      <Editor
+        theme={monacoTheme}
+        language="markdown"
+        value={content}
+        onChange={handleContentChange}
+        onMount={handleEditorMount}
+        options={monacoOptions}
+      />
+    </div>
+  )
+
+  const previewPane = (
+    <div className="min-h-0 flex-1 overflow-hidden">
+      <MermaidPreview
+        svg={svgHtml}
+        isRendering={isRendering}
+        errorMessage={error?.message ?? null}
+        emptyState={
+          <EmptyState
+            icon={GraphIcon}
+            size="sm"
+            title={error ? 'Nothing has rendered yet' : 'No diagram yet'}
+            description={
+              error
+                ? 'Fix the error above and the preview will appear here.'
+                : 'Write Mermaid syntax on the left, or load a template.'
+            }
+            action={
+              !error && (
+                <Button variant="secondary" size="sm" onClick={() => handleLoadTemplate()}>
+                  Load template
+                </Button>
+              )
+            }
+          />
+        }
+      />
+    </div>
+  )
+
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -563,25 +609,25 @@ export default function MermaidEditor() {
               title="New diagram"
               aria-label="New diagram"
             >
-              <FilePlusIcon size={13} aria-hidden="true" />
+              <FilePlusIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open a .mmd file (⌘O)"
+              title={`Open a .mmd file (${formatShortcut('mod+o')})`}
               aria-label="Open Mermaid file"
             >
-              <FolderOpenIcon size={13} aria-hidden="true" />
+              <FolderOpenIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the source (⌘S)"
+              title={`Save the source (${formatShortcut('mod+s')})`}
               aria-label="Save Mermaid source"
             >
-              <FloppyDiskIcon size={13} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>
           </ToolbarGroup>
 
@@ -639,7 +685,7 @@ export default function MermaidEditor() {
               loading={isExporting}
               className="gap-1"
             >
-              <CopyIcon size={13} aria-hidden="true" />
+              <CopyIcon size={14} aria-hidden="true" />
               Copy {exportFormat.toUpperCase()}
             </Button>
             <Button
@@ -650,7 +696,7 @@ export default function MermaidEditor() {
               loading={isExporting}
               className="gap-1"
             >
-              <DownloadSimpleIcon size={13} aria-hidden="true" />
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
               Export
             </Button>
           </ToolbarGroup>
@@ -661,7 +707,7 @@ export default function MermaidEditor() {
             onClick={() => void handleCopySource()}
             className="gap-1"
           >
-            <CopyIcon size={13} aria-hidden="true" />
+            <CopyIcon size={14} aria-hidden="true" />
             Copy source
           </Button>
         </DocumentToolbar>
@@ -686,58 +732,23 @@ export default function MermaidEditor() {
         </Alert>
       )}
 
-      {/* Below ~900px a 50/50 split leaves two unusable columns, so the panes stack. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden max-[900px]:flex-col">
-        {showEditor && (
-          <div
-            className={`min-h-0 overflow-hidden ${
-              showPreview
-                ? 'h-full w-1/2 border-r border-[var(--color-border)] max-[900px]:h-1/2 max-[900px]:w-full max-[900px]:border-r-0 max-[900px]:border-b'
-                : 'h-full w-full'
-            }`}
-          >
-            <Editor
-              theme={monacoTheme}
-              language="markdown"
-              value={content}
-              onChange={handleContentChange}
-              onMount={handleEditorMount}
-              options={monacoOptions}
-            />
-          </div>
-        )}
-
-        {showPreview && (
-          <div
-            className={`min-h-0 ${showEditor ? 'h-full w-1/2 max-[900px]:h-1/2 max-[900px]:w-full' : 'h-full w-full'}`}
-          >
-            <MermaidPreview
-              svg={svgHtml}
-              isRendering={isRendering}
-              errorMessage={error?.message ?? null}
-              emptyState={
-                <EmptyState
-                  icon={GraphIcon}
-                  size="sm"
-                  title={error ? 'Nothing has rendered yet' : 'No diagram yet'}
-                  description={
-                    error
-                      ? 'Fix the error above and the preview will appear here.'
-                      : 'Write Mermaid syntax on the left, or load a template.'
-                  }
-                  action={
-                    !error && (
-                      <Button variant="secondary" size="sm" onClick={() => handleLoadTemplate()}>
-                        Load template
-                      </Button>
-                    )
-                  }
-                />
-              }
-            />
-          </div>
-        )}
-      </div>
+      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
+          Below ~900px SplitPane stacks them, because a 50/50 split there leaves two unusable
+          columns. */}
+      {showEditor && showPreview ? (
+        <SplitPane
+          storageKey="mermaid-editor"
+          stackBelow={900}
+          aria-label="Resize editor and preview"
+        >
+          {editorPane}
+          {previewPane}
+        </SplitPane>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {showEditor ? editorPane : previewPane}
+        </div>
+      )}
 
       <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
         <span data-testid="diagram-status" role="status" aria-live="polite">

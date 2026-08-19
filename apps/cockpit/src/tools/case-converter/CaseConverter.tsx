@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Field } from '@/components/shared/Field'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TextArea } from '@/components/shared/TextArea'
 import { ArrowUpIcon, TextAaIcon } from '@phosphor-icons/react'
@@ -116,29 +117,35 @@ export default function CaseConverter() {
   )
 
   return (
-    <ToolLayout
-      toolbar={
-        <div className="border-b border-[var(--color-border)] p-4">
-          <div className="mb-2 flex items-center gap-3">
-            <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
-            {detected && <StatusBadge variant="info">{detected}</StatusBadge>}
-            {words.length > 0 && (
-              <span className="text-2xs text-[var(--color-text-muted)]">
-                {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
-              </span>
-            )}
-          </div>
-          <TextArea
-            value={state.input}
-            onChange={(e) => updateState({ input: e.target.value })}
-            placeholder="Type or paste text to convert..."
-            rows={3}
-            size="md"
-            className="resize-none"
-          />
-        </div>
-      }
-    >
+    <ToolLayout>
+      {/* The input lives in the body, not the `toolbar` slot. A toolbar is a row of controls
+          acting on the content below it; a multi-line text field is the content. */}
+      <Field
+        label="Input"
+        className="mb-4"
+        hint={
+          (detected || words.length > 0) && (
+            <span className="flex flex-wrap items-center gap-2">
+              {detected && <StatusBadge variant="info">{detected}</StatusBadge>}
+              {words.length > 0 && (
+                <span>
+                  {words.length} word{words.length !== 1 ? 's' : ''}: {words.join(' · ')}
+                </span>
+              )}
+            </span>
+          )
+        }
+      >
+        <TextArea
+          value={state.input}
+          onChange={(e) => updateState({ input: e.target.value })}
+          placeholder="Type or paste text to convert..."
+          rows={3}
+          size="md"
+          className="resize-none"
+        />
+      </Field>
+
       {cases.length > 0 ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {cases.map((c) => {

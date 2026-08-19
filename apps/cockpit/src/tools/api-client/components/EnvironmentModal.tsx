@@ -218,7 +218,7 @@ export function EnvironmentModal({ onClose }: Props) {
                   onClick={() => setConfirmDeleteEnv(true)}
                   className="gap-1 text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
                 >
-                  <TrashIcon size={13} aria-hidden="true" />
+                  <TrashIcon size={14} aria-hidden="true" />
                   Delete
                 </Button>
               </div>
@@ -244,7 +244,7 @@ export function EnvironmentModal({ onClose }: Props) {
                     onClick={addRow}
                     className="gap-1"
                   >
-                    <PlusIcon size={10} aria-hidden="true" />
+                    <PlusIcon size={12} aria-hidden="true" />
                     Add
                   </Button>
                 </div>
@@ -286,7 +286,7 @@ export function EnvironmentModal({ onClose }: Props) {
                             aria-label={`Delete ${row.key.trim() || `variable ${index + 1}`}`}
                             className="hover:text-[var(--color-error)]"
                           >
-                            <XIcon size={15} aria-hidden="true" />
+                            <XIcon size={16} aria-hidden="true" />
                           </Button>
                         </div>
                       )

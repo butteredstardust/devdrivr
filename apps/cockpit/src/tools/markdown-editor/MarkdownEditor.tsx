@@ -6,6 +6,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
@@ -54,6 +55,7 @@ import {
 import { markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -267,7 +269,7 @@ const FORMATTING_ACTIONS: FormattingAction[] = [
   // Group 1 — inline text formatting
   {
     label: 'B',
-    title: 'Bold (⌘B)',
+    title: `Bold (${formatShortcut('mod+b')})`,
     prefix: '**',
     suffix: '**',
     placeholder: 'bold text',
@@ -275,7 +277,7 @@ const FORMATTING_ACTIONS: FormattingAction[] = [
   },
   {
     label: 'I',
-    title: 'Italic (⌘I)',
+    title: `Italic (${formatShortcut('mod+i')})`,
     prefix: '_',
     suffix: '_',
     placeholder: 'italic text',
@@ -940,6 +942,41 @@ export default function MarkdownEditor() {
     [requestDocument]
   )
 
+  // Each pane renders identically whether it's alone or beside the other, so it's defined once
+  // here and placed by the layout below rather than written out under both branches.
+  const editorPane = (
+    <div ref={editorContainerRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <Editor
+        theme={monacoTheme}
+        language="markdown"
+        value={state.content}
+        onChange={(v) => updateState({ content: v ?? '' })}
+        onMount={handleEditorMount}
+        options={monacoOptions}
+      />
+      {/* Image drop overlay */}
+      {isDraggingImage && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-surface)]/80 backdrop-blur-sm">
+          <div className="rounded-lg border-2 border-dashed border-[var(--color-accent)] px-6 py-4 text-sm text-[var(--color-accent)]">
+            Drop image to embed
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const previewPane = (
+    <div className="min-h-0 flex-1">
+      <MarkdownPreview
+        ref={previewRef}
+        html={html}
+        showToc={state.showToc}
+        toc={toc}
+        onToggleTask={handleToggleTask}
+      />
+    </div>
+  )
+
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -1028,7 +1065,7 @@ export default function MarkdownEditor() {
             onClick={() => void handleSave()}
             className="gap-1.5"
           >
-            <FloppyDiskIcon size={13} aria-hidden="true" /> Save
+            <FloppyDiskIcon size={14} aria-hidden="true" /> Save
           </Button>
 
           <div ref={fileMenuRef} className="relative">
@@ -1043,7 +1080,7 @@ export default function MarkdownEditor() {
               aria-expanded={showFileMenu}
               aria-haspopup="menu"
             >
-              File <CaretDownIcon size={10} aria-hidden="true" className="ml-1" />
+              File <CaretDownIcon size={12} aria-hidden="true" className="ml-1" />
             </Button>
             {showFileMenu && (
               <div
@@ -1147,7 +1184,7 @@ export default function MarkdownEditor() {
               aria-expanded={showExport}
               aria-haspopup="menu"
             >
-              Export <CaretDownIcon size={10} aria-hidden="true" />
+              Export <CaretDownIcon size={12} aria-hidden="true" />
             </Button>
             {showExport && (
               <div
@@ -1265,55 +1302,23 @@ export default function MarkdownEditor() {
       )}
 
       {/* ─── Body ───────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 overflow-hidden max-[1000px]:flex-col">
-        {/* Editor */}
-        {showEditor && (
-          <div
-            ref={editorContainerRef}
-            className={`relative min-h-0 overflow-hidden ${
-              showPreview
-                ? 'h-full w-1/2 border-r border-[var(--color-border)] max-[1000px]:h-1/2 max-[1000px]:w-full max-[1000px]:border-b max-[1000px]:border-r-0'
-                : 'h-full w-full'
-            }`}
-          >
-            <Editor
-              theme={monacoTheme}
-              language="markdown"
-              value={state.content}
-              onChange={(v) => updateState({ content: v ?? '' })}
-              onMount={handleEditorMount}
-              options={monacoOptions}
-            />
-            {/* Image drop overlay */}
-            {isDraggingImage && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-surface)]/80 backdrop-blur-sm">
-                <div className="rounded-lg border-2 border-dashed border-[var(--color-accent)] px-6 py-4 text-sm text-[var(--color-accent)]">
-                  Drop image to embed
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Preview */}
-        {showPreview && (
-          <div
-            className={
-              showEditor
-                ? 'h-full min-h-0 w-1/2 max-[1000px]:h-1/2 max-[1000px]:w-full'
-                : 'h-full min-h-0 w-full'
-            }
-          >
-            <MarkdownPreview
-              ref={previewRef}
-              html={html}
-              showToc={state.showToc}
-              toc={toc}
-              onToggleTask={handleToggleTask}
-            />
-          </div>
-        )}
-      </div>
+      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
+          Below ~1000px SplitPane stacks them — markdown needs more line length than most panes
+          before a 50/50 split stops being readable. */}
+      {showEditor && showPreview ? (
+        <SplitPane
+          storageKey="markdown-editor"
+          stackBelow={1000}
+          aria-label="Resize editor and preview"
+        >
+          {editorPane}
+          {previewPane}
+        </SplitPane>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {showEditor ? editorPane : previewPane}
+        </div>
+      )}
 
       <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
         <span>{isDirty ? 'Unsaved changes' : 'All changes saved'}</span>

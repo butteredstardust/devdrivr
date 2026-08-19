@@ -15,18 +15,22 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { Spinner } from '@/components/shared/Spinner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { exportFile } from '@/lib/file-io'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 const { sanitize } = DOMPurify
 
@@ -189,25 +193,24 @@ function EditorPane({
   const lines = value ? value.split('\n').length : 0
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-        <span className="font-ui truncate text-xs font-semibold text-[var(--color-text)]">
-          {title}
-        </span>
-        <span className="truncate text-2xs text-[var(--color-text-muted)]">{hint}</span>
-        <span className="ml-auto shrink-0 text-2xs tabular-nums text-[var(--color-text-muted)]">
-          {lines} line{lines === 1 ? '' : 's'}
-        </span>
-        <Button
-          variant="icon"
-          size="sm"
-          onClick={onClear}
-          disabled={!value}
-          aria-label={`Clear ${title.toLowerCase()}`}
-          title={`Clear ${title.toLowerCase()}`}
-        >
-          <TrashIcon size={13} aria-hidden="true" />
-        </Button>
-      </div>
+      <PaneHeader
+        title={title}
+        // The line count sits in `hint`, not `status`: it changes on every keystroke, and a live
+        // region reciting a running total is noise rather than an outcome worth announcing.
+        hint={`${hint} · ${lines} line${lines === 1 ? '' : 's'}`}
+        actions={
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={onClear}
+            disabled={!value}
+            aria-label={`Clear ${title.toLowerCase()}`}
+            title={`Clear ${title.toLowerCase()}`}
+          >
+            <TrashIcon size={14} aria-hidden="true" />
+          </Button>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={theme}
@@ -417,7 +420,7 @@ export default function DiffViewer() {
       title={bothSidesFilled ? 'No comparison yet' : 'Nothing to compare'}
       description={
         bothSidesFilled
-          ? 'Press ⌘↵ to compare the two sides.'
+          ? `Press ${formatShortcut('mod+enter')} to compare the two sides.`
           : 'Paste the original on the left and the modified version on the right.'
       }
       action={
@@ -435,7 +438,7 @@ export default function DiffViewer() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+          <Toolbar border={false} aria-label="Diff view and comparison actions">
             <SegmentedControl
               aria-label="Diff view mode"
               options={VIEW_OPTIONS}
@@ -454,7 +457,7 @@ export default function DiffViewer() {
                   aria-hidden="true"
                   className="flex items-center gap-1 text-[var(--color-success)]"
                 >
-                  <CheckCircleIcon size={13} />
+                  <CheckCircleIcon size={14} />
                   Identical
                 </span>
               ) : stats ? (
@@ -470,7 +473,9 @@ export default function DiffViewer() {
               )}
             </span>
 
-            <div className="ml-auto flex items-center gap-2">
+            <ToolbarSpacer />
+
+            <ToolbarGroup>
               <Button
                 variant="secondary"
                 size="sm"
@@ -479,7 +484,7 @@ export default function DiffViewer() {
                 title="Swap left and right"
                 className="gap-1"
               >
-                <ArrowsLeftRightIcon size={13} aria-hidden="true" />
+                <ArrowsLeftRightIcon size={14} aria-hidden="true" />
                 Swap
               </Button>
               <Button
@@ -490,7 +495,7 @@ export default function DiffViewer() {
                 {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
                 className="gap-1"
               >
-                <SlidersHorizontalIcon size={13} aria-hidden="true" />
+                <SlidersHorizontalIcon size={14} aria-hidden="true" />
                 Options
               </Button>
               <Button
@@ -499,20 +504,20 @@ export default function DiffViewer() {
                 onClick={() => void computeDiff(true)}
                 disabled={!bothSidesFilled}
                 loading={isComparing}
-                title="Compare both sides (⌘↵)"
+                title={`Compare both sides (${formatShortcut('mod+enter')})`}
               >
                 Compare
-                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                  ⌘↵
-                </span>
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
-            </div>
-          </div>
+            </ToolbarGroup>
+          </Toolbar>
 
           {state.optionsOpen && (
-            <div
+            <Toolbar
               id={optionsId}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
+              border={false}
+              aria-label="Diff options"
+              className="gap-x-4 border-t border-[var(--color-border)]"
             >
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 Layout
@@ -549,7 +554,8 @@ export default function DiffViewer() {
                 checked={state.jsonMode}
                 onChange={(checked) => updateState({ jsonMode: checked })}
               />
-              <div className="ml-auto flex items-center gap-2">
+              <ToolbarSpacer />
+              <ToolbarGroup>
                 <CopyButton text={rawPatch} label="Copy patch" />
                 <Button
                   variant="secondary"
@@ -560,8 +566,8 @@ export default function DiffViewer() {
                 >
                   Save patch…
                 </Button>
-              </div>
-            </div>
+              </ToolbarGroup>
+            </Toolbar>
           )}
         </div>
       }

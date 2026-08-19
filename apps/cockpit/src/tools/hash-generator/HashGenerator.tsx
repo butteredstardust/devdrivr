@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useId, useRef, useState, useCallback, useMemo } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Field } from '@/components/shared/Field'
 import { Input } from '@/components/shared/Input'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TextArea } from '@/components/shared/TextArea'
@@ -21,6 +22,7 @@ type HashGeneratorState = {
 }
 
 export default function HashGenerator() {
+  const compareId = useId()
   const [state, updateState] = useToolState<HashGeneratorState>('hash-generator', {
     input: '',
     compareHash: '',
@@ -107,20 +109,21 @@ export default function HashGenerator() {
   const inputBytes = useMemo(() => new TextEncoder().encode(state.input).length, [state.input])
 
   return (
-    <ToolLayout
-      toolbar={
-        <div className="border-b border-[var(--color-border)] p-4">
-          <div className="mb-2 flex items-center gap-3">
-            <span className="font-mono text-xs text-[var(--color-text-muted)]">Input</span>
-            {state.input && (
-              <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
+    <ToolLayout>
+      {/* The form lives in the body, not the `toolbar` slot. A toolbar is a row of controls
+          acting on the content below it; this is the content. */}
+      <div className="mb-4 flex flex-col gap-3">
+        <Field
+          label="Input"
+          hint={
+            state.input && (
+              <span className="tabular-nums">
                 {formatBytes(inputBytes)} · {state.input.length} chars
+                {isComputing && ' · Computing…'}
               </span>
-            )}
-            {isComputing && state.input && (
-              <span className="text-2xs text-[var(--color-text-muted)]">Computing…</span>
-            )}
-          </div>
+            )
+          }
+        >
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
@@ -129,55 +132,55 @@ export default function HashGenerator() {
             size="md"
             className="resize-none"
           />
+        </Field>
 
-          {/* Options row */}
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <Toggle
-              checked={state.uppercase}
-              onChange={(uppercase) => updateState({ uppercase })}
-              label="Uppercase"
+        <div className="flex flex-wrap items-center gap-3">
+          <Toggle
+            checked={state.uppercase}
+            onChange={(uppercase) => updateState({ uppercase })}
+            label="Uppercase"
+          />
+          <Toggle
+            checked={state.hmacMode}
+            onChange={(hmacMode) => updateState({ hmacMode })}
+            label="HMAC"
+          />
+          {state.hmacMode && (
+            <Input
+              value={state.hmacKey}
+              onChange={(e) => updateState({ hmacKey: e.target.value })}
+              placeholder="Secret key..."
+              aria-label="HMAC secret key"
+              className="flex-1 font-mono"
             />
-            <Toggle
-              checked={state.hmacMode}
-              onChange={(hmacMode) => updateState({ hmacMode })}
-              label="HMAC"
+          )}
+        </div>
+
+        {/* htmlFor, not a wrapping label: the badge beside the input is labelable in some
+            browsers, and a wrapping label would forward clicks to whichever comes first. */}
+        <Field label="Compare hash" htmlFor={compareId}>
+          <div className="flex items-center gap-2">
+            <Input
+              id={compareId}
+              value={state.compareHash}
+              onChange={(e) => updateState({ compareHash: e.target.value })}
+              placeholder="Paste a hash to compare..."
+              className="flex-1 font-mono"
             />
-            {state.hmacMode && (
-              <Input
-                value={state.hmacKey}
-                onChange={(e) => updateState({ hmacKey: e.target.value })}
-                placeholder="Secret key..."
-                aria-label="HMAC secret key"
-                className="flex-1 font-mono"
-              />
+            {compareNormalized && hashes && (
+              <StatusBadge variant={matchedAlgo ? 'success' : 'error'}>
+                {matchedAlgo ? (
+                  <CheckCircleIcon size={12} weight="fill" aria-hidden="true" />
+                ) : (
+                  <XCircleIcon size={12} weight="fill" aria-hidden="true" />
+                )}
+                {matchedAlgo ? `Matches ${matchedAlgo}` : 'No match'}
+              </StatusBadge>
             )}
           </div>
+        </Field>
+      </div>
 
-          {/* Compare hash */}
-          <div className="mt-2">
-            <div className="flex items-center gap-2">
-              <Input
-                value={state.compareHash}
-                onChange={(e) => updateState({ compareHash: e.target.value })}
-                placeholder="Paste a hash to compare..."
-                aria-label="Hash to compare"
-                className="flex-1 font-mono"
-              />
-              {compareNormalized && hashes && (
-                <StatusBadge variant={matchedAlgo ? 'success' : 'error'}>
-                  {matchedAlgo ? (
-                    <CheckCircleIcon size={12} weight="fill" aria-hidden="true" />
-                  ) : (
-                    <XCircleIcon size={12} weight="fill" aria-hidden="true" />
-                  )}
-                  {matchedAlgo ? `Matches ${matchedAlgo}` : 'No match'}
-                </StatusBadge>
-              )}
-            </div>
-          </div>
-        </div>
-      }
-    >
       {hashList.length > 0 ? (
         <div className="flex flex-col gap-3">
           {hashList.map((h) => {

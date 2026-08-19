@@ -3,6 +3,8 @@ import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Input } from '@/components/shared/Input'
 import { TabBar } from '@/components/shared/TabBar'
 import { Toggle } from '@/components/shared/Toggle'
@@ -571,8 +573,14 @@ export default function ImageTool() {
       toolbar={
         <>
           <Toolbar aria-label="Image actions" className="gap-3">
-            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <UploadSimpleIcon size={13} />
+            {/* Primary only until an image is open. After that the tool's one primary action is
+                Download, in the export panel — opening another image is a restart, not the goal. */}
+            <Button
+              variant={originalImg ? 'secondary' : 'primary'}
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <UploadSimpleIcon size={14} />
               Open Image
             </Button>
             <input
@@ -616,7 +624,7 @@ export default function ImageTool() {
                   title="Reset all settings"
                   className="gap-1"
                 >
-                  <ArrowCounterClockwiseIcon size={13} />
+                  <ArrowCounterClockwiseIcon size={14} />
                   Reset
                 </Button>
               </>
@@ -893,12 +901,11 @@ function ResizePanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Dimensions
-        </div>
+        </SectionLabel>
         <div className="flex items-center gap-2">
-          <div className="flex flex-1 flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
+          <Field label="Width (px)" className="flex-1">
             <Input
               type="number"
               min={1}
@@ -907,7 +914,7 @@ function ResizePanel({
               placeholder="Width"
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
+          </Field>
 
           <Button
             variant="icon"
@@ -920,8 +927,7 @@ function ResizePanel({
             {lockAspect ? <LockSimpleIcon size={14} /> : <LockSimpleOpenIcon size={14} />}
           </Button>
 
-          <div className="flex flex-1 flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
+          <Field label="Height (px)" className="flex-1">
             <Input
               type="number"
               min={1}
@@ -930,7 +936,7 @@ function ResizePanel({
               placeholder="Height"
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
+          </Field>
         </div>
 
         {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
@@ -945,9 +951,9 @@ function ResizePanel({
       </div>
 
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Aspect Ratio Presets
-        </div>
+        </SectionLabel>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_SIZES.map(({ label, w, h }) => (
             // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
@@ -1003,12 +1009,11 @@ function CropPanel({
 
       {/* Crop coordinates */}
       <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Offset
-        </div>
+        </SectionLabel>
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">X (px)</label>
+          <Field label="X (px)">
             <Input
               type="number"
               min={0}
@@ -1018,9 +1023,8 @@ function CropPanel({
               onChange={(e) => onChange(Number(e.target.value), y, w, h)}
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">Y (px)</label>
+          </Field>
+          <Field label="Y (px)">
             <Input
               type="number"
               min={0}
@@ -1030,15 +1034,14 @@ function CropPanel({
               onChange={(e) => onChange(x, Number(e.target.value), w, h)}
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
+          </Field>
         </div>
 
-        <div className="mb-2 mt-3 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2 mt-3">
           Size
-        </div>
+        </SectionLabel>
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">Width (px)</label>
+          <Field label="Width (px)">
             <Input
               type="number"
               min={1}
@@ -1048,9 +1051,8 @@ function CropPanel({
               onChange={(e) => onChange(x, y, Number(e.target.value), h)}
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-2xs text-[var(--color-text-muted)]">Height (px)</label>
+          </Field>
+          <Field label="Height (px)">
             <Input
               type="number"
               min={1}
@@ -1060,7 +1062,7 @@ function CropPanel({
               onChange={(e) => onChange(x, y, w, Number(e.target.value))}
               className={NUMBER_FIELD_CLASS}
             />
-          </div>
+          </Field>
         </div>
 
         {/* eslint-disable-next-line no-restricted-syntax -- 10px underlabel link beneath the
@@ -1122,9 +1124,9 @@ function ExportPanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Format
-        </div>
+        </SectionLabel>
         <TabBar tabs={FORMAT_TABS} activeTab={format} onTabChange={onFormatChange} />
         <div className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
           {format === 'png' && 'Lossless · Supports transparency'}
@@ -1136,9 +1138,7 @@ function ExportPanel({
       {isLossy && (
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Quality
-            </div>
+            <SectionLabel as="div">Quality</SectionLabel>
             <span className="font-mono text-xs text-[var(--color-text)]">{quality}%</span>
           </div>
           <input
@@ -1149,7 +1149,7 @@ function ExportPanel({
             onChange={(e) => onQualityChange(Number(e.target.value))}
             className="w-full accent-[var(--color-accent)]"
           />
-          <div className="mt-1 flex justify-between text-[9px] text-[var(--color-text-muted)]">
+          <div className="mt-1 flex justify-between text-2xs text-[var(--color-text-muted)]">
             <span>Smaller</span>
             <span>Higher quality</span>
           </div>
@@ -1157,9 +1157,9 @@ function ExportPanel({
       )}
 
       <div>
-        <div className="mb-2 text-2xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        <SectionLabel as="div" className="mb-2">
           Output Info
-        </div>
+        </SectionLabel>
         <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
           <div>
             Dimensions:{' '}
@@ -1190,7 +1190,7 @@ function ExportPanel({
             void onDownload()
           }}
         >
-          <DownloadSimpleIcon size={13} />
+          <DownloadSimpleIcon size={14} />
           Download {format.toUpperCase()}
         </Button>
         <Button
@@ -1200,7 +1200,7 @@ function ExportPanel({
             void onCopy()
           }}
         >
-          <CopyIcon size={13} />
+          <CopyIcon size={14} />
           Copy as PNG
         </Button>
       </div>

@@ -9,6 +9,8 @@ type ToolbarProps = {
   'aria-label'?: string
   /** Disable wrapping for horizontally scrollable editor toolbars. */
   wrap?: boolean
+  /** For a collapsible secondary row that a disclosure button's `aria-controls` points at. */
+  id?: string
 }
 
 // Horizontal control bar — codifies the
@@ -19,10 +21,12 @@ export function Toolbar({
   className = '',
   border = true,
   wrap = true,
+  id,
   'aria-label': ariaLabel,
 }: ToolbarProps) {
   return (
     <div
+      id={id}
       role="toolbar"
       aria-label={ariaLabel}
       className={`flex min-h-10 items-center gap-2 bg-[var(--color-surface)] px-4 py-2 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}

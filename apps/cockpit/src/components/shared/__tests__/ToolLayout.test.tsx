@@ -12,26 +12,11 @@ describe('ToolLayout', () => {
     expect(screen.getByText('Body content')).toBeInTheDocument()
   })
 
-  it('omits the header row when no header is given', () => {
+  // The tab strip names the tool, so a tool body never repeats it. Library tools that show a
+  // heading are naming a collection, which is MasterDetailLayout's job, not this one's.
+  it('renders no heading of its own', () => {
     const { container } = render(<ToolLayout>content</ToolLayout>)
-    expect(container.querySelector('h2')).not.toBeInTheDocument()
-  })
-
-  it('renders title, description, and actions when a header is given', () => {
-    render(
-      <ToolLayout
-        header={{
-          title: 'My Tool',
-          description: 'Does a thing',
-          actions: <button>Reset</button>,
-        }}
-      >
-        content
-      </ToolLayout>
-    )
-    expect(screen.getByRole('heading', { name: 'My Tool' })).toBeInTheDocument()
-    expect(screen.getByText('Does a thing')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
+    expect(container.querySelector('h1, h2')).not.toBeInTheDocument()
   })
 
   it('renders the toolbar slot above the body', () => {

@@ -3,10 +3,14 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { httpMethodColorVar } from '@/lib/http-method'
+import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { sendToTool } from '@/lib/tool-handoff'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
 import { Alert } from '@/components/shared/Alert'
 import { PlayIcon } from '@phosphor-icons/react'
@@ -205,14 +209,6 @@ const OUTPUT_TABS = [
   { id: 'node', label: 'Node.js' },
 ]
 
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'var(--color-success)',
-  POST: 'var(--color-info)',
-  PUT: 'var(--color-warning)',
-  PATCH: 'var(--color-warning)',
-  DELETE: 'var(--color-error)',
-}
-
 // ── Component ──────────────────────────────────────────────────────
 
 export default function CurlToFetch() {
@@ -280,12 +276,12 @@ export default function CurlToFetch() {
       fullBleed
       toolbar={
         parsed && (
-          <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-1.5">
+          <Toolbar className="gap-x-3" aria-label="Parsed request">
             <span
               className="rounded px-2 py-0.5 text-xs font-bold"
               style={{
-                color: METHOD_COLORS[parsed.method] ?? 'var(--color-text)',
-                background: `color-mix(in srgb, ${METHOD_COLORS[parsed.method] ?? 'var(--color-text)'} 15%, transparent)`,
+                color: httpMethodColorVar(parsed.method),
+                background: `color-mix(in srgb, ${httpMethodColorVar(parsed.method)} 15%, transparent)`,
               }}
             >
               {parsed.method}
@@ -303,26 +299,29 @@ export default function CurlToFetch() {
                 body: {parsed.body.length} chars
               </span>
             )}
+            <ToolbarSpacer />
             <Button
               variant="ghost"
               size="xs"
               onClick={handleTestInApiClient}
               title="Open this request in API Client"
-              className="ml-auto shrink-0 gap-1"
+              className="shrink-0 gap-1"
             >
-              <PlayIcon size={11} />
+              <PlayIcon size={12} />
               Test in API Client
             </Button>
-          </div>
+          </Toolbar>
         )
       }
     >
-      <div className="flex flex-1 overflow-hidden">
+      <SplitPane
+        storageKey="curl-to-fetch"
+        defaultRatio={0.4}
+        aria-label="Resize command and output"
+      >
         {/* Input */}
-        <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            cURL Command
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PaneHeader title="cURL Command" />
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
@@ -335,7 +334,7 @@ export default function CurlToFetch() {
         </div>
 
         {/* Output */}
-        <div className="flex w-3/5 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-1">
             <TabBar
               tabs={OUTPUT_TABS}
@@ -363,7 +362,7 @@ export default function CurlToFetch() {
             </div>
           )}
         </div>
-      </div>
+      </SplitPane>
     </ToolLayout>
   )
 }
