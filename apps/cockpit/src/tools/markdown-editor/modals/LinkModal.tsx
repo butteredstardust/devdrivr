@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
 import { Input } from '@/components/shared/Input'
 import { Dialog } from '@/components/shared/Dialog'
 
@@ -55,8 +56,7 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-3" onKeyDown={handleKeyDown}>
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">URL *</label>
+        <Field label="URL" required>
           <Input
             ref={urlRef}
             value={url}
@@ -64,20 +64,16 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
             placeholder="https://example.com"
             size="md"
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Link Text</label>
+        </Field>
+        <Field label="Link Text">
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Link text"
             size="md"
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">
-            Title (tooltip)
-          </label>
+        </Field>
+        <Field label="Title (tooltip)">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -85,7 +81,7 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
             size="md"
             disabled={newTab}
           />
-        </div>
+        </Field>
         <label className="flex cursor-pointer items-center gap-2">
           <input
             type="checkbox"

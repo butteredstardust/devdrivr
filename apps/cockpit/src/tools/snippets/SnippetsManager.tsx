@@ -25,6 +25,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -950,8 +951,7 @@ export default function SnippetsManager() {
                 >
                   <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
 
-                  <label className="block text-2xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-                    Folder
+                  <Field label="Folder">
                     <Input
                       value={selected.folder}
                       onChange={(event) =>
@@ -959,9 +959,9 @@ export default function SnippetsManager() {
                       }
                       placeholder="No folder"
                       list={folderListId}
-                      className="mt-1.5 w-full"
+                      className="w-full"
                     />
-                  </label>
+                  </Field>
                   <datalist id={folderListId}>
                     {allFolders.map((folder) => (
                       <option key={folder} value={folder} />

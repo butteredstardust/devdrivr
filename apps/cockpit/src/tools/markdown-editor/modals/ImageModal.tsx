@@ -3,6 +3,8 @@ import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
 import { Dialog } from '@/components/shared/Dialog'
 import { Alert } from '@/components/shared/Alert'
+import { Field } from '@/components/shared/Field'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 
 type Props = {
   onInsert: (markdown: string) => void
@@ -70,10 +72,12 @@ export function ImageModal({ onInsert, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-3" onKeyDown={handleKeyDown}>
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Image URL</label>
+        {/* Explicit htmlFor: the Paste button shares the row, and a wrapping label would
+            forward clicks to whichever labelable descendant comes first. */}
+        <Field label="Image URL" htmlFor="image-modal-url">
           <div className="flex gap-2">
             <Input
+              id="image-modal-url"
               ref={urlRef}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -93,21 +97,21 @@ export function ImageModal({ onInsert, onClose }: Props) {
             </Button>
           </div>
           {pasteError && <Alert variant="error">{pasteError}</Alert>}
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Alt Text</label>
+        <Field label="Alt Text">
           <Input
             value={alt}
             onChange={(e) => setAlt(e.target.value)}
             placeholder="Alt text"
             size="md"
           />
-        </div>
+        </Field>
 
         {isValid && (
           <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-[var(--color-text-muted)]">Preview</label>
+            {/* Not a Field: this names a preview, it doesn't label a control. */}
+            <SectionLabel>Preview</SectionLabel>
             <div className="flex items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
               <img
                 src={url}

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
 import { Dialog } from '@/components/shared/Dialog'
 import { Input } from '@/components/shared/Input'
 import { Select } from '@/components/shared/Select'
@@ -81,13 +82,11 @@ export function SaveRequestModal({
       }
     >
       <div className="flex flex-col gap-4 p-4" onKeyDown={handleKeyDown}>
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Request Name</label>
+        <Field label="Request Name">
           <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} size="md" />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-[var(--color-text-muted)]">Collection</label>
+        <Field label="Collection">
           <Select size="md" value={collectionId} onChange={(e) => setCollectionId(e.target.value)}>
             <option value="">(Unassigned)</option>
             {collections.map((c) => (
@@ -97,13 +96,10 @@ export function SaveRequestModal({
             ))}
             <option value={NEW_COLLECTION_SENTINEL}>+ New Collection…</option>
           </Select>
-        </div>
+        </Field>
 
         {isNewCol && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-[var(--color-text-muted)]">
-              New Collection Name
-            </label>
+          <Field label="New Collection Name">
             <Input
               autoFocus
               value={newColName}
@@ -111,7 +107,7 @@ export function SaveRequestModal({
               placeholder="My Collection"
               size="md"
             />
-          </div>
+          </Field>
         )}
       </div>
     </Dialog>

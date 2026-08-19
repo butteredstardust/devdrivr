@@ -20,6 +20,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Field } from '@/components/shared/Field'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -519,10 +520,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden max-[900px]:grid-cols-[minmax(16rem,0.8fr)_minmax(20rem,1fr)]">
           <div className="min-h-0 overflow-auto border-r border-[var(--color-border)] p-4">
             <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                  Name
-                </span>
+              <Field label="Name">
                 <Input
                   ref={firstInputRef}
                   value={draft.name}
@@ -532,11 +530,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   className="w-full"
                   aria-label="Template name"
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                  Description
-                </span>
+              </Field>
+              <Field label="Description">
                 <TextArea
                   value={draft.description}
                   onChange={(event) =>
@@ -546,12 +541,9 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   aria-label="Template description"
                   className="resize-none"
                 />
-              </label>
+              </Field>
               <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                    Category
-                  </span>
+                <Field label="Category">
                   <Select
                     value={draft.category}
                     onChange={(event) =>
@@ -569,11 +561,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                       </option>
                     ))}
                   </Select>
-                </label>
-                <label className="block">
-                  <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                    Optimized For
-                  </span>
+                </Field>
+                <Field label="Optimized For">
                   <Select
                     value={draft.optimizedFor}
                     onChange={(event) =>
@@ -591,12 +580,9 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                       </option>
                     ))}
                   </Select>
-                </label>
+                </Field>
               </div>
-              <label className="block">
-                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                  Tags
-                </span>
+              <Field label="Tags">
                 <Input
                   value={joinList(draft.tags)}
                   onChange={(event) =>
@@ -606,11 +592,8 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   className="w-full"
                   aria-label="Template tags"
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                  Tips
-                </span>
+              </Field>
+              <Field label="Tips">
                 <Input
                   value={joinList(draft.tips)}
                   onChange={(event) =>
@@ -620,7 +603,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                   className="w-full"
                   aria-label="Template tips"
                 />
-              </label>
+              </Field>
             </div>
           </div>
 
@@ -723,10 +706,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                       Req
                     </label>
                     {variable.type === 'select' && (
-                      <label className="col-span-3 block">
-                        <span className="mb-1 block font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-                          Options
-                        </span>
+                      <Field label="Options" className="col-span-3">
                         <Input
                           value={joinList(variable.options ?? [])}
                           onChange={(event) =>
@@ -743,7 +723,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                           aria-label={`${variable.name} options`}
                           className="w-full"
                         />
-                      </label>
+                      </Field>
                     )}
                   </div>
                 ))}

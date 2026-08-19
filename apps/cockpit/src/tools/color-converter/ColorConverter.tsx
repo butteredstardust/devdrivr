@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Field } from '@/components/shared/Field'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input } from '@/components/shared/Input'
@@ -460,10 +461,12 @@ function ContrastInputs({
 
   return (
     <div className="flex items-end gap-4">
-      <div className="flex-1">
-        <label className="mb-1 block text-xs text-[var(--color-text-muted)]">Foreground</label>
+      {/* Explicit htmlFor: the colour swatch shares the row, so a wrapping label would
+          forward clicks to it rather than to the text field. */}
+      <Field label="Foreground" htmlFor="contrast-fg" className="flex-1">
         <div className="flex items-center gap-2">
           <Input
+            id="contrast-fg"
             value={contrastFg}
             onChange={(e) => onFgChange(e.target.value)}
             size="md"
@@ -476,7 +479,7 @@ function ContrastInputs({
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
           />
         </div>
-      </div>
+      </Field>
       <Button
         variant="secondary"
         size="sm"
@@ -487,10 +490,10 @@ function ContrastInputs({
         <ArrowsLeftRightIcon size={14} aria-hidden="true" />
         <span className="sr-only">Swap colors</span>
       </Button>
-      <div className="flex-1">
-        <label className="mb-1 block text-xs text-[var(--color-text-muted)]">Background</label>
+      <Field label="Background" htmlFor="contrast-bg" className="flex-1">
         <div className="flex items-center gap-2">
           <Input
+            id="contrast-bg"
             value={contrastBg}
             onChange={(e) => onBgChange(e.target.value)}
             size="md"
@@ -503,7 +506,7 @@ function ContrastInputs({
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
           />
         </div>
-      </div>
+      </Field>
     </div>
   )
 }
@@ -724,10 +727,14 @@ export default function ColorConverter() {
               <section className="flex flex-col gap-4">
                 {/* Variable name input */}
                 <div className="flex items-center gap-3">
-                  <label className="shrink-0 text-xs text-[var(--color-text-muted)]">
+                  <label
+                    htmlFor="css-var-name"
+                    className="font-ui shrink-0 text-xs text-[var(--color-text-muted)]"
+                  >
                     Variable name
                   </label>
                   <Input
+                    id="css-var-name"
                     value={state.cssVarName}
                     onChange={(e) => updateState({ cssVarName: e.target.value })}
                     placeholder="--color-primary"
