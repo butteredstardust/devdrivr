@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ClockCounterClockwiseIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { SidebarItem } from './SidebarItem'
@@ -31,10 +32,10 @@ export function SidebarRecent({ filterToolIds = null }: SidebarRecentProps) {
 
   return (
     <div className="mb-1">
-      <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-muted)]">
-        <ClockCounterClockwiseIcon size={12} className="shrink-0" />
-        <span className="text-xs font-bold uppercase tracking-normal">[Recent]</span>
-      </div>
+      <SectionLabel as="h3" className="px-2 py-1">
+        <ClockCounterClockwiseIcon size={12} className="shrink-0" aria-hidden="true" />
+        Recent
+      </SectionLabel>
       {/* tabIndex={0} makes recent items explicit participants in keyboard nav */}
       <div className="flex flex-col gap-1 px-1">
         {recentTools.map((tool) => (

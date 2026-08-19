@@ -23,7 +23,8 @@ import { useApiStore } from '@/stores/api.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { EnvironmentModal } from './components/EnvironmentModal'
 import { AuthTab } from './components/AuthTab'
-import { CollectionsSidebar, getMethodColor } from './components/CollectionsSidebar'
+import { CollectionsSidebar } from './components/CollectionsSidebar'
+import { httpMethodTextClass } from '@/lib/http-method'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
@@ -939,7 +940,7 @@ export default function ApiClient() {
                 value={method}
                 onChange={(e) => handleMethodChange(e.target.value)}
                 aria-label="HTTP method"
-                className={`font-mono font-bold ${getMethodColor(method)}`}
+                className={`font-mono font-bold ${httpMethodTextClass(method)}`}
               >
                 {METHODS.map((m) => (
                   <option key={m} value={m}>

@@ -20,6 +20,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Field } from '@/components/shared/Field'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
@@ -187,10 +188,14 @@ function PreviewPane({ renderedPrompt, tokens, missingVariables }: PreviewPanePr
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 font-mono text-2xs text-[var(--color-text-muted)]">
-        <span>[ 03-PREVIEW ]</span>
-        <span className={`rounded border px-2 py-0.5 ${tokenClass(tone)}`}>~{tokens} TOKENS</span>
-      </div>
+      <PaneHeader
+        title="Preview"
+        actions={
+          <span className={`font-mono rounded border px-2 py-0.5 text-2xs ${tokenClass(tone)}`}>
+            ~{tokens} tokens
+          </span>
+        }
+      />
       {missingVariables.length > 0 && (
         <div className="border-b border-[var(--color-border)] bg-[var(--color-warning)]/10 px-3 py-2 text-xs text-[var(--color-warning)]">
           Missing required: {missingVariables.join(', ')}

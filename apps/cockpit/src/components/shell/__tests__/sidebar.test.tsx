@@ -231,7 +231,7 @@ describe('SidebarPinned — favorite tools', () => {
 
     render(<SidebarPinned />)
 
-    expect(screen.getByText('[Pinned]')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pinned' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Base64' })).toBeInTheDocument()
   })
 })

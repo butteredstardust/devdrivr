@@ -116,7 +116,7 @@ describe('PromptTemplates', () => {
       'true'
     )
     fireEvent.click(screen.getByRole('tab', { name: /preview/i }))
-    expect(screen.getByText('[ 03-PREVIEW ]')).toBeInTheDocument()
+    expect(screen.getByText('Preview')).toBeInTheDocument()
   })
 
   it('filters templates by search text', () => {

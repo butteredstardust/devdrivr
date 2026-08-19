@@ -15,6 +15,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { httpMethodTextClass } from '@/lib/http-method'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -482,7 +483,7 @@ export function CollectionsSidebar({
                       onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
                     >
                       <span
-                        className={`shrink-0 text-2xs font-bold ${getMethodColor(method ?? 'GET')}`}
+                        className={`shrink-0 text-2xs font-bold ${httpMethodTextClass(method ?? 'GET')}`}
                       >
                         {method}
                       </span>
@@ -705,7 +706,7 @@ function RequestRow({
         title={`${req.method} ${req.url}`}
       >
         <span className="min-w-0 flex-1 truncate">{req.name}</span>
-        <span className={`shrink-0 text-2xs font-bold ${getMethodColor(req.method)}`}>
+        <span className={`shrink-0 text-2xs font-bold ${httpMethodTextClass(req.method)}`}>
           {req.method}
         </span>
       </Button>
@@ -729,21 +730,4 @@ function RequestRow({
       </Button>
     </div>
   )
-}
-
-export function getMethodColor(method: string) {
-  switch (method) {
-    case 'GET':
-      return 'text-[var(--color-success)]'
-    case 'POST':
-      return 'text-[var(--color-warning)]'
-    case 'PUT':
-      return 'text-[var(--color-info)]'
-    case 'PATCH':
-      return 'text-[var(--color-accent)]'
-    case 'DELETE':
-      return 'text-[var(--color-error)]'
-    default:
-      return 'text-[var(--color-text-muted)]'
-  }
 }

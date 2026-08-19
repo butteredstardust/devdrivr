@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { httpMethodColorVar } from '@/lib/http-method'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -206,14 +207,6 @@ const OUTPUT_TABS = [
   { id: 'node', label: 'Node.js' },
 ]
 
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'var(--color-success)',
-  POST: 'var(--color-info)',
-  PUT: 'var(--color-warning)',
-  PATCH: 'var(--color-warning)',
-  DELETE: 'var(--color-error)',
-}
-
 // ── Component ──────────────────────────────────────────────────────
 
 export default function CurlToFetch() {
@@ -285,8 +278,8 @@ export default function CurlToFetch() {
             <span
               className="rounded px-2 py-0.5 text-xs font-bold"
               style={{
-                color: METHOD_COLORS[parsed.method] ?? 'var(--color-text)',
-                background: `color-mix(in srgb, ${METHOD_COLORS[parsed.method] ?? 'var(--color-text)'} 15%, transparent)`,
+                color: httpMethodColorVar(parsed.method),
+                background: `color-mix(in srgb, ${httpMethodColorVar(parsed.method)} 15%, transparent)`,
               }}
             >
               {parsed.method}
