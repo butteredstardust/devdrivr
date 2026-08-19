@@ -23,6 +23,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -771,22 +772,22 @@ export default function HtmlValidator() {
             aria-label="Rendered preview"
             className={`flex min-h-0 min-w-0 flex-col ${showEditor ? 'w-1/2 max-[900px]:w-full' : 'w-full'}`}
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-              <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                Preview
-              </span>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setIsPopoutOpen(true)}
-                disabled={!hasInput}
-                className="gap-1"
-                title="Expand to a full-size preview (Esc to close)"
-              >
-                <FrameCornersIcon size={12} aria-hidden="true" />
-                Expand
-              </Button>
-            </div>
+            <PaneHeader
+              title="Preview"
+              actions={
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setIsPopoutOpen(true)}
+                  disabled={!hasInput}
+                  className="gap-1"
+                  title="Expand to a full-size preview (Esc to close)"
+                >
+                  <FrameCornersIcon size={12} aria-hidden="true" />
+                  Expand
+                </Button>
+              }
+            />
             <div className="min-h-0 flex-1 bg-[var(--color-bg)]">
               {/* Deliberate palette exception below: the preview is a page
                   canvas, not app chrome, and user HTML assumes a white

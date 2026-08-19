@@ -17,6 +17,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
@@ -707,31 +708,29 @@ function EditorPane({
       aria-label={title}
       className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${className}`}
     >
-      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] px-3 py-1.5">
-        <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-          {title}
-        </span>
-        {fileName && (
-          <span className="max-w-[10rem] truncate text-2xs text-[var(--color-text-muted)]">
-            {fileName}
-          </span>
-        )}
-        {headerExtras ?? <span className="ml-auto" />}
-        <Button variant="ghost" size="xs" onClick={onFormat} disabled={!value.trim()}>
-          Format
-        </Button>
-        <CopyButton text={value} label={copyLabel} className="min-w-0" />
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={onSave}
-          disabled={!value.trim()}
-          aria-label={`Save ${title.toLowerCase()} to file`}
-          title="Save to a file (⌘S)"
-        >
-          <FloppyDiskIcon size={14} aria-hidden="true" />
-        </Button>
-      </div>
+      <PaneHeader
+        title={title}
+        hint={fileName ? <span className="max-w-[10rem] truncate">{fileName}</span> : undefined}
+        actions={
+          <>
+            {headerExtras}
+            <Button variant="ghost" size="xs" onClick={onFormat} disabled={!value.trim()}>
+              Format
+            </Button>
+            <CopyButton text={value} label={copyLabel} className="min-w-0" />
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onSave}
+              disabled={!value.trim()}
+              aria-label={`Save ${title.toLowerCase()} to file`}
+              title="Save to a file (⌘S)"
+            >
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+            </Button>
+          </>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={monacoTheme}
@@ -771,27 +770,28 @@ function ProblemsPanel({
       aria-label="Problems"
       className="flex max-h-52 min-h-0 shrink-0 flex-col border-t border-[var(--color-border)]"
     >
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-        <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-          Problems
-        </span>
-        <span className="text-2xs text-[var(--color-error)]">{total}</span>
-        {total > MAX_ISSUES && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            showing the first {MAX_ISSUES}
-          </span>
-        )}
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={listId}
-          className="ml-auto"
-        >
-          {open ? 'Hide' : 'Show'}
-        </Button>
-      </div>
+      <PaneHeader
+        title="Problems"
+        // `hint`, not `status`: the tool's own summary bar already announces the count, and a
+        // second live region saying the same number means a screen reader reads it twice.
+        hint={
+          <>
+            <span className="text-[var(--color-error)]">{total}</span>
+            {total > MAX_ISSUES && <> · showing the first {MAX_ISSUES}</>}
+          </>
+        }
+        actions={
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-controls={listId}
+          >
+            {open ? 'Hide' : 'Show'}
+          </Button>
+        }
+      />
       {open && (
         <ul id={listId} className="min-h-0 flex-1 overflow-auto py-1">
           {issues.map((issue, i) => (

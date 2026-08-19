@@ -23,6 +23,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -727,45 +728,47 @@ function InspectorPane({
       aria-label={view === 'tree' ? 'Tree view' : 'Table view'}
       className="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--color-border)] max-[900px]:max-h-[45%] max-[900px]:border-l-0 max-[900px]:border-t"
     >
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-        <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-          {view === 'tree' ? 'Tree' : 'Table'}
-        </span>
-        {view === 'tree' && parsed.status === 'valid' && (
+      <PaneHeader
+        title={view === 'tree' ? 'Tree' : 'Table'}
+        actions={
           <>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(true)}
-              className="gap-1"
-              title="Expand every node"
-            >
-              <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
-              Expand all
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(false)}
-              className="gap-1"
-              title="Collapse every node"
-            >
-              <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
-              Collapse all
-            </Button>
-            {expandAll === null && !autoExpanded && (
+            {view === 'tree' && parsed.status === 'valid' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setExpansion(true)}
+                  className="gap-1"
+                  title="Expand every node"
+                >
+                  <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
+                  Expand all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setExpansion(false)}
+                  className="gap-1"
+                  title="Collapse every node"
+                >
+                  <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
+                  Collapse all
+                </Button>
+                {expandAll === null && !autoExpanded && (
+                  <span className="text-2xs text-[var(--color-text-muted)]">
+                    Collapsed — {keyCount} keys
+                  </span>
+                )}
+              </>
+            )}
+            {view === 'table' && parsed.status === 'valid' && tabular && (
               <span className="text-2xs text-[var(--color-text-muted)]">
-                Collapsed — {keyCount} keys
+                {data.length} row{data.length === 1 ? '' : 's'}
               </span>
             )}
           </>
-        )}
-        {view === 'table' && parsed.status === 'valid' && tabular && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            {data.length} row{data.length === 1 ? '' : 's'}
-          </span>
-        )}
-      </div>
+        }
+      />
 
       <div className="min-h-0 flex-1 overflow-auto">
         {parsed.status === 'empty' && (

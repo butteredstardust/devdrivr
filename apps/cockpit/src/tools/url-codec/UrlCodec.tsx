@@ -2,6 +2,7 @@ import { useCallback, useMemo, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -194,9 +195,7 @@ export default function UrlCodec() {
       {/* Input / Output panels */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            Input ({state.mode === 'encode' ? 'Text' : 'Encoded'})
-          </div>
+          <PaneHeader title="Input" hint={state.mode === 'encode' ? 'Text' : 'Encoded'} />
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
@@ -207,12 +206,11 @@ export default function UrlCodec() {
           />
         </div>
         <div className="flex w-1/2 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="text-xs text-[var(--color-text-muted)]">
-              Output ({state.mode === 'encode' ? 'Encoded' : 'Text'})
-            </span>
-            <CopyButton text={output.text} />
-          </div>
+          <PaneHeader
+            title="Output"
+            hint={state.mode === 'encode' ? 'Encoded' : 'Text'}
+            actions={<CopyButton text={output.text} />}
+          />
           {output.error ? (
             <Alert variant="error" className="m-4">
               {output.error}

@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { sendToTool } from '@/lib/tool-handoff'
@@ -320,9 +321,7 @@ export default function CurlToFetch() {
       <div className="flex flex-1 overflow-hidden">
         {/* Input */}
         <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            cURL Command
-          </div>
+          <PaneHeader title="cURL Command" />
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}

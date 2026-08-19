@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
@@ -304,9 +305,7 @@ export default function RegexTester() {
           {/* Main panels */}
           <div className="flex flex-1 overflow-hidden">
             <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
-              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-                Test String
-              </div>
+              <PaneHeader title="Test String" />
               <TextArea
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}
@@ -317,20 +316,20 @@ export default function RegexTester() {
               />
             </div>
             <div className="flex w-1/2 flex-col">
-              <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
-                </span>
-                {mode === 'replace' && state.pattern && state.testString && !replaceError && (
-                  <div className="flex items-center gap-2">
-                    {diffStats && (
-                      <span className="font-mono text-2xs text-[var(--color-text-muted)]">
-                        <span className="text-[var(--color-success)]">+{diffStats.added}</span>
-                        {' / '}
-                        <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
-                        {' chars'}
-                      </span>
-                    )}
+              <PaneHeader
+                title={mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
+                status={
+                  diffStats && mode === 'replace' && state.pattern && !replaceError ? (
+                    <>
+                      <span className="text-[var(--color-success)]">+{diffStats.added}</span>
+                      {' / '}
+                      <span className="text-[var(--color-error)]">-{diffStats.removed}</span>
+                      {' chars'}
+                    </>
+                  ) : undefined
+                }
+                actions={
+                  mode === 'replace' && state.pattern && state.testString && !replaceError ? (
                     <Button
                       variant={showDiff ? 'secondary' : 'ghost'}
                       size="xs"
@@ -339,9 +338,9 @@ export default function RegexTester() {
                     >
                       Diff
                     </Button>
-                  </div>
-                )}
-              </div>
+                  ) : undefined
+                }
+              />
               {mode === 'replace' ? (
                 <div className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm">
                   {replaceError ? (

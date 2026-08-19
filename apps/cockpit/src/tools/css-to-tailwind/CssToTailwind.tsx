@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 
@@ -332,9 +333,7 @@ export default function CssToTailwind() {
     <ToolLayout fullBleed>
       <div className="flex flex-1 overflow-hidden">
         <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            CSS Input
-          </div>
+          <PaneHeader title="CSS Input" />
           <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
@@ -346,10 +345,10 @@ export default function CssToTailwind() {
           </div>
         </div>
         <div className="flex w-1/2 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="text-xs text-[var(--color-text-muted)]">Tailwind Output</span>
-            {classString && <CopyButton text={classString} />}
-          </div>
+          <PaneHeader
+            title="Tailwind Output"
+            actions={classString ? <CopyButton text={classString} /> : undefined}
+          />
           <div className="flex-1 overflow-auto p-4">
             {result ? (
               <div className="flex flex-col gap-4">

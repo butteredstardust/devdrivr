@@ -16,6 +16,7 @@ import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
@@ -559,17 +560,6 @@ function InspectorPane({
   )
 }
 
-function PaneHeader({ title, children }: { title: string; children?: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-      <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-        {title}
-      </span>
-      {children}
-    </div>
-  )
-}
-
 function TreePane({
   documents,
   keyCount,
@@ -593,29 +583,34 @@ function TreePane({
 
   return (
     <>
-      <PaneHeader title="Tree">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => setExpansion(true)}
-          title="Expand every node"
-        >
-          Expand all
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => setExpansion(false)}
-          title="Collapse every node"
-        >
-          Collapse all
-        </Button>
-        {expandAll === null && !autoExpanded && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            Collapsed — {keyCount} keys
-          </span>
-        )}
-      </PaneHeader>
+      <PaneHeader
+        title="Tree"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setExpansion(true)}
+              title="Expand every node"
+            >
+              Expand all
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setExpansion(false)}
+              title="Collapse every node"
+            >
+              Collapse all
+            </Button>
+            {expandAll === null && !autoExpanded && (
+              <span className="text-2xs text-[var(--color-text-muted)]">
+                Collapsed — {keyCount} keys
+              </span>
+            )}
+          </>
+        }
+      />
       <div
         className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs"
         // Remount when the default changes, otherwise editing a document across
@@ -685,31 +680,36 @@ function JsonPane({
 
   return (
     <>
-      <PaneHeader title="JSON">
-        <CopyButton text={value} label="Copy JSON" />
-        {draft !== null && (
+      <PaneHeader
+        title="JSON"
+        actions={
           <>
-            <Button
-              variant="primary"
-              size="xs"
-              onClick={() => {
-                onApply(draft)
-                onDraftChange(null)
-              }}
-              disabled={!canApply}
-              title="Replace the YAML document with this JSON"
-            >
-              Apply to YAML
-            </Button>
-            <Button variant="ghost" size="xs" onClick={() => onDraftChange(null)}>
-              Discard edits
-            </Button>
-            <span className="text-2xs text-[var(--color-text-muted)]">
-              {draftError ? `Invalid JSON — ${draftError}` : 'Edited — not applied'}
-            </span>
+            <CopyButton text={value} label="Copy JSON" />
+            {draft !== null && (
+              <>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  onClick={() => {
+                    onApply(draft)
+                    onDraftChange(null)
+                  }}
+                  disabled={!canApply}
+                  title="Replace the YAML document with this JSON"
+                >
+                  Apply to YAML
+                </Button>
+                <Button variant="ghost" size="xs" onClick={() => onDraftChange(null)}>
+                  Discard edits
+                </Button>
+                <span className="text-2xs text-[var(--color-text-muted)]">
+                  {draftError ? `Invalid JSON — ${draftError}` : 'Edited — not applied'}
+                </span>
+              </>
+            )}
           </>
-        )}
-      </PaneHeader>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={monacoTheme}

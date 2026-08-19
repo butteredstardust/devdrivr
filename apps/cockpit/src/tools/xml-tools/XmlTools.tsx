@@ -18,6 +18,7 @@ import { useWorker, type WorkerRpc } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Alert } from '@/components/shared/Alert'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/shared/Button'
@@ -550,17 +551,6 @@ function InspectorPane({
   )
 }
 
-function PaneHeader({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
-      <span className="font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-        {title}
-      </span>
-      {children}
-    </div>
-  )
-}
-
 function TreePane({
   input,
   worker,
@@ -614,33 +604,38 @@ function TreePane({
 
   return (
     <>
-      <PaneHeader title="Tree">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => setExpansion(true)}
-          className="gap-1"
-          title="Expand every node"
-        >
-          <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
-          Expand all
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => setExpansion(false)}
-          className="gap-1"
-          title="Collapse every node"
-        >
-          <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
-          Collapse all
-        </Button>
-        {expandAll === null && !autoExpanded && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            Collapsed — {elementCount} elements
-          </span>
-        )}
-      </PaneHeader>
+      <PaneHeader
+        title="Tree"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setExpansion(true)}
+              className="gap-1"
+              title="Expand every node"
+            >
+              <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
+              Expand all
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setExpansion(false)}
+              className="gap-1"
+              title="Collapse every node"
+            >
+              <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
+              Collapse all
+            </Button>
+            {expandAll === null && !autoExpanded && (
+              <span className="text-2xs text-[var(--color-text-muted)]">
+                Collapsed — {elementCount} elements
+              </span>
+            )}
+          </>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-auto p-3 font-mono">
         {tree ? (
           <TreeNodeRow key={treeKey} node={tree} defaultExpanded={expanded} onCopy={onCopy} />
@@ -826,7 +821,10 @@ function JsonPane({
 
   return (
     <>
-      <PaneHeader title="JSON">{json && <CopyButton text={json} label="Copy JSON" />}</PaneHeader>
+      <PaneHeader
+        title="JSON"
+        actions={json ? <CopyButton text={json} label="Copy JSON" /> : undefined}
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
         {failure ? (
           <EmptyState
@@ -904,11 +902,18 @@ function XPathPane({
 
   return (
     <>
-      <PaneHeader title="XPath">
-        <output className="text-2xs text-[var(--color-text-muted)]">
-          {queried && !failure ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : ''}
-        </output>
-      </PaneHeader>
+      <PaneHeader
+        title="XPath"
+        actions={
+          <>
+            <output className="text-2xs text-[var(--color-text-muted)]">
+              {queried && !failure
+                ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
+                : ''}
+            </output>
+          </>
+        }
+      />
       <div className="border-b border-[var(--color-border)] px-3 py-2">
         <Input
           aria-label="XPath expression"

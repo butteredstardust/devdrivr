@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
@@ -243,9 +244,7 @@ export default function CssSpecificity() {
       <div className="flex flex-1 overflow-hidden">
         {/* Input */}
         <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-text-muted)]">
-            Selectors (one per line)
-          </div>
+          <PaneHeader title="Selectors" hint="one per line" />
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
