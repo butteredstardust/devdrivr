@@ -23,6 +23,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
@@ -632,9 +633,7 @@ export default function HtmlValidator() {
               title="Reformat the markup (⌘↵)"
             >
               Format
-              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                ⌘↵
-              </span>
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
             <CopyButton text={input} label="Copy HTML" />
           </ToolbarGroup>

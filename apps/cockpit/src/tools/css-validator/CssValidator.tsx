@@ -21,6 +21,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
+import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -560,9 +561,7 @@ export default function CssValidator() {
               title="Reformat the stylesheet (⌘↵)"
             >
               Format
-              <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                ⌘↵
-              </span>
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
             <CopyButton text={input} label="Copy CSS" />
           </ToolbarGroup>

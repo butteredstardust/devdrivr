@@ -13,6 +13,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -309,9 +310,7 @@ export default function CodeFormatter() {
                 title="Format the code (⌘↵)"
               >
                 Format
-                <span className="ml-1 text-2xs opacity-70" aria-hidden="true">
-                  ⌘↵
-                </span>
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
               <Button
                 variant="secondary"

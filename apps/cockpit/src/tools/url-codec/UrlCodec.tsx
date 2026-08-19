@@ -2,6 +2,7 @@ import { useCallback, useMemo, useEffect } from 'react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
@@ -163,7 +164,7 @@ export default function UrlCodec() {
               <ArrowsLeftRightIcon size={12} aria-hidden="true" />
               Swap
             </Button>
-            <span className="text-2xs text-[var(--color-text-muted)]">⌘↵</span>
+            <Kbd keys="mod+enter" />
           </ToolbarGroup>
           <ToolbarGroup label="Encoding options" separated>
             <Select

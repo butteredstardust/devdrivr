@@ -37,4 +37,12 @@ describe('Kbd', () => {
     render(<Kbd keys="escape" />)
     expect(screen.getByText('Esc').tagName).toBe('KBD')
   })
+
+  it('drops the border and fill for the inline variant', () => {
+    // Inline hints live inside the button they describe; a box there reads as a nested button.
+    const { rerender } = render(<Kbd keys="escape" />)
+    expect(screen.getByText('Esc').className).toContain('border')
+    rerender(<Kbd keys="escape" variant="inline" />)
+    expect(screen.getByText('Esc').className).not.toContain('border')
+  })
 })
