@@ -384,7 +384,11 @@ describe('ApiClient', () => {
     const onSelect = vi.fn()
     useApiStore.setState({ requests: [request], requestHistory: [] })
 
-    render(<CollectionsSidebar activeRequestId={null} onSelect={onSelect} />)
+    render(
+      <CollectionsSidebar activeRequestId={null} onSelect={onSelect}>
+        <div />
+      </CollectionsSidebar>
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
 
     expect(onSelect).toHaveBeenCalledWith(request)
@@ -443,7 +447,9 @@ describe('ApiClient', () => {
     })
 
     render(
-      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} onLoadFromHistory={vi.fn()} />
+      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} onLoadFromHistory={vi.fn()}>
+        <div />
+      </CollectionsSidebar>
     )
     fireEvent.click(screen.getByText('History'))
 
@@ -519,7 +525,11 @@ describe('ApiClient', () => {
   it('confirms before deleting a saved request', () => {
     const deleteRequest = vi.fn().mockResolvedValue(undefined)
     useApiStore.setState({ requests: [savedRequest], deleteRequest })
-    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+    render(
+      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()}>
+        <div />
+      </CollectionsSidebar>
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Get User' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
@@ -536,7 +546,11 @@ describe('ApiClient', () => {
       requests: [{ ...savedRequest, collectionId: 'col-1' }],
       deleteCollection,
     })
-    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+    render(
+      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()}>
+        <div />
+      </CollectionsSidebar>
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete collection Accounts' }))
 
@@ -552,7 +566,11 @@ describe('ApiClient', () => {
         { ...savedRequest, id: 'req-2', name: 'Create order', method: 'POST', url: '/orders' },
       ],
     })
-    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+    render(
+      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()}>
+        <div />
+      </CollectionsSidebar>
+    )
 
     fireEvent.change(screen.getByLabelText('Search saved requests'), {
       target: { value: 'order' },
@@ -570,7 +588,11 @@ describe('ApiClient', () => {
     useApiStore.setState({
       requests: [savedRequest, { ...savedRequest, id: 'req-2', name: 'Create order' }],
     })
-    render(<CollectionsSidebar activeRequestId={null} onSelect={vi.fn()} />)
+    render(
+      <CollectionsSidebar activeRequestId={null} onSelect={vi.fn()}>
+        <div />
+      </CollectionsSidebar>
+    )
 
     const first = screen.getByRole('button', { name: 'Get User' })
     first.focus()

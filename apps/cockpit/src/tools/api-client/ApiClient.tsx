@@ -840,466 +840,459 @@ export default function ApiClient() {
   }, [state.libraryOpen, updateState])
 
   return (
-    <div
-      className={`grid h-full min-h-0 bg-[var(--color-bg)] ${
-        state.libraryOpen
-          ? 'grid-cols-[minmax(13rem,17rem)_minmax(0,1fr)] max-[900px]:grid-cols-[11.5rem_minmax(0,1fr)]'
-          : 'grid-cols-[minmax(0,1fr)]'
-      }`}
-    >
-      {state.libraryOpen && (
-        <CollectionsSidebar
-          activeRequestId={state.activeRequestId}
-          onSelect={handleSelectLoadedRequest}
-          onLoadFromHistory={handleLoadFromHistory}
-          onImport={() => setShowImportModal(true)}
-          onExport={() => void handleExport()}
-        />
-      )}
-
-      <ToolLayout
-        fullBleed
-        toolbar={
-          <>
-            {/* Request identity + save actions */}
-            <Toolbar aria-label="Request identity and save actions">
-              <Button
-                type="button"
-                variant="icon"
-                size="sm"
-                onClick={toggleLibrary}
-                aria-expanded={state.libraryOpen}
-                aria-label={state.libraryOpen ? 'Hide request library' : 'Show request library'}
-                title={state.libraryOpen ? 'Hide request library' : 'Show request library'}
-                className={
-                  state.libraryOpen
-                    ? 'text-[var(--color-accent)]'
-                    : 'text-[var(--color-text-muted)]'
-                }
-              >
-                <SidebarIcon size={16} aria-hidden="true" />
-              </Button>
-
-              <div className="min-w-0 flex-1 basis-40">
-                <InlineInput
-                  value={name}
-                  onChange={(e) => updateDraft({ name: e.target.value })}
-                  placeholder={DEFAULT_REQUEST_NAME}
-                  aria-label="Request name"
-                  className="w-full truncate"
-                />
-                <p
-                  className={`text-2xs ${
-                    dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
-                  }`}
-                  aria-live="polite"
-                >
-                  {statusLine}
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                variant="icon"
-                size="sm"
-                onClick={handleNewRequest}
-                title="New request"
-                aria-label="New request"
-              >
-                <FilePlusIcon size={16} aria-hidden="true" />
-              </Button>
-
-              <ToolbarGroup>
-                <Select
-                  value={activeEnvironmentId || ''}
-                  onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
-                  aria-label="Active environment"
-                  title="Active environment"
-                  className="max-w-36"
-                >
-                  <option value="">No Environment</option>
-                  {environments.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </Select>
+    <>
+      <CollectionsSidebar
+        activeRequestId={state.activeRequestId}
+        open={state.libraryOpen}
+        onSelect={handleSelectLoadedRequest}
+        onLoadFromHistory={handleLoadFromHistory}
+        onImport={() => setShowImportModal(true)}
+        onExport={() => void handleExport()}
+      >
+        <ToolLayout
+          fullBleed
+          toolbar={
+            <>
+              {/* Request identity + save actions */}
+              <Toolbar aria-label="Request identity and save actions">
                 <Button
                   type="button"
                   variant="icon"
                   size="sm"
-                  onClick={() => setShowEnvModal(true)}
-                  title="Manage environments"
-                  aria-label="Manage environments"
+                  onClick={toggleLibrary}
+                  aria-expanded={state.libraryOpen}
+                  aria-label={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                  title={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                  className={
+                    state.libraryOpen
+                      ? 'text-[var(--color-accent)]'
+                      : 'text-[var(--color-text-muted)]'
+                  }
                 >
-                  <GearSixIcon size={16} aria-hidden="true" />
+                  <SidebarIcon size={16} aria-hidden="true" />
                 </Button>
-              </ToolbarGroup>
 
-              <ToolbarGroup>
+                <div className="min-w-0 flex-1 basis-40">
+                  <InlineInput
+                    value={name}
+                    onChange={(e) => updateDraft({ name: e.target.value })}
+                    placeholder={DEFAULT_REQUEST_NAME}
+                    aria-label="Request name"
+                    className="w-full truncate"
+                  />
+                  <p
+                    className={`text-2xs ${
+                      dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
+                    }`}
+                    aria-live="polite"
+                  >
+                    {statusLine}
+                  </p>
+                </div>
+
                 <Button
                   type="button"
-                  variant={dirty ? 'primary' : 'secondary'}
+                  variant="icon"
                   size="sm"
-                  loading={saving}
-                  disabled={!dirty && !!state.activeRequestId}
-                  onClick={() => void handleSave()}
-                  title="Save request"
+                  onClick={handleNewRequest}
+                  title="New request"
+                  aria-label="New request"
                 >
-                  Save
+                  <FilePlusIcon size={16} aria-hidden="true" />
                 </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={handleSaveAs}>
-                  Save As
-                </Button>
-              </ToolbarGroup>
-            </Toolbar>
 
-            {/* URL bar */}
-            <Toolbar aria-label="Request URL and send">
-              <Select
-                value={method}
-                onChange={(e) => handleMethodChange(e.target.value)}
-                aria-label="HTTP method"
-                className={`font-mono font-bold ${httpMethodTextClass(method)}`}
-              >
-                {METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </Select>
-              <Input
-                value={url}
-                onChange={(e) => updateDraft({ url: e.target.value })}
-                placeholder="{{baseUrl}}/endpoint"
-                aria-label="Request URL"
-                size="md"
-                className="min-w-40 flex-1 basis-48 font-mono"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleSend()
-                }}
-              />
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => void handleSend()}
-                loading={loading}
-                className="gap-1.5"
-                title="Send request (⌘↵)"
-              >
-                <PaperPlaneTiltIcon size={14} aria-hidden="true" />
-                Send
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={toggleResponsePane}
-                aria-expanded={responseVisible}
-                aria-controls={responsePaneId}
-              >
-                {responseVisible ? 'Hide Response' : 'Show Response'}
-              </Button>
-            </Toolbar>
-          </>
-        }
-      >
-        <RequestResponseLayout>
-          {/* ── Request panel ─────────────────────────────────── */}
-          <section
-            aria-label="Request"
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-          >
-            <TabBar tabs={requestTabs} activeTab={requestTab} onTabChange={setRequestTab} />
-
-            {/* Params tab */}
-            {requestTab === 'params' && (
-              <div className="min-h-0 flex-1 overflow-auto p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
-                    Query Parameters
-                  </h3>
+                <ToolbarGroup>
+                  <Select
+                    value={activeEnvironmentId || ''}
+                    onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
+                    aria-label="Active environment"
+                    title="Active environment"
+                    className="max-w-36"
+                  >
+                    <option value="">No Environment</option>
+                    {environments.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                      </option>
+                    ))}
+                  </Select>
                   <Button
                     type="button"
-                    variant="secondary"
-                    size="xs"
-                    onClick={addParam}
-                    className="gap-1"
-                  >
-                    <PlusIcon size={12} aria-hidden="true" />
-                    Add
-                  </Button>
-                </div>
-                {params.length > 0 ? (
-                  <div className="flex flex-col gap-1">
-                    {params.map((p, i) => (
-                      <div key={i} className="flex items-center gap-1">
-                        <Input
-                          value={p.key}
-                          onChange={(e) => updateParam(i, { key: e.target.value })}
-                          placeholder="Key"
-                          aria-label={`Query parameter ${i + 1} name`}
-                          className="w-1/3 min-w-0 font-mono"
-                        />
-                        <Input
-                          value={p.value}
-                          onChange={(e) => updateParam(i, { value: e.target.value })}
-                          placeholder="Value"
-                          aria-label={`Query parameter ${i + 1} value`}
-                          className="min-w-0 flex-1 font-mono"
-                        />
-                        <Button
-                          type="button"
-                          variant="icon"
-                          size="xs"
-                          onClick={() => removeParam(i)}
-                          aria-label={`Remove query parameter ${p.key || i + 1}`}
-                          className="hover:text-[var(--color-error)]"
-                        >
-                          <XIcon size={14} aria-hidden />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={LinkIcon}
+                    variant="icon"
                     size="sm"
-                    title="No query parameters"
-                    description="Add them here, or type them straight into the URL."
-                  />
-                )}
-              </div>
-            )}
+                    onClick={() => setShowEnvModal(true)}
+                    title="Manage environments"
+                    aria-label="Manage environments"
+                  >
+                    <GearSixIcon size={16} aria-hidden="true" />
+                  </Button>
+                </ToolbarGroup>
 
-            {/* Headers tab */}
-            {requestTab === 'headers' && (
-              <div className="min-h-0 flex-1 overflow-auto p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
-                    Headers
-                    {activeHeaderCount > 0 && (
-                      <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
-                    )}
-                  </h3>
+                <ToolbarGroup>
                   <Button
                     type="button"
-                    variant="secondary"
-                    size="xs"
-                    onClick={addHeader}
-                    className="gap-1"
-                  >
-                    <PlusIcon size={12} aria-hidden="true" />
-                    Add
-                  </Button>
-                </div>
-                {headers.length > 0 ? (
-                  <div className="flex flex-col gap-1">
-                    {headers.map((h, i) => (
-                      <div key={i} className="flex items-center gap-1">
-                        <input
-                          type="checkbox"
-                          checked={h.enabled}
-                          onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
-                          aria-label={`Send header ${h.key || i + 1}`}
-                          className="accent-[var(--color-accent)]"
-                        />
-                        <Input
-                          value={h.key}
-                          onChange={(e) => updateHeader(i, { key: e.target.value })}
-                          placeholder="Header name"
-                          aria-label={`Header ${i + 1} name`}
-                          className="w-1/3 min-w-0 font-mono"
-                        />
-                        <Input
-                          value={h.value}
-                          onChange={(e) => updateHeader(i, { value: e.target.value })}
-                          placeholder="Value (or {{env_var}})"
-                          aria-label={`Header ${i + 1} value`}
-                          className="min-w-0 flex-1 font-mono"
-                        />
-                        <Button
-                          type="button"
-                          variant="icon"
-                          size="xs"
-                          onClick={() => removeHeader(i)}
-                          aria-label={`Remove header ${h.key || i + 1}`}
-                          className="hover:text-[var(--color-error)]"
-                        >
-                          <XIcon size={14} aria-hidden />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={ListBulletsIcon}
+                    variant={dirty ? 'primary' : 'secondary'}
                     size="sm"
-                    title="No headers"
-                    description="Add Accept, Authorization, or any custom header."
-                  />
-                )}
-              </div>
-            )}
+                    loading={saving}
+                    disabled={!dirty && !!state.activeRequestId}
+                    onClick={() => void handleSave()}
+                    title="Save request"
+                  >
+                    Save
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={handleSaveAs}>
+                    Save As
+                  </Button>
+                </ToolbarGroup>
+              </Toolbar>
 
-            {/* Auth tab */}
-            {requestTab === 'auth' && (
-              <AuthTab auth={auth} onChange={(a) => updateDraft({ auth: a })} />
-            )}
-
-            {/* Body tab */}
-            {requestTab === 'body' && (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <Toolbar className="gap-1" aria-label="Request body format">
-                  {BODY_MODES.map((mode) => (
-                    <Button
-                      key={mode.id}
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      aria-pressed={bodyMode === mode.id}
-                      onClick={() => updateDraft({ bodyMode: mode.id })}
-                      className={
-                        bodyMode === mode.id
-                          ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
-                          : ''
-                      }
-                    >
-                      {mode.label}
-                    </Button>
+              {/* URL bar */}
+              <Toolbar aria-label="Request URL and send">
+                <Select
+                  value={method}
+                  onChange={(e) => handleMethodChange(e.target.value)}
+                  aria-label="HTTP method"
+                  className={`font-mono font-bold ${httpMethodTextClass(method)}`}
+                >
+                  {METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
                   ))}
-                  {!BODY_METHODS.has(method) && (
-                    <span className="ml-2 text-2xs text-[var(--color-text-muted)]">
-                      Body not available for {method}
-                    </span>
-                  )}
-                </Toolbar>
-                {showBody ? (
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <Editor
-                      theme={monacoTheme}
-                      language={bodyEditorLang}
-                      value={body}
-                      onChange={(v) => updateDraft({ body: v ?? '' })}
-                      options={monacoOptions}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex min-h-0 flex-1 items-center justify-center">
-                    <EmptyState
-                      icon={CodeIcon}
-                      size="sm"
-                      title={bodyMode === 'none' ? 'Body is disabled' : `No body for ${method}`}
-                      description={
-                        bodyMode === 'none'
-                          ? 'Pick JSON or Text above to send a request body.'
-                          : `${method} requests do not include a body.`
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* ── Response panel ────────────────────────────────── */}
-          {responseVisible && (
+                </Select>
+                <Input
+                  value={url}
+                  onChange={(e) => updateDraft({ url: e.target.value })}
+                  placeholder="{{baseUrl}}/endpoint"
+                  aria-label="Request URL"
+                  size="md"
+                  className="min-w-40 flex-1 basis-48 font-mono"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSend()
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void handleSend()}
+                  loading={loading}
+                  className="gap-1.5"
+                  title="Send request (⌘↵)"
+                >
+                  <PaperPlaneTiltIcon size={14} aria-hidden="true" />
+                  Send
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleResponsePane}
+                  aria-expanded={responseVisible}
+                  aria-controls={responsePaneId}
+                >
+                  {responseVisible ? 'Hide Response' : 'Show Response'}
+                </Button>
+              </Toolbar>
+            </>
+          }
+        >
+          <RequestResponseLayout>
+            {/* ── Request panel ─────────────────────────────────── */}
             <section
-              id={responsePaneId}
-              aria-label="Response"
+              aria-label="Request"
               className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
             >
-              {error && (
-                <Alert
-                  variant="error"
-                  className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-                >
-                  {error}
-                </Alert>
-              )}
-              {response && (
-                <>
-                  <Toolbar aria-label="Response summary and actions">
-                    <StatusBadge
-                      variant={response.status < 400 ? 'success' : 'error'}
-                      className="font-mono"
+              <TabBar tabs={requestTabs} activeTab={requestTab} onTabChange={setRequestTab} />
+
+              {/* Params tab */}
+              {requestTab === 'params' && (
+                <div className="min-h-0 flex-1 overflow-auto p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                      Query Parameters
+                    </h3>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="xs"
+                      onClick={addParam}
+                      className="gap-1"
                     >
-                      {response.status} {response.statusText}
-                    </StatusBadge>
-                    <span className="text-2xs text-[var(--color-text-muted)]">
-                      {response.time}ms
-                    </span>
-                    <span className="text-2xs text-[var(--color-text-muted)]">
-                      {formatBytes(response.size)}
-                    </span>
-                    <ToolbarSpacer />
-                    <ToolbarGroup>
-                      <CopyButton text={prettyBody} />
-                      <Button
-                        type="button"
-                        variant="icon"
-                        size="xs"
-                        onClick={() => void handleSaveResponse()}
-                        title="Save response to a file (⌘S)"
-                        aria-label="Save response to a file"
-                      >
-                        <DownloadSimpleIcon size={14} aria-hidden="true" />
-                      </Button>
-                    </ToolbarGroup>
-                  </Toolbar>
-                  <TabBar
-                    tabs={RESPONSE_TABS}
-                    activeTab={responseTab}
-                    onTabChange={setResponseTab}
-                  />
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    {responseTab === 'body' ? (
-                      <Editor
-                        theme={monacoTheme}
-                        language={responseLanguage}
-                        value={prettyBody}
-                        onMount={handleResponseEditorMount}
-                        options={{ ...monacoOptions, readOnly: true }}
-                      />
-                    ) : (
-                      <div className="h-full overflow-auto p-3">
-                        {Object.entries(response.headers).map(([key, value]) => (
-                          <div key={key} className="mb-1 flex items-start gap-1 text-xs">
-                            <span className="shrink-0 font-bold text-[var(--color-accent)]">
-                              {key}
-                            </span>
-                            <span className="text-[var(--color-text-muted)]">: </span>
-                            <span className="break-all text-[var(--color-text)]">{value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      <PlusIcon size={12} aria-hidden="true" />
+                      Add
+                    </Button>
                   </div>
-                </>
-              )}
-              {!response && !error && !loading && (
-                <div className="flex min-h-0 flex-1 items-center justify-center">
-                  <EmptyState
-                    icon={PaperPlaneTiltIcon}
-                    title="Send a request to see the response"
-                    description="⌘↵ sends the current request."
-                  />
+                  {params.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      {params.map((p, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <Input
+                            value={p.key}
+                            onChange={(e) => updateParam(i, { key: e.target.value })}
+                            placeholder="Key"
+                            aria-label={`Query parameter ${i + 1} name`}
+                            className="w-1/3 min-w-0 font-mono"
+                          />
+                          <Input
+                            value={p.value}
+                            onChange={(e) => updateParam(i, { value: e.target.value })}
+                            placeholder="Value"
+                            aria-label={`Query parameter ${i + 1} value`}
+                            className="min-w-0 flex-1 font-mono"
+                          />
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
+                            onClick={() => removeParam(i)}
+                            aria-label={`Remove query parameter ${p.key || i + 1}`}
+                            className="hover:text-[var(--color-error)]"
+                          >
+                            <XIcon size={14} aria-hidden />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon={LinkIcon}
+                      size="sm"
+                      title="No query parameters"
+                      description="Add them here, or type them straight into the URL."
+                    />
+                  )}
                 </div>
               )}
-              {loading && (
-                <div
-                  className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-sm text-[var(--color-text-muted)]"
-                  role="status"
-                >
-                  <Spinner size="md" label="Sending request" />
-                  Sending request…
+
+              {/* Headers tab */}
+              {requestTab === 'headers' && (
+                <div className="min-h-0 flex-1 overflow-auto p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                      Headers
+                      {activeHeaderCount > 0 && (
+                        <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
+                      )}
+                    </h3>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="xs"
+                      onClick={addHeader}
+                      className="gap-1"
+                    >
+                      <PlusIcon size={12} aria-hidden="true" />
+                      Add
+                    </Button>
+                  </div>
+                  {headers.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      {headers.map((h, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={h.enabled}
+                            onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
+                            aria-label={`Send header ${h.key || i + 1}`}
+                            className="accent-[var(--color-accent)]"
+                          />
+                          <Input
+                            value={h.key}
+                            onChange={(e) => updateHeader(i, { key: e.target.value })}
+                            placeholder="Header name"
+                            aria-label={`Header ${i + 1} name`}
+                            className="w-1/3 min-w-0 font-mono"
+                          />
+                          <Input
+                            value={h.value}
+                            onChange={(e) => updateHeader(i, { value: e.target.value })}
+                            placeholder="Value (or {{env_var}})"
+                            aria-label={`Header ${i + 1} value`}
+                            className="min-w-0 flex-1 font-mono"
+                          />
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
+                            onClick={() => removeHeader(i)}
+                            aria-label={`Remove header ${h.key || i + 1}`}
+                            className="hover:text-[var(--color-error)]"
+                          >
+                            <XIcon size={14} aria-hidden />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon={ListBulletsIcon}
+                      size="sm"
+                      title="No headers"
+                      description="Add Accept, Authorization, or any custom header."
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Auth tab */}
+              {requestTab === 'auth' && (
+                <AuthTab auth={auth} onChange={(a) => updateDraft({ auth: a })} />
+              )}
+
+              {/* Body tab */}
+              {requestTab === 'body' && (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <Toolbar className="gap-1" aria-label="Request body format">
+                    {BODY_MODES.map((mode) => (
+                      <Button
+                        key={mode.id}
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        aria-pressed={bodyMode === mode.id}
+                        onClick={() => updateDraft({ bodyMode: mode.id })}
+                        className={
+                          bodyMode === mode.id
+                            ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
+                            : ''
+                        }
+                      >
+                        {mode.label}
+                      </Button>
+                    ))}
+                    {!BODY_METHODS.has(method) && (
+                      <span className="ml-2 text-2xs text-[var(--color-text-muted)]">
+                        Body not available for {method}
+                      </span>
+                    )}
+                  </Toolbar>
+                  {showBody ? (
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <Editor
+                        theme={monacoTheme}
+                        language={bodyEditorLang}
+                        value={body}
+                        onChange={(v) => updateDraft({ body: v ?? '' })}
+                        options={monacoOptions}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 items-center justify-center">
+                      <EmptyState
+                        icon={CodeIcon}
+                        size="sm"
+                        title={bodyMode === 'none' ? 'Body is disabled' : `No body for ${method}`}
+                        description={
+                          bodyMode === 'none'
+                            ? 'Pick JSON or Text above to send a request body.'
+                            : `${method} requests do not include a body.`
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </section>
-          )}
-        </RequestResponseLayout>
-      </ToolLayout>
+
+            {/* ── Response panel ────────────────────────────────── */}
+            {responseVisible && (
+              <section
+                id={responsePaneId}
+                aria-label="Response"
+                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              >
+                {error && (
+                  <Alert
+                    variant="error"
+                    className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+                  >
+                    {error}
+                  </Alert>
+                )}
+                {response && (
+                  <>
+                    <Toolbar aria-label="Response summary and actions">
+                      <StatusBadge
+                        variant={response.status < 400 ? 'success' : 'error'}
+                        className="font-mono"
+                      >
+                        {response.status} {response.statusText}
+                      </StatusBadge>
+                      <span className="text-2xs text-[var(--color-text-muted)]">
+                        {response.time}ms
+                      </span>
+                      <span className="text-2xs text-[var(--color-text-muted)]">
+                        {formatBytes(response.size)}
+                      </span>
+                      <ToolbarSpacer />
+                      <ToolbarGroup>
+                        <CopyButton text={prettyBody} />
+                        <Button
+                          type="button"
+                          variant="icon"
+                          size="xs"
+                          onClick={() => void handleSaveResponse()}
+                          title="Save response to a file (⌘S)"
+                          aria-label="Save response to a file"
+                        >
+                          <DownloadSimpleIcon size={14} aria-hidden="true" />
+                        </Button>
+                      </ToolbarGroup>
+                    </Toolbar>
+                    <TabBar
+                      tabs={RESPONSE_TABS}
+                      activeTab={responseTab}
+                      onTabChange={setResponseTab}
+                    />
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      {responseTab === 'body' ? (
+                        <Editor
+                          theme={monacoTheme}
+                          language={responseLanguage}
+                          value={prettyBody}
+                          onMount={handleResponseEditorMount}
+                          options={{ ...monacoOptions, readOnly: true }}
+                        />
+                      ) : (
+                        <div className="h-full overflow-auto p-3">
+                          {Object.entries(response.headers).map(([key, value]) => (
+                            <div key={key} className="mb-1 flex items-start gap-1 text-xs">
+                              <span className="shrink-0 font-bold text-[var(--color-accent)]">
+                                {key}
+                              </span>
+                              <span className="text-[var(--color-text-muted)]">: </span>
+                              <span className="break-all text-[var(--color-text)]">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {!response && !error && !loading && (
+                  <div className="flex min-h-0 flex-1 items-center justify-center">
+                    <EmptyState
+                      icon={PaperPlaneTiltIcon}
+                      title="Send a request to see the response"
+                      description="⌘↵ sends the current request."
+                    />
+                  </div>
+                )}
+                {loading && (
+                  <div
+                    className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-sm text-[var(--color-text-muted)]"
+                    role="status"
+                  >
+                    <Spinner size="md" label="Sending request" />
+                    Sending request…
+                  </div>
+                )}
+              </section>
+            )}
+          </RequestResponseLayout>
+        </ToolLayout>
+      </CollectionsSidebar>
 
       {showEnvModal && <EnvironmentModal onClose={() => setShowEnvModal(false)} />}
       {showSaveModal && (
@@ -1341,6 +1334,6 @@ export default function ApiClient() {
         actions={responseSelectionActions}
         onDismiss={responseSelectionToolbar.clearSelection}
       />
-    </div>
+    </>
   )
 }

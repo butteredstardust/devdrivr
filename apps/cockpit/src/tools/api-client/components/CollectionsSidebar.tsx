@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiRequest } from '@/types/models'
 import {
@@ -21,6 +30,7 @@ import { Input } from '@/components/shared/Input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 
 type Props = {
   activeRequestId: string | null
@@ -28,6 +38,11 @@ type Props = {
   onLoadFromHistory?: (method: string, url: string) => void
   onImport?: () => void
   onExport?: () => void
+  /** Collapsed state. ApiClient's own toolbar owns the toggle, so no toggle is rendered here. */
+  open?: boolean
+  /** The request/response side. This component renders the shared master–detail shell because
+   *  the sidebar heading's one action (new collection) needs sidebar-local state to work. */
+  children: ReactNode
 }
 
 /** `root` lists the actions; `move` swaps the same popup over to collection targets. */
@@ -61,6 +76,8 @@ export function CollectionsSidebar({
   onLoadFromHistory,
   onImport,
   onExport,
+  open = true,
+  children,
 }: Props) {
   const requestRowsId = useId()
   const collections = useApiStore((s) => s.collections)
@@ -262,273 +279,283 @@ export function CollectionsSidebar({
   const totalMatches = grouped.reduce((sum, g) => sum + g.reqs.length, 0) + unassigned.length
 
   return (
-    <aside
-      className="flex h-full min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]"
-      aria-label="Request library"
-    >
-      <header className="flex min-h-14 items-center gap-2 border-b border-[var(--color-border)] px-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="font-ui text-sm font-semibold text-[var(--color-text)]">Requests</h2>
-          <p className="text-2xs text-[var(--color-text-muted)]">
-            {requests.length} saved · {collections.length} collections
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="icon"
-          size="sm"
-          onClick={() => void handleCreateCollection()}
-          title="New collection"
-          aria-label="New collection"
-        >
-          <FolderPlusIcon size={16} aria-hidden="true" />
-        </Button>
-      </header>
+    <>
+      <MasterDetailLayout
+        title="Requests"
+        subtitle={`${requests.length} saved · ${collections.length} collections`}
+        sidebarOpen={open}
+        sidebarActions={
+          <Button
+            type="button"
+            variant="icon"
+            size="sm"
+            onClick={() => void handleCreateCollection()}
+            title="New collection"
+            aria-label="New collection"
+          >
+            <FolderPlusIcon size={16} aria-hidden="true" />
+          </Button>
+        }
+        sidebar={
+          <>
+            <div className="border-b border-[var(--color-border)] p-2">
+              <SearchInput
+                value={search}
+                onValueChange={setSearch}
+                placeholder="Search requests"
+                aria-label="Search saved requests"
+                clearLabel="Clear request search"
+              />
+              {needle && (
+                <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+                  {totalMatches} matching {totalMatches === 1 ? 'request' : 'requests'}
+                </p>
+              )}
+            </div>
 
-      <div className="border-b border-[var(--color-border)] p-2">
-        <SearchInput
-          value={search}
-          onValueChange={setSearch}
-          placeholder="Search requests"
-          aria-label="Search saved requests"
-          clearLabel="Clear request search"
-        />
-        {needle && (
-          <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]" aria-live="polite">
-            {totalMatches} matching {totalMatches === 1 ? 'request' : 'requests'}
-          </p>
-        )}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {grouped.map(({ col, reqs, total }) => {
-          const isExpanded = !!needle || !collapsedCols.has(col.id)
-          const isRenaming = editingColId === col.id
-          return (
-            <div key={col.id} className="mb-2">
-              <div className="group flex items-center gap-1 rounded px-1 hover:bg-[var(--color-surface-hover)]">
-                {isRenaming ? (
-                  <Input
-                    ref={renameInputRef}
-                    value={editingColName}
-                    onChange={(e) => setEditingColName(e.target.value)}
-                    onBlur={() => void commitRename(col)}
-                    aria-label={`Rename collection ${col.name}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void commitRename(col)
-                      if (e.key === 'Escape') setEditingColId(null)
-                    }}
-                    // Boxed rather than inline: the border is what tells you the
-                    // row has flipped into edit mode. The accent colour comes from
-                    // Input's own `focus:` border — the field is autofocused on entering
-                    // rename mode and commits on blur, so it is focused for its whole
-                    // life. Restating the accent as a plain class here would do nothing:
-                    // it ties with Input's resting border on specificity and loses on
-                    // stylesheet order.
-                    className="my-1 min-w-0 flex-1 font-bold"
-                  />
-                ) : (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => toggleCol(col.id)}
-                      aria-expanded={isExpanded}
-                      className="min-w-0 flex-1 justify-start gap-1.5 py-1.5 text-left"
-                    >
-                      {isExpanded ? (
-                        <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {grouped.map(({ col, reqs, total }) => {
+                const isExpanded = !!needle || !collapsedCols.has(col.id)
+                const isRenaming = editingColId === col.id
+                return (
+                  <div key={col.id} className="mb-2">
+                    <div className="group flex items-center gap-1 rounded px-1 hover:bg-[var(--color-surface-hover)]">
+                      {isRenaming ? (
+                        <Input
+                          ref={renameInputRef}
+                          value={editingColName}
+                          onChange={(e) => setEditingColName(e.target.value)}
+                          onBlur={() => void commitRename(col)}
+                          aria-label={`Rename collection ${col.name}`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void commitRename(col)
+                            if (e.key === 'Escape') setEditingColId(null)
+                          }}
+                          // Boxed rather than inline: the border is what tells you the
+                          // row has flipped into edit mode. The accent colour comes from
+                          // Input's own `focus:` border — the field is autofocused on entering
+                          // rename mode and commits on blur, so it is focused for its whole
+                          // life. Restating the accent as a plain class here would do nothing:
+                          // it ties with Input's resting border on specificity and loses on
+                          // stylesheet order.
+                          className="my-1 min-w-0 flex-1 font-bold"
+                        />
                       ) : (
-                        <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => toggleCol(col.id)}
+                            aria-expanded={isExpanded}
+                            className="min-w-0 flex-1 justify-start gap-1.5 py-1.5 text-left"
+                          >
+                            {isExpanded ? (
+                              <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
+                            ) : (
+                              <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-xs font-bold text-[var(--color-text)]">
+                              {col.name}
+                            </span>
+                            <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+                              {total}
+                            </span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
+                            onClick={() => startRename(col)}
+                            title={`Rename ${col.name}`}
+                            aria-label={`Rename collection ${col.name}`}
+                            className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <PencilSimpleIcon size={12} aria-hidden="true" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
+                            onClick={() => setPendingCollectionDelete(col)}
+                            title={`Delete ${col.name}`}
+                            aria-label={`Delete collection ${col.name}`}
+                            className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <XIcon size={12} aria-hidden="true" />
+                          </Button>
+                        </>
                       )}
-                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-[var(--color-text)]">
-                        {col.name}
-                      </span>
-                      <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                        {total}
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="xs"
-                      onClick={() => startRename(col)}
-                      title={`Rename ${col.name}`}
-                      aria-label={`Rename collection ${col.name}`}
-                      className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      <PencilSimpleIcon size={12} aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="xs"
-                      onClick={() => setPendingCollectionDelete(col)}
-                      title={`Delete ${col.name}`}
-                      aria-label={`Delete collection ${col.name}`}
-                      className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      <XIcon size={12} aria-hidden="true" />
-                    </Button>
-                  </>
-                )}
-              </div>
+                    </div>
 
-              {isExpanded && (
-                <div className="ml-3 mt-1 flex flex-col gap-0.5 border-l border-[var(--color-border)] pl-1">
-                  {reqs.map((req) => (
-                    <RequestRow
-                      key={req.id}
-                      req={req}
-                      rowId={`${requestRowsId}-request-${req.id}`}
-                      isActive={req.id === activeRequestId}
-                      tabIndex={
-                        visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1
-                      }
-                      onSelect={() => onSelect(req)}
-                      onOpenMenu={openMenu}
-                      onKeyDown={handleRowKeyDown}
-                    />
-                  ))}
-                  {reqs.length === 0 && (
-                    <p className="px-2 py-1 text-2xs italic text-[var(--color-text-muted)]">
-                      Empty collection
-                    </p>
+                    {isExpanded && (
+                      <div className="ml-3 mt-1 flex flex-col gap-0.5 border-l border-[var(--color-border)] pl-1">
+                        {reqs.map((req) => (
+                          <RequestRow
+                            key={req.id}
+                            req={req}
+                            rowId={`${requestRowsId}-request-${req.id}`}
+                            isActive={req.id === activeRequestId}
+                            tabIndex={
+                              visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1
+                            }
+                            onSelect={() => onSelect(req)}
+                            onOpenMenu={openMenu}
+                            onKeyDown={handleRowKeyDown}
+                          />
+                        ))}
+                        {reqs.length === 0 && (
+                          <p className="px-2 py-1 text-2xs italic text-[var(--color-text-muted)]">
+                            Empty collection
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {unassigned.length > 0 && (
+                <div className="mt-3">
+                  <SectionLabel as="h3" className="mb-1 px-2">
+                    Unassigned
+                  </SectionLabel>
+                  <div className="flex flex-col gap-0.5">
+                    {unassigned.map((req) => (
+                      <RequestRow
+                        key={req.id}
+                        req={req}
+                        rowId={`${requestRowsId}-request-${req.id}`}
+                        isActive={req.id === activeRequestId}
+                        tabIndex={
+                          visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1
+                        }
+                        onSelect={() => onSelect(req)}
+                        onOpenMenu={openMenu}
+                        onKeyDown={handleRowKeyDown}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {requests.length === 0 && (
+                <EmptyState
+                  icon={TrayIcon}
+                  size="sm"
+                  title="No saved requests"
+                  description="Send a request, then Save it to build up a collection."
+                />
+              )}
+
+              {requests.length > 0 && totalMatches === 0 && (
+                <EmptyState
+                  icon={MagnifyingGlassIcon}
+                  size="sm"
+                  title="No matches"
+                  description="Try a different search term."
+                  action={
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setSearch('')}
+                    >
+                      Clear search
+                    </Button>
+                  }
+                />
+              )}
+
+              {requestHistory.length > 0 && (
+                <div className="mt-4 border-t border-[var(--color-border)] pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-expanded={expandedHistory}
+                    className="w-full justify-start gap-1.5 px-2 text-2xs font-bold uppercase tracking-wider"
+                    onClick={() => setExpandedHistory((v) => !v)}
+                  >
+                    {expandedHistory ? (
+                      <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
+                    ) : (
+                      <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
+                    )}
+                    <ClockCounterClockwiseIcon size={12} aria-hidden="true" />
+                    <span>History</span>
+                    <span className="ml-auto normal-case">{requestHistory.length}</span>
+                  </Button>
+                  {expandedHistory && (
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {requestHistory.map((entry) => {
+                        const [method, ...urlParts] = entry.input.split(' ')
+                        const histUrl = urlParts.join(' ')
+                        return (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            key={entry.id}
+                            className="w-full justify-start gap-1.5 text-left hover:bg-[var(--color-surface-hover)]"
+                            title={`${entry.input}\n${entry.output}\nClick to restore`}
+                            aria-label={`Restore ${entry.input}`}
+                            onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
+                          >
+                            <span
+                              className={`shrink-0 text-2xs font-bold ${httpMethodTextClass(method ?? 'GET')}`}
+                            >
+                              {method}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[var(--color-text)]">
+                              {histUrl}
+                            </span>
+                            <span className="shrink-0 text-[var(--color-text-muted)]">
+                              {entry.output.split('·')[1]?.trim() ?? ''}
+                            </span>
+                          </Button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               )}
             </div>
-          )
-        })}
 
-        {unassigned.length > 0 && (
-          <div className="mt-3">
-            <SectionLabel as="h3" className="mb-1 px-2">
-              Unassigned
-            </SectionLabel>
-            <div className="flex flex-col gap-0.5">
-              {unassigned.map((req) => (
-                <RequestRow
-                  key={req.id}
-                  req={req}
-                  rowId={`${requestRowsId}-request-${req.id}`}
-                  isActive={req.id === activeRequestId}
-                  tabIndex={visibleRequestIds[0] === req.id || req.id === activeRequestId ? 0 : -1}
-                  onSelect={() => onSelect(req)}
-                  onOpenMenu={openMenu}
-                  onKeyDown={handleRowKeyDown}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {requests.length === 0 && (
-          <EmptyState
-            icon={TrayIcon}
-            size="sm"
-            title="No saved requests"
-            description="Send a request, then Save it to build up a collection."
-          />
-        )}
-
-        {requests.length > 0 && totalMatches === 0 && (
-          <EmptyState
-            icon={MagnifyingGlassIcon}
-            size="sm"
-            title="No matches"
-            description="Try a different search term."
-            action={
-              <Button type="button" variant="secondary" size="sm" onClick={() => setSearch('')}>
-                Clear search
-              </Button>
-            }
-          />
-        )}
-
-        {requestHistory.length > 0 && (
-          <div className="mt-4 border-t border-[var(--color-border)] pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-expanded={expandedHistory}
-              className="w-full justify-start gap-1.5 px-2 text-2xs font-bold uppercase tracking-wider"
-              onClick={() => setExpandedHistory((v) => !v)}
-            >
-              {expandedHistory ? (
-                <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
-              ) : (
-                <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
-              )}
-              <ClockCounterClockwiseIcon size={12} aria-hidden="true" />
-              <span>History</span>
-              <span className="ml-auto normal-case">{requestHistory.length}</span>
-            </Button>
-            {expandedHistory && (
-              <div className="mt-1 flex flex-col gap-0.5">
-                {requestHistory.map((entry) => {
-                  const [method, ...urlParts] = entry.input.split(' ')
-                  const histUrl = urlParts.join(' ')
-                  return (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      key={entry.id}
-                      className="w-full justify-start gap-1.5 text-left hover:bg-[var(--color-surface-hover)]"
-                      title={`${entry.input}\n${entry.output}\nClick to restore`}
-                      aria-label={`Restore ${entry.input}`}
-                      onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
-                    >
-                      <span
-                        className={`shrink-0 text-2xs font-bold ${httpMethodTextClass(method ?? 'GET')}`}
-                      >
-                        {method}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[var(--color-text)]">
-                        {histUrl}
-                      </span>
-                      <span className="shrink-0 text-[var(--color-text-muted)]">
-                        {entry.output.split('·')[1]?.trim() ?? ''}
-                      </span>
-                    </Button>
-                  )
-                })}
+            <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] px-2 py-1.5">
+              <span className="text-2xs text-[var(--color-text-muted)]">Library</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={onImport}
+                  title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
+                  aria-label="Import requests"
+                >
+                  <UploadSimpleIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={onExport}
+                  title="Copy all saved requests to the clipboard as JSON"
+                  aria-label="Export requests"
+                  disabled={requests.length === 0}
+                >
+                  <DownloadSimpleIcon size={14} aria-hidden="true" />
+                </Button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          </>
+        }
+      >
+        {children}
+      </MasterDetailLayout>
 
-      <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] px-2 py-1.5">
-        <span className="text-2xs text-[var(--color-text-muted)]">Library</span>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="icon"
-            size="xs"
-            onClick={onImport}
-            title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
-            aria-label="Import requests"
-          >
-            <UploadSimpleIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="icon"
-            size="xs"
-            onClick={onExport}
-            title="Copy all saved requests to the clipboard as JSON"
-            aria-label="Export requests"
-            disabled={requests.length === 0}
-          >
-            <DownloadSimpleIcon size={14} aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
-
+      {/* Overlays sit outside the layout: the sidebar collapses to `w-0 overflow-hidden`, which
+          would clip a `position: fixed` menu rendered inside it. */}
       {menu && menuRequest && (
         <div
           ref={menuRef}
@@ -632,7 +659,7 @@ export function CollectionsSidebar({
           })()}
         </ConfirmDialog>
       )}
-    </aside>
+    </>
   )
 }
 

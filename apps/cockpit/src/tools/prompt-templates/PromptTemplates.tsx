@@ -64,6 +64,7 @@ import type {
 } from '@/tools/prompt-templates/types'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -999,17 +1000,11 @@ export default function PromptTemplates() {
   ])
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)] bg-[var(--color-bg)] max-[1000px]:grid-cols-[13rem_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-        <header className="flex min-h-14 items-center gap-3 border-b border-[var(--color-border)] px-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="font-ui text-sm font-semibold text-[var(--color-text)]">
-              Prompt Templates
-            </h1>
-            <p className="text-2xs text-[var(--color-text-muted)]">
-              {allTemplates.length} templates · {userTemplates.length} custom
-            </p>
-          </div>
+    <>
+      <MasterDetailLayout
+        title="Prompt Templates"
+        subtitle={`${allTemplates.length} templates · ${userTemplates.length} custom`}
+        sidebarActions={
           <Button
             type="button"
             variant="primary"
@@ -1019,249 +1014,258 @@ export default function PromptTemplates() {
           >
             <PlusIcon size={12} aria-hidden="true" /> New
           </Button>
-        </header>
-
-        <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-          <SearchInput
-            ref={searchRef}
-            value={state.search}
-            onValueChange={(search) => updateState({ search })}
-            placeholder="Search templates"
-            aria-label="Search prompt templates"
-            clearLabel="Clear template search"
-          />
-          <Select
-            value={state.category}
-            onChange={(event) => updateState({ category: event.target.value as CategoryFilter })}
-            aria-label="Filter templates by category"
-            className="w-full"
-          >
-            {FILTERS.map((filter) => (
-              <option key={filter.id} value={filter.id}>
-                {filter.label} ({categoryCount(filter.id, allTemplates)})
-              </option>
-            ))}
-          </Select>
-        </div>
-
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-          <span>
-            {filteredTemplates.length === allTemplates.length
-              ? 'Library'
-              : `${filteredTemplates.length} results`}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => void handleImport()}
-              title="Import templates from JSON"
-              aria-label="Import templates from JSON"
-            >
-              <UploadSimpleIcon size={12} aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={() => void handleExport()}
-              title="Export custom templates as JSON"
-              aria-label="Export custom templates as JSON"
-              disabled={userTemplates.length === 0}
-            >
-              <DownloadSimpleIcon size={12} aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto" role="listbox" aria-label="Prompt templates">
-          {filteredTemplates.map((template, index) => {
-            const selected = template.id === selectedTemplate.id
-            return (
-              <Button
-                key={template.id}
-                id={`${templateOptionsId}-option-${template.id}`}
-                type="button"
-                variant="ghost"
-                size="xs"
-                role="option"
-                aria-selected={selected}
-                tabIndex={
-                  selected ||
-                  (!filteredTemplates.some((item) => item.id === selectedTemplate.id) &&
-                    index === 0)
-                    ? 0
-                    : -1
-                }
-                onClick={() => selectTemplate(template)}
-                onKeyDown={(event) => handleListKeyDown(event, template.id)}
-                onDoubleClick={() => {
-                  selectTemplate(template)
-                  setModalOpen(true)
-                }}
-                className={`flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left ${selected ? 'bg-[var(--color-accent-dim)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
-                      {template.name}
-                    </span>
-                    {template.author === 'user' && (
-                      <StatusBadge variant="info" className="shrink-0 uppercase">
-                        Custom
-                      </StatusBadge>
-                    )}
-                  </span>
-                  <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
-                    {template.description}
-                  </span>
-                  <span className="mt-1.5 block text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
-                    {CATEGORY_LABELS[template.category]} · {template.optimizedFor}
-                  </span>
-                </span>
-              </Button>
-            )
-          })}
-          {filteredTemplates.length === 0 && (
-            <EmptyState
-              icon={ChatCircleTextIcon}
-              size="sm"
-              title="No matching templates"
-              description="Try a different search or category."
-              action={
-                <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              }
-            />
-          )}
-        </div>
-      </aside>
-
-      <main className="flex min-h-0 min-w-0 flex-col">
-        <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-          <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
-            <div className="min-w-0 flex-1 max-[1000px]:basis-full">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-sm font-semibold text-[var(--color-text)]">
-                  {selectedTemplate.name}
-                </h2>
-                <StatusBadge variant="info" className="shrink-0 uppercase">
-                  {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
-                </StatusBadge>
-              </div>
-              <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
-                {selectedTemplate.description}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="icon"
-              size="sm"
-              onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-              title="Duplicate template"
-              aria-label="Duplicate template"
-            >
-              <CopyIcon size={14} aria-hidden="true" />
-            </Button>
-            {selectedTemplate.author === 'user' && (
-              <>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-                  title="Edit template"
-                  aria-label="Edit template"
-                >
-                  <PencilSimpleIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => setConfirmDeleteId(selectedTemplate.id)}
-                  title="Delete template"
-                  aria-label="Delete template"
-                  className="hover:text-[var(--color-error)]"
-                >
-                  <TrashIcon size={14} aria-hidden="true" />
-                </Button>
-              </>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setModalOpen(true)}
-              className="gap-1.5"
-            >
-              <SparkleIcon size={14} aria-hidden="true" /> Focus mode
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => void copyRenderedPrompt()}
-              className="gap-1.5"
-            >
-              <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
-            </Button>
-          </div>
-          <div className="flex items-center border-t border-[var(--color-border)] pr-4">
-            <TabBar
-              noBorder
-              aria-label="Template workspace"
-              activeTab={workspaceTab}
-              onTabChange={(tab) => setWorkspaceTab(tab as 'fill' | 'preview')}
-              tabs={[
-                { id: 'fill', label: `Fill variables (${selectedTemplate.variables.length})` },
-                { id: 'preview', label: `Preview (~${tokens})` },
-              ]}
-            />
-            <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">
-              {savingTemplates
-                ? 'Saving template…'
-                : `Optimized for ${selectedTemplate.optimizedFor}`}
-            </span>
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-auto">
-          {workspaceTab === 'fill' ? (
-            <div className="mx-auto max-w-3xl p-5 max-[1000px]:p-4">
-              <div className="mb-5 flex flex-wrap gap-1.5">
-                {selectedTemplate.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <VariableForm
-                template={selectedTemplate}
-                values={selectedValues}
-                onChange={updateVariable}
+        }
+        sidebar={
+          <>
+            <div className="space-y-2 border-b border-[var(--color-border)] p-3">
+              <SearchInput
+                ref={searchRef}
+                value={state.search}
+                onValueChange={(search) => updateState({ search })}
+                placeholder="Search templates"
+                aria-label="Search prompt templates"
+                clearLabel="Clear template search"
               />
-              {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
-                <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs leading-5 text-[var(--color-text-muted)]">
-                  <span className="font-semibold text-[var(--color-text)]">Tip:</span>{' '}
-                  {selectedTemplate.tips[0]}
-                </div>
+              <Select
+                value={state.category}
+                onChange={(event) =>
+                  updateState({ category: event.target.value as CategoryFilter })
+                }
+                aria-label="Filter templates by category"
+                className="w-full"
+              >
+                {FILTERS.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {filter.label} ({categoryCount(filter.id, allTemplates)})
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+              <span>
+                {filteredTemplates.length === allTemplates.length
+                  ? 'Library'
+                  : `${filteredTemplates.length} results`}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={() => void handleImport()}
+                  title="Import templates from JSON"
+                  aria-label="Import templates from JSON"
+                >
+                  <UploadSimpleIcon size={12} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="xs"
+                  onClick={() => void handleExport()}
+                  title="Export custom templates as JSON"
+                  aria-label="Export custom templates as JSON"
+                  disabled={userTemplates.length === 0}
+                >
+                  <DownloadSimpleIcon size={12} aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+
+            <div
+              className="min-h-0 flex-1 overflow-auto"
+              role="listbox"
+              aria-label="Prompt templates"
+            >
+              {filteredTemplates.map((template, index) => {
+                const selected = template.id === selectedTemplate.id
+                return (
+                  <Button
+                    key={template.id}
+                    id={`${templateOptionsId}-option-${template.id}`}
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    role="option"
+                    aria-selected={selected}
+                    tabIndex={
+                      selected ||
+                      (!filteredTemplates.some((item) => item.id === selectedTemplate.id) &&
+                        index === 0)
+                        ? 0
+                        : -1
+                    }
+                    onClick={() => selectTemplate(template)}
+                    onKeyDown={(event) => handleListKeyDown(event, template.id)}
+                    onDoubleClick={() => {
+                      selectTemplate(template)
+                      setModalOpen(true)
+                    }}
+                    className={`flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left ${selected ? 'bg-[var(--color-accent-dim)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
+                          {template.name}
+                        </span>
+                        {template.author === 'user' && (
+                          <StatusBadge variant="info" className="shrink-0 uppercase">
+                            Custom
+                          </StatusBadge>
+                        )}
+                      </span>
+                      <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
+                        {template.description}
+                      </span>
+                      <span className="mt-1.5 block text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
+                        {CATEGORY_LABELS[template.category]} · {template.optimizedFor}
+                      </span>
+                    </span>
+                  </Button>
+                )
+              })}
+              {filteredTemplates.length === 0 && (
+                <EmptyState
+                  icon={ChatCircleTextIcon}
+                  size="sm"
+                  title="No matching templates"
+                  description="Try a different search or category."
+                  action={
+                    <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  }
+                />
               )}
             </div>
-          ) : (
-            <PreviewPane
-              renderedPrompt={renderedPrompt}
-              tokens={tokens}
-              missingVariables={missingVariables}
-            />
-          )}
-        </div>
-      </main>
+          </>
+        }
+      >
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+            <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
+              <div className="min-w-0 flex-1 max-[1000px]:basis-full">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-sm font-semibold text-[var(--color-text)]">
+                    {selectedTemplate.name}
+                  </h2>
+                  <StatusBadge variant="info" className="shrink-0 uppercase">
+                    {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
+                  </StatusBadge>
+                </div>
+                <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
+                  {selectedTemplate.description}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="icon"
+                size="sm"
+                onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
+                title="Duplicate template"
+                aria-label="Duplicate template"
+              >
+                <CopyIcon size={14} aria-hidden="true" />
+              </Button>
+              {selectedTemplate.author === 'user' && (
+                <>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+                    title="Edit template"
+                    aria-label="Edit template"
+                  >
+                    <PencilSimpleIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={() => setConfirmDeleteId(selectedTemplate.id)}
+                    title="Delete template"
+                    aria-label="Delete template"
+                    className="hover:text-[var(--color-error)]"
+                  >
+                    <TrashIcon size={14} aria-hidden="true" />
+                  </Button>
+                </>
+              )}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setModalOpen(true)}
+                className="gap-1.5"
+              >
+                <SparkleIcon size={14} aria-hidden="true" /> Focus mode
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => void copyRenderedPrompt()}
+                className="gap-1.5"
+              >
+                <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
+              </Button>
+            </div>
+            <div className="flex items-center border-t border-[var(--color-border)] pr-4">
+              <TabBar
+                noBorder
+                aria-label="Template workspace"
+                activeTab={workspaceTab}
+                onTabChange={(tab) => setWorkspaceTab(tab as 'fill' | 'preview')}
+                tabs={[
+                  { id: 'fill', label: `Fill variables (${selectedTemplate.variables.length})` },
+                  { id: 'preview', label: `Preview (~${tokens})` },
+                ]}
+              />
+              <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">
+                {savingTemplates
+                  ? 'Saving template…'
+                  : `Optimized for ${selectedTemplate.optimizedFor}`}
+              </span>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {workspaceTab === 'fill' ? (
+              <div className="mx-auto max-w-3xl p-5 max-[1000px]:p-4">
+                <div className="mb-5 flex flex-wrap gap-1.5">
+                  {selectedTemplate.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <VariableForm
+                  template={selectedTemplate}
+                  values={selectedValues}
+                  onChange={updateVariable}
+                />
+                {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
+                  <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs leading-5 text-[var(--color-text-muted)]">
+                    <span className="font-semibold text-[var(--color-text)]">Tip:</span>{' '}
+                    {selectedTemplate.tips[0]}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <PreviewPane
+                renderedPrompt={renderedPrompt}
+                tokens={tokens}
+                missingVariables={missingVariables}
+              />
+            )}
+          </div>
+        </main>
+      </MasterDetailLayout>
 
       <QuickFillModal
         open={modalOpen}
@@ -1303,6 +1307,6 @@ export default function PromptTemplates() {
           </p>
         </Dialog>
       )}
-    </div>
+    </>
   )
 }
