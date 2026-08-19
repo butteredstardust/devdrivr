@@ -25,6 +25,7 @@ import { Kbd } from '@/components/shared/Kbd'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -469,6 +470,55 @@ export default function JsonTools() {
           ? `Valid JSON · ${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
           : 'Valid JSON'
 
+  // Lifted out of the JSX below because the source pane appears in two shapes — alone when the
+  // inspector is hidden, and as a SplitPane child when it isn't — and duplicating fifty lines of
+  // editor wiring to express that is how the two copies drift apart.
+  const sourcePane = (
+    <section
+      aria-label="JSON source"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Editor
+        theme={monacoTheme}
+        language="json"
+        value={input}
+        onChange={(v) => {
+          updateState({ input: v ?? '' })
+          // The banner reports a failed format of the *old* text; leaving it
+          // up contradicts the status line as soon as the user fixes things.
+          setError(null)
+        }}
+        options={monacoOptions}
+        onMount={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+      {!hasInput && (
+        // Click-through: the hint must never sit between the user and the caret.
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <EmptyState
+            icon={BracketsCurlyIcon}
+            title="Paste or open a JSON document"
+            description="Format with ⌘↵, inspect it as a tree or table, and query values by path."
+            action={
+              TOOL_SAMPLES['json-tools'] ? (
+                <span className="pointer-events-auto">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
+                  >
+                    Load sample
+                  </Button>
+                </span>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <ToolLayout
       fullBleed
@@ -632,52 +682,15 @@ export default function JsonTools() {
           {error}
         </Alert>
       )}
-      <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
-        <section
-          aria-label="JSON source"
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      {view === 'source' ? (
+        <div className="flex min-h-0 flex-1">{sourcePane}</div>
+      ) : (
+        <SplitPane
+          storageKey="json-tools"
+          stackBelow={900}
+          aria-label="Resize source and inspector"
         >
-          <Editor
-            theme={monacoTheme}
-            language="json"
-            value={input}
-            onChange={(v) => {
-              updateState({ input: v ?? '' })
-              // The banner reports a failed format of the *old* text; leaving it
-              // up contradicts the status line as soon as the user fixes things.
-              setError(null)
-            }}
-            options={monacoOptions}
-            onMount={(editor) => {
-              editorRef.current = editor
-            }}
-          />
-          {!hasInput && (
-            // Click-through: the hint must never sit between the user and the caret.
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-              <EmptyState
-                icon={BracketsCurlyIcon}
-                title="Paste or open a JSON document"
-                description="Format with ⌘↵, inspect it as a tree or table, and query values by path."
-                action={
-                  TOOL_SAMPLES['json-tools'] ? (
-                    <span className="pointer-events-auto">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
-                      >
-                        Load sample
-                      </Button>
-                    </span>
-                  ) : undefined
-                }
-              />
-            </div>
-          )}
-        </section>
-
-        {view !== 'source' && (
+          {sourcePane}
           <InspectorPane
             view={view}
             parsed={parsed}
@@ -685,8 +698,8 @@ export default function JsonTools() {
             data={data}
             onCopy={copy}
           />
-        )}
-      </div>
+        </SplitPane>
+      )}
     </ToolLayout>
   )
 }
@@ -725,7 +738,8 @@ function InspectorPane({
   return (
     <section
       aria-label={view === 'tree' ? 'Tree view' : 'Table view'}
-      className="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--color-border)] max-[900px]:max-h-[45%] max-[900px]:border-l-0 max-[900px]:border-t"
+      /* SplitPane owns the divider and the stacked border, so the pane itself carries neither. */
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
     >
       <PaneHeader
         title={view === 'tree' ? 'Tree' : 'Table'}

@@ -4,6 +4,7 @@ import { useToolHistory } from '@/hooks/useToolHistory'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -194,8 +195,8 @@ export default function UrlCodec() {
       }
     >
       {/* Input / Output panels */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+      <SplitPane storageKey="url-codec" aria-label="Resize input and output">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PaneHeader title="Input" hint={state.mode === 'encode' ? 'Text' : 'Encoded'} />
           <TextArea
             value={state.input}
@@ -206,7 +207,7 @@ export default function UrlCodec() {
             className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
           />
         </div>
-        <div className="flex w-1/2 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Output"
             hint={state.mode === 'encode' ? 'Encoded' : 'Text'}
@@ -222,7 +223,7 @@ export default function UrlCodec() {
             </pre>
           )}
         </div>
-      </div>
+      </SplitPane>
 
       {/* URL parts panel */}
       {urlParts && (

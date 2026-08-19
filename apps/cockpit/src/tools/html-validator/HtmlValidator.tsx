@@ -26,6 +26,7 @@ import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SectionLabel } from '@/components/shared/SectionLabel'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
@@ -525,6 +526,87 @@ export default function HtmlValidator() {
         ? `No problems · ${stats?.elements ?? 0} element${stats?.elements === 1 ? '' : 's'} · depth ${stats?.depth ?? 0}`
         : `${errorCount} error${errorCount === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'}`
 
+  // Each pane renders identically whether it's alone or beside the other, so it's defined once
+  // here and placed by the layout below rather than written out under both branches.
+  const sourcePane = (
+    <section
+      aria-label="HTML source"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Editor
+        theme={monacoTheme}
+        language="html"
+        value={input}
+        onChange={handleChange}
+        onMount={handleEditorMount}
+        options={monacoOptions}
+      />
+      {!hasInput && (
+        // Click-through: the hint must never sit between the user and the caret.
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <EmptyState
+            icon={FileHtmlIcon}
+            title="Paste or open an HTML document"
+            description="It is checked as you type, previewed beside the source, and reformatted with ⌘↵."
+            action={
+              TOOL_SAMPLES['html-validator'] ? (
+                <span className="pointer-events-auto">
+                  <Button variant="secondary" size="sm" onClick={handleLoadSample}>
+                    Load sample
+                  </Button>
+                </span>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
+    </section>
+  )
+
+  const previewPane = (
+    <section aria-label="Rendered preview" className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <PaneHeader
+        title="Preview"
+        actions={
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => setIsPopoutOpen(true)}
+            disabled={!hasInput}
+            className="gap-1"
+            title="Expand to a full-size preview (Esc to close)"
+          >
+            <FrameCornersIcon size={12} aria-hidden="true" />
+            Expand
+          </Button>
+        }
+      />
+      <div className="min-h-0 flex-1 bg-[var(--color-bg)]">
+        {/* Deliberate palette exception below: the preview is a page
+            canvas, not app chrome, and user HTML assumes a white
+            background — on --color-bg its black body text is unreadable. */}
+        {previewHtml ? (
+          <iframe
+            title="HTML preview"
+            sandbox=""
+            srcDoc={previewHtml}
+            className="h-full w-full border-none bg-white"
+          />
+        ) : (
+          <EmptyState
+            size="sm"
+            title={hasInput ? 'Rendering…' : 'Nothing to preview'}
+            description={
+              hasInput
+                ? 'The preview follows the source a moment behind.'
+                : 'Type or open HTML in the source pane.'
+            }
+          />
+        )}
+      </div>
+    </section>
+  )
+
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -725,94 +807,23 @@ export default function HtmlValidator() {
         </Alert>
       )}
 
-      {/* Below ~900px a 50/50 split leaves two unusable columns, so the panes stack. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden max-[900px]:flex-col">
-        {showEditor && (
-          <section
-            aria-label="HTML source"
-            className={`relative flex min-h-0 min-w-0 flex-col overflow-hidden ${
-              showPreview
-                ? 'w-1/2 border-r border-[var(--color-border)] max-[900px]:w-full max-[900px]:border-r-0 max-[900px]:border-b'
-                : 'w-full'
-            }`}
-          >
-            <Editor
-              theme={monacoTheme}
-              language="html"
-              value={input}
-              onChange={handleChange}
-              onMount={handleEditorMount}
-              options={monacoOptions}
-            />
-            {!hasInput && (
-              // Click-through: the hint must never sit between the user and the caret.
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-                <EmptyState
-                  icon={FileHtmlIcon}
-                  title="Paste or open an HTML document"
-                  description="It is checked as you type, previewed beside the source, and reformatted with ⌘↵."
-                  action={
-                    TOOL_SAMPLES['html-validator'] ? (
-                      <span className="pointer-events-auto">
-                        <Button variant="secondary" size="sm" onClick={handleLoadSample}>
-                          Load sample
-                        </Button>
-                      </span>
-                    ) : undefined
-                  }
-                />
-              </div>
-            )}
-          </section>
-        )}
-
-        {showPreview && (
-          <section
-            aria-label="Rendered preview"
-            className={`flex min-h-0 min-w-0 flex-col ${showEditor ? 'w-1/2 max-[900px]:w-full' : 'w-full'}`}
-          >
-            <PaneHeader
-              title="Preview"
-              actions={
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => setIsPopoutOpen(true)}
-                  disabled={!hasInput}
-                  className="gap-1"
-                  title="Expand to a full-size preview (Esc to close)"
-                >
-                  <FrameCornersIcon size={12} aria-hidden="true" />
-                  Expand
-                </Button>
-              }
-            />
-            <div className="min-h-0 flex-1 bg-[var(--color-bg)]">
-              {/* Deliberate palette exception below: the preview is a page
-                  canvas, not app chrome, and user HTML assumes a white
-                  background — on --color-bg its black body text is unreadable. */}
-              {previewHtml ? (
-                <iframe
-                  title="HTML preview"
-                  sandbox=""
-                  srcDoc={previewHtml}
-                  className="h-full w-full border-none bg-white"
-                />
-              ) : (
-                <EmptyState
-                  size="sm"
-                  title={hasInput ? 'Rendering…' : 'Nothing to preview'}
-                  description={
-                    hasInput
-                      ? 'The preview follows the source a moment behind.'
-                      : 'Type or open HTML in the source pane.'
-                  }
-                />
-              )}
-            </div>
-          </section>
-        )}
-      </div>
+      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
+          Below ~900px SplitPane stacks them, because a 50/50 split there leaves two unusable
+          columns. */}
+      {showEditor && showPreview ? (
+        <SplitPane
+          storageKey="html-validator"
+          stackBelow={900}
+          aria-label="Resize source and preview"
+        >
+          {sourcePane}
+          {previewPane}
+        </SplitPane>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {showEditor ? sourcePane : previewPane}
+        </div>
+      )}
 
       <ResultsPanel
         panel={state.panel}

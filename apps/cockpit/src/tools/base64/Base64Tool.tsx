@@ -5,6 +5,7 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
 import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Button } from '@/components/shared/Button'
@@ -399,9 +400,9 @@ export default function Base64Tool() {
       }
     >
       {/* ── Panels ────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <SplitPane storageKey="base64" aria-label="Resize input and output">
         {/* ── Input panel ─────────────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Input"
             hint={state.mode === 'encode' ? 'Text' : 'Base64'}
@@ -504,7 +505,7 @@ export default function Base64Tool() {
         </div>
 
         {/* ── Output panel ────────────────────────────────────────── */}
-        <div className="flex w-1/2 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Output"
             hint={droppedFile ? 'Base64 Data URI' : state.mode === 'encode' ? 'Base64' : 'Text'}
@@ -638,7 +639,7 @@ export default function Base64Tool() {
             </div>
           )}
         </div>
-      </div>
+      </SplitPane>
     </ToolLayout>
   )
 }

@@ -3,6 +3,7 @@ import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/shared/Button'
@@ -303,8 +304,8 @@ export default function RegexTester() {
           </Toolbar>
 
           {/* Main panels */}
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex w-1/2 flex-col border-r border-[var(--color-border)]">
+          <SplitPane storageKey="regex-tester" aria-label="Resize test string and matches">
+            <div className="flex min-h-0 flex-1 flex-col">
               <PaneHeader title="Test String" />
               <TextArea
                 value={state.testString}
@@ -315,7 +316,7 @@ export default function RegexTester() {
                 className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
             </div>
-            <div className="flex w-1/2 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               <PaneHeader
                 title={mode === 'replace' ? 'Replace Preview' : 'Highlighted Matches'}
                 status={
@@ -385,7 +386,7 @@ export default function RegexTester() {
                 />
               )}
             </div>
-          </div>
+          </SplitPane>
 
           {/* Match details */}
           {matchCount > 0 && (

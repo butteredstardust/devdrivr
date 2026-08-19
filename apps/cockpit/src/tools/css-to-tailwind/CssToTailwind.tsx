@@ -4,6 +4,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
+import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 
@@ -331,8 +332,8 @@ export default function CssToTailwind() {
 
   return (
     <ToolLayout fullBleed>
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex min-h-0 w-1/2 flex-col overflow-hidden border-r border-[var(--color-border)]">
+      <SplitPane storageKey="css-to-tailwind" aria-label="Resize CSS input and Tailwind output">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <PaneHeader title="CSS Input" />
           <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
@@ -344,7 +345,7 @@ export default function CssToTailwind() {
             />
           </div>
         </div>
-        <div className="flex w-1/2 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Tailwind Output"
             actions={classString ? <CopyButton text={classString} /> : undefined}
@@ -393,7 +394,7 @@ export default function CssToTailwind() {
             )}
           </div>
         </div>
-      </div>
+      </SplitPane>
     </ToolLayout>
   )
 }
