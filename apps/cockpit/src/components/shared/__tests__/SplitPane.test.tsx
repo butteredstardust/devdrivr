@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { SplitPane } from '@/components/shared/SplitPane'
 
 function renderSplit(props: Partial<React.ComponentProps<typeof SplitPane>> = {}) {
@@ -89,6 +90,64 @@ describe('SplitPane', () => {
     expect(screen.getByText('Right pane')).toBeInTheDocument()
     expect(screen.queryByRole('separator')).not.toBeInTheDocument()
 
+    window.matchMedia = original
+  })
+
+  // The regression this pins: stacking used to be a separate `return` with two children instead of
+  // three, so `second` moved from child index 2 to index 1 and React — which reconciles
+  // positionally — unmounted it. Six of the tools that stack put a Monaco editor in a pane, where a
+  // remount silently discards cursor, scroll and undo history. Dragging a window across 900px did
+  // it every time. The static stacked-render test above passes either way, so it caught nothing.
+  it('keeps both panes mounted when the viewport crosses stackBelow', () => {
+    const original = window.matchMedia
+    const listeners = new Set<(event: MediaQueryListEvent) => void>()
+    let matches = false
+
+    window.matchMedia = ((query: string) => ({
+      get matches() {
+        return matches
+      },
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: (_: string, fn: (event: MediaQueryListEvent) => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: (event: MediaQueryListEvent) => void) =>
+        listeners.delete(fn),
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+
+    const mounts: string[] = []
+    // A probe that records every mount. Two mounts of the same name means it was torn down and
+    // rebuilt — exactly the state loss a stateful pane would suffer.
+    function Probe({ name }: { name: string }) {
+      useEffect(() => {
+        mounts.push(name)
+      }, [name])
+      return <div>{name}</div>
+    }
+
+    render(
+      <SplitPane stackBelow={900}>
+        {[<Probe key="a" name="first" />, <Probe key="b" name="second" />]}
+      </SplitPane>
+    )
+    expect(mounts).toEqual(['first', 'second'])
+
+    // Narrow past the breakpoint, then back out again.
+    act(() => {
+      matches = true
+      listeners.forEach((fn) => fn({ matches: true } as MediaQueryListEvent))
+    })
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+
+    act(() => {
+      matches = false
+      listeners.forEach((fn) => fn({ matches: false } as MediaQueryListEvent))
+    })
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+
+    expect(mounts).toEqual(['first', 'second'])
     window.matchMedia = original
   })
 

@@ -167,59 +167,60 @@ export function SplitPane({
   const [first, second] = children
   const percent = `${(ratio * 100).toFixed(2)}%`
 
-  if (stacked) {
-    return (
-      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${className}`}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{first}</div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border)]">
-          {second}
-        </div>
-      </div>
-    )
-  }
-
+  // One JSX shape for both states, deliberately. Stacking used to be a second `return` with two
+  // children instead of three, which moved `second` from index 2 to index 1 — React reconciles
+  // positionally, so crossing the breakpoint unmounted that pane and mounted a fresh one. In a tool
+  // whose pane holds a Monaco editor, that silently discards cursor, scroll and undo history every
+  // time the window is dragged past the width. Stacked, the divider stays in the tree and degrades
+  // to a plain rule: not focusable, not a `separator`, nothing to drag, but still child index 1.
   return (
     <div
       ref={containerRef}
       className={`flex min-h-0 min-w-0 flex-1 ${isHorizontal ? 'flex-row' : 'flex-col'} ${className}`}
     >
       <div
-        className="flex min-h-0 min-w-0 flex-col overflow-hidden"
-        style={isHorizontal ? { width: percent } : { height: percent }}
+        className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${stacked ? 'flex-1' : ''}`}
+        // No inline size when stacked: the panes share the height evenly and there's no ratio to
+        // apply. An inline width here is also what makes `max-[900px]:flex-col` unusable.
+        style={stacked ? undefined : isHorizontal ? { width: percent } : { height: percent }}
       >
         {first}
       </div>
 
-      <div
-        role="separator"
-        tabIndex={0}
-        aria-label={ariaLabel ?? 'Resize panes'}
-        aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
-        aria-valuenow={Math.round(ratio * 100)}
-        aria-valuemin={Math.round(minRatio * 100)}
-        aria-valuemax={Math.round((1 - minRatio) * 100)}
-        aria-controls={labelId}
-        onMouseDown={(event) => {
-          event.preventDefault()
-          setDragging(true)
-        }}
-        onDoubleClick={() => commit(defaultRatio)}
-        onKeyDown={handleKeyDown}
-        title="Drag to resize — double-click or Enter to reset"
-        className={`group relative shrink-0 border-[var(--color-border)] bg-[var(--color-border)] transition-colors focus-visible:outline-none focus-visible:bg-[var(--color-accent)] ${
-          isHorizontal ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize'
-        } ${dragging ? 'bg-[var(--color-accent)]' : 'hover:bg-[var(--color-accent)]/60'}`}
-      >
-        {/* The visible divider is 1px so it reads as a border rather than a widget; this
-            invisible overlay gives the pointer a 9px target without that showing up in the
-            layout. Below ~8px a divider is measurably annoying to grab. */}
-        <span
-          aria-hidden="true"
-          className={`absolute ${
-            isHorizontal ? '-left-1 top-0 h-full w-[9px]' : '-top-1 left-0 h-[9px] w-full'
-          }`}
-        />
-      </div>
+      {stacked ? (
+        <div aria-hidden="true" className="h-px shrink-0 bg-[var(--color-border)]" />
+      ) : (
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-label={ariaLabel ?? 'Resize panes'}
+          aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
+          aria-valuenow={Math.round(ratio * 100)}
+          aria-valuemin={Math.round(minRatio * 100)}
+          aria-valuemax={Math.round((1 - minRatio) * 100)}
+          aria-controls={labelId}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            setDragging(true)
+          }}
+          onDoubleClick={() => commit(defaultRatio)}
+          onKeyDown={handleKeyDown}
+          title="Drag to resize — double-click or Enter to reset"
+          className={`group relative shrink-0 border-[var(--color-border)] bg-[var(--color-border)] transition-colors focus-visible:outline-none focus-visible:bg-[var(--color-accent)] ${
+            isHorizontal ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize'
+          } ${dragging ? 'bg-[var(--color-accent)]' : 'hover:bg-[var(--color-accent)]/60'}`}
+        >
+          {/* The visible divider is 1px so it reads as a border rather than a widget; this
+              invisible overlay gives the pointer a 9px target without that showing up in the
+              layout. Below ~8px a divider is measurably annoying to grab. */}
+          <span
+            aria-hidden="true"
+            className={`absolute ${
+              isHorizontal ? '-left-1 top-0 h-full w-[9px]' : '-top-1 left-0 h-[9px] w-full'
+            }`}
+          />
+        </div>
+      )}
 
       <div id={labelId} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {second}
