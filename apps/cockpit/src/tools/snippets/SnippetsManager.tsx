@@ -40,6 +40,7 @@ import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 const FAVORITE_TAG = '⭐'
 
@@ -607,9 +608,13 @@ export default function SnippetsManager() {
         title="Snippets"
         subtitle={`${snippets.length} saved locally`}
         sidebarActions={
+          // Secondary for the same reason as prompt-templates: the sidebar heading never carries
+          // the accent. Snippets saves as you type, so when one is selected the tool has no
+          // primary at all — correct for a live-editing tool. The empty state's CTA covers the
+          // one moment there's nothing to edit.
           <Button
             type="button"
-            variant="primary"
+            variant="secondary"
             size="sm"
             onClick={() => void handleNew()}
             className="gap-1.5"
@@ -889,7 +894,7 @@ export default function SnippetsManager() {
                     variant="icon"
                     size="sm"
                     onClick={() => void handleDuplicate()}
-                    title="Duplicate snippet (⌘⇧D)"
+                    title={`Duplicate snippet (${formatShortcut('mod+shift+d')})`}
                     aria-label="Duplicate snippet"
                   >
                     <CopyIcon size={14} aria-hidden="true" />

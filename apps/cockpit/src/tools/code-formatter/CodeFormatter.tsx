@@ -27,6 +27,7 @@ import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/sh
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
+import { formatShortcut } from '@/lib/shortcut-label'
 import {
   LANGUAGES,
   extensionForLanguage,
@@ -307,7 +308,7 @@ export default function CodeFormatter() {
                 onClick={() => void handleFormat()}
                 disabled={!canFormat}
                 loading={isFormatting}
-                title="Format the code (⌘↵)"
+                title={`Format the code (${formatShortcut('mod+enter')})`}
               >
                 Format
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -329,7 +330,7 @@ export default function CodeFormatter() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasCode}
-                title="Save to a file (⌘S)"
+                title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
               >
                 <FloppyDiskIcon size={16} aria-hidden="true" />
@@ -422,7 +423,8 @@ export default function CodeFormatter() {
             <CodeBlockIcon size={36} weight="light" aria-hidden="true" />
             <p className="text-sm">Paste or type code to format</p>
             <p className="max-w-sm text-xs opacity-60">
-              {LANGUAGES.length} languages supported. Press ⌘↵ to format, or open a file with ⌘O.
+              {LANGUAGES.length} languages supported. Press <Kbd keys="mod+enter" /> to format, or
+              open a file with <Kbd keys="mod+o" />.
             </p>
           </div>
         )}

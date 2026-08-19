@@ -30,6 +30,7 @@ import { exportFile } from '@/lib/file-io'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 const { sanitize } = DOMPurify
 
@@ -419,7 +420,7 @@ export default function DiffViewer() {
       title={bothSidesFilled ? 'No comparison yet' : 'Nothing to compare'}
       description={
         bothSidesFilled
-          ? 'Press ⌘↵ to compare the two sides.'
+          ? `Press ${formatShortcut('mod+enter')} to compare the two sides.`
           : 'Paste the original on the left and the modified version on the right.'
       }
       action={
@@ -503,7 +504,7 @@ export default function DiffViewer() {
                 onClick={() => void computeDiff(true)}
                 disabled={!bothSidesFilled}
                 loading={isComparing}
-                title="Compare both sides (⌘↵)"
+                title={`Compare both sides (${formatShortcut('mod+enter')})`}
               >
                 Compare
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />

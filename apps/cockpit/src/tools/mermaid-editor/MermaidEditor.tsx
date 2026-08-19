@@ -47,6 +47,7 @@ import {
   type MermaidError,
 } from '@/tools/mermaid-editor/mermaid-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type EditorMode = 'edit' | 'split' | 'preview'
 type ExportFormat = 'svg' | 'png'
@@ -614,7 +615,7 @@ export default function MermaidEditor() {
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open a .mmd file (⌘O)"
+              title={`Open a .mmd file (${formatShortcut('mod+o')})`}
               aria-label="Open Mermaid file"
             >
               <FolderOpenIcon size={14} aria-hidden="true" />
@@ -623,7 +624,7 @@ export default function MermaidEditor() {
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the source (⌘S)"
+              title={`Save the source (${formatShortcut('mod+s')})`}
               aria-label="Save Mermaid source"
             >
               <FloppyDiskIcon size={14} aria-hidden="true" />

@@ -42,6 +42,7 @@ import {
   findMatchingTemplate,
 } from '@/tools/json-schema-validator/templates'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type Pane = 'data' | 'schema'
 
@@ -724,7 +725,7 @@ function EditorPane({
               onClick={onSave}
               disabled={!value.trim()}
               aria-label={`Save ${title.toLowerCase()} to file`}
-              title="Save to a file (⌘S)"
+              title={`Save to a file (${formatShortcut('mod+s')})`}
             >
               <FloppyDiskIcon size={14} aria-hidden="true" />
             </Button>

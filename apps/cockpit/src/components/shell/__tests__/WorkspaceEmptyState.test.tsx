@@ -4,6 +4,7 @@ import { WorkspaceEmptyState } from '@/components/shell/WorkspaceEmptyState'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 vi.mock('@/lib/db', () => ({
   setSetting: vi.fn().mockResolvedValue(undefined),
@@ -18,10 +19,14 @@ beforeEach(() => {
 })
 
 describe('WorkspaceEmptyState', () => {
-  it('shows the base copy and ⌘K hint with no chips when nothing is pinned or recent', () => {
+  it('shows the base copy and mod+K hint with no chips when nothing is pinned or recent', () => {
     render(<WorkspaceEmptyState />)
     expect(screen.getByText('Select a tool to get started')).toBeInTheDocument()
-    expect(screen.getByText('Use the sidebar or press ⌘K')).toBeInTheDocument()
+    // Asserted through formatShortcut rather than against a literal "⌘K": jsdom's user agent is
+    // not a Mac, so the hint correctly says Ctrl+K here, which is the whole point of the change.
+    expect(
+      screen.getByText(`Use the sidebar or press ${formatShortcut('mod+k')}`)
+    ).toBeInTheDocument()
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
     expect(screen.queryByText('Recent')).not.toBeInTheDocument()
   })

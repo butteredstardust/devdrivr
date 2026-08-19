@@ -175,7 +175,8 @@ Weights: `regular` default; `bold` for emphasis and active states; `fill` for st
 
 ## Layout contract
 
-Every tool renders through `ToolLayout`. No exceptions.
+Every tool renders through `ToolLayout`, or — if it's a library tool with a list beside a detail
+pane — `MasterDetailLayout`. No exceptions.
 
 ```
 ToolLayout
@@ -185,10 +186,19 @@ ToolLayout
   body:
     fullBleed  → SplitPane / editors, each pane headed by PaneHeader
     otherwise  → maxWidth-capped stack of Panel sections
+
+MasterDetailLayout                       ← snippets, prompt-templates, api-client
+  title / subtitle / sidebarActions      ← names the collection, not the tool
+  sidebar: filters, then the list
+  children: the detail pane (may itself be a ToolLayout)
 ```
 
 **The `toolbar` slot is for chrome.** Not a form, not a `TextArea`, not an editor. If the thing you
 want to put there accepts typed input longer than a filename, it belongs in the body.
+
+**No tool renders its own title.** The tab strip already names it. `ToolLayout` has no title slot
+for this reason — one existed and reached zero consumers. The only heading a tool shows is
+`MasterDetailLayout`'s, which names the collection inside the tool.
 
 **Tools must be `flex h-full flex-col` at the root** — `ToolLayout` handles this; hand-rolled roots
 without `h-full` silently collapse.
@@ -201,15 +211,15 @@ Import from `@/components/shared/<Name>`.
 
 ### Layout
 
-| Component            | Use                                                                     |
-| -------------------- | ----------------------------------------------------------------------- |
-| `ToolLayout`         | Every tool's outer shell. `fullBleed` for editors, `maxWidth` for forms |
-| `Toolbar`            | The chrome row. `ToolbarGroup` for families, `ToolbarSpacer` to push    |
-| `DocumentToolbar`    | Wrapping variant for document tools; pairs with `DocumentIdentity`      |
-| `PaneHeader`         | Header strip for one pane of a split — title, optional status/actions   |
-| `Panel`              | Bordered section container with optional title + actions                |
-| `SplitPane`          | Resizable two-pane split; persists ratio via `storageKey`               |
-| `MasterDetailLayout` | Sidebar + detail shell for library-style tools                          |
+| Component            | Use                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| `ToolLayout`         | Every tool's outer shell. `fullBleed` for editors, `maxWidth` for forms. No title slot |
+| `Toolbar`            | The chrome row. `ToolbarGroup` for families, `ToolbarSpacer` to push                   |
+| `DocumentToolbar`    | Wrapping variant for document tools; pairs with `DocumentIdentity`                     |
+| `PaneHeader`         | Header strip for one pane of a split — title, optional status/actions                  |
+| `Panel`              | Bordered section container with optional title + actions                               |
+| `SplitPane`          | Resizable two-pane split; persists ratio via `storageKey`                              |
+| `MasterDetailLayout` | Sidebar + detail shell for library-style tools                                         |
 
 ### Controls
 
@@ -259,9 +269,25 @@ Pick `as` for the _document structure_ you need; the visual is identical either 
 
 ### `Button` variants
 
-- `primary` — the main action. **At most one per tool.** Tools that compute live as you type
-  (`case-converter`, `regex-tester`, `hash-generator`, …) correctly have _none_; do not add one
-  just to fill the slot.
+- `primary` — the main action. The rule, in full:
+
+  > **A tool that computes live as you type has no primary action. A tool you trigger has exactly
+  > one visible at a time.**
+
+  `case-converter`, `regex-tester`, `hash-generator`, `timestamp-converter`, `color-converter`,
+  `jwt-decoder` and `refactoring-toolkit` correctly have none — there is no button to press, and
+  adding one to fill the slot invents a step the tool doesn't have.
+
+  Three things are outside the count, because they can't compete with the tool's own action:
+  - **A modal's confirm button.** It's the primary of its dialog, and the dialog is the only thing
+    focusable while it's open.
+  - **An `EmptyState` action.** It shows precisely when the chrome has nothing to act on.
+  - **A conditional swap** — `variant={originalImg ? 'secondary' : 'primary'}` in `image-tool`,
+    where opening a file is the primary until a file is open and Download takes over.
+
+  Two placements are settled: a `MasterDetailLayout` sidebar heading **never** carries the accent
+  (its create action is `secondary`), and neither does a `PaneHeader` action, however transient.
+
 - `secondary` — ordinary actions (Clear, Reset, Swap)
 - `ghost` — tertiary actions and navigation
 - `danger` — destructive only
@@ -360,3 +386,27 @@ Escape hatch: `/* design-system-ignore: <reason> */` on the preceding line. The 
 
 If you need to change a rule, change this document in the same commit. A gate that disagrees with
 its documentation teaches contributors to ignore both.
+
+---
+
+## Adding a new tool
+
+The gates catch tokens and class strings. They cannot catch structure, which is where every
+inconsistency in the 2026-08 audit actually came from. Walk this before opening the PR:
+
+- [ ] Root is `ToolLayout` (or `MasterDetailLayout` for a library tool). Nothing above it.
+- [ ] No `<h1>`/`<h2>` naming the tool — the tab strip does that.
+- [ ] The `toolbar` slot holds chrome only. A `TextArea` in there is the single most common mistake.
+- [ ] Chrome rows are `Toolbar`/`DocumentToolbar` with `aria-label`, grouped by `ToolbarGroup`,
+      spaced by `ToolbarSpacer` — never `ml-auto`.
+- [ ] Side-by-side panes use `SplitPane` with a unique `storageKey`, and `stackBelow` if the layout
+      needs to stack on a narrow window. Each pane is headed by `PaneHeader`.
+- [ ] Body sections are `Panel`. Anything nested inside one uses `bg-bg`, not `bg-surface`.
+- [ ] Every labelled control is a `Field` — no bare `<label>`. Pass `htmlFor` when the field holds
+      more than one labelable element.
+- [ ] Region labels are `SectionLabel`. Keyboard hints are `Kbd`, including inside `title=` prose.
+- [ ] Exactly one `variant="primary"` visible at a time, or none if the tool computes live.
+- [ ] Icons are `size={12}`, `{14}` or `{16}`; icon-only buttons carry `aria-label`.
+- [ ] Live results that settle are announced (`role="status"` + `aria-live="polite"`); values that
+      change on every keystroke are not.
+- [ ] All four gates green, run from `apps/cockpit`.

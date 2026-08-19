@@ -573,7 +573,13 @@ export default function ImageTool() {
       toolbar={
         <>
           <Toolbar aria-label="Image actions" className="gap-3">
-            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+            {/* Primary only until an image is open. After that the tool's one primary action is
+                Download, in the export panel — opening another image is a restart, not the goal. */}
+            <Button
+              variant={originalImg ? 'secondary' : 'primary'}
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <UploadSimpleIcon size={14} />
               Open Image
             </Button>

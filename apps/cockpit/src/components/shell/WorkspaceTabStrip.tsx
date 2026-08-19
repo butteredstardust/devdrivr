@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { XIcon, PlusIcon } from '@phosphor-icons/react'
 import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type ContextMenu = {
   tabId: string
@@ -248,8 +249,8 @@ export function WorkspaceTabStrip() {
       {/* + button pinned outside the scroll area */}
       <button
         onClick={toggleCommandPalette}
-        aria-label="Open new tool (⌘K)"
-        title="Open new tool (⌘K)"
+        aria-label={`Open new tool (${formatShortcut('mod+k')})`}
+        title={`Open new tool (${formatShortcut('mod+k')})`}
         className="flex h-full w-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />

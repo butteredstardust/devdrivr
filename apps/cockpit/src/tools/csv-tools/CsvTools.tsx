@@ -44,6 +44,7 @@ import {
 } from './csv-helpers'
 import { formatTextBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type CsvView = 'table' | 'convert' | 'analyze'
 
@@ -416,7 +417,7 @@ export default function CsvTools() {
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}
-              title="Save the current view to a file (⌘S)"
+              title={`Save the current view to a file (${formatShortcut('mod+s')})`}
               aria-label="Save output to file"
             >
               <FloppyDiskIcon size={16} aria-hidden="true" />

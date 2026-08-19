@@ -23,8 +23,9 @@ describe('Kbd', () => {
   it('renders mod as Ctrl with a separator off macOS', () => {
     setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
     render(<Kbd keys="mod+enter" />)
-    // The whole point of the component: the same hint can't claim ⌘ on a Windows machine.
-    expect(screen.getByText('Ctrl+↵')).toBeInTheDocument()
+    // The whole point of the component: the same hint can't claim ⌘ on a Windows machine. The key
+    // names go with it — ↵ and ⇧ aren't printed on a PC keyboard either.
+    expect(screen.getByText('Ctrl+Enter')).toBeInTheDocument()
   })
 
   it('uppercases single letters', () => {

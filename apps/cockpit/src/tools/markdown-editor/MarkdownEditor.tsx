@@ -55,6 +55,7 @@ import {
 import { markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -268,7 +269,7 @@ const FORMATTING_ACTIONS: FormattingAction[] = [
   // Group 1 — inline text formatting
   {
     label: 'B',
-    title: 'Bold (⌘B)',
+    title: `Bold (${formatShortcut('mod+b')})`,
     prefix: '**',
     suffix: '**',
     placeholder: 'bold text',
@@ -276,7 +277,7 @@ const FORMATTING_ACTIONS: FormattingAction[] = [
   },
   {
     label: 'I',
-    title: 'Italic (⌘I)',
+    title: `Italic (${formatShortcut('mod+i')})`,
     prefix: '_',
     suffix: '_',
     placeholder: 'italic text',

@@ -1,4 +1,5 @@
 import { usePlatform } from '@/hooks/usePlatform'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type KbdProps = {
   /**
@@ -18,30 +19,6 @@ type KbdProps = {
   className?: string
 }
 
-// Symbols only where they're unambiguous and universally read. "Enter" beats ↵ for a modifier-less
-// hint, but ⌘↵ is the idiom every Mac user already knows, so the symbol wins inside a combo.
-const KEY_SYMBOLS: Record<string, string> = {
-  enter: '↵',
-  return: '↵',
-  escape: 'Esc',
-  esc: 'Esc',
-  shift: '⇧',
-  alt: '⌥',
-  option: '⌥',
-  ctrl: '⌃',
-  control: '⌃',
-  cmd: '⌘',
-  meta: '⌘',
-  backspace: '⌫',
-  delete: '⌦',
-  tab: '⇥',
-  space: 'Space',
-  up: '↑',
-  down: '↓',
-  left: '←',
-  right: '→',
-}
-
 /**
  * A keyboard hint.
  *
@@ -51,18 +28,7 @@ const KEY_SYMBOLS: Record<string, string> = {
 export function Kbd({ keys, variant = 'boxed', className = '' }: KbdProps) {
   const { isMac } = usePlatform()
 
-  const label = keys
-    .split('+')
-    .map((raw) => {
-      const key = raw.trim().toLowerCase()
-      if (key === 'mod') return isMac ? '⌘' : 'Ctrl'
-      const symbol = KEY_SYMBOLS[key]
-      if (symbol) return symbol
-      return key.length === 1 ? key.toUpperCase() : raw.trim()
-    })
-    // No separator on macOS, where modifiers are conventionally run together (⌘⇧P), but a
-    // separator elsewhere, where they aren't (Ctrl+Shift+P).
-    .join(isMac ? '' : '+')
+  const label = formatShortcut(keys, isMac)
 
   const chrome =
     variant === 'inline'

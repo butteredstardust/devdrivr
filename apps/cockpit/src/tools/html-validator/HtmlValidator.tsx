@@ -57,6 +57,7 @@ import {
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -547,7 +548,7 @@ export default function HtmlValidator() {
           <EmptyState
             icon={FileHtmlIcon}
             title="Paste or open an HTML document"
-            description="It is checked as you type, previewed beside the source, and reformatted with ⌘↵."
+            description={`It is checked as you type, previewed beside the source, and reformatted with ${formatShortcut('mod+enter')}.`}
             action={
               TOOL_SAMPLES['html-validator'] ? (
                 <span className="pointer-events-auto">
@@ -672,7 +673,7 @@ export default function HtmlValidator() {
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open an .html file (⌘O)"
+              title={`Open an .html file (${formatShortcut('mod+o')})`}
               aria-label="Open HTML file"
             >
               <FolderOpenIcon size={14} aria-hidden="true" />
@@ -681,7 +682,7 @@ export default function HtmlValidator() {
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the document (⌘S)"
+              title={`Save the document (${formatShortcut('mod+s')})`}
               aria-label="Save HTML document"
             >
               <FloppyDiskIcon size={14} aria-hidden="true" />
@@ -712,7 +713,7 @@ export default function HtmlValidator() {
               onClick={() => void handleFormat()}
               disabled={!hasInput || isFormatting}
               loading={isFormatting}
-              title="Reformat the markup (⌘↵)"
+              title={`Reformat the markup (${formatShortcut('mod+enter')})`}
             >
               Format
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />

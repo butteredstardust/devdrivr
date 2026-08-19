@@ -34,6 +34,7 @@ import type { XmlWorker } from '@/workers/xml.worker'
 import type { XmlInspection, XmlIssue, XmlTreeNode } from '@/workers/xml.api'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type XmlView = 'source' | 'tree' | 'json' | 'xpath'
 
@@ -353,7 +354,7 @@ export default function XmlTools() {
               onClick={() => void runTransform('format')}
               disabled={!hasInput || isBusy}
               loading={isBusy}
-              title="Format the document (⌘↵)"
+              title={`Format the document (${formatShortcut('mod+enter')})`}
             >
               Format
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -372,7 +373,7 @@ export default function XmlTools() {
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}
-              title="Save to a file (⌘S)"
+              title={`Save to a file (${formatShortcut('mod+s')})`}
               aria-label="Save XML to file"
             >
               <FloppyDiskIcon size={16} aria-hidden="true" />
@@ -425,7 +426,7 @@ export default function XmlTools() {
               <EmptyState
                 icon={BracketsAngleIcon}
                 title="Paste or open an XML document"
-                description="Format with ⌘↵, browse it as a tree, convert it to JSON, or query it with XPath."
+                description={`Format with ${formatShortcut('mod+enter')}, browse it as a tree, convert it to JSON, or query it with XPath.`}
                 action={
                   TOOL_SAMPLES['xml-tools'] ? (
                     <span className="pointer-events-auto">

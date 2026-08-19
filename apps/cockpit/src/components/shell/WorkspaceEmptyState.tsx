@@ -6,6 +6,7 @@ import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { ToolDefinition } from '@/types/tools'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 function resolveTools(ids: string[]): ToolDefinition[] {
   return ids
@@ -62,7 +63,7 @@ export function WorkspaceEmptyState() {
     <EmptyState
       icon={ToolboxIcon}
       title="Select a tool to get started"
-      description="Use the sidebar or press ⌘K"
+      description={`Use the sidebar or press ${formatShortcut('mod+k')}`}
       action={
         hasChips ? (
           <div className="flex flex-col items-center gap-[var(--space-3)]">

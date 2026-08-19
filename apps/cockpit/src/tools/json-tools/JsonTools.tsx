@@ -38,6 +38,7 @@ import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -499,7 +500,7 @@ export default function JsonTools() {
           <EmptyState
             icon={BracketsCurlyIcon}
             title="Paste or open a JSON document"
-            description="Format with ⌘↵, inspect it as a tree or table, and query values by path."
+            description={`Format with ${formatShortcut('mod+enter')}, inspect it as a tree or table, and query values by path.`}
             action={
               TOOL_SAMPLES['json-tools'] ? (
                 <span className="pointer-events-auto">
@@ -602,7 +603,7 @@ export default function JsonTools() {
                 onClick={() => void handleFormat()}
                 disabled={!hasInput || isFormatting}
                 loading={isFormatting}
-                title="Format the document (⌘↵)"
+                title={`Format the document (${formatShortcut('mod+enter')})`}
               >
                 Format
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -626,7 +627,7 @@ export default function JsonTools() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasInput}
-                title="Save to a file (⌘S)"
+                title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save JSON to file"
               >
                 <FloppyDiskIcon size={16} aria-hidden="true" />

@@ -53,6 +53,7 @@ import {
   type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type Panel = 'problems' | 'selectors'
 
@@ -518,7 +519,7 @@ export default function CssValidator() {
               variant="icon"
               size="sm"
               onClick={() => void handleOpen()}
-              title="Open a .css file (⌘O)"
+              title={`Open a .css file (${formatShortcut('mod+o')})`}
               aria-label="Open CSS file"
             >
               <FolderOpenIcon size={14} aria-hidden="true" />
@@ -527,7 +528,7 @@ export default function CssValidator() {
               variant="icon"
               size="sm"
               onClick={() => void handleSave()}
-              title="Save the stylesheet (⌘S)"
+              title={`Save the stylesheet (${formatShortcut('mod+s')})`}
               aria-label="Save stylesheet"
             >
               <FloppyDiskIcon size={14} aria-hidden="true" />
@@ -558,7 +559,7 @@ export default function CssValidator() {
               onClick={() => void handleFormat()}
               disabled={!hasInput || isFormatting || !formatter}
               loading={isFormatting}
-              title="Reformat the stylesheet (⌘↵)"
+              title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
             >
               Format
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -668,7 +669,7 @@ export default function CssValidator() {
             <EmptyState
               icon={FileCssIcon}
               title="Paste or open a stylesheet"
-              description="It is checked against the CSS specification as you type, and reformatted with ⌘↵."
+              description={`It is checked against the CSS specification as you type, and reformatted with ${formatShortcut('mod+enter')}.`}
               action={
                 TOOL_SAMPLES['css-validator'] ? (
                   <span className="pointer-events-auto">

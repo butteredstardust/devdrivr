@@ -30,6 +30,7 @@ import type { Diagnostic } from '@/workers/typescript.api'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type TsPlaygroundState = {
   input: string
@@ -305,7 +306,7 @@ export default function TsPlayground() {
                 disabled={!hasCode}
                 // Deliberately not `loading`: a background auto-compile would
                 // then disable the very button that requests an announced one.
-                title="Compile now (⌘↵)"
+                title={`Compile now (${formatShortcut('mod+enter')})`}
               >
                 Compile
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -316,7 +317,7 @@ export default function TsPlayground() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!output}
-                title="Save the JavaScript output to a file (⌘S)"
+                title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save output to file"
               >
                 <FloppyDiskIcon size={16} aria-hidden="true" />

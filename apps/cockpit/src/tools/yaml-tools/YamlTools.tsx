@@ -41,6 +41,7 @@ import {
   type YamlParse,
 } from '@/tools/yaml-tools/yaml-helpers'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type YamlView = 'source' | 'tree' | 'json'
 
@@ -376,7 +377,7 @@ export default function YamlTools() {
                 onClick={() => void handleFormat()}
                 disabled={!hasInput || isFormatting}
                 loading={isFormatting}
-                title="Format the document (⌘↵)"
+                title={`Format the document (${formatShortcut('mod+enter')})`}
               >
                 Format
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
@@ -406,7 +407,7 @@ export default function YamlTools() {
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasInput}
-                title="Save to a file (⌘S)"
+                title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save YAML to file"
               >
                 <FloppyDiskIcon size={16} aria-hidden="true" />
@@ -454,7 +455,7 @@ export default function YamlTools() {
               <EmptyState
                 icon={FileCodeIcon}
                 title="Paste or open a YAML document"
-                description="Format with ⌘↵, inspect it as a tree, and read it as JSON — multi-document streams included."
+                description={`Format with ${formatShortcut('mod+enter')}, inspect it as a tree, and read it as JSON — multi-document streams included.`}
                 action={
                   TOOL_SAMPLES['yaml-tools'] ? (
                     <span className="pointer-events-auto">
@@ -686,8 +687,10 @@ function JsonPane({
             <CopyButton text={value} label="Copy JSON" />
             {draft !== null && (
               <>
+                {/* Secondary: the toolbar's Format is the tool's primary. This row only appears
+                    when a draft exists, so it doesn't need an accent to be found. */}
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="xs"
                   onClick={() => {
                     onApply(draft)

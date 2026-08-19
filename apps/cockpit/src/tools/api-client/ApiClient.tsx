@@ -48,6 +48,7 @@ import {
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
@@ -978,7 +979,7 @@ export default function ApiClient() {
                   onClick={() => void handleSend()}
                   loading={loading}
                   className="gap-1.5"
-                  title="Send request (⌘↵)"
+                  title={`Send request (${formatShortcut('mod+enter')})`}
                 >
                   <PaperPlaneTiltIcon size={14} aria-hidden="true" />
                   Send
@@ -1233,7 +1234,7 @@ export default function ApiClient() {
                           variant="icon"
                           size="xs"
                           onClick={() => void handleSaveResponse()}
-                          title="Save response to a file (⌘S)"
+                          title={`Save response to a file (${formatShortcut('mod+s')})`}
                           aria-label="Save response to a file"
                         >
                           <DownloadSimpleIcon size={14} aria-hidden="true" />
@@ -1275,7 +1276,7 @@ export default function ApiClient() {
                     <EmptyState
                       icon={PaperPlaneTiltIcon}
                       title="Send a request to see the response"
-                      description="⌘↵ sends the current request."
+                      description={`${formatShortcut('mod+enter')} sends the current request.`}
                     />
                   </div>
                 )}

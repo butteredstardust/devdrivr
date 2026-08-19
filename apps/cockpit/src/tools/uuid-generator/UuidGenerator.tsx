@@ -304,7 +304,9 @@ export default function UuidGenerator() {
               <option value="json">JSON array</option>
               <option value="csv">CSV</option>
             </Select>
-            <Button variant="primary" size="md" onClick={generateBulk}>
+            {/* Secondary: the tool's one primary is Generate at the top. Bulk is the same
+                operation with a count, not a second headline action. */}
+            <Button variant="secondary" size="md" onClick={generateBulk}>
               Generate
             </Button>
             {bulkUuids.length > 0 && <CopyButton text={bulkOutput} label="Copy All" />}

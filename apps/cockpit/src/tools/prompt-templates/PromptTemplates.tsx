@@ -1005,9 +1005,11 @@ export default function PromptTemplates() {
         title="Prompt Templates"
         subtitle={`${allTemplates.length} templates · ${userTemplates.length} custom`}
         sidebarActions={
+          // Secondary, not primary: the detail pane's Copy prompt is this tool's one primary
+          // action, and a sidebar heading shouldn't compete with it for the eye.
           <Button
             type="button"
-            variant="primary"
+            variant="secondary"
             size="sm"
             onClick={() => setEditorState({ mode: 'create' })}
             className="gap-1.5"

@@ -37,6 +37,7 @@ import {
   type TransformCategory,
 } from '@/tools/refactoring-toolkit/transforms'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 type RefactoringView = 'source' | 'diff'
 
@@ -404,8 +405,8 @@ export default function RefactoringToolkit() {
               disabled={!canApply}
               title={
                 hasDestructive
-                  ? 'Apply the transforms — this removes code (⌘↵)'
-                  : 'Apply the transforms to the buffer (⌘↵)'
+                  ? `Apply the transforms — this removes code (${formatShortcut('mod+enter')})`
+                  : `Apply the transforms to the buffer (${formatShortcut('mod+enter')})`
               }
             >
               {hasDestructive ? 'Apply (removes code)' : 'Apply'}
@@ -428,7 +429,7 @@ export default function RefactoringToolkit() {
               size="sm"
               onClick={handleSave}
               disabled={!hasCode}
-              title="Save the code to a file (⌘S)"
+              title={`Save the code to a file (${formatShortcut('mod+s')})`}
               aria-label="Save code to file"
             >
               <FloppyDiskIcon size={16} aria-hidden="true" />
