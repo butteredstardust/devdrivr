@@ -131,7 +131,28 @@ describe('TitleBar — moved buttons', () => {
 describe('TitleBar — command palette trigger', () => {
   it('opens the command palette when clicked', () => {
     render(<TitleBar />)
-    fireEvent.focus(screen.getByRole('combobox', { name: 'Search tools and commands' }))
+    fireEvent.pointerDown(screen.getByRole('combobox', { name: 'Search tools and commands' }))
+    expect(useUiStore.getState().commandPaletteOpen).toBe(true)
+  })
+
+  it('stays closed when focus merely passes through on the way across the title bar', () => {
+    render(<TitleBar />)
+    const input = screen.getByRole('combobox', { name: 'Search tools and commands' })
+
+    fireEvent.focus(input)
+
+    // Opening from focus alone dropped a full-screen scrim over the app the moment a keyboard
+    // user tabbed past this field, with no way onward. Only deliberate entries open it.
+    expect(useUiStore.getState().commandPaletteOpen).toBe(false)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('opens from the keyboard when focus is already on the field', () => {
+    render(<TitleBar />)
+    const input = screen.getByRole('combobox', { name: 'Search tools and commands' })
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
     expect(useUiStore.getState().commandPaletteOpen).toBe(true)
   })
 
@@ -143,7 +164,8 @@ describe('TitleBar — command palette trigger', () => {
     )
 
     const input = screen.getByRole('combobox', { name: 'Search tools and commands' })
-    fireEvent.focus(input)
+    fireEvent.pointerDown(input)
+    input.focus()
     expect(input).toHaveFocus()
 
     fireEvent.change(input, { target: { value: 'base64' } })

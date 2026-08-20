@@ -3,14 +3,17 @@ import { PushPinIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { useSettingsStore } from '@/stores/settings.store'
+import type { MatchRange } from '@/hooks/useFuseSearch'
 import { SidebarItem } from './SidebarItem'
 
 type SidebarPinnedProps = {
   /** When set (sidebar filter active), only tools in this set are shown. */
   filterToolIds?: Set<string> | null
+  /** Match ranges per tool id, so a pinned row highlights like its group row. */
+  matchRanges?: Map<string, MatchRange[]> | null
 }
 
-export function SidebarPinned({ filterToolIds = null }: SidebarPinnedProps) {
+export function SidebarPinned({ filterToolIds = null, matchRanges = null }: SidebarPinnedProps) {
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
 
   const pinnedTools = useMemo(
@@ -32,7 +35,14 @@ export function SidebarPinned({ filterToolIds = null }: SidebarPinnedProps) {
       </SectionLabel>
       <div className="flex flex-col gap-1 px-1">
         {pinnedTools.map((tool) => (
-          <SidebarItem key={tool.id} id={tool.id} name={tool.name} icon={tool.icon} tabIndex={0} />
+          <SidebarItem
+            key={tool.id}
+            id={tool.id}
+            name={tool.name}
+            icon={tool.icon}
+            tabIndex={0}
+            matchRanges={matchRanges?.get(tool.id)}
+          />
         ))}
       </div>
     </div>

@@ -456,6 +456,16 @@ export function CommandPalette() {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Closed, the field is just a focusable box in the title bar. Only the keys that mean
+      // "start using the palette" act here; the rest — Tab above all — have to pass through,
+      // or focus can enter this input and never leave it.
+      if (!isOpen) {
+        if (e.key === 'ArrowDown' || e.key === 'Enter') {
+          e.preventDefault()
+          setOpen(true)
+        }
+        return
+      }
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
@@ -499,7 +509,7 @@ export function CommandPalette() {
           break
       }
     },
-    [flatCount, sections, selectedIndex, executeItem, setOpen, query]
+    [isOpen, flatCount, sections, selectedIndex, executeItem, setOpen, query]
   )
 
   // ─── Render ────────────────────────────────────────────────────
@@ -507,6 +517,10 @@ export function CommandPalette() {
   return (
     <>
       <div
+        // Pointer-down rather than focus (see the input below): clicking anywhere on the bar,
+        // including the magnifier and the ⌘K chip, is a deliberate "open the palette". The
+        // effect above focuses the input once `isOpen` flips, so this need only set the state.
+        onPointerDown={() => setOpen(true)}
         className={`pointer-events-auto relative flex w-full min-w-0 max-w-[480px] items-center gap-2 rounded-md border bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs shadow-sm transition-colors ${
           isOpen
             ? 'z-[51] border-[var(--color-accent)] shadow-[var(--focus-ring)]'
@@ -520,7 +534,11 @@ export function CommandPalette() {
         <input
           ref={inputRef}
           value={query}
-          onFocus={() => setOpen(true)}
+          // Deliberately not `onFocus`: this input sits in the title bar, so tabbing through
+          // the chrome lands on it, and opening from focus alone threw a full-screen scrim over
+          // the app mid-traversal — a keyboard user could not get past the title bar. Every
+          // intentional route in still opens it: the wrapper's pointer-down, typing (below),
+          // and mod+K, which sets `isOpen` and focuses from the effect above.
           onChange={(e) => {
             if (!isOpen) setOpen(true)
             setQuery(e.target.value)

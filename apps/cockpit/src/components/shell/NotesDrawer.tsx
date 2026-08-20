@@ -583,6 +583,11 @@ export function NotesDrawer() {
   return (
     <aside
       aria-label="Notes and history"
+      // `w-0 opacity-0 pointer-events-none` hides the closed drawer from the eye and the mouse
+      // only: its five controls and their text stay in the accessibility tree and in the tab
+      // order, so a screen reader still announces a search field and a note list that aren't
+      // there. `inert` is the one switch that covers focus, activation and AT together.
+      inert={!drawerOpen}
       className={`relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-200 ease-in-out ${
         drawerOpen ? 'opacity-100' : 'pointer-events-none w-0 overflow-hidden border-l-0 opacity-0'
       }`}

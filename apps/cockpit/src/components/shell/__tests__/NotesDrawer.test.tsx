@@ -55,6 +55,23 @@ afterEach(() => {
 })
 
 describe('NotesDrawer', () => {
+  it('makes the closed drawer inert so its controls leave the tab order', () => {
+    const { rerender } = render(<NotesDrawer />)
+    const drawer = screen.getByRole('complementary', { name: 'Notes and history' })
+    expect(drawer).not.toHaveAttribute('inert')
+
+    // Closed, the drawer is only `w-0 opacity-0 pointer-events-none` — invisible and
+    // unclickable, but its search field, tabs and note list stay tabbable and announced.
+    act(() => {
+      useSettingsStore.setState({ notesDrawerOpen: false })
+    })
+    rerender(<NotesDrawer />)
+
+    expect(screen.getByRole('complementary', { name: 'Notes and history' })).toHaveAttribute(
+      'inert'
+    )
+  })
+
   it('labels compact note actions for assistive technology', () => {
     render(<NotesDrawer />)
 

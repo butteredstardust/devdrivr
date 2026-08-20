@@ -359,8 +359,8 @@ export function Sidebar() {
           </div>
 
           <div className="flex-1 overflow-y-auto py-1" onKeyDown={handleNavKeyDown}>
-            <SidebarPinned filterToolIds={filteredToolIds} />
-            <SidebarRecent filterToolIds={filteredToolIds} />
+            <SidebarPinned filterToolIds={filteredToolIds} matchRanges={matchRanges} />
+            <SidebarRecent filterToolIds={filteredToolIds} matchRanges={matchRanges} />
             {(() => {
               let visibleIndex = 0
               return TOOL_GROUPS.map((group) => {

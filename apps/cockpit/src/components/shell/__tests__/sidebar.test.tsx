@@ -609,6 +609,22 @@ describe('Sidebar — match highlighting', () => {
 
     expect(screen.getByRole('button', { name: 'UUID Generator' }).querySelector('mark')).toBeNull()
   })
+
+  it('highlights a tool listed under Recent the same way as its group row', () => {
+    useUiStore.setState({ recentToolIds: ['uuid-generator'] })
+    useSettingsStore.setState({ pinnedToolIds: [] })
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    // The same tool appears twice while filtering — once under Recent, once in its group.
+    // Both are the same row component, so both should carry the match.
+    const rows = screen.getAllByRole('button', { name: 'UUID Generator' })
+    expect(rows).toHaveLength(2)
+    for (const row of rows) expect(row.querySelector('mark')?.textContent).toBe('UUID')
+  })
 })
 
 describe('Sidebar — resize handle', () => {
