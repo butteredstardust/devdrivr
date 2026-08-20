@@ -159,6 +159,80 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     expect(useUiStore.getState().activeTabId).toBe(third!.id)
   })
 
+  it('lets the next click through when the drag produced no click of its own', async () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    useUiStore.setState({ activeTabId: first!.id })
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+
+    dragTab(first!.id, 290)
+
+    // Measured in Chromium: a drag that releases over a different element emits
+    // no click at all. Suppression armed at pointerup and left waiting for one
+    // therefore stayed armed, and the user's next click — an ordinary click on
+    // an ordinary tab — was the one that got eaten. It has to expire instead.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const secondNode = document.querySelector(`[data-tab-id="${second!.id}"]`)!
+    fireEvent.pointerDown(secondNode, { button: 0, clientX: 0 })
+    fireEvent.pointerUp(window, { clientX: 0 })
+    fireEvent.click(secondNode)
+
+    expect(useUiStore.getState().activeTabId).toBe(second!.id)
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      second!.id,
+      third!.id,
+      first!.id,
+    ])
+  })
+
+  it('still swallows the click when the drag ended over the tab it started on', () => {
+    const [first, , third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    useUiStore.setState({ activeTabId: third!.id })
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+
+    // Short drag: past the 4px threshold, but the release is still inside the
+    // first tab, so the browser does emit a click on it. Activating the tab off
+    // the back of a reorder would be a second change from one gesture.
+    const node = document.querySelector(`[data-tab-id="${first!.id}"]`)!
+    fireEvent.pointerDown(node, { button: 0, clientX: 0 })
+    fireEvent.pointerMove(window, { clientX: 60 })
+    fireEvent.pointerUp(window, { clientX: 60 })
+    fireEvent.click(node)
+
+    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+  })
+
+  it('abandons the drag when the window loses focus mid-gesture', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+
+    // Holding the button and switching away: the release happens somewhere this
+    // window never hears about, so no pointerup or pointercancel arrives.
+    fireEvent.pointerDown(document.querySelector(`[data-tab-id="${first!.id}"]`)!, {
+      button: 0,
+      clientX: 0,
+    })
+    fireEvent.pointerMove(window, { clientX: 150 })
+    fireEvent.blur(window)
+
+    // A later plain click must be read as a click, not as the tail of the drag
+    // that was left in flight — otherwise it moves a tab nobody touched.
+    const secondNode = document.querySelector(`[data-tab-id="${second!.id}"]`)!
+    fireEvent.pointerDown(secondNode, { button: 0, clientX: 0 })
+    fireEvent.pointerUp(window, { clientX: 0 })
+    fireEvent.click(secondNode)
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      first!.id,
+      second!.id,
+      third!.id,
+    ])
+    expect(useUiStore.getState().activeTabId).toBe(second!.id)
+  })
+
   it('ignores a right-button press, which belongs to the context menu', () => {
     const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
     render(<WorkspaceTabStrip />)

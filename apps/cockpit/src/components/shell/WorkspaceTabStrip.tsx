@@ -29,7 +29,6 @@ export function WorkspaceTabStrip() {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const closeTab = useUiStore((s) => s.closeTab)
   const openTabInstance = useUiStore((s) => s.openTabInstance)
-  const reorderTab = useUiStore((s) => s.reorderTab)
   const closeOtherTabs = useUiStore((s) => s.closeOtherTabs)
   const closeTabsToRight = useUiStore((s) => s.closeTabsToRight)
   const toggleTabPinned = useUiStore((s) => s.toggleTabPinned)
@@ -128,7 +127,13 @@ export function WorkspaceTabStrip() {
   // A drag only begins once the pointer has moved past a small threshold, so a
   // plain click still selects and a double-click still pins.
   const dragOrigin = useRef<{ tabId: string; x: number } | null>(null)
-  const suppressClickRef = useRef(false)
+  // The gesture's own state lives in refs, and the `useState` copies below exist
+  // only to paint it. A pointerup can arrive in the same task as the pointermove
+  // before it, ahead of any re-render, so a handler reading the rendered
+  // `dropTarget` would drop the tab where it was two moves ago — or, when the
+  // first move and the release coincide, nowhere at all.
+  const draggingRef = useRef<string | null>(null)
+  const dropTargetRef = useRef<DropTarget | null>(null)
 
   const handleDragPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, tabId: string) => {
@@ -141,11 +146,45 @@ export function WorkspaceTabStrip() {
   useEffect(() => {
     const DRAG_THRESHOLD = 4
 
+    const endGesture = () => {
+      dragOrigin.current = null
+      draggingRef.current = null
+      dropTargetRef.current = null
+      setDraggingTabId(null)
+      setDropTarget(null)
+    }
+
+    // A drag that ends within the tab it started on still produces a click, and
+    // that click would re-activate the tab on top of the reorder the gesture
+    // already performed. One that ends over a different element produces no
+    // click at all — measured, not assumed — so a suppressor armed at pointerup
+    // and left to wait for a click that never comes would sit armed and eat the
+    // user's next, unrelated click instead. It has to expire on its own.
+    let suppressorTimer: number | undefined
+    const swallowTrailingClick = (event: MouseEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+    }
+    const disarmSuppressor = () => {
+      window.clearTimeout(suppressorTimer)
+      window.removeEventListener('click', swallowTrailingClick, { capture: true })
+    }
+    const armSuppressor = () => {
+      disarmSuppressor()
+      window.addEventListener('click', swallowTrailingClick, { capture: true, once: true })
+      // The trailing click, when there is one, is dispatched in the same task as
+      // the mouseup that follows this pointerup, so a zero delay outlives it.
+      suppressorTimer = window.setTimeout(disarmSuppressor, 0)
+    }
+
     const onMove = (event: PointerEvent) => {
       const origin = dragOrigin.current
       if (!origin) return
-      if (!draggingTabId && Math.abs(event.clientX - origin.x) < DRAG_THRESHOLD) return
-      if (!draggingTabId) setDraggingTabId(origin.tabId)
+      if (!draggingRef.current && Math.abs(event.clientX - origin.x) < DRAG_THRESHOLD) return
+      if (!draggingRef.current) {
+        draggingRef.current = origin.tabId
+        setDraggingTabId(origin.tabId)
+      }
 
       // Hit-test the strip rather than relying on the pointer being over a tab:
       // the tab under the cursor shrinks and shifts as others move out of the
@@ -165,48 +204,50 @@ export function WorkspaceTabStrip() {
         }
         target = { tabId: id, edge: 'after' }
       }
+      dropTargetRef.current = target
       setDropTarget(target)
     }
 
     const onUp = () => {
-      const origin = dragOrigin.current
-      dragOrigin.current = null
-      if (!origin || !draggingTabId) {
-        setDropTarget(null)
+      const dragging = draggingRef.current
+      const target = dropTargetRef.current
+      if (!dragOrigin.current || !dragging) {
+        endGesture()
         return
       }
-      // The click that follows this pointerup would re-activate the tab; the
-      // reorder is the whole of what the gesture asked for.
-      suppressClickRef.current = true
-      if (dropTarget) {
-        const from = tabs.findIndex((candidate) => candidate.id === draggingTabId)
-        const target = tabs.findIndex((candidate) => candidate.id === dropTarget.tabId)
-        if (from !== -1 && target !== -1) {
-          const boundary = target + (dropTarget.edge === 'after' ? 1 : 0)
-          reorderTab(draggingTabId, boundary - (from < boundary ? 1 : 0))
+      armSuppressor()
+
+      if (target) {
+        // Read the order at drop time: a tab may have opened or closed while the
+        // pointer was down, and a stale index would move the wrong tab.
+        const { tabs: current, reorderTab: reorder } = useUiStore.getState()
+        const from = current.findIndex((candidate) => candidate.id === dragging)
+        const to = current.findIndex((candidate) => candidate.id === target.tabId)
+        if (from !== -1 && to !== -1) {
+          const boundary = to + (target.edge === 'after' ? 1 : 0)
+          reorder(dragging, boundary - (from < boundary ? 1 : 0))
         }
       }
-      setDraggingTabId(null)
-      setDropTarget(null)
+      endGesture()
     }
 
     // A cancelled pointer (an OS gesture taking over, say) must not leave the
-    // strip believing a drag is still in flight.
-    const onCancel = () => {
-      dragOrigin.current = null
-      setDraggingTabId(null)
-      setDropTarget(null)
-    }
-
+    // strip believing a drag is still in flight. Nor must a window that loses
+    // focus mid-gesture: the button comes up somewhere we never hear about, so
+    // without this the next plain click would be read as the end of the old drag
+    // and would move a tab the user never touched.
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onCancel)
+    window.addEventListener('pointercancel', endGesture)
+    window.addEventListener('blur', endGesture)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('pointercancel', endGesture)
+      window.removeEventListener('blur', endGesture)
+      disarmSuppressor()
     }
-  }, [draggingTabId, dropTarget, tabs, reorderTab])
+  }, [])
 
   // Close context menu on outside mousedown
   useEffect(() => {
@@ -329,16 +370,10 @@ export function WorkspaceTabStrip() {
               tabIndex={isActive ? 0 : -1}
               data-tab-id={tab.id}
               onPointerDown={(e) => handleDragPointerDown(e, tab.id)}
-              onClick={() => {
-                // A click is also the tail of every drag. Reordering already
-                // moved the tab; re-activating it here would be a second,
-                // unasked-for change from one gesture.
-                if (suppressClickRef.current) {
-                  suppressClickRef.current = false
-                  return
-                }
-                setActiveTab(tab.id)
-              }}
+              // A click is also the tail of every drag, and reordering is the whole
+              // of what that gesture asked for — the drag handler above stops that
+              // one click before it reaches here, so this only ever sees real ones.
+              onClick={() => setActiveTab(tab.id)}
               // Double-click to pin, matching the convention the context menu
               // spells out. Cheap to discover by accident and cheap to undo.
               onDoubleClick={() => toggleTabPinned(tab.id)}
