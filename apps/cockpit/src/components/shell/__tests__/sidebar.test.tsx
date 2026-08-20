@@ -67,18 +67,29 @@ beforeEach(() => {
 // ── SidebarItem ────────────────────────────────────────────────────
 
 describe('SidebarItem — active indicator', () => {
-  it('applies glow shadow class when item is active', () => {
+  // The active row is marked by an accent left border over a dim accent fill.
+  // It previously also carried an inset accent glow on top of both, which was
+  // invisible on most themes and noise on the rest.
+  it('applies the accent border and fill when item is active', () => {
     useUiStore.setState({ activeTool: 'tool-a' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
-    expect(btn.className).toContain('shadow-[inset_3px_0_8px_-4px_var(--color-accent)]')
+    expect(btn.className).toContain('border-[var(--color-accent)]')
+    expect(btn.className).toContain('bg-[var(--color-accent-dim)]')
   })
 
-  it('does not apply glow shadow when item is inactive', () => {
+  it('does not apply the accent border or fill when item is inactive', () => {
     useUiStore.setState({ activeTool: 'tool-b' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
-    expect(btn.className).not.toContain('shadow-[inset')
+    expect(btn.className).toContain('border-transparent')
+    expect(btn.className).not.toContain('bg-[var(--color-accent-dim)]')
+  })
+
+  it('never stacks a glow on top of the border and fill', () => {
+    useUiStore.setState({ activeTool: 'tool-a' })
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+    expect(screen.getByRole('button', { name: 'Tool A' }).className).not.toContain('shadow-[inset')
   })
 
   it('has aria-current="page" when active', () => {
@@ -132,7 +143,9 @@ describe('SidebarItem — active indicator', () => {
 describe('SidebarGroup — group collapse & keyboard nav', () => {
   it('renders the group label', () => {
     render(<SidebarGroup group={GROUP} tools={TOOLS} />)
-    expect(screen.getByText('[TestGroup]')).toBeInTheDocument()
+    // Unbracketed: the bracket idiom belongs to the wordmark, and repeating it
+    // on every group header spent the app's signature on chrome.
+    expect(screen.getByText('TestGroup')).toBeInTheDocument()
   })
 
   it('shows all tools when expanded (default)', () => {

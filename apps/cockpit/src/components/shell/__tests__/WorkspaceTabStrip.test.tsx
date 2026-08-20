@@ -1,11 +1,13 @@
 /**
  * Tests for WorkspaceTabStrip UX improvements:
- * 1. Bottom pill indicator on the active tab
- * 2. Drag reordering
- * 3. Right-click context menu: Close / Duplicate / Close Others / Close to Right
+ * 1. Top pill indicator on the active tab
+ * 2. Separators between adjacent inactive tabs
+ * 3. Unsaved-work indicator
+ * 4. Drag reordering
+ * 5. Right-click context menu: Close / Duplicate / Close Others / Close to Right
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useUiStore } from '@/stores/ui.store'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
 
@@ -43,7 +45,13 @@ function seedTabs(toolIds: string[]) {
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useUiStore.setState({
+    tabs: [],
+    activeTabId: null,
+    activeTool: '',
+    tabMru: [],
+    dirtyTabIds: [],
+  })
   vi.clearAllMocks()
 })
 
@@ -78,14 +86,16 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
     const [activeTab] = seedTabs(['json-tools', 'base64'])
     render(<WorkspaceTabStrip />)
 
-    // The active tab div contains a span with the bottom pill classes
     const pill = document
       .querySelector(`[data-tab-id="${activeTab!.id}"]`)
       ?.querySelector('[data-testid="tab-pill"]')
 
+    // Top edge, not bottom: the strip sits above the panel, so the active tab
+    // should read as continuous with the content below it. A bottom pill drew
+    // a bright line across precisely the seam that wants to disappear.
     expect(pill).not.toBeNull()
-    expect(pill!.className).toContain('bottom-0')
-    expect(pill!.className).toContain('rounded-t-full')
+    expect(pill!.className).toContain('top-0')
+    expect(pill!.className).toContain('rounded-b-full')
   })
 
   it('does not render a pill on inactive tabs', () => {
@@ -115,6 +125,81 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     expect(pillOnFirst).toBeNull()
     expect(pillOnSecond).not.toBeNull()
+  })
+})
+
+// ── Separators ─────────────────────────────────────────────────────
+
+describe('WorkspaceTabStrip — separators', () => {
+  const separatorIn = (tabId: string) =>
+    document
+      .querySelector(`[data-tab-id="${tabId}"]`)
+      ?.querySelector('[data-testid="tab-separator"]')
+
+  it('separates adjacent inactive tabs', () => {
+    // Active is first, so second/third are adjacent inactives.
+    const [, second] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    expect(separatorIn(second!.id)).not.toBeNull()
+  })
+
+  it('omits the separator next to the active tab, whose fill is its own edge', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    useUiStore.setState({ activeTabId: third!.id })
+    render(<WorkspaceTabStrip />)
+
+    // second precedes the active tab → suppressed; first precedes second → kept.
+    expect(separatorIn(second!.id)).toBeNull()
+    expect(separatorIn(first!.id)).not.toBeNull()
+  })
+
+  it('omits the separator on the last tab', () => {
+    const [, , third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    expect(separatorIn(third!.id)).toBeNull()
+  })
+})
+
+// ── Dirty indicator ────────────────────────────────────────────────
+
+describe('WorkspaceTabStrip — unsaved-work indicator', () => {
+  it('marks a tab reported dirty and leaves the others alone', () => {
+    const [first, second] = seedTabs(['markdown-editor', 'base64'])
+    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    render(<WorkspaceTabStrip />)
+
+    const dotIn = (tabId: string) =>
+      document
+        .querySelector(`[data-tab-id="${tabId}"]`)
+        ?.querySelector('[data-testid="tab-dirty-dot"]')
+
+    expect(dotIn(first!.id)).not.toBeNull()
+    expect(dotIn(second!.id)).toBeNull()
+  })
+
+  it('says so in the close button label, which is the accessible surface', () => {
+    const [first] = seedTabs(['markdown-editor'])
+    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    render(<WorkspaceTabStrip />)
+
+    // The dot itself is aria-hidden decoration; the label carries the meaning.
+    expect(
+      screen.getByRole('button', { name: 'Close markdown-editor (unsaved changes)' })
+    ).toBeInTheDocument()
+  })
+
+  it('drops the mark once the tool reports itself saved', () => {
+    const [first] = seedTabs(['markdown-editor'])
+    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    render(<WorkspaceTabStrip />)
+
+    act(() => useUiStore.getState().setTabDirty(first!.id, false))
+
+    expect(
+      document
+        .querySelector(`[data-tab-id="${first!.id}"]`)
+        ?.querySelector('[data-testid="tab-dirty-dot"]')
+    ).toBeNull()
   })
 })
 

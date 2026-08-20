@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { XIcon, PlusIcon } from '@phosphor-icons/react'
 import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
@@ -18,6 +18,7 @@ type DropTarget = {
 export function WorkspaceTabStrip() {
   const tabs = useUiStore((s) => s.tabs)
   const activeTabId = useUiStore((s) => s.activeTabId)
+  const dirtyTabIds = useUiStore((s) => s.dirtyTabIds)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const closeTab = useUiStore((s) => s.closeTab)
   const openTabInstance = useUiStore((s) => s.openTabInstance)
@@ -40,6 +41,21 @@ export function WorkspaceTabStrip() {
     setShowLeftFade(el.scrollLeft > 0)
     setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
   }, [])
+
+  // Overflow is faded with a mask on the scroll container rather than two
+  // gradient overlays. The overlays had to pick a single background colour to
+  // fade into, and the strip has two — inactive tabs sit on --color-surface,
+  // the active one on --color-bg — so whichever was chosen left a visible seam
+  // wherever the fade crossed the active tab. A mask fades the pixels
+  // themselves and is correct over both.
+  const maskImage = useMemo(() => {
+    if (!showLeftFade && !showRightFade) return undefined
+    const stops = [
+      showLeftFade ? 'transparent 0, #000 32px' : '#000 0',
+      showRightFade ? '#000 calc(100% - 32px), transparent 100%' : '#000 100%',
+    ]
+    return `linear-gradient(to right, ${stops.join(', ')})`
+  }, [showLeftFade, showRightFade])
 
   // Listen for scroll and container resize
   useEffect(() => {
@@ -106,6 +122,7 @@ export function WorkspaceTabStrip() {
         ref={scrollRef}
         role="tablist"
         aria-label="Open tools"
+        style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
         className="flex flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
@@ -123,9 +140,16 @@ export function WorkspaceTabStrip() {
           }
         }}
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const tool = getToolById(tab.toolId)
           const isActive = tab.id === activeTabId
+          const isDirty = dirtyTabIds.includes(tab.id)
+          // A hairline between adjacent inactive tabs. Without it a row of
+          // tabs reads as one undifferentiated strip, since padding is the
+          // only thing separating them. Suppressed next to the active tab,
+          // whose own fill already provides the edge, and after the last tab.
+          const showSeparator =
+            !isActive && index < tabs.length - 1 && tabs[index + 1]?.id !== activeTabId
           const label = tool?.name ?? tab.toolId
           // Two tabs of the same tool are otherwise indistinguishable, so number
           // them — and only then, so a single tab is never "JSON Tools 1".
@@ -189,19 +213,16 @@ export function WorkspaceTabStrip() {
                   setActiveTab(tab.id)
                 }
               }}
+              // The active tab used to carry three simultaneous cues — its own
+              // fill, accent-coloured text, and the pill. The fill is what
+              // joins the tab to the panel below it and the pill is the
+              // marker; accent text on top of both was redundant, and it
+              // fought the tool icon beside it, which draws in its own colour.
               className={`group relative flex max-w-[180px] min-w-[80px] shrink-0 cursor-pointer select-none items-center gap-1.5 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
                 isActive
-                  ? 'bg-[var(--color-bg)] text-[var(--color-accent)]'
+                  ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-              } ${draggingTabId === tab.id ? 'opacity-50' : ''} ${
-                dropTarget?.tabId === tab.id && dropTarget.edge === 'before'
-                  ? 'border-l-2 border-l-[var(--color-accent)]'
-                  : ''
-              } ${
-                dropTarget?.tabId === tab.id && dropTarget.edge === 'after'
-                  ? 'border-r-2 border-r-[var(--color-accent)]'
-                  : ''
-              }`}
+              } ${draggingTabId === tab.id ? 'opacity-50' : ''}`}
             >
               {tool && (
                 <span
@@ -211,24 +232,71 @@ export function WorkspaceTabStrip() {
                   {tool.icon}
                 </span>
               )}
-              <span className="flex-1 truncate text-2xs">{title}</span>
+              <span className="flex-1 truncate">{title}</span>
+              {/* Unsaved work shows a dot in the close button's slot, which
+                  swaps back to the × on hover or focus. Same 16px box either
+                  way, so nothing reflows. */}
+              {isDirty && (
+                <span
+                  aria-hidden="true"
+                  data-testid="tab-dirty-dot"
+                  className="pointer-events-none absolute right-3 flex h-4 w-4 items-center justify-center opacity-100 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+                </span>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   closeTab(tab.id)
                 }}
-                aria-label={`Close ${title}`}
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                aria-label={`Close ${title}${isDirty ? ' (unsaved changes)' : ''}`}
+                // Always visible on the active tab — it is the one most likely
+                // to be closed, and hiding its only close affordance behind a
+                // hover is a poor trade for a few pixels of quiet. A dirty tab
+                // yields the slot to the dot until hover.
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                  isDirty
+                    ? 'opacity-0 group-hover:opacity-60 group-focus-within:opacity-60'
+                    : isActive
+                      ? 'opacity-60'
+                      : 'opacity-0 group-hover:opacity-60'
+                }`}
               >
                 <XIcon size={12} />
               </button>
 
-              {/* Bottom pill indicator for active tab */}
+              {/* Top pill indicator for the active tab.
+                  The strip sits above the panel, so the active tab's job is to
+                  look continuous with the content below it. A bottom pill drew
+                  a bright line across exactly the seam that should disappear;
+                  on the top edge it marks the tab without severing it. */}
               {isActive && (
                 <span
                   aria-hidden="true"
                   data-testid="tab-pill"
-                  className="pointer-events-none absolute bottom-0 left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-t-full bg-[var(--color-accent)]"
+                  className="pointer-events-none absolute top-0 left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-b-full bg-[var(--color-accent)]"
+                />
+              )}
+
+              {showSeparator && (
+                <span
+                  aria-hidden="true"
+                  data-testid="tab-separator"
+                  className="pointer-events-none absolute inset-y-1.5 right-0 w-px bg-[var(--color-border)]"
+                />
+              )}
+
+              {/* Drag drop indicator. Absolutely positioned rather than a
+                  border, which added 2px to the tab box mid-drag and nudged
+                  every tab to its right on each dragover. */}
+              {dropTarget?.tabId === tab.id && (
+                <span
+                  aria-hidden="true"
+                  data-testid="tab-drop-indicator"
+                  className={`pointer-events-none absolute inset-y-0 w-0.5 bg-[var(--color-accent)] ${
+                    dropTarget.edge === 'before' ? 'left-0' : 'right-0'
+                  }`}
                 />
               )}
             </div>
@@ -236,22 +304,14 @@ export function WorkspaceTabStrip() {
         })}
       </div>
 
-      {/* Left fade — visible once the user has scrolled right */}
-      {showLeftFade && (
-        <div className="pointer-events-none absolute left-0 top-0 h-full w-8 bg-gradient-to-r from-[var(--color-surface)] to-transparent" />
-      )}
-
-      {/* Right fade — visible when tabs overflow off the right edge */}
-      {showRightFade && (
-        <div className="pointer-events-none absolute right-8 top-0 h-full w-8 bg-gradient-to-l from-[var(--color-surface)] to-transparent" />
-      )}
-
-      {/* + button pinned outside the scroll area */}
+      {/* + button pinned outside the scroll area. The left border separates
+          "tabs" from "action" — flush against the scroll area it read as one
+          more tab. */}
       <button
         onClick={toggleCommandPalette}
         aria-label={`Open new tool (${formatShortcut('mod+k')})`}
         title={`Open new tool (${formatShortcut('mod+k')})`}
-        className="flex h-full w-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+        className="flex h-full w-8 shrink-0 items-center justify-center border-l border-[var(--color-border)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />
       </button>

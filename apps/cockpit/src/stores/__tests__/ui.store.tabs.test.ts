@@ -15,6 +15,7 @@ function resetStore() {
     activeTabId: null,
     activeTool: '',
     tabMru: [],
+    dirtyTabIds: [],
     recentToolIds: [],
     commandPaletteOpen: false,
     lastAction: null,
@@ -441,5 +442,73 @@ describe('reorderTab', () => {
     useUiStore.getState().reorderTab('nope', 0)
 
     expect(useUiStore.getState().tabs).toBe(before)
+  })
+})
+
+describe('setTabDirty', () => {
+  it('marks and unmarks a tab', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    const [tab] = useUiStore.getState().tabs
+
+    useUiStore.getState().setTabDirty(tab!.id, true)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tab!.id])
+
+    useUiStore.getState().setTabDirty(tab!.id, false)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([])
+  })
+
+  it('does not record the same tab twice', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    const [tab] = useUiStore.getState().tabs
+
+    useUiStore.getState().setTabDirty(tab!.id, true)
+    const after = useUiStore.getState().dirtyTabIds
+    useUiStore.getState().setTabDirty(tab!.id, true)
+
+    // Same array identity — a no-op must not re-render every subscriber.
+    expect(useUiStore.getState().dirtyTabIds).toBe(after)
+  })
+
+  it('ignores an unknown tab id', () => {
+    // A tool unmounting after its tab closed must not resurrect the flag that
+    // closing the tab just pruned.
+    useUiStore.getState().setTabDirty('nope', true)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([])
+  })
+
+  it('forgets the flag when the tab is closed', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    const [first, second] = useUiStore.getState().tabs
+    useUiStore.getState().setTabDirty(first!.id, true)
+    useUiStore.getState().setTabDirty(second!.id, true)
+
+    useUiStore.getState().closeTab(first!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([second!.id])
+  })
+
+  it('forgets the flags of every tab closed by Close Others', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('html-validator')
+    const tabs = useUiStore.getState().tabs
+    for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
+
+    useUiStore.getState().closeOtherTabs(tabs[1]!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[1]!.id])
+  })
+
+  it('forgets the flags of tabs closed to the right', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('html-validator')
+    const tabs = useUiStore.getState().tabs
+    for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
+
+    useUiStore.getState().closeTabsToRight(tabs[0]!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[0]!.id])
   })
 })

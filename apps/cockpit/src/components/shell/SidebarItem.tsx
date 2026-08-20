@@ -43,9 +43,12 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
         aria-current={isActive ? 'page' : undefined}
         tabIndex={tabIndex}
         data-sidebar-item={id}
+        // The accent left border plus the dim accent fill is already a
+        // complete active state. The inset accent glow that used to sit on top
+        // of both is invisible on most themes and merely noisy on the rest.
         className={`flex h-8 min-w-0 flex-1 items-center gap-2 rounded-sm border-l-2 px-2 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
           isActive
-            ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)] shadow-[inset_3px_0_8px_-4px_var(--color-accent)]'
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
         }`}
       >
@@ -64,8 +67,14 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
         aria-label={isPinned ? `Unpin ${name}` : `Pin ${name}`}
         aria-pressed={isPinned}
         tabIndex={tabIndex}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
-          isPinned ? 'text-[var(--color-accent)] opacity-100' : 'opacity-60 group-hover:opacity-100'
+        // Unpinned rows hide the pin until hover or focus. It stays in layout
+        // either way, so labels never reflow — but at a permanent opacity-60
+        // it put a second competing glyph on all thirty rows for an action
+        // that is relevant on about three of them.
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
+          isPinned
+            ? 'text-[var(--color-accent)] opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
         }`}
       >
         <PushPinIcon size={14} weight={isPinned ? 'fill' : 'regular'} />

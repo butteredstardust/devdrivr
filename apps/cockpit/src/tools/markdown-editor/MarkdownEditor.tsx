@@ -55,6 +55,7 @@ import {
 import { markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -513,6 +514,7 @@ export default function MarkdownEditor() {
   const showEditor = state.mode === 'split' || state.mode === 'edit'
   const showPreview = state.mode === 'split' || state.mode === 'preview'
   const isDirty = state.content !== state.savedContent
+  useTabDirty(isDirty)
 
   useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)

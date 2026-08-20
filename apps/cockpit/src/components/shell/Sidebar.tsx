@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
@@ -166,8 +166,16 @@ export function Sidebar() {
   }, [])
 
   return (
+    // One elevation story for the shell: the sidebar and the tab strip are a
+    // single recessed chrome plane (--color-surface, hairline borders) and the
+    // tool content is the raised one (--color-bg). The old treatment stacked a
+    // border, a 1px hard shadow duplicating that same border, and a soft drop
+    // shadow, which made the chrome float above the content it frames.
+    //
+    // 150ms, not 200: the expanded tree unmounts the instant collapse starts,
+    // so every millisecond past the swap is an empty rail sliding shut.
     <aside
-      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-[1px_0_0_0_var(--color-border),2px_0_8px_-2px_var(--color-shadow)] transition-[width] duration-200 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
+      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] transition-[width] duration-150 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
     >
       {/* Only one of the two layouts is ever mounted. Rendering both at once
           (previously cross-faded via opacity) kept the hidden tree fully
@@ -196,19 +204,29 @@ export function Sidebar() {
           >
             <CaretRightIcon size={12} />
           </button>
+          {/* The rail keeps the grouping the expanded tree has — without the
+              dividers it is 40px of undifferentiated icons, and the structure
+              the user learned while expanded vanishes on collapse. */}
           <div
             className="flex flex-1 flex-col items-center gap-0.5"
             onKeyDown={handleCollapsedNavKeyDown}
           >
-            {TOOL_GROUPS.map((group) => {
+            {TOOL_GROUPS.map((group, index) => {
               const tools = TOOLS.filter((t) => t.group === group.id)
               return (
-                <SidebarCollapsedGroup
-                  key={group.id}
-                  group={group}
-                  tools={tools}
-                  isActiveGroup={group.id === activeGroup}
-                />
+                <Fragment key={group.id}>
+                  {index > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="my-1 h-px w-5 shrink-0 bg-[var(--color-border)]"
+                    />
+                  )}
+                  <SidebarCollapsedGroup
+                    group={group}
+                    tools={tools}
+                    isActiveGroup={group.id === activeGroup}
+                  />
+                </Fragment>
               )
             })}
           </div>
@@ -218,7 +236,11 @@ export function Sidebar() {
           <div className="flex items-center justify-between px-2 py-2">
             <div className="flex items-center gap-1 overflow-hidden">
               <Mascot className="shrink-0" />
-              <h1 className="font-pixel text-sm font-bold tracking-tight text-[var(--color-accent)]">
+              {/* Not accent-coloured. The wordmark was the brightest thing in
+                  the sidebar and the least useful — it competed with the
+                  active tool for the eye every time the sidebar was open. The
+                  Mascot beside it still carries the brand colour. */}
+              <h1 className="font-pixel text-sm font-bold tracking-tight text-[var(--color-text)]">
                 [devdrivr]
               </h1>
             </div>

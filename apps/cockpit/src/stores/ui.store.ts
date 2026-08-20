@@ -30,6 +30,17 @@ type UiStore = {
    * and which gets torn down.
    */
   tabMru: string[]
+  /**
+   * Ids of tabs whose tool reports unsaved work, so the strip can mark them.
+   *
+   * Tools already tracked this privately — the API client compares its draft
+   * to the saved request, the markdown editor and HTML validator compare
+   * against the last text written to disk — but each kept the answer to
+   * itself, so the one place it is useful at a glance had no way to ask.
+   * Reported through `useTabDirty`; deliberately not persisted, since it is
+   * derived from tool state that is itself restored on launch.
+   */
+  dirtyTabIds: string[]
 
   // --- Tab actions ---
   /** Open tool in a new tab, or focus the existing tab if already open. */
@@ -50,6 +61,8 @@ type UiStore = {
   closeTabsToRight: (tabId: string) => void
   /** Switch the active tab without opening a new one. */
   setActiveTab: (tabId: string) => void
+  /** Report whether a tab holds unsaved work. Called by tools via `useTabDirty`. */
+  setTabDirty: (tabId: string, dirty: boolean) => void
   /** Bootstrap-only restore — does NOT persist to DB. */
   restoreTabs: (tabs: WorkspaceTab[], activeTabId: string | null) => void
 
@@ -110,6 +123,15 @@ function discardClosedState(closed: WorkspaceTab[]): void {
   }
 }
 
+/** Drops dirty flags belonging to tabs that no longer exist. */
+function pruneDirty(dirtyTabIds: string[], tabs: WorkspaceTab[]): string[] {
+  if (dirtyTabIds.length === 0) return dirtyTabIds
+  const live = new Set(tabs.map((tab) => tab.id))
+  const next = dirtyTabIds.filter((id) => live.has(id))
+  // Same array when nothing was dropped, so subscribers don't re-render.
+  return next.length === dirtyTabIds.length ? dirtyTabIds : next
+}
+
 /** Most-recently-active first, with ids of closed tabs dropped. */
 function touchMru(mru: string[], tabId: string | null, tabs: WorkspaceTab[]): string[] {
   const live = new Set(tabs.map((tab) => tab.id))
@@ -123,6 +145,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   activeTabId: null,
   activeTool: '',
   tabMru: [],
+  dirtyTabIds: [],
 
   openTab: (toolId) => {
     const { tabs: currentTabs, tabMru } = get()
@@ -189,6 +212,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       activeTabId: nextActiveId,
       activeTool: nextActiveTool,
       tabMru: touchMru(get().tabMru, nextActiveId, next),
+      dirtyTabIds: pruneDirty(get().dirtyTabIds, next),
     })
     persistTabs(next, nextActiveId)
   },
@@ -205,6 +229,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       activeTabId: nextActiveId,
       activeTool: derivedActiveTool(next, nextActiveId),
       tabMru: touchMru(get().tabMru, nextActiveId, next),
+      dirtyTabIds: pruneDirty(get().dirtyTabIds, next),
     })
     persistTabs(next, nextActiveId)
   },
@@ -224,6 +249,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       activeTabId: nextActiveId,
       activeTool: derivedActiveTool(next, nextActiveId),
       tabMru: touchMru(get().tabMru, nextActiveId, next),
+      dirtyTabIds: pruneDirty(get().dirtyTabIds, next),
     })
     persistTabs(next, nextActiveId)
   },
@@ -234,6 +260,18 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     const activeTool = derivedActiveTool(tabs, tabId)
     set({ activeTabId: tabId, activeTool, tabMru: touchMru(get().tabMru, tabId, tabs) })
     persistTabs(tabs, tabId)
+  },
+
+  setTabDirty: (tabId, dirty) => {
+    const { dirtyTabIds, tabs } = get()
+    const already = dirtyTabIds.includes(tabId)
+    if (already === dirty) return
+    // Ignore unknown ids so a tool unmounting after its tab closed cannot
+    // resurrect a flag that `pruneDirty` just dropped.
+    if (dirty && !tabs.some((tab) => tab.id === tabId)) return
+    set({
+      dirtyTabIds: dirty ? [...dirtyTabIds, tabId] : dirtyTabIds.filter((id) => id !== tabId),
+    })
   },
 
   restoreTabs: (tabs, activeTabId) => {
