@@ -43,9 +43,19 @@ function seedTabs(toolIds: string[]) {
   return tabs
 }
 
+// Several tests below swap a store action for a spy. `setState` merges, so those
+// spies survive into every later test unless they are put back — which is how a
+// behavioural assertion further down ends up watching a mock close nothing.
+const realTabActions = {
+  closeTab: useUiStore.getState().closeTab,
+  closeOtherTabs: useUiStore.getState().closeOtherTabs,
+  closeTabsToRight: useUiStore.getState().closeTabsToRight,
+}
+
 beforeEach(() => {
   cleanup()
   useUiStore.setState({
+    ...realTabActions,
     tabs: [],
     activeTabId: null,
     activeTool: '',
@@ -359,5 +369,212 @@ describe('WorkspaceTabStrip — tool icons', () => {
     for (const id of toolIds) {
       expect(screen.getByTestId(`icon-${id}`)).toBeInTheDocument()
     }
+  })
+})
+
+/**
+ * This Testing Library build has no `fireEvent.auxClick`, so the auxclick
+ * event is constructed directly. `button: 1` is the part under test — the
+ * handler ignores every other button.
+ *
+ * `MouseEvent` is taken off the element's own window rather than the global:
+ * this environment exposes the DOM constructors on `window` but does not hoist
+ * them, so the bare identifier is undefined.
+ */
+function middleClick(element: HTMLElement) {
+  const view = element.ownerDocument.defaultView!
+  fireEvent(
+    element,
+    new view.MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true })
+  )
+}
+
+describe('WorkspaceTabStrip — pinned tabs', () => {
+  it('drops the label and the close button, leaving the icon to identify the tab', () => {
+    const tabs = seedTabs(['json-tools', 'diff-viewer'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    render(<WorkspaceTabStrip />)
+
+    const pinned = screen.getByRole('tab', { name: 'diff-viewer (pinned)' })
+    expect(pinned.textContent).toBe('')
+    expect(screen.getByTestId('icon-diff-viewer')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Close diff-viewer/ })).not.toBeInTheDocument()
+  })
+
+  it('names the pinned tab for assistive technology, which cannot see the icon', () => {
+    const tabs = seedTabs(['json-tools'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    render(<WorkspaceTabStrip />)
+
+    expect(screen.getByRole('tab', { name: 'json-tools (pinned)' })).toBeInTheDocument()
+  })
+
+  it('ignores middle-click, so the pin actually protects the tab', () => {
+    const tabs = seedTabs(['json-tools', 'diff-viewer'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    render(<WorkspaceTabStrip />)
+
+    middleClick(screen.getByRole('tab', { name: 'diff-viewer (pinned)' }))
+
+    expect(useUiStore.getState().tabs).toHaveLength(2)
+  })
+
+  it('closes an unpinned tab on middle-click, as before', () => {
+    seedTabs(['json-tools', 'diff-viewer'])
+    render(<WorkspaceTabStrip />)
+
+    middleClick(screen.getByRole('tab', { name: 'diff-viewer' }))
+
+    expect(useUiStore.getState().tabs).toHaveLength(1)
+  })
+
+  it('pins on double-click', () => {
+    const tabs = seedTabs(['json-tools', 'diff-viewer'])
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.doubleClick(screen.getByRole('tab', { name: 'diff-viewer' }))
+
+    expect(useUiStore.getState().tabs.find((t) => t.id === tabs[1]!.id)?.pinned).toBe(true)
+  })
+
+  it('offers Pin in the context menu and Unpin once pinned', () => {
+    const tabs = seedTabs(['json-tools'])
+    const { rerender } = render(<WorkspaceTabStrip />)
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'json-tools' }))
+    expect(screen.getByText('Pin Tab')).toBeInTheDocument()
+
+    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    rerender(<WorkspaceTabStrip />)
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'json-tools (pinned)' }))
+    expect(screen.getByText('Unpin Tab')).toBeInTheDocument()
+  })
+
+  it('rules off the end of the pinned block', () => {
+    const tabs = seedTabs(['json-tools', 'diff-viewer'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    render(<WorkspaceTabStrip />)
+
+    expect(screen.getByTestId('tab-pinned-divider')).toBeInTheDocument()
+  })
+
+  it('disables Close Others when only pinned tabs would survive anyway', () => {
+    const tabs = seedTabs(['json-tools', 'diff-viewer'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    render(<WorkspaceTabStrip />)
+
+    // Right-click the one unpinned tab: everything else is pinned, so the
+    // command would close nothing.
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'json-tools' }))
+
+    expect(screen.getByText('Close Others')).toBeDisabled()
+  })
+})
+
+/**
+ * The overflow control only exists when the strip is actually overflowing, and
+ * jsdom has no layout: every element reports 0 for both widths, so the strip
+ * always believes it fits. These stubs are the whole difference.
+ */
+function withOverflowingStrip(run: () => void) {
+  const scrollWidth = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'scrollWidth')
+  const clientWidth = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', {
+    value: 900,
+    configurable: true,
+  })
+  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+    value: 300,
+    configurable: true,
+  })
+  try {
+    run()
+  } finally {
+    if (scrollWidth) Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', scrollWidth)
+    if (clientWidth) Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', clientWidth)
+  }
+}
+
+describe('WorkspaceTabStrip — overflow menu', () => {
+  it('stays out of the way while every tab is visible', () => {
+    seedTabs(['json-tools', 'diff-viewer'])
+    render(<WorkspaceTabStrip />)
+
+    expect(screen.queryByRole('button', { name: 'Show all open tools' })).not.toBeInTheDocument()
+  })
+
+  it('appears once tabs are scrolled out of view', () => {
+    withOverflowingStrip(() => {
+      seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      expect(screen.getByRole('button', { name: 'Show all open tools' })).toBeInTheDocument()
+    })
+  })
+
+  it('lists every open tab, including the ones off screen', () => {
+    withOverflowingStrip(() => {
+      seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show all open tools' }))
+
+      const items = screen.getAllByRole('menuitem')
+      expect(items.map((item) => item.textContent)).toEqual(['json-tools', 'diff-viewer', 'base64'])
+    })
+  })
+
+  it('numbers duplicate tools so the entries stay distinguishable', () => {
+    withOverflowingStrip(() => {
+      seedTabs(['json-tools', 'json-tools', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show all open tools' }))
+
+      expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+        'json-tools 1',
+        'json-tools 2',
+        'base64',
+      ])
+    })
+  })
+
+  it('activates the chosen tab and closes itself', () => {
+    withOverflowingStrip(() => {
+      const tabs = seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show all open tools' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'base64' }))
+
+      expect(useUiStore.getState().activeTabId).toBe(tabs[2]!.id)
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+  })
+
+  it('closes on an outside mousedown', () => {
+    withOverflowingStrip(() => {
+      seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show all open tools' }))
+      expect(screen.getByRole('menu')).toBeInTheDocument()
+
+      fireEvent.mouseDown(document.body)
+
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+  })
+
+  it('reports its expanded state to assistive technology', () => {
+    withOverflowingStrip(() => {
+      seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+      const trigger = screen.getByRole('button', { name: 'Show all open tools' })
+
+      expect(trigger).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(trigger)
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    })
   })
 })

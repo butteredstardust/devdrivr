@@ -1,8 +1,15 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import { XIcon, PlusIcon } from '@phosphor-icons/react'
+import {
+  XIcon,
+  PlusIcon,
+  CaretDownIcon,
+  PushPinIcon,
+  PushPinSlashIcon,
+} from '@phosphor-icons/react'
 import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { useFlipReorder } from '@/hooks/useFlipReorder'
 
 type ContextMenu = {
   tabId: string
@@ -25,6 +32,7 @@ export function WorkspaceTabStrip() {
   const reorderTab = useUiStore((s) => s.reorderTab)
   const closeOtherTabs = useUiStore((s) => s.closeOtherTabs)
   const closeTabsToRight = useUiStore((s) => s.closeTabsToRight)
+  const toggleTabPinned = useUiStore((s) => s.toggleTabPinned)
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -33,7 +41,11 @@ export function WorkspaceTabStrip() {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const overflowRef = useRef<HTMLDivElement>(null)
+
+  const registerTabNode = useFlipReorder(tabs.map((tab) => tab.id).join('|'))
 
   const updateFades = useCallback(() => {
     const el = scrollRef.current
@@ -77,6 +89,32 @@ export function WorkspaceTabStrip() {
     updateFades()
   }, [tabs, updateFades])
 
+  // Keep the active tab on screen.
+  //
+  // The strip scrolls, but nothing scrolled it: mod+1..9, Ctrl+Tab, the
+  // overflow menu and closing a tab can all select a tab that is scrolled out
+  // of view, leaving a strip with no visible active tab and no clue which way
+  // to scroll to find it. `block: 'nearest'` so a tab that is already visible
+  // is left exactly where it is rather than being centred on every switch.
+  useEffect(() => {
+    if (!activeTabId) return
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`)
+    // jsdom has no layout and so no scrollIntoView; feature-detect rather than
+    // stub it globally, so the tests exercise the same code path as the app.
+    if (typeof el?.scrollIntoView !== 'function') return
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [activeTabId, tabs])
+
+  // A vertical wheel over a horizontal strip should scroll it — trackpads emit
+  // deltaY for the gesture that visually reads as "along the tabs". Ignored
+  // when the gesture is already horizontal, which the browser handles itself.
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    if (el.scrollWidth <= el.clientWidth) return
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+    el.scrollLeft += e.deltaY
+  }, [])
+
   // Close context menu on outside mousedown
   useEffect(() => {
     if (!contextMenu) return
@@ -88,6 +126,25 @@ export function WorkspaceTabStrip() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [contextMenu])
+
+  // Same dismissal rules for the overflow menu.
+  useEffect(() => {
+    if (!overflowMenuOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowMenuOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOverflowMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [overflowMenuOpen])
 
   // Close context menu on Escape
   useEffect(() => {
@@ -104,16 +161,20 @@ export function WorkspaceTabStrip() {
     e.stopPropagation()
     // Clamp so the menu doesn't overflow the viewport edges
     const menuWidth = 160
-    const menuHeight = 128 // four items at ~32px
+    const menuHeight = 160 // five items at ~32px
     const x = Math.min(e.clientX, window.innerWidth - menuWidth - 4)
     const y = Math.min(e.clientY, window.innerHeight - menuHeight - 4)
     setContextMenu({ tabId, x, y })
   }, [])
 
-  // Derived helpers for context menu item availability
+  // Derived helpers for context menu item availability. Both counts skip
+  // pinned tabs, which now survive either command — enabling an item that
+  // would close nothing is worse than greying it out.
   const contextTabIdx = contextMenu ? tabs.findIndex((t) => t.id === contextMenu.tabId) : -1
-  const hasOthers = contextTabIdx !== -1 && tabs.length > 1
-  const hasRight = contextTabIdx !== -1 && contextTabIdx < tabs.length - 1
+  const contextTabPinned = contextTabIdx !== -1 && !!tabs[contextTabIdx]?.pinned
+  const hasOthers =
+    contextTabIdx !== -1 && tabs.some((t) => t.id !== contextMenu?.tabId && !t.pinned)
+  const hasRight = contextTabIdx !== -1 && tabs.slice(contextTabIdx + 1).some((t) => !t.pinned)
 
   return (
     <div className="font-ui relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -124,6 +185,7 @@ export function WorkspaceTabStrip() {
         aria-label="Open tools"
         style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
         className="flex flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
+        onWheel={handleWheel}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
           const idx = tabs.findIndex((t) => t.id === activeTabId)
@@ -144,12 +206,18 @@ export function WorkspaceTabStrip() {
           const tool = getToolById(tab.toolId)
           const isActive = tab.id === activeTabId
           const isDirty = dirtyTabIds.includes(tab.id)
+          const isPinned = !!tab.pinned
           // A hairline between adjacent inactive tabs. Without it a row of
           // tabs reads as one undifferentiated strip, since padding is the
           // only thing separating them. Suppressed next to the active tab,
           // whose own fill already provides the edge, and after the last tab.
           const showSeparator =
             !isActive && index < tabs.length - 1 && tabs[index + 1]?.id !== activeTabId
+          // The end of the pinned block gets a rule regardless of what sits on
+          // either side of it. Without it, a pinned tab next to the active tab
+          // suppresses its own separator and the two groups run together —
+          // which is precisely the boundary that has to stay legible.
+          const endsPinnedBlock = isPinned && !tabs[index + 1]?.pinned && index < tabs.length - 1
           const label = tool?.name ?? tab.toolId
           // Two tabs of the same tool are otherwise indistinguishable, so number
           // them — and only then, so a single tab is never "JSON Tools 1".
@@ -159,8 +227,11 @@ export function WorkspaceTabStrip() {
             <div
               key={tab.id}
               id={`tab-${tab.id}`}
+              ref={(node) => registerTabNode(tab.id, node)}
               role="tab"
               aria-selected={isActive}
+              aria-label={isPinned ? `${title} (pinned)` : undefined}
+              title={isPinned ? `${title} — pinned` : undefined}
               aria-controls={`tabpanel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               data-tab-id={tab.id}
@@ -200,10 +271,16 @@ export function WorkspaceTabStrip() {
                 setDropTarget(null)
               }}
               onClick={() => setActiveTab(tab.id)}
-              // Middle-click to close, as every other tabbed app does.
+              // Double-click to pin, matching the convention the context menu
+              // spells out. Cheap to discover by accident and cheap to undo.
+              onDoubleClick={() => toggleTabPinned(tab.id)}
+              // Middle-click to close, as every other tabbed app does — except
+              // on a pinned tab, where the whole point of the pin is that the
+              // tab does not disappear by accident.
               onAuxClick={(e) => {
                 if (e.button !== 1) return
                 e.preventDefault()
+                if (isPinned) return
                 closeTab(tab.id)
               }}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
@@ -218,7 +295,19 @@ export function WorkspaceTabStrip() {
               // joins the tab to the panel below it and the pill is the
               // marker; accent text on top of both was redundant, and it
               // fought the tool icon beside it, which draws in its own colour.
-              className={`group relative flex max-w-[180px] min-w-[80px] shrink-0 cursor-pointer select-none items-center gap-1.5 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
+              // Tabs shrink as the strip fills, the way browser tabs do, rather
+              // than holding a fixed 180px and overflowing the moment a fifth
+              // one opens. `grow-0` keeps a lone tab from stretching across the
+              // whole strip; the 52px floor is where the icon and close button
+              // stop fitting, and past it the existing scroll/fade takes over.
+              //
+              // Pinned tabs opt out entirely: fixed and icon-only, which is
+              // what buys back the room the shrinking is competing for.
+              className={`group relative flex cursor-pointer select-none items-center text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
+                isPinned
+                  ? 'w-9 shrink-0 justify-center px-0'
+                  : 'min-w-[52px] max-w-[180px] shrink grow-0 basis-[160px] gap-1.5 px-3'
+              } ${
                 isActive
                   ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
@@ -232,7 +321,10 @@ export function WorkspaceTabStrip() {
                   {tool.icon}
                 </span>
               )}
-              <span className="flex-1 truncate">{title}</span>
+              {/* A pinned tab drops its label, so the icon has to carry the
+                  identity on screen and the accessible name has to carry it
+                  everywhere else — without this the tab announces as blank. */}
+              {!isPinned && <span className="flex-1 truncate">{title}</span>}
               {/* Unsaved work shows a dot in the close button's slot, which
                   swaps back to the × on hover or focus. Same 16px box either
                   way, so nothing reflows. */}
@@ -240,31 +332,44 @@ export function WorkspaceTabStrip() {
                 <span
                   aria-hidden="true"
                   data-testid="tab-dirty-dot"
-                  className="pointer-events-none absolute right-3 flex h-4 w-4 items-center justify-center opacity-100 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                  // A pinned tab has no close button to swap with, so its dot
+                  // tucks into the icon's corner and simply stays put.
+                  className={
+                    isPinned
+                      ? 'pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]'
+                      : 'pointer-events-none absolute right-3 flex h-4 w-4 items-center justify-center opacity-100 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0'
+                  }
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+                  {!isPinned && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+                  )}
                 </span>
               )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  closeTab(tab.id)
-                }}
-                aria-label={`Close ${title}${isDirty ? ' (unsaved changes)' : ''}`}
-                // Always visible on the active tab — it is the one most likely
-                // to be closed, and hiding its only close affordance behind a
-                // hover is a poor trade for a few pixels of quiet. A dirty tab
-                // yields the slot to the dot until hover.
-                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
-                  isDirty
-                    ? 'opacity-0 group-hover:opacity-60 group-focus-within:opacity-60'
-                    : isActive
-                      ? 'opacity-60'
-                      : 'opacity-0 group-hover:opacity-60'
-                }`}
-              >
-                <XIcon size={12} />
-              </button>
+              {/* No close button on a pinned tab — the pin exists to make the
+                  tab hard to lose, and a one-click × beside it says otherwise.
+                  Unpin (context menu or double-click) is the way out. */}
+              {!isPinned && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeTab(tab.id)
+                  }}
+                  aria-label={`Close ${title}${isDirty ? ' (unsaved changes)' : ''}`}
+                  // Always visible on the active tab — it is the one most likely
+                  // to be closed, and hiding its only close affordance behind a
+                  // hover is a poor trade for a few pixels of quiet. A dirty tab
+                  // yields the slot to the dot until hover.
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                    isDirty
+                      ? 'opacity-0 group-hover:opacity-60 group-focus-within:opacity-60'
+                      : isActive
+                        ? 'opacity-60'
+                        : 'opacity-0 group-hover:opacity-60'
+                  }`}
+                >
+                  <XIcon size={12} />
+                </button>
+              )}
 
               {/* Top pill indicator for the active tab.
                   The strip sits above the panel, so the active tab's job is to
@@ -275,15 +380,19 @@ export function WorkspaceTabStrip() {
                 <span
                   aria-hidden="true"
                   data-testid="tab-pill"
-                  className="pointer-events-none absolute top-0 left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-b-full bg-[var(--color-accent)]"
+                  className={`pointer-events-none absolute top-0 left-1/2 h-[3px] -translate-x-1/2 rounded-b-full bg-[var(--color-accent)] ${
+                    isPinned ? 'w-5' : 'w-10'
+                  }`}
                 />
               )}
 
-              {showSeparator && (
+              {(showSeparator || endsPinnedBlock) && (
                 <span
                   aria-hidden="true"
-                  data-testid="tab-separator"
-                  className="pointer-events-none absolute inset-y-1.5 right-0 w-px bg-[var(--color-border)]"
+                  data-testid={endsPinnedBlock ? 'tab-pinned-divider' : 'tab-separator'}
+                  className={`pointer-events-none absolute right-0 w-px bg-[var(--color-border)] ${
+                    endsPinnedBlock ? 'inset-y-0' : 'inset-y-1.5'
+                  }`}
                 />
               )}
 
@@ -303,6 +412,80 @@ export function WorkspaceTabStrip() {
           )
         })}
       </div>
+
+      {/* Every open tab in one list. The mask fade tells you there is more to
+          the strip than you can see, but not what — and scrolling a strip with
+          no visible scrollbar is a poor way to find a named tab. Only shown
+          once something is actually out of view, so it doesn't sit there as
+          dead chrome in the common case of three tabs. */}
+      {(showLeftFade || showRightFade) && (
+        <div ref={overflowRef} className="relative flex shrink-0">
+          <button
+            onClick={() => setOverflowMenuOpen((open) => !open)}
+            aria-label="Show all open tools"
+            aria-expanded={overflowMenuOpen}
+            aria-haspopup="menu"
+            title="Show all open tools"
+            className="flex h-full w-8 items-center justify-center border-l border-[var(--color-border)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+          >
+            <CaretDownIcon size={12} />
+          </button>
+          {overflowMenuOpen && (
+            <div
+              role="menu"
+              aria-label="Open tools"
+              className="absolute right-0 top-full z-[var(--z-popover)] max-h-[60vh] min-w-[200px] overflow-y-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+            >
+              {tabs.map((tab) => {
+                const tool = getToolById(tab.toolId)
+                const label = tool?.name ?? tab.toolId
+                const sameTool = tabs.filter((t) => t.toolId === tab.toolId)
+                const entryTitle =
+                  sameTool.length > 1 ? `${label} ${sameTool.indexOf(tab) + 1}` : label
+                return (
+                  <button
+                    key={tab.id}
+                    role="menuitem"
+                    onClick={() => {
+                      setActiveTab(tab.id)
+                      setOverflowMenuOpen(false)
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                      tab.id === activeTabId
+                        ? 'text-[var(--color-accent)]'
+                        : 'text-[var(--color-text)]'
+                    }`}
+                  >
+                    {tool && (
+                      <span
+                        aria-hidden="true"
+                        className="flex shrink-0 items-center [&_svg]:h-3.5 [&_svg]:w-3.5"
+                      >
+                        {tool.icon}
+                      </span>
+                    )}
+                    <span className="flex-1 truncate">{entryTitle}</span>
+                    {tab.pinned && (
+                      <PushPinIcon
+                        size={12}
+                        aria-label="pinned"
+                        className="shrink-0 text-[var(--color-text-muted)]"
+                      />
+                    )}
+                    {dirtyTabIds.includes(tab.id) && (
+                      <span
+                        aria-label="unsaved changes"
+                        role="img"
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
+                      />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* + button pinned outside the scroll area. The left border separates
           "tabs" from "action" — flush against the scroll area it read as one
@@ -331,6 +514,16 @@ export function WorkspaceTabStrip() {
             className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             Close
+          </button>
+          <button
+            onClick={() => {
+              toggleTabPinned(contextMenu.tabId)
+              setContextMenu(null)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+          >
+            {contextTabPinned ? <PushPinSlashIcon size={12} /> : <PushPinIcon size={12} />}
+            {contextTabPinned ? 'Unpin Tab' : 'Pin Tab'}
           </button>
           <button
             onClick={() => {

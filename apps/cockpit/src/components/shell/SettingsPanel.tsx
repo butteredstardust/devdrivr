@@ -444,6 +444,7 @@ function DataTab() {
         collapsedSidebarGroups: state.collapsedSidebarGroups,
         openedSidebarGroups: state.openedSidebarGroups,
         pinnedToolIds: state.pinnedToolIds,
+        sidebarWidth: state.sidebarWidth,
         notesDrawerOpen: state.notesDrawerOpen,
         notesDrawerWidth: state.notesDrawerWidth,
         defaultIndentSize: state.defaultIndentSize,

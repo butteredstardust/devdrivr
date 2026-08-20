@@ -512,3 +512,96 @@ describe('setTabDirty', () => {
     expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[0]!.id])
   })
 })
+
+describe('pinned tabs', () => {
+  /** Opens `count` tabs and returns them in strip order. */
+  function openTabs(...toolIds: string[]) {
+    for (const id of toolIds) useUiStore.getState().openTabInstance(id)
+    return useUiStore.getState().tabs
+  }
+
+  it('moves a newly pinned tab to the front of the strip', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+
+    useUiStore.getState().toggleTabPinned(third!.id)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([third!.id, first!.id, second!.id])
+    expect(useUiStore.getState().tabs[0]!.pinned).toBe(true)
+  })
+
+  it('returns an unpinned tab to the head of the unpinned block, not the front of the strip', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    useUiStore.getState().toggleTabPinned(first!.id)
+    useUiStore.getState().toggleTabPinned(third!.id)
+    // Order is now [first(pinned), third(pinned), second]
+
+    useUiStore.getState().toggleTabPinned(third!.id)
+
+    // third lands behind the remaining pin rather than staying at index 0,
+    // which is where the pin had hoisted it.
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([first!.id, third!.id, second!.id])
+    expect(useUiStore.getState().tabs.map((t) => !!t.pinned)).toEqual([true, false, false])
+  })
+
+  it('keeps pinned tabs through Close Others', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    useUiStore.getState().toggleTabPinned(first!.id)
+
+    useUiStore.getState().closeOtherTabs(third!.id)
+
+    const ids = useUiStore.getState().tabs.map((t) => t.id)
+    expect(ids).toContain(first!.id)
+    expect(ids).toContain(third!.id)
+    expect(ids).not.toContain(second!.id)
+    // The anchor stays active — it is the tab the user acted on.
+    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+  })
+
+  it('keeps pinned tabs through Close to Right', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    // Pin the last, which sorts it to the front, then anchor on what is now
+    // index 1 so a pinned tab is genuinely to its left and none to its right.
+    useUiStore.getState().toggleTabPinned(third!.id)
+    useUiStore.getState().toggleTabPinned(second!.id)
+
+    // Order is now [third(pinned), second(pinned), first]
+    useUiStore.getState().closeTabsToRight(third!.id)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([third!.id, second!.id])
+    expect(useUiStore.getState().tabs.map((t) => t.id)).not.toContain(first!.id)
+  })
+
+  it('refuses to drag an unpinned tab into the pinned block', () => {
+    const [first, second] = openTabs('json-tools', 'diff-viewer')
+    useUiStore.getState().toggleTabPinned(first!.id)
+
+    // Index 0 is inside the pinned block; the move is clamped to index 1,
+    // which is where the tab already is, so nothing happens.
+    useUiStore.getState().reorderTab(second!.id, 0)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([first!.id, second!.id])
+  })
+
+  it('re-sorts a restored session so pins lead, however it was persisted', () => {
+    useUiStore.getState().restoreTabs(
+      [
+        { id: 'a', toolId: 'json-tools', stateKey: 'json-tools' },
+        { id: 'b', toolId: 'diff-viewer', stateKey: 'diff-viewer', pinned: true },
+      ],
+      'a'
+    )
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual(['b', 'a'])
+    // Re-sorting must not change which tab is active.
+    expect(useUiStore.getState().activeTabId).toBe('a')
+  })
+
+  it('ignores an unknown tab id', () => {
+    openTabs('json-tools')
+    const before = useUiStore.getState().tabs
+
+    useUiStore.getState().toggleTabPinned('nope')
+
+    expect(useUiStore.getState().tabs).toBe(before)
+  })
+})

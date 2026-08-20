@@ -39,6 +39,8 @@ export type AppSettings = {
    */
   openedSidebarGroups: ToolGroup[]
   pinnedToolIds: string[]
+  /** Expanded-sidebar width in px. Ignored while collapsed, which is a fixed rail. */
+  sidebarWidth: number
   notesDrawerOpen: boolean
   notesDrawerWidth: number
   defaultIndentSize: number
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   collapsedSidebarGroups: [],
   openedSidebarGroups: [],
   pinnedToolIds: [],
+  sidebarWidth: 218,
   notesDrawerOpen: false,
   notesDrawerWidth: 288,
   defaultIndentSize: 2,

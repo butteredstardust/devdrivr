@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useKeyboardShortcut } from './useKeyboardShortcut'
+import { useMruTabSwitcher } from './useMruTabSwitcher'
 import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
@@ -152,4 +153,5 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboO, openFile)
   useKeyboardShortcut(comboS, saveFile)
   useKeyboardShortcut(comboSlash, toggleShortcutsModal)
+  useMruTabSwitcher()
 }

@@ -4,7 +4,7 @@ import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useFuseSearch } from '@/hooks/useFuseSearch'
+import { useFuseSearchWithMatches, type MatchRange } from '@/hooks/useFuseSearch'
 import { TOOL_FUSE_OPTIONS, toolSearchable } from '@/lib/tool-search'
 import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
@@ -19,14 +19,28 @@ import { SearchInput } from '@/components/shared/SearchInput'
 // hijacks "/" while the user is typing in an editor or input elsewhere.
 const FILTER_COMBO = { key: '/' } as const
 
+// Floor is where the longest tool names stop being readable at all; ceiling
+// keeps the sidebar from eating a window that is only ~800px wide to begin with.
+const MIN_SIDEBAR_WIDTH = 180
+const MAX_SIDEBAR_WIDTH = 420
+
+function clampSidebarWidth(width: number): number {
+  return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)))
+}
+
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
   const update = useSettingsStore((s) => s.update)
   const activeTool = useUiStore((s) => s.activeTool)
 
+  const savedWidth = useSettingsStore((s) => s.sidebarWidth)
+
   const [filterQuery, setFilterQuery] = useState('')
+  const [width, setWidth] = useState(() => clampSidebarWidth(savedWidth))
+  const [resizing, setResizing] = useState(false)
   const filterInputRef = useRef<HTMLInputElement>(null)
+  const resizeSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Set by the "/" shortcut when the sidebar is collapsed (no room for the
   // filter box there) — expand first, then focus once the expanded tree
   // mounts.
@@ -50,6 +64,62 @@ export function Sidebar() {
   const toggleCollapsed = () => {
     void update('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
   }
+
+  useEffect(() => setWidth(clampSidebarWidth(savedWidth)), [savedWidth])
+
+  useEffect(() => () => clearTimeout(resizeSaveTimer.current), [])
+
+  // Drag the right edge to resize. Mirrors the notes drawer's handle (same
+  // debounce, same body cursor/selection lock) so the two edges of the shell
+  // behave identically, just measured from the opposite side.
+  const handleResizeStart = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault()
+      const startX = event.clientX
+      const startWidth = width
+      setResizing(true)
+
+      const onMove = (moveEvent: MouseEvent) => {
+        setWidth(clampSidebarWidth(startWidth + moveEvent.clientX - startX))
+      }
+      const onUp = (upEvent: MouseEvent) => {
+        const final = clampSidebarWidth(startWidth + upEvent.clientX - startX)
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        setResizing(false)
+        clearTimeout(resizeSaveTimer.current)
+        resizeSaveTimer.current = setTimeout(
+          () => void update('sidebarWidth', final).catch(() => {}),
+          500
+        )
+      }
+
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [update, width]
+  )
+
+  // Keyboard resizing, so the width isn't mouse-only. 16px a step, matching
+  // roughly one indent level of the tree it is sizing.
+  const handleResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      event.preventDefault()
+      const next = clampSidebarWidth(width + (event.key === 'ArrowRight' ? 16 : -16))
+      setWidth(next)
+      clearTimeout(resizeSaveTimer.current)
+      resizeSaveTimer.current = setTimeout(
+        () => void update('sidebarWidth', next).catch(() => {}),
+        500
+      )
+    },
+    [update, width]
+  )
 
   useKeyboardShortcut(
     FILTER_COMBO,
@@ -75,13 +145,26 @@ export function Sidebar() {
   // ─── Filtering ───────────────────────────────────────────────────
   // Reuses the same Fuse.js scoring as the command palette (see
   // useFuseSearch) rather than a second search implementation.
-  const searchTools = useFuseSearch(TOOLS, TOOL_FUSE_OPTIONS, toolSearchable, true)
+  const searchTools = useFuseSearchWithMatches(
+    TOOLS,
+    TOOL_FUSE_OPTIONS,
+    toolSearchable,
+    'name',
+    true
+  )
   const trimmedFilter = filterQuery.trim()
   const isFiltering = trimmedFilter.length > 0
 
-  const filteredToolIds = useMemo(() => {
-    if (!isFiltering) return null
-    return new Set(searchTools(trimmedFilter).map((t) => t.id))
+  // One pass produces both the visibility set and the per-tool ranges: they
+  // come from the same search and must not be allowed to disagree about which
+  // tools matched.
+  const { filteredToolIds, matchRanges } = useMemo(() => {
+    if (!isFiltering) return { filteredToolIds: null, matchRanges: null }
+    const hits = searchTools(trimmedFilter)
+    return {
+      filteredToolIds: new Set(hits.map((hit) => hit.item.id)),
+      matchRanges: new Map<string, MatchRange[]>(hits.map((hit) => [hit.item.id, hit.ranges])),
+    }
   }, [isFiltering, trimmedFilter, searchTools])
 
   const handleFilterKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -175,7 +258,15 @@ export function Sidebar() {
     // 150ms, not 200: the expanded tree unmounts the instant collapse starts,
     // so every millisecond past the swap is an empty rail sliding shut.
     <aside
-      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] transition-[width] duration-150 ease-in-out ${sidebarCollapsed ? 'w-10' : 'w-[218px]'}`}
+      // Width is inline because it is now user data rather than a design
+      // constant. The collapsed rail keeps its fixed 40px — there is nothing
+      // to size there — and the transition is suppressed mid-drag, since
+      // animating towards a target that moves every mousemove makes the edge
+      // lag the cursor.
+      style={{ width: sidebarCollapsed ? 40 : width }}
+      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] ease-in-out ${
+        resizing ? '' : 'transition-[width] duration-150'
+      }`}
     >
       {/* Only one of the two layouts is ever mounted. Rendering both at once
           (previously cross-faded via opacity) kept the hidden tree fully
@@ -287,6 +378,7 @@ export function Sidebar() {
                     isFirst={isFirst}
                     isActiveGroup={group.id === activeGroup}
                     forceExpanded={isFiltering}
+                    matchRanges={matchRanges ?? undefined}
                   />
                 )
               })
@@ -298,6 +390,25 @@ export function Sidebar() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Resize handle. Hidden while collapsed, where there is no width to
+          set. A slider role rather than a bare div so the value is
+          announced and the arrow keys have a documented meaning. */}
+      {!sidebarCollapsed && (
+        <div
+          role="slider"
+          tabIndex={0}
+          aria-label="Resize sidebar"
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          aria-valuenow={width}
+          aria-orientation="vertical"
+          onMouseDown={handleResizeStart}
+          onKeyDown={handleResizeKeyDown}
+          title="Drag to resize"
+          className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 focus-visible:outline-none focus-visible:bg-[var(--color-accent)]/60"
+        />
       )}
     </aside>
   )

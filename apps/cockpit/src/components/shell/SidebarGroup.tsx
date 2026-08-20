@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
+import type { MatchRange } from '@/hooks/useFuseSearch'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHadOpenedGroupsAtLaunch } from '@/hooks/useOpenedGroupsAtLaunch'
 import { CaretRightIcon } from '@phosphor-icons/react'
@@ -13,6 +14,8 @@ type SidebarGroupProps = {
   isActiveGroup?: boolean
   /** Force-expanded while the sidebar filter has matches in this group. */
   forceExpanded?: boolean
+  /** Filter match ranges by tool id, for emphasising the matched characters. */
+  matchRanges?: Map<string, MatchRange[]> | undefined
 }
 
 export function SidebarGroup({
@@ -21,6 +24,7 @@ export function SidebarGroup({
   isFirst,
   isActiveGroup = false,
   forceExpanded = false,
+  matchRanges,
 }: SidebarGroupProps) {
   const collapsedSidebarGroups = useSettingsStore((s) => s.collapsedSidebarGroups)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
@@ -132,6 +136,7 @@ export function SidebarGroup({
                 name={tool.name}
                 icon={tool.icon}
                 tabIndex={collapsed ? -1 : 0}
+                matchRanges={matchRanges?.get(tool.id)}
               />
             ))}
           </div>

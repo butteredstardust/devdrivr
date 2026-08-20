@@ -591,3 +591,118 @@ describe('SidebarItem — truncation tooltip', () => {
     }
   })
 })
+
+describe('Sidebar — match highlighting', () => {
+  it('emphasises the matched characters in a filtered row', () => {
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    const row = screen.getByRole('button', { name: 'UUID Generator' })
+    expect(row.querySelector('mark')?.textContent).toBe('UUID')
+  })
+
+  it('leaves unfiltered rows as plain text', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByRole('button', { name: 'UUID Generator' }).querySelector('mark')).toBeNull()
+  })
+})
+
+describe('Sidebar — resize handle', () => {
+  it('applies the persisted width', () => {
+    useSettingsStore.setState({ sidebarWidth: 300 })
+    render(<Sidebar />)
+
+    expect(document.querySelector('aside')).toHaveStyle({ width: '300px' })
+  })
+
+  it('clamps a persisted width that is out of range', () => {
+    useSettingsStore.setState({ sidebarWidth: 9000 })
+    render(<Sidebar />)
+
+    expect(screen.getByRole('slider', { name: 'Resize sidebar' })).toHaveAttribute(
+      'aria-valuenow',
+      '420'
+    )
+  })
+
+  it('widens by one step on ArrowRight and narrows on ArrowLeft', () => {
+    useSettingsStore.setState({ sidebarWidth: 240 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(handle).toHaveAttribute('aria-valuenow', '256')
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(handle).toHaveAttribute('aria-valuenow', '240')
+  })
+
+  it('stops at the floor rather than shrinking past it', () => {
+    useSettingsStore.setState({ sidebarWidth: 185 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+
+    expect(handle).toHaveAttribute('aria-valuenow', '180')
+  })
+
+  it('ignores keys that are not the arrows it owns', () => {
+    useSettingsStore.setState({ sidebarWidth: 240 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowUp' })
+
+    expect(handle).toHaveAttribute('aria-valuenow', '240')
+  })
+
+  it('tracks the pointer across a drag and persists the width once it settles', async () => {
+    // Only the timers the debounce uses: this setup freezes rAF as read-only,
+    // so faking it throws before the test even starts.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      useSettingsStore.setState({ sidebarWidth: 240 })
+      const update = vi.fn().mockResolvedValue(undefined)
+      useSettingsStore.setState({ update } as never)
+      render(<Sidebar />)
+      const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+      fireEvent.mouseDown(handle, { clientX: 240 })
+      fireEvent.mouseMove(document, { clientX: 300 })
+      expect(handle).toHaveAttribute('aria-valuenow', '300')
+
+      fireEvent.mouseUp(document, { clientX: 300 })
+      // The save is debounced, so nothing is written mid-drag.
+      expect(update).not.toHaveBeenCalledWith('sidebarWidth', 300)
+      act(() => void vi.advanceTimersByTime(500))
+      expect(update).toHaveBeenCalledWith('sidebarWidth', 300)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases the body cursor lock when the drag ends', () => {
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.mouseDown(handle, { clientX: 240 })
+    expect(document.body.style.cursor).toBe('col-resize')
+
+    fireEvent.mouseUp(document, { clientX: 260 })
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+  })
+
+  it('has no handle to drag while collapsed', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true })
+    render(<Sidebar />)
+
+    expect(screen.queryByRole('slider', { name: 'Resize sidebar' })).not.toBeInTheDocument()
+  })
+})

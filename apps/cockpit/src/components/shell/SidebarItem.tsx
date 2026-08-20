@@ -2,15 +2,19 @@ import { useLayoutEffect, useRef, useState, type ReactElement } from 'react'
 import { PushPinIcon } from '@phosphor-icons/react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
+import { MatchText } from '@/components/shared/MatchText'
+import type { MatchRange } from '@/hooks/useFuseSearch'
 
 type SidebarItemProps = {
   id: string
   name: string
   icon: ReactElement
   tabIndex?: number
+  /** Character ranges of the sidebar filter's match within `name`, if any. */
+  matchRanges?: MatchRange[] | undefined
 }
 
-export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
+export function SidebarItem({ id, name, icon, tabIndex, matchRanges }: SidebarItemProps) {
   const activeTool = useUiStore((s) => s.activeTool)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
@@ -58,7 +62,7 @@ export function SidebarItem({ id, name, icon, tabIndex }: SidebarItemProps) {
             a redundant hover tooltip. The full name is always reachable via
             aria-label regardless of truncation. */}
         <span ref={labelRef} className="truncate" title={isTruncated ? name : undefined}>
-          {name}
+          {matchRanges?.length ? <MatchText text={name} ranges={matchRanges} /> : name}
         </span>
       </button>
       <button
