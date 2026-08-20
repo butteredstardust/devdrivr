@@ -26,6 +26,17 @@ const CATEGORIES: ShortcutCategory[] = [
       { keys: 'mod+[', action: 'Previous tool' },
     ],
   },
+  // Tab shortcuts used to sit under "Editor", which is where you'd look for
+  // them last — they act on the workspace, not on the tool inside it.
+  {
+    label: 'Tabs',
+    shortcuts: [
+      { keys: 'mod+1 / 2 / 3', action: 'Switch to tab by position' },
+      { keys: 'ctrl+tab', action: 'Switch to recently used tab' },
+      { keys: 'ctrl+shift+tab', action: 'Switch back through recent tabs' },
+      { keys: 'mod+w', action: 'Close tab' },
+    ],
+  },
   {
     label: 'Notes',
     shortcuts: [{ keys: 'mod+shift+n', action: 'Toggle notes drawer' }],
@@ -35,7 +46,6 @@ const CATEGORIES: ShortcutCategory[] = [
     shortcuts: [
       { keys: 'mod+enter', action: 'Execute / Run' },
       { keys: 'mod+shift+c', action: 'Copy output' },
-      { keys: 'mod+1 / 2 / 3', action: 'Switch tab' },
       { keys: 'mod+o', action: 'Open file' },
       { keys: 'mod+s', action: 'Save file' },
     ],

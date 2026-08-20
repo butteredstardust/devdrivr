@@ -101,18 +101,21 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
 
   return (
     <>
-      {/* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px) */}
+      {/* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px).
+          The accent left border mirrors the expanded tree's active row, so
+          collapsing the sidebar changes the density but not the visual
+          language — the active thing is marked the same way in both. */}
       <button
         ref={triggerRef}
         onClick={() => setFlyoutOpen(!flyoutOpen)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`flex h-8 w-8 items-center justify-center rounded transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+        className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
           isActiveGroup
-            ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : flyoutOpen
-              ? 'bg-[var(--color-surface-hover)] text-[var(--color-text)]'
-              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+              ? 'border-transparent bg-[var(--color-surface-hover)] text-[var(--color-text)]'
+              : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
         }`}
         aria-label={group.label}
         aria-expanded={flyoutOpen}

@@ -38,4 +38,10 @@ export type WorkspaceTab = {
    * before this existed have no key — `stateKeyFor` assigns one on restore.
    */
   stateKey?: string
+  /**
+   * Pinned tabs sort ahead of unpinned ones, shrink to their icon, and survive
+   * "Close Others". Optional because sessions persisted before pinning existed
+   * have no flag — absent reads as false.
+   */
+  pinned?: boolean
 }

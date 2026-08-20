@@ -15,6 +15,7 @@ function resetStore() {
     activeTabId: null,
     activeTool: '',
     tabMru: [],
+    dirtyTabIds: [],
     recentToolIds: [],
     commandPaletteOpen: false,
     lastAction: null,
@@ -439,6 +440,167 @@ describe('reorderTab', () => {
     const before = useUiStore.getState().tabs
 
     useUiStore.getState().reorderTab('nope', 0)
+
+    expect(useUiStore.getState().tabs).toBe(before)
+  })
+})
+
+describe('setTabDirty', () => {
+  it('marks and unmarks a tab', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    const [tab] = useUiStore.getState().tabs
+
+    useUiStore.getState().setTabDirty(tab!.id, true)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tab!.id])
+
+    useUiStore.getState().setTabDirty(tab!.id, false)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([])
+  })
+
+  it('does not record the same tab twice', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    const [tab] = useUiStore.getState().tabs
+
+    useUiStore.getState().setTabDirty(tab!.id, true)
+    const after = useUiStore.getState().dirtyTabIds
+    useUiStore.getState().setTabDirty(tab!.id, true)
+
+    // Same array identity — a no-op must not re-render every subscriber.
+    expect(useUiStore.getState().dirtyTabIds).toBe(after)
+  })
+
+  it('ignores an unknown tab id', () => {
+    // A tool unmounting after its tab closed must not resurrect the flag that
+    // closing the tab just pruned.
+    useUiStore.getState().setTabDirty('nope', true)
+    expect(useUiStore.getState().dirtyTabIds).toEqual([])
+  })
+
+  it('forgets the flag when the tab is closed', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    const [first, second] = useUiStore.getState().tabs
+    useUiStore.getState().setTabDirty(first!.id, true)
+    useUiStore.getState().setTabDirty(second!.id, true)
+
+    useUiStore.getState().closeTab(first!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([second!.id])
+  })
+
+  it('forgets the flags of every tab closed by Close Others', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('html-validator')
+    const tabs = useUiStore.getState().tabs
+    for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
+
+    useUiStore.getState().closeOtherTabs(tabs[1]!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[1]!.id])
+  })
+
+  it('forgets the flags of tabs closed to the right', () => {
+    useUiStore.getState().openTab('markdown-editor')
+    useUiStore.getState().openTab('base64')
+    useUiStore.getState().openTab('html-validator')
+    const tabs = useUiStore.getState().tabs
+    for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
+
+    useUiStore.getState().closeTabsToRight(tabs[0]!.id)
+
+    expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[0]!.id])
+  })
+})
+
+describe('pinned tabs', () => {
+  /** Opens `count` tabs and returns them in strip order. */
+  function openTabs(...toolIds: string[]) {
+    for (const id of toolIds) useUiStore.getState().openTabInstance(id)
+    return useUiStore.getState().tabs
+  }
+
+  it('moves a newly pinned tab to the front of the strip', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+
+    useUiStore.getState().toggleTabPinned(third!.id)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([third!.id, first!.id, second!.id])
+    expect(useUiStore.getState().tabs[0]!.pinned).toBe(true)
+  })
+
+  it('returns an unpinned tab to the head of the unpinned block, not the front of the strip', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    useUiStore.getState().toggleTabPinned(first!.id)
+    useUiStore.getState().toggleTabPinned(third!.id)
+    // Order is now [first(pinned), third(pinned), second]
+
+    useUiStore.getState().toggleTabPinned(third!.id)
+
+    // third lands behind the remaining pin rather than staying at index 0,
+    // which is where the pin had hoisted it.
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([first!.id, third!.id, second!.id])
+    expect(useUiStore.getState().tabs.map((t) => !!t.pinned)).toEqual([true, false, false])
+  })
+
+  it('keeps pinned tabs through Close Others', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    useUiStore.getState().toggleTabPinned(first!.id)
+
+    useUiStore.getState().closeOtherTabs(third!.id)
+
+    const ids = useUiStore.getState().tabs.map((t) => t.id)
+    expect(ids).toContain(first!.id)
+    expect(ids).toContain(third!.id)
+    expect(ids).not.toContain(second!.id)
+    // The anchor stays active — it is the tab the user acted on.
+    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+  })
+
+  it('keeps pinned tabs through Close to Right', () => {
+    const [first, second, third] = openTabs('json-tools', 'diff-viewer', 'regex-tester')
+    // Pin the last, which sorts it to the front, then anchor on what is now
+    // index 1 so a pinned tab is genuinely to its left and none to its right.
+    useUiStore.getState().toggleTabPinned(third!.id)
+    useUiStore.getState().toggleTabPinned(second!.id)
+
+    // Order is now [third(pinned), second(pinned), first]
+    useUiStore.getState().closeTabsToRight(third!.id)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([third!.id, second!.id])
+    expect(useUiStore.getState().tabs.map((t) => t.id)).not.toContain(first!.id)
+  })
+
+  it('refuses to drag an unpinned tab into the pinned block', () => {
+    const [first, second] = openTabs('json-tools', 'diff-viewer')
+    useUiStore.getState().toggleTabPinned(first!.id)
+
+    // Index 0 is inside the pinned block; the move is clamped to index 1,
+    // which is where the tab already is, so nothing happens.
+    useUiStore.getState().reorderTab(second!.id, 0)
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual([first!.id, second!.id])
+  })
+
+  it('re-sorts a restored session so pins lead, however it was persisted', () => {
+    useUiStore.getState().restoreTabs(
+      [
+        { id: 'a', toolId: 'json-tools', stateKey: 'json-tools' },
+        { id: 'b', toolId: 'diff-viewer', stateKey: 'diff-viewer', pinned: true },
+      ],
+      'a'
+    )
+
+    expect(useUiStore.getState().tabs.map((t) => t.id)).toEqual(['b', 'a'])
+    // Re-sorting must not change which tab is active.
+    expect(useUiStore.getState().activeTabId).toBe('a')
+  })
+
+  it('ignores an unknown tab id', () => {
+    openTabs('json-tools')
+    const before = useUiStore.getState().tabs
+
+    useUiStore.getState().toggleTabPinned('nope')
 
     expect(useUiStore.getState().tabs).toBe(before)
   })

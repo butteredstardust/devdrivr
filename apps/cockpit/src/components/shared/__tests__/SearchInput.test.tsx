@@ -61,6 +61,19 @@ describe('SearchInput', () => {
     expect(onKeyDown).toHaveBeenCalled()
   })
 
+  it('takes the clear button out of the flow via a wrapper, not via Button.className', () => {
+    render(<SearchInput aria-label="Search" value="a" onValueChange={vi.fn()} />)
+    const clear = screen.getByRole('button', { name: 'Clear search' })
+
+    // Regression: `absolute` was passed straight to Button, which carries `relative` in its own
+    // base classes. Equal specificity, so the stylesheet order decides and `.relative` — emitted
+    // last — won. The button stayed in the flow below the field and grew the wrapper, which in
+    // turn pushed the magnifier's `top-1/2` off the field. jsdom does not apply the stylesheet,
+    // so this asserts the structure that makes the button's position independent of that race.
+    expect(clear.className).not.toContain('absolute')
+    expect(clear.parentElement?.className).toContain('absolute')
+  })
+
   it('suppresses the native WebKit clear button so only one X renders', () => {
     render(<SearchInput aria-label="Search" value="a" onValueChange={vi.fn()} />)
     // jsdom cannot render the pseudo-element, so this asserts the reset is applied rather than its

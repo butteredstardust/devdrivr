@@ -63,7 +63,7 @@ describe('CommandPalette', () => {
     expect(input).not.toHaveAttribute('aria-controls')
     expect(input).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.focus(input)
+    fireEvent.pointerDown(input)
 
     expect(input).toHaveAttribute('aria-controls', 'command-palette-results')
     expect(input).toHaveAttribute('aria-expanded', 'true')

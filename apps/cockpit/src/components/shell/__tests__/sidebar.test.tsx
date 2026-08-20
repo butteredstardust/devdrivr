@@ -67,18 +67,29 @@ beforeEach(() => {
 // ── SidebarItem ────────────────────────────────────────────────────
 
 describe('SidebarItem — active indicator', () => {
-  it('applies glow shadow class when item is active', () => {
+  // The active row is marked by an accent left border over a dim accent fill.
+  // It previously also carried an inset accent glow on top of both, which was
+  // invisible on most themes and noise on the rest.
+  it('applies the accent border and fill when item is active', () => {
     useUiStore.setState({ activeTool: 'tool-a' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
-    expect(btn.className).toContain('shadow-[inset_3px_0_8px_-4px_var(--color-accent)]')
+    expect(btn.className).toContain('border-[var(--color-accent)]')
+    expect(btn.className).toContain('bg-[var(--color-accent-dim)]')
   })
 
-  it('does not apply glow shadow when item is inactive', () => {
+  it('does not apply the accent border or fill when item is inactive', () => {
     useUiStore.setState({ activeTool: 'tool-b' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
-    expect(btn.className).not.toContain('shadow-[inset')
+    expect(btn.className).toContain('border-transparent')
+    expect(btn.className).not.toContain('bg-[var(--color-accent-dim)]')
+  })
+
+  it('never stacks a glow on top of the border and fill', () => {
+    useUiStore.setState({ activeTool: 'tool-a' })
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+    expect(screen.getByRole('button', { name: 'Tool A' }).className).not.toContain('shadow-[inset')
   })
 
   it('has aria-current="page" when active', () => {
@@ -132,7 +143,9 @@ describe('SidebarItem — active indicator', () => {
 describe('SidebarGroup — group collapse & keyboard nav', () => {
   it('renders the group label', () => {
     render(<SidebarGroup group={GROUP} tools={TOOLS} />)
-    expect(screen.getByText('[TestGroup]')).toBeInTheDocument()
+    // Unbracketed: the bracket idiom belongs to the wordmark, and repeating it
+    // on every group header spent the app's signature on chrome.
+    expect(screen.getByText('TestGroup')).toBeInTheDocument()
   })
 
   it('shows all tools when expanded (default)', () => {
@@ -576,5 +589,136 @@ describe('SidebarItem — truncation tooltip', () => {
         Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidth)
       }
     }
+  })
+})
+
+describe('Sidebar — match highlighting', () => {
+  it('emphasises the matched characters in a filtered row', () => {
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    const row = screen.getByRole('button', { name: 'UUID Generator' })
+    expect(row.querySelector('mark')?.textContent).toBe('UUID')
+  })
+
+  it('leaves unfiltered rows as plain text', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByRole('button', { name: 'UUID Generator' }).querySelector('mark')).toBeNull()
+  })
+
+  it('highlights a tool listed under Recent the same way as its group row', () => {
+    useUiStore.setState({ recentToolIds: ['uuid-generator'] })
+    useSettingsStore.setState({ pinnedToolIds: [] })
+    render(<Sidebar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter tools' }), {
+      target: { value: 'uuid' },
+    })
+
+    // The same tool appears twice while filtering — once under Recent, once in its group.
+    // Both are the same row component, so both should carry the match.
+    const rows = screen.getAllByRole('button', { name: 'UUID Generator' })
+    expect(rows).toHaveLength(2)
+    for (const row of rows) expect(row.querySelector('mark')?.textContent).toBe('UUID')
+  })
+})
+
+describe('Sidebar — resize handle', () => {
+  it('applies the persisted width', () => {
+    useSettingsStore.setState({ sidebarWidth: 300 })
+    render(<Sidebar />)
+
+    expect(document.querySelector('aside')).toHaveStyle({ width: '300px' })
+  })
+
+  it('clamps a persisted width that is out of range', () => {
+    useSettingsStore.setState({ sidebarWidth: 9000 })
+    render(<Sidebar />)
+
+    expect(screen.getByRole('slider', { name: 'Resize sidebar' })).toHaveAttribute(
+      'aria-valuenow',
+      '420'
+    )
+  })
+
+  it('widens by one step on ArrowRight and narrows on ArrowLeft', () => {
+    useSettingsStore.setState({ sidebarWidth: 240 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(handle).toHaveAttribute('aria-valuenow', '256')
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(handle).toHaveAttribute('aria-valuenow', '240')
+  })
+
+  it('stops at the floor rather than shrinking past it', () => {
+    useSettingsStore.setState({ sidebarWidth: 185 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+
+    expect(handle).toHaveAttribute('aria-valuenow', '180')
+  })
+
+  it('ignores keys that are not the arrows it owns', () => {
+    useSettingsStore.setState({ sidebarWidth: 240 })
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.keyDown(handle, { key: 'ArrowUp' })
+
+    expect(handle).toHaveAttribute('aria-valuenow', '240')
+  })
+
+  it('tracks the pointer across a drag and persists the width once it settles', async () => {
+    // Only the timers the debounce uses: this setup freezes rAF as read-only,
+    // so faking it throws before the test even starts.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      useSettingsStore.setState({ sidebarWidth: 240 })
+      const update = vi.fn().mockResolvedValue(undefined)
+      useSettingsStore.setState({ update } as never)
+      render(<Sidebar />)
+      const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+      fireEvent.mouseDown(handle, { clientX: 240 })
+      fireEvent.mouseMove(document, { clientX: 300 })
+      expect(handle).toHaveAttribute('aria-valuenow', '300')
+
+      fireEvent.mouseUp(document, { clientX: 300 })
+      // The save is debounced, so nothing is written mid-drag.
+      expect(update).not.toHaveBeenCalledWith('sidebarWidth', 300)
+      act(() => void vi.advanceTimersByTime(500))
+      expect(update).toHaveBeenCalledWith('sidebarWidth', 300)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases the body cursor lock when the drag ends', () => {
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.mouseDown(handle, { clientX: 240 })
+    expect(document.body.style.cursor).toBe('col-resize')
+
+    fireEvent.mouseUp(document, { clientX: 260 })
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+  })
+
+  it('has no handle to drag while collapsed', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true })
+    render(<Sidebar />)
+
+    expect(screen.queryByRole('slider', { name: 'Resize sidebar' })).not.toBeInTheDocument()
   })
 })

@@ -57,6 +57,7 @@ import {
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
 
 type ViewMode = 'editor' | 'split' | 'preview'
@@ -151,6 +152,7 @@ export default function HtmlValidator() {
   // Without a known saved text, only text this session produced counts as unsaved.
   const isDirty =
     state.savedContent === null ? userEditedRef.current && hasInput : input !== state.savedContent
+  useTabDirty(isDirty)
   const { disabledRules, enabledRules } = state
   // The editor-only mode used to be called 'edit'. A session that ended there
   // hydrates that value straight past the default, and an unrecognised mode

@@ -22,6 +22,7 @@ const APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true> = {
   collapsedSidebarGroups: true,
   openedSidebarGroups: true,
   pinnedToolIds: true,
+  sidebarWidth: true,
   notesDrawerOpen: true,
   notesDrawerWidth: true,
   defaultIndentSize: true,

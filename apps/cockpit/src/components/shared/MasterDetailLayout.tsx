@@ -43,6 +43,10 @@ export function MasterDetailLayout({
     <div className={`flex h-full min-h-0 bg-[var(--color-bg)] ${className}`}>
       <aside
         aria-label={title}
+        // The collapsed state below hides the pane from the eye and the mouse but not from the
+        // tab order or the accessibility tree, so its list and header would still be announced
+        // and tabbable while the pane reads as closed. `inert` covers all three.
+        inert={!sidebarOpen}
         // Narrows below 1100px viewport, matching the breakpoint SnippetsManager already used.
         // It's a viewport query rather than a container query because the workspace isn't a
         // `@container` — worth revisiting if one is ever introduced, since the app sidebar and

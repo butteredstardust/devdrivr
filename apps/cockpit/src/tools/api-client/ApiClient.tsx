@@ -48,6 +48,7 @@ import {
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
@@ -321,6 +322,7 @@ export default function ApiClient() {
     [requests, state.activeRequestId]
   )
   const dirty = useMemo(() => isDraftDirty(state.draft, savedRequest), [state.draft, savedRequest])
+  useTabDirty(dirty)
   // Read inside stable callbacks so the discard guard never needs `dirty` as a dep.
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty

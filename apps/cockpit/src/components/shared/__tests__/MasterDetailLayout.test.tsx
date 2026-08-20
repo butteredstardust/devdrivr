@@ -56,4 +56,32 @@ describe('MasterDetailLayout', () => {
     fireEvent.click(toggle)
     expect(onToggle).toHaveBeenCalledOnce()
   })
+
+  it('makes the collapsed pane inert so its controls leave the tab order', () => {
+    const { rerender } = render(
+      <MasterDetailLayout
+        title="Snippets"
+        sidebar={<button>Pick one</button>}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
+      >
+        <p>Detail</p>
+      </MasterDetailLayout>
+    )
+    // The collapsed pane is only `w-0 opacity-0 pointer-events-none`, which hides it from the
+    // eye and the mouse but leaves this button tabbable and announced.
+    expect(screen.getByRole('complementary', { name: 'Snippets' })).toHaveAttribute('inert')
+
+    rerender(
+      <MasterDetailLayout
+        title="Snippets"
+        sidebar={<button>Pick one</button>}
+        sidebarOpen
+        onToggleSidebar={vi.fn()}
+      >
+        <p>Detail</p>
+      </MasterDetailLayout>
+    )
+    expect(screen.getByRole('complementary', { name: 'Snippets' })).not.toHaveAttribute('inert')
+  })
 })

@@ -1,8 +1,10 @@
 import { useCallback } from 'react'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
+import type { MatchRange } from '@/hooks/useFuseSearch'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHadOpenedGroupsAtLaunch } from '@/hooks/useOpenedGroupsAtLaunch'
 import { CaretRightIcon } from '@phosphor-icons/react'
+import { SectionLabel } from '@/components/shared/SectionLabel'
 import { SidebarItem } from './SidebarItem'
 
 type SidebarGroupProps = {
@@ -12,6 +14,8 @@ type SidebarGroupProps = {
   isActiveGroup?: boolean
   /** Force-expanded while the sidebar filter has matches in this group. */
   forceExpanded?: boolean
+  /** Filter match ranges by tool id, for emphasising the matched characters. */
+  matchRanges?: Map<string, MatchRange[]> | undefined
 }
 
 export function SidebarGroup({
@@ -20,6 +24,7 @@ export function SidebarGroup({
   isFirst,
   isActiveGroup = false,
   forceExpanded = false,
+  matchRanges,
 }: SidebarGroupProps) {
   const collapsedSidebarGroups = useSettingsStore((s) => s.collapsedSidebarGroups)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
@@ -91,23 +96,31 @@ export function SidebarGroup({
   )
 
   return (
-    <div className={`mb-1 ${!isFirst ? 'mt-2 border-t border-[var(--color-border)] pt-2' : ''}`}>
+    // No rule above the header. Every group used to carry a full-width
+    // border-t on top of its own spacing, an uppercase tracked label, a count
+    // and a chevron — five separators competing inside a 218px column. The
+    // margin already groups these; the muted label does the rest.
+    <div className={`mb-1 ${!isFirst ? 'mt-3' : ''}`}>
       <button
         onClick={toggleCollapsed}
         onKeyDown={handleKeyDown}
         aria-expanded={!collapsed}
         data-sidebar-group={group.id}
-        className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
+        className="w-full rounded px-2 py-1 transition-colors duration-150 hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
       >
-        {/* Chevron: size 12 (was 10), rotate-90 when expanded with smooth ease-in-out */}
-        <CaretRightIcon
-          size={12}
-          className={`shrink-0 transition-transform duration-200 ease-in-out ${collapsed ? '' : 'rotate-90'}`}
-        />
-        <span className="text-xs tracking-normal">[{group.label}]</span>
-        <span className="ml-auto font-mono text-2xs font-normal tabular-nums text-[var(--color-text-muted)] opacity-60">
-          {tools.length}
-        </span>
+        {/* SectionLabel rather than a bespoke type treatment, so group headers
+            and the Pinned/Recent headers above them are one style instead of
+            two competing ones in the same column. */}
+        <SectionLabel
+          as="span"
+          hint={<span className="font-mono tabular-nums">{tools.length}</span>}
+        >
+          <CaretRightIcon
+            size={12}
+            className={`shrink-0 transition-transform duration-200 ease-in-out ${collapsed ? '' : 'rotate-90'}`}
+          />
+          <span className="flex-1 text-left">{group.label}</span>
+        </SectionLabel>
       </button>
 
       {/* CSS grid trick: animates height without knowing the exact pixel value */}
@@ -123,6 +136,7 @@ export function SidebarGroup({
                 name={tool.name}
                 icon={tool.icon}
                 tabIndex={collapsed ? -1 : 0}
+                matchRanges={matchRanges?.get(tool.id)}
               />
             ))}
           </div>
