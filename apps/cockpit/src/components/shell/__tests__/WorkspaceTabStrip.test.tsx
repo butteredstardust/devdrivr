@@ -65,27 +65,146 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+/**
+ * Reordering runs on pointer events, not HTML5 drag-and-drop — Tauri's native
+ * drag-drop handler (which `useFileDropZone` needs) swallows in-page
+ * dragover/drop on macOS, so a `draggable` tab never moved in the real window.
+ *
+ * jsdom has no layout, so every tab reports a zero-width rect at x=0. The
+ * strip hit-tests `clientX` against each tab's midpoint, and against a zero
+ * rect any positive x reads as "after" and any negative x as "before" — which
+ * is enough to drive both directions deterministically.
+ */
+function layOutTabs(widths: number[]) {
+  const nodes = [...document.querySelectorAll<HTMLElement>('[data-tab-id]')]
+  let left = 0
+  for (const [index, node] of nodes.entries()) {
+    const width = widths[index] ?? 100
+    const rect = { left, right: left + width, width, top: 0, bottom: 30, height: 30, x: left, y: 0 }
+    node.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect
+    left += width
+  }
+}
+
+function dragTab(tabId: string, toClientX: number) {
+  const node = document.querySelector(`[data-tab-id="${tabId}"]`)!
+  fireEvent.pointerDown(node, { button: 0, clientX: 0 })
+  fireEvent.pointerMove(window, { clientX: toClientX })
+  fireEvent.pointerUp(window, { clientX: toClientX })
+}
+
 describe('WorkspaceTabStrip — drag reordering', () => {
-  it('moves a dragged tab to the indicated edge of another tab', () => {
+  it('moves a dragged tab past the last tab', () => {
     const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
     render(<WorkspaceTabStrip />)
-    const dataTransfer = {
-      effectAllowed: '',
-      dropEffect: '',
-      setData: vi.fn(),
-    }
-    const firstElement = document.querySelector(`[data-tab-id="${first!.id}"]`)!
-    const thirdElement = document.querySelector(`[data-tab-id="${third!.id}"]`)!
+    layOutTabs([100, 100, 100])
 
-    fireEvent.dragStart(firstElement, { dataTransfer })
-    fireEvent.dragOver(thirdElement, { clientX: 1, dataTransfer })
-    fireEvent.drop(thirdElement, { clientX: 1, dataTransfer })
+    dragTab(first!.id, 290)
 
     expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
       second!.id,
       third!.id,
       first!.id,
     ])
+  })
+
+  it('moves a dragged tab to the head of the strip', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+
+    dragTab(third!.id, 10)
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      third!.id,
+      first!.id,
+      second!.id,
+    ])
+  })
+
+  it('leaves the order alone when the pointer never passes the threshold', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+    const node = document.querySelector(`[data-tab-id="${first!.id}"]`)!
+
+    // 2px of jitter is a click, not a drag.
+    fireEvent.pointerDown(node, { button: 0, clientX: 0 })
+    fireEvent.pointerMove(window, { clientX: 2 })
+    fireEvent.pointerUp(window, { clientX: 2 })
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      first!.id,
+      second!.id,
+      third!.id,
+    ])
+  })
+
+  it('selects the tab on a click, but not at the end of a drag', () => {
+    const [first, , third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+    const thirdNode = document.querySelector(`[data-tab-id="${third!.id}"]`)!
+
+    // A plain click selects.
+    fireEvent.pointerDown(thirdNode, { button: 0, clientX: 0 })
+    fireEvent.pointerUp(window, { clientX: 0 })
+    fireEvent.click(thirdNode)
+    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+
+    // A drag of the first tab must not also make it active — one gesture, one
+    // change, and the reorder is the change that was asked for.
+    dragTab(first!.id, 290)
+    fireEvent.click(document.querySelector(`[data-tab-id="${first!.id}"]`)!)
+    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+  })
+
+  it('ignores a right-button press, which belongs to the context menu', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+    const node = document.querySelector(`[data-tab-id="${first!.id}"]`)!
+
+    fireEvent.pointerDown(node, { button: 2, clientX: 0 })
+    fireEvent.pointerMove(window, { clientX: 290 })
+    fireEvent.pointerUp(window, { clientX: 290 })
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      first!.id,
+      second!.id,
+      third!.id,
+    ])
+  })
+
+  it('abandons the drag when the pointer is cancelled', () => {
+    const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    render(<WorkspaceTabStrip />)
+    layOutTabs([100, 100, 100])
+    const node = document.querySelector(`[data-tab-id="${first!.id}"]`)!
+
+    fireEvent.pointerDown(node, { button: 0, clientX: 0 })
+    fireEvent.pointerMove(window, { clientX: 290 })
+    fireEvent.pointerCancel(window)
+    fireEvent.pointerUp(window, { clientX: 290 })
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      first!.id,
+      second!.id,
+      third!.id,
+    ])
+  })
+
+  it('will not drag an unpinned tab into the pinned block', () => {
+    const tabs = seedTabs(['json-tools', 'base64', 'hash-generator'])
+    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    render(<WorkspaceTabStrip />)
+    layOutTabs([36, 100, 100])
+    const order = useUiStore.getState().tabs.map((tab) => tab.id)
+
+    // Aim the last tab at the very start of the strip, ahead of the pin.
+    dragTab(tabs[2]!.id, 2)
+
+    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual(order)
   })
 })
 

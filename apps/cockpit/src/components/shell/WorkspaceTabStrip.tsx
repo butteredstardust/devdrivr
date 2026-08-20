@@ -115,6 +115,99 @@ export function WorkspaceTabStrip() {
     el.scrollLeft += e.deltaY
   }, [])
 
+  // Tab reordering, on pointer events rather than HTML5 drag-and-drop.
+  //
+  // Not a style preference: the window runs with Tauri's `dragDropEnabled` on
+  // (the default), which installs a native drag-and-drop handler on the
+  // webview. That handler is what delivers file drops to `useFileDropZone`,
+  // and on macOS it also swallows in-page `dragover`/`drop`, so a `draggable`
+  // tab fired `dragstart` and then nothing — the tab never moved. The two
+  // features cannot share the flag, and file drops are worth more than the
+  // browser's drag ghost. Pointer events are below that handler entirely.
+  //
+  // A drag only begins once the pointer has moved past a small threshold, so a
+  // plain click still selects and a double-click still pins.
+  const dragOrigin = useRef<{ tabId: string; x: number } | null>(null)
+  const suppressClickRef = useRef(false)
+
+  const handleDragPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, tabId: string) => {
+      if (event.button !== 0) return
+      dragOrigin.current = { tabId, x: event.clientX }
+    },
+    []
+  )
+
+  useEffect(() => {
+    const DRAG_THRESHOLD = 4
+
+    const onMove = (event: PointerEvent) => {
+      const origin = dragOrigin.current
+      if (!origin) return
+      if (!draggingTabId && Math.abs(event.clientX - origin.x) < DRAG_THRESHOLD) return
+      if (!draggingTabId) setDraggingTabId(origin.tabId)
+
+      // Hit-test the strip rather than relying on the pointer being over a tab:
+      // the tab under the cursor shrinks and shifts as others move out of the
+      // way, and a pointer that has run off the end of the strip still has a
+      // meaningful answer — the nearest edge.
+      const strip = scrollRef.current
+      if (!strip) return
+      const nodes = [...strip.querySelectorAll<HTMLElement>('[data-tab-id]')]
+      let target: DropTarget | null = null
+      for (const node of nodes) {
+        const id = node.dataset.tabId
+        if (!id || id === origin.tabId) continue
+        const rect = node.getBoundingClientRect()
+        if (event.clientX < rect.left + rect.width / 2) {
+          target = { tabId: id, edge: 'before' }
+          break
+        }
+        target = { tabId: id, edge: 'after' }
+      }
+      setDropTarget(target)
+    }
+
+    const onUp = () => {
+      const origin = dragOrigin.current
+      dragOrigin.current = null
+      if (!origin || !draggingTabId) {
+        setDropTarget(null)
+        return
+      }
+      // The click that follows this pointerup would re-activate the tab; the
+      // reorder is the whole of what the gesture asked for.
+      suppressClickRef.current = true
+      if (dropTarget) {
+        const from = tabs.findIndex((candidate) => candidate.id === draggingTabId)
+        const target = tabs.findIndex((candidate) => candidate.id === dropTarget.tabId)
+        if (from !== -1 && target !== -1) {
+          const boundary = target + (dropTarget.edge === 'after' ? 1 : 0)
+          reorderTab(draggingTabId, boundary - (from < boundary ? 1 : 0))
+        }
+      }
+      setDraggingTabId(null)
+      setDropTarget(null)
+    }
+
+    // A cancelled pointer (an OS gesture taking over, say) must not leave the
+    // strip believing a drag is still in flight.
+    const onCancel = () => {
+      dragOrigin.current = null
+      setDraggingTabId(null)
+      setDropTarget(null)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+    }
+  }, [draggingTabId, dropTarget, tabs, reorderTab])
+
   // Close context menu on outside mousedown
   useEffect(() => {
     if (!contextMenu) return
@@ -235,42 +328,17 @@ export function WorkspaceTabStrip() {
               aria-controls={`tabpanel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               data-tab-id={tab.id}
-              draggable
-              onDragStart={(e) => {
-                setDraggingTabId(tab.id)
-                e.dataTransfer.effectAllowed = 'move'
-                e.dataTransfer.setData('text/plain', tab.id)
-              }}
-              onDragOver={(e) => {
-                if (!draggingTabId || draggingTabId === tab.id) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                const rect = e.currentTarget.getBoundingClientRect()
-                setDropTarget({
-                  tabId: tab.id,
-                  edge: e.clientX < rect.left + rect.width / 2 ? 'before' : 'after',
-                })
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                if (!draggingTabId || draggingTabId === tab.id) return
-                const from = tabs.findIndex((candidate) => candidate.id === draggingTabId)
-                const target = tabs.findIndex((candidate) => candidate.id === tab.id)
-                if (from !== -1 && target !== -1) {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const edge = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-                  const boundary = target + (edge === 'after' ? 1 : 0)
-                  const toIndex = boundary - (from < boundary ? 1 : 0)
-                  reorderTab(draggingTabId, toIndex)
+              onPointerDown={(e) => handleDragPointerDown(e, tab.id)}
+              onClick={() => {
+                // A click is also the tail of every drag. Reordering already
+                // moved the tab; re-activating it here would be a second,
+                // unasked-for change from one gesture.
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false
+                  return
                 }
-                setDraggingTabId(null)
-                setDropTarget(null)
+                setActiveTab(tab.id)
               }}
-              onDragEnd={() => {
-                setDraggingTabId(null)
-                setDropTarget(null)
-              }}
-              onClick={() => setActiveTab(tab.id)}
               // Double-click to pin, matching the convention the context menu
               // spells out. Cheap to discover by accident and cheap to undo.
               onDoubleClick={() => toggleTabPinned(tab.id)}
@@ -298,15 +366,23 @@ export function WorkspaceTabStrip() {
               // Tabs shrink as the strip fills, the way browser tabs do, rather
               // than holding a fixed 180px and overflowing the moment a fifth
               // one opens. `grow-0` keeps a lone tab from stretching across the
-              // whole strip; the 52px floor is where the icon and close button
-              // stop fitting, and past it the existing scroll/fade takes over.
+              // whole strip; past the floor, the scroll/fade/overflow menu take
+              // over.
+              //
+              // That floor was 52px, which is where the icon and close button
+              // stop fitting — but a tab that narrow shows about three
+              // characters of its name, and, worse, the strip could then hold
+              // sixteen tabs without ever overflowing, so the fade, the wheel
+              // scroll and the overflow menu were all unreachable in practice.
+              // 112px keeps a readable stub of the label and hands over to the
+              // scrolling chrome at a tab count someone will actually hit.
               //
               // Pinned tabs opt out entirely: fixed and icon-only, which is
               // what buys back the room the shrinking is competing for.
               className={`group relative flex cursor-pointer select-none items-center text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
                 isPinned
                   ? 'w-9 shrink-0 justify-center px-0'
-                  : 'min-w-[52px] max-w-[180px] shrink grow-0 basis-[160px] gap-1.5 px-3'
+                  : 'min-w-[112px] max-w-[180px] shrink grow-0 basis-[160px] gap-1.5 px-3'
               } ${
                 isActive
                   ? 'bg-[var(--color-bg)] text-[var(--color-text)]'

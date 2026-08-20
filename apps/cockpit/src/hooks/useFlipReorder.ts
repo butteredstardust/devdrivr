@@ -30,6 +30,10 @@ export function useFlipReorder(key: string): (id: string, node: HTMLElement | nu
   useLayoutEffect(() => {
     const previous = prevLefts.current
     const current = new Map<string, number>()
+    // No rAF means no layout worth animating either (jsdom). Positions are
+    // still recorded below, so nothing is left in a half-measured state — only
+    // the animation is skipped.
+    const canAnimate = typeof requestAnimationFrame === 'function'
 
     for (const [id, node] of nodes.current) {
       const left = node.getBoundingClientRect().left
@@ -41,6 +45,7 @@ export function useFlipReorder(key: string): (id: string, node: HTMLElement | nu
       if (before === undefined) continue
       const delta = before - left
       if (Math.abs(delta) < 1) continue
+      if (!canAnimate) continue
 
       node.style.transition = 'none'
       node.style.transform = `translateX(${delta}px)`
