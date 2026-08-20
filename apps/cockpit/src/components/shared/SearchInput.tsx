@@ -69,17 +69,26 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           {...props}
         />
         {value && (
-          <Button
-            type="button"
-            variant="icon"
-            size="xs"
-            onClick={() => onValueChange('')}
-            aria-label={clearLabel}
-            title={clearLabel}
-            className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
-          >
-            <XIcon size={geometry.clear} aria-hidden="true" />
-          </Button>
+          // The positioning lives on this span, not on the Button. `Button` carries `relative` in
+          // its own base classes (the loading spinner is absolutely positioned against it), and an
+          // `absolute` passed through `className` does not win that fight: both utilities have the
+          // same specificity, so the stylesheet's order decides, and Tailwind emits `.absolute`
+          // before `.relative`. The button therefore stayed in the flow, dropped below the field,
+          // and — by growing the wrapper it was measured against — dragged the magnifier's
+          // `top-1/2` down with it.
+          <span className="absolute right-1 top-1/2 -translate-y-1/2">
+            <Button
+              type="button"
+              variant="icon"
+              size="xs"
+              onClick={() => onValueChange('')}
+              aria-label={clearLabel}
+              title={clearLabel}
+              className="h-5 w-5"
+            >
+              <XIcon size={geometry.clear} aria-hidden="true" />
+            </Button>
+          </span>
         )}
       </div>
     )
