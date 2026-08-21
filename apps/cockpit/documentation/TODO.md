@@ -37,15 +37,19 @@ see **S3**.
 
 All four green at `2137e4e`, run from `apps/cockpit` (never the monorepo root).
 
-| Gate       | Command                          | Result                    |
-| ---------- | -------------------------------- | ------------------------- |
-| TypeScript | `npx tsc --noEmit`               | Pass, no errors           |
-| Tests      | `bunx vitest run`                | 118 files / 1432 tests    |
-| ESLint     | `bun run lint`                   | Pass, 0 warnings          |
-| Design sys | `bun run lint:ds`                | 0 violations              |
-| Rust       | `cargo check` (from `src-tauri`) | Untouched — frontend only |
+| Gate       | Command                          | At `2137e4e`           | After batches 1–4         |
+| ---------- | -------------------------------- | ---------------------- | ------------------------- |
+| TypeScript | `npx tsc --noEmit`               | Pass, no errors        | Pass, no errors           |
+| Tests      | `bunx vitest run`                | 118 files / 1432 tests | 119 files / 1481 tests    |
+| ESLint     | `bun run lint`                   | Pass, 0 warnings       | Pass, 0 warnings          |
+| Design sys | `bun run lint:ds`                | 0 violations           | 0 violations              |
+| Rust       | `cargo check` (from `src-tauri`) | Untouched              | Untouched — frontend only |
 
 Re-run and update after each phase.
+
+**Delivered in this branch:** all of §3 (C1–C6) and the S1/S2/S4 items of §5. **Not delivered:**
+§4's capability gaps (G1–G6), which change behaviour rather than presentation and each want their
+own PR and test plan; and **S3**, still blocked on manual capture.
 
 ---
 
