@@ -90,7 +90,7 @@ export default function CaseConverter() {
   const [state, updateState] = useToolState<CaseConverterState>('case-converter', {
     input: '',
   })
-  const { record } = useToolHistory({ toolId: 'case-converter' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'case-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const cases = useMemo(() => computeCases(state.input), [state.input])
@@ -99,21 +99,22 @@ export default function CaseConverter() {
 
   useEffect(() => {
     if (state.input.trim() && cases.length > 0) {
-      record({
+      recordEdited({
         input: state.input.slice(0, 200),
         output: `${cases.length} conversions${detected ? ` (${detected})` : ''}`,
         subTab: detected || 'unknown',
         success: true,
       })
     }
-  }, [state.input, cases, detected, record])
+  }, [state.input, cases, detected, recordEdited])
 
   const handleUseAsInput = useCallback(
     (value: string, label: string) => {
+      markUserEdit()
       updateState({ input: value })
       setLastAction(`Using ${label} as input`, 'info')
     },
-    [updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction]
   )
 
   return (
@@ -138,7 +139,10 @@ export default function CaseConverter() {
       >
         <TextArea
           value={state.input}
-          onChange={(e) => updateState({ input: e.target.value })}
+          onChange={(e) => {
+            markUserEdit()
+            updateState({ input: e.target.value })
+          }}
           placeholder="Type or paste text to convert..."
           rows={3}
           size="md"

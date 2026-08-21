@@ -135,7 +135,7 @@ export default function JwtDecoder() {
     secret: '',
     secretEncoding: 'utf8',
   })
-  const { record } = useToolHistory({ toolId: 'jwt-decoder' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'jwt-decoder' })
   const [now, setNow] = useState(() => Date.now())
 
   const decoded = useMemo(() => {
@@ -145,14 +145,14 @@ export default function JwtDecoder() {
 
   useEffect(() => {
     if (decoded) {
-      record({
+      recordEdited({
         input: state.input.slice(0, 1000),
         output: JSON.stringify({ header: decoded.header, payload: decoded.payload }),
         subTab: 'decoded',
         success: true,
       })
     }
-  }, [decoded, record, state.input])
+  }, [decoded, recordEdited, state.input])
 
   // Live-tick while either time-bounded claim is present. `nbf` needs the tick as much as `exp`
   // does — a token that becomes valid in forty seconds should stop saying so on its own.
@@ -225,7 +225,10 @@ export default function JwtDecoder() {
         </div>
         <TextArea
           value={state.input}
-          onChange={(e) => updateState({ input: e.target.value })}
+          onChange={(e) => {
+            markUserEdit()
+            updateState({ input: e.target.value })
+          }}
           placeholder="Paste a JWT token (eyJ...)"
           rows={3}
           monospace
@@ -425,7 +428,10 @@ export default function JwtDecoder() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => updateState({ input: TOOL_SAMPLES['jwt-decoder'] ?? '' })}
+                  onClick={() => {
+                    markUserEdit()
+                    updateState({ input: TOOL_SAMPLES['jwt-decoder'] ?? '' })
+                  }}
                 >
                   Load sample
                 </Button>

@@ -115,7 +115,7 @@ export default function UrlCodec() {
     bulk: false,
     recursive: false,
   })
-  const { record } = useToolHistory({ toolId: 'url-codec' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'url-codec' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const output = useMemo(() => {
@@ -143,30 +143,32 @@ export default function UrlCodec() {
   }, [state.input, output.text])
 
   const handleToggle = useCallback(() => {
+    markUserEdit()
     updateState({ mode: state.mode === 'encode' ? 'decode' : 'encode' })
     setLastAction(state.mode === 'encode' ? 'Decode mode' : 'Encode mode', 'info')
-  }, [state.mode, updateState, setLastAction])
+  }, [state.mode, markUserEdit, updateState, setLastAction])
 
   const handleSwap = useCallback(() => {
     if (output.text) {
+      markUserEdit()
       updateState({ input: output.text, mode: state.mode === 'encode' ? 'decode' : 'encode' })
       setLastAction('Swapped', 'info')
     }
-  }, [output.text, state.mode, updateState, setLastAction])
+  }, [output.text, state.mode, markUserEdit, updateState, setLastAction])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSwap)
 
   // Record history on successful conversion
   useEffect(() => {
     if (state.input.trim() && output.text && !output.error) {
-      record({
+      recordEdited({
         input: `${state.mode === 'encode' ? 'Encode' : 'Decode'} (${state.encodeMode}): ${state.input.slice(0, 300)}`,
         output: output.text.slice(0, 1000),
         subTab: state.mode,
         success: true,
       })
     }
-  }, [state.input, state.mode, state.encodeMode, output.text, output.error, record])
+  }, [state.input, state.mode, state.encodeMode, output.text, output.error, recordEdited])
 
   const noChange = state.input.trim() && output.text === state.input
 
@@ -232,7 +234,10 @@ export default function UrlCodec() {
           <PaneHeader title="Input" hint={state.mode === 'encode' ? 'Text' : 'Encoded'} />
           <TextArea
             value={state.input}
-            onChange={(e) => updateState({ input: e.target.value })}
+            onChange={(e) => {
+              markUserEdit()
+              updateState({ input: e.target.value })
+            }}
             placeholder={state.bulk ? 'Enter one value per line...' : 'Enter text or URL...'}
             monospace
             size="md"

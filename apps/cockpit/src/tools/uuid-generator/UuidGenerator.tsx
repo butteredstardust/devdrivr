@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
@@ -208,7 +208,9 @@ export default function UuidGenerator() {
     v5Namespace: V5_NAMESPACES.DNS,
     v5Name: '',
   })
-  const { record } = useToolHistory({ toolId: 'uuid-generator' })
+  const { recordEdited, recordImmediate, markUserEdit } = useToolHistory({
+    toolId: 'uuid-generator',
+  })
 
   const [bulkUuids, setBulkUuids] = useState<string[]>([])
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -223,22 +225,34 @@ export default function UuidGenerator() {
     try {
       const uuid = generateOne()
       updateState({ lastGenerated: uuid })
+      recordImmediate({
+        input: `Generate ${state.version}`,
+        output: uuid,
+        subTab: state.version,
+        success: true,
+      })
       setLastAction(`Generated UUID ${state.version}`, 'success')
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : String(error), 'error')
     }
-  }, [state.version, generateOne, updateState, setLastAction])
+  }, [state.version, generateOne, updateState, setLastAction, recordImmediate])
 
   const generateBulk = useCallback(() => {
     const count = Math.min(Math.max(1, state.bulkCount), 100)
     try {
       const uuids = Array.from({ length: count }, () => generateOne())
       setBulkUuids(uuids)
+      recordImmediate({
+        input: `Generate ${count} ${state.version}`,
+        output: uuids.join('\n'),
+        subTab: `${state.version}-bulk`,
+        success: true,
+      })
       setLastAction(`Generated ${count} UUIDs (${state.version})`, 'success')
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : String(error), 'error')
     }
-  }, [state.bulkCount, state.version, generateOne, setLastAction])
+  }, [state.bulkCount, state.version, generateOne, setLastAction, recordImmediate])
 
   const bulkOutput = useMemo(() => {
     if (bulkUuids.length === 0) return ''
@@ -257,22 +271,10 @@ export default function UuidGenerator() {
     return parseUuid(state.validateInput)
   }, [state.validateInput])
 
-  // Record history when UUID is generated
-  useEffect(() => {
-    if (state.lastGenerated) {
-      record({
-        input: `Generate ${state.version}`,
-        output: state.lastGenerated,
-        subTab: state.version,
-        success: true,
-      })
-    }
-  }, [state.lastGenerated, state.version, record])
-
   // Record history when UUID is validated
   useEffect(() => {
     if (state.validateInput.trim() && parsed) {
-      record({
+      recordEdited({
         input: `Validate: ${state.validateInput}`,
         output: parsed.valid
           ? `Valid ${parsed.version === 0 ? parsed.variant : `v${parsed.version}`} (${parsed.variant})`
@@ -281,7 +283,7 @@ export default function UuidGenerator() {
         success: parsed.valid,
       })
     }
-  }, [state.validateInput, parsed, record])
+  }, [state.validateInput, parsed, recordEdited])
 
   return (
     <ToolLayout maxWidth="max-w-4xl">
@@ -399,7 +401,10 @@ export default function UuidGenerator() {
           <Input
             type="text"
             value={state.validateInput}
-            onChange={(e) => updateState({ validateInput: e.target.value })}
+            onChange={(e) => {
+              markUserEdit()
+              updateState({ validateInput: e.target.value })
+            }}
             placeholder="Paste a UUID to validate and parse..."
             size="md"
             className="w-full max-w-xl font-mono"

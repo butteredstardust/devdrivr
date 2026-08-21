@@ -244,7 +244,9 @@ export default function SnippetsManager() {
   const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)
   const addSnippet = useSnippetsStore((state) => state.add)
   const updateSnippet = useSnippetsStore((state) => state.update)
+  const flushPendingSnippet = useSnippetsStore((state) => state.flushPending)
   const removeSnippet = useSnippetsStore((state) => state.remove)
+  const restoreSnippet = useSnippetsStore((state) => state.restore)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
 
@@ -258,12 +260,29 @@ export default function SnippetsManager() {
   const [tagInput, setTagInput] = useState('')
   const [suggestionIndex, setSuggestionIndex] = useState(-1)
   const [titleFocusRequest, setTitleFocusRequest] = useState(0)
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Snippet | null>(null)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
   const handledTitleFocusRequestRef = useRef(0)
+  const previousSelectedIdRef = useRef<string | null>(null)
+  const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const previousId = previousSelectedIdRef.current
+    if (previousId && previousId !== selectedId) void flushPendingSnippet(previousId)
+    previousSelectedIdRef.current = selectedId
+  }, [flushPendingSnippet, selectedId])
+
+  useEffect(
+    () => () => {
+      void flushPendingSnippet()
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+    },
+    [flushPendingSnippet]
+  )
 
   const setTitleInputRef = useCallback((element: HTMLInputElement | null) => {
     titleInputRef.current = element
@@ -419,6 +438,9 @@ export default function SnippetsManager() {
     const nextSelection = filtered[currentIndex + 1] ?? filtered[currentIndex - 1] ?? null
     try {
       await removeSnippet(selected.id)
+      setRecentlyDeleted(selected)
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+      deleteUndoTimerRef.current = setTimeout(() => setRecentlyDeleted(null), 8_000)
       setSelectedId(nextSelection?.id ?? null)
       setDeleteDialogOpen(false)
       setLastAction('Snippet deleted', 'info')
@@ -426,6 +448,19 @@ export default function SnippetsManager() {
       setLastAction('Delete failed', 'error')
     }
   }, [filtered, removeSnippet, selected, setLastAction])
+
+  const handleUndoDelete = useCallback(async () => {
+    if (!recentlyDeleted) return
+    try {
+      await restoreSnippet(recentlyDeleted)
+      setSelectedId(recentlyDeleted.id)
+      setRecentlyDeleted(null)
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+      setLastAction('Snippet restored', 'success')
+    } catch {
+      setLastAction('Restore failed', 'error')
+    }
+  }, [recentlyDeleted, restoreSnippet, setLastAction])
 
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
@@ -630,16 +665,28 @@ export default function SnippetsManager() {
           // the accent. Snippets saves as you type, so when one is selected the tool has no
           // primary at all — correct for a live-editing tool. The empty state's CTA covers the
           // one moment there's nothing to edit.
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void handleNew()}
-            className="gap-1.5"
-          >
-            <PlusIcon size={12} aria-hidden="true" />
-            New
-          </Button>
+          <div className="flex items-center gap-1">
+            {recentlyDeleted && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleUndoDelete()}
+              >
+                Undo delete
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleNew()}
+              className="gap-1.5"
+            >
+              <PlusIcon size={12} aria-hidden="true" />
+              New
+            </Button>
+          </div>
         }
         sidebar={
           <>
@@ -1174,7 +1221,7 @@ export default function SnippetsManager() {
           }
         >
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-            “{selected.title || 'Untitled'}” will be permanently removed from this device.
+            “{selected.title || 'Untitled'}” will be removed. You can undo for a few seconds.
           </p>
         </Dialog>
       )}

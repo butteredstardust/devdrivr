@@ -4,6 +4,7 @@ import {
   ArrowsDownUpIcon,
   ArrowsInLineVerticalIcon,
   ArrowsOutLineVerticalIcon,
+  ArrowUUpLeftIcon,
   BracketsCurlyIcon,
   CaretDownIcon,
   CaretUpIcon,
@@ -351,6 +352,7 @@ export default function JsonTools() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
+  const [undoBuffer, setUndoBuffer] = useState<{ input: string; label: string } | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const formattingRef = useRef(false)
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
@@ -428,21 +430,31 @@ export default function JsonTools() {
 
   const handleMinify = useCallback(() => {
     if (!isValid) return
+    setUndoBuffer({ input, label: 'Minify' })
     const output = JSON.stringify(data)
     updateState({ input: output })
     setError(null)
     setLastAction('Minified JSON', 'success')
     recordRun(output)
-  }, [isValid, data, updateState, setLastAction, recordRun])
+  }, [isValid, data, input, updateState, setLastAction, recordRun])
 
   const handleSortKeys = useCallback(() => {
     if (!isValid) return
+    setUndoBuffer({ input, label: 'Sort keys' })
     const output = JSON.stringify(sortKeysDeep(data), null, indent)
     updateState({ input: output })
     setError(null)
     setLastAction('Keys sorted', 'success')
     recordRun(output)
-  }, [isValid, data, indent, updateState, setLastAction, recordRun])
+  }, [isValid, data, indent, input, updateState, setLastAction, recordRun])
+
+  const handleUndo = useCallback(() => {
+    if (!undoBuffer) return
+    updateState({ input: undoBuffer.input })
+    setUndoBuffer(null)
+    setError(null)
+    setLastAction(`Undid ${undoBuffer.label.toLowerCase()}`, 'info')
+  }, [setLastAction, undoBuffer, updateState])
 
   const handleSave = useCallback(() => {
     void saveFileDialog(inputRef.current, state.fileName ?? 'data.json').then(
@@ -621,6 +633,12 @@ export default function JsonTools() {
                 <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
+              {undoBuffer && (
+                <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
+                  <ArrowUUpLeftIcon size={14} aria-hidden="true" />
+                  Undo {undoBuffer.label}
+                </Button>
+              )}
               <CopyButton text={input} label="Copy JSON" />
               {/* Labelled, like every other button in this group. As a bare icon it was the only
                   unlabelled control on the row and the dimmest thing on it, which read as

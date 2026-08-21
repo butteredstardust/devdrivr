@@ -124,7 +124,7 @@ export default function MermaidEditor() {
   const mermaidTheme = isLightEffectiveTheme(getEffectiveTheme(appTheme)) ? 'default' : 'dark'
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
-  const { record } = useToolHistory({ toolId: 'mermaid-editor' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'mermaid-editor' })
 
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: DEFAULT_TEMPLATE,
@@ -168,6 +168,7 @@ export default function MermaidEditor() {
   const applyDocument = useCallback(
     (document: PendingDocument) => {
       userEditedRef.current = true
+      markUserEdit()
       updateState({
         content: document.content,
         fileName: document.fileName,
@@ -177,7 +178,7 @@ export default function MermaidEditor() {
       setPendingDocument(null)
       setLastAction(document.successMessage, 'success')
     },
-    [updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction]
   )
 
   // Loading a template used to overwrite the buffer outright, with no undo and
@@ -225,9 +226,10 @@ export default function MermaidEditor() {
   const handleContentChange = useCallback(
     (value: string | undefined) => {
       userEditedRef.current = true
+      markUserEdit()
       updateState({ content: value ?? '' })
     },
-    [updateState]
+    [markUserEdit, updateState]
   )
 
   // ─── Rendering (debounced) ────────────────────────────────────────
@@ -254,7 +256,7 @@ export default function MermaidEditor() {
         setSvgHtml(svg)
         setError(null)
         if (userEditedRef.current) {
-          record({
+          recordEdited({
             input: content,
             output: `${detectDiagramType(content) ?? 'Diagram'} · ${countStatements(content)} lines`,
             success: true,
@@ -269,7 +271,7 @@ export default function MermaidEditor() {
         // The last good diagram stays on screen: clearing it meant the preview
         // blanked out on every half-typed line.
         if (userEditedRef.current) {
-          record({ input: content, output: '', success: false, error: parsed.message })
+          recordEdited({ input: content, output: '', success: false, error: parsed.message })
         }
       } finally {
         removeMermaidScratchNodes(renderId)
@@ -281,7 +283,7 @@ export default function MermaidEditor() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [content, mermaidTheme, record])
+  }, [content, mermaidTheme, recordEdited])
 
   // A render still in flight when the tool closes would leave its scratch node
   // behind for good.

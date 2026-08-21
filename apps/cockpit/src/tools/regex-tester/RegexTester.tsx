@@ -16,6 +16,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 type RegexTesterState = {
@@ -138,6 +139,7 @@ export default function RegexTester() {
     replacePattern: '',
   })
   const copy = useCopyToClipboard()
+  const { recordImmediate } = useToolHistory({ toolId: 'regex-tester' })
   const isUntouched = !state.pattern.trim() && !state.testString.trim()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
@@ -239,13 +241,36 @@ export default function RegexTester() {
               2
             )
           : matches.map((m) => m.full).join('\n')
-      await copy(text, {
+      const copied = await copy(text, {
         success: `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
         failure: 'Failed to copy',
       })
+      if (copied) {
+        recordImmediate({
+          input: `/${state.pattern}/${state.flags}`,
+          output: text,
+          subTab: `matches-${format}`,
+          success: true,
+        })
+      }
     },
-    [matches, truncated, copy]
+    [matches, truncated, copy, recordImmediate, state.pattern, state.flags]
   )
+
+  const handleCopyReplace = useCallback(async () => {
+    const copied = await copy(replaceValue, {
+      success: 'Copied replacement result',
+      failure: 'Failed to copy',
+    })
+    if (copied) {
+      recordImmediate({
+        input: `/${state.pattern}/${state.flags} → ${state.replacePattern}`,
+        output: replaceValue,
+        subTab: 'replace',
+        success: true,
+      })
+    }
+  }, [copy, recordImmediate, replaceValue, state.flags, state.pattern, state.replacePattern])
 
   const matchCount = matches.length
   const groupCount = matches.reduce((n, m) => n + m.groups.length, 0)
@@ -370,7 +395,9 @@ export default function RegexTester() {
                   aria-label="Replacement pattern"
                   className="flex-1"
                 />
-                <CopyButton text={replaceValue} label="Copy result" />
+                <Button variant="secondary" size="sm" onClick={() => void handleCopyReplace()}>
+                  Copy result
+                </Button>
               </div>
             )}
             {mode === 'match' && matchCount > 0 && (

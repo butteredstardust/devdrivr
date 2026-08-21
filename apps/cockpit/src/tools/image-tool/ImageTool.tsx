@@ -320,7 +320,10 @@ export default function ImageTool() {
 
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
-    setOutputDataUrl(canvas.toDataURL(mimeType, state.quality / 100))
+    const encodeTimer = setTimeout(() => {
+      setOutputDataUrl(canvas.toDataURL(mimeType, state.quality / 100))
+    }, 180)
+    return () => clearTimeout(encodeTimer)
   }, [originalImg, state])
 
   // ── Resize helpers ─────────────────────────────────────────────

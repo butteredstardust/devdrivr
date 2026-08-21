@@ -837,6 +837,16 @@ export default function PromptTemplates() {
     [selectedTemplate.id, selectedValues, state.inputsByTemplate, updateState]
   )
 
+  const clearVariables = useCallback(() => {
+    updateState({
+      inputsByTemplate: {
+        ...state.inputsByTemplate,
+        [selectedTemplate.id]: {},
+      },
+    })
+    setLastAction('Template fields cleared', 'info')
+  }, [selectedTemplate.id, setLastAction, state.inputsByTemplate, updateState])
+
   const copyRenderedPrompt = useCallback(async () => {
     if (missingVariables.length > 0) {
       setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
@@ -1160,6 +1170,9 @@ export default function PromptTemplates() {
                   {selectedTemplate.description}
                 </p>
               </div>
+              <Button type="button" variant="ghost" size="sm" onClick={clearVariables}>
+                Clear fields
+              </Button>
               <Button
                 type="button"
                 variant="icon"

@@ -96,7 +96,7 @@ export default function TimestampConverter() {
   // Enumerated once. `Intl.supportedValuesOf('timeZone')` returns ~400 strings and the list cannot
   // change while the app is running.
   const zones = useMemo(() => listTimeZones(), [])
-  const { record } = useToolHistory({ toolId: 'timestamp-converter' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'timestamp-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const parsed = useMemo(() => {
@@ -120,10 +120,11 @@ export default function TimestampConverter() {
 
   const handlePreset = useCallback(
     (preset: Preset) => {
+      markUserEdit()
       updateState({ input: String(preset.getMs()) })
       setLastAction(`Set to ${preset.label}`, 'success')
     },
-    [updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction]
   )
 
   // The picker reads and writes in the *selected* zone, not the host's. A picker that silently
@@ -137,22 +138,25 @@ export default function TimestampConverter() {
   const handleDateTimeChange = useCallback(
     (value: string) => {
       const d = fromZonedWallClock(value, state.zone)
-      if (d) updateState({ input: String(d.getTime()) })
+      if (d) {
+        markUserEdit()
+        updateState({ input: String(d.getTime()) })
+      }
     },
-    [updateState, state.zone]
+    [markUserEdit, updateState, state.zone]
   )
 
   // Record history when timestamp is successfully converted
   useEffect(() => {
     if (state.input.trim() && parsed) {
-      record({
+      recordEdited({
         input: state.input.slice(0, 100),
         output: parsed.date.toISOString(),
         subTab: 'converted',
         success: true,
       })
     }
-  }, [state.input, parsed, record])
+  }, [state.input, parsed, recordEdited])
 
   return (
     <ToolLayout
@@ -190,7 +194,10 @@ export default function TimestampConverter() {
           <div className="flex items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
             <Input
               value={state.input}
-              onChange={(e) => updateState({ input: e.target.value })}
+              onChange={(e) => {
+                markUserEdit()
+                updateState({ input: e.target.value })
+              }}
               placeholder="Unix timestamp, ISO 8601, or any date string..."
               aria-label="Timestamp or date to convert"
               size="md"
