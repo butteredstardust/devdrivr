@@ -13,7 +13,14 @@ export type RegexMatch = {
   full: string
   index: number
   length: number
-  groups: Array<{ index: number; name: string | null; value: string }>
+  groups: Array<{
+    index: number
+    name: string | null
+    value: string
+    /** Capture offsets are available when the `d` flag is enabled. */
+    start?: number
+    end?: number
+  }>
 }
 
 export type RegexEvaluationInput = {
@@ -170,8 +177,16 @@ export function evaluateRegex(input: RegexEvaluationInput): RegexEvaluation {
         break
       }
       const groups: RegexMatch['groups'] = []
+      const indices = (m as RegExpExecArray & { indices?: Array<[number, number] | undefined> })
+        .indices
       for (let i = 1; i < m.length; i++) {
-        groups.push({ index: i, name: captureGroupNames[i - 1] ?? null, value: m[i] ?? '' })
+        const range = indices?.[i]
+        groups.push({
+          index: i,
+          name: captureGroupNames[i - 1] ?? null,
+          value: m[i] ?? '',
+          ...(range ? { start: range[0], end: range[1] } : {}),
+        })
       }
       scanned.push({ full: m[0], index: m.index, length: m[0].length, groups })
       if (m[0] === '') scanner.lastIndex++

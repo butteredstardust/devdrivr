@@ -341,7 +341,7 @@ export function countIssues(issues: HtmlIssue[]): { errors: number; warnings: nu
 // Document statistics
 // ---------------------------------------------------------------------------
 
-export type Heading = { level: number; text: string }
+export type Heading = { level: number; text: string; line?: number; column?: number }
 
 export type HtmlStats = {
   elements: number
@@ -386,10 +386,21 @@ export function computeStats(html: string): HtmlStats {
     depth = Math.max(depth, level)
   }
 
-  const headings = Array.from(doc.querySelectorAll('h1, h2, h3, h4, h5, h6')).map((heading) => ({
-    level: Number(heading.tagName.slice(1)),
-    text: heading.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-  }))
+  const headingLocations = Array.from(html.matchAll(/<h[1-6](?:\s[^>]*)?>/gi)).map((match) => {
+    const offset = match.index ?? 0
+    const before = html.slice(0, offset)
+    const line = before.split('\n').length
+    const lastBreak = before.lastIndexOf('\n')
+    return { line, column: offset - lastBreak }
+  })
+  const headings = Array.from(doc.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(
+    (heading, index) => ({
+      level: Number(heading.tagName.slice(1)),
+      text: heading.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      line: headingLocations[index]?.line ?? 1,
+      column: headingLocations[index]?.column ?? 1,
+    })
+  )
 
   return {
     elements: all.length - implied.size,
@@ -406,27 +417,41 @@ export function computeStats(html: string): HtmlStats {
  * The old outline listed the headings and stopped there, which is the part a
  * developer can already see; the levels they skipped are the part they cannot.
  */
-export function outlineProblems(headings: Heading[]): string[] {
+export type OutlineProblem = { message: string; headingIndex: number }
+
+export function outlineProblemDetails(headings: Heading[]): OutlineProblem[] {
   if (headings.length === 0) return []
-  const problems: string[] = []
+  const problems: OutlineProblem[] = []
   const first = headings[0]
   if (first && first.level !== 1) {
-    problems.push(`The outline starts at h${first.level} — a page should open with its h1.`)
+    problems.push({
+      message: `The outline starts at h${first.level} — a page should open with its h1.`,
+      headingIndex: 0,
+    })
   }
-  const h1Count = headings.filter((heading) => heading.level === 1).length
+  const h1Indexes = headings.flatMap((heading, index) => (heading.level === 1 ? [index] : []))
+  const h1Count = h1Indexes.length
   if (h1Count > 1) {
-    problems.push(`${h1Count} h1 headings — only one should name the page.`)
+    problems.push({
+      message: `${h1Count} h1 headings — only one should name the page.`,
+      headingIndex: h1Indexes[1] ?? 0,
+    })
   }
   for (let i = 1; i < headings.length; i += 1) {
     const previous = headings[i - 1]
     const current = headings[i]
     if (previous && current && current.level - previous.level > 1) {
-      problems.push(
-        `h${previous.level} is followed by h${current.level} — the levels in between are missing.`
-      )
+      problems.push({
+        message: `h${previous.level} is followed by h${current.level} — the levels in between are missing.`,
+        headingIndex: i,
+      })
     }
   }
   return problems
+}
+
+export function outlineProblems(headings: Heading[]): string[] {
+  return outlineProblemDetails(headings).map((problem) => problem.message)
 }
 
 // ---------------------------------------------------------------------------

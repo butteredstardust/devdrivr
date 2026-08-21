@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   CheckCircleIcon,
   FileTsIcon,
   FloppyDiskIcon,
-  InfoIcon,
   SlidersHorizontalIcon,
   WarningCircleIcon,
-  WarningIcon,
-  XCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -32,6 +29,8 @@ import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
+import { sendToTool } from '@/lib/tool-handoff'
 
 type TsPlaygroundState = {
   input: string
@@ -39,25 +38,26 @@ type TsPlaygroundState = {
   target: string
   module: string
   strict: boolean
+  jsx: boolean
   /** Compiler options live behind a disclosure; the choice is persisted. */
   optionsOpen: boolean
   problemsOpen: boolean
 }
 
-const TARGETS = ['ES5', 'ES2015', 'ES2020', 'ESNext']
-const MODULES = ['ESNext', 'CommonJS', 'None']
-
-const SEVERITY_ICON = {
-  error: XCircleIcon,
-  warning: WarningIcon,
-  suggestion: InfoIcon,
-} as const
-
-const SEVERITY_COLOR = {
-  error: 'var(--color-error)',
-  warning: 'var(--color-warning)',
-  suggestion: 'var(--color-info)',
-} as const
+const TARGETS = [
+  'ES5',
+  'ES2015',
+  'ES2016',
+  'ES2017',
+  'ES2018',
+  'ES2019',
+  'ES2020',
+  'ES2021',
+  'ES2022',
+  'ES2023',
+  'ESNext',
+]
+const MODULES = ['ES2015', 'ES2020', 'ES2022', 'ESNext', 'CommonJS', 'Node16', 'NodeNext', 'None']
 
 /** Diagnostics arrive syntactic-first; reading order is by position. */
 function sortDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
@@ -93,6 +93,7 @@ export default function TsPlayground() {
     target: 'ESNext',
     module: 'ESNext',
     strict: true,
+    jsx: false,
     optionsOpen: false,
     problemsOpen: true,
   })
@@ -108,6 +109,8 @@ export default function TsPlayground() {
   const [isTranspiling, setIsTranspiling] = useState(false)
   const optionsId = useId()
   const problemsId = useId()
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestRef = useRef(0)
@@ -115,10 +118,10 @@ export default function TsPlayground() {
   // asked for is allowed to toast, otherwise the status bar chatters.
   const announceRef = useRef(false)
 
-  const { input, target, module: moduleKind, strict } = state
+  const { input, target, module: moduleKind, strict, jsx } = state
   const compilerOptions = useMemo(
-    () => ({ target, module: moduleKind, strict }),
-    [target, moduleKind, strict]
+    () => ({ target, module: moduleKind, strict, jsx }),
+    [target, moduleKind, strict, jsx]
   )
   const optionsRef = useRef(compilerOptions)
   optionsRef.current = compilerOptions
@@ -126,6 +129,15 @@ export default function TsPlayground() {
   inputRef.current = input
 
   const hasCode = input.trim().length > 0
+
+  const goToProblem = useCallback((problem: ProblemItem) => {
+    const editor = editorRef.current
+    if (!editor || problem.line === undefined) return
+    const position = { lineNumber: problem.line, column: problem.column ?? 1 }
+    editor.revealPositionInCenter(position)
+    editor.setPosition(position)
+    editor.focus()
+  }, [])
 
   const runTranspile = useCallback(async () => {
     const source = inputRef.current
@@ -189,6 +201,34 @@ export default function TsPlayground() {
     }
   }, [worker, input, compilerOptions, runTranspile])
 
+  useEffect(() => {
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    const model = editor?.getModel()
+    if (!monaco || !model) return
+    monaco.editor.setModelMarkers(
+      model,
+      'typescript-playground',
+      diagnostics
+        .filter((diagnostic) => diagnostic.line !== undefined)
+        .map((diagnostic) => ({
+          startLineNumber: diagnostic.line ?? 1,
+          startColumn: diagnostic.column ?? 1,
+          endLineNumber: diagnostic.line ?? 1,
+          endColumn: (diagnostic.column ?? 1) + 1,
+          message: diagnostic.message,
+          code: `TS${diagnostic.code}`,
+          severity:
+            diagnostic.category === 'error'
+              ? monaco.MarkerSeverity.Error
+              : diagnostic.category === 'warning'
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Hint,
+        }))
+    )
+    return () => monaco.editor.setModelMarkers(model, 'typescript-playground', [])
+  }, [diagnostics, state.jsx])
+
   const handleCompile = useCallback(() => {
     if (!inputRef.current.trim()) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -215,7 +255,11 @@ export default function TsPlayground() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        jsx: /\.[jt]sx$/i.test(action.filename),
+      })
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
@@ -316,6 +360,17 @@ export default function TsPlayground() {
               <Button
                 variant="secondary"
                 size="sm"
+                disabled={!output}
+                onClick={() =>
+                  sendToTool('code-formatter', { input: output, language: 'javascript' })
+                }
+                title="Open the compiled JavaScript in Code Formatter"
+              >
+                Format output
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleSave}
                 disabled={!output}
                 title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
@@ -366,6 +421,11 @@ export default function TsPlayground() {
                 checked={state.strict}
                 onChange={(checked) => updateState({ strict: checked })}
               />
+              <Toggle
+                label="JSX / TSX"
+                checked={state.jsx}
+                onChange={(checked) => updateState({ jsx: checked })}
+              />
               <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                 Compiles automatically as you type.
               </span>
@@ -404,10 +464,14 @@ export default function TsPlayground() {
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
-              language="typescript"
+              language={state.jsx ? 'typescriptreact' : 'typescript'}
               value={input}
               onChange={(v) => updateState({ input: v ?? '' })}
               options={editorOptions}
+              onMount={(editor, monaco) => {
+                editorRef.current = editor
+                monacoRef.current = monaco
+              }}
             />
             {!hasCode && (
               // Click-through so the hint never stands between user and caret;
@@ -474,41 +538,19 @@ export default function TsPlayground() {
           <span className="text-2xs text-[var(--color-text-muted)]">{summary}</span>
         </div>
         {state.problemsOpen && (
-          <ul id={problemsId} className="min-h-0 flex-1 overflow-auto px-3 pb-2">
-            {sorted.length === 0 ? (
-              <li className="py-1 text-xs text-[var(--color-text-muted)]">
-                {hasCode ? 'No problems found.' : 'Nothing to compile yet.'}
-              </li>
-            ) : (
-              sorted.map((d, i) => {
-                const Icon = SEVERITY_ICON[d.category]
-                return (
-                  <li
-                    key={`${d.code}-${d.line ?? 0}-${d.column ?? 0}-${i}`}
-                    className="flex items-start gap-2 py-0.5 text-xs"
-                  >
-                    <Icon
-                      size={14}
-                      aria-hidden="true"
-                      className="mt-0.5 shrink-0"
-                      style={{ color: SEVERITY_COLOR[d.category] }}
-                    />
-                    {d.line !== undefined && (
-                      <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
-                        {d.line}:{d.column ?? 1}
-                      </span>
-                    )}
-                    <span className="min-w-0 whitespace-pre-wrap text-[var(--color-text)]">
-                      {d.message}
-                    </span>
-                    <span className="ml-auto shrink-0 text-2xs tabular-nums text-[var(--color-text-muted)]">
-                      TS{d.code}
-                    </span>
-                  </li>
-                )
-              })
-            )}
-          </ul>
+          <ProblemsList
+            items={sorted.map((diagnostic, index) => ({
+              id: `${diagnostic.code}-${diagnostic.line ?? 0}-${diagnostic.column ?? 0}-${index}`,
+              message: diagnostic.message,
+              severity: diagnostic.category === 'suggestion' ? 'info' : diagnostic.category,
+              ...(diagnostic.line === undefined ? {} : { line: diagnostic.line }),
+              ...(diagnostic.column === undefined ? {} : { column: diagnostic.column }),
+              code: `TS${diagnostic.code}`,
+            }))}
+            onSelect={goToProblem}
+            emptyMessage={hasCode ? 'No problems found.' : 'Nothing to compile yet.'}
+            className="min-h-0 flex-1 overflow-auto pb-2"
+          />
         )}
       </section>
     </ToolLayout>

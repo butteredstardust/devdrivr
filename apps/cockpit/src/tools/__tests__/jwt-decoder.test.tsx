@@ -7,6 +7,13 @@ const TEST_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiZXhwIjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
 const NULL_PAYLOAD_JWT = 'eyJhbGciOiJub25lIn0.bnVsbA.'
 
+function base64UrlJson(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value))
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
 describe('JwtDecoder', () => {
   it('renders input area', () => {
     renderTool(JwtDecoder)
@@ -21,6 +28,13 @@ describe('JwtDecoder', () => {
     expect(screen.getByText('Header')).toBeInTheDocument()
     expect(screen.getByText('Payload Claims')).toBeInTheDocument()
     expect(screen.getByText('Signature')).toBeInTheDocument()
+  })
+
+  it('decodes UTF-8 claims without deprecated escape decoding', () => {
+    renderTool(JwtDecoder)
+    const token = `${base64UrlJson({ alg: 'none' })}.${base64UrlJson({ name: 'Ștefan 🌟' })}.`
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), { target: { value: token } })
+    expect(screen.getByText(/Ștefan 🌟/)).toBeInTheDocument()
   })
 
   it('shows expiry badge for expired token', () => {
@@ -39,6 +53,16 @@ describe('JwtDecoder', () => {
       target: { value: 'not.a.jwt' },
     })
     expect(screen.getByText(/invalid jwt/i)).toBeInTheDocument()
+  })
+
+  it('names the JWT part and stage that failed', () => {
+    renderTool(JwtDecoder)
+    const header = base64UrlJson({ alg: 'none' })
+    const invalidJson = btoa('{oops').replace(/=/g, '')
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: `${header}.${invalidJson}.` },
+    })
+    expect(screen.getByText(/invalid jwt payload json/i)).toBeInTheDocument()
   })
 
   it('treats non-object payloads as invalid instead of crashing', () => {
@@ -69,6 +93,13 @@ describe('JwtDecoder', () => {
     })
     expect(screen.getByText('Subject')).toBeInTheDocument()
     expect(screen.getByText('Expiration')).toBeInTheDocument()
+  })
+
+  it('annotates multiple audiences instead of flattening the array', () => {
+    renderTool(JwtDecoder)
+    const token = `${base64UrlJson({ alg: 'none' })}.${base64UrlJson({ aud: ['api', 'web'] })}.`
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), { target: { value: token } })
+    expect(screen.getByText(/2 audiences: api, web/)).toBeInTheDocument()
   })
 
   it('offers a shared secret for HMAC tokens', async () => {

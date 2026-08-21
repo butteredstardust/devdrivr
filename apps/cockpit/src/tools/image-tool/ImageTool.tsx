@@ -94,13 +94,6 @@ const PRESET_SIZES = [
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-// Estimate compressed file size from data URL length
-function estimateSizeFromDataUrl(dataUrl: string): number {
-  // data URL is base64 encoded; each 4 chars ≈ 3 bytes
-  const base64 = dataUrl.split(',')[1] ?? ''
-  return Math.round((base64.length * 3) / 4)
-}
-
 type CropRect = {
   x: number
   y: number
@@ -153,7 +146,7 @@ export default function ImageTool() {
   const [fileName, setFileName] = useState<string>('image')
   const [isDragOver, setIsDragOver] = useState(false)
   const [displayMetrics, setDisplayMetrics] = useState<DisplayMetrics | null>(null)
-  const [outputDataUrl, setOutputDataUrl] = useState<string | null>(null)
+  const [outputBlobSize, setOutputBlobSize] = useState(0)
   const [outputSize, setOutputSize] = useState<{ w: number; h: number } | null>(null)
 
   // ── Refs ────────────────────────────────────────────────────────
@@ -320,7 +313,20 @@ export default function ImageTool() {
 
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
-    setOutputDataUrl(canvas.toDataURL(mimeType, state.quality / 100))
+    let live = true
+    const encodeTimer = setTimeout(() => {
+      canvas.toBlob(
+        (blob) => {
+          if (live) setOutputBlobSize(blob?.size ?? 0)
+        },
+        mimeType,
+        state.quality / 100
+      )
+    }, 180)
+    return () => {
+      live = false
+      clearTimeout(encodeTimer)
+    }
   }, [originalImg, state])
 
   // ── Resize helpers ─────────────────────────────────────────────
@@ -477,6 +483,32 @@ export default function ImageTool() {
     cropDragRef.current = null
   }, [])
 
+  const handleCropKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!originalImg) return
+      const step = event.shiftKey ? 10 : 1
+      let dx = 0
+      let dy = 0
+      if (event.key === 'ArrowLeft') dx = -step
+      if (event.key === 'ArrowRight') dx = step
+      if (event.key === 'ArrowUp') dy = -step
+      if (event.key === 'ArrowDown') dy = step
+      if (!dx && !dy) return
+      event.preventDefault()
+      const next = clampCropRect(
+        {
+          x: state.cropX + dx,
+          y: state.cropY + dy,
+          w: state.cropW ?? originalImg.naturalWidth,
+          h: state.cropH ?? originalImg.naturalHeight,
+        },
+        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
+      )
+      updateState({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
+    },
+    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateState]
+  )
+
   useEffect(() => {
     if (state.activeTab !== 'crop') {
       cropDragRef.current = null
@@ -597,7 +629,7 @@ export default function ImageTool() {
         }
       : null
 
-  const estimatedBytes = outputDataUrl ? estimateSizeFromDataUrl(outputDataUrl) : 0
+  const estimatedBytes = outputBlobSize
 
   // ── Render ─────────────────────────────────────────────────────
 
@@ -768,6 +800,10 @@ export default function ImageTool() {
                   {/* Crop box + handles */}
                   <div
                     data-testid="crop-box"
+                    tabIndex={0}
+                    role="group"
+                    aria-label="Crop selection. Use arrow keys to nudge; hold Shift for larger steps."
+                    onKeyDown={handleCropKeyDown}
                     className="absolute"
                     style={{
                       left: cropDisplayRect.left,
@@ -1269,7 +1305,7 @@ function ExportPanel({
             </span>
           </div>
           <div>
-            Est. size:{' '}
+            Size:{' '}
             <span className="font-mono text-[var(--color-text)]">
               {formatBytes(estimatedBytes)}
             </span>

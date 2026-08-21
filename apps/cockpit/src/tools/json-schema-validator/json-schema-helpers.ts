@@ -49,6 +49,18 @@ export function parseJson(text: string): JsonParse {
   }
 }
 
+export function detectSchemaDialect(text: string): string {
+  const parsed = parseJson(text)
+  if (parsed.status !== 'valid') return 'unknown'
+  const declared = (parsed.value as { $schema?: unknown })?.$schema
+  if (typeof declared !== 'string') return 'draft-07 (default)'
+  if (declared.includes('2020-12')) return '2020-12'
+  if (declared.includes('2019-09')) return '2019-09'
+  if (declared.includes('draft-07')) return 'draft-07'
+  if (declared.includes('draft-06')) return 'draft-06 (unsupported)'
+  return declared
+}
+
 // ---------------------------------------------------------------------------
 // JSON Pointer → source offset
 // ---------------------------------------------------------------------------

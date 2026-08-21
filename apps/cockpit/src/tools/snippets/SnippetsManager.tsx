@@ -11,6 +11,7 @@ import {
 import Editor from '@monaco-editor/react'
 import Fuse from 'fuse.js'
 import {
+  ArrowRightIcon,
   ClipboardTextIcon,
   CopyIcon,
   DownloadSimpleIcon,
@@ -39,6 +40,8 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { sendToTool } from '@/lib/tool-handoff'
+import { useToolState } from '@/hooks/useToolState'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { formatShortcut } from '@/lib/shortcut-label'
 
@@ -168,8 +171,8 @@ function visibleTags(tags: string[]): string[] {
   return tags.filter((tag) => tag !== FAVORITE_TAG)
 }
 
-function isFavorite(tags: string[]): boolean {
-  return tags.includes(FAVORITE_TAG)
+function isFavorite(tags: string[], favorite = false): boolean {
+  return favorite || tags.includes(FAVORITE_TAG)
 }
 
 function formatTimestamp(timestamp: number): string {
@@ -214,6 +217,7 @@ function importedSnippet(item: unknown): {
   language: string
   tags: string[]
   folder: string
+  favorite: boolean
 } | null {
   if (!item || typeof item !== 'object') return null
   const candidate = item as Record<string, unknown>
@@ -229,6 +233,10 @@ function importedSnippet(item: unknown): {
       ? candidate['tags'].filter((tag): tag is string => typeof tag === 'string')
       : [],
     folder: typeof candidate['folder'] === 'string' ? candidate['folder'] : '',
+    favorite:
+      candidate['favorite'] === true ||
+      candidate['favorite'] === 1 ||
+      (Array.isArray(candidate['tags']) && candidate['tags'].includes('⭐')),
   }
 }
 
@@ -239,12 +247,17 @@ export default function SnippetsManager() {
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const snippets = useSnippetsStore((state) => state.snippets)
+  const [handoffState, updateHandoffState] = useToolState<{
+    handoff: { title: string; content: string; language: string } | null
+  }>('snippets', { handoff: null })
   const saving = useSnippetsStore((state) => state.saving)
   const activeFolder = useSnippetsStore((state) => state.activeFolder)
   const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)
   const addSnippet = useSnippetsStore((state) => state.add)
   const updateSnippet = useSnippetsStore((state) => state.update)
+  const flushPendingSnippet = useSnippetsStore((state) => state.flushPending)
   const removeSnippet = useSnippetsStore((state) => state.remove)
+  const restoreSnippet = useSnippetsStore((state) => state.restore)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
 
@@ -258,12 +271,52 @@ export default function SnippetsManager() {
   const [tagInput, setTagInput] = useState('')
   const [suggestionIndex, setSuggestionIndex] = useState(-1)
   const [titleFocusRequest, setTitleFocusRequest] = useState(0)
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Snippet | null>(null)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
   const handledTitleFocusRequestRef = useRef(0)
+  const previousSelectedIdRef = useRef<string | null>(null)
+  const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handoffInFlightRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const handoff = handoffState.handoff
+    if (!handoff) return
+    const handoffKey = `${handoff.title}\u0000${handoff.language}\u0000${handoff.content}`
+    if (handoffInFlightRef.current === handoffKey) return
+    handoffInFlightRef.current = handoffKey
+    // Consume before awaiting so React Strict Mode cannot replay the effect
+    // into a duplicate persisted snippet.
+    updateHandoffState({ handoff: null })
+    void addSnippet(handoff.title, handoff.content, handoff.language)
+      .then((snippet) => {
+        setSelectedId(snippet.id)
+        setLastAction(`Added ${handoff.title} from another tool`, 'success')
+      })
+      .catch(() => {
+        setLastAction('Could not add handed-off snippet', 'error')
+      })
+      .finally(() => {
+        if (handoffInFlightRef.current === handoffKey) handoffInFlightRef.current = null
+      })
+  }, [addSnippet, handoffState.handoff, setLastAction, updateHandoffState])
+
+  useEffect(() => {
+    const previousId = previousSelectedIdRef.current
+    if (previousId && previousId !== selectedId) void flushPendingSnippet(previousId)
+    previousSelectedIdRef.current = selectedId
+  }, [flushPendingSnippet, selectedId])
+
+  useEffect(
+    () => () => {
+      void flushPendingSnippet()
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+    },
+    [flushPendingSnippet]
+  )
 
   const setTitleInputRef = useCallback((element: HTMLInputElement | null) => {
     titleInputRef.current = element
@@ -311,12 +364,13 @@ export default function SnippetsManager() {
     const visible = candidates.filter((snippet) => {
       if (activeFolder && snippet.folder !== activeFolder) return false
       if (filterTag && !snippet.tags.includes(filterTag)) return false
-      if (favoritesOnly && !isFavorite(snippet.tags)) return false
+      if (favoritesOnly && !isFavorite(snippet.tags, snippet.favorite)) return false
       return true
     })
 
     visible.sort((a, b) => {
-      const favoriteOrder = Number(isFavorite(b.tags)) - Number(isFavorite(a.tags))
+      const favoriteOrder =
+        Number(isFavorite(b.tags, b.favorite)) - Number(isFavorite(a.tags, a.favorite))
       if (favoriteOrder !== 0) return favoriteOrder
       if (sortMode === 'created') return b.createdAt - a.createdAt
       if (sortMode === 'title') return a.title.localeCompare(b.title)
@@ -419,6 +473,9 @@ export default function SnippetsManager() {
     const nextSelection = filtered[currentIndex + 1] ?? filtered[currentIndex - 1] ?? null
     try {
       await removeSnippet(selected.id)
+      setRecentlyDeleted(selected)
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+      deleteUndoTimerRef.current = setTimeout(() => setRecentlyDeleted(null), 8_000)
       setSelectedId(nextSelection?.id ?? null)
       setDeleteDialogOpen(false)
       setLastAction('Snippet deleted', 'info')
@@ -427,13 +484,25 @@ export default function SnippetsManager() {
     }
   }, [filtered, removeSnippet, selected, setLastAction])
 
+  const handleUndoDelete = useCallback(async () => {
+    if (!recentlyDeleted) return
+    try {
+      await restoreSnippet(recentlyDeleted)
+      setSelectedId(recentlyDeleted.id)
+      setRecentlyDeleted(null)
+      if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
+      setLastAction('Snippet restored', 'success')
+    } catch {
+      setLastAction('Restore failed', 'error')
+    }
+  }, [recentlyDeleted, restoreSnippet, setLastAction])
+
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
-    const tags = isFavorite(selected.tags)
-      ? selected.tags.filter((tag) => tag !== FAVORITE_TAG)
-      : [...selected.tags, FAVORITE_TAG]
+    const wasFavorite = isFavorite(selected.tags, selected.favorite)
+    const tags = selected.tags.filter((tag) => tag !== FAVORITE_TAG)
     try {
-      await updateSnippet(selected.id, { tags })
+      await updateSnippet(selected.id, { tags, favorite: !wasFavorite })
     } catch {
       setLastAction('Failed to update favorite', 'error')
     }
@@ -499,23 +568,42 @@ export default function SnippetsManager() {
         .filter((item): item is NonNullable<typeof item> => item !== null)
       if (validSnippets.length === 0) throw new Error('No valid snippets')
 
+      const existing = new Set(
+        snippets.map((snippet) => `${snippet.title}\u0000${snippet.content}`)
+      )
+      const uniqueSnippets = validSnippets.filter((item) => {
+        const key = `${item.title}\u0000${item.content}`
+        if (existing.has(key)) return false
+        existing.add(key)
+        return true
+      })
+      if (uniqueSnippets.length === 0) {
+        setLastAction('No new snippets to import', 'info')
+        return
+      }
+
       let firstImported: Snippet | null = null
-      for (const item of validSnippets) {
+      for (const item of uniqueSnippets) {
         const created = await addSnippet(
           item.title,
           item.content,
           item.language,
           item.tags,
-          item.folder
+          item.folder,
+          item.favorite
         )
         firstImported ??= created
       }
       setSelectedId(firstImported?.id ?? null)
-      setLastAction(`Imported ${validSnippets.length} snippets`, 'success')
+      const skipped = validSnippets.length - uniqueSnippets.length
+      setLastAction(
+        `Imported ${uniqueSnippets.length} snippet${uniqueSnippets.length === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
+        'success'
+      )
     } catch {
       setLastAction('Import failed — choose a valid snippets JSON file', 'error')
     }
-  }, [addSnippet, setLastAction])
+  }, [addSnippet, setLastAction, snippets])
 
   const handleDownload = useCallback(async () => {
     if (!selected) return
@@ -533,6 +621,15 @@ export default function SnippetsManager() {
     if (!selected) return
     await copy(selected.content)
   }, [selected, copy])
+
+  const handleSendToPromptTemplate = useCallback(() => {
+    if (!selected) return
+    sendToTool('prompt-templates', {
+      handoffContent: selected.content,
+      handoffLanguage: selected.language,
+    })
+    setLastAction('Snippet sent to Prompt Templates', 'success')
+  }, [selected, setLastAction])
 
   const clearFilters = useCallback(() => {
     setSearch('')
@@ -612,16 +709,28 @@ export default function SnippetsManager() {
           // the accent. Snippets saves as you type, so when one is selected the tool has no
           // primary at all — correct for a live-editing tool. The empty state's CTA covers the
           // one moment there's nothing to edit.
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void handleNew()}
-            className="gap-1.5"
-          >
-            <PlusIcon size={12} aria-hidden="true" />
-            New
-          </Button>
+          <div className="flex items-center gap-1">
+            {recentlyDeleted && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleUndoDelete()}
+              >
+                Undo delete
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleNew()}
+              className="gap-1.5"
+            >
+              <PlusIcon size={12} aria-hidden="true" />
+              New
+            </Button>
+          </div>
         }
         sidebar={
           <>
@@ -766,7 +875,7 @@ export default function SnippetsManager() {
                           <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
                             {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
                           </span>
-                          {isFavorite(snippet.tags) && (
+                          {isFavorite(snippet.tags, snippet.favorite) && (
                             <StarIcon
                               size={12}
                               weight="fill"
@@ -837,15 +946,25 @@ export default function SnippetsManager() {
                     variant="icon"
                     size="sm"
                     onClick={() => void handleToggleFavorite()}
-                    title={isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'}
-                    aria-label={
-                      isFavorite(selected.tags) ? 'Remove from favorites' : 'Add to favorites'
+                    title={
+                      isFavorite(selected.tags, selected.favorite)
+                        ? 'Remove from favorites'
+                        : 'Add to favorites'
                     }
-                    className={isFavorite(selected.tags) ? 'text-[var(--color-warning)]' : ''}
+                    aria-label={
+                      isFavorite(selected.tags, selected.favorite)
+                        ? 'Remove from favorites'
+                        : 'Add to favorites'
+                    }
+                    className={
+                      isFavorite(selected.tags, selected.favorite)
+                        ? 'text-[var(--color-warning)]'
+                        : ''
+                    }
                   >
                     <StarIcon
                       size={16}
-                      weight={isFavorite(selected.tags) ? 'fill' : 'regular'}
+                      weight={isFavorite(selected.tags, selected.favorite) ? 'fill' : 'regular'}
                       aria-hidden="true"
                     />
                   </Button>
@@ -888,6 +1007,16 @@ export default function SnippetsManager() {
                     aria-label="Copy snippet"
                   >
                     <ClipboardTextIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={handleSendToPromptTemplate}
+                    title="Send snippet to Prompt Templates"
+                    aria-label="Send snippet to Prompt Templates"
+                  >
+                    <ArrowRightIcon size={14} aria-hidden="true" />
                   </Button>
                   <Button
                     type="button"
@@ -1156,7 +1285,7 @@ export default function SnippetsManager() {
           }
         >
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-            “{selected.title || 'Untitled'}” will be permanently removed from this device.
+            “{selected.title || 'Untitled'}” will be removed. You can undo for a few seconds.
           </p>
         </Dialog>
       )}

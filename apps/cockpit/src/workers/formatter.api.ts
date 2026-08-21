@@ -36,6 +36,7 @@ export type FormatOptions = {
   language: string
   tabWidth?: number
   useTabs?: boolean
+  printWidth?: number
   singleQuote?: boolean
   trailingComma?: 'all' | 'es5' | 'none'
   semi?: boolean
@@ -74,6 +75,7 @@ export async function format(code: string, options: FormatOptions): Promise<stri
     plugins: PRETTIER_PLUGINS,
     tabWidth: options.tabWidth ?? 2,
     useTabs: options.useTabs ?? false,
+    printWidth: options.printWidth ?? 80,
     singleQuote: options.singleQuote ?? true,
     trailingComma: options.trailingComma ?? 'es5',
     semi: options.semi ?? false,

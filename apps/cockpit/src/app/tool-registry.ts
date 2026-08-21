@@ -98,6 +98,7 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(GitDiffIcon),
     description: 'Compare text with syntax highlighting, auto-diff, stats, and patch export',
     component: DiffViewer,
+    supportsOpenFile: true,
     usesMonaco: true,
   },
   {

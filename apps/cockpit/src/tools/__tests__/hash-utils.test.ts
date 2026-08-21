@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { computeHashes, computeHmac } from '../hash-generator/hash-utils'
+import {
+  computeFileHmac,
+  computeHashes,
+  computeHmac,
+  parseChecksumFile,
+} from '../hash-generator/hash-utils'
 
 describe('computeHashes', () => {
   it('MD5 of "hello"', async () => {
@@ -44,5 +49,18 @@ describe('computeHmac', () => {
   it('HMAC-MD5 returns unsupported message', async () => {
     const { md5 } = await computeHmac('hello', 'secret')
     expect(md5).toBe('(HMAC-MD5 not supported)')
+  })
+})
+
+describe('file checksum helpers', () => {
+  it('parses common checksum-file lines', () => {
+    const digest = 'a'.repeat(64)
+    expect(parseChecksumFile(`${digest}  image.iso\n`, 'image.iso')).toBe(digest)
+    expect(parseChecksumFile(`${'d'.repeat(64)} *other.iso\n`, 'image.iso')).toBeNull()
+  })
+
+  it('computes keyed file digests incrementally', async () => {
+    const result = await computeFileHmac(new Blob(['hello']), 'secret')
+    expect(result.sha256).toBe('88aab3ede8d3adf94d26ab90d3bafd4a2083070c3bcce9c014ee04a443847c0b')
   })
 })

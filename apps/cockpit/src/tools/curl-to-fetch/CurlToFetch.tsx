@@ -30,41 +30,112 @@ type ParsedCurl = {
   body: string | null
 }
 
+const VALUE_FLAGS = new Set([
+  '-A',
+  '--user-agent',
+  '-e',
+  '--referer',
+  '-o',
+  '--output',
+  '-x',
+  '--proxy',
+  '--connect-timeout',
+  '--max-time',
+  '--retry',
+  '--cacert',
+  '--cert',
+  '--key',
+  '--resolve',
+])
+
+function encodeBasicCredentials(credentials: string): string {
+  const bytes = new TextEncoder().encode(credentials)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
 // ── Parser ─────────────────────────────────────────────────────────
 
-function parseCurl(input: string): ParsedCurl | null {
+type CurlParseResult = { parsed: ParsedCurl | null; error: string | null }
+
+function tokenizeCurl(input: string): { tokens: string[]; error: string | null } {
+  const tokens: string[] = []
+  let current = ''
+  let quote: 'single' | 'double' | 'ansi' | null = null
+  let escaping = false
+
+  const appendEscape = (character: string) => {
+    if (quote !== 'ansi') return character
+    return character === 'n'
+      ? '\n'
+      : character === 'r'
+        ? '\r'
+        : character === 't'
+          ? '\t'
+          : character
+  }
+
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index]
+    if (character === undefined) continue
+    if (escaping) {
+      current += appendEscape(character)
+      escaping = false
+      continue
+    }
+    if (character === '\\' && quote !== 'single') {
+      escaping = true
+      continue
+    }
+    if (!quote && character === '$' && input[index + 1] === "'") {
+      quote = 'ansi'
+      index += 1
+      continue
+    }
+    if (!quote && character === "'") {
+      quote = 'single'
+      continue
+    }
+    if (!quote && character === '"') {
+      quote = 'double'
+      continue
+    }
+    if (
+      (quote === 'single' && character === "'") ||
+      (quote === 'double' && character === '"') ||
+      (quote === 'ansi' && character === "'")
+    ) {
+      quote = null
+      continue
+    }
+    if (!quote && /\s/.test(character)) {
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+      continue
+    }
+    current += character
+  }
+  if (escaping) current += '\\'
+  if (quote) return { tokens: [], error: 'Unterminated quoted value in cURL command' }
+  if (current) tokens.push(current)
+  return { tokens, error: null }
+}
+
+function parseCurl(input: string): CurlParseResult {
   const trimmed = input.trim()
-  if (!trimmed.startsWith('curl')) return null
+  if (!trimmed.startsWith('curl')) return { parsed: null, error: 'Command must start with curl' }
 
   let method = 'GET'
   const headers: Record<string, string> = {}
   let body: string | null = null
   let url = ''
 
-  const normalized = trimmed.replace(/\\\n\s*/g, ' ')
-  const tokens: string[] = []
-  let current = ''
-  let inQuote: string | null = null
-
-  for (const char of normalized) {
-    if (inQuote) {
-      if (char === inQuote) {
-        inQuote = null
-      } else {
-        current += char
-      }
-    } else if (char === '"' || char === "'") {
-      inQuote = char
-    } else if (char === ' ') {
-      if (current) {
-        tokens.push(current)
-        current = ''
-      }
-    } else {
-      current += char
-    }
-  }
-  if (current) tokens.push(current)
+  const tokenized = tokenizeCurl(trimmed.replace(/\\\n\s*/g, ' '))
+  if (tokenized.error) return { parsed: null, error: tokenized.error }
+  const tokens = tokenized.tokens
 
   for (let i = 0; i < tokens.length; i++) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -86,21 +157,29 @@ function parseCurl(input: string): ParsedCurl | null {
       token === '--data-binary'
     ) {
       body = tokens[++i] ?? null
+      if (body?.startsWith('@')) {
+        return {
+          parsed: null,
+          error: `File-backed request bodies (${body}) are not read for safety; paste the file contents instead.`,
+        }
+      }
       if (method === 'GET') method = 'POST'
     } else if (token === '-u' || token === '--user') {
       const creds = tokens[++i] ?? ''
-      headers['Authorization'] = `Basic ${btoa(creds)}`
+      headers['Authorization'] = `Basic ${encodeBasicCredentials(creds)}`
     } else if (token === '-b' || token === '--cookie') {
       headers['Cookie'] = tokens[++i] ?? ''
     } else if (token === '--compressed') {
       headers['Accept-Encoding'] = 'gzip, deflate, br'
+    } else if (VALUE_FLAGS.has(token)) {
+      i++
     } else if (!token.startsWith('-')) {
       url = token
     }
   }
 
-  if (!url) return null
-  return { url, method, headers, body }
+  if (!url) return { parsed: null, error: 'No request URL found in cURL command' }
+  return { parsed: { url, method, headers, body }, error: null }
 }
 
 // ── Code generators ────────────────────────────────────────────────
@@ -221,7 +300,8 @@ export default function CurlToFetch() {
     outputTab: 'fetch',
   })
 
-  const parsed = useMemo(() => parseCurl(state.input), [state.input])
+  const parseResult = useMemo(() => parseCurl(state.input), [state.input])
+  const parsed = parseResult.parsed
 
   const output = useMemo(() => {
     if (!parsed) return ''
@@ -357,7 +437,7 @@ export default function CurlToFetch() {
             </div>
           ) : state.input.trim() ? (
             <Alert variant="error" className="m-4">
-              Could not parse cURL command
+              Could not parse cURL command{parseResult.error ? ` — ${parseResult.error}` : ''}
             </Alert>
           ) : (
             <div className="flex flex-1 items-center justify-center p-4">

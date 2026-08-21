@@ -37,6 +37,18 @@ export default defineConfig({
         replacement: resolve(__dirname, './src/__mocks__/diff-worker.ts'),
       },
       {
+        find: '@/workers/base64.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/base64-worker.ts'),
+      },
+      {
+        find: '@/workers/css.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/css-worker.ts'),
+      },
+      {
+        find: '@/workers/html.worker?worker',
+        replacement: resolve(__dirname, './src/__mocks__/html-worker.ts'),
+      },
+      {
         find: '@/workers/xml.worker?worker',
         replacement: resolve(__dirname, './src/__mocks__/xml-worker.ts'),
       },

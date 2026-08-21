@@ -33,7 +33,7 @@ function toWords(str: string): string[] {
     .filter(Boolean)
 }
 
-function detectCase(input: string): string | null {
+export function detectCase(input: string): string | null {
   const trimmed = input.trim()
   if (!trimmed) return null
   if (trimmed === trimmed.toUpperCase() && trimmed.includes('_')) return 'SCREAMING_SNAKE'
@@ -43,44 +43,107 @@ function detectCase(input: string): string | null {
   if (trimmed === trimmed.toLowerCase() && trimmed.includes('.')) return 'dot.case'
   if (trimmed === trimmed.toLowerCase()) return 'lowercase'
   if (/^[a-z][a-zA-Z0-9]*$/.test(trimmed)) return 'camelCase'
+  if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$/.test(trimmed)) return 'Title Case'
   if (/^[A-Z][a-zA-Z0-9]*$/.test(trimmed)) return 'PascalCase'
   if (/^[A-Z][a-z]/.test(trimmed) && trimmed.includes(' ')) return 'Title/Sentence'
   return null
 }
 
-function computeCases(input: string): CaseResult[] {
+export function computeCases(input: string): CaseResult[] {
   if (!input.trim()) return []
-  const words = toWords(input)
-  const lower = words.map((w) => w.toLowerCase())
+  const perLine = (convert: (line: string) => string) =>
+    input
+      .split('\n')
+      .map((line) => convert(line))
+      .join('\n')
 
   return [
-    { id: 'upper', label: 'UPPERCASE', value: input.toUpperCase() },
-    { id: 'lower', label: 'lowercase', value: input.toLowerCase() },
+    { id: 'upper', label: 'UPPERCASE', value: perLine((line) => line.toUpperCase()) },
+    { id: 'lower', label: 'lowercase', value: perLine((line) => line.toLowerCase()) },
     {
       id: 'title',
       label: 'Title Case',
-      value: lower.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      value: perLine((line) => {
+        const lineWords = toWords(line).map((word) => word.toLowerCase())
+        return lineWords.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      }),
     },
     {
       id: 'sentence',
       label: 'Sentence case',
-      value: lower.map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' '),
+      value: perLine((line) => {
+        const lineWords = toWords(line).map((word) => word.toLowerCase())
+        return lineWords
+          .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+          .join(' ')
+      }),
     },
     {
       id: 'camel',
       label: 'camelCase',
-      value: lower.map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(''),
+      value: perLine((line) => {
+        const lineWords = toWords(line).map((word) => word.toLowerCase())
+        return lineWords
+          .map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+          .join('')
+      }),
     },
     {
       id: 'pascal',
       label: 'PascalCase',
-      value: lower.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(''),
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join('')
+      ),
     },
-    { id: 'snake', label: 'snake_case', value: lower.join('_') },
-    { id: 'screaming', label: 'SCREAMING_SNAKE', value: lower.join('_').toUpperCase() },
-    { id: 'kebab', label: 'kebab-case', value: lower.join('-') },
-    { id: 'dot', label: 'dot.case', value: lower.join('.') },
-    { id: 'path', label: 'path/case', value: lower.join('/') },
+    {
+      id: 'snake',
+      label: 'snake_case',
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .join('_')
+      ),
+    },
+    {
+      id: 'screaming',
+      label: 'SCREAMING_SNAKE',
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .join('_')
+          .toUpperCase()
+      ),
+    },
+    {
+      id: 'kebab',
+      label: 'kebab-case',
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .join('-')
+      ),
+    },
+    {
+      id: 'dot',
+      label: 'dot.case',
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .join('.')
+      ),
+    },
+    {
+      id: 'path',
+      label: 'path/case',
+      value: perLine((line) =>
+        toWords(line)
+          .map((word) => word.toLowerCase())
+          .join('/')
+      ),
+    },
   ]
 }
 
@@ -90,7 +153,7 @@ export default function CaseConverter() {
   const [state, updateState] = useToolState<CaseConverterState>('case-converter', {
     input: '',
   })
-  const { record } = useToolHistory({ toolId: 'case-converter' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'case-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const cases = useMemo(() => computeCases(state.input), [state.input])
@@ -99,21 +162,22 @@ export default function CaseConverter() {
 
   useEffect(() => {
     if (state.input.trim() && cases.length > 0) {
-      record({
+      recordEdited({
         input: state.input.slice(0, 200),
         output: `${cases.length} conversions${detected ? ` (${detected})` : ''}`,
         subTab: detected || 'unknown',
         success: true,
       })
     }
-  }, [state.input, cases, detected, record])
+  }, [state.input, cases, detected, recordEdited])
 
   const handleUseAsInput = useCallback(
     (value: string, label: string) => {
+      markUserEdit()
       updateState({ input: value })
       setLastAction(`Using ${label} as input`, 'info')
     },
-    [updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction]
   )
 
   return (
@@ -138,7 +202,10 @@ export default function CaseConverter() {
       >
         <TextArea
           value={state.input}
-          onChange={(e) => updateState({ input: e.target.value })}
+          onChange={(e) => {
+            markUserEdit()
+            updateState({ input: e.target.value })
+          }}
           placeholder="Type or paste text to convert..."
           rows={3}
           size="md"

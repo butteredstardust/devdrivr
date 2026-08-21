@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
-  ArrowRightIcon,
   CaretDownIcon,
   CaretUpIcon,
   CheckCircleIcon,
@@ -20,6 +19,8 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
+import { ProblemsList } from '@/components/shared/ProblemsList'
 import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
@@ -40,7 +41,6 @@ import {
   ALL_RULES,
   RULE_CATEGORIES,
   TEMPLATES,
-  analyzeCss,
   compareSpecificity,
   countIssues,
   countRuleOverrides,
@@ -52,6 +52,8 @@ import {
   type RuleConfig,
   type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
+import type { CssWorker } from '@/workers/css.worker'
+import CssWorkerFactory from '@/workers/css.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 
@@ -74,14 +76,16 @@ type CssValidatorState = {
   /** Departures from the rule defaults, so new defaults still reach the user. */
   disabledRules: string[]
   enabledRules: string[]
+  syntax: 'css' | 'scss' | 'less'
 }
 
-type PendingDocument = {
-  input: string
-  fileName: string | null
-  filePath: string | null
-  savedContent: string
-  successMessage: string
+type PendingDocument = PendingValidatorDocument & { syntax?: CssValidatorState['syntax'] }
+
+function syntaxFromFilename(filename: string): CssValidatorState['syntax'] | undefined {
+  if (/\.scss$/i.test(filename)) return 'scss'
+  if (/\.less$/i.test(filename)) return 'less'
+  if (/\.css$/i.test(filename)) return 'css'
+  return undefined
 }
 
 const ANALYZE_DEBOUNCE_MS = 300
@@ -112,9 +116,12 @@ export default function CssValidator() {
     panelOpen: true,
     disabledRules: [],
     enabledRules: [],
+    syntax: 'css',
   })
 
   const formatter = useWorker<FormatterWorker>(() => new FormatterWorkerFactory(), ['format'])
+  const analyzer = useWorker<CssWorker>(() => new CssWorkerFactory(), ['analyze'])
+  const analysisSequenceRef = useRef(0)
 
   const [issues, setIssues] = useState<CssIssue[]>([])
   const [stats, setStats] = useState<CssStats | null>(null)
@@ -132,15 +139,10 @@ export default function CssValidator() {
    * stylesheet is indistinguishable from one the user triggered. Only typing
    * and explicit buffer swaps set this, and only it lets a run reach history.
    */
-  const userEditedRef = useRef(false)
-
   const input = state.input ?? ''
   const inputRef = useRef(input)
   inputRef.current = input
-  const hasInput = input.trim().length > 0
-  // Without a known saved text, only text this session produced counts as unsaved.
-  const isDirty =
-    state.savedContent === null ? userEditedRef.current && hasInput : input !== state.savedContent
+  const { hasInput, isDirty, userEditedRef } = useValidatorDocument(input, state.savedContent)
   const { disabledRules, enabledRules } = state
 
   // --- Analysis --------------------------------------------------------
@@ -154,19 +156,63 @@ export default function CssValidator() {
       setHasAnalyzed(false)
       return
     }
+    if (state.syntax !== 'css') {
+      analysisSequenceRef.current += 1
+      setIssues([
+        {
+          message: `${state.syntax.toUpperCase()} can be formatted here, but standards analysis is available for plain CSS only.`,
+          line: 1,
+          column: 1,
+          type: 'warning',
+          rule: 'syntax-boundary',
+        },
+      ])
+      setStats(null)
+      setSelectors([])
+      setIsAnalyzing(false)
+      setHasAnalyzed(true)
+      return
+    }
+    if (!analyzer) {
+      setIsAnalyzing(true)
+      return
+    }
     setIsAnalyzing(true)
     // The previous results stay on screen while the next run is computed:
     // clearing them on every keystroke made rows flicker away under the pointer.
+    const sequence = ++analysisSequenceRef.current
     const timer = setTimeout(() => {
-      const analysis = analyzeCss(input, disabledRules, enabledRules)
-      setIssues(analysis.issues)
-      setStats(analysis.stats)
-      setSelectors(analysis.selectors)
-      setIsAnalyzing(false)
-      setHasAnalyzed(true)
+      void (async () => {
+        try {
+          const analysis = await analyzer.analyze(input, disabledRules, enabledRules)
+          if (sequence !== analysisSequenceRef.current) return
+          setIssues(analysis.issues)
+          setStats(analysis.stats)
+          setSelectors(analysis.selectors)
+        } catch {
+          if (sequence !== analysisSequenceRef.current) return
+          setIssues([
+            {
+              message: 'The CSS analyzer failed to run',
+              line: 1,
+              column: 1,
+              type: 'error',
+              rule: 'internal',
+            },
+          ])
+        } finally {
+          if (sequence === analysisSequenceRef.current) {
+            setIsAnalyzing(false)
+            setHasAnalyzed(true)
+          }
+        }
+      })()
     }, ANALYZE_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [input, hasInput, disabledRules, enabledRules])
+    return () => {
+      clearTimeout(timer)
+      analysisSequenceRef.current += 1
+    }
+  }, [input, hasInput, disabledRules, enabledRules, analyzer, state.syntax])
 
   const { errors: errorCount, warnings: warningCount } = useMemo(
     () => countIssues(issues),
@@ -265,12 +311,13 @@ export default function CssValidator() {
         fileName: document.fileName,
         filePath: document.filePath,
         savedContent: document.savedContent,
+        ...(document.syntax ? { syntax: document.syntax } : {}),
       })
       setFormatError(null)
       setPendingDocument(null)
       setLastAction(document.successMessage, 'success')
     },
-    [updateState, setLastAction]
+    [updateState, setLastAction, userEditedRef]
   )
 
   // Loading a sample used to overwrite the buffer outright, with no undo and no
@@ -339,7 +386,7 @@ export default function CssValidator() {
       // The banner describes a failed format of the *old* text.
       setFormatError(null)
     },
-    [state.savedContent, updateState]
+    [state.savedContent, updateState, userEditedRef]
   )
 
   // --- Files -----------------------------------------------------------
@@ -348,11 +395,13 @@ export default function CssValidator() {
     try {
       const result = await openFileDialog()
       if (!result) return
+      const syntax = syntaxFromFilename(result.filename)
       requestDocument({
         input: result.content,
         fileName: result.filename,
         filePath: result.path,
         savedContent: result.content,
+        ...(syntax ? { syntax } : {}),
         successMessage: `Opened ${result.filename}`,
       })
     } catch (err) {
@@ -367,7 +416,7 @@ export default function CssValidator() {
       return
     }
     try {
-      const path = await saveFileDialog(snapshot, state.fileName ?? 'styles.css')
+      const path = await saveFileDialog(snapshot, state.fileName ?? `styles.${state.syntax}`)
       if (!path) {
         setLastAction('Save cancelled', 'info')
         return
@@ -377,7 +426,7 @@ export default function CssValidator() {
     } catch (err) {
       setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
     }
-  }, [state.fileName, updateState, setLastAction])
+  }, [state.fileName, state.syntax, updateState, setLastAction])
 
   // --- Format ----------------------------------------------------------
 
@@ -386,7 +435,7 @@ export default function CssValidator() {
     if (!formatter || !snapshot.trim() || isFormatting) return
     setIsFormatting(true)
     try {
-      const formatted = await formatter.format(snapshot, { language: 'css', tabWidth: 2 })
+      const formatted = await formatter.format(snapshot, { language: state.syntax, tabWidth: 2 })
       // Writing the result over a buffer the user kept typing into would
       // silently eat those keystrokes.
       if (inputRef.current !== snapshot) {
@@ -398,7 +447,7 @@ export default function CssValidator() {
         state.savedContent === null ? { input: formatted, savedContent: '' } : { input: formatted }
       )
       setFormatError(null)
-      setLastAction('Formatted CSS', 'success')
+      setLastAction(`Formatted ${state.syntax.toUpperCase()}`, 'success')
     } catch (err) {
       // Prettier refuses to format CSS it cannot parse, which is exactly the CSS
       // this tool exists to find. The old fallback ran a regex "formatter" over
@@ -408,7 +457,15 @@ export default function CssValidator() {
     } finally {
       setIsFormatting(false)
     }
-  }, [formatter, isFormatting, state.savedContent, updateState, setLastAction])
+  }, [
+    formatter,
+    isFormatting,
+    state.savedContent,
+    state.syntax,
+    updateState,
+    setLastAction,
+    userEditedRef,
+  ])
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -421,11 +478,13 @@ export default function CssValidator() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
+      const syntax = syntaxFromFilename(action.filename)
       requestDocument({
         input: action.content,
         fileName: action.filename,
         filePath: action.path ?? null,
         savedContent: action.content,
+        ...(syntax ? { syntax } : {}),
         successMessage: `Opened ${action.filename}`,
       })
     }
@@ -543,6 +602,17 @@ export default function CssValidator() {
           </ToolbarGroup>
 
           <ToolbarGroup label="Template actions" separated>
+            <Select
+              aria-label="Stylesheet syntax"
+              value={state.syntax}
+              onChange={(event) =>
+                updateState({ syntax: event.target.value as CssValidatorState['syntax'] })
+              }
+            >
+              <option value="css">CSS</option>
+              <option value="scss">SCSS</option>
+              <option value="less">Less</option>
+            </Select>
             <Select
               aria-label="Starter template"
               value={state.templateId}
@@ -664,7 +734,7 @@ export default function CssValidator() {
       <section aria-label="CSS source" className="relative min-h-0 flex-1 overflow-hidden">
         <Editor
           theme={monacoTheme}
-          language="css"
+          language={state.syntax}
           value={input}
           onChange={handleChange}
           onMount={handleEditorMount}
@@ -851,56 +921,26 @@ function ResultsPanel({
                 }
               />
             ) : (
-              <ul>
-                {issues.map((issue, index) => (
-                  <li key={`${issue.rule}-${issue.line}-${issue.column}-${index}`}>
-                    {/* A problem list nobody can click is a list of coordinates
-                        to scroll to by hand — every row jumps the cursor there. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onGoTo(issue.line, issue.column)}
-                      className="w-full justify-start gap-2 rounded-none px-3 text-left"
-                      title={`Go to line ${issue.line}, column ${issue.column}`}
-                    >
-                      {issue.type === 'error' ? (
-                        <WarningCircleIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-error)]"
-                        />
-                      ) : (
-                        <WarningIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-warning)]"
-                        />
-                      )}
-                      <span className="shrink-0 font-mono text-2xs text-[var(--color-text-muted)]">
-                        {issue.line}:{issue.column}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text)]">
-                        {issue.message}
-                      </span>
-                      <span className="shrink-0 rounded border border-[var(--color-border)] px-1 text-2xs text-[var(--color-text-muted)]">
-                        {issue.rule}
-                      </span>
-                      <ArrowRightIcon
-                        size={12}
-                        aria-hidden="true"
-                        className="shrink-0 text-[var(--color-text-muted)]"
-                      />
-                    </Button>
-                  </li>
-                ))}
+              <>
+                <ProblemsList
+                  items={issues.map((issue, index) => ({
+                    id: `${issue.rule}-${issue.line}-${issue.column}-${index}`,
+                    message: issue.message,
+                    severity: issue.type,
+                    line: issue.line,
+                    column: issue.column,
+                    code: issue.rule,
+                  }))}
+                  onSelect={(problem) => onGoTo(problem.line ?? 1, problem.column ?? 1)}
+                />
                 {totalIssues > issues.length && (
-                  <li className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+                  <p className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
                     {totalIssues - issues.length} more problem
                     {totalIssues - issues.length === 1 ? '' : 's'} not listed — fix these first, or
                     switch a rule off.
-                  </li>
+                  </p>
                 )}
-              </ul>
+              </>
             )
           ) : selectors.length === 0 ? (
             <EmptyState

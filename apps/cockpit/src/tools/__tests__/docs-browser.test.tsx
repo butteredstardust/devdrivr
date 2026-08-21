@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import DocsBrowser, { siteLabel } from '@/tools/docs-browser/DocsBrowser'
+
+vi.mock('@tauri-apps/plugin-http', () => ({
+  fetch: vi.fn().mockResolvedValue({ status: 200 }),
+}))
 
 describe('siteLabel', () => {
   it('names the site the tool is actually pointed at', () => {

@@ -30,6 +30,33 @@ async function callWorker(worker: Worker, method: string, args: unknown[]): Prom
 }
 
 describe('worker mock alias resolution', () => {
+  it('resolves @/workers/base64.worker?worker to a live mock', async () => {
+    const { default: Factory } = await import('@/workers/base64.worker?worker')
+    const worker = new Factory() as Worker
+    const res = await callWorker(worker, 'transformBase64', ['hello', 'encode', false, false])
+    expect(res.error).toBeUndefined()
+    expect(res.result).toMatchObject({ text: 'aGVsbG8=' })
+  })
+
+  it('resolves @/workers/css.worker?worker to a live mock', async () => {
+    const { default: Factory } = await import('@/workers/css.worker?worker')
+    const worker = new Factory() as Worker
+    const res = await callWorker(worker, 'analyze', ['.card { color: red; }', [], []])
+    expect(res.error).toBeUndefined()
+    expect(res.result).toMatchObject({ stats: { rules: 1 } })
+  })
+
+  it('resolves @/workers/html.worker?worker to a live mock', async () => {
+    const { default: Factory } = await import('@/workers/html.worker?worker')
+    const worker = new Factory() as Worker
+    const res = await callWorker(worker, 'validateHtml', ['<img>', { 'alt-require': true }])
+    expect(res.error).toBeUndefined()
+    expect(res.result).toMatchObject({
+      issues: expect.arrayContaining([expect.objectContaining({ rule: 'alt-require' })]),
+      stats: { elements: 1 },
+    })
+  })
+
   it('resolves @/workers/typescript.worker?worker to a live mock', async () => {
     const { default: Factory } = await import('@/workers/typescript.worker?worker')
     const worker = new Factory() as Worker

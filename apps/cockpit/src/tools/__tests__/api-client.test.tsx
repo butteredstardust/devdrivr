@@ -4,7 +4,11 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
 import { importApiSpec } from '@/lib/api-import'
-import ApiClient, { buildUrlWithParams, parseQueryParams } from '@/tools/api-client/ApiClient'
+import ApiClient, {
+  buildUrlWithParams,
+  parseQueryParams,
+  unresolvedVariableNames,
+} from '@/tools/api-client/ApiClient'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -22,6 +26,14 @@ function base64EncodeUtf8(text: string): string {
 }
 
 describe('api-client URL helpers', () => {
+  it('deduplicates unresolved variables and ignores populated values', () => {
+    expect(
+      unresolvedVariableNames(['{{baseUrl}}/{{id}}', 'Bearer {{token}}', '{{id}}'], {
+        baseUrl: 'https://example.com',
+      })
+    ).toEqual(['id', 'token'])
+  })
+
   it('parses query params from templated URLs', () => {
     expect(parseQueryParams('{{baseUrl}}/users?page=1&filter=active')).toEqual([
       { key: 'page', value: '1' },

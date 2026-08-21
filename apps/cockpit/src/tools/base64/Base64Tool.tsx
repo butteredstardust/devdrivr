@@ -22,8 +22,14 @@ import {
   UploadSimpleIcon,
   FileIcon,
   XIcon,
+  DownloadSimpleIcon,
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
+import { exportFile } from '@/lib/file-io'
+import { useWorker } from '@/hooks/useWorker'
+import type { Base64Worker } from '@/workers/base64.worker'
+import Base64WorkerFactory from '@/workers/base64.worker?worker'
+import { transformBase64, type Base64TransformResult } from '@/workers/base64.api'
 
 type Base64State = {
   input: string
@@ -46,6 +52,14 @@ type ImgTransform = { x: number; y: number; scale: number }
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 8
 const DEFAULT_IMG_TRANSFORM: ImgTransform = { x: 0, y: 0, scale: 1 }
+const WORKER_THRESHOLD = 100_000
+type WorkerOutput = {
+  input: string
+  mode: Base64State['mode']
+  urlSafe: boolean
+  lineWrap: boolean
+  result: Base64TransformResult
+}
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -63,25 +77,6 @@ function encodeTextBase64(text: string): string {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return btoa(binary)
-}
-
-function toUrlSafe(b64: string): string {
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function fromUrlSafe(b64: string): string {
-  let s = b64.replace(/-/g, '+').replace(/_/g, '/')
-  const pad = s.length % 4
-  if (pad) s += '='.repeat(4 - pad)
-  return s
-}
-
-function wrapLines(str: string, width: number): string {
-  const lines: string[] = []
-  for (let i = 0; i < str.length; i += width) {
-    lines.push(str.slice(i, i + width))
-  }
-  return lines.join('\n')
 }
 
 function detectImageMime(b64: string): string | null {
@@ -114,6 +109,14 @@ export default function Base64Tool() {
   })
   const { record } = useToolHistory({ toolId: 'base64' })
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const [pipelineInput, setPipelineInput] = useState(state.input)
+  const worker = useWorker<Base64Worker>(() => new Base64WorkerFactory(), ['transformBase64'])
+  const [workerOutput, setWorkerOutput] = useState<WorkerOutput | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPipelineInput(state.input), 200)
+    return () => clearTimeout(timer)
+  }, [state.input])
 
   // ── File encode state ──────────────────────────────────────────
 
@@ -260,36 +263,67 @@ export default function Base64Tool() {
 
   // ── Encode / decode pipeline ───────────────────────────────────
 
-  const output = useMemo(() => {
-    if (!state.input.trim()) return { text: '', error: null }
-    try {
-      if (state.mode === 'encode') {
-        let encoded = encodeTextBase64(state.input)
-        if (state.urlSafe) encoded = toUrlSafe(encoded)
-        if (state.lineWrap) encoded = wrapLines(encoded, 76)
-        return { text: encoded, error: null }
-      } else {
-        let toDecode = state.input.replace(/\s/g, '')
-        const dataUriMatch = toDecode.match(/^data:[^;]*;base64,(.*)$/)
-        if (dataUriMatch?.[1]) toDecode = dataUriMatch[1]
-        if (state.urlSafe) toDecode = fromUrlSafe(toDecode)
-        const decoded = Uint8Array.from(atob(toDecode), (c) => c.charCodeAt(0))
-        return { text: new TextDecoder().decode(decoded), error: null }
-      }
-    } catch (e) {
-      return { text: '', error: (e as Error).message }
+  const smallOutput = useMemo(
+    () =>
+      pipelineInput.length < WORKER_THRESHOLD
+        ? transformBase64(pipelineInput, state.mode, state.urlSafe, state.lineWrap)
+        : null,
+    [pipelineInput, state.mode, state.urlSafe, state.lineWrap]
+  )
+  useEffect(() => {
+    if (smallOutput || !worker) {
+      setWorkerOutput(null)
+      return
     }
-  }, [state.input, state.mode, state.urlSafe, state.lineWrap])
+    setWorkerOutput(null)
+    let current = true
+    void worker.transformBase64(pipelineInput, state.mode, state.urlSafe, state.lineWrap).then(
+      (result) =>
+        current &&
+        setWorkerOutput({
+          input: pipelineInput,
+          mode: state.mode,
+          urlSafe: state.urlSafe,
+          lineWrap: state.lineWrap,
+          result,
+        }),
+      () =>
+        current &&
+        setWorkerOutput({
+          input: pipelineInput,
+          mode: state.mode,
+          urlSafe: state.urlSafe,
+          lineWrap: state.lineWrap,
+          result: transformBase64(pipelineInput, state.mode, state.urlSafe, state.lineWrap),
+        })
+    )
+    return () => {
+      current = false
+    }
+  }, [pipelineInput, smallOutput, state.lineWrap, state.mode, state.urlSafe, worker])
+  const currentWorkerOutput =
+    workerOutput?.input === pipelineInput &&
+    workerOutput.mode === state.mode &&
+    workerOutput.urlSafe === state.urlSafe &&
+    workerOutput.lineWrap === state.lineWrap
+      ? workerOutput.result
+      : null
+  const output =
+    smallOutput ??
+    currentWorkerOutput ??
+    ({ text: '', bytes: null, mimeType: null, error: null } satisfies Base64TransformResult)
 
   const autoDetect = useMemo(() => {
-    if (!state.input.trim()) return null
-    return isValidBase64(state.input.replace(/\s/g, ''))
-  }, [state.input])
+    if (!pipelineInput.trim()) return null
+    if (pipelineInput.length >= WORKER_THRESHOLD) return currentWorkerOutput?.error === null
+    return isValidBase64(pipelineInput.replace(/\s/g, ''))
+  }, [currentWorkerOutput?.error, pipelineInput])
 
-  const inputBytes = useMemo(() => new TextEncoder().encode(state.input).length, [state.input])
+  const inputBytes = useMemo(() => new TextEncoder().encode(pipelineInput).length, [pipelineInput])
   const outputBytes = useMemo(
-    () => (output.text ? new TextEncoder().encode(output.text).length : 0),
-    [output.text]
+    () =>
+      output.bytes?.byteLength ?? (output.text ? new TextEncoder().encode(output.text).length : 0),
+    [output.bytes, output.text]
   )
   const ratio = useMemo(() => {
     if (!inputBytes || !outputBytes) return null
@@ -299,48 +333,71 @@ export default function Base64Tool() {
 
   // Image preview (decode mode: detect image in base64 input)
   const imagePreview = useMemo(() => {
-    if (state.mode !== 'decode' || !state.input.trim()) return null
-    const clean = state.input.replace(/\s/g, '')
+    if (state.mode !== 'decode' || !pipelineInput.trim()) return null
+    const clean = pipelineInput.replace(/\s/g, '')
     const dataUriMatch = clean.match(/^data:(image\/[^;]+);base64,(.*)$/)
     if (dataUriMatch) return clean
     const mime = detectImageMime(clean)
     if (mime) return `data:${mime};base64,${clean}`
     return null
-  }, [state.mode, state.input])
+  }, [state.mode, pipelineInput])
 
   // Data URI builder for text encode output
   const dataUri = useMemo(() => {
-    if (state.mode !== 'encode' || !state.input.trim() || output.error) return null
-    return `data:text/plain;base64,${encodeTextBase64(state.input)}`
-  }, [state.mode, state.input, output.error])
+    if (state.mode !== 'encode' || !pipelineInput.trim() || output.error) return null
+    return `data:text/plain;base64,${encodeTextBase64(pipelineInput)}`
+  }, [state.mode, pipelineInput, output.error])
 
   // Unified image source: file encode takes priority
   const activeImage = droppedFile?.dataUri ?? imagePreview
 
   const handleSwap = useCallback(() => {
-    if (output.text) {
+    if (output.text && pipelineInput === state.input) {
       updateState({ input: output.text, mode: state.mode === 'encode' ? 'decode' : 'encode' })
       setLastAction('Swapped', 'info')
     }
-  }, [output.text, state.mode, updateState, setLastAction])
+  }, [output.text, pipelineInput, state.input, state.mode, updateState, setLastAction])
 
   const handleToggle = useCallback(() => {
     updateState({ mode: state.mode === 'encode' ? 'decode' : 'encode' })
     setLastAction(state.mode === 'encode' ? 'Decode mode' : 'Encode mode', 'info')
   }, [state.mode, updateState, setLastAction])
 
+  const handleSaveDecoded = useCallback(() => {
+    if (!output.bytes || !output.mimeType) return
+    const extension =
+      output.mimeType === 'image/png'
+        ? 'png'
+        : output.mimeType === 'image/jpeg'
+          ? 'jpg'
+          : output.mimeType === 'image/gif'
+            ? 'gif'
+            : output.mimeType.startsWith('text/')
+              ? 'txt'
+              : 'bin'
+    const blob = new Blob([Uint8Array.from(output.bytes)], { type: output.mimeType })
+    void exportFile(blob, `decoded.${extension}`).then(
+      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
+      (error: unknown) =>
+        setLastAction(
+          `Save failed: ${error instanceof Error ? error.message : String(error)}`,
+          'error'
+        )
+    )
+  }, [output.bytes, output.mimeType, setLastAction])
+
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleSwap)
 
   useEffect(() => {
-    if (state.input.trim() && output.text && !output.error) {
+    if (pipelineInput.trim() && output.text && !output.error) {
       record({
-        input: `${state.mode === 'encode' ? 'Encode' : 'Decode'}: ${state.input.slice(0, 500)}${state.input.length > 500 ? '...' : ''}`,
+        input: `${state.mode === 'encode' ? 'Encode' : 'Decode'}: ${pipelineInput.slice(0, 500)}${pipelineInput.length > 500 ? '...' : ''}`,
         output: output.text.slice(0, 1000),
         subTab: state.mode,
         success: true,
       })
     }
-  }, [state.input, state.mode, output.text, output.error, record])
+  }, [pipelineInput, state.mode, output.text, output.error, record])
 
   // ── Render ─────────────────────────────────────────────────────
 
@@ -522,6 +579,17 @@ export default function Base64Tool() {
                     <CopyButton text={dataUri} label="Copy data URI" />
                   )}
                   <CopyButton text={output.text} />
+                  {state.mode === 'decode' && output.bytes && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={handleSaveDecoded}
+                      title={`Save decoded bytes (${output.mimeType ?? 'application/octet-stream'})`}
+                    >
+                      <DownloadSimpleIcon size={14} aria-hidden="true" />
+                      Save file
+                    </Button>
+                  )}
                 </>
               )
             }

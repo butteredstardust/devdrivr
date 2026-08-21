@@ -22,7 +22,7 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────────
 
-type RGB = { r: number; g: number; b: number }
+type RGB = { r: number; g: number; b: number; a?: number }
 type HSL = { h: number; s: number; l: number }
 type HSB = { h: number; s: number; b: number }
 type LAB = { l: number; a: number; b: number }
@@ -203,17 +203,18 @@ const CSS_NAMED_COLORS: Record<string, string> = {
 function parseColor(input: string): RGB | null {
   const trimmed = input.trim().toLowerCase()
 
-  // Hex: #rgb, #rrggbb, #rrggbbaa
+  // Hex: #rgb, #rgba, #rrggbb, #rrggbbaa
   const hexMatch = trimmed.match(/^#([0-9a-f]{3,8})$/)
   if (hexMatch?.[1]) {
     const hex = hexMatch[1]
-    if (hex.length === 3) {
+    if (hex.length === 3 || hex.length === 4) {
       // hex.length === 3 guarantees indices 0-2 exist
       /* eslint-disable @typescript-eslint/no-non-null-assertion */
       return {
         r: parseInt(hex[0]! + hex[0]!, 16),
         g: parseInt(hex[1]! + hex[1]!, 16),
         b: parseInt(hex[2]! + hex[2]!, 16),
+        a: hex.length === 4 ? parseInt(hex[3]! + hex[3]!, 16) / 255 : 1,
       }
       /* eslint-enable @typescript-eslint/no-non-null-assertion */
     }
@@ -222,18 +223,30 @@ function parseColor(input: string): RGB | null {
         r: parseInt(hex.slice(0, 2), 16),
         g: parseInt(hex.slice(2, 4), 16),
         b: parseInt(hex.slice(4, 6), 16),
+        a: hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1,
       }
     }
   }
 
   // rgb(r, g, b) or rgba(r, g, b, a) — also modern space syntax
-  const rgbMatch = trimmed.match(/rgba?\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)/)
+  const rgbMatch = trimmed.match(
+    /^rgba?\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
+  )
   if (rgbMatch) {
-    const rgb = { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]) }
+    const alphaText = rgbMatch[4]
+    const alpha = alphaText
+      ? alphaText.endsWith('%')
+        ? Number(alphaText.slice(0, -1)) / 100
+        : Number(alphaText)
+      : 1
+    const rgb = { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]), a: alpha }
     if (
       [rgb.r, rgb.g, rgb.b].every(
         (channel) => Number.isInteger(channel) && channel >= 0 && channel <= 255
-      )
+      ) &&
+      Number.isFinite(alpha) &&
+      alpha >= 0 &&
+      alpha <= 1
     ) {
       return rgb
     }
@@ -241,11 +254,28 @@ function parseColor(input: string): RGB | null {
   }
 
   // hsl(h, s%, l%) — also modern space syntax
-  const hslMatch = trimmed.match(/hsla?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%/)
+  const hslMatch = trimmed.match(
+    /^hsla?\(\s*([+-]?[\d.]+)(?:deg)?\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
+  )
   if (hslMatch) {
     const hsl = { h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) }
-    if (Number.isFinite(hsl.h) && hsl.s >= 0 && hsl.s <= 100 && hsl.l >= 0 && hsl.l <= 100) {
-      return hslToRgb(hsl)
+    const alphaText = hslMatch[4]
+    const alpha = alphaText
+      ? alphaText.endsWith('%')
+        ? Number(alphaText.slice(0, -1)) / 100
+        : Number(alphaText)
+      : 1
+    if (
+      Number.isFinite(hsl.h) &&
+      hsl.s >= 0 &&
+      hsl.s <= 100 &&
+      hsl.l >= 0 &&
+      hsl.l <= 100 &&
+      Number.isFinite(alpha) &&
+      alpha >= 0 &&
+      alpha <= 1
+    ) {
+      return { ...hslToRgb(hsl), a: alpha }
     }
     return null
   }
@@ -275,7 +305,12 @@ function rgbToHex(rgb: RGB): string {
     Math.max(0, Math.min(255, Math.round(n)))
       .toString(16)
       .padStart(2, '0')
-  return `#${hex(rgb.r)}${hex(rgb.g)}${hex(rgb.b)}`
+  const alpha = rgb.a ?? 1
+  return `#${hex(rgb.r)}${hex(rgb.g)}${hex(rgb.b)}${alpha < 1 ? hex(alpha * 255) : ''}`
+}
+
+function rgbToOpaqueHex(rgb: RGB): string {
+  return rgbToHex({ r: rgb.r, g: rgb.g, b: rgb.b })
 }
 
 function rgbToHsl(rgb: RGB): HSL {
@@ -449,13 +484,35 @@ function contrastRatio(fg: RGB, bg: RGB): number {
   return (l1 + 0.05) / (l2 + 0.05)
 }
 
+/** APCA 0.0.98G-style Lc value, with the same sRGB inputs as WCAG. */
+export function apcaContrast(text: RGB, background: RGB): number {
+  const toY = (rgb: RGB) => {
+    const channels = [rgb.r, rgb.g, rgb.b].map((channel) => {
+      const value = channel / 255
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    })
+    const [red = 0, green = 0, blue = 0] = channels
+    return 0.2126729 * red + 0.7151522 * green + 0.072175 * blue
+  }
+  const clampBlack = (value: number) => {
+    const blackThreshold = 0.022
+    return value <= blackThreshold ? value + (blackThreshold - value) ** 1.414 : value
+  }
+  const txt = clampBlack(toY(text))
+  const bg = clampBlack(toY(background))
+  if (Math.abs(bg - txt) < 0.0005) return 0
+  const sapc = bg > txt ? (bg ** 0.56 - txt ** 0.57) * 1.14 : (bg ** 0.65 - txt ** 0.62) * 1.14
+  if (bg > txt) return sapc < 0.1 ? 0 : (sapc - 0.027) * 100
+  return sapc > -0.1 ? 0 : (sapc + 0.027) * 100
+}
+
 // ── Shade/Tint Generator ─────────────────────────────────────────────
 
-function generateScale(rgb: RGB): { label: string; hex: string; rgb: RGB }[] {
-  const hsl = rgbToHsl(rgb)
+export function generateScale(rgb: RGB): { label: string; hex: string; rgb: RGB }[] {
+  const oklch = rgbToOklch(rgb)
   const steps = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95]
   return steps.map((l) => {
-    const stepRgb = hslToRgb({ h: hsl.h, s: hsl.s, l })
+    const stepRgb = { ...oklchToRgb(l / 100, oklch.c, oklch.h), a: rgb.a ?? 1 }
     return { label: `${l}%`, hex: rgbToHex(stepRgb), rgb: stepRgb }
   })
 }
@@ -560,8 +617,8 @@ function ContrastInputs({
 }) {
   const fgRgb = useMemo(() => parseColor(contrastFg), [contrastFg])
   const bgRgb = useMemo(() => parseColor(contrastBg), [contrastBg])
-  const fgHex = fgRgb ? rgbToHex(fgRgb) : '#ffffff'
-  const bgHex = bgRgb ? rgbToHex(bgRgb) : '#000000'
+  const fgHex = fgRgb ? rgbToOpaqueHex(fgRgb) : '#ffffff'
+  const bgHex = bgRgb ? rgbToOpaqueHex(bgRgb) : '#000000'
 
   return (
     <div className="flex items-end gap-4">
@@ -637,8 +694,20 @@ export default function ColorConverter() {
     const lab = rgbToLab(rgb)
     const lch = labToLch(lab)
     const oklch = rgbToOklch(rgb)
-    const cssName = findCssName(rgbToHex(rgb))
-    return { rgb, hsl, hsb, lab, lch, oklch, hex: rgbToHex(rgb), cssName }
+    const alpha = rgb.a ?? 1
+    const cssName = alpha === 1 ? findCssName(rgbToOpaqueHex(rgb)) : null
+    return {
+      rgb,
+      hsl,
+      hsb,
+      lab,
+      lch,
+      oklch,
+      alpha,
+      hex: rgbToHex(rgb),
+      opaqueHex: rgbToOpaqueHex(rgb),
+      cssName,
+    }
   }, [state.input])
 
   const historyRef = useRef(state.history)
@@ -660,14 +729,19 @@ export default function ColorConverter() {
 
   const formats = useMemo(() => {
     if (!color) return []
+    const alpha = Math.round(color.alpha * 1000) / 1000
+    const suffix = alpha < 1 ? ` / ${alpha}` : ''
     return [
       { label: 'Hex', value: color.hex },
-      { label: 'RGB', value: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})` },
-      { label: 'HSL', value: `hsl(${color.hsl.h}, ${color.hsl.s}%, ${color.hsl.l}%)` },
-      { label: 'HSB', value: `hsb(${color.hsb.h}, ${color.hsb.s}%, ${color.hsb.b}%)` },
-      { label: 'LAB', value: `lab(${color.lab.l}% ${color.lab.a} ${color.lab.b})` },
-      { label: 'LCH', value: `lch(${color.lch.l}% ${color.lch.c} ${color.lch.h})` },
-      { label: 'OKLCH', value: `oklch(${color.oklch.l}% ${color.oklch.c} ${color.oklch.h})` },
+      { label: 'RGB', value: `rgb(${color.rgb.r} ${color.rgb.g} ${color.rgb.b}${suffix})` },
+      { label: 'HSL', value: `hsl(${color.hsl.h} ${color.hsl.s}% ${color.hsl.l}%${suffix})` },
+      { label: 'HSB', value: `hsb(${color.hsb.h} ${color.hsb.s}% ${color.hsb.b}%${suffix})` },
+      { label: 'LAB', value: `lab(${color.lab.l}% ${color.lab.a} ${color.lab.b}${suffix})` },
+      { label: 'LCH', value: `lch(${color.lch.l}% ${color.lch.c} ${color.lch.h}${suffix})` },
+      {
+        label: 'OKLCH',
+        value: `oklch(${color.oklch.l}% ${color.oklch.c} ${color.oklch.h}${suffix})`,
+      },
       ...(color.cssName ? [{ label: 'CSS Name', value: color.cssName }] : []),
     ]
   }, [color])
@@ -680,8 +754,10 @@ export default function ColorConverter() {
     const bg = parseColor(state.contrastBg)
     if (!fg || !bg) return null
     const ratio = contrastRatio(fg, bg)
+    const apca = apcaContrast(fg, bg)
     return {
       ratio: ratio.toFixed(2),
+      apca: apca.toFixed(1),
       aa: ratio >= 4.5,
       aaLarge: ratio >= 3,
       aaa: ratio >= 7,
@@ -954,7 +1030,7 @@ export default function ColorConverter() {
                     {/* Badge */}
                     <span
                       className="rounded-full px-2 py-0.5 text-2xs font-bold"
-                      style={{ backgroundColor: color.hex + '33', color: color.hex }}
+                      style={{ backgroundColor: color.opaqueHex + '33', color: color.hex }}
                     >
                       Badge
                     </span>
@@ -990,6 +1066,12 @@ export default function ColorConverter() {
                 <div className="text-xs text-[var(--color-text-muted)]">Ratio</div>
                 <div className="font-mono text-lg font-bold text-[var(--color-text)]">
                   {contrast.ratio}:1
+                </div>
+              </div>
+              <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2">
+                <div className="text-xs text-[var(--color-text-muted)]">APCA Lc</div>
+                <div className="font-mono text-lg font-bold text-[var(--color-text)]">
+                  {contrast.apca}
                 </div>
               </div>
               <div

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import CaseConverter from '../case-converter/CaseConverter'
+import CaseConverter, { computeCases, detectCase } from '../case-converter/CaseConverter'
 
 describe('CaseConverter', () => {
   beforeEach(() => {
@@ -45,5 +45,14 @@ describe('CaseConverter', () => {
   it('shows placeholder when input is empty', () => {
     render(<CaseConverter />)
     expect(screen.getByText(/enter text above to see conversions/i)).toBeInTheDocument()
+  })
+
+  it('preserves line boundaries when converting a batch', () => {
+    const snake = computeCases('first value\nsecond value').find((result) => result.id === 'snake')
+    expect(snake?.value).toBe('first_value\nsecond_value')
+  })
+
+  it('recognises an unambiguous single title word', () => {
+    expect(detectCase('Title')).toBe('Title Case')
   })
 })

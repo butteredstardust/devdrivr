@@ -4,6 +4,7 @@ import {
   ArrowsDownUpIcon,
   ArrowsInLineVerticalIcon,
   ArrowsOutLineVerticalIcon,
+  ArrowUUpLeftIcon,
   BracketsCurlyIcon,
   CaretDownIcon,
   CaretUpIcon,
@@ -39,6 +40,11 @@ import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { InspectorTree } from '@/components/shared/InspectorTree'
+import { Toggle } from '@/components/shared/Toggle'
+import { sendToTool } from '@/lib/tool-handoff'
+export { queryJsonPath, type JsonPathResult } from '@/lib/json-path'
+import { queryJsonPath } from '@/lib/json-path'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -54,6 +60,54 @@ type JsonToolsState = {
   query: string
   queryOpen: boolean
   indent: number
+  allowComments: boolean
+}
+
+/** Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable. */
+export function normalizeJsonc(source: string): string {
+  const chars = [...source]
+  let inString = false
+  let escaping = false
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index]
+    const next = chars[index + 1]
+    if (inString) {
+      if (escaping) escaping = false
+      else if (char === '\\') escaping = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      continue
+    }
+    if (char === '/' && next === '/') {
+      chars[index] = ' '
+      chars[index + 1] = ' '
+      index += 2
+      while (index < chars.length && chars[index] !== '\n') {
+        chars[index] = ' '
+        index += 1
+      }
+      index -= 1
+      continue
+    }
+    if (char === '/' && next === '*') {
+      chars[index] = ' '
+      chars[index + 1] = ' '
+      index += 2
+      while (index < chars.length && !(chars[index] === '*' && chars[index + 1] === '/')) {
+        if (chars[index] !== '\n' && chars[index] !== '\r') chars[index] = ' '
+        index += 1
+      }
+      if (index < chars.length) {
+        chars[index] = ' '
+        chars[index + 1] = ' '
+        index += 1
+      }
+    }
+  }
+  return chars.join('').replace(/,(\s*[}\]])/g, ' $1')
 }
 
 /** Above this many keys the tree starts collapsed — expanding is one click. */
@@ -276,30 +330,6 @@ export function locateJsonError(
   return { line: before.split('\n').length, column: clamped - before.lastIndexOf('\n') }
 }
 
-export type JsonPathResult = { found: true; value: unknown } | { found: false }
-
-/**
- * Returns a `found` flag rather than `undefined`: a path that resolves to a
- * literal `null` is a hit, and the old signature reported it as a miss.
- */
-export function queryJsonPath(data: unknown, path: string): JsonPathResult {
-  if (!path.trim()) return { found: false }
-  const parts = path
-    .replace(/^\$\.?/, '') // strip leading $. or $
-    .replace(/\[(\d+)\]/g, '.$1') // arr[0] → arr.0
-    .split('.')
-    .filter(Boolean)
-  if (parts.length === 0) return { found: true, value: data }
-
-  let current: unknown = data
-  for (const part of parts) {
-    if (current === null || typeof current !== 'object') return { found: false }
-    if (!(part in (current as Record<string, unknown>))) return { found: false }
-    current = (current as Record<string, unknown>)[part]
-  }
-  return { found: true, value: current }
-}
-
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -341,6 +371,7 @@ export default function JsonTools() {
     query: '',
     queryOpen: false,
     indent: 2,
+    allowComments: false,
   })
   const { record } = useToolHistory({ toolId: 'json-tools' })
 
@@ -351,6 +382,7 @@ export default function JsonTools() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
+  const [undoBuffer, setUndoBuffer] = useState<{ input: string; label: string } | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const formattingRef = useRef(false)
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
@@ -364,12 +396,15 @@ export default function JsonTools() {
   const parsed = useMemo<ParseResult>(() => {
     if (!input.trim()) return { status: 'empty' }
     try {
-      return { status: 'valid', data: JSON.parse(input) as unknown }
+      return {
+        status: 'valid',
+        data: JSON.parse(state.allowComments ? normalizeJsonc(input) : input) as unknown,
+      }
     } catch (e) {
       const message = (e as Error).message
       return { status: 'invalid', message, location: locateJsonError(message, input) }
     }
-  }, [input])
+  }, [input, state.allowComments])
 
   const isValid = parsed.status === 'valid'
   const data = parsed.status === 'valid' ? parsed.data : null
@@ -428,21 +463,31 @@ export default function JsonTools() {
 
   const handleMinify = useCallback(() => {
     if (!isValid) return
+    setUndoBuffer({ input, label: 'Minify' })
     const output = JSON.stringify(data)
     updateState({ input: output })
     setError(null)
     setLastAction('Minified JSON', 'success')
     recordRun(output)
-  }, [isValid, data, updateState, setLastAction, recordRun])
+  }, [isValid, data, input, updateState, setLastAction, recordRun])
 
   const handleSortKeys = useCallback(() => {
     if (!isValid) return
+    setUndoBuffer({ input, label: 'Sort keys' })
     const output = JSON.stringify(sortKeysDeep(data), null, indent)
     updateState({ input: output })
     setError(null)
     setLastAction('Keys sorted', 'success')
     recordRun(output)
-  }, [isValid, data, indent, updateState, setLastAction, recordRun])
+  }, [isValid, data, indent, input, updateState, setLastAction, recordRun])
+
+  const handleUndo = useCallback(() => {
+    if (!undoBuffer) return
+    updateState({ input: undoBuffer.input })
+    setUndoBuffer(null)
+    setError(null)
+    setLastAction(`Undid ${undoBuffer.label.toLowerCase()}`, 'info')
+  }, [setLastAction, undoBuffer, updateState])
 
   const handleSave = useCallback(() => {
     void saveFileDialog(inputRef.current, state.fileName ?? 'data.json').then(
@@ -466,7 +511,11 @@ export default function JsonTools() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        allowComments: action.filename.toLowerCase().endsWith('.jsonc'),
+      })
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
@@ -621,6 +670,12 @@ export default function JsonTools() {
                 <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
+              {undoBuffer && (
+                <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
+                  <ArrowUUpLeftIcon size={14} aria-hidden="true" />
+                  Undo {undoBuffer.label}
+                </Button>
+              )}
               <CopyButton text={input} label="Copy JSON" />
               {/* Labelled, like every other button in this group. As a bare icon it was the only
                   unlabelled control on the row and the dimmest thing on it, which read as
@@ -636,6 +691,15 @@ export default function JsonTools() {
                 <FloppyDiskIcon size={14} aria-hidden="true" />
                 Save
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => sendToTool('yaml-tools', { input, view: 'source' })}
+                disabled={!hasInput}
+                title="Open this JSON in YAML Tools"
+              >
+                YAML
+              </Button>
             </ToolbarGroup>
 
             <ToolbarGroup label="View options" separated>
@@ -650,6 +714,11 @@ export default function JsonTools() {
                   <option value={4}>4 spaces</option>
                 </Select>
               </label>
+              <Toggle
+                label="JSONC comments"
+                checked={state.allowComments}
+                onChange={(allowComments) => updateState({ allowComments })}
+              />
               <Button
                 variant="ghost"
                 size="sm"
@@ -733,6 +802,7 @@ export default function JsonTools() {
             keyCount={stats?.keys ?? 0}
             data={data}
             onCopy={copy}
+            {...(queryResult?.found ? { highlightedPath: query } : {})}
           />
         </SplitPane>
       )}
@@ -750,12 +820,14 @@ function InspectorPane({
   keyCount,
   data,
   onCopy,
+  highlightedPath,
 }: {
   view: Exclude<JsonView, 'source'>
   parsed: ParseResult
   keyCount: number
   data: unknown
   onCopy: CopyToClipboard
+  highlightedPath?: string
 }) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
@@ -841,9 +913,13 @@ function InspectorPane({
         )}
         {parsed.status === 'valid' &&
           (view === 'tree' ? (
-            <div className="p-3 font-mono text-xs">
-              <JsonTree key={treeKey} data={data} path="$" defaultExpanded={expanded} />
-            </div>
+            <InspectorTree
+              key={treeKey}
+              data={data}
+              defaultExpanded={expanded}
+              filterable
+              {...(highlightedPath === undefined ? {} : { highlightedPath })}
+            />
           ) : tableTooLarge ? (
             // The tree can open collapsed; a table cannot, so this is the equivalent
             // brake — every key would become a DOM node the moment the view opens.
@@ -898,7 +974,7 @@ function TreeValueButton({
   )
 }
 
-function JsonTree({
+export function JsonTree({
   data,
   path,
   defaultExpanded = true,
@@ -1037,7 +1113,13 @@ function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
   return <Icon size={12} aria-hidden="true" className="text-[var(--color-text-muted)]" />
 }
 
-function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: CopyToClipboard }) {
+export function JsonTable({
+  data,
+  onCopy,
+}: {
+  data: Record<string, unknown>[]
+  onCopy: CopyToClipboard
+}) {
   const [sort, setSort] = useState<SortState>(null)
   // Roving cell cursor: the old table copied on click only, which left the
   // whole grid unreachable from the keyboard.

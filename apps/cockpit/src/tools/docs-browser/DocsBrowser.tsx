@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { Select } from '@/components/shared/Input'
+import { sendToTool } from '@/lib/tool-handoff'
 
 type DocsBrowserProps = {
   defaultLoadError?: boolean
   frameSrc?: string
 }
+
+const DEFAULT_DOCS_SOURCE = 'https://devdocs.io'
+const DOCS_SOURCES = [
+  { value: DEFAULT_DOCS_SOURCE, label: 'DevDocs home' },
+  { value: 'https://devdocs.io/javascript', label: 'JavaScript' },
+  { value: 'https://devdocs.io/python~3.12', label: 'Python 3.12' },
+  { value: 'https://devdocs.io/rust', label: 'Rust' },
+] as const
 
 /**
  * What to call the embedded site in the chrome and in error copy.
@@ -27,16 +38,36 @@ export function siteLabel(frameSrc: string): string {
   }
 }
 
-export default function DocsBrowser({
-  defaultLoadError = false,
-  frameSrc = 'https://devdocs.io',
-}: DocsBrowserProps) {
-  const label = siteLabel(frameSrc)
+export default function DocsBrowser({ defaultLoadError = false, frameSrc }: DocsBrowserProps) {
+  const [selectedSource, setSelectedSource] = useState(DEFAULT_DOCS_SOURCE)
+  const effectiveSrc = frameSrc ?? selectedSource
+  const label = siteLabel(effectiveSrc)
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [loading, setLoading] = useState(!defaultLoadError)
   const [loadError, setLoadError] = useState(defaultLoadError)
   const [showSlowFallback, setShowSlowFallback] = useState(false)
   const [frameKey, setFrameKey] = useState(0)
+
+  useEffect(() => {
+    if (frameSrc) return
+    const controller = new AbortController()
+    void tauriFetch(effectiveSrc, { method: 'HEAD', signal: controller.signal })
+      .then((response) => {
+        // HEAD is an advisory probe: CDNs commonly reject it even while GET and
+        // iframe navigation work. Only definitive not-found responses override
+        // the iframe's own load/error signals.
+        if (!controller.signal.aborted && (response.status === 404 || response.status === 410)) {
+          setLoading(false)
+          setLoadError(true)
+          setShowSlowFallback(false)
+        }
+      })
+      .catch(() => {
+        // Let the iframe and slow-load fallback decide; a failed HEAD alone is
+        // not evidence that the page cannot load.
+      })
+    return () => controller.abort()
+  }, [effectiveSrc, frameSrc, frameKey])
 
   useEffect(() => {
     if (!loading || loadError) return
@@ -53,16 +84,75 @@ export default function DocsBrowser({
     setFrameKey((current) => current + 1)
   }, [])
 
+  const handleHome = useCallback(() => {
+    if (frameSrc) {
+      setFrameKey((current) => current + 1)
+      return
+    }
+    setSelectedSource(DEFAULT_DOCS_SOURCE)
+    setLoading(true)
+    setLoadError(false)
+    setShowSlowFallback(false)
+    setFrameKey((current) => current + 1)
+  }, [frameSrc])
+
   return (
     <ToolLayout
       fullBleed
       toolbar={
         <>
           <Toolbar aria-label="Documentation navigation">
+            {!frameSrc && (
+              <Select
+                value={selectedSource}
+                onChange={(event) => {
+                  setSelectedSource(event.target.value)
+                  setLoading(true)
+                  setLoadError(false)
+                  setShowSlowFallback(false)
+                  setFrameKey((current) => current + 1)
+                }}
+                aria-label="Documentation source"
+                className="max-w-44"
+              >
+                {DOCS_SOURCES.map((source) => (
+                  <option key={source.value} value={source.value}>
+                    {source.label}
+                  </option>
+                ))}
+              </Select>
+            )}
             <span className="font-mono text-xs text-[var(--color-text-muted)]">{label}</span>
+            <Button variant="secondary" size="sm" onClick={handleRetry}>
+              Reload
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleHome}>
+              Home
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                sendToTool('api-client', {
+                  activeRequestId: null,
+                  draft: {
+                    name: `GET ${label}`,
+                    method: 'GET',
+                    url: effectiveSrc,
+                    headers: [],
+                    body: '',
+                    bodyMode: 'none',
+                    auth: { type: 'none' },
+                  },
+                })
+              }
+              title="Inspect this documentation URL in API Client"
+            >
+              Inspect URL
+            </Button>
             <ToolbarSpacer />
             <a
-              href={frameSrc}
+              href={effectiveSrc}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[var(--color-accent)] hover:underline"
@@ -102,7 +192,7 @@ export default function DocsBrowser({
     >
       <iframe
         key={frameKey}
-        src={frameSrc}
+        src={effectiveSrc}
         className="flex-1 border-none"
         title={`${label} documentation`}
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"

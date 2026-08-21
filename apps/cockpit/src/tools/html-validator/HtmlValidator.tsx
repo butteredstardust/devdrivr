@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
-  ArrowRightIcon,
   CaretDownIcon,
   CaretUpIcon,
   CheckCircleIcon,
@@ -45,20 +44,22 @@ import {
   RULE_CATEGORIES,
   TEMPLATES,
   buildRuleset,
-  computeStats,
   countIssues,
   countRuleOverrides,
   isRuleEnabled,
-  outlineProblems,
-  sortIssues,
+  outlineProblemDetails,
   templateById,
   toggleRule,
   type HtmlIssue,
+  type HtmlStats,
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { useTabDirty } from '@/hooks/useTabDirty'
+import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
+import { ProblemsList } from '@/components/shared/ProblemsList'
 import { formatShortcut } from '@/lib/shortcut-label'
+import type { HtmlWorker } from '@/workers/html.worker'
+import HtmlWorkerFactory from '@/workers/html.worker?worker'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -84,13 +85,7 @@ type HtmlValidatorState = {
   enabledRules: string[]
 }
 
-type PendingDocument = {
-  input: string
-  fileName: string | null
-  filePath: string | null
-  savedContent: string
-  successMessage: string
-}
+type PendingDocument = PendingValidatorDocument
 
 const VIEW_OPTIONS: SegmentedControlOption<ViewMode>[] = [
   { value: 'editor', label: 'Editor' },
@@ -124,8 +119,10 @@ export default function HtmlValidator() {
   })
 
   const formatter = useWorker<FormatterWorker>(() => new FormatterWorkerFactory(), ['format'])
+  const validator = useWorker<HtmlWorker>(() => new HtmlWorkerFactory(), ['validateHtml'])
 
   const [issues, setIssues] = useState<HtmlIssue[]>([])
+  const [stats, setStats] = useState<HtmlStats | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [hasValidated, setHasValidated] = useState(false)
   const [isFormatting, setIsFormatting] = useState(false)
@@ -143,16 +140,10 @@ export default function HtmlValidator() {
    * document looks exactly like one the user triggered. Only typing and explicit
    * buffer swaps set this, and only it lets a run reach history.
    */
-  const userEditedRef = useRef(false)
-
   const input = state.input ?? ''
   const inputRef = useRef(input)
   inputRef.current = input
-  const hasInput = input.trim().length > 0
-  // Without a known saved text, only text this session produced counts as unsaved.
-  const isDirty =
-    state.savedContent === null ? userEditedRef.current && hasInput : input !== state.savedContent
-  useTabDirty(isDirty)
+  const { hasInput, isDirty, userEditedRef } = useValidatorDocument(input, state.savedContent)
   const { disabledRules, enabledRules } = state
   // The editor-only mode used to be called 'edit'. A session that ended there
   // hydrates that value straight past the default, and an unrecognised mode
@@ -168,8 +159,13 @@ export default function HtmlValidator() {
     if (!hasInput) {
       validationSeqRef.current += 1
       setIssues([])
+      setStats(null)
       setIsValidating(false)
       setHasValidated(false)
+      return
+    }
+    if (!validator) {
+      setIsValidating(true)
       return
     }
     const seq = validationSeqRef.current + 1
@@ -181,20 +177,13 @@ export default function HtmlValidator() {
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const { HTMLHint } = await import('htmlhint')
-          const found = HTMLHint.verify(input, buildRuleset(disabledRules, enabledRules))
-          if (seq !== validationSeqRef.current) return
-          setIssues(
-            sortIssues(
-              found.map((result) => ({
-                message: result.message,
-                line: result.line,
-                col: result.col,
-                type: result.type === 'error' ? ('error' as const) : ('warning' as const),
-                rule: result.rule.id,
-              }))
-            )
+          const found = await validator.validateHtml(
+            input,
+            buildRuleset(disabledRules, enabledRules)
           )
+          if (seq !== validationSeqRef.current) return
+          setIssues(found.issues)
+          setStats(found.stats)
         } catch {
           if (seq !== validationSeqRef.current) return
           // Without a verdict of its own the status line would sit at "Checking…"
@@ -217,14 +206,13 @@ export default function HtmlValidator() {
       })()
     }, VALIDATE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [input, hasInput, disabledRules, enabledRules])
+  }, [input, hasInput, disabledRules, enabledRules, validator])
 
   const { errors: errorCount, warnings: warningCount } = useMemo(
     () => countIssues(issues),
     [issues]
   )
-  const stats = useMemo(() => (hasInput ? computeStats(input) : null), [hasInput, input])
-  const outlineIssues = useMemo(() => (stats ? outlineProblems(stats.headings) : []), [stats])
+  const outlineIssues = useMemo(() => (stats ? outlineProblemDetails(stats.headings) : []), [stats])
 
   // Only completed runs of text the user actually produced are worth recording;
   // hydrating a tab on startup is not an operation anyone performed.
@@ -347,7 +335,7 @@ export default function HtmlValidator() {
       setPendingDocument(null)
       setLastAction(document.successMessage, 'success')
     },
-    [updateState, setLastAction]
+    [updateState, setLastAction, userEditedRef]
   )
 
   // Loading a template used to overwrite the buffer outright, with no undo and
@@ -408,7 +396,7 @@ export default function HtmlValidator() {
       // The banner describes a failed format of the *old* text.
       setFormatError(null)
     },
-    [updateState]
+    [updateState, userEditedRef]
   )
 
   // --- Files -----------------------------------------------------------
@@ -474,7 +462,7 @@ export default function HtmlValidator() {
     } finally {
       setIsFormatting(false)
     }
-  }, [formatter, isFormatting, updateState, setLastAction])
+  }, [formatter, isFormatting, updateState, setLastAction, userEditedRef])
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -852,6 +840,15 @@ export default function HtmlValidator() {
         headings={stats?.headings ?? []}
         outlineIssues={outlineIssues}
         onGoToIssue={goToIssue}
+        onGoToHeading={(heading) =>
+          goToIssue({
+            type: 'warning',
+            rule: 'outline',
+            message: heading.text,
+            line: heading.line ?? 1,
+            col: heading.column ?? 1,
+          })
+        }
       />
 
       <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
@@ -934,6 +931,7 @@ function ResultsPanel({
   headings,
   outlineIssues,
   onGoToIssue,
+  onGoToHeading,
 }: {
   panel: Panel
   open: boolean
@@ -945,9 +943,10 @@ function ResultsPanel({
   isValidating: boolean
   hasValidated: boolean
   hasInput: boolean
-  headings: { level: number; text: string }[]
-  outlineIssues: string[]
+  headings: { level: number; text: string; line?: number; column?: number }[]
+  outlineIssues: { message: string; headingIndex: number }[]
   onGoToIssue: (issue: HtmlIssue) => void
+  onGoToHeading: (heading: { level: number; text: string; line?: number; column?: number }) => void
 }) {
   const panelId = useId()
   const Caret = open ? CaretDownIcon : CaretUpIcon
@@ -1016,49 +1015,25 @@ function ResultsPanel({
                 }
               />
             ) : (
-              <ul>
-                {issues.map((issue, index) => (
-                  <li key={`${issue.rule}-${issue.line}-${issue.col}-${index}`}>
-                    {/* A problem list nobody can click is a list of coordinates to
-                        scroll to by hand — every row jumps the cursor there. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onGoToIssue(issue)}
-                      className="w-full justify-start gap-2 rounded-none px-3 text-left"
-                      title={`Go to line ${issue.line}, column ${issue.col}`}
-                    >
-                      {issue.type === 'error' ? (
-                        <WarningCircleIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-error)]"
-                        />
-                      ) : (
-                        <WarningIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-warning)]"
-                        />
-                      )}
-                      <span className="shrink-0 font-mono text-2xs text-[var(--color-text-muted)]">
-                        {issue.line}:{issue.col}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text)]">
-                        {issue.message}
-                      </span>
-                      <span className="shrink-0 rounded border border-[var(--color-border)] px-1 text-2xs text-[var(--color-text-muted)]">
-                        {issue.rule}
-                      </span>
-                      <ArrowRightIcon
-                        size={12}
-                        aria-hidden="true"
-                        className="shrink-0 text-[var(--color-text-muted)]"
-                      />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              <ProblemsList
+                items={issues.map((issue, index) => ({
+                  id: `${issue.rule}-${issue.line}-${issue.col}-${index}`,
+                  message: issue.message,
+                  severity: issue.type,
+                  line: issue.line,
+                  column: issue.col,
+                  code: issue.rule,
+                }))}
+                onSelect={(problem) =>
+                  onGoToIssue({
+                    type: problem.severity === 'error' ? 'error' : 'warning',
+                    rule: problem.code ?? 'validator',
+                    message: problem.message,
+                    line: problem.line ?? 1,
+                    col: problem.column ?? 1,
+                  })
+                }
+              />
             )
           ) : headings.length === 0 ? (
             <EmptyState
@@ -1073,7 +1048,20 @@ function ResultsPanel({
                 <Alert variant="warning" className="mb-2 text-2xs">
                   <ul>
                     {outlineIssues.map((problem) => (
-                      <li key={problem}>{problem}</li>
+                      <li key={problem.message}>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          type="button"
+                          onClick={() => {
+                            const heading = headings[problem.headingIndex]
+                            if (heading) onGoToHeading(heading)
+                          }}
+                          className="text-left hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                        >
+                          {problem.message}
+                        </Button>
+                      </li>
                     ))}
                   </ul>
                 </Alert>
@@ -1082,15 +1070,23 @@ function ResultsPanel({
                 {headings.map((heading, index) => (
                   <li
                     key={`${heading.level}-${index}`}
-                    className="truncate text-xs text-[var(--color-text)]"
                     style={{ paddingLeft: (heading.level - 1) * 16 }}
                   >
-                    <span className="mr-1.5 font-mono text-2xs text-[var(--color-accent)]">
-                      h{heading.level}
-                    </span>
-                    {heading.text || (
-                      <span className="text-[var(--color-text-muted)]">(empty heading)</span>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      type="button"
+                      onClick={() => onGoToHeading(heading)}
+                      title={`Go to line ${heading.line ?? 1}, column ${heading.column ?? 1}`}
+                      className="w-full truncate rounded text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                    >
+                      <span className="mr-1.5 font-mono text-2xs text-[var(--color-accent)]">
+                        h{heading.level}
+                      </span>
+                      {heading.text || (
+                        <span className="text-[var(--color-text-muted)]">(empty heading)</span>
+                      )}
+                    </Button>
                   </li>
                 ))}
               </ul>

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import UuidGenerator, { generateV5 } from '../uuid-generator/UuidGenerator'
+import UuidGenerator, { generateV5, generateV6 } from '../uuid-generator/UuidGenerator'
 
 describe('UuidGenerator', () => {
   it('matches the RFC v5 DNS vector', () => {
     expect(generateV5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', 'example.com')).toBe(
       'cfbff0d1-9375-5685-968c-48ce8b15ae17'
+    )
+  })
+  it('generates RFC 9562 version 6 UUIDs', () => {
+    expect(generateV6()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-6[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
   })
   it('renders generate button', () => {
@@ -27,6 +32,15 @@ describe('UuidGenerator', () => {
     renderTool(UuidGenerator)
     const input = screen.getByPlaceholderText(/paste a uuid/i)
     fireEvent.change(input, { target: { value: '550e8400-e29b-41d4-a716-446655440000' } })
+    expect(screen.getByText(/valid uuid/i)).toBeInTheDocument()
+  })
+
+  it('accepts braced and URN UUID forms', () => {
+    renderTool(UuidGenerator)
+    const input = screen.getByPlaceholderText(/paste a uuid/i)
+    fireEvent.change(input, {
+      target: { value: 'urn:uuid:{550e8400-e29b-41d4-a716-446655440000}' },
+    })
     expect(screen.getByText(/valid uuid/i)).toBeInTheDocument()
   })
 

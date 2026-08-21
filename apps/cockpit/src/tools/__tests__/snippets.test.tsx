@@ -28,6 +28,7 @@ function snippet(overrides: Partial<Snippet> & Pick<Snippet, 'id' | 'title'>): S
     content: 'console.log("hello")',
     language: 'javascript',
     tags: [],
+    favorite: false,
     folder: '',
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,
@@ -296,7 +297,7 @@ describe('SnippetsManager — editor and details', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to favorites' }))
 
-    expect(update).toHaveBeenCalledWith('snippet-1', { tags: ['api', '⭐'] })
+    expect(update).toHaveBeenCalledWith('snippet-1', { tags: ['api'], favorite: true })
   })
 
   it('uses an explicit, focus-safe confirmation dialog for deletion', async () => {
@@ -308,7 +309,7 @@ describe('SnippetsManager — editor and details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete snippet' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Delete snippet?' })
-    expect(within(dialog).getByText(/permanently removed/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/undo for a few seconds/)).toBeInTheDocument()
     expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete snippet' }))
 
@@ -377,9 +378,9 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith('Imported', 'SELECT 1;', 'sql', ['database'], 'work')
+      expect(add).toHaveBeenCalledWith('Imported', 'SELECT 1;', 'sql', ['database'], 'work', false)
     )
-    expect(useUiStore.getState().lastAction?.message).toBe('Imported 1 snippets')
+    expect(useUiStore.getState().lastAction?.message).toBe('Imported 1 snippet')
   })
 
   it('rejects malformed backups with an actionable error', async () => {

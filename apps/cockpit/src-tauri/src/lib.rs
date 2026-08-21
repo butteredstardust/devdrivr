@@ -71,6 +71,18 @@ pub fn run() {
             sql: include_str!("../migrations/009_persistence_backfills.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "add API history response snapshots",
+            sql: include_str!("../migrations/011_api_history_response.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "add snippet favorites",
+            sql: include_str!("../migrations/012_snippets_favorite.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

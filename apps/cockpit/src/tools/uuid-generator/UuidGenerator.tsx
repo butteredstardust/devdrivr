@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
@@ -40,7 +40,31 @@ function generateV1(): string {
   // Variant bits (RFC 4122)
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
+  // Random nodes set the multicast bit so they cannot be mistaken for real MAC addresses.
+  bytes[10] = ((bytes[10] ?? 0) | 0x01) & 0xff
 
+  return formatUuid(bytes)
+}
+
+export function generateV6(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  const timestamp = BigInt(Date.now()) * 10000n + 122192928000000000n
+  const high = Number((timestamp >> 28n) & 0xffffffffn)
+  const mid = Number((timestamp >> 12n) & 0xffffn)
+  const low = Number(timestamp & 0xfffn)
+  bytes[0] = (high >>> 24) & 0xff
+  bytes[1] = (high >>> 16) & 0xff
+  bytes[2] = (high >>> 8) & 0xff
+  bytes[3] = high & 0xff
+  bytes[4] = (mid >>> 8) & 0xff
+  bytes[5] = mid & 0xff
+  bytes[6] = ((low >>> 8) & 0x0f) | 0x60
+  bytes[7] = low & 0xff
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[10] = (bytes[10]! | 0x01) & 0xff // safe: Uint8Array(16) guarantees index 10 exists
   return formatUuid(bytes)
 }
 
@@ -91,6 +115,7 @@ export function generateV5(namespace: string, name: string): string {
 
 const GENERATORS: Record<Exclude<UuidVersion, 'v5'>, () => string> = {
   v1: generateV1,
+  v6: generateV6,
   v4: generateV4,
   v7: generateV7,
 }
@@ -110,7 +135,10 @@ type UuidInfo = {
 }
 
 function parseUuid(input: string): UuidInfo | { valid: false; message: string } {
-  const trimmed = input.trim()
+  const trimmed = input
+    .trim()
+    .replace(/^urn:uuid:/i, '')
+    .replace(/^\{(.+)\}$/, '$1')
   if (!UUID_REGEX.test(trimmed)) {
     return { valid: false, message: 'Not a valid UUID format' }
   }
@@ -152,6 +180,14 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
     info.node = (hex.slice(20).match(/.{2}/g) ?? []).join(':')
   }
 
+  // Extract timestamp for v6 (reassemble the reordered v1 timestamp).
+  if (versionNibble === 6) {
+    const timestampHex = `${hex.slice(0, 8)}${hex.slice(8, 12)}${hex.slice(13, 16)}`
+    const timestamp100ns = BigInt(`0x${timestampHex}`)
+    const unixMs = Number((timestamp100ns - 122192928000000000n) / 10000n)
+    if (unixMs > 0 && unixMs < 4102444800000) info.timestamp = new Date(unixMs).toISOString()
+  }
+
   // Extract timestamp for v7
   if (versionNibble === 7) {
     const timestampHex = hex.slice(0, 12)
@@ -166,7 +202,7 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
 
 // ── Component ────────────────────────────────────────────────────────
 
-type UuidVersion = 'v1' | 'v4' | 'v5' | 'v7'
+type UuidVersion = 'v1' | 'v4' | 'v5' | 'v6' | 'v7'
 type BulkFormat = 'lines' | 'json' | 'csv'
 
 type UuidState = {
@@ -190,6 +226,7 @@ const VERSION_LABELS: Record<UuidVersion, string> = {
   v1: 'v1 — Time-based',
   v4: 'v4 — Random',
   v5: 'v5 — Namespace/name',
+  v6: 'v6 — Reordered time-based',
   v7: 'v7 — Time-ordered',
 }
 
@@ -203,7 +240,9 @@ export default function UuidGenerator() {
     v5Namespace: V5_NAMESPACES.DNS,
     v5Name: '',
   })
-  const { record } = useToolHistory({ toolId: 'uuid-generator' })
+  const { recordEdited, recordImmediate, markUserEdit } = useToolHistory({
+    toolId: 'uuid-generator',
+  })
 
   const [bulkUuids, setBulkUuids] = useState<string[]>([])
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -218,22 +257,34 @@ export default function UuidGenerator() {
     try {
       const uuid = generateOne()
       updateState({ lastGenerated: uuid })
+      recordImmediate({
+        input: `Generate ${state.version}`,
+        output: uuid,
+        subTab: state.version,
+        success: true,
+      })
       setLastAction(`Generated UUID ${state.version}`, 'success')
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : String(error), 'error')
     }
-  }, [state.version, generateOne, updateState, setLastAction])
+  }, [state.version, generateOne, updateState, setLastAction, recordImmediate])
 
   const generateBulk = useCallback(() => {
     const count = Math.min(Math.max(1, state.bulkCount), 100)
     try {
       const uuids = Array.from({ length: count }, () => generateOne())
       setBulkUuids(uuids)
+      recordImmediate({
+        input: `Generate ${count} ${state.version}`,
+        output: uuids.join('\n'),
+        subTab: `${state.version}-bulk`,
+        success: true,
+      })
       setLastAction(`Generated ${count} UUIDs (${state.version})`, 'success')
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : String(error), 'error')
     }
-  }, [state.bulkCount, state.version, generateOne, setLastAction])
+  }, [state.bulkCount, state.version, generateOne, setLastAction, recordImmediate])
 
   const bulkOutput = useMemo(() => {
     if (bulkUuids.length === 0) return ''
@@ -252,22 +303,10 @@ export default function UuidGenerator() {
     return parseUuid(state.validateInput)
   }, [state.validateInput])
 
-  // Record history when UUID is generated
-  useEffect(() => {
-    if (state.lastGenerated) {
-      record({
-        input: `Generate ${state.version}`,
-        output: state.lastGenerated,
-        subTab: state.version,
-        success: true,
-      })
-    }
-  }, [state.lastGenerated, state.version, record])
-
   // Record history when UUID is validated
   useEffect(() => {
     if (state.validateInput.trim() && parsed) {
-      record({
+      recordEdited({
         input: `Validate: ${state.validateInput}`,
         output: parsed.valid
           ? `Valid ${parsed.version === 0 ? parsed.variant : `v${parsed.version}`} (${parsed.variant})`
@@ -276,7 +315,7 @@ export default function UuidGenerator() {
         success: parsed.valid,
       })
     }
-  }, [state.validateInput, parsed, record])
+  }, [state.validateInput, parsed, recordEdited])
 
   return (
     <ToolLayout maxWidth="max-w-4xl">
@@ -394,7 +433,10 @@ export default function UuidGenerator() {
           <Input
             type="text"
             value={state.validateInput}
-            onChange={(e) => updateState({ validateInput: e.target.value })}
+            onChange={(e) => {
+              markUserEdit()
+              updateState({ validateInput: e.target.value })
+            }}
             placeholder="Paste a UUID to validate and parse..."
             size="md"
             className="w-full max-w-xl font-mono"

@@ -6,7 +6,11 @@ import TimestampConverter from '../timestamp-converter/TimestampConverter'
 const recordMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/hooks/useToolHistory', () => ({
-  useToolHistory: () => ({ record: recordMock }),
+  useToolHistory: () => ({
+    record: recordMock,
+    recordEdited: recordMock,
+    markUserEdit: vi.fn(),
+  }),
 }))
 
 describe('TimestampConverter', () => {
@@ -52,6 +56,14 @@ describe('TimestampConverter', () => {
     fireEvent.change(input, { target: { value: '0' } })
     const matches = screen.getAllByText(/1970/)
     expect(matches.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('parses compact YYYYMMDD dates before treating digits as epoch seconds', () => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value: '20240821' },
+    })
+    expect(screen.getAllByText(/2024-08-21/).length).toBeGreaterThan(0)
   })
 
   it('shows error for invalid input', () => {

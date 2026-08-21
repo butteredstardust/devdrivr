@@ -5,7 +5,7 @@
  */
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import type { Node, Element } from '@xmldom/xmldom'
-import { evaluateSimpleXPath } from '@/lib/xml-xpath'
+import xpath from 'xpath'
 
 /** Levels come straight from xmldom: only `warning` still leaves a usable document. */
 export type XmlIssueLevel = 'warning' | 'error' | 'fatalError'
@@ -28,7 +28,7 @@ export type XPathResult = {
   count: number
   /** Set when the expression itself is the problem, so the UI never shows an error as a match. */
   error?: string
-  /** The mini engine ignores predicates; say so rather than quietly returning every node. */
+  /** Kept for compatibility with the UI; real XPath evaluation no longer ignores predicates. */
   predicatesIgnored?: boolean
 }
 
@@ -56,6 +56,8 @@ export type XmlTreeNode =
 export type JsonResult = {
   valid: boolean
   json?: string
+  xml?: string
+  rootName?: string
   error?: string
 }
 
@@ -147,9 +149,68 @@ export function toJson(xml: string): JsonResult {
     return { valid: false, error: issues.map((issue) => issue.message).join('\n') || 'Invalid XML' }
   }
   try {
-    return { valid: true, json: JSON.stringify(nodeToJson(doc.documentElement), null, 2) }
+    const root = doc.documentElement
+    if (!root) return { valid: false, error: 'XML document has no root element' }
+    return {
+      valid: true,
+      json: JSON.stringify(nodeToJson(root), null, 2),
+      rootName: root.tagName,
+    }
   } catch (e) {
     return { valid: false, error: (e as Error).message }
+  }
+}
+
+function escapeXmlText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function escapeXmlAttribute(value: string): string {
+  return escapeXmlText(value).replace(/"/g, '&quot;')
+}
+
+const XML_NAME = /^[A-Za-z_:][A-Za-z0-9_.:-]*$/
+
+function assertXmlName(name: string, kind: 'element' | 'attribute'): void {
+  if (!XML_NAME.test(name)) throw new Error(`Invalid XML ${kind} name: ${name}`)
+}
+
+function jsonToXmlElement(name: string, value: unknown): string {
+  assertXmlName(name, 'element')
+  if (Array.isArray(value)) return value.map((item) => jsonToXmlElement(name, item)).join('')
+  if (value === null || value === undefined) return `<${name} />`
+  if (typeof value !== 'object') return `<${name}>${escapeXmlText(String(value))}</${name}>`
+
+  const object = value as Record<string, unknown>
+  const attributes = Object.entries(object)
+    .filter(([key, item]) => key.startsWith('@') && item !== null && item !== undefined)
+    .map(([key, item]) => {
+      const attribute = key.slice(1)
+      assertXmlName(attribute, 'attribute')
+      return ` ${attribute}="${escapeXmlAttribute(String(item))}"`
+    })
+    .join('')
+  const text = object['#text']
+  const children = Object.entries(object)
+    .filter(([key]) => !key.startsWith('@') && key !== '#text')
+    .map(([key, item]) => jsonToXmlElement(key, item))
+    .join('')
+  const content = `${text === undefined ? '' : escapeXmlText(String(text))}${children}`
+  return content ? `<${name}${attributes}>${content}</${name}>` : `<${name}${attributes} />`
+}
+
+/** Rebuilds XML using the same @attribute/#text convention emitted by toJson. */
+export function fromJson(json: string, rootName = 'root'): JsonResult {
+  try {
+    const value: unknown = JSON.parse(json)
+    const name = rootName.trim() || 'root'
+    assertXmlName(name, 'element')
+    const xml = Array.isArray(value)
+      ? `<${name}>${value.map((item) => jsonToXmlElement('item', item)).join('')}</${name}>`
+      : jsonToXmlElement(name, value)
+    return { valid: true, xml }
+  } catch (e) {
+    return { valid: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -201,15 +262,19 @@ export function queryXPath(xml: string, expression: string): XPathResult {
   if (!doc || !isUsable(issues)) {
     return { matches: [], count: 0, error: 'Fix the XML before running a query.' }
   }
-  const predicatesIgnored = /\[[^\]]*\]/.test(expression)
   try {
     const serializer = new XMLSerializer()
-    const matches = evaluateSimpleXPath(doc, expression).map((node) =>
-      serializer.serializeToString(node)
-    )
+    const selected = xpath.select(expression, doc as unknown as globalThis.Node)
+    const values = Array.isArray(selected) ? selected : [selected]
+    const matches = values.map((value) => {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return String(value)
+      }
+      return serializer.serializeToString(value as unknown as Node)
+    })
     // The error used to be returned *as a match*, so a broken expression looked
     // like a result with a count of zero next to it.
-    return { matches, count: matches.length, ...(predicatesIgnored ? { predicatesIgnored } : {}) }
+    return { matches, count: matches.length, predicatesIgnored: false }
   } catch (e) {
     return { matches: [], count: 0, error: (e as Error).message }
   }

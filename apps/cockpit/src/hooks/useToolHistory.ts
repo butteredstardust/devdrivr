@@ -52,6 +52,20 @@ export function useToolHistory(config: ToolHistoryConfig) {
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingEntry = useRef<HistoryEntryInput | null>(null)
+  const lastRecordedKey = useRef<string | null>(null)
+  const userEdited = useRef(false)
+
+  const entryKey = useCallback(
+    (entry: HistoryEntryInput) =>
+      JSON.stringify([
+        entry.input,
+        entry.output,
+        entry.subTab ?? '',
+        entry.success ?? true,
+        entry.error ?? '',
+      ]),
+    []
+  )
 
   const flushPending = useCallback(() => {
     if (!pendingEntry.current) return
@@ -60,6 +74,11 @@ export function useToolHistory(config: ToolHistoryConfig) {
     pendingEntry.current = null
 
     if (entry.input.length < minInputLength) return
+
+    const key = entryKey(entry)
+    if (key === lastRecordedKey.current) return
+    lastRecordedKey.current = key
+    userEdited.current = false
 
     const output = entry.output.slice(0, maxOutputLength)
     const failed = entry.success === false
@@ -73,7 +92,7 @@ export function useToolHistory(config: ToolHistoryConfig) {
       !failed,
       entry.metadata?.outputSize ?? output.length
     )
-  }, [addToHistory, toolId, minInputLength, maxOutputLength])
+  }, [addToHistory, toolId, minInputLength, maxOutputLength, entryKey])
 
   const recordHistory = useCallback(
     (entry: HistoryEntryInput) => {
@@ -106,6 +125,15 @@ export function useToolHistory(config: ToolHistoryConfig) {
     (entry: HistoryEntryInput) => {
       if (entry.input.length < minInputLength) return
 
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+      debounceTimer.current = null
+      pendingEntry.current = null
+
+      const key = entryKey(entry)
+      if (key === lastRecordedKey.current) return
+      lastRecordedKey.current = key
+      userEdited.current = false
+
       const output = entry.output.slice(0, maxOutputLength)
       const failed = entry.success === false
 
@@ -119,7 +147,18 @@ export function useToolHistory(config: ToolHistoryConfig) {
         entry.metadata?.outputSize ?? output.length
       )
     },
-    [addToHistory, toolId, minInputLength, maxOutputLength]
+    [addToHistory, toolId, minInputLength, maxOutputLength, entryKey]
+  )
+
+  const markUserEdit = useCallback(() => {
+    userEdited.current = true
+  }, [])
+
+  const recordEdited = useCallback(
+    (entry: HistoryEntryInput) => {
+      if (userEdited.current) recordHistory(entry)
+    },
+    [recordHistory]
   )
 
   /**
@@ -135,13 +174,19 @@ export function useToolHistory(config: ToolHistoryConfig) {
     () => ({
       record: recordHistory,
       recordImmediate: recordHistoryImmediate,
+      recordEdited,
+      markUserEdit,
       flush: flushPending,
       startTiming,
       /**
        * Convenience method that takes a computed result.
        * Only records if input is valid and min length is met.
        */
-      maybeRecord: (input: string | null | undefined, output: string, opts?: { subTab?: string; success?: boolean; error?: string }) => {
+      maybeRecord: (
+        input: string | null | undefined,
+        output: string,
+        opts?: { subTab?: string; success?: boolean; error?: string }
+      ) => {
         if (!input || input.length < minInputLength) return
         recordHistory({
           input,
@@ -152,6 +197,14 @@ export function useToolHistory(config: ToolHistoryConfig) {
         })
       },
     }),
-    [flushPending, minInputLength, recordHistory, recordHistoryImmediate, startTiming]
+    [
+      flushPending,
+      minInputLength,
+      recordHistory,
+      recordHistoryImmediate,
+      recordEdited,
+      markUserEdit,
+      startTiming,
+    ]
   )
 }

@@ -246,7 +246,7 @@ function locationOf(node: cssTree.CssNode): { line: number; column: number } {
   return { line: node.loc?.start.line ?? 1, column: node.loc?.start.column ?? 1 }
 }
 
-type Specificity = [number, number, number]
+export type Specificity = [number, number, number]
 
 const ZERO_SPECIFICITY: Specificity = [0, 0, 0]
 

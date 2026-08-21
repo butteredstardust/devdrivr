@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
-import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { SectionLabel } from '@/components/shared/SectionLabel'
@@ -16,6 +15,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useToolHistory } from '@/hooks/useToolHistory'
 import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 type RegexTesterState = {
@@ -77,14 +77,50 @@ const REFERENCE_CATEGORIES = [
   },
 ]
 
-const FLAG_OPTIONS = ['g', 'i', 'm', 's', 'u'] as const
+const FLAG_OPTIONS = ['g', 'i', 'm', 's', 'u', 'y', 'd', 'v'] as const
 const FLAG_TITLES: Record<string, string> = {
   g: 'Global — find all matches',
   i: 'Case insensitive',
   m: 'Multiline — ^ and $ match line boundaries',
   s: 'Dotall — . matches newline',
   u: 'Unicode mode',
+  y: 'Sticky — match only at the current scan position',
+  d: 'Has indices — show capture offsets',
+  v: 'Unicode sets mode',
 }
+
+const REGEX_PRESETS = [
+  {
+    label: 'Email',
+    pattern: '[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}',
+    flags: 'gi',
+    testString: 'ada@example.com',
+  },
+  {
+    label: 'URL',
+    pattern: 'https?://[^\\s]+',
+    flags: 'gi',
+    testString: 'Read https://example.com/docs',
+  },
+  {
+    label: 'ISO date',
+    pattern: '\\b\\d{4}-\\d{2}-\\d{2}\\b',
+    flags: 'g',
+    testString: 'Released 2026-08-21',
+  },
+  {
+    label: 'JWT',
+    pattern: '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$',
+    flags: '',
+    testString: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature',
+  },
+  {
+    label: 'Log line',
+    pattern: '^\\[(?<time>[^]]+)\\] (?<level>\\w+): (?<message>.*)$',
+    flags: 'gm',
+    testString: '[12:00] INFO: Started',
+  },
+] as const
 
 type RegexMode = 'match' | 'replace'
 
@@ -131,6 +167,7 @@ export function describeMatches({
 // ── Component ──────────────────────────────────────────────────────
 
 export default function RegexTester() {
+  const testStringRef = useRef<HTMLTextAreaElement>(null)
   const [state, updateState] = useToolState<RegexTesterState>('regex-tester', {
     pattern: '',
     flags: 'g',
@@ -138,11 +175,12 @@ export default function RegexTester() {
     replacePattern: '',
   })
   const copy = useCopyToClipboard()
+  const { recordImmediate } = useToolHistory({ toolId: 'regex-tester' })
   const isUntouched = !state.pattern.trim() && !state.testString.trim()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
-  const patternRef = useRef<HTMLInputElement>(null)
+  const patternRef = useRef<HTMLTextAreaElement>(null)
 
   // Evaluation runs in a terminable worker — a user pattern must never touch this thread.
   const evaluation = useRegexEvaluation({
@@ -239,13 +277,36 @@ export default function RegexTester() {
               2
             )
           : matches.map((m) => m.full).join('\n')
-      await copy(text, {
+      const copied = await copy(text, {
         success: `Copied ${truncated ? `first ${matches.length}` : matches.length} match${matches.length !== 1 ? 'es' : ''} as ${format === 'json' ? 'JSON' : 'lines'}`,
         failure: 'Failed to copy',
       })
+      if (copied) {
+        recordImmediate({
+          input: `/${state.pattern}/${state.flags}`,
+          output: text,
+          subTab: `matches-${format}`,
+          success: true,
+        })
+      }
     },
-    [matches, truncated, copy]
+    [matches, truncated, copy, recordImmediate, state.pattern, state.flags]
   )
+
+  const handleCopyReplace = useCallback(async () => {
+    const copied = await copy(replaceValue, {
+      success: 'Copied replacement result',
+      failure: 'Failed to copy',
+    })
+    if (copied) {
+      recordImmediate({
+        input: `/${state.pattern}/${state.flags} → ${state.replacePattern}`,
+        output: replaceValue,
+        subTab: 'replace',
+        success: true,
+      })
+    }
+  }, [copy, recordImmediate, replaceValue, state.flags, state.pattern, state.replacePattern])
 
   const matchCount = matches.length
   const groupCount = matches.reduce((n, m) => n + m.groups.length, 0)
@@ -268,14 +329,15 @@ export default function RegexTester() {
           {/* Pattern bar */}
           <Toolbar aria-label="Regex pattern" className="gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-            <InlineInput
+            <TextArea
               ref={patternRef}
-              variant="code"
               value={state.pattern}
               onChange={(e) => updateState({ pattern: e.target.value })}
               placeholder="Enter regex pattern..."
               aria-label="Regex pattern"
-              className="flex-1"
+              monospace
+              rows={1}
+              className="max-h-24 min-h-7 flex-1 resize-y py-1"
             />
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
             <div className="flex gap-1">
@@ -303,6 +365,25 @@ export default function RegexTester() {
             >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
+            <div className="flex shrink-0 gap-1">
+              {REGEX_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  variant="ghost"
+                  size="xs"
+                  onClick={() =>
+                    updateState({
+                      pattern: preset.pattern,
+                      flags: preset.flags,
+                      testString: preset.testString,
+                    })
+                  }
+                  title={`Load ${preset.label} preset`}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
             {/* Only while both fields are untouched. A regex tool needs a pattern
                 *and* a subject before it shows anything, so a cold start means
                 inventing both — and the tax falls hardest on the user who came
@@ -370,7 +451,9 @@ export default function RegexTester() {
                   aria-label="Replacement pattern"
                   className="flex-1"
                 />
-                <CopyButton text={replaceValue} label="Copy result" />
+                <Button variant="secondary" size="sm" onClick={() => void handleCopyReplace()}>
+                  Copy result
+                </Button>
               </div>
             )}
             {mode === 'match' && matchCount > 0 && (
@@ -393,6 +476,7 @@ export default function RegexTester() {
             <div className="flex min-h-0 flex-1 flex-col">
               <PaneHeader title="Test String" />
               <TextArea
+                ref={testStringRef}
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}
                 placeholder="Enter text to test against..."
@@ -484,9 +568,19 @@ export default function RegexTester() {
                 </span>
               </div>
               {matches.map((m, i) => (
-                <div
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  type="button"
                   key={i}
-                  className="mb-1.5 flex items-start gap-3 rounded p-1 text-xs hover:bg-[var(--color-surface-hover)]"
+                  onClick={() => {
+                    const input = testStringRef.current
+                    if (!input) return
+                    input.focus()
+                    input.setSelectionRange(m.index, m.index + m.length)
+                  }}
+                  className="mb-1.5 flex w-full items-start gap-3 rounded p-1 text-left text-xs hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                  title={`Select match ${i + 1} in the test string`}
                 >
                   <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
                     #{i + 1}
@@ -506,12 +600,19 @@ export default function RegexTester() {
                           )}
                           {'='}
                           <code className="text-[var(--color-text)]">{g.value}</code>
+                          {g.start !== undefined && g.end !== undefined && (
+                            <span className="ml-1 opacity-70">
+                              [{g.start}–{g.end}]
+                            </span>
+                          )}
                         </span>
                       ))}
                     </span>
                   )}
-                  <CopyButton text={m.full} label="Copy" className="ml-auto shrink-0" />
-                </div>
+                  <span className="ml-auto shrink-0 text-2xs text-[var(--color-text-muted)]">
+                    Select
+                  </span>
+                </Button>
               ))}
             </div>
           )}

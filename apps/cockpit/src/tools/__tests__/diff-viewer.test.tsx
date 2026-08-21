@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import DiffViewer, { describeDiff, parseDiffStats } from '../diff-viewer/DiffViewer'
 import { useUiStore } from '@/stores/ui.store'
 import { exportFile } from '@/lib/file-io'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { supportsToolFileAction } from '@/lib/tool-actions'
 
 vi.mock('@/lib/file-io', () => ({
   exportFile: vi.fn(),
+  buildExportFilename: (base: string, extension: string) => `${base}.${extension}`,
 }))
 
 beforeEach(() => {
@@ -42,6 +45,16 @@ describe('DiffViewer', () => {
     renderTool(DiffViewer)
     expect(screen.getByRole('button', { name: /Compare/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Swap/ })).toBeInTheDocument()
+  })
+
+  it('opens files into alternating comparison sides', () => {
+    renderTool(DiffViewer)
+    expect(supportsToolFileAction('diff-viewer', 'open-file')).toBe(true)
+    act(() => dispatchToolAction({ type: 'open-file', content: 'before', filename: 'before.ts' }))
+    act(() => dispatchToolAction({ type: 'open-file', content: 'after', filename: 'after.ts' }))
+    expect(editors().map((editor) => editor.value)).toEqual(['before', 'after'])
+    expect(screen.getByText('before.ts')).toBeInTheDocument()
+    expect(screen.getByText('after.ts')).toBeInTheDocument()
   })
 
   it('keeps layout and syntax options behind a disclosure', () => {
@@ -238,7 +251,10 @@ describe('DiffViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save patch/ }))
 
     await waitFor(() => {
-      expect(exportFile).toHaveBeenCalledWith(expect.stringContaining('+line TWO'), 'changes.patch')
+      expect(exportFile).toHaveBeenCalledWith(
+        expect.stringContaining('+line TWO'),
+        'text-changes.patch'
+      )
     })
     expect(useUiStore.getState().lastAction).toMatchObject({
       message: 'Saved /tmp/changes.patch',

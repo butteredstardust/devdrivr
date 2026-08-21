@@ -85,6 +85,33 @@ const DEFAULT_TEMPLATE = TEMPLATES[0]?.content ?? ''
 const RENDER_DEBOUNCE_MS = 500
 
 let initializedMermaidTheme: 'default' | 'dark' | null = null
+let mermaidLanguageRegistered = false
+
+function registerMermaidLanguage(monaco: Parameters<OnMount>[1]) {
+  if (mermaidLanguageRegistered) return
+  monaco.languages.register({ id: 'mermaid' })
+  monaco.languages.setMonarchTokensProvider('mermaid', {
+    tokenizer: {
+      root: [
+        [/^\s*%%.*$/, 'comment'],
+        [
+          /\b(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|stateDiagram-v2|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|sankey-beta|xychart-beta|block-beta|C4Context)\b/,
+          'keyword',
+        ],
+        [
+          /\b(subgraph|end|title|section|dateFormat|classDef|style|click|participant|activate|deactivate)\b/,
+          'type',
+        ],
+        [/[A-Za-z_][\w-]*/, 'identifier'],
+        [/[{}()[\]]/, 'delimiter.bracket'],
+        [/[-=><|:.+*#]/, 'operator'],
+        [/'[^']*'|"[^"]*"/, 'string'],
+        [/\d+(?:\.\d+)?/, 'number'],
+      ],
+    },
+  })
+  mermaidLanguageRegistered = true
+}
 
 async function getMermaid(theme: 'default' | 'dark') {
   const { default: mermaid } = await import('mermaid')
@@ -124,7 +151,7 @@ export default function MermaidEditor() {
   const mermaidTheme = isLightEffectiveTheme(getEffectiveTheme(appTheme)) ? 'default' : 'dark'
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
-  const { record } = useToolHistory({ toolId: 'mermaid-editor' })
+  const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'mermaid-editor' })
 
   const [state, updateState] = useToolState<MermaidEditorState>('mermaid-editor', {
     content: DEFAULT_TEMPLATE,
@@ -168,6 +195,7 @@ export default function MermaidEditor() {
   const applyDocument = useCallback(
     (document: PendingDocument) => {
       userEditedRef.current = true
+      markUserEdit()
       updateState({
         content: document.content,
         fileName: document.fileName,
@@ -177,7 +205,7 @@ export default function MermaidEditor() {
       setPendingDocument(null)
       setLastAction(document.successMessage, 'success')
     },
-    [updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction]
   )
 
   // Loading a template used to overwrite the buffer outright, with no undo and
@@ -225,9 +253,10 @@ export default function MermaidEditor() {
   const handleContentChange = useCallback(
     (value: string | undefined) => {
       userEditedRef.current = true
+      markUserEdit()
       updateState({ content: value ?? '' })
     },
-    [updateState]
+    [markUserEdit, updateState]
   )
 
   // ─── Rendering (debounced) ────────────────────────────────────────
@@ -254,7 +283,8 @@ export default function MermaidEditor() {
         setSvgHtml(svg)
         setError(null)
         if (userEditedRef.current) {
-          record({
+          userEditedRef.current = false
+          recordEdited({
             input: content,
             output: `${detectDiagramType(content) ?? 'Diagram'} · ${countStatements(content)} lines`,
             success: true,
@@ -269,7 +299,8 @@ export default function MermaidEditor() {
         // The last good diagram stays on screen: clearing it meant the preview
         // blanked out on every half-typed line.
         if (userEditedRef.current) {
-          record({ input: content, output: '', success: false, error: parsed.message })
+          userEditedRef.current = false
+          recordEdited({ input: content, output: '', success: false, error: parsed.message })
         }
       } finally {
         removeMermaidScratchNodes(renderId)
@@ -281,7 +312,7 @@ export default function MermaidEditor() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [content, mermaidTheme, record])
+  }, [content, mermaidTheme, recordEdited])
 
   // A render still in flight when the tool closes would leave its scratch node
   // behind for good.
@@ -326,6 +357,7 @@ export default function MermaidEditor() {
 
   const handleEditorMount = useCallback<OnMount>(
     (editor, monaco) => {
+      registerMermaidLanguage(monaco)
       editorRef.current = editor
       monacoRef.current = monaco
       syncMarkers(errorRef.current)
@@ -463,7 +495,10 @@ export default function MermaidEditor() {
         // A transparent PNG shows dark diagram text as invisible on most chat
         // and document backgrounds, so an opaque canvas is the default.
         if (!transparent) {
-          context.fillStyle = mermaidTheme === 'dark' ? '#1e1e1e' : '#ffffff'
+          context.fillStyle = window
+            .getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-bg')
+            .trim()
           context.fillRect(0, 0, canvas.width, canvas.height)
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -473,7 +508,7 @@ export default function MermaidEditor() {
       }
       image.src = url
     })
-  }, [sizedSvg, exportScale, transparent, mermaidTheme])
+  }, [sizedSvg, exportScale, transparent])
 
   const handleCopyImage = useCallback(async () => {
     setIsExporting(true)
@@ -534,7 +569,7 @@ export default function MermaidEditor() {
     <div className="min-h-0 flex-1 overflow-hidden">
       <Editor
         theme={monacoTheme}
-        language="markdown"
+        language="mermaid"
         value={content}
         onChange={handleContentChange}
         onMount={handleEditorMount}

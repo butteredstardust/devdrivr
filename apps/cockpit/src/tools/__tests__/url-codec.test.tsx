@@ -25,6 +25,17 @@ describe('transformUrlInput', () => {
       })
     ).toBe('hello%20world\na%2Fb')
   })
+
+  it('keeps decoding valid bulk lines when another line is malformed', () => {
+    expect(
+      transformUrlInput('hello%20world\nbad%ZZ\na%2Fb', {
+        mode: 'decode',
+        encodeMode: 'component',
+        bulk: true,
+        recursive: false,
+      })
+    ).toBe('hello world\n[decode error: malformed percent encoding] bad%ZZ\na/b')
+  })
 })
 
 describe('UrlCodec', () => {

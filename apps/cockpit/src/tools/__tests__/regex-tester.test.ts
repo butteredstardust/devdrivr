@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { evaluateRegex } from '@/workers/regex.api'
 
 // Test the pure highlightMatches logic by extracting escapeHtml behavior
 // We test the escaping function and match logic independently
@@ -87,5 +88,12 @@ describe('highlightMatches', () => {
     const result = highlightMatches('ab', '', 'g')
     // Empty pattern with 'g' flag — should not hang
     expect(result).toBe('')
+  })
+})
+
+describe('modern regex flags', () => {
+  it('exposes capture offsets when the d flag is enabled', () => {
+    const result = evaluateRegex({ pattern: '(ab)', flags: 'gd', text: 'xxab', replacement: '' })
+    expect(result.matches[0]?.groups[0]).toMatchObject({ value: 'ab', start: 2, end: 4 })
   })
 })

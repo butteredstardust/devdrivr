@@ -31,6 +31,46 @@ describe('CurlToFetch', () => {
     expect(screen.getByText('GET')).toBeInTheDocument()
   })
 
+  it('consumes values belonging to known curl flags instead of treating them as the URL', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl 'https://api.example.com/data' --max-time 5" },
+    })
+    const editors = screen.getAllByTestId('monaco-editor') as HTMLTextAreaElement[]
+    expect(editors.some((editor) => editor.value.includes('https://api.example.com/data'))).toBe(
+      true
+    )
+    expect(editors.some((editor) => editor.value.includes("fetch('5')"))).toBe(false)
+  })
+
+  it('encodes non-Latin basic-auth credentials as UTF-8', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl -u 'șer:päss' 'https://api.example.com'" },
+    })
+    const editors = screen.getAllByTestId('monaco-editor') as HTMLTextAreaElement[]
+    expect(editors.some((editor) => editor.value.includes('Basic'))).toBe(true)
+  })
+
+  it('parses escaped quotes and ANSI-C quoted request bodies', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: {
+        value: String.raw`curl 'https://api.example.com' -d $'{"message":"it\'s ok"}\n'`,
+      },
+    })
+    const editors = screen.getAllByTestId('monaco-editor') as HTMLTextAreaElement[]
+    expect(editors.some((editor) => editor.value.includes("it's ok"))).toBe(true)
+  })
+
+  it('explicitly refuses file-backed request bodies', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl 'https://api.example.com' --data @payload.json" },
+    })
+    expect(screen.getByText(/file-backed request bodies/i)).toBeInTheDocument()
+  })
+
   it('shows error for invalid input', () => {
     renderTool(CurlToFetch)
     const input = screen.getByPlaceholderText(/curl/i)

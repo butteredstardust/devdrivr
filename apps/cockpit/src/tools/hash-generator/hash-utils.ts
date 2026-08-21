@@ -95,6 +95,25 @@ export type FileHashProgress = {
   total: number
 }
 
+/** Extract a digest from common sha256sum/md5sum checksum-file lines. */
+export function parseChecksumFile(text: string, filename?: string): string | null {
+  const target = filename?.trim()
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.trim().match(/^([0-9a-f]{32,128})\s+[* ]?(.*)$/i)
+    if (!match) continue
+    if (
+      !target ||
+      !match[2] ||
+      match[2].trim() === target ||
+      match[2].trim().endsWith(`/${target}`)
+    ) {
+      const digest = match[1]
+      if (digest) return digest.toLowerCase()
+    }
+  }
+  return null
+}
+
 /**
  * Hash a file incrementally, one chunk at a time.
  *
@@ -144,5 +163,46 @@ export async function computeFileHashes(
     sha3_256: bytesToHex(streams.sha3_256.digest()),
     sha3_512: bytesToHex(streams.sha3_512.digest()),
     blake2b: bytesToHex(streams.blake2b.digest()),
+  }
+}
+
+/** Stream a file through keyed digests without retaining the whole file in memory. */
+export async function computeFileHmac(
+  file: Blob,
+  secret: string,
+  options: { onProgress?: (progress: FileHashProgress) => void; signal?: AbortSignal } = {}
+): Promise<Hashes> {
+  const key = new TextEncoder().encode(secret)
+  const streams = {
+    sha1: hmac.create(sha1, key),
+    sha256: hmac.create(sha256, key),
+    sha512: hmac.create(sha512, key),
+    sha3_256: hmac.create(sha3_256, key),
+    sha3_512: hmac.create(sha3_512, key),
+  }
+  const blakeKey = key.length >= 1 && key.length <= 64 ? key : null
+  const blakeStream = blakeKey ? blake2b.create({ key: blakeKey }) : null
+  let offset = 0
+  while (offset < file.size) {
+    if (options.signal?.aborted) throw new DOMException('Hashing cancelled', 'AbortError')
+    const end = Math.min(offset + CHUNK_BYTES, file.size)
+    const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer())
+    for (const stream of Object.values(streams)) stream.update(chunk)
+    blakeStream?.update(chunk)
+    offset = end
+    options.onProgress?.({ loaded: offset, total: file.size })
+  }
+  if (options.signal?.aborted) throw new DOMException('Hashing cancelled', 'AbortError')
+  options.onProgress?.({ loaded: file.size, total: file.size })
+  return {
+    md5: '(HMAC-MD5 not supported)',
+    sha1: bytesToHex(streams.sha1.digest()),
+    sha256: bytesToHex(streams.sha256.digest()),
+    sha512: bytesToHex(streams.sha512.digest()),
+    sha3_256: bytesToHex(streams.sha3_256.digest()),
+    sha3_512: bytesToHex(streams.sha3_512.digest()),
+    blake2b: blakeStream
+      ? bytesToHex(blakeStream.digest())
+      : '(Keyed BLAKE2b requires a key of 1–64 bytes)',
   }
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import Base64Tool from '../base64/Base64Tool'
 
@@ -16,11 +16,11 @@ describe('Base64Tool', () => {
     expect(screen.getByRole('button', { name: 'Encode' })).toBeInTheDocument()
   })
 
-  it('encodes text to base64', () => {
+  it('encodes text to base64', async () => {
     renderTool(Base64Tool)
     const input = screen.getByPlaceholderText(/enter text to encode/i)
     fireEvent.change(input, { target: { value: 'hello' } })
-    expect(screen.getByText('aGVsbG8=')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('aGVsbG8=')).toBeInTheDocument())
   })
 
   it('toggles to decode mode', () => {
@@ -29,12 +29,13 @@ describe('Base64Tool', () => {
     expect(screen.getByRole('button', { name: 'Decode' })).toBeInTheDocument()
   })
 
-  it('decodes base64 to text', () => {
+  it('decodes base64 to text', async () => {
     renderTool(Base64Tool)
     fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
     const input = screen.getByPlaceholderText(/enter base64/i)
     fireEvent.change(input, { target: { value: 'aGVsbG8=' } })
-    expect(screen.getByText('hello')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('hello')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /save file/i })).toBeInTheDocument()
   })
 
   it('renders Encode File button in encode mode', () => {
@@ -70,13 +71,13 @@ describe('Base64Tool', () => {
     expect(screen.queryByTitle('Encode a file to Base64')).not.toBeInTheDocument()
   })
 
-  it('copies standard base64 in data URIs when URL-safe mode is enabled', () => {
+  it('copies standard base64 in data URIs when URL-safe mode is enabled', async () => {
     renderTool(Base64Tool)
     fireEvent.click(screen.getByLabelText('URL-safe'))
     const input = screen.getByPlaceholderText(/enter text to encode/i)
     fireEvent.change(input, { target: { value: '🤐' } })
 
-    expect(screen.getByText('8J-kkA')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('8J-kkA')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Copy data URI'))
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('data:text/plain;base64,8J+kkA==')

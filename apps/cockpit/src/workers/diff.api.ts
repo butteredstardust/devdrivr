@@ -7,6 +7,7 @@ import { createTwoFilesPatch } from 'diff'
 
 export type DiffOptions = {
   ignoreWhitespace?: boolean
+  ignoreCase?: boolean
   jsonMode?: boolean
 }
 
@@ -25,5 +26,6 @@ export function computeDiff(left: string, right: string, options: DiffOptions = 
 
   return createTwoFilesPatch('left', 'right', a, b, undefined, undefined, {
     ignoreWhitespace: options.ignoreWhitespace,
+    ignoreCase: options.ignoreCase,
   })
 }

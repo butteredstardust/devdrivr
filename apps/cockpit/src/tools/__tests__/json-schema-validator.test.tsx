@@ -8,6 +8,7 @@ import { saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
 import {
   generateSample,
+  detectSchemaDialect,
   inferSchema,
   mergeSchemas,
   offsetToLocation,
@@ -41,6 +42,15 @@ function schemaEditor() {
 }
 
 describe('json-schema helpers', () => {
+  it('reports the detected schema dialect', () => {
+    expect(detectSchemaDialect('{}')).toBe('draft-07 (default)')
+    expect(detectSchemaDialect('{"$schema":"https://json-schema.org/draft/2020-12/schema"}')).toBe(
+      '2020-12'
+    )
+    expect(detectSchemaDialect('{"$schema":"http://json-schema.org/draft-06/schema#"}')).toBe(
+      'draft-06 (unsupported)'
+    )
+  })
   describe('parseJson', () => {
     it('reports the line and column of a syntax error', () => {
       const result = parseJson('{\n  "a": 1,\n  "b" 2\n}')

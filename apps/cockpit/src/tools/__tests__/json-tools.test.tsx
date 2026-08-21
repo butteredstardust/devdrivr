@@ -5,6 +5,7 @@ import JsonTools, {
   isTabularJsonArray,
   locateJsonError,
   queryJsonPath,
+  normalizeJsonc,
 } from '@/tools/json-tools/JsonTools'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { saveFileDialog } from '@/lib/file-io'
@@ -33,6 +34,12 @@ function showView(name: 'Source' | 'Tree' | 'Table') {
 }
 
 describe('JsonTools helpers', () => {
+  it('normalizes JSONC without stripping comment-like text inside strings', () => {
+    const source = '{\n  // note\n  "url": "https://example.com",\n}'
+    expect(JSON.parse(normalizeJsonc(source))).toEqual({ url: 'https://example.com' })
+    expect(normalizeJsonc(source)).toHaveLength(source.length)
+  })
+
   it('treats only arrays of objects as table-compatible data', () => {
     expect(isTabularJsonArray([{ id: 1 }, { id: 2 }])).toBe(true)
     expect(isTabularJsonArray([1, 2, 3])).toBe(false)
@@ -79,6 +86,23 @@ describe('JsonTools helpers', () => {
     expect(queryJsonPath(data, '$.a.b')).toEqual({ found: true, value: null })
     expect(queryJsonPath(data, '$.a.missing')).toEqual({ found: false })
     expect(queryJsonPath(data, '$.list[0].id')).toEqual({ found: true, value: 7 })
+  })
+
+  it('supports wildcard, slice, union, and simple filter paths', () => {
+    const data = {
+      items: [
+        { sku: 'a', price: 10 },
+        { sku: 'b', price: 40 },
+        { sku: 'c', price: 50 },
+      ],
+    }
+    expect(queryJsonPath(data, '$.items[*].sku')).toEqual({ found: true, value: ['a', 'b', 'c'] })
+    expect(queryJsonPath(data, '$.items[1:3].sku')).toEqual({ found: true, value: ['b', 'c'] })
+    expect(queryJsonPath(data, '$.items[0,2].sku')).toEqual({ found: true, value: ['a', 'c'] })
+    expect(queryJsonPath(data, '$.items[?(@.price > 30)].sku')).toEqual({
+      found: true,
+      value: ['b', 'c'],
+    })
   })
 })
 
@@ -278,7 +302,7 @@ describe('JsonTools', () => {
     expect(screen.queryByText('"k0"')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Expand all/ }))
-    expect(screen.getByText('"k0"')).toBeInTheDocument()
+    expect(screen.getByText('k0:')).toBeInTheDocument()
   })
 
   it('drops the failed-format banner as soon as the document is edited', async () => {

@@ -63,6 +63,7 @@ import type {
   TokenTone,
 } from '@/tools/prompt-templates/types'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { sendToTool } from '@/lib/tool-handoff'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 
@@ -73,6 +74,9 @@ type PromptTemplatesState = {
   category: CategoryFilter
   selectedId: string
   inputsByTemplate: Record<string, PromptTemplateValues>
+  overrides: Record<string, PromptTemplateDraft>
+  handoffContent: string
+  handoffLanguage: string
 }
 
 const DEFAULT_STATE: PromptTemplatesState = {
@@ -80,6 +84,9 @@ const DEFAULT_STATE: PromptTemplatesState = {
   category: 'all',
   selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '',
   inputsByTemplate: {},
+  overrides: {},
+  handoffContent: '',
+  handoffLanguage: '',
 }
 
 const FILTERS: Array<{ id: CategoryFilter; label: string }> = [
@@ -193,7 +200,7 @@ function PreviewPane({ renderedPrompt, tokens, missingVariables }: PreviewPanePr
         title="Preview"
         actions={
           <span className={`font-mono rounded border px-2 py-0.5 text-2xs ${tokenClass(tone)}`}>
-            ~{tokens} tokens
+            ~{tokens} tokens (chars/4 estimate)
           </span>
         }
       />
@@ -340,7 +347,7 @@ function QuickFillModal({
           </div>
           <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
             <span className={`rounded border px-2 py-0.5 font-mono text-2xs ${tokenClass(tone)}`}>
-              ~{tokens} tokens
+              ~{tokens} tokens (chars/4 estimate)
             </span>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={onClose}>
@@ -781,8 +788,16 @@ export default function PromptTemplates() {
   const searchRef = useRef<HTMLInputElement>(null)
 
   const allTemplates = useMemo(
-    () => [...BUILTIN_PROMPT_TEMPLATES, ...userTemplates],
-    [userTemplates]
+    () => [
+      ...BUILTIN_PROMPT_TEMPLATES.map((template) => {
+        const override = state.overrides[template.id]
+        return override
+          ? { ...template, ...override, author: 'builtin' as const, id: template.id }
+          : template
+      }),
+      ...userTemplates,
+    ],
+    [state.overrides, userTemplates]
   )
   const selectedTemplate = getTemplateById(state.selectedId, allTemplates)
   const selectedValues = useMemo(
@@ -837,6 +852,48 @@ export default function PromptTemplates() {
     [selectedTemplate.id, selectedValues, state.inputsByTemplate, updateState]
   )
 
+  useEffect(() => {
+    if (!state.handoffContent) return
+    const variable =
+      selectedTemplate.variables.find((item) =>
+        /code|context|content|input|text|prompt/i.test(item.name)
+      ) ?? selectedTemplate.variables[0]
+    if (!variable) {
+      updateState({ handoffContent: '', handoffLanguage: '' })
+      setLastAction('This template has no field for handed-off content', 'info')
+      return
+    }
+    updateState({
+      inputsByTemplate: {
+        ...state.inputsByTemplate,
+        [selectedTemplate.id]: {
+          ...selectedValues,
+          [variable.name]: state.handoffContent,
+        },
+      },
+      handoffContent: '',
+      handoffLanguage: '',
+    })
+  }, [
+    selectedTemplate,
+    selectedValues,
+    state.handoffContent,
+    state.handoffLanguage,
+    state.inputsByTemplate,
+    setLastAction,
+    updateState,
+  ])
+
+  const clearVariables = useCallback(() => {
+    updateState({
+      inputsByTemplate: {
+        ...state.inputsByTemplate,
+        [selectedTemplate.id]: {},
+      },
+    })
+    setLastAction('Template fields cleared', 'info')
+  }, [selectedTemplate.id, setLastAction, state.inputsByTemplate, updateState])
+
   const copyRenderedPrompt = useCallback(async () => {
     if (missingVariables.length > 0) {
       setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
@@ -851,9 +908,32 @@ export default function PromptTemplates() {
     if (copied) setModalOpen(false)
   }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction, copy])
 
+  const sendRenderedToSnippet = useCallback(() => {
+    if (missingVariables.length > 0) {
+      setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
+      return
+    }
+    sendToTool('snippets', {
+      handoff: {
+        title: selectedTemplate.name,
+        content: renderedPrompt,
+        language: 'text',
+      },
+    })
+    setLastAction('Rendered prompt sent to Snippets', 'success')
+  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction])
+
   const handleSaveEditor = useCallback(
     async (draft: PromptTemplateDraft) => {
-      if (editorState?.mode === 'edit' && editorState.template?.author === 'user') {
+      if (editorState?.mode === 'edit' && editorState.template?.author === 'builtin') {
+        updateState({
+          overrides: {
+            ...state.overrides,
+            [editorState.template.id]: draft,
+          },
+        })
+        setLastAction('Built-in template override saved', 'success')
+      } else if (editorState?.mode === 'edit' && editorState.template?.author === 'user') {
         const updated = await updateTemplate(editorState.template.id, draft)
         if (updated) {
           updateState({ selectedId: updated.id })
@@ -866,8 +946,16 @@ export default function PromptTemplates() {
       }
       setEditorState(null)
     },
-    [createTemplate, editorState, setLastAction, updateState, updateTemplate]
+    [createTemplate, editorState, setLastAction, state.overrides, updateState, updateTemplate]
   )
+
+  const resetSelectedOverride = useCallback(() => {
+    if (selectedTemplate.author !== 'builtin' || !state.overrides[selectedTemplate.id]) return
+    const overrides = { ...state.overrides }
+    delete overrides[selectedTemplate.id]
+    updateState({ overrides })
+    setLastAction('Built-in template reset', 'info')
+  }, [selectedTemplate, setLastAction, state.overrides, updateState])
 
   const handleDeleteTemplate = useCallback(async () => {
     if (selectedTemplate.author !== 'user') {
@@ -1160,6 +1248,9 @@ export default function PromptTemplates() {
                   {selectedTemplate.description}
                 </p>
               </div>
+              <Button type="button" variant="ghost" size="sm" onClick={clearVariables}>
+                Clear fields
+              </Button>
               <Button
                 type="button"
                 variant="icon"
@@ -1170,6 +1261,29 @@ export default function PromptTemplates() {
               >
                 <CopyIcon size={14} aria-hidden="true" />
               </Button>
+              {selectedTemplate.author === 'builtin' && state.overrides[selectedTemplate.id] && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetSelectedOverride}
+                  title="Reset this built-in template"
+                >
+                  Reset
+                </Button>
+              )}
+              {selectedTemplate.author === 'builtin' ? (
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+                  title="Customize built-in template"
+                  aria-label="Customize built-in template"
+                >
+                  <PencilSimpleIcon size={14} aria-hidden="true" />
+                </Button>
+              ) : null}
               {selectedTemplate.author === 'user' && (
                 <>
                   <Button
@@ -1213,6 +1327,15 @@ export default function PromptTemplates() {
               >
                 <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={sendRenderedToSnippet}
+                className="gap-1.5"
+              >
+                <ChatCircleTextIcon size={14} aria-hidden="true" /> Send to snippet
+              </Button>
             </div>
             <div className="flex items-center border-t border-[var(--color-border)] pr-4">
               <TabBar
@@ -1222,7 +1345,7 @@ export default function PromptTemplates() {
                 onTabChange={(tab) => setWorkspaceTab(tab as 'fill' | 'preview')}
                 tabs={[
                   { id: 'fill', label: `Fill variables (${selectedTemplate.variables.length})` },
-                  { id: 'preview', label: `Preview (~${tokens})` },
+                  { id: 'preview', label: `Preview (~${tokens} · chars/4)` },
                 ]}
               />
               <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">

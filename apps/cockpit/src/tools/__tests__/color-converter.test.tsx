@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import ColorConverter, { labToLch, rgbToLab } from '../color-converter/ColorConverter'
+import ColorConverter, {
+  apcaContrast,
+  generateScale,
+  labToLch,
+  rgbToLab,
+} from '../color-converter/ColorConverter'
 
 describe('ColorConverter', () => {
   it('converts sRGB to CIE LAB and LCH', () => {
@@ -32,9 +37,32 @@ describe('ColorConverter', () => {
     expect(screen.getByText(/rgb\(255/i)).toBeInTheDocument()
   })
 
+  it('preserves alpha across converted formats', () => {
+    renderTool(ColorConverter)
+    fireEvent.change(screen.getByPlaceholderText(/#39ff14/), {
+      target: { value: 'rgba(255, 0, 0, 0.5)' },
+    })
+    expect(screen.getByRole('button', { name: /Copy Hex value #ff000080/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Copy HSL value .*\/ 0.5/i })).toBeInTheDocument()
+  })
+
+  it('accepts CSS Color 4 short hex and degree hue syntax', () => {
+    renderTool(ColorConverter)
+    const input = screen.getByPlaceholderText(/#39ff14/)
+    fireEvent.change(input, { target: { value: '#0f08' } })
+    expect(screen.getByRole('button', { name: /Copy Hex value #00ff0088/i })).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: 'hsl(120deg 100% 50% / 50%)' } })
+    expect(screen.getByRole('button', { name: /Copy Hex value #00ff0080/i })).toBeInTheDocument()
+  })
+
   it('shows WCAG contrast section', () => {
     renderTool(ColorConverter)
     expect(screen.getByText(/contrast/i)).toBeInTheDocument()
+  })
+
+  it('generates scale steps from OKLCH lightness and exposes APCA', () => {
+    expect(generateScale({ r: 255, g: 0, b: 0 })[0]?.label).toBe('5%')
+    expect(apcaContrast({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 })).toBeGreaterThan(100)
   })
 
   it('rejects out-of-range RGB and HSL values', () => {

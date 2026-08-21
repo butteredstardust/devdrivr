@@ -28,6 +28,7 @@ import { saveFileDialog } from '@/lib/file-io'
 import {
   MAX_ISSUES,
   generateSample,
+  detectSchemaDialect,
   inferSchema,
   parseJson,
   pointerLocation,
@@ -65,6 +66,108 @@ const VALIDATE_DEBOUNCE_MS = 250
 
 /** A schema fetch that never answers should not leave the button spinning. */
 const FETCH_TIMEOUT_MS = 15_000
+const MAX_REMOTE_REF_DEPTH = 8
+const MAX_REMOTE_SCHEMA_BYTES = 2_000_000
+const MAX_REMOTE_SCHEMA_CACHE = 32
+const remoteSchemaCache = new Map<string, unknown>()
+
+function resolveJsonPointer(value: unknown, fragment: string): unknown {
+  if (!fragment) return value
+  if (!fragment.startsWith('#/')) throw new Error(`Unsupported remote $ref fragment: ${fragment}`)
+  let current = value
+  for (const part of fragment.slice(2).split('/')) {
+    if (current === null || typeof current !== 'object') return undefined
+    const key = part.replace(/~1/g, '/').replace(/~0/g, '~')
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current
+}
+
+async function resolveRemoteRefs(
+  value: unknown,
+  baseUrl: string,
+  signal: AbortSignal,
+  depth = 0,
+  rootHost = new URL(baseUrl).host,
+  documentRoot: unknown = value
+): Promise<unknown> {
+  if (depth > MAX_REMOTE_REF_DEPTH || value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) {
+    return Promise.all(
+      value.map((item) => resolveRemoteRefs(item, baseUrl, signal, depth, rootHost, documentRoot))
+    )
+  }
+  const object = value as Record<string, unknown>
+  if (typeof object.$ref === 'string' && object.$ref.startsWith('#')) {
+    const referenced = resolveJsonPointer(documentRoot, object.$ref)
+    if (referenced === undefined) throw new Error(`Local $ref target was not found: ${object.$ref}`)
+    const resolved = await resolveRemoteRefs(
+      referenced,
+      baseUrl,
+      signal,
+      depth + 1,
+      rootHost,
+      documentRoot
+    )
+    const siblings = Object.fromEntries(Object.entries(object).filter(([key]) => key !== '$ref'))
+    return Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object'
+      ? { ...(resolved as Record<string, unknown>), ...siblings }
+      : resolved
+  }
+  if (typeof object.$ref === 'string') {
+    const refUrl = new URL(object.$ref, baseUrl)
+    if (!/^https?:$/.test(refUrl.protocol) || refUrl.host !== rootHost) {
+      throw new Error(`Remote $ref host is not allowed: ${refUrl.host}`)
+    }
+    const documentUrl = new URL(refUrl.href)
+    documentUrl.hash = ''
+    let referenced = remoteSchemaCache.get(documentUrl.href)
+    if (referenced === undefined) {
+      const response = await tauriFetch(documentUrl.href, { signal })
+      if (!response.ok) throw new Error(`Remote $ref answered ${response.status}: ${refUrl.href}`)
+      const text = await response.text()
+      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
+        throw new Error(`Remote $ref is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
+      }
+      try {
+        referenced = JSON.parse(text) as unknown
+      } catch {
+        throw new Error(`Remote $ref is not valid JSON: ${refUrl.href}`)
+      }
+      if (remoteSchemaCache.size >= MAX_REMOTE_SCHEMA_CACHE) {
+        const oldest = remoteSchemaCache.keys().next().value
+        if (oldest) remoteSchemaCache.delete(oldest)
+      }
+      remoteSchemaCache.set(documentUrl.href, referenced)
+    }
+    const remoteRoot = referenced
+    referenced = resolveJsonPointer(remoteRoot, refUrl.hash)
+    if (referenced === undefined)
+      throw new Error(`Remote $ref target was not found: ${refUrl.href}`)
+    const resolved = await resolveRemoteRefs(
+      referenced,
+      refUrl.href,
+      signal,
+      depth + 1,
+      rootHost,
+      remoteRoot
+    )
+    const siblings = Object.fromEntries(Object.entries(object).filter(([key]) => key !== '$ref'))
+    return Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object'
+      ? { ...(resolved as Record<string, unknown>), ...siblings }
+      : resolved
+  }
+  const entries = await Promise.all(
+    Object.entries(object).map(
+      async ([key, child]) =>
+        [
+          key,
+          await resolveRemoteRefs(child, baseUrl, signal, depth, rootHost, documentRoot),
+        ] as const
+    )
+  )
+  return Object.fromEntries(entries)
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -125,6 +228,7 @@ export default function JsonSchemaValidator() {
   )
 
   const { headline, detail } = describeReport(report)
+  const schemaDialect = useMemo(() => detectSchemaDialect(source.schema), [source.schema])
 
   // The old tool pushed "Valid" into the global status bar on every debounce
   // tick, so the bar reported this tool's opinion instead of the user's last
@@ -304,10 +408,14 @@ export default function JsonSchemaValidator() {
       const response = await tauriFetch(url, { signal: controller.signal })
       if (!response.ok) throw new Error(`the server answered ${response.status}`)
       const text = await response.text()
+      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
+        throw new Error(`the schema is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
+      }
       const parsed = parseJson(text)
       if (parsed.status !== 'valid') throw new Error('the response is not valid JSON')
       if (id !== fetchIdRef.current) return
-      applyBuffers({ schema: JSON.stringify(parsed.value, null, 2) }, 'Load schema from URL')
+      const resolved = await resolveRemoteRefs(parsed.value, url, controller.signal)
+      applyBuffers({ schema: JSON.stringify(resolved, null, 2) }, 'Load schema from URL')
       setLastAction('Loaded the schema from the URL', 'success')
     } catch (e) {
       if (id !== fetchIdRef.current) return
@@ -439,6 +547,9 @@ export default function JsonSchemaValidator() {
                 {detail}
               </span>
             )}
+            <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+              Schema {schemaDialect}
+            </span>
             {errorLocation && (
               <Button
                 variant="ghost"
@@ -568,6 +679,7 @@ export default function JsonSchemaValidator() {
             copyLabel="Copy schema"
             headerExtras={
               <div className="ml-auto flex items-center gap-1">
+                <SchemaOutline schema={schema} />
                 <Input
                   type="url"
                   aria-label="Schema URL"
@@ -644,6 +756,39 @@ function describeReport(report: ValidationReport): { headline: string; detail: s
         detail: '',
       }
   }
+}
+
+function SchemaOutline({ schema }: { schema: string }) {
+  const outline = useMemo(() => {
+    try {
+      const root = JSON.parse(schema) as Record<string, unknown>
+      const walk = (node: Record<string, unknown>, depth = 0): string[] => {
+        if (depth > 3) return []
+        const properties = node.properties
+        if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return []
+        const lines: string[] = []
+        for (const [name, child] of Object.entries(properties)) {
+          lines.push(`${'  '.repeat(depth)}${name}`)
+          if (child && typeof child === 'object' && !Array.isArray(child)) {
+            lines.push(...walk(child as Record<string, unknown>, depth + 1))
+          }
+        }
+        return lines
+      }
+      return walk(root)
+    } catch {
+      return []
+    }
+  }, [schema])
+  if (outline.length === 0) return null
+  return (
+    <details className="max-w-48 text-2xs text-[var(--color-text-muted)]">
+      <summary className="cursor-pointer">Outline ({outline.length})</summary>
+      <pre className="absolute z-20 mt-1 max-h-48 max-w-64 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 font-mono text-left">
+        {outline.join('\n')}
+      </pre>
+    </details>
+  )
 }
 
 function StatusIcon({ status }: { status: ValidationReport['status'] }) {

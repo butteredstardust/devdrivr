@@ -4,7 +4,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import XmlTools from '@/tools/xml-tools/XmlTools'
 import { evaluateSimpleXPath } from '@/lib/xml-xpath'
-import { queryXPath, validate } from '@/workers/xml.api'
+import { fromJson, queryXPath, toJson, validate } from '@/workers/xml.api'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
@@ -55,11 +55,27 @@ describe('xml.api', () => {
     expect(result.error).toBeTruthy()
   })
 
-  it('flags that predicates were ignored instead of quietly matching everything', () => {
+  it('evaluates XPath predicates instead of quietly matching everything', () => {
     const result = queryXPath('<root><a>1</a><a>2</a></root>', '/root/a[1]')
 
-    expect(result.count).toBe(2)
-    expect(result.predicatesIgnored).toBe(true)
+    expect(result.count).toBe(1)
+    expect(result.predicatesIgnored).toBe(false)
+  })
+
+  it('round-trips the JSON representation with an explicit root name', () => {
+    const converted = toJson('<catalog><book id="b1">Dune</book></catalog>')
+    expect(converted.rootName).toBe('catalog')
+    expect(fromJson(converted.json ?? '', converted.rootName)).toMatchObject({
+      valid: true,
+      xml: '<catalog><book id="b1">Dune</book></catalog>',
+    })
+  })
+
+  it('wraps a top-level JSON array in one valid XML document root', () => {
+    expect(fromJson('[{"id":1},{"id":2}]', 'items')).toMatchObject({
+      valid: true,
+      xml: '<items><item><id>1</id></item><item><id>2</id></item></items>',
+    })
   })
 
   it('matches absolute and descendant XPath expressions', () => {
@@ -170,7 +186,7 @@ describe('XmlTools', () => {
     expect(pane.getByText('1 match')).toBeInTheDocument()
   })
 
-  it('warns that an XPath predicate was ignored', async () => {
+  it('evaluates XPath predicates', async () => {
     renderTool(XmlTools)
     typeXml('<root><a>1</a><a>2</a></root>')
     showView('XPath')
@@ -179,7 +195,9 @@ describe('XmlTools', () => {
       target: { value: '/root/a[1]' },
     })
 
-    await waitFor(() => expect(screen.getByText(/Predicates are ignored/)).toBeInTheDocument())
+    const pane = within(screen.getByRole('region', { name: 'XPath results' }))
+    await waitFor(() => expect(pane.getByText('<a>1</a>')).toBeInTheDocument())
+    expect(pane.queryByText('<a>2</a>')).not.toBeInTheDocument()
   })
 
   it('keeps every match copyable from the keyboard', async () => {
@@ -233,7 +251,7 @@ describe('XmlTools', () => {
     )
   })
 
-  it('warns that predicates were ignored even when nothing matched', async () => {
+  it('reports no matches for a predicate query with no matching nodes', async () => {
     renderTool(XmlTools)
     typeXml('<root><a>1</a></root>')
     showView('XPath')
@@ -242,10 +260,7 @@ describe('XmlTools', () => {
       target: { value: '/root/nosuch[1]' },
     })
 
-    // The warning used to live inside the results list, so the one case where a
-    // dropped predicate might explain the outcome never showed it.
     await waitFor(() => expect(screen.getByText('No matches')).toBeInTheDocument())
-    expect(screen.getByText(/Predicates are ignored/)).toBeInTheDocument()
   })
 
   it('explains an invalid document in the inspector instead of showing an empty pane', async () => {

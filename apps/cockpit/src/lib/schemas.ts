@@ -113,6 +113,7 @@ export const snippetRowSchema = z
     content: z.string(),
     language: z.string(),
     tags: z.string(),
+    favorite: z.union([z.number(), z.boolean()]).default(0),
     folder: z.string().default(''),
     created_at: z.number(),
     updated_at: z.number(),
@@ -125,6 +126,8 @@ export const snippetRowSchema = z
       language: row.language,
       folder: row.folder,
       tags: parseStringArray(row.tags),
+      favorite:
+        row.favorite === true || row.favorite === 1 || parseStringArray(row.tags).includes('⭐'),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     })
@@ -201,6 +204,10 @@ export const historyRowSchema = z
     success: z.number().nullable(),
     output_size: z.number().nullable(),
     starred: z.number().nullable(),
+    response_body: z.string().nullable().optional(),
+    response_mime_type: z.string().nullable().optional(),
+    response_status: z.number().nullable().optional(),
+    response_status_text: z.string().nullable().optional(),
   })
   .transform((row): HistoryEntry => {
     const entry: HistoryEntry = {
@@ -225,6 +232,10 @@ export const historyRowSchema = z
     if (row.starred != null) {
       entry.starred = row.starred === 1
     }
+    if (row.response_body != null) entry.responseBody = row.response_body
+    if (row.response_mime_type != null) entry.responseMimeType = row.response_mime_type
+    if (row.response_status != null) entry.responseStatus = row.response_status
+    if (row.response_status_text != null) entry.responseStatusText = row.response_status_text
     return entry
   })
 

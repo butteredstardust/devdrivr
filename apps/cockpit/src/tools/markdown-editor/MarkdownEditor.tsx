@@ -13,6 +13,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import {
+  buildExportFilename,
   exportFile,
   filenameFromPath,
   openFileDialog,
@@ -112,6 +113,7 @@ const MODE_OPTIONS: { value: EditorMode; label: string }[] = [
 ]
 
 const WORDS_PER_MINUTE = 200
+const TEMPLATE_DATE = '{{current-date}}'
 
 const TEMPLATES: { label: string; content: string }[] = [
   {
@@ -162,7 +164,7 @@ MIT
     label: 'Blog Post',
     content: `# Title of the Post
 
-*Published: ${new Date().toISOString().split('T')[0]}*
+*Published: ${TEMPLATE_DATE}*
 
 ## Introduction
 
@@ -199,7 +201,7 @@ Summarize the key takeaway and call to action.
   },
   {
     label: 'Meeting Notes',
-    content: `# Meeting Notes — ${new Date().toISOString().split('T')[0]}
+    content: `# Meeting Notes — ${TEMPLATE_DATE}
 
 **Attendees:** Alice, Bob, Charlie
 **Facilitator:** Alice
@@ -255,7 +257,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Bug fix description
 
-## [1.0.0] — ${new Date().toISOString().split('T')[0]}
+## [1.0.0] — ${TEMPLATE_DATE}
 
 ### Added
 - Initial release
@@ -424,11 +426,18 @@ const BASE_EXPORT_STYLES =
   '--export-surface:color-mix(in srgb, Canvas 90%, CanvasText 10%);' +
   '--export-inverse-bg:color-mix(in srgb, CanvasText 88%, Canvas 12%);' +
   '--export-inverse-text:Canvas;' +
+  '--export-accent:#8b5cf6;' +
+  '--export-success:#16a34a;' +
+  '--export-info:#0284c7;' +
   '}' +
   'body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;background:var(--export-bg);color:var(--export-text)}' +
   'code{background:var(--export-surface);padding:2px 6px;border-radius:3px;font-size:0.9em}' +
   'pre{background:var(--export-inverse-bg);color:var(--export-inverse-text);padding:16px;border-radius:6px;overflow-x:auto}' +
   'pre code{background:none;padding:0}' +
+  '.hljs-comment,.hljs-quote{color:var(--export-muted)}' +
+  '.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-type{color:var(--export-accent)}' +
+  '.hljs-string,.hljs-title,.hljs-name,.hljs-attribute{color:var(--export-success)}' +
+  '.hljs-number,.hljs-symbol,.hljs-bullet{color:var(--export-info)}' +
   'table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--export-border);padding:8px 12px;text-align:left}' +
   'th{background:var(--export-surface)}blockquote{border-left:4px solid var(--export-border);margin:0;padding:0 16px;color:var(--export-muted)}img{max-width:100%}'
 
@@ -880,14 +889,15 @@ export default function MarkdownEditor() {
       const content =
         format === 'md' ? state.content : await buildCurrentExportHtml(BASE_EXPORT_STYLES)
       try {
-        const path = await exportFile(content, `document.${format}`)
+        const baseName = state.fileName?.replace(/\.[^.]+$/, '') ?? 'document'
+        const path = await exportFile(content, buildExportFilename(baseName, format))
         if (path) setLastAction(`Downloaded as .${format}`, 'success')
       } catch {
         setLastAction('Download failed', 'error')
       }
       setShowExport(false)
     },
-    [buildCurrentExportHtml, state.content, setLastAction]
+    [buildCurrentExportHtml, state.content, state.fileName, setLastAction]
   )
 
   // ─── Open / Save ──────────────────────────────────────────────────
@@ -993,9 +1003,10 @@ export default function MarkdownEditor() {
 
   const handleTemplateSelect = useCallback(
     (content: string) => {
+      const datedContent = content.replaceAll(TEMPLATE_DATE, new Date().toISOString().slice(0, 10))
       setShowTemplates(false)
       requestDocument({
-        content,
+        content: datedContent,
         fileName: null,
         filePath: null,
         savedContent: '',
@@ -1286,10 +1297,10 @@ export default function MarkdownEditor() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard
-                      .writeText(state.content)
-                      .then(() => setLastAction('Markdown copied to clipboard', 'success'))
-                      .catch(() => setLastAction('Failed to copy to clipboard', 'error'))
+                    void copy(state.content, {
+                      success: 'Markdown copied to clipboard',
+                      failure: 'Failed to copy to clipboard',
+                    })
                     setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useApiStore } from '@/stores/api.store'
-import type { ApiCollection, ApiRequest } from '@/types/models'
+import type { ApiCollection, ApiRequest, HistoryEntry } from '@/types/models'
 import {
   CaretDownIcon,
   CaretRightIcon,
@@ -19,6 +19,8 @@ import {
   FolderPlusIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
+  PlayIcon,
+  StopIcon,
   TrayIcon,
   UploadSimpleIcon,
   XIcon,
@@ -35,9 +37,16 @@ import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 type Props = {
   activeRequestId: string | null
   onSelect: (req: ApiRequest) => void
-  onLoadFromHistory?: (method: string, url: string) => void
+  onLoadFromHistory?: (entry: HistoryEntry) => void
   onImport?: () => void
   onExport?: () => void
+  onRunCollection?: (collection: ApiCollection) => void
+  onCancelCollection?: () => void
+  collectionRun?: {
+    collectionId: string
+    running: boolean
+    results: Record<string, { status: 'running' | 'passed' | 'failed'; detail: string }>
+  } | null
   /** Collapsed state. ApiClient's own toolbar owns the toggle, so no toggle is rendered here. */
   open?: boolean
   /** The request/response side. This component renders the shared master–detail shell because
@@ -76,6 +85,9 @@ export function CollectionsSidebar({
   onLoadFromHistory,
   onImport,
   onExport,
+  onRunCollection,
+  onCancelCollection,
+  collectionRun,
   open = true,
   children,
 }: Props) {
@@ -366,6 +378,31 @@ export function CollectionsSidebar({
                             type="button"
                             variant="icon"
                             size="xs"
+                            onClick={() => onRunCollection?.(col)}
+                            title={`Run all requests in ${col.name}`}
+                            aria-label={`Run all requests in ${col.name}`}
+                            disabled={collectionRun?.running}
+                            className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <PlayIcon size={12} weight="fill" aria-hidden="true" />
+                          </Button>
+                          {collectionRun?.collectionId === col.id && collectionRun.running && (
+                            <Button
+                              type="button"
+                              variant="icon"
+                              size="xs"
+                              onClick={onCancelCollection}
+                              title="Cancel collection run"
+                              aria-label="Cancel collection run"
+                              className="text-[var(--color-error)]"
+                            >
+                              <StopIcon size={12} weight="fill" aria-hidden="true" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="xs"
                             onClick={() => startRename(col)}
                             title={`Rename ${col.name}`}
                             aria-label={`Rename collection ${col.name}`}
@@ -404,6 +441,35 @@ export function CollectionsSidebar({
                             onKeyDown={handleRowKeyDown}
                           />
                         ))}
+                        {collectionRun?.collectionId === col.id && (
+                          <div
+                            className="px-2 py-1 text-2xs text-[var(--color-text-muted)]"
+                            aria-live="polite"
+                          >
+                            {collectionRun.running
+                              ? 'Running collection…'
+                              : 'Collection run complete'}
+                            {reqs.map((request) => {
+                              const result = collectionRun.results[request.id]
+                              return result ? (
+                                <div key={request.id} className="flex justify-between gap-2">
+                                  <span className="truncate">{request.name}</span>
+                                  <span
+                                    className={
+                                      result.status === 'passed'
+                                        ? 'text-[var(--color-success)]'
+                                        : result.status === 'failed'
+                                          ? 'text-[var(--color-error)]'
+                                          : ''
+                                    }
+                                  >
+                                    {result.detail}
+                                  </span>
+                                </div>
+                              ) : null
+                            })}
+                          </div>
+                        )}
                         {reqs.length === 0 && (
                           <p className="px-2 py-1 text-2xs italic text-[var(--color-text-muted)]">
                             Empty collection
@@ -500,7 +566,7 @@ export function CollectionsSidebar({
                             className="w-full justify-start gap-1.5 text-left hover:bg-[var(--color-surface-hover)]"
                             title={`${entry.input}\n${entry.output}\nClick to restore`}
                             aria-label={`Restore ${entry.input}`}
-                            onClick={() => onLoadFromHistory?.(method ?? 'GET', histUrl)}
+                            onClick={() => onLoadFromHistory?.(entry)}
                           >
                             <span
                               className={`shrink-0 text-2xs font-bold ${httpMethodTextClass(method ?? 'GET')}`}

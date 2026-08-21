@@ -5,6 +5,8 @@ import 'diff2html/bundles/css/diff2html.min.css'
 import DOMPurify from 'dompurify'
 import {
   ArrowsLeftRightIcon,
+  CaretDownIcon,
+  CaretUpIcon,
   CheckCircleIcon,
   GitDiffIcon,
   SlidersHorizontalIcon,
@@ -26,11 +28,16 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
-import { exportFile } from '@/lib/file-io'
+import { buildExportFilename, exportFile } from '@/lib/file-io'
+import { extensionForLanguage } from '@/tools/code-formatter/languages'
+import type { FormatterWorker } from '@/workers/formatter.worker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { useToolAction } from '@/hooks/useToolAction'
+import { languageFromFilename } from '@/tools/code-formatter/languages'
 
 const { sanitize } = DOMPurify
 
@@ -48,9 +55,13 @@ type DiffViewerState = {
   mode: 'side-by-side' | 'inline'
   language: string
   ignoreWhitespace: boolean
+  ignoreCase: boolean
   jsonMode: boolean
   view: ViewMode
   optionsOpen: boolean
+  leftFileName: string | null
+  rightFileName: string | null
+  openTarget: 'left' | 'right'
 }
 
 const VIEW_OPTIONS = [
@@ -239,17 +250,27 @@ export default function DiffViewer() {
     mode: 'side-by-side',
     language: 'plaintext',
     ignoreWhitespace: false,
+    ignoreCase: false,
     jsonMode: false,
     view: 'split',
     optionsOpen: false,
+    leftFileName: null,
+    rightFileName: null,
+    openTarget: 'left',
   })
 
   const worker = useWorker<DiffWorker>(() => new DiffWorkerFactory(), ['computeDiff'])
+  const formatter = useWorker<FormatterWorker>(
+    () => new FormatterWorkerFactory(),
+    ['detectLanguage']
+  )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [diffHtml, setDiffHtml] = useState<string>('')
   const [rawPatch, setRawPatch] = useState<string>('')
   const [isComparing, setIsComparing] = useState(false)
+  const [activeHunk, setActiveHunk] = useState(-1)
+  const diffContainerRef = useRef<HTMLDivElement>(null)
   const comparingRef = useRef(false)
   const pendingCompareRef = useRef(false)
   const announceRef = useRef(false)
@@ -272,6 +293,31 @@ export default function DiffViewer() {
 
   const bothSidesFilled = state.left.trim().length > 0 && state.right.trim().length > 0
   const stats = useMemo(() => (rawPatch ? parseDiffStats(rawPatch) : null), [rawPatch])
+  const hunkCount = useMemo(() => rawPatch.match(/^@@/gm)?.length ?? 0, [rawPatch])
+
+  useEffect(() => setActiveHunk(-1), [rawPatch])
+
+  const navigateHunk = useCallback(
+    (direction: -1 | 1) => {
+      const rows = Array.from(
+        diffContainerRef.current?.querySelectorAll<HTMLElement>('.d2h-info') ?? []
+      ).filter((row) => row.textContent?.trim().startsWith('@@'))
+      if (rows.length === 0) return
+      const next =
+        activeHunk < 0
+          ? direction > 0
+            ? 0
+            : rows.length - 1
+          : (activeHunk + direction + rows.length) % rows.length
+      setActiveHunk(next)
+      const row = rows[next]
+      if (!row) return
+      row.tabIndex = -1
+      if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' })
+      row.focus({ preventScroll: true })
+    },
+    [activeHunk]
+  )
   // `left === right` is only the cheap case. `ignoreWhitespace`/`jsonMode` can
   // also make two textually different sides equivalent, and then the patch has
   // no hunks at all — without this the pane would render an empty diff.
@@ -310,6 +356,7 @@ export default function DiffViewer() {
       try {
         const patch = await worker.computeDiff(current.left, current.right, {
           ignoreWhitespace: current.ignoreWhitespace,
+          ignoreCase: current.ignoreCase,
           jsonMode: current.jsonMode,
         })
         setRawPatch(patch)
@@ -358,7 +405,26 @@ export default function DiffViewer() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
+  }, [
+    state.left,
+    state.right,
+    state.ignoreWhitespace,
+    state.ignoreCase,
+    state.jsonMode,
+    state.mode,
+    computeDiff,
+  ])
+
+  useEffect(() => {
+    const source = state.left.trim() || state.right.trim()
+    if (!formatter || state.language !== 'plaintext' || !source) return
+    const timer = setTimeout(() => {
+      void formatter.detectLanguage(source).then((language) => {
+        if (stateRef.current.language === 'plaintext') updateState({ language })
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [formatter, state.left, state.right, state.language, updateState])
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -368,17 +434,39 @@ export default function DiffViewer() {
   )
 
   const handleSwap = useCallback(() => {
-    updateState({ left: state.right, right: state.left })
+    updateState({
+      left: state.right,
+      right: state.left,
+      leftFileName: state.rightFileName,
+      rightFileName: state.leftFileName,
+    })
     setLastAction('Swapped sides', 'info')
-  }, [state.left, state.right, updateState, setLastAction])
+  }, [state.left, state.right, state.leftFileName, state.rightFileName, updateState, setLastAction])
+
+  useToolAction((action) => {
+    if (action.type !== 'open-file') return
+    const target = !state.left.trim() ? 'left' : !state.right.trim() ? 'right' : state.openTarget
+    const detected = languageFromFilename(action.filename)
+    updateState({
+      [target]: action.content,
+      [target === 'left' ? 'leftFileName' : 'rightFileName']: action.filename,
+      openTarget: target === 'left' ? 'right' : 'left',
+      ...(detected ? { language: detected } : {}),
+    })
+    setLastAction(`Opened ${action.filename} on the ${target}`, 'success')
+  })
 
   const handleSavePatch = useCallback(() => {
-    void exportFile(rawPatch, 'changes.patch').then(
+    const context =
+      state.language === 'plaintext'
+        ? 'text-changes'
+        : `${extensionForLanguage(state.language)}-changes`
+    void exportFile(rawPatch, buildExportFilename(context, 'patch')).then(
       (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
       (err: unknown) =>
         setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     )
-  }, [rawPatch, setLastAction])
+  }, [rawPatch, setLastAction, state.language])
 
   const loadSample = useCallback(() => {
     updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
@@ -414,6 +502,7 @@ export default function DiffViewer() {
     </div>
   ) : diffHtml ? (
     <div
+      ref={diffContainerRef}
       // Focusable so the diff can be scrolled from the keyboard without a mouse.
       role="region"
       aria-label="Diff result"
@@ -555,6 +644,19 @@ export default function DiffViewer() {
                 </Select>
               </label>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                Next opened file
+                <Select
+                  aria-label="Next opened file side"
+                  value={state.openTarget}
+                  onChange={(e) =>
+                    updateState({ openTarget: e.target.value as DiffViewerState['openTarget'] })
+                  }
+                >
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </Select>
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 Syntax
                 <Select
                   aria-label="Syntax"
@@ -572,6 +674,11 @@ export default function DiffViewer() {
                 label="Ignore whitespace"
                 checked={state.ignoreWhitespace}
                 onChange={(checked) => updateState({ ignoreWhitespace: checked })}
+              />
+              <Toggle
+                label="Ignore case"
+                checked={state.ignoreCase ?? false}
+                onChange={(checked) => updateState({ ignoreCase: checked })}
               />
               <Toggle
                 label="Normalize JSON"
@@ -609,7 +716,7 @@ export default function DiffViewer() {
         {showEditors && (
           <div className="flex min-h-0 gap-px overflow-hidden bg-[var(--color-border)]">
             <EditorPane
-              title="Left"
+              title={state.leftFileName ?? 'Left'}
               hint="original"
               value={state.left}
               language={state.language}
@@ -619,7 +726,7 @@ export default function DiffViewer() {
               options={editorOptions}
             />
             <EditorPane
-              title="Right"
+              title={state.rightFileName ?? 'Right'}
               hint="modified"
               value={state.right}
               language={state.language}
@@ -637,6 +744,38 @@ export default function DiffViewer() {
               showEditors ? 'border-t border-[var(--color-border)]' : ''
             }`}
           >
+            {hunkCount > 0 && (
+              <PaneHeader
+                title="Changes"
+                hint={
+                  activeHunk < 0
+                    ? `${hunkCount} hunk${hunkCount === 1 ? '' : 's'}`
+                    : `${activeHunk + 1} of ${hunkCount} hunks`
+                }
+                actions={
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => navigateHunk(-1)}
+                      title="Previous hunk"
+                      aria-label="Previous hunk"
+                    >
+                      <CaretUpIcon size={12} aria-hidden="true" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => navigateHunk(1)}
+                      title="Next hunk"
+                      aria-label="Next hunk"
+                    >
+                      <CaretDownIcon size={12} aria-hidden="true" />
+                    </Button>
+                  </>
+                }
+              />
+            )}
             {diffBody}
           </section>
         )}
