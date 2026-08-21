@@ -148,12 +148,55 @@ describe('JsonTools', () => {
     expect(screen.getByText('No match for this path')).toBeInTheDocument()
   })
 
-  it('explains why the table view is unavailable instead of showing an empty grid', () => {
+  it('tabulates an array of primitives by index instead of refusing to render', () => {
     renderTool(JsonTools)
     typeJson('[1,2,3]')
     showView('Table')
 
-    expect(screen.getByText('Table view needs an array of objects')).toBeInTheDocument()
+    const table = within(screen.getByRole('region', { name: 'Table view' }))
+    expect(table.getAllByRole('rowheader').map((h) => h.textContent)).toEqual(['0', '1', '2'])
+    expect(table.getAllByRole('cell').map((c) => c.textContent)).toEqual(['1', '2', '3'])
+  })
+
+  it('tabulates a nested object document all the way down', () => {
+    renderTool(JsonTools)
+    typeJson(
+      '{"properties":{"age":{"minimum":0,"type":"integer"},"name":{"type":"string"}},"required":["name"],"type":"object"}'
+    )
+    showView('Table')
+
+    const table = within(screen.getByRole('region', { name: 'Table view' }))
+    // Top-level keys become row headers, and so do the keys of every nested object.
+    const headers = table.getAllByRole('rowheader').map((h) => h.textContent)
+    expect(headers).toEqual(
+      expect.arrayContaining(['properties', 'required', 'type', 'age', 'name', 'minimum'])
+    )
+    expect(screen.getByText('3 fields')).toBeInTheDocument()
+  })
+
+  it('copies a leaf value from a nested table with the keyboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    renderTool(JsonTools)
+    typeJson('{"type":"object"}')
+    showView('Table')
+
+    const table = within(screen.getByRole('region', { name: 'Table view' }))
+    fireEvent.click(table.getByRole('button', { name: 'Copy value object' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('object'))
+  })
+
+  it('marks a key missing from one record apart from a null value', () => {
+    renderTool(JsonTools)
+    // A mixed array is not a record list, so it lands in the nested renderer.
+    typeJson('[{"a":1},[{"a":null},{"b":2}]]')
+    showView('Table')
+
+    const table = within(screen.getByRole('region', { name: 'Table view' }))
+    // Row 0 has no "b", row 1 has no "a".
+    expect(table.getAllByText('—')).toHaveLength(2)
+    expect(table.getByText('null')).toBeInTheDocument()
   })
 
   it('sorts table columns and exposes the direction to assistive tech', () => {
