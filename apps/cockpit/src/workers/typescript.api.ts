@@ -9,6 +9,7 @@ export type TranspileOptions = {
   target?: string
   module?: string
   strict?: boolean
+  jsx?: boolean
 }
 
 export type Diagnostic = {
@@ -29,13 +30,25 @@ export type TranspileResult = {
 const TARGET_MAP: Record<string, ts.ScriptTarget> = {
   ES5: ts.ScriptTarget.ES5,
   ES2015: ts.ScriptTarget.ES2015,
+  ES2016: ts.ScriptTarget.ES2016,
+  ES2017: ts.ScriptTarget.ES2017,
+  ES2018: ts.ScriptTarget.ES2018,
+  ES2019: ts.ScriptTarget.ES2019,
   ES2020: ts.ScriptTarget.ES2020,
+  ES2021: ts.ScriptTarget.ES2021,
+  ES2022: ts.ScriptTarget.ES2022,
+  ES2023: ts.ScriptTarget.ES2023,
   ESNext: ts.ScriptTarget.ESNext,
 }
 
 const MODULE_MAP: Record<string, ts.ModuleKind> = {
   CommonJS: ts.ModuleKind.CommonJS,
+  ES2015: ts.ModuleKind.ES2015,
+  ES2020: ts.ModuleKind.ES2020,
+  ES2022: ts.ModuleKind.ES2022,
   ESNext: ts.ModuleKind.ESNext,
+  Node16: ts.ModuleKind.Node16,
+  NodeNext: ts.ModuleKind.NodeNext,
   None: ts.ModuleKind.None,
 }
 
@@ -183,7 +196,7 @@ export function transpile(code: string, options: TranspileOptions = {}): Transpi
     target: TARGET_MAP[options.target ?? 'ESNext'] ?? ts.ScriptTarget.ESNext,
     module: MODULE_MAP[options.module ?? 'ESNext'] ?? ts.ModuleKind.ESNext,
     strict: options.strict ?? true,
-    jsx: ts.JsxEmit.ReactJSX,
+    ...(options.jsx ? { jsx: ts.JsxEmit.ReactJSX } : {}),
     esModuleInterop: true,
     skipLibCheck: true,
   }

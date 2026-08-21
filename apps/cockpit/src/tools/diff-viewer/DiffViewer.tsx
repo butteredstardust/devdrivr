@@ -36,6 +36,8 @@ import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { useToolAction } from '@/hooks/useToolAction'
+import { languageFromFilename } from '@/tools/code-formatter/languages'
 
 const { sanitize } = DOMPurify
 
@@ -57,6 +59,9 @@ type DiffViewerState = {
   jsonMode: boolean
   view: ViewMode
   optionsOpen: boolean
+  leftFileName: string | null
+  rightFileName: string | null
+  openTarget: 'left' | 'right'
 }
 
 const VIEW_OPTIONS = [
@@ -249,6 +254,9 @@ export default function DiffViewer() {
     jsonMode: false,
     view: 'split',
     optionsOpen: false,
+    leftFileName: null,
+    rightFileName: null,
+    openTarget: 'left',
   })
 
   const worker = useWorker<DiffWorker>(() => new DiffWorkerFactory(), ['computeDiff'])
@@ -426,9 +434,27 @@ export default function DiffViewer() {
   )
 
   const handleSwap = useCallback(() => {
-    updateState({ left: state.right, right: state.left })
+    updateState({
+      left: state.right,
+      right: state.left,
+      leftFileName: state.rightFileName,
+      rightFileName: state.leftFileName,
+    })
     setLastAction('Swapped sides', 'info')
-  }, [state.left, state.right, updateState, setLastAction])
+  }, [state.left, state.right, state.leftFileName, state.rightFileName, updateState, setLastAction])
+
+  useToolAction((action) => {
+    if (action.type !== 'open-file') return
+    const target = !state.left.trim() ? 'left' : !state.right.trim() ? 'right' : state.openTarget
+    const detected = languageFromFilename(action.filename)
+    updateState({
+      [target]: action.content,
+      [target === 'left' ? 'leftFileName' : 'rightFileName']: action.filename,
+      openTarget: target === 'left' ? 'right' : 'left',
+      ...(detected ? { language: detected } : {}),
+    })
+    setLastAction(`Opened ${action.filename} on the ${target}`, 'success')
+  })
 
   const handleSavePatch = useCallback(() => {
     const context =
@@ -618,6 +644,19 @@ export default function DiffViewer() {
                 </Select>
               </label>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                Next opened file
+                <Select
+                  aria-label="Next opened file side"
+                  value={state.openTarget}
+                  onChange={(e) =>
+                    updateState({ openTarget: e.target.value as DiffViewerState['openTarget'] })
+                  }
+                >
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </Select>
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 Syntax
                 <Select
                   aria-label="Syntax"
@@ -677,7 +716,7 @@ export default function DiffViewer() {
         {showEditors && (
           <div className="flex min-h-0 gap-px overflow-hidden bg-[var(--color-border)]">
             <EditorPane
-              title="Left"
+              title={state.leftFileName ?? 'Left'}
               hint="original"
               value={state.left}
               language={state.language}
@@ -687,7 +726,7 @@ export default function DiffViewer() {
               options={editorOptions}
             />
             <EditorPane
-              title="Right"
+              title={state.rightFileName ?? 'Right'}
               hint="modified"
               value={state.right}
               language={state.language}

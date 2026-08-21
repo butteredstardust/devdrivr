@@ -5,6 +5,7 @@ import {
   isHmacAlg,
   isNoneAlg,
   secretToBytes,
+  signJwt,
   verifyJwtSignature,
   verifyVariant,
 } from '../jwt-decoder/jwt-verify'
@@ -91,9 +92,68 @@ describe('verifyJwtSignature', () => {
     expect(result.status).toBe('none')
   })
 
-  it('declines asymmetric algorithms as unsupported', async () => {
-    const result = await verifyJwtSignature({ token: 'a.b.c', alg: 'RS256', secret: 'x' })
-    expect(result.status).toBe('unsupported')
+  it('waits for a public key before checking asymmetric algorithms', async () => {
+    const result = await verifyJwtSignature({ token: 'a.b.c', alg: 'RS256', secret: '' })
+    expect(result.status).toBe('unchecked')
+  })
+
+  it('verifies an RS256 token with a pasted JWK', async () => {
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256',
+      },
+      true,
+      ['sign', 'verify']
+    )
+    const b64 = (bytes: Uint8Array) => {
+      let binary = ''
+      for (const byte of bytes) binary += String.fromCharCode(byte)
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    }
+    const header = b64(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
+    const payload = b64(new TextEncoder().encode(JSON.stringify({ sub: '1' })))
+    const input = `${header}.${payload}`
+    const signature = new Uint8Array(
+      await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        keyPair.privateKey,
+        new TextEncoder().encode(input)
+      )
+    )
+    const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey)
+    const result = await verifyJwtSignature({
+      token: `${input}.${b64(signature)}`,
+      alg: 'RS256',
+      secret: '',
+      publicKey: JSON.stringify(publicJwk),
+      publicKeyFormat: 'jwk',
+    })
+    expect(result.status).toBe('valid')
+  })
+})
+
+describe('HS re-signing', () => {
+  it('builds a verifiable token from edited claims', async () => {
+    const token = await signJwt({
+      header: { alg: 'HS256', typ: 'JWT' },
+      payload: { sub: 'edited' },
+      secret: 'topsecret',
+    })
+    const result = await verifyJwtSignature({ token, alg: 'HS256', secret: 'topsecret' })
+    expect(result.status).toBe('valid')
+    expect(
+      JSON.parse(
+        new TextDecoder().decode(
+          Uint8Array.from(
+            atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/').padEnd(4, '=')),
+            (c) => c.charCodeAt(0)
+          )
+        )
+      )
+    ).toEqual({ sub: 'edited' })
   })
 })
 

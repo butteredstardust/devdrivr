@@ -39,6 +39,7 @@ import {
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useIsInstanceActive } from '@/app/tool-instance'
+import { sendToTool } from '@/lib/tool-handoff'
 
 type RefactoringView = 'source' | 'diff'
 
@@ -58,6 +59,9 @@ type RefactoringState = {
    */
   lastApply: { before: string; after: string } | null
   applyHistory: Array<{ before: string; after: string }>
+  /** Bounded custom codemod: AST-aware identifier rename, executed in the worker. */
+  customFind: string
+  customReplace: string
 }
 
 /** Largest pre-apply snapshot worth persisting for Undo (~200KB of source). */
@@ -133,6 +137,8 @@ export default function RefactoringToolkit() {
     view: 'source',
     lastApply: null,
     applyHistory: [],
+    customFind: '',
+    customReplace: '',
   })
 
   const worker = useWorker<RefactoringWorker>(
@@ -159,7 +165,13 @@ export default function RefactoringToolkit() {
   const applyHistory = useMemo(() => state.applyHistory ?? [], [state.applyHistory])
   const latestApply = applyHistory.at(-1) ?? lastApply
   const hasCode = input.trim().length > 0
-  const selectedCount = selectedTransforms.length
+  const customCodemod = useMemo(() => {
+    const valid = /^[$A-Z_a-z][$\w]*$/
+    return valid.test(state.customFind) && valid.test(state.customReplace)
+      ? { identifierFrom: state.customFind, identifierTo: state.customReplace }
+      : undefined
+  }, [state.customFind, state.customReplace])
+  const selectedCount = selectedTransforms.length + (customCodemod ? 1 : 0)
 
   const availableTransforms = useMemo(
     () => TRANSFORMS.filter((t) => t.languages.includes(language)),
@@ -175,7 +187,7 @@ export default function RefactoringToolkit() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const requestId = ++requestRef.current
-    if (!worker || !input.trim() || selectedTransforms.length === 0) {
+    if (!worker || !input.trim() || (selectedTransforms.length === 0 && !customCodemod)) {
       setPreview(null)
       setError(null)
       setIsPreviewing(false)
@@ -185,7 +197,7 @@ export default function RefactoringToolkit() {
     debounceRef.current = setTimeout(() => {
       const parser = language === 'typescript' ? 'tsx' : 'babel'
       worker
-        .applyTransforms(input, selectedTransforms, parser)
+        .applyTransforms(input, selectedTransforms, parser, customCodemod)
         .then((output) => {
           if (requestId !== requestRef.current) return
           setPreview({ source: input, output })
@@ -203,7 +215,7 @@ export default function RefactoringToolkit() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [worker, input, selectedTransforms, language])
+  }, [worker, input, selectedTransforms, language, customCodemod])
 
   const isStale = preview !== null && preview.source !== input
   const noChanges = preview !== null && !isStale && preview.output === preview.source
@@ -229,6 +241,8 @@ export default function RefactoringToolkit() {
     updateState({
       input: preview.output,
       selectedTransforms: [],
+      customFind: '',
+      customReplace: '',
       view: 'source',
       lastApply: input.length > MAX_SNAPSHOT_LENGTH ? null : snapshot,
       applyHistory: nextHistory,
@@ -317,6 +331,8 @@ export default function RefactoringToolkit() {
         view: 'source',
         lastApply: null,
         applyHistory: [],
+        customFind: '',
+        customReplace: '',
         ...(detected ? { language: detected } : {}),
       })
       setError(null)
@@ -460,6 +476,15 @@ export default function RefactoringToolkit() {
             <Button
               variant="secondary"
               size="sm"
+              onClick={() => sendToTool('code-formatter', { input, language })}
+              disabled={!hasCode}
+              title="Open the current code in Code Formatter"
+            >
+              Format
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleSave}
               disabled={!hasCode}
               title={`Save the code to a file (${formatShortcut('mod+s')})`}
@@ -507,7 +532,14 @@ export default function RefactoringToolkit() {
                 <Button
                   variant="ghost"
                   size="xs"
-                  onClick={() => updateState({ selectedTransforms: [], view: 'source' })}
+                  onClick={() =>
+                    updateState({
+                      selectedTransforms: [],
+                      customFind: '',
+                      customReplace: '',
+                      view: 'source',
+                    })
+                  }
                 >
                   Clear
                 </Button>
@@ -515,6 +547,32 @@ export default function RefactoringToolkit() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto p-3">
+              <fieldset className="mb-4 border-b border-[var(--color-border)] pb-4">
+                <legend className="mb-2 text-xs font-semibold text-[var(--color-text-muted)]">
+                  Custom identifier codemod
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    aria-label="Identifier to rename"
+                    placeholder="oldName"
+                    value={state.customFind}
+                    onChange={(event) =>
+                      updateState({ customFind: event.target.value, view: 'diff' })
+                    }
+                  />
+                  <Input
+                    aria-label="Replacement identifier"
+                    placeholder="newName"
+                    value={state.customReplace}
+                    onChange={(event) =>
+                      updateState({ customReplace: event.target.value, view: 'diff' })
+                    }
+                  />
+                </div>
+                <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
+                  Renames matching identifiers through the parsed AST; invalid names are ignored.
+                </p>
+              </fieldset>
               {visibleTransforms.length === 0 ? (
                 <p className="py-2 text-xs text-[var(--color-text-muted)]">
                   No transforms match “{search}”.
@@ -631,6 +689,8 @@ export default function RefactoringToolkit() {
                     fileName: null,
                     lastApply: null,
                     applyHistory: [],
+                    customFind: '',
+                    customReplace: '',
                   })
                 }
                 className="pointer-events-auto"

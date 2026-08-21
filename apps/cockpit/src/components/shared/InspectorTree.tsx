@@ -154,6 +154,7 @@ function TreeNode({
         <button
           type="button"
           onClick={copyPath}
+          aria-label={`Copy path ${path}`}
           title="Copy path"
           className="text-[var(--color-text-muted)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
         >

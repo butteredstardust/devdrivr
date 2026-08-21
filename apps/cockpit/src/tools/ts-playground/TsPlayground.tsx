@@ -30,6 +30,7 @@ import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
+import { sendToTool } from '@/lib/tool-handoff'
 
 type TsPlaygroundState = {
   input: string
@@ -37,6 +38,7 @@ type TsPlaygroundState = {
   target: string
   module: string
   strict: boolean
+  jsx: boolean
   /** Compiler options live behind a disclosure; the choice is persisted. */
   optionsOpen: boolean
   problemsOpen: boolean
@@ -91,6 +93,7 @@ export default function TsPlayground() {
     target: 'ESNext',
     module: 'ESNext',
     strict: true,
+    jsx: false,
     optionsOpen: false,
     problemsOpen: true,
   })
@@ -107,6 +110,7 @@ export default function TsPlayground() {
   const optionsId = useId()
   const problemsId = useId()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestRef = useRef(0)
@@ -114,10 +118,10 @@ export default function TsPlayground() {
   // asked for is allowed to toast, otherwise the status bar chatters.
   const announceRef = useRef(false)
 
-  const { input, target, module: moduleKind, strict } = state
+  const { input, target, module: moduleKind, strict, jsx } = state
   const compilerOptions = useMemo(
-    () => ({ target, module: moduleKind, strict }),
-    [target, moduleKind, strict]
+    () => ({ target, module: moduleKind, strict, jsx }),
+    [target, moduleKind, strict, jsx]
   )
   const optionsRef = useRef(compilerOptions)
   optionsRef.current = compilerOptions
@@ -197,6 +201,34 @@ export default function TsPlayground() {
     }
   }, [worker, input, compilerOptions, runTranspile])
 
+  useEffect(() => {
+    const editor = editorRef.current
+    const monaco = monacoRef.current
+    const model = editor?.getModel()
+    if (!monaco || !model) return
+    monaco.editor.setModelMarkers(
+      model,
+      'typescript-playground',
+      diagnostics
+        .filter((diagnostic) => diagnostic.line !== undefined)
+        .map((diagnostic) => ({
+          startLineNumber: diagnostic.line ?? 1,
+          startColumn: diagnostic.column ?? 1,
+          endLineNumber: diagnostic.line ?? 1,
+          endColumn: (diagnostic.column ?? 1) + 1,
+          message: diagnostic.message,
+          code: `TS${diagnostic.code}`,
+          severity:
+            diagnostic.category === 'error'
+              ? monaco.MarkerSeverity.Error
+              : diagnostic.category === 'warning'
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Hint,
+        }))
+    )
+    return () => monaco.editor.setModelMarkers(model, 'typescript-playground', [])
+  }, [diagnostics, state.jsx])
+
   const handleCompile = useCallback(() => {
     if (!inputRef.current.trim()) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -223,7 +255,11 @@ export default function TsPlayground() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        jsx: /\.[jt]sx$/i.test(action.filename),
+      })
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
@@ -324,6 +360,17 @@ export default function TsPlayground() {
               <Button
                 variant="secondary"
                 size="sm"
+                disabled={!output}
+                onClick={() =>
+                  sendToTool('code-formatter', { input: output, language: 'javascript' })
+                }
+                title="Open the compiled JavaScript in Code Formatter"
+              >
+                Format output
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleSave}
                 disabled={!output}
                 title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
@@ -374,6 +421,11 @@ export default function TsPlayground() {
                 checked={state.strict}
                 onChange={(checked) => updateState({ strict: checked })}
               />
+              <Toggle
+                label="JSX / TSX"
+                checked={state.jsx}
+                onChange={(checked) => updateState({ jsx: checked })}
+              />
               <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
                 Compiles automatically as you type.
               </span>
@@ -412,12 +464,13 @@ export default function TsPlayground() {
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
-              language="typescript"
+              language={state.jsx ? 'typescriptreact' : 'typescript'}
               value={input}
               onChange={(v) => updateState({ input: v ?? '' })}
               options={editorOptions}
-              onMount={(editor) => {
+              onMount={(editor, monaco) => {
                 editorRef.current = editor
+                monacoRef.current = monaco
               }}
             />
             {!hasCode && (

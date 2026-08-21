@@ -30,7 +30,11 @@ vi.mock('mermaid', () => ({ default: mermaidMock }))
 const recordMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/hooks/useToolHistory', () => ({
-  useToolHistory: () => ({ record: recordMock }),
+  useToolHistory: () => ({
+    record: recordMock,
+    recordEdited: recordMock,
+    markUserEdit: vi.fn(),
+  }),
 }))
 
 vi.mock('@/lib/file-io', () => ({

@@ -1,9 +1,14 @@
 import { handleRpc } from './rpc'
-import { applyTransforms } from './refactoring.api'
+import { applyTransforms, type CustomCodemod } from './refactoring.api'
 
 const api = {
-  applyTransforms(code: string, transformIds: string[], parser: 'babel' | 'tsx'): string {
-    return applyTransforms(code, transformIds, parser)
+  applyTransforms(
+    code: string,
+    transformIds: string[],
+    parser: 'babel' | 'tsx',
+    custom?: CustomCodemod
+  ): string {
+    return applyTransforms(code, transformIds, parser, custom)
   },
 }
 

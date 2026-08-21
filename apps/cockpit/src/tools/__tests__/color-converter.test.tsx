@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import ColorConverter, { labToLch, rgbToLab } from '../color-converter/ColorConverter'
+import ColorConverter, {
+  apcaContrast,
+  generateScale,
+  labToLch,
+  rgbToLab,
+} from '../color-converter/ColorConverter'
 
 describe('ColorConverter', () => {
   it('converts sRGB to CIE LAB and LCH', () => {
@@ -53,6 +58,11 @@ describe('ColorConverter', () => {
   it('shows WCAG contrast section', () => {
     renderTool(ColorConverter)
     expect(screen.getByText(/contrast/i)).toBeInTheDocument()
+  })
+
+  it('generates scale steps from OKLCH lightness and exposes APCA', () => {
+    expect(generateScale({ r: 255, g: 0, b: 0 })[0]?.label).toBe('5%')
+    expect(apcaContrast({ r: 0, g: 0, b: 0 }, { r: 255, g: 255, b: 255 })).toBeGreaterThan(100)
   })
 
   it('rejects out-of-range RGB and HSL values', () => {

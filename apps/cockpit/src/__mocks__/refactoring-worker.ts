@@ -5,6 +5,7 @@
 // Replies are delivered asynchronously (as a real worker would) and a
 // terminated instance goes silent.
 import { applyTransforms } from '@/workers/refactoring.api'
+import type { CustomCodemod } from '@/workers/refactoring.api'
 
 type RpcRequest = { id: number; method: string; args: unknown[] }
 
@@ -23,7 +24,8 @@ class MockRefactoringWorker {
         const result = applyTransforms(
           args[0] as string,
           args[1] as string[],
-          args[2] as 'babel' | 'tsx'
+          args[2] as 'babel' | 'tsx',
+          args[3] as CustomCodemod | undefined
         )
         this.onmessage?.({ data: { id, result } } as MessageEvent)
       } catch (err) {

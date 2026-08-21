@@ -35,6 +35,7 @@ import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipb
 import { formatShortcut } from '@/lib/shortcut-label'
 import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 import { InspectorDisclosure } from '@/components/shared/InspectorTree'
+import { sendToTool } from '@/lib/tool-handoff'
 
 type XmlView = 'source' | 'tree' | 'json' | 'xpath'
 
@@ -125,7 +126,7 @@ export default function XmlTools() {
 
   const worker = useWorker<XmlWorker>(
     () => new XmlWorkerFactory(),
-    ['validate', 'format', 'minify', 'toJson', 'stats', 'inspect', 'tree', 'queryXPath']
+    ['validate', 'format', 'minify', 'toJson', 'fromJson', 'stats', 'inspect', 'tree', 'queryXPath']
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -182,7 +183,7 @@ export default function XmlTools() {
       ? 'Checking…'
       : blockingIssue
         ? `Invalid XML — ${describeIssue(blockingIssue)}`
-        : `Valid XML · ${inspection.stats.elements} element${inspection.stats.elements === 1 ? '' : 's'} · ${inspection.stats.attributes} attribute${inspection.stats.attributes === 1 ? '' : 's'} · depth ${inspection.stats.depth}`
+        : `Valid XML · ${inspection.stats.elements} element${inspection.stats.elements === 1 ? '' : 's'} · ${inspection.stats.attributes} attribute${inspection.stats.attributes === 1 ? '' : 's'} · depth ${inspection.stats.depth} · XSD not checked`
 
   // --- Actions ---------------------------------------------------------
 
@@ -468,6 +469,17 @@ export default function XmlTools() {
             monacoTheme={monacoTheme}
             monacoOptions={monacoOptions}
             onCopy={copy}
+            onApplyJson={(json, rootName) => {
+              if (!worker) return
+              void worker.fromJson(json, rootName).then((result) => {
+                if (result.valid && result.xml) {
+                  updateState({ input: result.xml })
+                  setLastAction('Applied JSON to XML', 'success')
+                } else {
+                  setLastAction(`Could not apply JSON — ${result.error ?? 'invalid JSON'}`, 'error')
+                }
+              })
+            }}
           />
         )}
       </div>
@@ -498,6 +510,7 @@ function InspectorPane({
   monacoTheme,
   monacoOptions,
   onCopy,
+  onApplyJson,
 }: {
   view: Exclude<XmlView, 'source'>
   input: string
@@ -511,6 +524,7 @@ function InspectorPane({
   monacoTheme: string
   monacoOptions: Record<string, unknown>
   onCopy: CopyToClipboard
+  onApplyJson: (json: string, rootName: string) => void
 }) {
   const hasInput = input.trim().length > 0
 
@@ -546,6 +560,7 @@ function InspectorPane({
           worker={worker}
           monacoTheme={monacoTheme}
           monacoOptions={monacoOptions}
+          onApply={onApplyJson}
         />
       ) : (
         <XPathPane
@@ -724,8 +739,6 @@ function TreeNodeRow({
   return (
     <div>
       <div className="group flex items-center gap-1" style={{ paddingLeft: indent }}>
-        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: full-width,
-            aligned to the indent grid and disabled on leaves; it is not an action button. */}
         <div className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)]">
           <InspectorDisclosure
             expanded={expanded}
@@ -819,13 +832,17 @@ function JsonPane({
   worker,
   monacoTheme,
   monacoOptions,
+  onApply,
 }: {
   input: string
   worker: WorkerRpc<XmlWorker> | null
   monacoTheme: string
   monacoOptions: Record<string, unknown>
+  onApply: (json: string, rootName: string) => void
 }) {
   const [json, setJson] = useState('')
+  const [draft, setDraft] = useState<string | null>(null)
+  const [rootName, setRootName] = useState('root')
   const [failure, setFailure] = useState<string | null>(null)
 
   // Conversion used to need a Convert click and was thrown away on every
@@ -844,6 +861,8 @@ function JsonPane({
           if (cancelled) return
           if (result.valid && result.json) {
             setJson(result.json)
+            setDraft(null)
+            setRootName(result.rootName ?? 'root')
             setFailure(null)
           } else {
             setJson('')
@@ -862,11 +881,40 @@ function JsonPane({
     }
   }, [worker, input])
 
+  const value = draft ?? json
+
   return (
     <>
       <PaneHeader
         title="JSON"
-        actions={json ? <CopyButton text={json} label="Copy JSON" /> : undefined}
+        actions={
+          value ? (
+            <div className="flex items-center gap-2">
+              <CopyButton text={value} label="Copy JSON" />
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => sendToTool('json-tools', { input: value, view: 'source' })}
+                title="Open this JSON in JSON Tools"
+              >
+                JSON Tools
+              </Button>
+              {draft !== null && (
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => {
+                    onApply(draft, rootName)
+                    setDraft(null)
+                  }}
+                  title="Replace the XML document with this JSON"
+                >
+                  Apply to XML
+                </Button>
+              )}
+            </div>
+          ) : undefined
+        }
       />
       <div className="min-h-0 flex-1 overflow-hidden">
         {failure ? (
@@ -880,8 +928,9 @@ function JsonPane({
           <Editor
             theme={monacoTheme}
             language="json"
-            value={json}
-            options={{ ...monacoOptions, readOnly: true }}
+            value={value}
+            onChange={(next) => setDraft(next ?? '')}
+            options={monacoOptions}
           />
         ) : (
           <EmptyState size="sm" title="Converting…" description="Reading the document." />

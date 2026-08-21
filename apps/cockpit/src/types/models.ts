@@ -100,6 +100,8 @@ export type Snippet = {
   content: string
   language: string
   tags: string[]
+  /** Persisted favorite flag; optional for imported/legacy in-memory fixtures. */
+  favorite?: boolean
   folder: string
   createdAt: number
   updatedAt: number
@@ -183,6 +185,11 @@ export type HistoryEntry = {
   outputSize?: number
   /** User-starred/favorite flag */
   starred?: boolean
+  /** Optional API response snapshot, capped before persistence. */
+  responseBody?: string
+  responseMimeType?: string
+  responseStatus?: number
+  responseStatusText?: string
 }
 
 // --- API Client ---

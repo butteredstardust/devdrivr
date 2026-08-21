@@ -4,6 +4,7 @@ import { WindIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
+import { Select } from '@/components/shared/Input'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
@@ -14,15 +15,74 @@ import * as cssTree from 'css-tree'
 
 type CssToTailwindState = {
   input: string
+  version: '3' | '4'
 }
 
 type ConversionResult = {
   classes: string[]
+  selectors: Array<{ selector: string; classes: string[] }>
   unconvertible: string[]
 }
 
 function arbitraryValue(value: string): string {
   return value.replace(/\s+/g, '_')
+}
+
+const SPACING_SCALE: Record<string, string> = {
+  '1px': 'px',
+  '0.25rem': '1',
+  '4px': '1',
+  '0.5rem': '2',
+  '8px': '2',
+  '0.75rem': '3',
+  '12px': '3',
+  '1rem': '4',
+  '16px': '4',
+  '1.25rem': '5',
+  '20px': '5',
+  '1.5rem': '6',
+  '24px': '6',
+  '2rem': '8',
+  '32px': '8',
+  '2.5rem': '10',
+  '40px': '10',
+  '3rem': '12',
+  '48px': '12',
+  '4rem': '16',
+  '64px': '16',
+}
+
+const FONT_SIZE_SCALE: Record<string, string> = {
+  '0.75rem': 'xs',
+  '12px': 'xs',
+  '0.875rem': 'sm',
+  '14px': 'sm',
+  '1rem': 'base',
+  '16px': 'base',
+  '1.125rem': 'lg',
+  '18px': 'lg',
+  '1.25rem': 'xl',
+  '20px': 'xl',
+  '1.5rem': '2xl',
+  '24px': '2xl',
+  '2rem': '3xl',
+  '32px': '3xl',
+}
+
+const RADIUS_SCALE: Record<string, string> = {
+  '2px': 'sm',
+  '0.125rem': 'sm',
+  '4px': '',
+  '0.25rem': '',
+  '6px': 'md',
+  '0.375rem': 'md',
+  '8px': 'lg',
+  '0.5rem': 'lg',
+  '12px': 'xl',
+  '0.75rem': 'xl',
+  '16px': '2xl',
+  '1rem': '2xl',
+  '9999px': 'full',
 }
 
 // Core property → Tailwind class mapping
@@ -225,6 +285,15 @@ function convertSizeProperty(prop: string, value: string): string | null {
   if (value === 'min-content') return `${p}-min`
   if (value === 'max-content') return `${p}-max`
 
+  if (prop === 'font-size' && FONT_SIZE_SCALE[value]) return `text-${FONT_SIZE_SCALE[value]}`
+  if (prop === 'border-radius' && value in RADIUS_SCALE) {
+    const scale = RADIUS_SCALE[value]
+    return scale ? `rounded-${scale}` : 'rounded'
+  }
+  if (SPACING_SCALE[value] && !['font-size', 'line-height', 'z-index', 'opacity'].includes(prop)) {
+    return `${p}-${SPACING_SCALE[value]}`
+  }
+
   return `${p}-[${arbitraryValue(value)}]`
 }
 
@@ -249,21 +318,38 @@ function convertSpacingProperty(prop: string, value: string): string | null {
   if (!p) return null
   if (value === '0' || value === '0px') return `${p}-0`
   if (value === 'auto') return `${p}-auto`
+  if (SPACING_SCALE[value]) return `${p}-${SPACING_SCALE[value]}`
   return `${p}-[${arbitraryValue(value)}]`
 }
 
-function convertCssToTailwind(css: string): ConversionResult {
+function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult {
   const classes: string[] = []
   const unconvertible: string[] = []
+  const classesBySelector = new Map<string, string[]>()
 
   const declarations: Array<{
     prop: string
     rawValue: string
     important: boolean
     variants: string[]
+    selector: string
   }> = []
   try {
-    const ast = cssTree.parse(css, { positions: true })
+    let ast = cssTree.parse(css, { positions: true })
+    // The editor accepts a declaration list for quick one-property checks, but
+    // css-tree's default stylesheet parser leaves a bare list as Raw nodes.
+    // Parse that form as a synthetic :root rule while retaining normal selector
+    // and at-rule handling for complete stylesheets.
+    if (!/[{}]/.test(css)) {
+      let declarationCount = 0
+      cssTree.walk(ast, {
+        visit: 'Declaration',
+        enter: () => {
+          declarationCount += 1
+        },
+      })
+      if (declarationCount === 0) ast = cssTree.parse(`:root {${css}}`, { positions: true })
+    }
     cssTree.walk(ast, {
       visit: 'Declaration',
       enter(node) {
@@ -294,23 +380,26 @@ function convertCssToTailwind(css: string): ConversionResult {
           else unconvertible.push(`@media ${media} (unsupported context)`)
         }
         const value = cssTree.generate(node.value)
+        const important = Boolean(node.important)
         declarations.push({
           prop: node.property,
-          rawValue: node.important ? `${value} !important` : value,
-          important: node.important,
+          rawValue: important ? `${value} !important` : value,
+          important,
           variants,
+          selector: selector || ':root',
         })
       },
     })
   } catch (error) {
     return {
       classes,
+      selectors: [],
       unconvertible: [error instanceof Error ? error.message : 'Invalid CSS'],
     }
   }
 
   for (const declaration of declarations) {
-    const { prop, rawValue, important, variants } = declaration
+    const { prop, rawValue, important, variants, selector } = declaration
 
     // `!important` has to come off before anything else looks at the value. Left on, it defeats
     // every lookup in PROPERTY_MAP and every equality check in the size/spacing converters, and
@@ -322,7 +411,15 @@ function convertCssToTailwind(css: string): ConversionResult {
     // breaking changes from v3, which used a leading `!` — check the version before touching.
     const push = (cls: string) => {
       const contextual = `${variants.map((variant) => `${variant}:`).join('')}${cls}`
-      classes.push(important ? `${contextual}!` : contextual)
+      const converted = important
+        ? version === '3'
+          ? `!${contextual}`
+          : `${contextual}!`
+        : contextual
+      classes.push(converted)
+      const selectorClasses = classesBySelector.get(selector) ?? []
+      selectorClasses.push(converted)
+      classesBySelector.set(selector, selectorClasses)
     }
 
     // Check direct mapping
@@ -379,18 +476,26 @@ function convertCssToTailwind(css: string): ConversionResult {
     unconvertible.push(`${prop}: ${rawValue}`)
   }
 
-  return { classes: [...new Set(classes)], unconvertible: [...new Set(unconvertible)] }
+  return {
+    classes: [...new Set(classes)],
+    selectors: [...classesBySelector].map(([selector, values]) => ({
+      selector,
+      classes: [...new Set(values)],
+    })),
+    unconvertible: [...new Set(unconvertible)],
+  }
 }
 
 export default function CssToTailwind() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CssToTailwindState>('css-to-tailwind', {
     input: '',
+    version: '4',
   })
   const result = useMemo(() => {
     if (!state.input.trim()) return null
-    return convertCssToTailwind(state.input)
-  }, [state.input])
+    return convertCssToTailwind(state.input, state.version)
+  }, [state.input, state.version])
 
   const classString = result?.classes.join(' ') ?? ''
 
@@ -398,7 +503,24 @@ export default function CssToTailwind() {
     <ToolLayout fullBleed>
       <SplitPane storageKey="css-to-tailwind" aria-label="Resize CSS input and Tailwind output">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <PaneHeader title="CSS Input" />
+          <PaneHeader
+            title="CSS Input"
+            actions={
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                Tailwind
+                <Select
+                  aria-label="Tailwind version"
+                  value={state.version}
+                  onChange={(event) =>
+                    updateState({ version: event.target.value as CssToTailwindState['version'] })
+                  }
+                >
+                  <option value="4">v4</option>
+                  <option value="3">v3</option>
+                </Select>
+              </label>
+            }
+          />
           <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
@@ -437,6 +559,28 @@ export default function CssToTailwind() {
                         Full class string:
                       </div>
                       <code className="text-xs text-[var(--color-text)]">{classString}</code>
+                    </div>
+                  </section>
+                )}
+                {result.selectors.length > 0 && (
+                  <section>
+                    <h3 className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
+                      Per selector
+                    </h3>
+                    <div className="space-y-2">
+                      {result.selectors.map((entry) => (
+                        <div
+                          key={entry.selector}
+                          className="rounded border border-[var(--color-border)] p-2"
+                        >
+                          <code className="block text-xs text-[var(--color-accent)]">
+                            {entry.selector}
+                          </code>
+                          <code className="mt-1 block text-xs text-[var(--color-text)]">
+                            {entry.classes.join(' ')}
+                          </code>
+                        </div>
+                      ))}
                     </div>
                   </section>
                 )}

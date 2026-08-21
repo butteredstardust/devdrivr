@@ -53,21 +53,21 @@ describe('tool capability flags', () => {
   // typo'd. The real regression this guards against is a mass-deletion or bad merge
   // silently dropping tools' flags (e.g. `usesMonaco` disappearing from JSON Tools
   // would flip its overflow mode with no type error). So beyond membership, assert
-  // the exact expected size and contents for each derived set — pinned to the
-  // audited values from documentation/TODO.md (12 / 12 / 17).
+  // the exact expected size and contents for each derived set.
   it('every capability flag set only contains registered tool ids', () => {
     for (const id of OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of SAVE_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 13', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 14', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
         'code-formatter',
         'css-validator',
         'csv-tools',
+        'diff-viewer',
         'html-validator',
         'json-schema-validator',
         'json-tools',

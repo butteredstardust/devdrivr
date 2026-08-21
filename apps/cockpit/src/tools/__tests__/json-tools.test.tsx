@@ -87,6 +87,23 @@ describe('JsonTools helpers', () => {
     expect(queryJsonPath(data, '$.a.missing')).toEqual({ found: false })
     expect(queryJsonPath(data, '$.list[0].id')).toEqual({ found: true, value: 7 })
   })
+
+  it('supports wildcard, slice, union, and simple filter paths', () => {
+    const data = {
+      items: [
+        { sku: 'a', price: 10 },
+        { sku: 'b', price: 40 },
+        { sku: 'c', price: 50 },
+      ],
+    }
+    expect(queryJsonPath(data, '$.items[*].sku')).toEqual({ found: true, value: ['a', 'b', 'c'] })
+    expect(queryJsonPath(data, '$.items[1:3].sku')).toEqual({ found: true, value: ['b', 'c'] })
+    expect(queryJsonPath(data, '$.items[0,2].sku')).toEqual({ found: true, value: ['a', 'c'] })
+    expect(queryJsonPath(data, '$.items[?(@.price > 30)].sku')).toEqual({
+      found: true,
+      value: ['b', 'c'],
+    })
+  })
 })
 
 describe('JsonTools', () => {
@@ -285,7 +302,7 @@ describe('JsonTools', () => {
     expect(screen.queryByText('"k0"')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Expand all/ }))
-    expect(screen.getByText('"k0"')).toBeInTheDocument()
+    expect(screen.getByText('k0:')).toBeInTheDocument()
   })
 
   it('drops the failed-format banner as soon as the document is edited', async () => {

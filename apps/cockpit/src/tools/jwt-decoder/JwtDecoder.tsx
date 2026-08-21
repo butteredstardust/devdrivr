@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { IdentificationCardIcon, WarningIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useUiStore } from '@/stores/ui.store'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -18,9 +20,12 @@ import {
   computeClaimWindow,
   formatRelative,
   isHmacAlg,
+  isAsymmetricAlg,
   isNoneAlg,
+  signJwt,
   verifyJwtSignature,
   verifyVariant,
+  type PublicKeyFormat,
   type VerifyResult,
 } from '@/tools/jwt-decoder/jwt-verify'
 
@@ -35,6 +40,8 @@ type JwtDecoderState = {
    */
   secret: string
   secretEncoding: 'utf8' | 'base64'
+  publicKey: string
+  publicKeyFormat: PublicKeyFormat
 }
 
 const SECRET_ENCODINGS = [
@@ -162,15 +169,26 @@ export default function JwtDecoder() {
     input: '',
     secret: '',
     secretEncoding: 'utf8',
+    publicKey: '',
+    publicKeyFormat: 'jwk',
   })
   const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'jwt-decoder' })
   const [now, setNow] = useState(() => Date.now())
+  const [payloadDraft, setPayloadDraft] = useState('')
+  const [signing, setSigning] = useState(false)
+  const copy = useCopyToClipboard()
+  const setLastAction = useUiStore((s) => s.setLastAction)
 
   const decodeResult = useMemo(() => {
     if (!state.input.trim()) return { decoded: null, error: null }
     return decodeJwt(state.input)
   }, [state.input])
   const decoded = decodeResult.decoded
+
+  useEffect(() => {
+    if (decoded) setPayloadDraft(JSON.stringify(decoded.payload, null, 2))
+    else setPayloadDraft('')
+  }, [decoded])
 
   useEffect(() => {
     if (decoded) {
@@ -218,6 +236,8 @@ export default function JwtDecoder() {
       token: state.input,
       alg,
       secret: state.secret,
+      publicKey: state.publicKey,
+      publicKeyFormat: state.publicKeyFormat,
       encoding: state.secretEncoding,
     }).then((result) => {
       if (live) setVerification(result)
@@ -225,7 +245,44 @@ export default function JwtDecoder() {
     return () => {
       live = false
     }
-  }, [decoded, state.input, state.secret, state.secretEncoding, alg])
+  }, [
+    decoded,
+    state.input,
+    state.secret,
+    state.secretEncoding,
+    state.publicKey,
+    state.publicKeyFormat,
+    alg,
+  ])
+
+  const handleSign = async () => {
+    if (!decoded) return
+    let payload: Record<string, unknown>
+    try {
+      const parsed: unknown = JSON.parse(payloadDraft)
+      if (!isJwtObject(parsed)) throw new Error('Payload must be a JSON object')
+      payload = parsed
+    } catch (error) {
+      setLastAction(error instanceof Error ? error.message : 'Payload JSON is invalid', 'error')
+      return
+    }
+    setSigning(true)
+    try {
+      const token = await signJwt({
+        header: decoded.header,
+        payload,
+        secret: state.secret,
+        encoding: state.secretEncoding,
+      })
+      updateState({ input: token })
+      setLastAction('Re-signed JWT and updated the token field', 'success')
+      await copy(token, { success: 'Re-signed JWT copied', failure: 'Could not copy JWT' })
+    } catch (error) {
+      setLastAction(error instanceof Error ? error.message : 'Could not sign JWT', 'error')
+    } finally {
+      setSigning(false)
+    }
+  }
 
   // Color-coded token parts
   const tokenParts = useMemo(() => {
@@ -279,33 +336,68 @@ export default function JwtDecoder() {
             missing ingredient but a category error. */}
         {decoded && !algIsNone && (
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            <Field
-              label="Shared secret"
-              hint={
-                isHmacAlg(alg)
-                  ? `Verifies the ${alg} signature locally — nothing leaves this machine.`
-                  : `${alg ?? 'This token'} is not HMAC; only HS256/384/512 can be verified here.`
-              }
-              className="min-w-[16rem] flex-1"
-            >
-              <Input
-                type="password"
-                value={state.secret}
-                onChange={(e) => updateState({ secret: e.target.value })}
-                placeholder="your-256-bit-secret"
-                size="md"
-                spellCheck={false}
-                autoComplete="off"
-                disabled={!isHmacAlg(alg)}
+            {isHmacAlg(alg) ? (
+              <Field
+                label="Shared secret"
+                hint={
+                  isHmacAlg(alg)
+                    ? `Verifies the ${alg} signature locally — nothing leaves this machine.`
+                    : `${alg ?? 'This token'} is not HMAC; only HS256/384/512 can be verified here.`
+                }
+                className="min-w-[16rem] flex-1"
+              >
+                <Input
+                  type="password"
+                  value={state.secret}
+                  onChange={(e) => updateState({ secret: e.target.value })}
+                  placeholder="your-256-bit-secret"
+                  size="md"
+                  spellCheck={false}
+                  autoComplete="off"
+                  disabled={!isHmacAlg(alg)}
+                />
+              </Field>
+            ) : isAsymmetricAlg(alg) ? (
+              <Field
+                label="Public key"
+                hint="Paste a JWK JSON object or PEM-encoded SubjectPublicKeyInfo. Verification stays local."
+                className="min-w-[20rem] flex-1"
+              >
+                <TextArea
+                  value={state.publicKey}
+                  onChange={(e) => updateState({ publicKey: e.target.value })}
+                  placeholder={
+                    state.publicKeyFormat === 'jwk'
+                      ? '{ "kty": "RSA", ... }'
+                      : '-----BEGIN PUBLIC KEY-----'
+                  }
+                  rows={3}
+                  monospace
+                  className="resize-y"
+                />
+              </Field>
+            ) : null}
+            {isHmacAlg(alg) && (
+              <SegmentedControl
+                options={SECRET_ENCODINGS}
+                value={state.secretEncoding}
+                onChange={(secretEncoding) => updateState({ secretEncoding })}
+                aria-label="Secret encoding"
+                className="mb-1"
               />
-            </Field>
-            <SegmentedControl
-              options={SECRET_ENCODINGS}
-              value={state.secretEncoding}
-              onChange={(secretEncoding) => updateState({ secretEncoding })}
-              aria-label="Secret encoding"
-              className="mb-1"
-            />
+            )}
+            {isAsymmetricAlg(alg) && (
+              <SegmentedControl
+                options={[
+                  { value: 'jwk' as const, label: 'JWK' },
+                  { value: 'spki' as const, label: 'SPKI / PEM' },
+                ]}
+                value={state.publicKeyFormat}
+                onChange={(publicKeyFormat) => updateState({ publicKeyFormat })}
+                aria-label="Public key format"
+                className="mb-1"
+              />
+            )}
           </div>
         )}
       </div>
@@ -393,6 +485,32 @@ export default function JwtDecoder() {
                 <CopyButton text={JSON.stringify(decoded.payload, null, 2)} />
               </div>
               <div className="rounded border border-[var(--color-success)]/30 bg-[var(--color-surface)] p-3">
+                {isHmacAlg(alg) && (
+                  <div className="mb-3 border-b border-[var(--color-border)]/50 pb-3">
+                    <Field
+                      label="Editable payload JSON"
+                      hint="Change claims, then sign a new HS token."
+                    >
+                      <TextArea
+                        value={payloadDraft}
+                        onChange={(event) => setPayloadDraft(event.target.value)}
+                        rows={5}
+                        monospace
+                        className="resize-y"
+                        aria-label="Editable payload JSON"
+                      />
+                    </Field>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => void handleSign()}
+                      disabled={signing || !state.secret}
+                    >
+                      {signing ? 'Signing…' : 'Re-sign with secret'}
+                    </Button>
+                  </div>
+                )}
                 {Object.entries(decoded.payload).map(([key, value]) => {
                   const info = CLAIM_INFO[key]
                   const timeStr = info?.isTime ? formatTimestamp(value) : null
@@ -434,6 +552,10 @@ export default function JwtDecoder() {
                           ) : (
                             value
                           )
+                        ) : key === 'aud' && Array.isArray(value) ? (
+                          <span title="Multiple allowed audiences">
+                            {value.length} audiences: {value.map(String).join(', ')}
+                          </span>
                         ) : (
                           JSON.stringify(value)
                         )}

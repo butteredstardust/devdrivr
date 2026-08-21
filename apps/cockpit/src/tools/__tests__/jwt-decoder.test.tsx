@@ -95,6 +95,13 @@ describe('JwtDecoder', () => {
     expect(screen.getByText('Expiration')).toBeInTheDocument()
   })
 
+  it('annotates multiple audiences instead of flattening the array', () => {
+    renderTool(JwtDecoder)
+    const token = `${base64UrlJson({ alg: 'none' })}.${base64UrlJson({ aud: ['api', 'web'] })}.`
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), { target: { value: token } })
+    expect(screen.getByText(/2 audiences: api, web/)).toBeInTheDocument()
+  })
+
   it('offers a shared secret for HMAC tokens', async () => {
     renderTool(JwtDecoder)
     fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {

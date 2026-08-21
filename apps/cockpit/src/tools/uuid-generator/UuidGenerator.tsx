@@ -41,8 +41,30 @@ function generateV1(): string {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
   // Random nodes set the multicast bit so they cannot be mistaken for real MAC addresses.
-  bytes[10] = (bytes[10]! | 0x01) & 0xff
+  bytes[10] = ((bytes[10] ?? 0) | 0x01) & 0xff
 
+  return formatUuid(bytes)
+}
+
+export function generateV6(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  const timestamp = BigInt(Date.now()) * 10000n + 122192928000000000n
+  const high = Number((timestamp >> 28n) & 0xffffffffn)
+  const mid = Number((timestamp >> 12n) & 0xffffn)
+  const low = Number(timestamp & 0xfffn)
+  bytes[0] = (high >>> 24) & 0xff
+  bytes[1] = (high >>> 16) & 0xff
+  bytes[2] = (high >>> 8) & 0xff
+  bytes[3] = high & 0xff
+  bytes[4] = (mid >>> 8) & 0xff
+  bytes[5] = mid & 0xff
+  bytes[6] = ((low >>> 8) & 0x0f) | 0x60
+  bytes[7] = low & 0xff
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  bytes[10] = (bytes[10]! | 0x01) & 0xff // safe: Uint8Array(16) guarantees index 10 exists
   return formatUuid(bytes)
 }
 
@@ -93,6 +115,7 @@ export function generateV5(namespace: string, name: string): string {
 
 const GENERATORS: Record<Exclude<UuidVersion, 'v5'>, () => string> = {
   v1: generateV1,
+  v6: generateV6,
   v4: generateV4,
   v7: generateV7,
 }
@@ -157,6 +180,14 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
     info.node = (hex.slice(20).match(/.{2}/g) ?? []).join(':')
   }
 
+  // Extract timestamp for v6 (reassemble the reordered v1 timestamp).
+  if (versionNibble === 6) {
+    const timestampHex = `${hex.slice(0, 8)}${hex.slice(8, 12)}${hex.slice(13, 16)}`
+    const timestamp100ns = BigInt(`0x${timestampHex}`)
+    const unixMs = Number((timestamp100ns - 122192928000000000n) / 10000n)
+    if (unixMs > 0 && unixMs < 4102444800000) info.timestamp = new Date(unixMs).toISOString()
+  }
+
   // Extract timestamp for v7
   if (versionNibble === 7) {
     const timestampHex = hex.slice(0, 12)
@@ -171,7 +202,7 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
 
 // ── Component ────────────────────────────────────────────────────────
 
-type UuidVersion = 'v1' | 'v4' | 'v5' | 'v7'
+type UuidVersion = 'v1' | 'v4' | 'v5' | 'v6' | 'v7'
 type BulkFormat = 'lines' | 'json' | 'csv'
 
 type UuidState = {
@@ -195,6 +226,7 @@ const VERSION_LABELS: Record<UuidVersion, string> = {
   v1: 'v1 — Time-based',
   v4: 'v4 — Random',
   v5: 'v5 — Namespace/name',
+  v6: 'v6 — Reordered time-based',
   v7: 'v7 — Time-ordered',
 }
 

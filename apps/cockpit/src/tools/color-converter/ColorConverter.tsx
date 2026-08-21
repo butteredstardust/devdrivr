@@ -484,13 +484,35 @@ function contrastRatio(fg: RGB, bg: RGB): number {
   return (l1 + 0.05) / (l2 + 0.05)
 }
 
+/** APCA 0.0.98G-style Lc value, with the same sRGB inputs as WCAG. */
+export function apcaContrast(text: RGB, background: RGB): number {
+  const toY = (rgb: RGB) => {
+    const channels = [rgb.r, rgb.g, rgb.b].map((channel) => {
+      const value = channel / 255
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    })
+    const [red = 0, green = 0, blue = 0] = channels
+    return 0.2126729 * red + 0.7151522 * green + 0.072175 * blue
+  }
+  const clampBlack = (value: number) => {
+    const blackThreshold = 0.022
+    return value <= blackThreshold ? value + (blackThreshold - value) ** 1.414 : value
+  }
+  const txt = clampBlack(toY(text))
+  const bg = clampBlack(toY(background))
+  if (Math.abs(bg - txt) < 0.0005) return 0
+  const sapc = bg > txt ? (bg ** 0.56 - txt ** 0.57) * 1.14 : (bg ** 0.65 - txt ** 0.62) * 1.14
+  if (bg > txt) return sapc < 0.1 ? 0 : (sapc - 0.027) * 100
+  return sapc > -0.1 ? 0 : (sapc + 0.027) * 100
+}
+
 // ── Shade/Tint Generator ─────────────────────────────────────────────
 
-function generateScale(rgb: RGB): { label: string; hex: string; rgb: RGB }[] {
-  const hsl = rgbToHsl(rgb)
+export function generateScale(rgb: RGB): { label: string; hex: string; rgb: RGB }[] {
+  const oklch = rgbToOklch(rgb)
   const steps = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95]
   return steps.map((l) => {
-    const stepRgb = hslToRgb({ h: hsl.h, s: hsl.s, l })
+    const stepRgb = { ...oklchToRgb(l / 100, oklch.c, oklch.h), a: rgb.a ?? 1 }
     return { label: `${l}%`, hex: rgbToHex(stepRgb), rgb: stepRgb }
   })
 }
@@ -732,8 +754,10 @@ export default function ColorConverter() {
     const bg = parseColor(state.contrastBg)
     if (!fg || !bg) return null
     const ratio = contrastRatio(fg, bg)
+    const apca = apcaContrast(fg, bg)
     return {
       ratio: ratio.toFixed(2),
+      apca: apca.toFixed(1),
       aa: ratio >= 4.5,
       aaLarge: ratio >= 3,
       aaa: ratio >= 7,
@@ -1042,6 +1066,12 @@ export default function ColorConverter() {
                 <div className="text-xs text-[var(--color-text-muted)]">Ratio</div>
                 <div className="font-mono text-lg font-bold text-[var(--color-text)]">
                   {contrast.ratio}:1
+                </div>
+              </div>
+              <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2">
+                <div className="text-xs text-[var(--color-text-muted)]">APCA Lc</div>
+                <div className="font-mono text-lg font-bold text-[var(--color-text)]">
+                  {contrast.apca}
                 </div>
               </div>
               <div

@@ -10,6 +10,7 @@ const favoriteSnippet = {
   content: 'const favorite = true',
   language: 'javascript',
   tags: ['⭐'],
+  favorite: true,
   folder: '',
   createdAt: Date.now(),
   updatedAt: Date.now(),

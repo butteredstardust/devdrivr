@@ -34,6 +34,7 @@ import {
   generateTypeScript,
   outputFileName,
   parseCsv,
+  parseJsonRows,
   summarizeColumns,
   toOutput,
   type CsvIssue,
@@ -45,9 +46,12 @@ import {
 import { formatTextBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { sendToTool } from '@/lib/tool-handoff'
+import { inferSchema } from '@/tools/json-schema-validator/json-schema-helpers'
 import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 
 type CsvView = 'table' | 'convert' | 'analyze'
+type CsvInputMode = 'csv' | 'json'
 
 type CsvToolsState = {
   input: string
@@ -59,12 +63,18 @@ type CsvToolsState = {
   typed: boolean
   format: OutputFormat
   schemaLanguage: SchemaLanguage
+  inputMode: CsvInputMode
 }
 
 const VIEW_OPTIONS = [
   { value: 'table' as const, label: 'Table' },
   { value: 'convert' as const, label: 'Convert' },
   { value: 'analyze' as const, label: 'Analyze' },
+]
+
+const INPUT_MODE_OPTIONS = [
+  { value: 'csv' as const, label: 'CSV input' },
+  { value: 'json' as const, label: 'JSON rows' },
 ]
 
 const EMPTY_PARSE = { columns: [] as string[], rows: [] as CsvRow[], issues: [] as CsvIssue[] }
@@ -118,12 +128,13 @@ export default function CsvTools() {
     typed: false,
     format: 'json-rows',
     schemaLanguage: 'typescript',
+    inputMode: 'csv',
   })
   const { record } = useToolHistory({ toolId: 'csv-tools' })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
 
-  const { input, view, delimiter, hasHeader, typed, format, schemaLanguage } = state
+  const { input, view, delimiter, hasHeader, typed, format, schemaLanguage, inputMode } = state
   const inputRef = useRef(input)
   inputRef.current = input
   const hasInput = input.trim().length > 0
@@ -146,8 +157,11 @@ export default function CsvTools() {
   }, [input])
 
   const parsed = useMemo<CsvParse>(
-    () => parseCsv(parseSource, { delimiter, hasHeader, typed }),
-    [parseSource, delimiter, hasHeader, typed]
+    () =>
+      inputMode === 'json'
+        ? parseJsonRows(parseSource, typed)
+        : parseCsv(parseSource, { delimiter, hasHeader, typed }),
+    [parseSource, delimiter, hasHeader, typed, inputMode]
   )
   // Memoised rather than re-derived per render: they are dependencies of the
   // conversion and analysis memos, which would otherwise recompute constantly.
@@ -195,7 +209,11 @@ export default function CsvTools() {
     const source = inputRef.current
     const options = { view, format, schemaLanguage, fileName: state.fileName }
     if (source === parseSource) return activeOutput
-    return outputFor(source, parseCsv(source, { delimiter, hasHeader, typed }), options)
+    const parsedSource =
+      inputMode === 'json'
+        ? parseJsonRows(source, typed)
+        : parseCsv(source, { delimiter, hasHeader, typed })
+    return outputFor(source, parsedSource, options)
   }, [
     activeOutput,
     parseSource,
@@ -206,6 +224,7 @@ export default function CsvTools() {
     delimiter,
     hasHeader,
     typed,
+    inputMode,
   ])
 
   const activeExtension =
@@ -291,8 +310,9 @@ export default function CsvTools() {
     const sample = TOOL_SAMPLES['csv-tools']
     if (!sample) return
     replaceInput(sample, 'Load sample', 'sample.csv')
+    updateState({ inputMode: 'csv' })
     setLastAction('Loaded sample CSV', 'success')
-  }, [replaceInput, setLastAction])
+  }, [replaceInput, setLastAction, updateState])
 
   // The issue list reports a line number; without this the user reads it and
   // then scrolls to find it by hand.
@@ -312,6 +332,7 @@ export default function CsvTools() {
   useToolAction((action) => {
     if (action.type === 'open-file') {
       replaceInput(action.content, `Open ${action.filename}`, action.filename)
+      updateState({ inputMode: /\.json$/i.test(action.filename) ? 'json' : 'csv' })
       setLastAction(`Opened ${action.filename}`, 'success')
     }
     if (action.type === 'save-file') handleSave()
@@ -381,9 +402,16 @@ export default function CsvTools() {
           )}
 
           <ToolbarGroup className="gap-3">
+            <SegmentedControl
+              aria-label="Input format"
+              value={inputMode}
+              onChange={(next) => updateState({ inputMode: next })}
+              options={INPUT_MODE_OPTIONS}
+            />
             <Select
               aria-label="Delimiter"
               value={delimiter}
+              disabled={inputMode === 'json'}
               onChange={(e) => updateState({ delimiter: e.target.value as Delimiter })}
               className="w-32"
             >
@@ -395,6 +423,7 @@ export default function CsvTools() {
             </Select>
             <Toggle
               checked={hasHeader}
+              disabled={inputMode === 'json'}
               onChange={(checked) => updateState({ hasHeader: checked })}
               label="Header row"
             />
@@ -427,6 +456,37 @@ export default function CsvTools() {
               }
             />
             <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                sendToTool('json-tools', {
+                  input:
+                    view === 'convert' && (format === 'json-rows' || format === 'json-columns')
+                      ? activeOutput
+                      : JSON.stringify(rows, null, 2),
+                  view: 'source',
+                })
+              }
+              disabled={!rows.length}
+              title="Open the current rows in JSON Tools"
+            >
+              JSON
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                sendToTool('json-schema-validator', {
+                  data: JSON.stringify(rows, null, 2),
+                  schema: JSON.stringify(inferSchema(rows), null, 2),
+                })
+              }
+              disabled={!rows.length}
+              title="Validate the current rows against an inferred JSON Schema"
+            >
+              Validate schema
+            </Button>
+            <Button
               variant="secondary"
               size="sm"
               onClick={handleSave}
@@ -449,7 +509,7 @@ export default function CsvTools() {
         >
           <Editor
             theme={monacoTheme}
-            language="plaintext"
+            language={inputMode === 'json' ? 'json' : 'plaintext'}
             value={input}
             onChange={handleInputChange}
             options={monacoOptions}

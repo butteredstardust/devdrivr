@@ -241,13 +241,11 @@ export const useApiStore = create<ApiStore>((set) => ({
     return { collections: importedCollections.length, requests: importedRequests.length }
   },
 
-  addRequestHistory: async ({ subTab, input, output }) => {
+  addRequestHistory: async (entryData) => {
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
       tool: API_CLIENT_HISTORY_TOOL,
-      ...(subTab !== undefined ? { subTab } : {}),
-      input,
-      output,
+      ...entryData,
       timestamp: Date.now(),
     }
     await addHistoryEntry(entry)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import jscodeshift from 'jscodeshift'
 import { TRANSFORMS } from '@/tools/refactoring-toolkit/transforms'
+import { applyTransforms } from '@/workers/refactoring.api'
 
 function applyTransform(id: string, code: string, parser: 'babel' | 'tsx' = 'babel'): string {
   const j = jscodeshift.withParser(parser)
@@ -146,10 +147,10 @@ describe('trailing-commas', () => {
 })
 
 describe('promise-to-async', () => {
-  it('converts .then(fn).catch(fn) to an async IIFE with try/catch', () => {
+  it('uses top-level await for a standalone module chain', () => {
     const input = `fetchData().then(result => process(result)).catch(err => handleError(err))`
     const output = applyTransform('promise-to-async', input)
-    expect(output).toContain('async')
+    expect(output).not.toContain('async ()')
     expect(output).toContain('await')
     expect(output).toContain('try')
     expect(output).toContain('catch')
@@ -158,6 +159,44 @@ describe('promise-to-async', () => {
     const input = 'const x = 1'
     const output = applyTransform('promise-to-async', input)
     expect(output).not.toContain('async')
+  })
+})
+
+describe('expanded transforms', () => {
+  it('converts function declarations to const arrows', () => {
+    const output = applyTransform(
+      'function-declaration-to-arrow',
+      'function twice(x) { return x * 2 }'
+    )
+    expect(output).toContain('const twice = x =>')
+  })
+
+  it('converts simple forEach callbacks to for-of', () => {
+    const output = applyTransform('foreach-to-for-of', 'items.forEach(item => { use(item) })')
+    expect(output).toContain('for (const item of items)')
+  })
+
+  it('runs a bounded custom identifier codemod', () => {
+    const output = applyTransforms('const before = before + 1', [], 'babel', {
+      identifierFrom: 'before',
+      identifierTo: 'after',
+    })
+    expect(output).toContain('const after = after + 1')
+  })
+
+  it('preserves static property names during a custom rename', () => {
+    const output = applyTransforms(
+      'const oldName = 1; const value = { oldName, fixed: oldName }; value.oldName',
+      [],
+      'babel',
+      {
+        identifierFrom: 'oldName',
+        identifierTo: 'newName',
+      }
+    )
+    expect(output).toContain('oldName: newName')
+    expect(output).toContain('fixed: newName')
+    expect(output).toContain('value.oldName')
   })
 })
 

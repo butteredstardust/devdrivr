@@ -21,9 +21,11 @@ import {
 } from '@phosphor-icons/react'
 import {
   computeFileHashes,
+  computeFileHmac,
   computeHashes,
   computeHmac,
   HASH_ALGORITHMS,
+  parseChecksumFile,
   type Hashes,
 } from '@/tools/hash-generator/hash-utils'
 import { formatBytes } from '@/lib/format'
@@ -33,6 +35,7 @@ type HashSource = 'text' | 'file'
 type HashGeneratorState = {
   input: string
   compareHash: string
+  checksumText: string
   uppercase: boolean
   hmacMode: boolean
   hmacKey: string
@@ -54,6 +57,7 @@ export default function HashGenerator() {
   const [state, updateState] = useToolState<HashGeneratorState>('hash-generator', {
     input: '',
     compareHash: '',
+    checksumText: '',
     uppercase: false,
     hmacMode: false,
     hmacKey: '',
@@ -88,12 +92,17 @@ export default function HashGenerator() {
       setFileProgress(0)
       setIsComputing(true)
 
-      computeFileHashes(picked, {
+      const fileOptions = {
         signal: controller.signal,
-        onProgress: ({ loaded, total }) => {
+        onProgress: ({ loaded, total }: { loaded: number; total: number }) => {
           if (!controller.signal.aborted) setFileProgress(total === 0 ? 1 : loaded / total)
         },
-      })
+      }
+      const filePromise =
+        state.hmacMode && state.hmacKey
+          ? computeFileHmac(picked, state.hmacKey, fileOptions)
+          : computeFileHashes(picked, fileOptions)
+      filePromise
         .then((result) => {
           if (controller.signal.aborted) return
           setHashes(result)
@@ -113,7 +122,7 @@ export default function HashGenerator() {
           setFileError(error instanceof Error ? error.message : String(error))
         })
     },
-    [record]
+    [record, state.hmacKey, state.hmacMode]
   )
 
   const clearFile = useCallback(() => {
@@ -235,6 +244,17 @@ export default function HashGenerator() {
     }
     return null
   }, [compareNormalized, hashes, hashList])
+  const checksumExpected = useMemo(
+    () => parseChecksumFile(state.checksumText, file?.name),
+    [file?.name, state.checksumText]
+  )
+  const checksumMatch = useMemo(
+    () =>
+      checksumExpected
+        ? (hashList.find((hash) => hash.value.toLowerCase() === checksumExpected)?.label ?? null)
+        : null,
+    [checksumExpected, hashList]
+  )
 
   const inputBytes = useMemo(() => new TextEncoder().encode(state.input).length, [state.input])
 
@@ -370,17 +390,12 @@ export default function HashGenerator() {
             onChange={(uppercase) => updateState({ uppercase })}
             label="Uppercase"
           />
-          {/* HMAC is text-only. Keying a streamed file digest is a coherent thing to want, but it
-              is not what the streaming path computes, and a toggle that silently did nothing would
-              be worse than one that isn't there. */}
-          {!isFileSource && (
-            <Toggle
-              checked={state.hmacMode}
-              onChange={(hmacMode) => updateState({ hmacMode })}
-              label="HMAC"
-            />
-          )}
-          {!isFileSource && state.hmacMode && (
+          <Toggle
+            checked={state.hmacMode}
+            onChange={(hmacMode) => updateState({ hmacMode })}
+            label="HMAC"
+          />
+          {state.hmacMode && (
             <Input
               value={state.hmacKey}
               onChange={(e) => updateState({ hmacKey: e.target.value })}
@@ -414,6 +429,27 @@ export default function HashGenerator() {
             )}
           </div>
         </Field>
+        <Field label="Verify checksum file">
+          <TextArea
+            value={state.checksumText}
+            onChange={(e) => updateState({ checksumText: e.target.value })}
+            placeholder="Paste a checksum file line, e.g. <hash>  filename.iso"
+            rows={2}
+            size="sm"
+            className="resize-none font-mono"
+          />
+          {state.checksumText.trim() && (
+            <p
+              className={`mt-1 text-2xs ${checksumMatch ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}
+            >
+              {checksumMatch
+                ? `Checksum matches ${checksumMatch}`
+                : checksumExpected
+                  ? 'Checksum does not match'
+                  : 'No supported checksum line found'}
+            </p>
+          )}
+        </Field>
       </div>
 
       {hashList.length > 0 ? (
@@ -439,7 +475,7 @@ export default function HashGenerator() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[var(--color-text-muted)]">
-                      {state.hmacMode && !isFileSource ? `HMAC-${h.label}` : h.label}
+                      {state.hmacMode && state.hmacKey ? `HMAC-${h.label}` : h.label}
                     </span>
                     <span className="text-2xs text-[var(--color-text-muted)]">{h.bits}-bit</span>
                     {h.note && <StatusBadge variant="warning">{h.note}</StatusBadge>}

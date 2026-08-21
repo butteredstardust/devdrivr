@@ -85,6 +85,33 @@ const DEFAULT_TEMPLATE = TEMPLATES[0]?.content ?? ''
 const RENDER_DEBOUNCE_MS = 500
 
 let initializedMermaidTheme: 'default' | 'dark' | null = null
+let mermaidLanguageRegistered = false
+
+function registerMermaidLanguage(monaco: Parameters<OnMount>[1]) {
+  if (mermaidLanguageRegistered) return
+  monaco.languages.register({ id: 'mermaid' })
+  monaco.languages.setMonarchTokensProvider('mermaid', {
+    tokenizer: {
+      root: [
+        [/^\s*%%.*$/, 'comment'],
+        [
+          /\b(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|stateDiagram-v2|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|sankey-beta|xychart-beta|block-beta|C4Context)\b/,
+          'keyword',
+        ],
+        [
+          /\b(subgraph|end|title|section|dateFormat|classDef|style|click|participant|activate|deactivate)\b/,
+          'type',
+        ],
+        [/[A-Za-z_][\w-]*/, 'identifier'],
+        [/[{}()[\]]/, 'delimiter.bracket'],
+        [/[-=><|:.+*#]/, 'operator'],
+        [/'[^']*'|"[^"]*"/, 'string'],
+        [/\d+(?:\.\d+)?/, 'number'],
+      ],
+    },
+  })
+  mermaidLanguageRegistered = true
+}
 
 async function getMermaid(theme: 'default' | 'dark') {
   const { default: mermaid } = await import('mermaid')
@@ -256,6 +283,7 @@ export default function MermaidEditor() {
         setSvgHtml(svg)
         setError(null)
         if (userEditedRef.current) {
+          userEditedRef.current = false
           recordEdited({
             input: content,
             output: `${detectDiagramType(content) ?? 'Diagram'} · ${countStatements(content)} lines`,
@@ -271,6 +299,7 @@ export default function MermaidEditor() {
         // The last good diagram stays on screen: clearing it meant the preview
         // blanked out on every half-typed line.
         if (userEditedRef.current) {
+          userEditedRef.current = false
           recordEdited({ input: content, output: '', success: false, error: parsed.message })
         }
       } finally {
@@ -328,6 +357,7 @@ export default function MermaidEditor() {
 
   const handleEditorMount = useCallback<OnMount>(
     (editor, monaco) => {
+      registerMermaidLanguage(monaco)
       editorRef.current = editor
       monacoRef.current = monaco
       syncMarkers(errorRef.current)
@@ -465,7 +495,8 @@ export default function MermaidEditor() {
         // A transparent PNG shows dark diagram text as invisible on most chat
         // and document backgrounds, so an opaque canvas is the default.
         if (!transparent) {
-          context.fillStyle = getComputedStyle(document.documentElement)
+          context.fillStyle = window
+            .getComputedStyle(document.documentElement)
             .getPropertyValue('--color-bg')
             .trim()
           context.fillRect(0, 0, canvas.width, canvas.height)
@@ -538,7 +569,7 @@ export default function MermaidEditor() {
     <div className="min-h-0 flex-1 overflow-hidden">
       <Editor
         theme={monacoTheme}
-        language="markdown"
+        language="mermaid"
         value={content}
         onChange={handleContentChange}
         onMount={handleEditorMount}

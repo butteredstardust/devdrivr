@@ -6,7 +6,11 @@ import TimestampConverter from '../timestamp-converter/TimestampConverter'
 const recordMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/hooks/useToolHistory', () => ({
-  useToolHistory: () => ({ record: recordMock }),
+  useToolHistory: () => ({
+    record: recordMock,
+    recordEdited: recordMock,
+    markUserEdit: vi.fn(),
+  }),
 }))
 
 describe('TimestampConverter', () => {

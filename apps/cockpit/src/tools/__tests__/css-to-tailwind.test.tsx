@@ -28,8 +28,8 @@ describe('CssToTailwind', () => {
     })
     expect(screen.getByText('uppercase')).toBeInTheDocument()
     expect(screen.getByText('object-cover')).toBeInTheDocument()
-    expect(screen.getByText('mx-[1rem]')).toBeInTheDocument()
-    expect(screen.getByText('py-[2rem]')).toBeInTheDocument()
+    expect(screen.getAllByText('mx-4').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('py-8').length).toBeGreaterThan(0)
   })
 
   it('encodes spaces inside arbitrary values', () => {
@@ -43,6 +43,16 @@ describe('CssToTailwind', () => {
   it('shows empty state when no input', () => {
     renderTool(CssToTailwind)
     expect(screen.getByText('Enter CSS on the left to convert')).toBeInTheDocument()
+  })
+
+  it('groups output by selector and supports Tailwind v3 importance', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByLabelText('Tailwind version'), { target: { value: '3' } })
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '.button { padding: 1rem !important; }' },
+    })
+    expect(screen.getByText('.button')).toBeInTheDocument()
+    expect(screen.getAllByText('!p-4').length).toBeGreaterThan(0)
   })
 
   // `!important` used to be left on the value, where it defeated every map lookup and equality

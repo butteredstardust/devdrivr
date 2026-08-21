@@ -42,6 +42,9 @@ import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipb
 import { formatShortcut } from '@/lib/shortcut-label'
 import { InspectorTree } from '@/components/shared/InspectorTree'
 import { Toggle } from '@/components/shared/Toggle'
+import { sendToTool } from '@/lib/tool-handoff'
+export { queryJsonPath, type JsonPathResult } from '@/lib/json-path'
+import { queryJsonPath } from '@/lib/json-path'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -325,30 +328,6 @@ export function locateJsonError(
   const clamped = Math.min(index, source.length)
   const before = source.slice(0, clamped)
   return { line: before.split('\n').length, column: clamped - before.lastIndexOf('\n') }
-}
-
-export type JsonPathResult = { found: true; value: unknown } | { found: false }
-
-/**
- * Returns a `found` flag rather than `undefined`: a path that resolves to a
- * literal `null` is a hit, and the old signature reported it as a miss.
- */
-export function queryJsonPath(data: unknown, path: string): JsonPathResult {
-  if (!path.trim()) return { found: false }
-  const parts = path
-    .replace(/^\$\.?/, '') // strip leading $. or $
-    .replace(/\[(\d+)\]/g, '.$1') // arr[0] → arr.0
-    .split('.')
-    .filter(Boolean)
-  if (parts.length === 0) return { found: true, value: data }
-
-  let current: unknown = data
-  for (const part of parts) {
-    if (current === null || typeof current !== 'object') return { found: false }
-    if (!(part in (current as Record<string, unknown>))) return { found: false }
-    current = (current as Record<string, unknown>)[part]
-  }
-  return { found: true, value: current }
 }
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
@@ -711,6 +690,15 @@ export default function JsonTools() {
               >
                 <FloppyDiskIcon size={14} aria-hidden="true" />
                 Save
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => sendToTool('yaml-tools', { input, view: 'source' })}
+                disabled={!hasInput}
+                title="Open this JSON in YAML Tools"
+              >
+                YAML
               </Button>
             </ToolbarGroup>
 
@@ -1125,7 +1113,13 @@ function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
   return <Icon size={12} aria-hidden="true" className="text-[var(--color-text-muted)]" />
 }
 
-function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: CopyToClipboard }) {
+export function JsonTable({
+  data,
+  onCopy,
+}: {
+  data: Record<string, unknown>[]
+  onCopy: CopyToClipboard
+}) {
   const [sort, setSort] = useState<SortState>(null)
   // Roving cell cursor: the old table copied on click only, which left the
   // whole grid unreachable from the keyboard.

@@ -335,7 +335,7 @@ export default function HtmlValidator() {
       setPendingDocument(null)
       setLastAction(document.successMessage, 'success')
     },
-    [updateState, setLastAction]
+    [updateState, setLastAction, userEditedRef]
   )
 
   // Loading a template used to overwrite the buffer outright, with no undo and
@@ -396,7 +396,7 @@ export default function HtmlValidator() {
       // The banner describes a failed format of the *old* text.
       setFormatError(null)
     },
-    [updateState]
+    [updateState, userEditedRef]
   )
 
   // --- Files -----------------------------------------------------------
@@ -462,7 +462,7 @@ export default function HtmlValidator() {
     } finally {
       setIsFormatting(false)
     }
-  }, [formatter, isFormatting, updateState, setLastAction])
+  }, [formatter, isFormatting, updateState, setLastAction, userEditedRef])
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -1049,7 +1049,9 @@ function ResultsPanel({
                   <ul>
                     {outlineIssues.map((problem) => (
                       <li key={problem.message}>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="xs"
                           type="button"
                           onClick={() => {
                             const heading = headings[problem.headingIndex]
@@ -1058,7 +1060,7 @@ function ResultsPanel({
                           className="text-left hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                         >
                           {problem.message}
-                        </button>
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -1070,7 +1072,9 @@ function ResultsPanel({
                     key={`${heading.level}-${index}`}
                     style={{ paddingLeft: (heading.level - 1) * 16 }}
                   >
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       type="button"
                       onClick={() => onGoToHeading(heading)}
                       title={`Go to line ${heading.line ?? 1}, column ${heading.column ?? 1}`}
@@ -1082,7 +1086,7 @@ function ResultsPanel({
                       {heading.text || (
                         <span className="text-[var(--color-text-muted)]">(empty heading)</span>
                       )}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>

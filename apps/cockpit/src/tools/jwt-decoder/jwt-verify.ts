@@ -4,10 +4,7 @@
  * Kept out of the component because verification is the part worth testing exhaustively: a tool
  * that says "Valid" when it means "I decoded it" is worse than one that says nothing.
  *
- * **Only HMAC is verified here.** RS/ES/PS tokens are the majority of what people paste, and this
- * deliberately reports them as unsupported rather than unverified-looking-fine — asymmetric
- * verification needs a public key in PEM or JWK form, which is a materially larger input than a
- * shared secret and belongs in its own change.
+ * HMAC and locally supplied public keys are supported. No key or token leaves the application.
  */
 
 export type JwtAlg = string | undefined
@@ -32,6 +29,8 @@ export type VerifyResult = {
   detail: string
 }
 
+export type PublicKeyFormat = 'jwk' | 'spki'
+
 /** `alg` → WebCrypto digest name. The three HMAC variants are the whole supported set. */
 const HMAC_HASHES: Record<string, string> = {
   HS256: 'SHA-256',
@@ -39,8 +38,27 @@ const HMAC_HASHES: Record<string, string> = {
   HS512: 'SHA-512',
 }
 
+const ASYMMETRIC_ALGORITHMS: Record<
+  string,
+  { name: string; hash: string; namedCurve?: string; saltLength?: number }
+> = {
+  RS256: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+  RS384: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-384' },
+  RS512: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-512' },
+  PS256: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 32 },
+  PS384: { name: 'RSA-PSS', hash: 'SHA-384', saltLength: 48 },
+  PS512: { name: 'RSA-PSS', hash: 'SHA-512', saltLength: 64 },
+  ES256: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
+  ES384: { name: 'ECDSA', hash: 'SHA-384', namedCurve: 'P-384' },
+  ES512: { name: 'ECDSA', hash: 'SHA-512', namedCurve: 'P-521' },
+}
+
 export function isHmacAlg(alg: JwtAlg): boolean {
   return typeof alg === 'string' && alg in HMAC_HASHES
+}
+
+export function isAsymmetricAlg(alg: JwtAlg): boolean {
+  return typeof alg === 'string' && alg in ASYMMETRIC_ALGORITHMS
 }
 
 /**
@@ -77,6 +95,48 @@ export function secretToBytes(secret: string, encoding: 'utf8' | 'base64'): Uint
   return new TextEncoder().encode(secret)
 }
 
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function pemToBytes(pem: string): Uint8Array {
+  const body = pem
+    .replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----/g, '')
+    .replace(/\s/g, '')
+  return base64UrlToBytes(body.replace(/\+/g, '-').replace(/\//g, '_'))
+}
+
+function publicKeyAlgorithm(alg: string) {
+  const config = ASYMMETRIC_ALGORITHMS[alg]
+  if (!config) throw new Error(`Unsupported asymmetric algorithm: ${alg}`)
+  if (config.name === 'ECDSA') {
+    return { name: config.name, namedCurve: config.namedCurve }
+  }
+  return { name: config.name, hash: config.hash }
+}
+
+async function importPublicKey(
+  value: string,
+  alg: string,
+  format: PublicKeyFormat,
+  subtle: SubtleCrypto
+): Promise<CryptoKey> {
+  const algorithm = publicKeyAlgorithm(alg)
+  if (format === 'jwk') {
+    const jwk: JsonWebKey = JSON.parse(value) as JsonWebKey
+    return subtle.importKey('jwk', jwk, algorithm as AlgorithmIdentifier, false, ['verify'])
+  }
+  return subtle.importKey(
+    'spki',
+    pemToBytes(value) as BufferSource,
+    algorithm as AlgorithmIdentifier,
+    false,
+    ['verify']
+  )
+}
+
 /**
  * Verify a token's signature against a shared secret.
  *
@@ -88,12 +148,16 @@ export async function verifyJwtSignature({
   token,
   alg,
   secret,
+  publicKey = '',
+  publicKeyFormat = 'jwk',
   encoding = 'utf8',
   subtle = globalThis.crypto?.subtle,
 }: {
   token: string
   alg: JwtAlg
   secret: string
+  publicKey?: string
+  publicKeyFormat?: PublicKeyFormat
   encoding?: 'utf8' | 'base64'
   subtle?: SubtleCrypto
 }): Promise<VerifyResult> {
@@ -105,7 +169,7 @@ export async function verifyJwtSignature({
     }
   }
 
-  if (!secret) {
+  if (!secret && !publicKey) {
     return isHmacAlg(alg)
       ? { status: 'unchecked', detail: 'Enter the shared secret to verify this signature.' }
       : {
@@ -115,10 +179,11 @@ export async function verifyJwtSignature({
   }
 
   const hash = typeof alg === 'string' ? HMAC_HASHES[alg] : undefined
-  if (!hash) {
+  const asymmetric = typeof alg === 'string' ? ASYMMETRIC_ALGORITHMS[alg] : undefined
+  if (!hash && !asymmetric) {
     return {
       status: 'unsupported',
-      detail: `Cannot verify ${alg ?? 'a token with no alg'} here — only HS256, HS384 and HS512 are checked. Asymmetric algorithms need a public key.`,
+      detail: `Cannot verify ${alg ?? 'a token with no alg'} here — supply a supported public key or HMAC secret.`,
     }
   }
 
@@ -132,29 +197,74 @@ export async function verifyJwtSignature({
   }
 
   try {
-    const keyBytes = secretToBytes(secret, encoding)
-    const key = await subtle.importKey(
-      'raw',
-      keyBytes as unknown as ArrayBuffer,
-      { name: 'HMAC', hash },
-      false,
-      ['verify']
-    )
+    const key = hash
+      ? await subtle.importKey(
+          'raw',
+          secretToBytes(secret, encoding) as unknown as ArrayBuffer,
+          { name: 'HMAC', hash },
+          false,
+          ['verify']
+        )
+      : await importPublicKey(publicKey ?? '', alg ?? '', publicKeyFormat, subtle)
     const signingInput = new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
     const signature = base64UrlToBytes(parts[2] ?? '')
+    const verifyAlgorithm = asymmetric
+      ? asymmetric.name === 'RSA-PSS'
+        ? { name: asymmetric.name, saltLength: asymmetric.saltLength }
+        : asymmetric.name === 'ECDSA'
+          ? { name: asymmetric.name, hash: asymmetric.hash }
+          : { name: asymmetric.name }
+      : 'HMAC'
     const valid = await subtle.verify(
-      'HMAC',
+      verifyAlgorithm as AlgorithmIdentifier,
       key,
       signature as BufferSource,
       signingInput as BufferSource
     )
     return valid
-      ? { status: 'valid', detail: `Signature verified against the supplied secret (${alg}).` }
-      : { status: 'invalid', detail: `Signature does not match the supplied secret (${alg}).` }
+      ? { status: 'valid', detail: `Signature verified locally (${alg}).` }
+      : { status: 'invalid', detail: `Signature does not match the supplied key (${alg}).` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { status: 'error', detail: `Could not verify: ${message}` }
   }
+}
+
+export async function signJwt({
+  header,
+  payload,
+  secret,
+  encoding = 'utf8',
+  subtle = globalThis.crypto?.subtle,
+}: {
+  header: Record<string, unknown>
+  payload: Record<string, unknown>
+  secret: string
+  encoding?: 'utf8' | 'base64'
+  subtle?: SubtleCrypto
+}): Promise<string> {
+  const alg = typeof header['alg'] === 'string' ? header['alg'] : ''
+  const hash = HMAC_HASHES[alg]
+  if (!hash)
+    throw new Error('Only HS256, HS384, and HS512 tokens can be re-signed with a shared secret.')
+  if (!secret) throw new Error('Enter a shared secret before signing.')
+  if (!subtle) throw new Error('WebCrypto is unavailable in this environment.')
+  const encode = (value: unknown) =>
+    bytesToBase64Url(new TextEncoder().encode(JSON.stringify(value)))
+  const encodedHeader = encode(header)
+  const encodedPayload = encode(payload)
+  const signingInput = `${encodedHeader}.${encodedPayload}`
+  const key = await subtle.importKey(
+    'raw',
+    secretToBytes(secret, encoding) as unknown as ArrayBuffer,
+    { name: 'HMAC', hash },
+    false,
+    ['sign']
+  )
+  const signature = new Uint8Array(
+    await subtle.sign('HMAC', key, new TextEncoder().encode(signingInput))
+  )
+  return `${signingInput}.${bytesToBase64Url(signature)}`
 }
 
 // ── Claim window ───────────────────────────────────────────────────
@@ -192,7 +302,7 @@ export function computeClaimWindow(payload: Record<string, unknown>, now: number
   const exp = typeof payload['exp'] === 'number' ? payload['exp'] : null
   const nbf = typeof payload['nbf'] === 'number' ? payload['nbf'] : null
 
-  if (exp !== null && exp * 1000 < now) {
+  if (exp !== null && exp * 1000 <= now) {
     return {
       state: 'expired',
       boundaryAt: new Date(exp * 1000).toLocaleString(),

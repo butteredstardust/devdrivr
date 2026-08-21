@@ -28,7 +28,8 @@
         { "url": "https://objects.githubusercontent.com/**" },
         { "url": "https://raw.githubusercontent.com/**" },
         { "url": "https://json.schemastore.org/**" },
-        { "url": "https://json-schema.org/**" }
+        { "url": "https://json-schema.org/**" },
+        { "url": "https://devdocs.io/**" }
       ]
     },
     "dialog:default",

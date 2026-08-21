@@ -8,6 +8,7 @@ import {
   generateTypeScript,
   outputFileName,
   parseCsv,
+  parseJsonRows,
   summarizeColumns,
   toOutput,
 } from '@/tools/csv-tools/csv-helpers'
@@ -62,6 +63,12 @@ describe('csv-helpers', () => {
   it('distinguishes empty input from parsed input', () => {
     expect(parseCsv('   ', parseOptions)).toEqual({ status: 'empty' })
     expect(parseCsv(SAMPLE, parseOptions).status).toBe('parsed')
+  })
+
+  it('accepts JSON arrays of records as table input', () => {
+    const result = parseJsonRows('[{"name":"Alice","age":30},{"name":"Bob"}]')
+    expect(result).toMatchObject({ status: 'parsed', columns: ['name', 'age'] })
+    if (result.status === 'parsed') expect(result.rows[1]).toEqual({ name: 'Bob', age: null })
   })
 
   it('keeps the extra fields of a ragged row instead of dropping them', () => {
@@ -140,6 +147,7 @@ describe('csv-helpers', () => {
     expect(toOutput(columns, rows, 'sql', 'people')).toContain(
       `INSERT INTO "people" ("name", "age") VALUES ('Alice', '30');`
     )
+    expect(toOutput(columns, rows, 'yaml')).toContain('name: Alice')
   })
 
   it('escapes values that would otherwise break their format', () => {

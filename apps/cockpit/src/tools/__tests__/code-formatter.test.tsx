@@ -144,13 +144,13 @@ describe('CodeFormatter', () => {
 
   it('reformats messy JS into prettier output via the real formatter worker', async () => {
     renderTool(CodeFormatter)
-    const editor = screen.getByTestId('monaco-editor')
 
     typeCode(MESSY_JS)
     fireEvent.click(screen.getByRole('button', { name: /Format/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply format' }))
 
     await waitFor(() => {
-      expect(editor).toHaveValue(PRETTY_JS)
+      expect(screen.getByTestId('monaco-editor')).toHaveValue(PRETTY_JS)
     })
     expect(useUiStore.getState().lastAction).toMatchObject({
       message: 'Formatted',
@@ -178,28 +178,28 @@ describe('CodeFormatter', () => {
   // without this the original code is simply gone.
   it('restores the pre-format code when reverting', async () => {
     renderTool(CodeFormatter)
-    const editor = screen.getByTestId('monaco-editor')
     const revert = screen.getByRole('button', { name: /Revert/ })
 
     typeCode(MESSY_JS)
     expect(revert).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: /Format/ }))
-    await waitFor(() => expect(editor).toHaveValue(PRETTY_JS))
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply format' }))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue(PRETTY_JS))
     expect(revert).toBeEnabled()
 
     fireEvent.click(revert)
-    expect(editor).toHaveValue(MESSY_JS)
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(MESSY_JS)
     expect(revert).toBeDisabled()
   })
 
   it('marks the document as edited after a format and stops offering the revert', async () => {
     renderTool(CodeFormatter)
-    const editor = screen.getByTestId('monaco-editor')
 
     typeCode(MESSY_JS)
     fireEvent.click(screen.getByRole('button', { name: /Format/ }))
-    await waitFor(() => expect(editor).toHaveValue(PRETTY_JS))
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply format' }))
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue(PRETTY_JS))
 
     typeCode(`${PRETTY_JS}const y = 1`)
     expect(screen.getByRole('status')).toHaveTextContent('Edited since last format')
@@ -218,7 +218,9 @@ describe('CodeFormatter', () => {
         type: 'error',
       })
     })
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    // Formatting errors now use the shared ProblemsList rather than an alert;
+    // keep the assertion on the actual worker message.
+    expect(await screen.findByText(/Unexpected token/)).toBeInTheDocument()
   })
 
   it('auto-detects JSON via the real formatter worker', async () => {

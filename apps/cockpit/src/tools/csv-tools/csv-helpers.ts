@@ -1,4 +1,5 @@
 import Papa from 'papaparse'
+import yaml from 'js-yaml'
 
 // ---------------------------------------------------------------------------
 // Delimiters
@@ -277,6 +278,52 @@ export function parseCsv(text: string, options: ParseOptions): CsvParse {
   return { status: 'parsed', columns, rows, issues, delimiter }
 }
 
+/** Converts a JSON array of records into the same table model as CSV input. */
+export function parseJsonRows(text: string, typed = false): CsvParse {
+  if (!text.trim()) return { status: 'empty' }
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every((row) => row !== null && typeof row === 'object' && !Array.isArray(row))
+    ) {
+      return {
+        status: 'parsed',
+        columns: [],
+        rows: [],
+        issues: [{ line: 1, message: 'JSON input must be an array of objects' }],
+        delimiter: ',',
+      }
+    }
+    const columns = Array.from(
+      new Set(parsed.flatMap((row) => Object.keys(row as Record<string, unknown>)))
+    )
+    const rows = parsed.map((row) => {
+      const record = row as Record<string, unknown>
+      return Object.fromEntries(
+        columns.map((column) => {
+          const value = record[column]
+          return [column, typed && typeof value === 'string' ? coerce(value) : (value ?? null)]
+        })
+      )
+    })
+    return { status: 'parsed', columns, rows, issues: [], delimiter: ',' }
+  } catch (error) {
+    return {
+      status: 'parsed',
+      columns: [],
+      rows: [],
+      issues: [
+        {
+          line: 1,
+          message: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      delimiter: ',',
+    }
+  }
+}
+
 /** Papa's `dynamicTyping`, minus its habit of turning `007` into `7`. */
 function coerce(value: string): unknown {
   const trimmed = value.trim()
@@ -295,13 +342,14 @@ function coerce(value: string): unknown {
 // Output formats
 // ---------------------------------------------------------------------------
 
-export type OutputFormat = 'json-rows' | 'json-columns' | 'tsv' | 'markdown' | 'sql'
+export type OutputFormat = 'json-rows' | 'json-columns' | 'tsv' | 'markdown' | 'yaml' | 'sql'
 
 export const OUTPUT_FORMATS: { value: OutputFormat; label: string }[] = [
   { value: 'json-rows', label: 'JSON — array of objects' },
   { value: 'json-columns', label: 'JSON — object of arrays' },
   { value: 'tsv', label: 'TSV' },
   { value: 'markdown', label: 'Markdown table' },
+  { value: 'yaml', label: 'YAML' },
   { value: 'sql', label: 'SQL inserts' },
 ]
 
@@ -310,6 +358,7 @@ export const FORMAT_EXTENSIONS: Record<OutputFormat, string> = {
   'json-columns': 'json',
   tsv: 'tsv',
   markdown: 'md',
+  yaml: 'yaml',
   sql: 'sql',
 }
 
@@ -318,6 +367,7 @@ export const FORMAT_LANGUAGES: Record<OutputFormat, string> = {
   'json-columns': 'json',
   tsv: 'plaintext',
   markdown: 'markdown',
+  yaml: 'yaml',
   sql: 'sql',
 }
 
@@ -371,6 +421,8 @@ export function toOutput(
       )
       return [header, rule, ...body].join('\n')
     }
+    case 'yaml':
+      return yaml.dump(rows, { noRefs: true, lineWidth: 120 })
     case 'sql': {
       const names = columns.map(sqlIdentifier).join(', ')
       return rows

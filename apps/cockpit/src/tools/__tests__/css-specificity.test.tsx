@@ -28,7 +28,7 @@ describe('CssSpecificity', () => {
     fireEvent.change(screen.getByPlaceholderText(/main.*content/i), {
       target: { value: '#id\n.a.a.a.a.a.a.a.a.a.a.a' },
     })
-    expect(screen.getByText('#id').closest('.rounded')).toHaveTextContent('WINS')
+    expect(screen.getAllByText('#id')[0]?.closest('.rounded')).toHaveTextContent('WINS')
   })
 
   it('explains that the later rule wins a specificity tie', () => {

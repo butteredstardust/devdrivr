@@ -77,14 +77,50 @@ const REFERENCE_CATEGORIES = [
   },
 ]
 
-const FLAG_OPTIONS = ['g', 'i', 'm', 's', 'u'] as const
+const FLAG_OPTIONS = ['g', 'i', 'm', 's', 'u', 'y', 'd', 'v'] as const
 const FLAG_TITLES: Record<string, string> = {
   g: 'Global — find all matches',
   i: 'Case insensitive',
   m: 'Multiline — ^ and $ match line boundaries',
   s: 'Dotall — . matches newline',
   u: 'Unicode mode',
+  y: 'Sticky — match only at the current scan position',
+  d: 'Has indices — show capture offsets',
+  v: 'Unicode sets mode',
 }
+
+const REGEX_PRESETS = [
+  {
+    label: 'Email',
+    pattern: '[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}',
+    flags: 'gi',
+    testString: 'ada@example.com',
+  },
+  {
+    label: 'URL',
+    pattern: 'https?://[^\\s]+',
+    flags: 'gi',
+    testString: 'Read https://example.com/docs',
+  },
+  {
+    label: 'ISO date',
+    pattern: '\\b\\d{4}-\\d{2}-\\d{2}\\b',
+    flags: 'g',
+    testString: 'Released 2026-08-21',
+  },
+  {
+    label: 'JWT',
+    pattern: '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$',
+    flags: '',
+    testString: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature',
+  },
+  {
+    label: 'Log line',
+    pattern: '^\\[(?<time>[^]]+)\\] (?<level>\\w+): (?<message>.*)$',
+    flags: 'gm',
+    testString: '[12:00] INFO: Started',
+  },
+] as const
 
 type RegexMode = 'match' | 'replace'
 
@@ -144,7 +180,7 @@ export default function RegexTester() {
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
-  const patternRef = useRef<HTMLInputElement>(null)
+  const patternRef = useRef<HTMLTextAreaElement>(null)
 
   // Evaluation runs in a terminable worker — a user pattern must never touch this thread.
   const evaluation = useRegexEvaluation({
@@ -293,14 +329,15 @@ export default function RegexTester() {
           {/* Pattern bar */}
           <Toolbar aria-label="Regex pattern" className="gap-3">
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
-            <InlineInput
+            <TextArea
               ref={patternRef}
-              variant="code"
               value={state.pattern}
               onChange={(e) => updateState({ pattern: e.target.value })}
               placeholder="Enter regex pattern..."
               aria-label="Regex pattern"
-              className="flex-1"
+              monospace
+              rows={1}
+              className="max-h-24 min-h-7 flex-1 resize-y py-1"
             />
             <span className="font-mono text-xs text-[var(--color-text-muted)]">/</span>
             <div className="flex gap-1">
@@ -328,6 +365,25 @@ export default function RegexTester() {
             >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
+            <div className="flex shrink-0 gap-1">
+              {REGEX_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  variant="ghost"
+                  size="xs"
+                  onClick={() =>
+                    updateState({
+                      pattern: preset.pattern,
+                      flags: preset.flags,
+                      testString: preset.testString,
+                    })
+                  }
+                  title={`Load ${preset.label} preset`}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
             {/* Only while both fields are untouched. A regex tool needs a pattern
                 *and* a subject before it shows anything, so a cold start means
                 inventing both — and the tax falls hardest on the user who came
@@ -512,7 +568,9 @@ export default function RegexTester() {
                 </span>
               </div>
               {matches.map((m, i) => (
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   type="button"
                   key={i}
                   onClick={() => {
@@ -542,6 +600,11 @@ export default function RegexTester() {
                           )}
                           {'='}
                           <code className="text-[var(--color-text)]">{g.value}</code>
+                          {g.start !== undefined && g.end !== undefined && (
+                            <span className="ml-1 opacity-70">
+                              [{g.start}–{g.end}]
+                            </span>
+                          )}
                         </span>
                       ))}
                     </span>
@@ -549,7 +612,7 @@ export default function RegexTester() {
                   <span className="ml-auto shrink-0 text-2xs text-[var(--color-text-muted)]">
                     Select
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           )}

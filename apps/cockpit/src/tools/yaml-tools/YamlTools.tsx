@@ -8,6 +8,7 @@ import {
   CrosshairSimpleIcon,
   FileCodeIcon,
   FloppyDiskIcon,
+  MagnifyingGlassIcon,
   SortAscendingIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
@@ -25,7 +26,7 @@ import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import { Select } from '@/components/shared/Input'
+import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
@@ -46,8 +47,11 @@ import {
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { InspectorTree } from '@/components/shared/InspectorTree'
+import { queryJsonPath } from '@/lib/json-path'
+import { sendToTool } from '@/lib/tool-handoff'
+import { JsonTable, isTabularJsonArray } from '@/tools/json-tools/JsonTools'
 
-type YamlView = 'source' | 'tree' | 'json'
+type YamlView = 'source' | 'tree' | 'table' | 'json'
 
 type YamlToolsState = {
   input: string
@@ -60,6 +64,8 @@ type YamlToolsState = {
    */
   view: YamlView
   tabWidth: number
+  query: string
+  queryOpen: boolean
 }
 
 /** Above this many keys the tree starts collapsed — expanding is one click. */
@@ -68,6 +74,7 @@ const LARGE_DOCUMENT_KEYS = 500
 const VIEW_OPTIONS = [
   { value: 'source' as const, label: 'Source' },
   { value: 'tree' as const, label: 'Tree' },
+  { value: 'table' as const, label: 'Table' },
   { value: 'json' as const, label: 'JSON' },
 ]
 
@@ -98,6 +105,8 @@ export default function YamlTools() {
     fileName: null,
     view: 'source',
     tabWidth: 2,
+    query: '',
+    queryOpen: false,
   })
   const { record } = useToolHistory({ toolId: 'yaml-tools' })
 
@@ -119,7 +128,7 @@ export default function YamlTools() {
   // silently throw away an unapplied edit.
   const [jsonDraft, setJsonDraft] = useState<string | null>(null)
 
-  const { input, view } = state
+  const { input, view, query } = state
   const inputRef = useRef(input)
   inputRef.current = input
   const hasInput = input.trim().length > 0
@@ -137,6 +146,11 @@ export default function YamlTools() {
   const parsed = useMemo<YamlParse>(() => parseYamlStream(parseSource), [parseSource])
   const isValid = parsed.status === 'valid'
   const documents = parsed.status === 'valid' ? parsed.documents : []
+  const queryData = documents.length === 1 ? documents[0] : documents
+  const queryResult = useMemo(
+    () => (parsed.status === 'valid' && query.trim() ? queryJsonPath(queryData, query) : null),
+    [parsed.status, queryData, query]
+  )
 
   const stats = useMemo(
     () => (parsed.status === 'valid' ? yamlStats(parsed.documents) : null),
@@ -379,6 +393,16 @@ export default function YamlTools() {
                 onChange={(next) => updateState({ view: next })}
                 options={VIEW_OPTIONS}
               />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => updateState({ queryOpen: !state.queryOpen })}
+                aria-expanded={state.queryOpen}
+                className="gap-1"
+              >
+                <MagnifyingGlassIcon size={14} aria-hidden="true" />
+                Path
+              </Button>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 Indent
                 <Select
@@ -426,6 +450,17 @@ export default function YamlTools() {
               )}
               <CopyButton text={input} label="Copy YAML" />
               <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  sendToTool('json-tools', { input: documentsToJson(documents), view: 'source' })
+                }
+                disabled={!isValid}
+                title="Open this YAML as JSON"
+              >
+                JSON
+              </Button>
+              <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleSave}
@@ -439,6 +474,29 @@ export default function YamlTools() {
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
+          {state.queryOpen && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-2xs text-[var(--color-text-muted)]">
+                Path
+                <Input
+                  aria-label="YAML path"
+                  value={query}
+                  onChange={(event) => updateState({ query: event.target.value })}
+                  placeholder="$.spec.template.spec.containers[*].name"
+                  className="min-w-0 flex-1 font-mono"
+                />
+              </label>
+              <output className="w-full font-mono text-xs text-[var(--color-text)]">
+                {!isValid
+                  ? 'Fix the YAML to run a path query.'
+                  : !query.trim()
+                    ? 'Dot, wildcard, slice, and filter paths are supported.'
+                    : queryResult?.found
+                      ? JSON.stringify(queryResult.value, null, 2)
+                      : 'No match for this path'}
+              </output>
+            </div>
+          )}
         </div>
       }
     >
@@ -509,6 +567,8 @@ export default function YamlTools() {
             jsonDraft={jsonDraft}
             onJsonDraftChange={setJsonDraft}
             onApplyJson={handleApplyJson}
+            queryResult={queryResult}
+            query={query}
           />
         )}
       </div>
@@ -522,6 +582,7 @@ export default function YamlTools() {
 
 const PANE_LABELS: Record<Exclude<YamlView, 'source'>, string> = {
   tree: 'Tree view',
+  table: 'Table view',
   json: 'JSON view',
 }
 
@@ -534,6 +595,8 @@ function InspectorPane({
   jsonDraft,
   onJsonDraftChange,
   onApplyJson,
+  queryResult,
+  query,
 }: {
   view: Exclude<YamlView, 'source'>
   parsed: YamlParse
@@ -543,6 +606,8 @@ function InspectorPane({
   jsonDraft: string | null
   onJsonDraftChange: (draft: string | null) => void
   onApplyJson: (json: string) => void
+  queryResult: ReturnType<typeof queryJsonPath> | null
+  query: string
 }) {
   return (
     <section
@@ -575,14 +640,28 @@ function InspectorPane({
               : parsed.message
           }
         />
+      ) : view === 'table' ? (
+        <TablePane documents={parsed.documents} />
       ) : (
-        <TreePane documents={parsed.documents} keyCount={keyCount} />
+        <TreePane
+          documents={parsed.documents}
+          keyCount={keyCount}
+          {...(queryResult?.found ? { highlightedPath: query } : {})}
+        />
       )}
     </section>
   )
 }
 
-function TreePane({ documents, keyCount }: { documents: unknown[]; keyCount: number }) {
+function TreePane({
+  documents,
+  keyCount,
+  highlightedPath,
+}: {
+  documents: unknown[]
+  keyCount: number
+  highlightedPath?: string
+}) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
   const [expandAll, setExpandAll] = useState<boolean | null>(null)
@@ -646,11 +725,36 @@ function TreePane({ documents, keyCount }: { documents: unknown[]; keyCount: num
               data={document}
               rootPath={documents.length > 1 ? `$[${i}]` : '$'}
               defaultExpanded={expanded}
+              {...(highlightedPath === undefined ? {} : { highlightedPath })}
             />
           </div>
         ))}
       </div>
     </>
+  )
+}
+
+function TablePane({ documents }: { documents: unknown[] }) {
+  const copy = useCopyToClipboard()
+  const rows: Record<string, unknown>[] | null =
+    documents.length === 1 && isTabularJsonArray(documents[0])
+      ? documents[0]
+      : documents.length > 1 && documents.every(isTabularJsonArray)
+        ? documents.flatMap((document) => document)
+        : null
+  if (!rows) {
+    return (
+      <EmptyState
+        size="sm"
+        title="No record table"
+        description="Use Table view with YAML objects or a stream of object arrays."
+      />
+    )
+  }
+  return (
+    <div className="min-h-0 flex-1 overflow-auto p-3">
+      <JsonTable data={rows} onCopy={copy} />
+    </div>
   )
 }
 

@@ -24,7 +24,8 @@ type CsvTableProps = {
  * seconds. The table is a preview; the source pane is where the whole file
  * lives.
  */
-const ROW_LIMIT = 500
+const ROW_HEIGHT = 28
+const OVERSCAN = 8
 
 function cellText(value: unknown): string {
   return value === null || value === undefined ? '' : String(value)
@@ -33,6 +34,7 @@ function cellText(value: unknown): string {
 export default function CsvTable({ columns, rows }: CsvTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
+  const [scrollTop, setScrollTop] = useState(0)
 
   // A sort key or filter from a previous file would silently reorder — or
   // hide — the new one's rows, so a changed column set resets both. The
@@ -41,6 +43,7 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
   useEffect(() => {
     setSorting([])
     setFilter('')
+    setScrollTop(0)
   }, [columnKey])
 
   const tableColumns = useMemo(() => {
@@ -75,7 +78,9 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
   })
 
   const matched = table.getRowModel().rows
-  const visible = matched.slice(0, ROW_LIMIT)
+  const visibleStart = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const visibleEnd = Math.min(matched.length, visibleStart + 32 + OVERSCAN * 2)
+  const visible = matched.slice(visibleStart, visibleEnd)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -92,11 +97,14 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
           {filter.trim()
             ? `${matched.length} of ${rows.length} rows match`
             : `${rows.length} row${rows.length === 1 ? '' : 's'} · ${columns.length} column${columns.length === 1 ? '' : 's'}`}
-          {matched.length > ROW_LIMIT && ` · showing first ${ROW_LIMIT}`}
+          {matched.length > visible.length && ` · virtualized ${matched.length} rows`}
         </span>
       </Toolbar>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        className="min-h-0 flex-1 overflow-auto"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
         <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-[var(--color-surface)]">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -143,6 +151,11 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
             ))}
           </thead>
           <tbody>
+            {visibleStart > 0 && (
+              <tr aria-hidden="true" style={{ height: visibleStart * ROW_HEIGHT }}>
+                <td colSpan={columns.length + 1} />
+              </tr>
+            )}
             {visible.map((row) => (
               <tr key={row.id} className="hover:bg-[var(--color-surface-hover)]">
                 <td className="border-b border-r border-[var(--color-border)] px-2 py-1.5 text-right text-2xs text-[var(--color-text-muted)] tabular-nums">
@@ -158,6 +171,11 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
                 ))}
               </tr>
             ))}
+            {visibleEnd < matched.length && (
+              <tr aria-hidden="true" style={{ height: (matched.length - visibleEnd) * ROW_HEIGHT }}>
+                <td colSpan={columns.length + 1} />
+              </tr>
+            )}
           </tbody>
         </table>
         {matched.length === 0 && (

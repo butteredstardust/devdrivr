@@ -250,6 +250,75 @@ export const TRANSFORMS: Transform[] = [
         })
     },
   },
+  {
+    id: 'function-declaration-to-arrow',
+    name: 'Function declarations → arrows',
+    description: 'Convert non-generator function declarations to const arrow functions',
+    category: 'modernize',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root
+        .find(j.FunctionDeclaration)
+        .filter((path) => Boolean(path.node.id) && !path.node.generator)
+        .forEach((path) => {
+          const declaration = path.node
+          if (!declaration.id) return
+          const arrow = j.arrowFunctionExpression(declaration.params, declaration.body, false)
+          if (declaration.async !== undefined) arrow.async = declaration.async
+          const typedArrow = arrow as typeof arrow & {
+            returnType?: unknown
+            typeParameters?: unknown
+          }
+          if (declaration.returnType !== undefined) typedArrow.returnType = declaration.returnType
+          if (declaration.typeParameters !== undefined) {
+            typedArrow.typeParameters = declaration.typeParameters
+          }
+          j(path).replaceWith(
+            j.variableDeclaration('const', [
+              j.variableDeclarator(j.identifier(declaration.id.name), arrow),
+            ])
+          )
+        })
+    },
+  },
+  {
+    id: 'foreach-to-for-of',
+    name: 'forEach → for…of',
+    description: 'Convert simple block-bodied forEach callbacks to for…of loops',
+    category: 'modernize',
+    safety: 'caution',
+    languages: ['javascript', 'typescript'],
+    apply: (root, j) => {
+      root.find(j.ExpressionStatement).forEach((path) => {
+        const expression = path.node.expression
+        if (expression.type !== 'CallExpression' || expression.callee.type !== 'MemberExpression')
+          return
+        const property = expression.callee.property as unknown as Named
+        if (expression.callee.computed || property.name !== 'forEach') return
+        const callback = expression.arguments[0]
+        if (
+          !callback ||
+          (callback.type !== 'ArrowFunctionExpression' && callback.type !== 'FunctionExpression') ||
+          callback.params.length !== 1 ||
+          callback.params[0]?.type !== 'Identifier' ||
+          callback.body.type !== 'BlockStatement' ||
+          callback.async
+        )
+          return
+        if (expression.callee.object.type === 'Super') return
+        j(path).replaceWith(
+          j.forOfStatement(
+            j.variableDeclaration('const', [
+              j.variableDeclarator(j.identifier(callback.params[0].name), null),
+            ]),
+            expression.callee.object,
+            callback.body
+          )
+        )
+      })
+    },
+  },
   // ── Type Safety ────────────────────────────────────────────
   {
     id: 'strict-equality',
@@ -438,9 +507,19 @@ export const TRANSFORMS: Transform[] = [
             )
           )
 
-          const asyncFn = j.arrowFunctionExpression([], j.blockStatement([tryCatch]))
-          asyncFn.async = true
-          j(path).replaceWith(j.callExpression(asyncFn, []))
+          // A standalone chain at module scope can use top-level await directly.
+          // Keep the async-IIFE fallback when the chain is nested in another
+          // expression, where replacing it with statements would be invalid.
+          if (
+            path.parent.node.type === 'ExpressionStatement' &&
+            path.parent.parent?.node.type === 'Program'
+          ) {
+            j(path.parent).replaceWith(tryCatch)
+          } else {
+            const asyncFn = j.arrowFunctionExpression([], j.blockStatement([tryCatch]))
+            asyncFn.async = true
+            j(path).replaceWith(j.callExpression(asyncFn, []))
+          }
         })
     },
   },

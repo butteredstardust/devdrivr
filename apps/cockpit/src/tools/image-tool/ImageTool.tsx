@@ -483,6 +483,32 @@ export default function ImageTool() {
     cropDragRef.current = null
   }, [])
 
+  const handleCropKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!originalImg) return
+      const step = event.shiftKey ? 10 : 1
+      let dx = 0
+      let dy = 0
+      if (event.key === 'ArrowLeft') dx = -step
+      if (event.key === 'ArrowRight') dx = step
+      if (event.key === 'ArrowUp') dy = -step
+      if (event.key === 'ArrowDown') dy = step
+      if (!dx && !dy) return
+      event.preventDefault()
+      const next = clampCropRect(
+        {
+          x: state.cropX + dx,
+          y: state.cropY + dy,
+          w: state.cropW ?? originalImg.naturalWidth,
+          h: state.cropH ?? originalImg.naturalHeight,
+        },
+        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
+      )
+      updateState({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
+    },
+    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateState]
+  )
+
   useEffect(() => {
     if (state.activeTab !== 'crop') {
       cropDragRef.current = null
@@ -774,6 +800,10 @@ export default function ImageTool() {
                   {/* Crop box + handles */}
                   <div
                     data-testid="crop-box"
+                    tabIndex={0}
+                    role="group"
+                    aria-label="Crop selection. Use arrow keys to nudge; hold Shift for larger steps."
+                    onKeyDown={handleCropKeyDown}
                     className="absolute"
                     style={{
                       left: cropDisplayRect.left,

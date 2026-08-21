@@ -229,6 +229,7 @@ type SnippetRow = {
   language: string
   tags: string
   folder: string
+  favorite: number
   created_at: number
   updated_at: number
 }
@@ -251,9 +252,9 @@ export async function loadSnippets(): Promise<Snippet[]> {
 export async function saveSnippet(snippet: Snippet): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO snippets (id, title, content, language, tags, folder, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, updated_at=$8`,
+      `INSERT INTO snippets (id, title, content, language, tags, folder, favorite, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, favorite=$7, updated_at=$9`,
       [
         snippet.id,
         snippet.title,
@@ -261,6 +262,7 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
         snippet.language,
         JSON.stringify(snippet.tags),
         snippet.folder,
+        snippet.favorite ? 1 : 0,
         snippet.createdAt,
         snippet.updatedAt,
       ]
@@ -396,6 +398,10 @@ type HistoryRow = {
   success: number | null
   output_size: number | null
   starred: number | null
+  response_body?: string | null
+  response_mime_type?: string | null
+  response_status?: number | null
+  response_status_text?: string | null
 }
 
 function rowToHistory(row: HistoryRow): HistoryEntry | null {
@@ -431,8 +437,8 @@ export async function loadHistory(tool?: string, limit: number = 100): Promise<H
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO history (id, tool, sub_tab, input, output, timestamp, duration_ms, success, output_size, starred)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO history (id, tool, sub_tab, input, output, timestamp, duration_ms, success, output_size, starred, response_body, response_mime_type, response_status, response_status_text)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         entry.id,
         entry.tool,
@@ -444,6 +450,10 @@ export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
         entry.success ? 1 : 0,
         entry.outputSize ?? null,
         entry.starred ? 1 : 0,
+        entry.responseBody ?? null,
+        entry.responseMimeType ?? null,
+        entry.responseStatus ?? null,
+        entry.responseStatusText ?? null,
       ]
     )
   )

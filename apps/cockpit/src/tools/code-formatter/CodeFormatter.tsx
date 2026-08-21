@@ -1,5 +1,5 @@
-import { useCallback, useId, useMemo, useRef, useState } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import {
   ArrowCounterClockwiseIcon,
   CheckCircleIcon,
@@ -50,6 +50,8 @@ type CodeFormatterState = {
   semi: boolean
   /** Style options are collapsed by default — persisted so the choice sticks. */
   optionsOpen: boolean
+  /** Opt-in because formatting incomplete code while typing can be surprising. */
+  autoFormat: boolean
   /**
    * Both sides of the last format. Persisted alongside the buffer: the buffer
    * survives a tool switch, so a status badge and a Revert button derived from
@@ -91,6 +93,7 @@ export default function CodeFormatter() {
     trailingComma: 'es5',
     semi: false,
     optionsOpen: false,
+    autoFormat: false,
     lastFormat: null,
   })
 
@@ -101,6 +104,8 @@ export default function CodeFormatter() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [pendingFormat, setPendingFormat] = useState<{ before: string; after: string } | null>(null)
   const formattingRef = useRef(false)
   const optionsId = useId()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
@@ -168,38 +173,73 @@ export default function CodeFormatter() {
     return { lines: input.split('\n').length, characters: input.length }
   }, [input])
 
-  const handleFormat = useCallback(async () => {
-    const source = inputRef.current
-    if (!formatter || !source.trim() || formattingRef.current) return
-    formattingRef.current = true
-    setIsFormatting(true)
-    try {
-      const result = await formatter.format(source, optionsRef.current)
-      updateState({
-        input: result,
-        lastFormat: source.length > MAX_SNAPSHOT_LENGTH ? null : { before: source, after: result },
-      })
-      setError(null)
-      setLastAction(
-        result === source ? 'Already formatted' : 'Formatted',
-        result === source ? 'info' : 'success'
-      )
-    } catch (e) {
-      const msg = (e as Error).message
-      setError(msg)
-      setLastAction('Format error', 'error')
-    } finally {
-      formattingRef.current = false
-      setIsFormatting(false)
-    }
-  }, [formatter, updateState, setLastAction])
+  const handleFormat = useCallback(
+    async (showPreview = true) => {
+      const source = inputRef.current
+      if (!formatter || !source.trim() || formattingRef.current) return
+      formattingRef.current = true
+      setIsFormatting(true)
+      try {
+        const result = await formatter.format(source, optionsRef.current)
+        // A slow formatter result must never replace edits made while it was running.
+        if (inputRef.current !== source) return
+        if (showPreview && result !== source) {
+          setPendingFormat({ before: source, after: result })
+          setPreviewOpen(true)
+          setError(null)
+          setLastAction('Format preview ready', 'success')
+          return
+        }
+        updateState({
+          input: result,
+          lastFormat:
+            source.length > MAX_SNAPSHOT_LENGTH ? null : { before: source, after: result },
+        })
+        setError(null)
+        setPendingFormat(null)
+        setLastAction(
+          result === source ? 'Already formatted' : 'Formatted',
+          result === source ? 'info' : 'success'
+        )
+      } catch (e) {
+        const msg = (e as Error).message
+        setError(msg)
+        setLastAction('Format error', 'error')
+      } finally {
+        formattingRef.current = false
+        setIsFormatting(false)
+      }
+    },
+    [formatter, updateState, setLastAction]
+  )
 
   const handleRevert = useCallback(() => {
     if (!lastFormat) return
     updateState({ input: lastFormat.before, lastFormat: null })
     setError(null)
+    setPreviewOpen(false)
+    setPendingFormat(null)
     setLastAction('Reverted to unformatted code', 'info')
   }, [lastFormat, updateState, setLastAction])
+
+  const handleAcceptPreview = useCallback(() => {
+    if (!pendingFormat || inputRef.current !== pendingFormat.before) return
+    updateState({
+      input: pendingFormat.after,
+      lastFormat: pendingFormat.before.length > MAX_SNAPSHOT_LENGTH ? null : pendingFormat,
+    })
+    setPendingFormat(null)
+    setPreviewOpen(false)
+    setLastAction('Formatted', 'success')
+  }, [pendingFormat, updateState, setLastAction])
+
+  useEffect(() => {
+    if (!state.autoFormat || !hasCode || pendingFormat || input === lastFormat?.after) return
+    const timer = window.setTimeout(() => {
+      void handleFormat(false)
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [state.autoFormat, hasCode, input, pendingFormat, lastFormat?.after, handleFormat])
 
   const handleAutoDetect = useCallback(async () => {
     if (!formatter || !inputRef.current.trim()) return
@@ -360,6 +400,33 @@ export default function CodeFormatter() {
                 <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
                 Revert
               </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPreviewOpen((open) => !open)}
+                disabled={!pendingFormat && (!lastFormat || lastFormat.before === lastFormat.after)}
+                aria-pressed={previewOpen}
+                title="Compare the source before and after formatting"
+              >
+                Diff
+              </Button>
+              {pendingFormat && (
+                <>
+                  <Button variant="primary" size="sm" onClick={handleAcceptPreview}>
+                    Apply format
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setPendingFormat(null)
+                      setPreviewOpen(false)
+                    }}
+                  >
+                    Discard preview
+                  </Button>
+                </>
+              )}
               <CopyButton text={input} />
               <Button
                 variant="secondary"
@@ -397,6 +464,11 @@ export default function CodeFormatter() {
                 label="Use tabs"
                 checked={state.useTabs}
                 onChange={(checked) => updateState({ useTabs: checked })}
+              />
+              <Toggle
+                label="Auto-format"
+                checked={state.autoFormat}
+                onChange={(checked) => updateState({ autoFormat: checked })}
               />
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 Width
@@ -461,16 +533,26 @@ export default function CodeFormatter() {
         </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <Editor
-          theme={monacoTheme}
-          language={state.language}
-          value={input}
-          onChange={(v) => updateState({ input: v ?? '' })}
-          options={monacoOptions}
-          onMount={(editor) => {
-            editorRef.current = editor
-          }}
-        />
+        {previewOpen && (pendingFormat || lastFormat) ? (
+          <DiffEditor
+            theme={monacoTheme}
+            language={state.language}
+            original={(pendingFormat ?? lastFormat)?.before ?? ''}
+            modified={(pendingFormat ?? lastFormat)?.after ?? ''}
+            options={{ ...monacoOptions, readOnly: true, renderSideBySide: true }}
+          />
+        ) : (
+          <Editor
+            theme={monacoTheme}
+            language={state.language}
+            value={input}
+            onChange={(v) => updateState({ input: v ?? '' })}
+            options={monacoOptions}
+            onMount={(editor) => {
+              editorRef.current = editor
+            }}
+          />
+        )}
         {!hasCode && (
           // Non-interactive so clicks fall through to the editor underneath —
           // the hint must never stand between the user and the caret.

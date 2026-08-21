@@ -44,7 +44,13 @@ import {
   URLENCODED_MODE,
   type FormField,
 } from '@/tools/api-client/form-body'
-import type { ApiImportResult, ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
+import type {
+  ApiImportResult,
+  ApiRequest,
+  ApiRequestAuth,
+  ApiHeader,
+  HistoryEntry,
+} from '@/types/models'
 import {
   BracketsCurlyIcon,
   CodeIcon,
@@ -72,6 +78,7 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 const DEFAULT_REQUEST_NAME = 'Untitled Request'
 const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_DISPLAY_BYTES = 1_000_000
+const MAX_HISTORY_RESPONSE_CHARS = 100_000
 
 type Param = { key: string; value: string }
 
@@ -118,6 +125,12 @@ type ResponseData = {
   displayTruncated: boolean
   time: number
   size: number
+}
+
+type CollectionRun = {
+  collectionId: string
+  running: boolean
+  results: Record<string, { status: 'running' | 'passed' | 'failed'; detail: string }>
 }
 
 type EditorInstance = Parameters<OnMount>[0]
@@ -377,10 +390,13 @@ export default function ApiClient() {
   const requestControllerRef = useRef<AbortController | null>(null)
   const timedOutRef = useRef(false)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [collectionRun, setCollectionRun] = useState<CollectionRun | null>(null)
+  const collectionRunAbortRef = useRef<AbortController | null>(null)
 
   useEffect(
     () => () => {
       requestControllerRef.current?.abort()
+      collectionRunAbortRef.current?.abort()
     },
     []
   )
@@ -748,12 +764,20 @@ export default function ApiClient() {
         })
         setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
 
-        // Log to history
-        void addRequestHistory({
+        // Log to history. exactOptionalPropertyTypes requires omitted optional
+        // fields rather than an explicit `undefined` value.
+        const historyEntry = {
           subTab: method,
           input: `${method} ${interpolatedUrl}`,
           output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
-        })
+          ...(isTextResponse(mimeType)
+            ? { responseBody: resBody.slice(0, MAX_HISTORY_RESPONSE_CHARS) }
+            : {}),
+          responseMimeType: mimeType,
+          responseStatus: res.status,
+          responseStatusText: res.statusText,
+        }
+        void addRequestHistory(historyEntry)
       } catch (e) {
         if (requestControllerRef.current !== controller) return
         const msg = controller.signal.aborted
@@ -790,6 +814,153 @@ export default function ApiClient() {
   const handleCancelRequest = useCallback(() => {
     timedOutRef.current = false
     requestControllerRef.current?.abort()
+  }, [])
+
+  const runCollection = useCallback(
+    async (collection: { id: string }) => {
+      collectionRunAbortRef.current?.abort()
+      const controller = new AbortController()
+      collectionRunAbortRef.current = controller
+      const collectionRequests = requests.filter(
+        (request) => request.collectionId === collection.id
+      )
+      setCollectionRun({ collectionId: collection.id, running: true, results: {} })
+      const updateCurrentRun = (update: (current: CollectionRun) => CollectionRun) => {
+        setCollectionRun((current) =>
+          collectionRunAbortRef.current === controller && current?.collectionId === collection.id
+            ? update(current)
+            : current
+        )
+      }
+
+      for (const request of collectionRequests) {
+        if (controller.signal.aborted) break
+        const variableValues = [
+          request.url,
+          request.body,
+          ...request.headers.flatMap((header) => [header.key, header.value]),
+          ...(request.auth.type === 'bearer'
+            ? [request.auth.token]
+            : request.auth.type === 'basic'
+              ? [request.auth.username, request.auth.password]
+              : []),
+        ]
+        const unresolved = unresolvedVariableNames(variableValues, envVars)
+        if (unresolved.length > 0) {
+          updateCurrentRun((current) => ({
+            ...current,
+            results: {
+              ...current.results,
+              [request.id]: {
+                status: 'failed',
+                detail: `Unresolved: ${unresolved.join(', ')}`.slice(0, 80),
+              },
+            },
+          }))
+          continue
+        }
+        updateCurrentRun((current) => ({
+          ...current,
+          results: {
+            ...current.results,
+            [request.id]: { status: 'running', detail: '…' },
+          },
+        }))
+        const started = performance.now()
+        const requestController = new AbortController()
+        const abortRequest = () => requestController.abort()
+        controller.signal.addEventListener('abort', abortRequest, { once: true })
+        let timedOut = false
+        const timeout = window.setTimeout(
+          () => {
+            timedOut = true
+            requestController.abort()
+          },
+          Math.max(1_000, state.timeoutMs || DEFAULT_TIMEOUT_MS)
+        )
+        try {
+          const requestHeaders: Record<string, string> = {}
+          for (const header of request.headers) {
+            if (header.enabled && header.key.trim()) {
+              requestHeaders[interpolate(header.key, envVars)] = interpolate(header.value, envVars)
+            }
+          }
+          if (request.auth.type === 'bearer') {
+            requestHeaders.Authorization = `Bearer ${interpolate(request.auth.token, envVars)}`
+          } else if (request.auth.type === 'basic') {
+            requestHeaders.Authorization = `Basic ${base64EncodeUtf8(`${interpolate(request.auth.username, envVars)}:${interpolate(request.auth.password, envVars)}`)}`
+          }
+          const options: RequestInit = {
+            method: request.method,
+            headers: requestHeaders,
+            signal: requestController.signal,
+          }
+          if (BODY_METHODS.has(request.method) && request.bodyMode === FORMDATA_MODE) {
+            const multipart = await buildMultipartBody(
+              parseFormBody(request.body).map((field) => ({
+                ...field,
+                value: interpolate(field.value, envVars),
+              }))
+            )
+            for (const key of Object.keys(requestHeaders)) {
+              if (key.toLowerCase() === 'content-type') delete requestHeaders[key]
+            }
+            requestHeaders['Content-Type'] = multipart.contentType
+            options.body = multipart.body
+          } else if (
+            BODY_METHODS.has(request.method) &&
+            request.bodyMode !== 'none' &&
+            request.body
+          ) {
+            options.body = interpolate(request.body, envVars)
+            const hasContentType = Object.keys(requestHeaders).some(
+              (key) => key.toLowerCase() === 'content-type'
+            )
+            const implied = contentTypeFor(request.bodyMode)
+            if (implied && !hasContentType) requestHeaders['Content-Type'] = implied
+          }
+          const result = await tauriFetch(interpolate(request.url, envVars), options)
+          const elapsed = Math.round(performance.now() - started)
+          updateCurrentRun((current) => ({
+            ...current,
+            results: {
+              ...current.results,
+              [request.id]: {
+                status: result.ok ? 'passed' : 'failed',
+                detail: `${result.status} · ${elapsed}ms`,
+              },
+            },
+          }))
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          const detail = controller.signal.aborted
+            ? 'Cancelled'
+            : timedOut
+              ? 'Timed out'
+              : errorMessage
+          updateCurrentRun((current) => ({
+            ...current,
+            results: {
+              ...current.results,
+              [request.id]: { status: 'failed', detail: detail.slice(0, 80) },
+            },
+          }))
+          if (controller.signal.aborted) break
+        } finally {
+          window.clearTimeout(timeout)
+          controller.signal.removeEventListener('abort', abortRequest)
+        }
+      }
+      if (collectionRunAbortRef.current === controller) {
+        collectionRunAbortRef.current = null
+        setCollectionRun((current) => (current ? { ...current, running: false } : current))
+      }
+    },
+    [envVars, requests, state.timeoutMs]
+  )
+
+  const cancelCollection = useCallback(() => {
+    collectionRunAbortRef.current?.abort()
   }, [])
 
   /**
@@ -863,14 +1034,37 @@ export default function ApiClient() {
   )
 
   const handleLoadFromHistory = useCallback(
-    (histMethod: string, histUrl: string) => {
+    (entry: HistoryEntry) => {
+      const [histMethod, ...urlParts] = entry.input.split(' ')
+      const histUrl = urlParts.join(' ')
       guardUnsaved('restoring a request from history', () => {
         clearTransientFormState()
         updateState({
           activeRequestId: null,
-          draft: createDefaultDraft(histMethod, { url: histUrl }),
+          draft: createDefaultDraft(histMethod ?? 'GET', { url: histUrl }),
         })
-        setResponse(null)
+        if (entry.responseBody != null) {
+          const mimeType = entry.responseMimeType ?? 'text/plain'
+          setResponse({
+            status: entry.responseStatus ?? 200,
+            statusText: entry.responseStatusText ?? 'History snapshot',
+            headers: { 'content-type': mimeType },
+            body: entry.responseBody,
+            blob: new Blob([entry.responseBody], { type: mimeType }),
+            mimeType,
+            isBinary: false,
+            displayTruncated: entry.responseBody.length >= MAX_HISTORY_RESPONSE_CHARS,
+            time: 0,
+            size: new TextEncoder().encode(entry.responseBody).byteLength,
+          })
+          setResponseCollapsed(false)
+        } else {
+          setResponse(null)
+          if (entry.responseMimeType && !isTextResponse(entry.responseMimeType)) {
+            setError('Binary response bodies are not persisted in history; run the request again.')
+            return
+          }
+        }
         setError(null)
       })
     },
@@ -1176,6 +1370,9 @@ export default function ApiClient() {
         open={state.libraryOpen}
         onSelect={handleSelectLoadedRequest}
         onLoadFromHistory={handleLoadFromHistory}
+        onRunCollection={(collection) => void runCollection(collection)}
+        onCancelCollection={cancelCollection}
+        collectionRun={collectionRun}
         onImport={() => setShowImportModal(true)}
         onExport={() => void handleExport()}
       >

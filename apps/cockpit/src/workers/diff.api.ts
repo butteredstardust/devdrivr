@@ -24,12 +24,8 @@ export function computeDiff(left: string, right: string, options: DiffOptions = 
     }
   }
 
-  if (options.ignoreCase) {
-    a = a.toLocaleLowerCase()
-    b = b.toLocaleLowerCase()
-  }
-
   return createTwoFilesPatch('left', 'right', a, b, undefined, undefined, {
     ignoreWhitespace: options.ignoreWhitespace,
+    ignoreCase: options.ignoreCase,
   })
 }
