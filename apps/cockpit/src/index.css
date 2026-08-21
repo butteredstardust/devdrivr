@@ -87,7 +87,41 @@ body,
   }
 }
 .animate-fade-in {
-  animation: fade-in 150ms ease-out;
+  animation: fade-in var(--duration-fast) var(--ease-out);
+}
+
+/* The counterpart for a surface that opens from a trigger rather than over the
+   whole app — flyouts, hover tooltips, dropdowns. It scales from 98% instead of
+   sliding 8px, so the surface reads as growing out of its trigger, and it stays
+   on transform/opacity, which the compositor animates without layout. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-pop-in {
+  animation: pop-in var(--duration-fast) var(--ease-out);
+}
+
+/* Opacity only, for a surface whose position already depends on a transform
+   (e.g. a toolbar centred with -translate-x-1/2). A keyframe that sets
+   `transform` replaces that utility for the length of the animation and the
+   surface flies in from the wrong place. */
+@keyframes fade-in-place {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in-place {
+  animation: fade-in-place var(--duration-fast) var(--ease-out);
 }
 
 @keyframes spin {
@@ -96,7 +130,7 @@ body,
   }
 }
 .animate-spin {
-  animation: spin 700ms linear infinite;
+  animation: spin var(--duration-spin) linear infinite;
 }
 /* Markdown & Syntax Highlighting */
 .prose {

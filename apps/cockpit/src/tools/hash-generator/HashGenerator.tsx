@@ -272,7 +272,7 @@ export default function HashGenerator() {
               }}
               onDragLeave={() => setIsDragOver(false)}
               onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed p-6 transition-colors duration-150 ${
+              className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed p-6 transition-colors duration-[var(--duration-fast)] ${
                 isDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
                   : 'border-[var(--color-border)]'
@@ -305,7 +305,7 @@ export default function HashGenerator() {
                       className="h-1 w-48 overflow-hidden rounded-full bg-[var(--color-surface-sunken)]"
                     >
                       <div
-                        className="h-full bg-[var(--color-accent)] transition-[width] duration-150"
+                        className="h-full bg-[var(--color-accent)] transition-[width] duration-[var(--duration-fast)]"
                         style={{ width: `${fileProgress * 100}%` }}
                       />
                     </div>

@@ -53,7 +53,7 @@ export function MasterDetailLayout({
         // It's a viewport query rather than a container query because the workspace isn't a
         // `@container` — worth revisiting if one is ever introduced, since the app sidebar and
         // notes drawer both steal width this query can't see.
-        className={`flex min-h-0 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-200 ease-in-out ${
+        className={`flex min-h-0 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${
           sidebarOpen
             ? 'w-64 opacity-100 max-[1000px]:w-52'
             : 'pointer-events-none w-0 overflow-hidden border-r-0 opacity-0'

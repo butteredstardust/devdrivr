@@ -28,6 +28,10 @@ type SplitPaneProps = {
 }
 
 const STORAGE_PREFIX = 'cockpit.split.'
+
+/** Matches the sidebar and notes-drawer settle delay, so every resize in the app
+ *  persists on the same rhythm. */
+const PERSIST_DELAY_MS = 500
 const KEYBOARD_STEP = 0.02
 
 /** `null` disables the query entirely, so `stackBelow` stays optional without a conditional hook. */
@@ -94,18 +98,55 @@ export function SplitPane({
     [minRatio]
   )
 
-  const commit = useCallback(
-    (next: number) => {
-      const clamped = clamp(next)
-      setRatio(clamped)
+  const persist = useCallback(
+    (value: number) => {
       if (!storageKey) return
       try {
-        window.localStorage.setItem(STORAGE_PREFIX + storageKey, clamped.toFixed(4))
+        window.localStorage.setItem(STORAGE_PREFIX + storageKey, value.toFixed(4))
       } catch {
         // Ratio still applies for this session; persistence is a nicety, not a requirement.
       }
     },
-    [clamp, storageKey]
+    [storageKey]
+  )
+
+  // localStorage is synchronous and serialises through the main thread, and a drag
+  // commits on every mousemove — writing there per move puts a blocking disk-backed
+  // call between the pointer and the next frame. The ratio the user ends on is the
+  // only one worth remembering, so the write waits for the settle.
+  const persistTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const pendingRatio = useRef<number | null>(null)
+  const persistSoon = useCallback(
+    (value: number) => {
+      pendingRatio.current = value
+      clearTimeout(persistTimer.current)
+      persistTimer.current = setTimeout(() => {
+        pendingRatio.current = null
+        persist(value)
+      }, PERSIST_DELAY_MS)
+    },
+    [persist]
+  )
+
+  // Closing the tool inside the debounce window must not throw the drag away —
+  // flush what is pending instead of cancelling it.
+  const persistRef = useRef(persist)
+  persistRef.current = persist
+  useEffect(
+    () => () => {
+      clearTimeout(persistTimer.current)
+      if (pendingRatio.current !== null) persistRef.current(pendingRatio.current)
+    },
+    []
+  )
+
+  const commit = useCallback(
+    (next: number) => {
+      const clamped = clamp(next)
+      setRatio(clamped)
+      persistSoon(clamped)
+    },
+    [clamp, persistSoon]
   )
 
   // Listeners go on window, not the divider: the pointer routinely outruns a 4px target mid-drag,

@@ -95,7 +95,7 @@ export function SegmentedControl<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={`font-ui inline-flex items-center gap-1 rounded-[var(--radius-sm)] transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${SIZE_CLASSES[size]} ${
+            className={`font-ui inline-flex items-center gap-1 rounded-[var(--radius-sm)] transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${SIZE_CLASSES[size]} ${
               selected
                 ? 'bg-[var(--color-accent)] font-bold text-[var(--color-bg)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'

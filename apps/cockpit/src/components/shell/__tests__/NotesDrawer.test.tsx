@@ -88,6 +88,24 @@ describe('NotesDrawer', () => {
     )
   })
 
+  // The width transition is for the open/close slide. An inline width does not opt out of it, so
+  // while it was left on during a drag every mousemove re-aimed a 200ms eased animation at a
+  // target that had already moved: the edge trailed the cursor and arrived in steps. Measured in
+  // Chromium the computed transition-duration was 0.2s throughout the drag and the drawer lagged
+  // the pointer; suppressed, it tracks exactly. jsdom computes no transitions, hence the class
+  // assertion rather than a style one.
+  it('drops the width transition while the drawer is being dragged', () => {
+    render(<NotesDrawer />)
+    const drawer = screen.getByRole('complementary', { name: 'Notes and history' })
+    expect(drawer.className).toContain('transition-[width,opacity]')
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize notes drawer' }))
+    expect(drawer.className).not.toContain('transition-[width,opacity]')
+
+    fireEvent.mouseUp(document)
+    expect(drawer.className).toContain('transition-[width,opacity]')
+  })
+
   it('uses labelled, larger color swatches while editing', () => {
     render(<NotesDrawer />)
 

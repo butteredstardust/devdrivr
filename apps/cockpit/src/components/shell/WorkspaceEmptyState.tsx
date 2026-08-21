@@ -31,7 +31,7 @@ function ChipRow({ label, tools, onSelect }: ChipRowProps) {
             type="button"
             onClick={() => onSelect(tool.id)}
             aria-label={`Open ${tool.name}`}
-            className="flex items-center gap-[var(--space-1)] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] py-[var(--space-1)] text-[var(--text-xs)] text-[var(--color-text)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+            className="flex items-center gap-[var(--space-1)] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] py-[var(--space-1)] text-[var(--text-xs)] text-[var(--color-text)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
             <span className="flex items-center" aria-hidden="true">
               {tool.icon}

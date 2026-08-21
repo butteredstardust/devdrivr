@@ -110,7 +110,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         onClick={() => setFlyoutOpen(!flyoutOpen)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+        className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
           isActiveGroup
             ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : flyoutOpen
@@ -131,7 +131,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         createPortal(
           <div
             style={tooltipStyle}
-            className="font-ui pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md"
+            className="font-ui animate-pop-in pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md"
           >
             {group.label}
           </div>,
@@ -144,7 +144,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
           <div
             ref={flyoutRef}
             style={flyoutStyle}
-            className="font-ui min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
+            className="font-ui animate-pop-in min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
           >
             <SectionLabel as="div" className="px-2.5 pb-1 pt-1">
               {group.label}

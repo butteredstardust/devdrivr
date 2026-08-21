@@ -83,6 +83,49 @@
   --focus-ring-inset: inset 0 0 0 1px var(--color-bg), inset 0 0 0 3px var(--color-accent);
 }
 
+/* ─── Motion ───────────────────────────────────────────────────────────────
+   Three durations and two easings, global like the other base scales. The
+   values are the ones the app had already converged on by hand (150ms for
+   feedback, 200ms for structure, 700ms for the spinner); naming them stops
+   the next component from inventing a fourth.
+
+     --duration-fast   150ms  Hover, focus, colour and opacity feedback.
+                              Also the enter animation for every overlay.
+     --duration-panel  200ms  A surface changing size or position: drawer
+                              open/close, accordion, toggle knob, chevron.
+     --duration-spin   700ms  The one continuous loop (loading spinners).
+
+     --ease-out        Anything entering, opening or growing — decelerates
+                       into place, so the surface feels caught rather than
+                       driven.
+     --ease-in-out     Reversible state a user can drive both ways (toggle
+                       knob, chevron rotation).
+
+   Use them through Tailwind arbitrary values:
+   `duration-[var(--duration-fast)] ease-[var(--ease-out)]`.
+
+   Two rules that are not stylistic:
+
+   1. Never transition a property a drag writes on every mousemove. A live
+      drag re-aims the animation each frame and the surface trails the
+      cursor in visible steps. Suppress the transition class while
+      `resizing` is true — see Sidebar.tsx and NotesDrawer.tsx.
+   2. Prefer transform/opacity over width/height/top/left. Where a layout
+      property is unavoidable (drawer width, accordion rows) keep it at
+      --duration-panel or shorter.
+
+   Reduced motion is handled globally in index.css; nothing here needs to
+   repeat that check.
+   ────────────────────────────────────────────────────────────────────── */
+:root {
+  --duration-fast: 150ms;
+  --duration-panel: 200ms;
+  --duration-spin: 700ms;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .midnight {
   --color-bg: #0a0f1c;
   --color-surface: #1a1f3a;

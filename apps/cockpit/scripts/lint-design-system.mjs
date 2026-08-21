@@ -78,6 +78,16 @@ export const RULES = [
     message:
       'Opacity stacked on --color-text-muted composites to a WCAG AA failure. Drop the opacity utility (see DESIGN_SYSTEM.md § Colour).',
   },
+  {
+    id: 'off-scale-motion',
+    // Durations and easings drifted the same way sizes did: 100/150/200 chosen per component
+    // with no scale to point at. They are tokens now (--duration-fast/panel/spin,
+    // --ease-out/--ease-in-out), and a literal utility is how a fourth duration gets in.
+    // The lookbehind keeps `ease-[var(--ease-in-out)]` — the token form — from matching itself.
+    pattern: /\bduration-\d+\b|(?<!-)\bease-(?:linear|in|out|in-out)\b/g,
+    message:
+      'Off-scale duration or easing. Use duration-[var(--duration-fast|panel)] and ease-[var(--ease-out|in-out)] (see DESIGN_SYSTEM.md § Motion).',
+  },
 ]
 
 /**

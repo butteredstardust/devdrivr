@@ -76,6 +76,39 @@ describe('design-system lint rules', () => {
     })
   })
 
+  describe('off-scale-motion', () => {
+    // Motion had no scale at all until 2026-08-21: 100/150/200 were picked per component, so the
+    // same interaction ran at two speeds depending on which file it lived in.
+    it.each(['duration-100', 'duration-150', 'duration-200', 'duration-300'])(
+      'flags %s',
+      (utility) => {
+        expect(rulesFor(`className="transition-colors ${utility}"`)).toContain('off-scale-motion')
+      }
+    )
+
+    it.each(['ease-in-out', 'ease-out', 'ease-in', 'ease-linear'])(
+      'flags the literal easing %s',
+      (utility) => {
+        expect(rulesFor(`className="transition-transform ${utility}"`)).toContain(
+          'off-scale-motion'
+        )
+      }
+    )
+
+    it('allows the token form', () => {
+      expect(
+        rulesFor(
+          'className="transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]"'
+        )
+      ).not.toContain('off-scale-motion')
+    })
+
+    // The token name contains the literal utility name, so a naive pattern flags the fix itself.
+    it('does not flag the easing token by its own name', () => {
+      expect(rulesFor('className="ease-[var(--ease-in-out)]"')).not.toContain('off-scale-motion')
+    })
+  })
+
   describe('escape hatch', () => {
     it('honours an ignore comment with a reason on the preceding line', () => {
       const text = ['/* design-system-ignore: third-party markup */', '<TagIcon size={9} />'].join(

@@ -106,7 +106,7 @@ export function SidebarGroup({
         onKeyDown={handleKeyDown}
         aria-expanded={!collapsed}
         data-sidebar-group={group.id}
-        className="w-full rounded px-2 py-1 transition-colors duration-150 hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
+        className="w-full rounded px-2 py-1 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
       >
         {/* SectionLabel rather than a bespoke type treatment, so group headers
             and the Pinned/Recent headers above them are one style instead of
@@ -117,7 +117,7 @@ export function SidebarGroup({
         >
           <CaretRightIcon
             size={12}
-            className={`shrink-0 transition-transform duration-200 ease-in-out ${collapsed ? '' : 'rotate-90'}`}
+            className={`shrink-0 transition-transform duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${collapsed ? '' : 'rotate-90'}`}
           />
           <span className="flex-1 text-left">{group.label}</span>
         </SectionLabel>
@@ -125,7 +125,7 @@ export function SidebarGroup({
 
       {/* CSS grid trick: animates height without knowing the exact pixel value */}
       <div
-        className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
+        className={`grid transition-[grid-template-rows] duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}
       >
         <div className="overflow-hidden">
           <div className="flex flex-col gap-1 px-1 pb-0.5 pt-0.5">
