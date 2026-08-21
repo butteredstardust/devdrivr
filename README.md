@@ -89,13 +89,21 @@ bun run build:web    # Production web build
 
 ## Screenshots
 
-![TypeScript Playground with source, compiled output, and problems](screenshots/cockpit-code-tools.png)
+![Code Formatter with JavaScript source and formatting options](screenshots/cockpit-code-formatter.png)
 
-**Code** — Edit, compile, compare, and refactor without leaving the workspace.
+**Format** — Prettier-backed formatting with indent, quote, semicolon, and trailing-comma controls.
 
-![JSON Tools showing source and tree inspection side by side](screenshots/cockpit-data-tools.png)
+![Diff Viewer comparing two files side by side above a unified patch](screenshots/cockpit-code-tools.png)
+
+**Compare** — Side-by-side and unified diffs, whitespace and case folding, patches you can copy or save.
+
+![YAML Tools showing source and an expandable tree inspector](screenshots/cockpit-data-tools.png)
 
 **Data** — Inspect, validate, format, and convert structured data side by side.
+
+![CSV Tools showing raw CSV beside a sortable, filterable table](screenshots/cockpit-csv-tools.png)
+
+**Tabular** — Read CSV as a sortable table, convert it to JSON, or validate it against a schema.
 
 ![API Client with a saved request library and request workspace](screenshots/cockpit-api-client.png)
 
