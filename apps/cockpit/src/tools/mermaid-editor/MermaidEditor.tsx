@@ -575,7 +575,7 @@ export default function MermaidEditor() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="Diagram actions">
+        <DocumentToolbar aria-label="Diagram actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled diagram'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled diagram'}

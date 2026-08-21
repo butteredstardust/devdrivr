@@ -613,7 +613,7 @@ export default function HtmlValidator() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="HTML document actions">
+        <DocumentToolbar aria-label="HTML document actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled document'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}

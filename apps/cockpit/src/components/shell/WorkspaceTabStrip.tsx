@@ -509,18 +509,23 @@ export function WorkspaceTabStrip() {
                 </button>
               )}
 
-              {/* Top pill indicator for the active tab.
+              {/* Top bar indicator for the active tab.
                   The strip sits above the panel, so the active tab's job is to
                   look continuous with the content below it. A bottom pill drew
                   a bright line across exactly the seam that should disappear;
-                  on the top edge it marks the tab without severing it. */}
+                  on the top edge it marks the tab without severing it.
+
+                  Full tab width rather than a centred 40px pill. The pill sat
+                  directly against the title bar's bottom border with empty tab
+                  either side of it, so it read as a stray 3px artifact of that
+                  divider rather than as a deliberate marker — the top edge of
+                  the tab is the thing being marked, so the marker should span
+                  it. */}
               {isActive && (
                 <span
                   aria-hidden="true"
                   data-testid="tab-pill"
-                  className={`pointer-events-none absolute top-0 left-1/2 h-[3px] -translate-x-1/2 rounded-b-full bg-[var(--color-accent)] ${
-                    isPinned ? 'w-5' : 'w-10'
-                  }`}
+                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[var(--color-accent)]"
                 />
               )}
 

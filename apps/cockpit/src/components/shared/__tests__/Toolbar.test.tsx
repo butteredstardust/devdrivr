@@ -27,6 +27,20 @@ describe('Toolbar', () => {
     expect(noBorder.firstElementChild?.className).not.toContain('border-b')
   })
 
+  // The divider rule lives in the primitives, not in each tool. Eight of thirteen call sites had
+  // independently passed `border={false}` to a DocumentToolbar, leaving a third of the app with a
+  // seam under its toolbar and two-thirds without.
+  it('gives a document toolbar no divider by default, unlike a plain toolbar', () => {
+    const { container: plain } = render(<Toolbar>content</Toolbar>)
+    const { container: doc } = render(<DocumentToolbar>content</DocumentToolbar>)
+    const { container: docForced } = render(<DocumentToolbar border>content</DocumentToolbar>)
+
+    expect(plain.firstElementChild?.className).toContain('border-b')
+    expect(doc.firstElementChild?.className).not.toContain('border-b')
+    // A document toolbar that genuinely stacks above another row can still opt in.
+    expect(docForced.firstElementChild?.className).toContain('border-b')
+  })
+
   it('labels related action groups and provides a flexible spacer', () => {
     const { container } = render(
       <Toolbar aria-label="Editor actions">
@@ -55,7 +69,8 @@ describe('Toolbar', () => {
       </DocumentToolbar>
     )
 
-    expect(screen.getByRole('toolbar', { name: 'Document actions' })).toHaveClass('min-h-10')
+    // `min-h-11` matches the title bar's `h-11` — the chrome stack shares one height.
+    expect(screen.getByRole('toolbar', { name: 'Document actions' })).toHaveClass('min-h-11')
     expect(screen.getByText('styles.css')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('No problems')
     expect(screen.getByText('Modified')).toHaveClass('text-[var(--color-accent)]')

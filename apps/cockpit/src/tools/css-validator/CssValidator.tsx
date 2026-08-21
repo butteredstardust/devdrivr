@@ -466,7 +466,7 @@ export default function CssValidator() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="Stylesheet actions">
+        <DocumentToolbar aria-label="Stylesheet actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled stylesheet'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}

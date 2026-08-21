@@ -247,7 +247,7 @@ export default function TsPlayground() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar border={false} aria-label="TypeScript playground actions">
+          <DocumentToolbar aria-label="TypeScript playground actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled.ts'}
               icon={
@@ -314,14 +314,16 @@ export default function TsPlayground() {
               </Button>
               <CopyButton text={output} label="Copy output" />
               <Button
-                variant="icon"
+                variant="secondary"
                 size="sm"
                 onClick={handleSave}
                 disabled={!output}
                 title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save output to file"
+                className="gap-1"
               >
-                <FloppyDiskIcon size={16} aria-hidden="true" />
+                <FloppyDiskIcon size={14} aria-hidden="true" />
+                Save
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

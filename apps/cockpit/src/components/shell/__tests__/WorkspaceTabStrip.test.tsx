@@ -296,9 +296,13 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
     // Top edge, not bottom: the strip sits above the panel, so the active tab
     // should read as continuous with the content below it. A bottom pill drew
     // a bright line across precisely the seam that wants to disappear.
+    // Full tab width, not a centred pill: against the title bar's divider a
+    // 40px stub with empty tab either side read as an artifact of that divider
+    // rather than as a marker for the tab it belongs to.
     expect(pill).not.toBeNull()
     expect(pill!.className).toContain('top-0')
-    expect(pill!.className).toContain('rounded-b-full')
+    expect(pill!.className).toContain('inset-x-0')
+    expect(pill!.className).not.toContain('rounded-b-full')
   })
 
   it('does not render a pill on inactive tabs', () => {

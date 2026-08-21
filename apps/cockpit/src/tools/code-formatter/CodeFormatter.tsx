@@ -236,7 +236,7 @@ export default function CodeFormatter() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar border={false} aria-label="Code formatting actions">
+          <DocumentToolbar aria-label="Code formatting actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
               icon={
@@ -327,14 +327,16 @@ export default function CodeFormatter() {
               </Button>
               <CopyButton text={input} />
               <Button
-                variant="icon"
+                variant="secondary"
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasCode}
                 title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
+                className="gap-1"
               >
                 <FloppyDiskIcon size={14} aria-hidden="true" />
+                Save
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

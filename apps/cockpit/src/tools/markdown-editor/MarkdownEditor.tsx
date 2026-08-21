@@ -1043,7 +1043,7 @@ export default function MarkdownEditor() {
   return (
     <ToolLayout fullBleed>
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="Markdown document actions">
+        <DocumentToolbar aria-label="Markdown document actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled document'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}

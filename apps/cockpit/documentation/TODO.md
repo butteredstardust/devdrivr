@@ -41,11 +41,11 @@ Run from `apps/cockpit`, never the monorepo root.
 
 | Gate       | Command                           | At `86df84b`   | After this branch |
 | ---------- | --------------------------------- | -------------- | ----------------- |
-| TypeScript | `npx tsc --noEmit`                | Pass           | _pending_         |
-| Tests      | `bunx vitest run`                 | _see §7_       | _pending_         |
-| ESLint     | `bun run lint`                    | Pass           | _pending_         |
-| Design sys | `bun run lint:ds`                 | 0 violations   | _pending_         |
-| Harness    | manual walk at 1440×900, 1024×700 | Findings U1–U6 | _pending_         |
+| TypeScript | `npx tsc --noEmit`                | Pass           | Pass              |
+| Tests      | `bunx vitest run`                 | _see §7_       | 1618 pass, 0 fail |
+| ESLint     | `bun run lint`                    | Pass           | Pass              |
+| Design sys | `bun run lint:ds`                 | 0 violations   | 0 violations      |
+| Harness    | manual walk at 1440×900, 1024×700 | Findings U1–U6 | Re-walked, clean  |
 | Rust       | `cargo check` (from `src-tauri`)  | Untouched      | Untouched         |
 
 ---
@@ -294,11 +294,88 @@ Recorded so they are not re-raised.
 ## 7. Status
 
 Delivered: U1, U2 (layout **and** the `Load sample` sweep, §3.1), U3, U4, U5 (dialogs **and** the
-theme previews), U6, S1, S2.
+theme previews), U6, S1, S2, and the chrome pass C1–C11 in §8.
 
 Open:
 
 - S3 — screenshot baseline (blocked on manual capture, carried forward). This is now the only item
-  left in this document, and it is the one that would have caught every defect in §3 automatically.
+  left in this document, and it is the one that would have caught every defect in §3 and §8
+  automatically.
 
 See §2 for the gate table.
+
+---
+
+## 8. Chrome pass — title bar and toolbars
+
+Added 2026-08-21, after §3–§5 landed. Same method as §1: driven in the harness, geometry measured
+with DevTools rather than eyeballed, at 800px (the `minWidth` in `tauri.conf.json`), 1024px and
+1512px.
+
+### C1 — The command palette painted over the title-bar buttons — **done**
+
+The palette was centred by a full-width `pointer-events-none` overlay. At 480px wide, its left edge
+crosses x=170 below a window width of ~820px — over the icon cluster. Because the overlay does not
+take pointer events, the buttons stayed **clickable while invisible**, which is worse than plain
+occlusion. `minWidth` is 800, so this was reachable at the smallest window the app allows.
+
+Fix: keep the overlay — true window-centring is the point — but give it a symmetric `SIDE_RESERVE`
+gutter sized to the widest cluster on each platform (`px-[120px]` mac, `px-[224px]` elsewhere). The
+palette now shrinks below 480px rather than overlapping. Verified at 800px: palette centre 400 =
+window centre, 44px clear left, 88px clear right.
+
+Equal-flex side columns were tried first and **rejected**: the macOS traffic-light allowance is
+padding on one side only, and `flex-basis: 0` sizes the _content_ box, so the padding is added on
+top and slides all three columns left (measured: palette centre 794 against a window centre of 756).
+
+### C2 — Three icon buttons on the leading edge read as a fourth window control — **done**
+
+14px separated them from the macOS traffic lights. Settings and Shortcuts moved to the trailing
+edge — both are modal, rarely used, and reachable from the palette. Notes stays: it is the one
+control with state worth glancing at (the badge). Locked by a test asserting DOM order around the
+palette slot.
+
+### C3 — Toolbar heights were ragged — **done**
+
+`min-h-10` was a floor almost nothing reached: measured at 1024px, toolbars came out 42, 43, 46 and
+47px depending purely on which controls a tool happened to contain, so the line under the tab strip
+jumped on every tab switch. The tallest control in the app measures 31px, so `min-h-11` + `py-1.5`
+puts the natural height (43px) _under_ the floor and the floor decides. Every non-wrapping toolbar
+is now exactly 44px — and 44 is the title bar's `h-11`, so the chrome stack shares one rhythm.
+
+### C4 — The toolbar divider was decided 13 times — **done**
+
+Eight of thirteen `DocumentToolbar` call sites had independently passed `border={false}`, leaving a
+third of the app with a seam under its toolbar and two-thirds without. The default moved into the
+primitive (`border = false`), the eight overrides were deleted, and the five toolbars that _lost_ a
+divider were re-checked in the harness — the `--color-surface` → canvas transition separates them on
+its own. Tools that genuinely stack two rows can still opt in with `border`.
+
+### C5 — The selected segment competed with primary actions — **done**
+
+`SegmentedControl` filled the selected segment with solid `--color-accent`, making a _view mode_
+as loud as a button. JSON Tools showed "Format" and "Source" fighting for the same emphasis. Now
+`--color-accent-dim` + `font-semibold`: state reads as state.
+
+### C6 — The active-tab indicator read as a divider artifact — **done**
+
+A 40px centred pill (20px when pinned) sat on the title bar's divider line with empty tab either
+side, so it looked like a flaw in the divider rather than a marker for its tab. Now full tab width
+(`inset-x-0`), square. The existing rationale for keeping it at `top-0` — don't sever the seam — was
+honoured; only the width changed.
+
+### C7 — JSON Tools buried its primary actions on wrap — **done**
+
+The bar wraps to two rows at 1024px. With view options first, the wrap put Indent/Path/view-mode on
+row one and every primary action underneath. Groups reordered so the least important row sheds last.
+
+### C8–C11 — Unlabelled Save buttons — **done**
+
+Seven tools had an icon-only floppy disk sitting among five labelled buttons, which reads as a
+different class of control: CSV, XML, YAML, Code Formatter, TS Playground, Refactoring Toolkit,
+JSON Schema Validator (plus JSON Tools under C7). All now `variant="secondary"` with a visible
+`Save` label, keeping their existing `aria-label` (more specific, and WCAG 2.5.3-compliant since the
+accessible name contains the visible one).
+
+**Not changed:** Mermaid Editor, CSS Validator and HTML Validator pair an icon-only Open with an
+icon-only Save. That reads as a coherent icon group; labelling only one half would break it.

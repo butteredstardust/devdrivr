@@ -458,14 +458,16 @@ export default function RefactoringToolkit() {
             </Button>
             <CopyButton text={copyText} label={showDiff ? 'Copy transformed code' : 'Copy code'} />
             <Button
-              variant="icon"
+              variant="secondary"
               size="sm"
               onClick={handleSave}
               disabled={!hasCode}
               title={`Save the code to a file (${formatShortcut('mod+s')})`}
               aria-label="Save code to file"
+              className="gap-1"
             >
-              <FloppyDiskIcon size={16} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>

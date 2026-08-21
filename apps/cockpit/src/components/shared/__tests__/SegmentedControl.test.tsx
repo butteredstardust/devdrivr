@@ -76,4 +76,15 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'Replace' })).toHaveAttribute('tabIndex', '-1')
     expect(screen.getByRole('radio', { name: 'Extra' })).toHaveAttribute('tabIndex', '-1')
   })
+
+  // A view mode is state, not the thing to press. A solid accent fill made the selected segment
+  // as loud as a primary button, so JSON Tools' toolbar showed "Format" and "Source" competing
+  // for the same emphasis with nothing to distinguish action from state.
+  it('marks the selected segment with an accent tint, not a solid accent fill', () => {
+    render(<Harness />)
+    const selected = screen.getByRole('radio', { name: 'Match' })
+
+    expect(selected.className).toContain('bg-[var(--color-accent-dim)]')
+    expect(selected.className).not.toContain('bg-[var(--color-accent)]')
+  })
 })

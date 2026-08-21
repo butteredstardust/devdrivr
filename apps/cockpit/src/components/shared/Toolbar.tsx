@@ -16,6 +16,13 @@ type ToolbarProps = {
 // Horizontal control bar — codifies the
 // `flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2`
 // row hand-rolled at the top of most tools (CsvTools, ApiClient, CodeFormatter, ...).
+//
+// `min-h-11` matches the title bar's `h-11`, so the chrome stack reads as a rhythm rather than a
+// ragged edge. `min-h-10` with `py-2` was a floor that almost nothing reached: measured live at
+// 1024px, toolbars came out 42, 43, 46 and 47px tall depending purely on which controls a tool
+// happened to contain, so the line under the tab strip jumped every time you switched tabs. The
+// tallest control in the app measures 31px, which `py-1.5` leaves at 43px — under the floor — so
+// the floor now decides, and every non-wrapping toolbar is exactly 44px.
 export function Toolbar({
   children,
   className = '',
@@ -29,7 +36,7 @@ export function Toolbar({
       id={id}
       role="toolbar"
       aria-label={ariaLabel}
-      className={`flex min-h-10 items-center gap-2 bg-[var(--color-surface)] px-4 py-2 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
+      className={`flex min-h-11 items-center gap-2 bg-[var(--color-surface)] px-4 py-1.5 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
     >
       {children}
     </div>
@@ -70,10 +77,23 @@ type DocumentToolbarProps = ToolbarProps
  * Compact, wrapping chrome for document-oriented tools. Identity, view controls,
  * and primary actions share one row at normal widths and wrap as groups when the
  * workspace narrows.
+ *
+ * No bottom border by default, where `Toolbar` has one. A document toolbar is chrome *for* the
+ * document directly beneath it and should look continuous with it — the same argument the tab
+ * strip's top pill indicator is built on. Eight of the thirteen call sites had already reached
+ * that conclusion independently and passed `border={false}`, which left a third of the app with a
+ * seam under its toolbar and two-thirds without, decided tool by tool. Stating it once here makes
+ * it a rule; a document toolbar that genuinely stacks above another row can still pass
+ * `border` explicitly.
  */
-export function DocumentToolbar({ children, className = '', ...props }: DocumentToolbarProps) {
+export function DocumentToolbar({
+  children,
+  className = '',
+  border = false,
+  ...props
+}: DocumentToolbarProps) {
   return (
-    <Toolbar {...props} className={`gap-x-3 gap-y-2 ${className}`}>
+    <Toolbar {...props} border={border} className={`gap-x-3 gap-y-2 ${className}`}>
       {children}
     </Toolbar>
   )

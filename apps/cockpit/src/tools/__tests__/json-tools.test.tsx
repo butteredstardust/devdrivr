@@ -344,6 +344,21 @@ describe('JsonTools', () => {
     })
   })
 
+  // This bar wraps to two rows at 1024px. With view options first the wrap put Indent/Path/view
+  // mode on row one and buried every primary action beneath them, so the least important row has
+  // to be the one that sheds last. Save is labelled for the same reason Copy JSON is — an
+  // unlabelled floppy disk next to five labelled buttons reads as a different class of control.
+  it('leads the toolbar with document actions and trails with view options', () => {
+    renderTool(JsonTools)
+    const actions = screen.getByRole('group', { name: 'Document actions' })
+    const viewOptions = screen.getByRole('group', { name: 'View options' })
+
+    expect(
+      actions.compareDocumentPosition(viewOptions) & actions.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(actions).getByRole('button', { name: 'Save' })).toBeInTheDocument()
+  })
+
   it('offers a sample only while the document is empty', () => {
     renderTool(JsonTools)
     fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))

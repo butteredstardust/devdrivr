@@ -720,14 +720,16 @@ function EditorPane({
             </Button>
             <CopyButton text={value} label={copyLabel} className="min-w-0" />
             <Button
-              variant="ghost"
+              variant="secondary"
               size="xs"
               onClick={onSave}
               disabled={!value.trim()}
               aria-label={`Save ${title.toLowerCase()} to file`}
               title={`Save to a file (${formatShortcut('mod+s')})`}
+              className="gap-1"
             >
               <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
             </Button>
           </>
         }

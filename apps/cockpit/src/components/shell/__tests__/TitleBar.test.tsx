@@ -201,6 +201,42 @@ describe('TitleBar — platform layout', () => {
   })
 })
 
+describe('TitleBar — palette centring', () => {
+  // The palette overlay is 480px wide and centred on the window, so its gutter has to clear the
+  // *widest* cluster on both sides — an asymmetric reserve would decentre it, which defeats the
+  // point of the overlay. jsdom cannot measure this, so the contract is asserted on the classes.
+  it('reserves symmetric space on both sides of the centred palette', () => {
+    for (const platform of ['mac', 'windows'] as const) {
+      mocks.platform.current = platform
+      const { unmount } = render(<TitleBar />)
+      const slot = screen.getByTestId('titlebar-palette-slot')
+
+      expect(slot.className).toMatch(/\bpx-\[\d+px\]/)
+      expect(slot.className).not.toMatch(/\b(pl|pr)-\[/)
+      unmount()
+    }
+  })
+
+  // Notes leads alone; the two modal, rarely-used buttons trail. Three buttons on the leading edge
+  // left 14px between them and the macOS traffic lights, so they read as a fourth window control.
+  it('keeps only the notes button ahead of the palette, with settings and shortcuts behind it', () => {
+    render(<TitleBar />)
+    const slot = screen.getByTestId('titlebar-palette-slot')
+    const before = slot.DOCUMENT_POSITION_PRECEDING
+    const after = slot.DOCUMENT_POSITION_FOLLOWING
+
+    expect(
+      slot.compareDocumentPosition(screen.getByLabelText('Toggle notes drawer')) & before
+    ).toBeTruthy()
+    expect(
+      slot.compareDocumentPosition(screen.getByLabelText('Open settings')) & after
+    ).toBeTruthy()
+    expect(
+      slot.compareDocumentPosition(screen.getByLabelText('Open keyboard shortcuts')) & after
+    ).toBeTruthy()
+  })
+})
+
 describe('TitleBar — drag region', () => {
   it('uses a background drag layer that never contains interactive children', () => {
     const { container } = render(<TitleBar />)
