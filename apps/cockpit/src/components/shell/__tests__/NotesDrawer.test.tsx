@@ -88,6 +88,34 @@ describe('NotesDrawer', () => {
     )
   })
 
+  // The floating shell layout is applied entirely from styles/shell.css, keyed on this
+  // class. jsdom applies no stylesheet, so a rename here would otherwise only surface
+  // as "the notes drawer stopped being a card" in a running app.
+  it('carries the shell-panel hook the floating layout is keyed on', () => {
+    render(<NotesDrawer />)
+    expect(screen.getByRole('complementary', { name: 'Notes and history' })).toHaveClass(
+      'shell-panel'
+    )
+  })
+
+  // The width transition is for the open/close slide. An inline width does not opt out of it, so
+  // while it was left on during a drag every mousemove re-aimed a 200ms eased animation at a
+  // target that had already moved: the edge trailed the cursor and arrived in steps. Measured in
+  // Chromium the computed transition-duration was 0.2s throughout the drag and the drawer lagged
+  // the pointer; suppressed, it tracks exactly. jsdom computes no transitions, hence the class
+  // assertion rather than a style one.
+  it('drops the width transition while the drawer is being dragged', () => {
+    render(<NotesDrawer />)
+    const drawer = screen.getByRole('complementary', { name: 'Notes and history' })
+    expect(drawer.className).toContain('transition-[width,opacity]')
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize notes drawer' }))
+    expect(drawer.className).not.toContain('transition-[width,opacity]')
+
+    fireEvent.mouseUp(document)
+    expect(drawer.className).toContain('transition-[width,opacity]')
+  })
+
   it('uses labelled, larger color swatches while editing', () => {
     render(<NotesDrawer />)
 

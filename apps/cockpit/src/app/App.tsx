@@ -11,9 +11,11 @@ import { ShortcutsModal } from '@/components/shell/ShortcutsModal'
 import { UpdateNotification } from '@/components/shell/UpdateNotification'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
+import { useSettingsStore } from '@/stores/settings.store'
 
 export function App() {
   useGlobalShortcuts()
+  const shellStyle = useSettingsStore((s) => s.shellStyle)
 
   const [sendTo, setSendTo] = useState<{
     content: string
@@ -28,13 +30,15 @@ export function App() {
 
   return (
     <SendToContext.Provider value={{ showSendTo }}>
-      <div className="flex h-full flex-col">
+      {/* `data-shell` is the single switch for the shell's layout mode; everything it
+          changes is in styles/shell.css, scoped to the hook classes below. */}
+      <div data-shell={shellStyle} className="shell-canvas flex h-full flex-col">
         <TitleBar />
         <WindowResizeHandles />
         <UpdateNotification />
-        <div className="flex flex-1 overflow-hidden">
+        <div className="shell-row flex flex-1 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-hidden">
+          <main className="shell-panel flex-1 overflow-hidden">
             <Workspace />
           </main>
           <NotesDrawer />

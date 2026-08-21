@@ -17,6 +17,7 @@ type SettingsStore = AppSettings & {
 // object — that keeps the persisted payload and the type in permanent sync.
 const APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true> = {
   theme: true,
+  shellStyle: true,
   alwaysOnTop: true,
   sidebarCollapsed: true,
   collapsedSidebarGroups: true,

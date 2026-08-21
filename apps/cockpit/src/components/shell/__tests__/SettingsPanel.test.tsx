@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsPanel } from '@/components/shell/SettingsPanel'
 import { useHistoryStore } from '@/stores/history.store'
@@ -29,9 +29,13 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }))
 
+// The store is a module singleton and one test below swaps `update` for a spy. Without
+// restoring it here, the next test's "real" update call is the previous test's mock.
+const realSettingsUpdate = useSettingsStore.getState().update
+
 beforeEach(() => {
   vi.clearAllMocks()
-  useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
+  useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true, update: realSettingsUpdate })
   useNotesStore.setState({
     notes: [
       {
@@ -152,6 +156,20 @@ describe('SettingsPanel', () => {
 
     expect(screen.getByText('MCP server stopped unexpectedly')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled()
+  })
+
+  it('switches the shell layout between floating and flush', async () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+
+    render(<SettingsPanel />)
+
+    // SegmentedControl exposes its segments as a radiogroup, not buttons.
+    const group = screen.getByRole('radiogroup', { name: 'Shell layout' })
+    expect(within(group).getByRole('radio', { name: 'Floating' })).toBeChecked()
+
+    fireEvent.click(within(group).getByRole('radio', { name: 'Flush' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('shellStyle', 'flush'))
   })
 
   it('imports settings that use newer registered themes', async () => {

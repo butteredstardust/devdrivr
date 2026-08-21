@@ -82,7 +82,7 @@ function TrafficLight({
       className={`flex h-3 w-3 items-center justify-center rounded-full text-black/60 ${FOCUS_RING}`}
       style={{ backgroundColor: dimmed ? 'var(--color-border)' : color }}
     >
-      <span className="opacity-0 transition-opacity duration-100 group-hover:opacity-100">
+      <span className="opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100">
         {glyph}
       </span>
     </button>

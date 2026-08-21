@@ -1,0 +1,65 @@
+/* ─── Shell layout modes ───────────────────────────────────────────────────
+ *
+ * `flush` (the original): sidebar, workspace and notes drawer meet edge to edge and
+ * are separated by 1px borders. Densest option, and the default for anyone who wants
+ * every pixel to be content.
+ *
+ * `floating`: the same three panels inset from the window edge with a gutter between
+ * them, each with a radius, a hairline border and a shadow, sitting on a recessed
+ * canvas. Costs ~16px of width and ~16px of height.
+ *
+ * The whole layout lives in this one file rather than as ternaries across five shell
+ * components, for two reasons. Flush mode then costs nothing at all — with
+ * `data-shell="flush"` not one rule below matches — and the shell's geometry is one
+ * file to read instead of five.
+ *
+ * Selectors are attribute + class (specificity 0,2,0), which beats Tailwind's
+ * single-class utilities without a single `!important`.
+ */
+
+[data-shell='floating'] .shell-canvas {
+  background: var(--color-surface-sunken);
+}
+
+/* Spacing is margin, not `gap`, deliberately: flex `gap` applies between items
+   whatever their size, so a closed notes drawer — which is `width: 0`, not unmounted,
+   so that opening it can animate — would still hold a gutter open next to nothing. */
+[data-shell='floating'] .shell-row {
+  padding: var(--space-2);
+}
+
+[data-shell='floating'] .shell-panel + .shell-panel {
+  margin-left: var(--space-2);
+}
+
+[data-shell='floating'] .shell-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  /* Required, not cosmetic: Monaco and the tool panes paint opaque square corners
+     that otherwise sit outside the radius. */
+  overflow: hidden;
+  /* The hairline border is doing load-bearing work and shouldn't be dropped for a
+     shadow-only card, however much better that looks in Midnight. Several light
+     themes put --color-surface-sunken within a couple of percent of --color-bg
+     (github-light is #fbfcfd against #ffffff), and there the shadow alone is
+     invisible — the card silently stops existing on maybe a third of the 23 themes.
+     The border carries those; the shadow carries the dark ones. */
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 22%, transparent),
+    0 12px 32px -14px var(--color-shadow);
+}
+
+/* A closed panel must contribute nothing — no gutter, no 2px of border, and no
+   shadow, which a zero-width box still paints. */
+[data-shell='floating'] .shell-panel[inert] {
+  margin-left: 0;
+  border-width: 0;
+  box-shadow: none;
+}
+
+/* Title bar and status bar stop drawing their own surface and dividers, and just let
+   the canvas through. */
+[data-shell='floating'] .shell-chrome {
+  background: transparent;
+  border-color: transparent;
+}

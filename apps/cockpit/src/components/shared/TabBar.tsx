@@ -77,7 +77,7 @@ export function TabBar({
           disabled={tab.disabled}
           onClick={() => onTabChange(tab.id)}
           onKeyDown={(event) => handleKeyDown(event, index)}
-          className={`shrink-0 px-4 py-2 text-xs transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+          className={`shrink-0 px-4 py-2 text-xs transition-colors duration-[var(--duration-fast)] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
             activeTab === tab.id
               ? 'border-b-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30 font-bold text-[var(--color-accent)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'

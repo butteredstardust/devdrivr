@@ -12,7 +12,7 @@ const SIZE_CLASSES: Record<SelectSize, string> = {
 }
 
 const BASE_CLASSES =
-  'rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)] transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none'
+  'rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)] transition-colors duration-[var(--duration-fast)] disabled:opacity-50 disabled:pointer-events-none'
 
 // A native <select> is the accessible choice here — it gets OS-native keyboard
 // navigation, screen-reader support, and mobile pickers for free. Styling is

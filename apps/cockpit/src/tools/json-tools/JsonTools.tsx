@@ -59,6 +59,22 @@ type JsonToolsState = {
 /** Above this many keys the tree starts collapsed — expanding is one click. */
 const LARGE_DOCUMENT_KEYS = 500
 
+/**
+ * Table view has no collapsing to fall back on: every key becomes a DOM node the
+ * moment the view opens, and the nested renderer recurses once per level. Above
+ * this many keys it asks first rather than freezing the pane on a document the
+ * user only meant to glance at.
+ */
+const LARGE_TABLE_KEYS = LARGE_DOCUMENT_KEYS
+
+/**
+ * Nested tables stop nesting here and print the remaining subtree as compact
+ * JSON. Two reasons: past ~20 levels each cell is a few pixels wide and unreadable
+ * anyway, and a hand-built document can nest deeply enough to overflow the render
+ * stack, which takes the whole app down rather than just the pane.
+ */
+const MAX_NESTED_TABLE_DEPTH = 20
+
 const VIEW_OPTIONS = [
   { value: 'source' as const, label: 'Source' },
   { value: 'tree' as const, label: 'Tree' },
@@ -284,11 +300,21 @@ export function queryJsonPath(data: unknown, path: string): JsonPathResult {
   return { found: true, value: current }
 }
 
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 export function isTabularJsonArray(data: unknown): data is Record<string, unknown>[] {
-  return (
-    Array.isArray(data) &&
-    data.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item))
-  )
+  return Array.isArray(data) && data.every(isJsonRecord)
+}
+
+/** Column order is first-seen across every row, so sparse records still line up. */
+function unionKeys(rows: Record<string, unknown>[]): string[] {
+  const keys = new Set<string>()
+  for (const row of rows) {
+    for (const key of Object.keys(row)) keys.add(key)
+  }
+  return Array.from(keys)
 }
 
 function toText(value: unknown): string {
@@ -729,6 +755,12 @@ function InspectorPane({
   const autoExpanded = keyCount <= LARGE_DOCUMENT_KEYS
   const expanded = expandAll ?? autoExpanded
 
+  // Deliberately not reset when the document changes: the key count moves on every
+  // keystroke, so re-asking on each edit would put the prompt back in the way of
+  // someone who has already said they want to see this document.
+  const [tableConfirmed, setTableConfirmed] = useState(false)
+  const tableTooLarge = keyCount > LARGE_TABLE_KEYS && !tableConfirmed
+
   const setExpansion = (next: boolean) => {
     setExpandAll(next)
     setTreeKey((k) => k + 1)
@@ -775,10 +807,8 @@ function InspectorPane({
                 )}
               </>
             )}
-            {view === 'table' && parsed.status === 'valid' && tabular && (
-              <span className="text-2xs text-[var(--color-text-muted)]">
-                {data.length} row{data.length === 1 ? '' : 's'}
-              </span>
+            {view === 'table' && parsed.status === 'valid' && tableSummary(data) && (
+              <span className="text-2xs text-[var(--color-text-muted)]">{tableSummary(data)}</span>
             )}
           </>
         }
@@ -805,14 +835,29 @@ function InspectorPane({
             <div className="p-3 font-mono text-xs">
               <JsonTree key={treeKey} data={data} path="$" defaultExpanded={expanded} />
             </div>
+          ) : tableTooLarge ? (
+            // The tree can open collapsed; a table cannot, so this is the equivalent
+            // brake — every key would become a DOM node the moment the view opens.
+            <EmptyState
+              size="sm"
+              icon={WarningCircleIcon}
+              title="Large document"
+              description={`${keyCount} keys will all render at once. Tree view opens this instantly.`}
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setTableConfirmed(true)}>
+                  Render anyway
+                </Button>
+              }
+            />
           ) : tabular ? (
             <JsonTable data={data} onCopy={onCopy} />
           ) : (
-            <EmptyState
-              size="sm"
-              title="Table view needs an array of objects"
-              description="This document is not a list of records — the tree view shows it in full."
-            />
+            // Anything that is not a list of records still has a table shape:
+            // objects become key/value rows and arrays become indexed rows,
+            // nested the whole way down.
+            <div className="p-3">
+              <NestedJsonValue value={data} />
+            </div>
           ))}
       </div>
     </section>
@@ -991,13 +1036,7 @@ function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: 
   const cellRefs = useRef(new Map<string, HTMLTableCellElement>())
   const focusPending = useRef(false)
 
-  const columns = useMemo(() => {
-    const keys = new Set<string>()
-    for (const row of data) {
-      for (const key of Object.keys(row)) keys.add(key)
-    }
-    return Array.from(keys)
-  }, [data])
+  const columns = useMemo(() => unionKeys(data), [data])
 
   const rows = useMemo(() => {
     if (!sort) return data
@@ -1141,6 +1180,164 @@ function JsonTable({ data, onCopy }: { data: Record<string, unknown>[]; onCopy: 
                 </td>
               )
             })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Nested Table View
+//
+// A document that is not a list of records is still tabular: an object is a
+// key/value table and an array is an indexed one, with every value recursing.
+// The flat grid above stays in charge of record arrays because it owns the
+// sorting and the roving cell cursor, neither of which nests.
+// ---------------------------------------------------------------------------
+
+const NESTED_TABLE_CLASS = 'w-full border-collapse text-xs font-mono'
+const NESTED_CELL_CLASS = 'border border-[var(--color-border)] px-2 py-1 align-top'
+const NESTED_HEADER_CLASS = `${NESTED_CELL_CLASS} bg-[var(--color-surface)] text-left font-bold whitespace-nowrap text-[var(--color-accent)]`
+
+function tableSummary(data: unknown): string | null {
+  if (Array.isArray(data)) return `${data.length} row${data.length === 1 ? '' : 's'}`
+  if (isJsonRecord(data)) {
+    const count = Object.keys(data).length
+    return `${count} field${count === 1 ? '' : 's'}`
+  }
+  return null
+}
+
+function JsonLeaf({ value }: { value: unknown }) {
+  const copy = useCopyToClipboard()
+  const text = toText(value)
+  const className =
+    value === null
+      ? 'text-[var(--color-text-muted)]'
+      : typeof value === 'boolean'
+        ? 'text-[var(--color-warning)]'
+        : typeof value === 'number'
+          ? 'text-[var(--color-accent)]'
+          : 'text-[var(--color-success)]'
+
+  return (
+    <TreeValueButton
+      className={className}
+      onClick={() => void copy(text, { success: 'Copied value' })}
+      label={`Copy value ${text}`}
+    >
+      {/* An empty string would otherwise render as a cell with no target to click. */}
+      {text === '' ? '""' : text}
+    </TreeValueButton>
+  )
+}
+
+function EmptyContainer({ children }: { children: string }) {
+  return <span className="text-[var(--color-text-muted)]">{children}</span>
+}
+
+/** The tail of a subtree too deep to keep tabulating, still copyable in full. */
+function DeepValue({ value }: { value: unknown }) {
+  const copy = useCopyToClipboard()
+  const text = JSON.stringify(value)
+
+  return (
+    <TreeValueButton
+      className="text-[var(--color-text-muted)]"
+      onClick={() => void copy(text, { success: 'Copied value' })}
+      label={`Copy value ${text}`}
+    >
+      {text}
+    </TreeValueButton>
+  )
+}
+
+function NestedJsonValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (value === null || typeof value !== 'object') return <JsonLeaf value={value} />
+  if (depth >= MAX_NESTED_TABLE_DEPTH) return <DeepValue value={value} />
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <EmptyContainer>[]</EmptyContainer>
+    return isTabularJsonArray(value) && unionKeys(value).length > 0 ? (
+      <RecordArrayTable rows={value} depth={depth} />
+    ) : (
+      <IndexedArrayTable items={value} depth={depth} />
+    )
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length === 0) return <EmptyContainer>{'{}'}</EmptyContainer>
+
+  return (
+    <table className={NESTED_TABLE_CLASS}>
+      <tbody>
+        {entries.map(([key, child]) => (
+          <tr key={key}>
+            <th scope="row" className={NESTED_HEADER_CLASS}>
+              {key}
+            </th>
+            <td className={NESTED_CELL_CLASS}>
+              <NestedJsonValue value={child} depth={depth + 1} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function RecordArrayTable({ rows, depth }: { rows: Record<string, unknown>[]; depth: number }) {
+  const columns = unionKeys(rows)
+  return (
+    <table className={NESTED_TABLE_CLASS}>
+      <thead>
+        <tr>
+          <th scope="col" className={NESTED_HEADER_CLASS}>
+            #
+          </th>
+          {columns.map((col) => (
+            <th key={col} scope="col" className={NESTED_HEADER_CLASS}>
+              {col}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={index}>
+            <th scope="row" className={NESTED_HEADER_CLASS}>
+              {index}
+            </th>
+            {columns.map((col) => (
+              <td key={col} className={NESTED_CELL_CLASS}>
+                {/* A key absent from this record is not the same as one holding null. */}
+                {col in row ? (
+                  <NestedJsonValue value={row[col]} depth={depth + 1} />
+                ) : (
+                  <EmptyContainer>—</EmptyContainer>
+                )}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function IndexedArrayTable({ items, depth }: { items: unknown[]; depth: number }) {
+  return (
+    <table className={NESTED_TABLE_CLASS}>
+      <tbody>
+        {items.map((item, index) => (
+          <tr key={index}>
+            <th scope="row" className={NESTED_HEADER_CLASS}>
+              {index}
+            </th>
+            <td className={NESTED_CELL_CLASS}>
+              <NestedJsonValue value={item} depth={depth + 1} />
+            </td>
           </tr>
         ))}
       </tbody>

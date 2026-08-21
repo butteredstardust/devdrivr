@@ -122,7 +122,7 @@ function ThemeChip({
           onArrow(e.key)
         }
       }}
-      className="font-ui flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-1.5 text-left outline-none transition-colors duration-150 hover:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+      className="font-ui flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-1.5 text-left outline-none transition-colors duration-[var(--duration-fast)] hover:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
     >
       <span className="relative">
         {theme === 'system' ? <SystemSwatch /> : <Swatch effective={getEffectiveTheme(theme)} />}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { SplitPane } from '@/components/shared/SplitPane'
 
@@ -55,13 +55,43 @@ describe('SplitPane', () => {
   })
 
   it('persists the ratio under the storage key and restores it', () => {
+    vi.useFakeTimers()
     const { unmount } = renderSplit({ defaultRatio: 0.5, storageKey: 'demo' })
     fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowRight' })
+
+    // The write waits for the resize to settle — a drag commits on every
+    // mousemove, and localStorage is a synchronous main-thread call.
+    expect(window.localStorage.getItem('cockpit.split.demo')).toBeNull()
+    act(() => void vi.advanceTimersByTime(500))
     expect(window.localStorage.getItem('cockpit.split.demo')).toBe('0.5200')
     unmount()
+    vi.useRealTimers()
 
     renderSplit({ defaultRatio: 0.5, storageKey: 'demo' })
     expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '52')
+  })
+
+  it('flushes a pending ratio when the split unmounts mid-settle', () => {
+    vi.useFakeTimers()
+    const { unmount } = renderSplit({ defaultRatio: 0.5, storageKey: 'demo' })
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowRight' })
+    // Closing the tool inside the debounce window must not discard the resize.
+    unmount()
+    vi.useRealTimers()
+
+    expect(window.localStorage.getItem('cockpit.split.demo')).toBe('0.5200')
+  })
+
+  it('does not write again after the pending ratio is flushed', () => {
+    vi.useFakeTimers()
+    const { unmount } = renderSplit({ defaultRatio: 0.5, storageKey: 'demo' })
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowRight' })
+    act(() => void vi.advanceTimersByTime(500))
+    window.localStorage.setItem('cockpit.split.demo', 'sentinel')
+    unmount()
+    vi.useRealTimers()
+
+    expect(window.localStorage.getItem('cockpit.split.demo')).toBe('sentinel')
   })
 
   it('does not persist without a storage key', () => {

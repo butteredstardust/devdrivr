@@ -217,6 +217,35 @@ for this reason — one existed and reached zero consumers. The only heading a t
 **Tools must be `flex h-full flex-col` at the root** — `ToolLayout` handles this; hand-rolled roots
 without `h-full` silently collapse.
 
+### Shell layout modes
+
+The shell itself has two modes, set by `settings.shellStyle` and applied as `data-shell` on the app
+root. `floating` is the default; `flush` is the original edge-to-edge layout and costs nothing at
+runtime, since with `data-shell="flush"` not one rule in `styles/shell.css` matches.
+
+| Hook            | On                                    |
+| --------------- | ------------------------------------- |
+| `.shell-canvas` | app root — paints the recessed canvas |
+| `.shell-row`    | the sidebar/workspace/drawer row      |
+| `.shell-panel`  | each of the three panels              |
+| `.shell-chrome` | title bar and status bar              |
+
+All the geometry lives in `styles/shell.css`, not in the five shell components, and its selectors
+are attribute + class (specificity 0,2,0) so they beat Tailwind utilities without `!important`.
+Sidebar and notes-drawer tests assert the hook classes, because jsdom applies no stylesheet and a
+rename is otherwise silent.
+
+Two constraints worth knowing before changing it:
+
+- **Panels keep a 1px border in floating mode, not just a shadow.** Several light themes put
+  `--color-surface-sunken` within a couple of percent of `--color-bg` (github-light: `#fbfcfd`
+  against `#ffffff`), where a shadow-only card is invisible. The border carries those themes; the
+  shadow carries the dark ones.
+- **Gutters are margins, not flex `gap`.** The closed notes drawer is `width: 0` rather than
+  unmounted, so that opening it can animate — and flex `gap` would hold a gutter open beside
+  nothing. When `inert`, the panel also drops its border and shadow, both of which a zero-width box
+  still paints.
+
 ---
 
 ## Breakpoints
@@ -375,17 +404,50 @@ keyboard-first — every core action must be reachable without a mouse (`useGlob
 
 ---
 
-## Animation
+## Motion
 
-One shared animation:
+Two durations and two easings, in `tokens.css`. Everything stays under 200ms — this is a utility
+app, it should feel instant.
+
+| Token              | Value                           | Use                                           |
+| ------------------ | ------------------------------- | --------------------------------------------- |
+| `--duration-fast`  | `150ms`                         | hovers, colour changes, focus, small reveals  |
+| `--duration-panel` | `200ms`                         | panels opening/closing, layout-sized movement |
+| `--duration-spin`  | `700ms`                         | the loading spinner only                      |
+| `--ease-out`       | `cubic-bezier(0.16, 1, 0.3, 1)` | things entering — fast start, soft landing    |
+| `--ease-in-out`    | `cubic-bezier(0.4, 0, 0.2, 1)`  | things that move both ways (panel width)      |
 
 ```tsx
-className = 'animate-fade-in' // 150ms ease-out, 8px rise
+className = 'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]'
 ```
 
-Defined at `index.css:89`. Keep everything under 200ms — this is a utility app, it should feel
-instant. `index.css` disables animation under `prefers-reduced-motion` globally, so don't add
-per-component guards.
+Literal `duration-150` / `ease-in-out` are blocked by `lint:ds` — that is how a fourth duration
+gets in, and the same interaction then runs at two speeds depending on which file it lives in.
+
+Shared keyframe utilities, all defined in `index.css`:
+
+| Utility                 | Effect                                                 |
+| ----------------------- | ------------------------------------------------------ |
+| `animate-fade-in`       | opacity + 8px rise — menus, popovers, panels appearing |
+| `animate-pop-in`        | opacity + 0.98→1 scale — tooltips and flyouts          |
+| `animate-fade-in-place` | opacity only                                           |
+
+Use `animate-fade-in-place` on anything positioned with a transform (`-translate-x-1/2`, etc.).
+Keyframes that animate `transform` overwrite the utility's positioning transform outright, so a
+centred toolbar jumps to its untransformed corner for the length of the animation.
+
+Two rules that are not stylistic:
+
+- **Never transition a property a drag writes on every mousemove.** Setting an inline `width` does
+  not opt out of a `transition-[width]` class — each move re-aims a fresh eased animation at a
+  target that has already moved, so the edge trails the pointer and arrives in visible steps. Both
+  resizable panels drop the transition class while dragging and restore it on mouseup
+  (`Sidebar.tsx`, `NotesDrawer.tsx`); `NotesDrawer.test.tsx` pins it.
+- **Prefer `transform` and `opacity`.** They composite; `width`, `height` and `top` re-run layout
+  on every frame of the animation.
+
+`index.css` disables animation under `prefers-reduced-motion` globally, so don't add per-component
+guards.
 
 ---
 
@@ -416,13 +478,15 @@ and raw text `<input>` in `src/components/shell`. Per-line
 `lint:ds` walks raw source — including template literals, where most of the historical drift hid —
 and blocks:
 
-| Rule                | Blocks                                 |
-| ------------------- | -------------------------------------- |
-| `off-scale-text`    | `text-[Npx]`                           |
-| `off-scale-icon`    | `size={10\|11\|13\|15}`                |
-| `legacy-focus-ring` | `focus-visible:ring-*`                 |
-| `hardcoded-colour`  | hex / `rgb()` inside a class attribute |
-| `tailwind-palette`  | `bg-zinc-900` and friends              |
+| Rule                | Blocks                                             |
+| ------------------- | -------------------------------------------------- |
+| `off-scale-text`    | `text-[Npx]`                                       |
+| `off-scale-icon`    | `size={9\|10\|11\|13\|15}`                         |
+| `off-scale-motion`  | literal `duration-N` / `ease-out` — use the tokens |
+| `legacy-focus-ring` | `focus-visible:ring-*`                             |
+| `hardcoded-colour`  | hex / `rgb()` inside a class attribute             |
+| `tailwind-palette`  | `bg-zinc-900` and friends                          |
+| `dimmed-muted-text` | unprefixed `opacity-*` on `--color-text-muted`     |
 
 Escape hatch: `/* design-system-ignore: <reason> */` on the preceding line. The reason is required.
 

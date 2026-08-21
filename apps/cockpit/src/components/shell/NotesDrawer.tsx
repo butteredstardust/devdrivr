@@ -392,6 +392,7 @@ export function NotesDrawer() {
   const setPendingSendTo = useUiStore((state) => state.setPendingSendTo)
 
   const [width, setWidth] = useState(() => clampWidth(savedWidth))
+  const [resizing, setResizing] = useState(false)
   const [activeTab, setActiveTab] = useState('notes')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -456,6 +457,7 @@ export function NotesDrawer() {
     (event: React.MouseEvent) => {
       event.preventDefault()
       dragState.current = { startX: event.clientX, startWidth: width }
+      setResizing(true)
       const onMove = (moveEvent: MouseEvent) => {
         if (!dragState.current) return
         setWidth(
@@ -468,6 +470,7 @@ export function NotesDrawer() {
           dragState.current.startWidth + dragState.current.startX - upEvent.clientX
         )
         dragState.current = null
+        setResizing(false)
         document.removeEventListener('mousemove', onMove)
         document.removeEventListener('mouseup', onUp)
         document.body.style.cursor = ''
@@ -588,7 +591,14 @@ export function NotesDrawer() {
       // order, so a screen reader still announces a search field and a note list that aren't
       // there. `inert` is the one switch that covers focus, activation and AT together.
       inert={!drawerOpen}
-      className={`relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-200 ease-in-out ${
+      // The open/close slide is animated; a drag is not. Setting an inline width
+      // does not opt out of a `transition-[width]` class, so every mousemove was
+      // re-aiming an eased 200ms animation at a target that had already moved —
+      // the edge trailed the cursor and arrived in visible steps. Same fix, and
+      // same reason, as the sidebar.
+      className={`shell-panel relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] ease-[var(--ease-in-out)] ${
+        resizing ? '' : 'transition-[width,opacity] duration-[var(--duration-panel)]'
+      } ${
         drawerOpen ? 'opacity-100' : 'pointer-events-none w-0 overflow-hidden border-l-0 opacity-0'
       }`}
       style={drawerOpen ? { width } : undefined}

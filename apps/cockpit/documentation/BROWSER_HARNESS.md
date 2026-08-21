@@ -21,13 +21,20 @@ Those need the real app.
 ## Setup
 
 The web bundle refuses to boot outside Tauri — the Tauri JS API reads `window.__TAURI_INTERNALS__`
-eagerly and throws `Cannot read properties of undefined (reading 'metadata')` before the shell
-mounts. [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js) provides the minimum
-stub to get past that.
+eagerly and throws `undefined is not an object (evaluating 'window.__TAURI_INTERNALS__.metadata')`
+before the shell mounts. [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js)
+provides the minimum stub to get past that.
 
 ```bash
 bun run dev   # from apps/cockpit — serves on http://localhost:1420
 ```
+
+The dev server installs the stub for you — [`scripts/vite-plugin-tauri-stub.js`](../scripts/vite-plugin-tauri-stub.js)
+inlines it at the top of `index.html` on `serve` only, so opening the URL in any browser boots.
+Under `tauri dev` the real IPC bridge is already there and the stub no-ops, and production builds
+never see it.
+
+A harness that navigates to a bundle the dev server did not serve still installs it itself:
 
 ```js
 import { installTauriStub } from './scripts/tauri-browser-stub.js'
@@ -38,6 +45,11 @@ await page.goto('http://localhost:1420')
 
 Every SQL read returns empty, so stores start blank and nothing persists across a reload. Seed
 state through the UI.
+
+Commands with no browser equivalent — file dialogs, `fs`, `http` — resolve to `null` and log a
+`[tauri-stub] unhandled command` warning. Two of those on boot (`plugin:http|fetch*`, the update
+check) are expected. A warning naming a command your feature depends on means you are testing a
+stub, not the app: run `bunx tauri dev` instead.
 
 ## Gotchas found the hard way
 

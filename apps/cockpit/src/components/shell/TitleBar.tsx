@@ -47,7 +47,7 @@ export function TitleBar() {
 
   return (
     <div
-      className={`font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] ${isMac ? 'pl-[78px]' : 'pl-2'} pr-2`}
+      className={`shell-chrome font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] ${isMac ? 'pl-[78px]' : 'pl-2'} pr-2`}
     >
       <div
         data-tauri-drag-region

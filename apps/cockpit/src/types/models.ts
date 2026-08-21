@@ -26,8 +26,16 @@ export type Theme =
   | 'tomorrow-night'
   | 'oceanic-next'
 
+/**
+ * `flush` packs the shell panels edge to edge, separated by 1px borders. `floating`
+ * insets them into cards on a recessed canvas, which costs about 16px in each
+ * direction — worth offering rather than imposing, in an app this dense.
+ */
+export type ShellStyle = 'flush' | 'floating'
+
 export type AppSettings = {
   theme: Theme
+  shellStyle: ShellStyle
   alwaysOnTop: boolean
   sidebarCollapsed: boolean
   collapsedSidebarGroups: ToolGroup[]
@@ -58,6 +66,7 @@ export type AppSettings = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
+  shellStyle: 'floating',
   alwaysOnTop: false,
   sidebarCollapsed: false,
   collapsedSidebarGroups: [],

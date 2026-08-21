@@ -347,6 +347,13 @@ describe('Sidebar — only one tree is live at a time', () => {
       expect(document.querySelectorAll(`[data-sidebar-item="${tool.id}"]`)).toHaveLength(0)
     }
   })
+
+  // styles/shell.css keys the whole floating layout on this class, and jsdom applies no
+  // stylesheet — without this, renaming it fails silently everywhere but the running app.
+  it('carries the shell-panel hook the floating layout is keyed on', () => {
+    render(<Sidebar />)
+    expect(document.querySelector('aside')).toHaveClass('shell-panel')
+  })
 })
 
 // ── Sidebar filter box ────────────────────────────────────────────

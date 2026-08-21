@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import nodeStdlibBrowser from 'vite-plugin-node-stdlib-browser'
 import { resolve } from 'path'
+import { tauriStubPlugin } from './scripts/vite-plugin-tauri-stub.js'
 
 export default defineConfig({
-  plugins: [nodeStdlibBrowser(), react(), tailwindcss()],
+  plugins: [tauriStubPlugin(), nodeStdlibBrowser(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

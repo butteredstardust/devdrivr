@@ -264,8 +264,8 @@ export function Sidebar() {
       // animating towards a target that moves every mousemove makes the edge
       // lag the cursor.
       style={{ width: sidebarCollapsed ? 40 : width }}
-      className={`font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] ease-in-out ${
-        resizing ? '' : 'transition-[width] duration-150'
+      className={`shell-panel font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] ease-[var(--ease-in-out)] ${
+        resizing ? '' : 'transition-[width] duration-[var(--duration-fast)]'
       }`}
     >
       {/* Only one of the two layouts is ever mounted. Rendering both at once
