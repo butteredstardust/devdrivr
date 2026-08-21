@@ -47,13 +47,15 @@ export function MasterDetailLayout({
         // tab order or the accessibility tree, so its list and header would still be announced
         // and tabbable while the pane reads as closed. `inert` covers all three.
         inert={!sidebarOpen}
-        // Narrows below 1100px viewport, matching the breakpoint SnippetsManager already used.
+        // Narrows below 1000px, the density breakpoint — see DESIGN_SYSTEM.md § Breakpoints. This
+        // comment used to claim 1100px matched SnippetsManager; it did not, SnippetsManager has
+        // always used 1000px, and that mismatch is where the drift came from.
         // It's a viewport query rather than a container query because the workspace isn't a
         // `@container` — worth revisiting if one is ever introduced, since the app sidebar and
         // notes drawer both steal width this query can't see.
         className={`flex min-h-0 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] transition-[width,opacity] duration-200 ease-in-out ${
           sidebarOpen
-            ? 'w-64 opacity-100 max-[1100px]:w-52'
+            ? 'w-64 opacity-100 max-[1000px]:w-52'
             : 'pointer-events-none w-0 overflow-hidden border-r-0 opacity-0'
         }`}
       >

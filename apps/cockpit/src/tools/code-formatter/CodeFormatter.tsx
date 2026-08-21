@@ -333,7 +333,7 @@ export default function CodeFormatter() {
                 title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
               >
-                <FloppyDiskIcon size={16} aria-hidden="true" />
+                <FloppyDiskIcon size={14} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -421,8 +421,8 @@ export default function CodeFormatter() {
           // the hint must never stand between the user and the caret.
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 p-8 text-center text-[var(--color-text-muted)]">
             <CodeBlockIcon size={36} weight="light" aria-hidden="true" />
-            <p className="text-sm">Paste or type code to format</p>
-            <p className="max-w-sm text-xs opacity-60">
+            <p className="text-sm text-[var(--color-text)]">Paste or type code to format</p>
+            <p className="max-w-sm text-xs">
               {LANGUAGES.length} languages supported. Press <Kbd keys="mod+enter" /> to format, or
               open a file with <Kbd keys="mod+o" />.
             </p>

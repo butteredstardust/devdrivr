@@ -41,7 +41,9 @@ import {
   FolderOpenIcon,
   ImageIcon,
   LinkIcon,
+  MagnifyingGlassIcon,
   QuotesIcon,
+  SwapIcon,
   TextBIcon,
   TextItalicIcon,
 } from '@phosphor-icons/react'
@@ -774,6 +776,65 @@ export default function MarkdownEditor() {
     setActiveModal(null)
   }, [])
 
+  // ─── Find and replace ────────────────────────────────────────────
+
+  /**
+   * Open Monaco's find (or find-and-replace) widget.
+   *
+   * Deliberately *not* a hand-rolled panel. Monaco already ships one with regex, case sensitivity,
+   * whole-word, find-in-selection, match counts and Enter/Shift-Enter cycling — all of it already
+   * wired to the model this editor is using. A second panel beside it would be a worse widget in a
+   * second place, and the two would disagree about which match is current.
+   *
+   * What was actually missing is everything around it: the widget was reachable only by pressing
+   * ⌘F while the caret was already in the editor, with nothing in the UI to say it existed, and
+   * nothing at all in Preview mode.
+   */
+  const openFind = useCallback(
+    (replace: boolean) => {
+      // Preview has no editor to search. Switching to split is better than refusing: the user asked
+      // to find something, and the only way to honour that is to show them the text.
+      if (state.mode === 'preview') updateState({ mode: 'split' })
+
+      // Retried rather than deferred one frame, and the check is DOM connectivity rather than
+      // `editorRef.current != null`. Preview unmounts the editor without clearing the ref, so the
+      // ref still points at the *previous*, detached instance — `getAction` on it silently does
+      // nothing, and the mode flipped with no find widget in sight. Waiting for a connected DOM
+      // node is what distinguishes the live instance from the corpse. Found in the browser
+      // harness; jsdom cannot see it because it never mounts a real Monaco.
+      const deadline = Date.now() + 3000
+      const attempt = () => {
+        const editor = editorRef.current
+        if (!editor || !editor.getDomNode()?.isConnected) {
+          if (Date.now() < deadline) requestAnimationFrame(attempt)
+          return
+        }
+        editor.focus()
+        void editor
+          .getAction(replace ? 'editor.action.startFindReplaceAction' : 'actions.find')
+          ?.run()
+      }
+      requestAnimationFrame(attempt)
+    },
+    [state.mode, updateState]
+  )
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!isInstanceActive) return
+      if (!e.metaKey && !e.ctrlKey) return
+      const key = e.key.toLowerCase()
+      if (key !== 'f' && key !== 'h') return
+      // When the caret is already in the editor, Monaco's own keybinding handles this and does it
+      // better — it seeds the search box from the selection. Only step in when it can't.
+      if (editorRef.current?.hasTextFocus()) return
+      e.preventDefault()
+      openFind(key === 'h')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isInstanceActive, openFind])
+
   // ─── Keyboard shortcuts for formatting ───────────────────────────
 
   useEffect(() => {
@@ -1037,6 +1098,31 @@ export default function MarkdownEditor() {
                 Contents
               </Button>
             )}
+          </ToolbarGroup>
+
+          {/* The find widget existed but had no entry point outside the editor's own keymap, so
+              it was invisible unless you already knew it was there. */}
+          <ToolbarGroup label="Find" separated>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => openFind(false)}
+              title={`Find (${formatShortcut('mod+f')})`}
+              aria-label={`Find (${formatShortcut('mod+f')})`}
+            >
+              <MagnifyingGlassIcon size={14} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => openFind(true)}
+              title={`Find and replace (${formatShortcut('mod+h')})`}
+              aria-label={`Find and replace (${formatShortcut('mod+h')})`}
+            >
+              <SwapIcon size={14} aria-hidden="true" />
+            </Button>
           </ToolbarGroup>
 
           <span aria-hidden="true" className="h-5 w-px shrink-0 bg-[var(--color-border)]" />
@@ -1338,7 +1424,7 @@ export default function MarkdownEditor() {
         <Dialog
           title="Replace unsaved changes?"
           onClose={() => setPendingDocument(null)}
-          className="w-[min(30rem,calc(100vw-2rem))]"
+          size="md"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>

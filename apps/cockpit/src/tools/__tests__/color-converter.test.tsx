@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import ColorConverter from '../color-converter/ColorConverter'
+import ColorConverter, { labToLch, rgbToLab } from '../color-converter/ColorConverter'
 
 describe('ColorConverter', () => {
+  it('converts sRGB to CIE LAB and LCH', () => {
+    expect(rgbToLab({ r: 255, g: 255, b: 255 })).toEqual({ l: 100, a: 0, b: 0 })
+    const red = labToLch(rgbToLab({ r: 255, g: 0, b: 0 }))
+    expect(red.l).toBeCloseTo(54.3, 1)
+    expect(red.c).toBeGreaterThan(100)
+  })
   it('renders with default color', () => {
     renderTool(ColorConverter)
     const inputs = screen.getAllByDisplayValue('#39ff14')
@@ -15,6 +21,8 @@ describe('ColorConverter', () => {
     expect(screen.getByText(/^Hex/)).toBeInTheDocument()
     expect(screen.getByText(/^RGB/)).toBeInTheDocument()
     expect(screen.getByText(/^HSL/)).toBeInTheDocument()
+    expect(screen.getByText(/^LAB/)).toBeInTheDocument()
+    expect(screen.getByText(/^LCH/)).toBeInTheDocument()
   })
 
   it('updates formats when input changes', () => {

@@ -149,6 +149,7 @@ export function EnvironmentModal({ onClose }: Props) {
       title="Manage Environments"
       onClose={onClose}
       closeLabel="Close environment manager"
+      size="none"
       className="h-[80vh] max-h-[calc(100vh-3rem)] w-[50rem] max-w-[calc(100vw-2rem)]"
       bodyClassName="flex overflow-hidden p-0"
       titleClassName="text-lg"

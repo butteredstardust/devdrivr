@@ -44,7 +44,6 @@ export function TableModal({ onInsert, onClose }: Props) {
     <Dialog
       title="Insert Table"
       onClose={onClose}
-      className="w-[420px]"
       closeLabel="Close insert table dialog"
       footer={
         <>

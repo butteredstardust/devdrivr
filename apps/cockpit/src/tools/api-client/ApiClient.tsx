@@ -31,6 +31,19 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
 import { importApiSpec } from '@/lib/api-import'
+import {
+  blankFormRows,
+  buildMultipartBody,
+  contentTypeFor,
+  isBoilerplateContentType,
+  FORMDATA_MODE,
+  isFormMode,
+  parseFormBody,
+  serializeFormBody,
+  toCurl,
+  URLENCODED_MODE,
+  type FormField,
+} from '@/tools/api-client/form-body'
 import type { ApiImportResult, ApiRequest, ApiRequestAuth, ApiHeader } from '@/types/models'
 import {
   BracketsCurlyIcon,
@@ -41,9 +54,11 @@ import {
   GearSixIcon,
   LinkIcon,
   ListBulletsIcon,
+  PaperclipIcon,
   PaperPlaneTiltIcon,
   PlusIcon,
   SidebarIcon,
+  TerminalIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
@@ -56,6 +71,19 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 const DEFAULT_REQUEST_NAME = 'Untitled Request'
 
 type Param = { key: string; value: string }
+
+function removeIndexedFile(
+  files: Record<number, File>,
+  removedIndex: number
+): Record<number, File> {
+  const next: Record<number, File> = {}
+  for (const [rawIndex, file] of Object.entries(files)) {
+    const current = Number(rawIndex)
+    if (current < removedIndex) next[current] = file
+    if (current > removedIndex) next[current - 1] = file
+  }
+  return next
+}
 
 type RequestDraft = {
   name: string
@@ -97,6 +125,8 @@ const RESPONSE_TABS = [
 const BODY_MODES = [
   { id: 'json', label: 'JSON' },
   { id: 'text', label: 'Text' },
+  { id: URLENCODED_MODE, label: 'Form URL-encoded' },
+  { id: FORMDATA_MODE, label: 'Multipart' },
   { id: 'none', label: 'None' },
 ]
 
@@ -435,6 +465,120 @@ export default function ApiClient() {
   )
 
   // ---------------------------------------------------------------------------
+  // Form bodies
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Attached files, keyed by row index.
+   *
+   * Component state rather than draft state on purpose: a `File` is a live handle to something on
+   * disk and cannot be serialised into a saved request. Row indexes preserve valid repeated field
+   * names and let a user name a row after selecting its file.
+   */
+  const [formFiles, setFormFiles] = useState<Record<number, File>>({})
+
+  /**
+   * Rows the user has started but not named yet.
+   *
+   * The body string is the single source of truth for the payload, and it cannot represent a pair
+   * with no key — so "Add" appeared to do nothing: the new row was serialised away the instant it
+   * was created. Blank rows live here instead, and graduate into the body as soon as they get a
+   * name.
+   */
+  const [blankRows, setBlankRows] = useState(0)
+
+  const clearTransientFormState = useCallback(() => {
+    setFormFiles({})
+    setBlankRows(0)
+  }, [])
+
+  const formFields = useMemo<FormField[]>(() => {
+    const parsed = parseFormBody(body).map((f, index) => {
+      const file = formFiles[index]
+      return file ? { ...f, file } : f
+    })
+    // One empty row always shows, so a fresh form has somewhere to type without pressing Add first.
+    const blanks = Math.max(blankRows, parsed.length === 0 ? 1 : 0)
+    const blankFields = Array.from({ length: blanks }, (_, offset) => {
+      const field: FormField = { key: '', value: '', enabled: true }
+      const file = formFiles[parsed.length + offset]
+      return file ? { ...field, file } : field
+    })
+    return [...parsed, ...blankFields]
+  }, [body, formFiles, blankRows])
+
+  const commitFormFields = useCallback(
+    (fields: FormField[]) => {
+      setBlankRows(blankFormRows(fields))
+      updateDraft({ body: serializeFormBody(fields) })
+    },
+    [updateDraft]
+  )
+
+  /**
+   * Change body mode, keeping the `Content-Type` header honest.
+   *
+   * A POST is created with `Content-Type: application/json`, so switching to a form mode without
+   * this left the request declaring JSON while sending `a=1&b=2`. Only the app's own boilerplate
+   * values are rewritten; a hand-typed content type is the user's decision and survives.
+   */
+  const handleBodyModeChange = useCallback(
+    (nextMode: string) => {
+      if (bodyMode === FORMDATA_MODE && nextMode !== FORMDATA_MODE) clearTransientFormState()
+      const implied = contentTypeFor(nextMode)
+      const nextHeaders = headers.flatMap((h) => {
+        if (h.key.toLowerCase() !== 'content-type' || !isBoilerplateContentType(h.value)) return [h]
+        // Multipart's header is generated at send time with the boundary, so the row goes away.
+        if (nextMode === FORMDATA_MODE) return []
+        return implied ? [{ ...h, value: implied }] : [h]
+      })
+      updateDraft({ bodyMode: nextMode, headers: nextHeaders })
+    },
+    [bodyMode, clearTransientFormState, headers, updateDraft]
+  )
+
+  const addFormField = useCallback(() => {
+    commitFormFields([...formFields, { key: '', value: '', enabled: true }])
+  }, [formFields, commitFormFields])
+
+  const updateFormField = useCallback(
+    (index: number, patch: Partial<FormField>) => {
+      // An unnamed row is removed by serialization. Shift transient files in lockstep so a file
+      // can never slide onto the following row merely because its preceding key was cleared.
+      if (patch.key !== undefined && !patch.key.trim()) {
+        setFormFiles((prev) => removeIndexedFile(prev, index))
+      }
+      commitFormFields(formFields.map((f, i) => (i === index ? { ...f, ...patch } : f)))
+    },
+    [formFields, commitFormFields]
+  )
+
+  const removeFormField = useCallback(
+    (index: number) => {
+      setFormFiles((prev) => removeIndexedFile(prev, index))
+      commitFormFields(formFields.filter((_, i) => i !== index))
+    },
+    [formFields, commitFormFields]
+  )
+
+  const attachFile = useCallback(
+    (index: number, file: File | null) => {
+      const field = formFields[index]
+      if (!field) return
+      setFormFiles((prev) => {
+        const next = { ...prev }
+        if (file) next[index] = file
+        else delete next[index]
+        return next
+      })
+      // The filename lands in the stored value so a saved request still says *what* was attached,
+      // even though the bytes are gone.
+      updateFormField(index, { value: file ? file.name : '' })
+    },
+    [formFields, updateFormField]
+  )
+
+  // ---------------------------------------------------------------------------
   // Send request
   // ---------------------------------------------------------------------------
 
@@ -472,8 +616,27 @@ export default function ApiClient() {
 
       const opts: RequestInit = { method, headers: fetchHeaders }
 
-      if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
+      // Header casing is the user's, so the check for an existing Content-Type has to be
+      // case-insensitive — otherwise a hand-typed `content-type` would be silently duplicated.
+      const hasContentType = Object.keys(fetchHeaders).some(
+        (k) => k.toLowerCase() === 'content-type'
+      )
+
+      if (BODY_METHODS.has(method) && bodyMode === FORMDATA_MODE) {
+        const { body: multipart, contentType } = await buildMultipartBody(
+          formFields.map((f) => ({ ...f, value: interpolate(f.value, envVars) }))
+        )
+        // Always overwrite: the boundary is generated per request, so any Content-Type the user
+        // typed for a multipart body is guaranteed to be the wrong one.
+        for (const key of Object.keys(fetchHeaders)) {
+          if (key.toLowerCase() === 'content-type') delete fetchHeaders[key]
+        }
+        fetchHeaders['Content-Type'] = contentType
+        opts.body = multipart
+      } else if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
         opts.body = interpolate(body, envVars)
+        const implied = contentTypeFor(bodyMode)
+        if (implied && !hasContentType) fetchHeaders['Content-Type'] = implied
       }
 
       const res = await tauriFetch(interpolatedUrl, opts)
@@ -510,7 +673,42 @@ export default function ApiClient() {
     } finally {
       setLoading(false)
     }
-  }, [url, method, headers, body, bodyMode, auth, envVars, setLastAction, addRequestHistory])
+  }, [
+    url,
+    method,
+    headers,
+    body,
+    bodyMode,
+    formFields,
+    auth,
+    envVars,
+    setLastAction,
+    addRequestHistory,
+  ])
+
+  /**
+   * Copy the request as a runnable `curl` command — the inverse of the app's curl-to-fetch tool,
+   * and the format every bug report and API doc asks for. Environment variables are interpolated so
+   * the result runs as-is rather than pasting `{{token}}` into someone else's terminal.
+   */
+  const handleCopyAsCurl = useCallback(() => {
+    const command = toCurl({
+      method,
+      url: interpolate(url, envVars),
+      headers: headers.map((h) => ({
+        ...h,
+        key: interpolate(h.key, envVars),
+        value: interpolate(h.value, envVars),
+      })),
+      body: BODY_METHODS.has(method) ? interpolate(body, envVars) : '',
+      bodyMode: BODY_METHODS.has(method) ? bodyMode : 'none',
+      formFields: formFields.map((f) => ({ ...f, value: interpolate(f.value, envVars) })),
+    })
+    void copy(command, {
+      success: 'Request copied as cURL',
+      failure: 'Failed to copy cURL command',
+    })
+  }, [method, url, headers, body, bodyMode, formFields, envVars, copy])
 
   // ---------------------------------------------------------------------------
   // Draft navigation — every path that replaces the draft goes through the guard
@@ -525,10 +723,11 @@ export default function ApiClient() {
   }, [])
 
   const resetToNewRequest = useCallback(() => {
+    clearTransientFormState()
     updateState({ activeRequestId: null, draft: createDefaultDraft() })
     setResponse(null)
     setError(null)
-  }, [updateState])
+  }, [clearTransientFormState, updateState])
 
   const handleNewRequest = useCallback(() => {
     guardUnsaved('starting a new request', resetToNewRequest)
@@ -537,6 +736,7 @@ export default function ApiClient() {
   const handleSelectLoadedRequest = useCallback(
     (req: ApiRequest) => {
       guardUnsaved(`opening “${req.name}”`, () => {
+        clearTransientFormState()
         updateState({
           activeRequestId: req.id,
           draft: {
@@ -553,12 +753,13 @@ export default function ApiClient() {
         setError(null)
       })
     },
-    [guardUnsaved, updateState]
+    [clearTransientFormState, guardUnsaved, updateState]
   )
 
   const handleLoadFromHistory = useCallback(
     (histMethod: string, histUrl: string) => {
       guardUnsaved('restoring a request from history', () => {
+        clearTransientFormState()
         updateState({
           activeRequestId: null,
           draft: createDefaultDraft(histMethod, { url: histUrl }),
@@ -567,7 +768,7 @@ export default function ApiClient() {
         setError(null)
       })
     },
-    [guardUnsaved, updateState]
+    [clearTransientFormState, guardUnsaved, updateState]
   )
 
   // A saved request deleted elsewhere (or with its collection) must not leave a
@@ -806,9 +1007,10 @@ export default function ApiClient() {
 
   const handleMethodChange = useCallback(
     (nextMethod: string) => {
+      if (bodyMode === FORMDATA_MODE && !BODY_METHODS.has(nextMethod)) clearTransientFormState()
       updateState({ draft: applyMethodDefaults(state.draft, nextMethod) })
     },
-    [state.draft, updateState]
+    [bodyMode, clearTransientFormState, state.draft, updateState]
   )
 
   // ---------------------------------------------------------------------------
@@ -816,6 +1018,7 @@ export default function ApiClient() {
   // ---------------------------------------------------------------------------
 
   const showBody = BODY_METHODS.has(method) && bodyMode !== 'none'
+  const showFormEditor = showBody && isFormMode(bodyMode)
   const bodyEditorLang = bodyMode === 'json' ? 'json' : 'plaintext'
   const activeHeaderCount = headers.filter((h) => h.enabled && h.key.trim()).length
 
@@ -988,6 +1191,16 @@ export default function ApiClient() {
                 </Button>
                 <Button
                   type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={handleCopyAsCurl}
+                  aria-label="Copy request as cURL"
+                  title="Copy request as cURL"
+                >
+                  <TerminalIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={toggleResponsePane}
@@ -1154,7 +1367,7 @@ export default function ApiClient() {
                         variant="ghost"
                         size="xs"
                         aria-pressed={bodyMode === mode.id}
-                        onClick={() => updateDraft({ bodyMode: mode.id })}
+                        onClick={() => handleBodyModeChange(mode.id)}
                         className={
                           bodyMode === mode.id
                             ? 'bg-[var(--color-accent-dim)] font-bold text-[var(--color-accent)]'
@@ -1170,7 +1383,90 @@ export default function ApiClient() {
                       </span>
                     )}
                   </Toolbar>
-                  {showBody ? (
+                  {showFormEditor ? (
+                    <div className="min-h-0 flex-1 overflow-auto p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                          {bodyMode === FORMDATA_MODE ? 'Multipart fields' : 'Form fields'}
+                        </h3>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="xs"
+                          onClick={addFormField}
+                          className="gap-1"
+                        >
+                          <PlusIcon size={12} aria-hidden="true" />
+                          Add
+                        </Button>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {formFields.map((f, i) => (
+                          <div key={i} className="flex items-center gap-1">
+                            <Input
+                              value={f.key}
+                              onChange={(e) => updateFormField(i, { key: e.target.value })}
+                              placeholder="Field name"
+                              aria-label={`Field ${i + 1} name`}
+                              className="w-1/3 min-w-0 font-mono"
+                            />
+                            {f.file ? (
+                              <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--color-text-muted)]">
+                                {f.file.name} · {formatBytes(f.file.size)}
+                              </span>
+                            ) : (
+                              <Input
+                                value={f.value}
+                                onChange={(e) => updateFormField(i, { value: e.target.value })}
+                                placeholder="Value (or {{env_var}})"
+                                aria-label={`Field ${i + 1} value`}
+                                className="min-w-0 flex-1 font-mono"
+                              />
+                            )}
+                            {bodyMode === FORMDATA_MODE && (
+                              // Only multipart can carry a file; urlencoded has no way to express
+                              // one, so offering the control there would be a lie.
+                              <label
+                                className="cursor-pointer p-1 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+                                title={f.file ? 'Replace file' : 'Attach file'}
+                              >
+                                <PaperclipIcon size={14} aria-hidden />
+                                <span className="sr-only">
+                                  {f.file ? 'Replace file' : 'Attach file'} for field{' '}
+                                  {f.key || i + 1}
+                                </span>
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={(e) => attachFile(i, e.target.files?.[0] ?? null)}
+                                />
+                              </label>
+                            )}
+                            <Button
+                              type="button"
+                              variant="icon"
+                              size="xs"
+                              onClick={() => (f.file ? attachFile(i, null) : removeFormField(i))}
+                              aria-label={
+                                f.file
+                                  ? `Detach file from field ${f.key || i + 1}`
+                                  : `Remove field ${f.key || i + 1}`
+                              }
+                              className="hover:text-[var(--color-error)]"
+                            >
+                              <XIcon size={14} aria-hidden />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      {bodyMode === FORMDATA_MODE && (
+                        <p className="mt-3 text-2xs text-[var(--color-text-muted)]">
+                          Attached files are not saved with the request — a file handle cannot
+                          outlive the session, so re-attach after reopening.
+                        </p>
+                      )}
+                    </div>
+                  ) : showBody ? (
                     <div className="min-h-0 flex-1 overflow-hidden">
                       <Editor
                         theme={monacoTheme}
@@ -1188,7 +1484,7 @@ export default function ApiClient() {
                         title={bodyMode === 'none' ? 'Body is disabled' : `No body for ${method}`}
                         description={
                           bodyMode === 'none'
-                            ? 'Pick JSON or Text above to send a request body.'
+                            ? 'Pick JSON, Text, or a form mode above to send a request body.'
                             : `${method} requests do not include a body.`
                         }
                       />

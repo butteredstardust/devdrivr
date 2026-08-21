@@ -229,7 +229,7 @@ export const TOOLS: ToolDefinition[] = [
     group: 'convert',
     icon: toolIcon(PaletteIcon),
     description:
-      'Convert hex/rgb/hsl/hsb/oklch with 148 named colors, shade scale, harmony, and history',
+      'Convert hex/rgb/hsl/hsb/lab/lch/oklch with named colors, scales, harmony, and history',
     component: ColorConverter,
   },
   {
@@ -253,7 +253,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'URL Encode/Decode',
     group: 'convert',
     icon: toolIcon(LinkIcon),
-    description: 'URL encode/decode with swap, double-encode detection, color-coded parts',
+    description: 'URL encode/decode with recursive and line-by-line modes, swap, and parsed parts',
     component: UrlCodec,
   },
   {
@@ -270,7 +270,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'UUID Generator',
     group: 'convert',
     icon: toolIcon(FingerprintIcon),
-    description: 'Generate v1/v4/v7 UUIDs with universal validation, parsing, and bulk export',
+    description: 'Generate v1/v4/v5/v7 UUIDs with validation, parsing, and bulk export',
     component: UuidGenerator,
   },
   {
@@ -278,7 +278,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Hash Generator',
     group: 'convert',
     icon: toolIcon(HashIcon),
-    description: 'Generate hashes and HMAC with comparison and export',
+    description: 'Hash text or streamed files with MD5, SHA, SHA-3, BLAKE2b, and HMAC',
     component: HashGenerator,
   },
   {
@@ -286,7 +286,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Image Tool',
     group: 'convert',
     icon: toolIcon(ImageSquareIcon),
-    description: 'Resize, crop, compress and convert images (JPEG, PNG, WebP)',
+    description: 'Resize, crop, rotate, flip, compress and convert images (JPEG, PNG, WebP)',
     component: ImageTool,
   },
   // --- Test ---
@@ -303,7 +303,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'JWT Decoder',
     group: 'test',
     icon: toolIcon(IdentificationCardIcon),
-    description: 'Decode JWTs with claim annotations, live expiry, and color-coded parts',
+    description: 'Decode JWTs with HMAC verification, claim windows, and color-coded parts',
     component: JwtDecoder,
   },
   // --- Network ---
@@ -312,7 +312,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'API Client',
     group: 'network',
     icon: toolIcon(PaperPlaneTiltIcon),
-    description: 'HTTP client with params editor, body modes, and response inspector',
+    description: 'HTTP client with form/file bodies, cURL export, and response inspector',
     component: ApiClient,
     supportsOpenFile: true,
     // ⌘S writes the current response body to a file.
@@ -333,7 +333,7 @@ export const TOOLS: ToolDefinition[] = [
     name: 'Markdown Editor',
     group: 'write',
     icon: toolIcon(MarkdownLogoIcon),
-    description: 'Edit markdown with toolbar, templates, TOC, reading time, and download export',
+    description: 'Edit markdown with find/replace, templates, TOC, reading time, and export',
     component: MarkdownEditor,
     supportsOpenFile: true,
     supportsSaveFile: true,

@@ -58,7 +58,6 @@ export function CodeBlockModal({ onInsert, onClose }: Props) {
     <Dialog
       title="Insert Code Block"
       onClose={onClose}
-      className="w-[340px]"
       initialFocusRef={searchRef}
       closeLabel="Close insert code block dialog"
       footer={

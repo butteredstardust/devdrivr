@@ -261,14 +261,25 @@ function convertCssToTailwind(css: string): ConversionResult {
     const colonIdx = decl.indexOf(':')
     if (colonIdx < 0) continue
     const prop = decl.slice(0, colonIdx).trim()
-    const value = decl.slice(colonIdx + 1).trim()
+    const rawValue = decl.slice(colonIdx + 1).trim()
+
+    // `!important` has to come off before anything else looks at the value. Left on, it defeats
+    // every lookup in PROPERTY_MAP and every equality check in the size/spacing converters, and
+    // then lands inside an arbitrary-value bracket — `color: red !important` produced
+    // `text-[red !important]`, which is not a parseable class.
+    const important = /!\s*important$/i.test(rawValue)
+    const value = important ? rawValue.replace(/!\s*important$/i, '').trim() : rawValue
+
+    // Tailwind v4 marks importance with a trailing `!` (`text-[red]!`). This is one of the
+    // breaking changes from v3, which used a leading `!` — check the version before touching.
+    const push = (cls: string) => classes.push(important ? `${cls}!` : cls)
 
     // Check direct mapping
     const directMap = PROPERTY_MAP[prop]
     if (directMap) {
       const cls = directMap[value]
       if (cls) {
-        classes.push(cls)
+        push(cls)
         continue
       }
     }
@@ -276,43 +287,45 @@ function convertCssToTailwind(css: string): ConversionResult {
     // Check size properties
     const sizeClass = convertSizeProperty(prop, value)
     if (sizeClass) {
-      classes.push(sizeClass)
+      push(sizeClass)
       continue
     }
 
     // Check spacing properties
     const spacingClass = convertSpacingProperty(prop, value)
     if (spacingClass) {
-      classes.push(spacingClass)
+      push(spacingClass)
       continue
     }
 
     // Color properties
     if (prop === 'color') {
-      classes.push(`text-[${value}]`)
+      push(`text-[${value}]`)
       continue
     }
     if (prop === 'background-color' || prop === 'background') {
-      classes.push(`bg-[${value}]`)
+      push(`bg-[${value}]`)
       continue
     }
     if (prop === 'border-color') {
-      classes.push(`border-[${value}]`)
+      push(`border-[${value}]`)
       continue
     }
 
     // Border width
     if (prop === 'border-width' || prop === 'border') {
       if (value === '0' || value === 'none') {
-        classes.push('border-0')
+        push('border-0')
         continue
       }
-      classes.push(`border-[${value}]`)
+      push(`border-[${value}]`)
       continue
     }
 
     // Couldn't convert
-    unconvertible.push(`${prop}: ${value}`)
+    // Report what the user wrote, `!important` included — echoing the stripped value back would
+    // misrepresent their input in the one list they read to find out what went wrong.
+    unconvertible.push(`${prop}: ${rawValue}`)
   }
 
   return { classes, unconvertible }

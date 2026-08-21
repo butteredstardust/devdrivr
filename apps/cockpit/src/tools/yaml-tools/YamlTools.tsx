@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
+  ArrowsInLineVerticalIcon,
+  ArrowsOutLineVerticalIcon,
   ArrowUUpLeftIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
@@ -591,16 +593,20 @@ function TreePane({
               variant="ghost"
               size="xs"
               onClick={() => setExpansion(true)}
+              className="gap-1"
               title="Expand every node"
             >
+              <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
               Expand all
             </Button>
             <Button
               variant="ghost"
               size="xs"
               onClick={() => setExpansion(false)}
+              className="gap-1"
               title="Collapse every node"
             >
+              <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
               Collapse all
             </Button>
             {expandAll === null && !autoExpanded && (

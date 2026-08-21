@@ -15,6 +15,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Toggle } from '@/components/shared/Toggle'
 import {
+  ArrowCounterClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsLeftRightIcon,
@@ -446,7 +447,7 @@ export default function Base64Tool() {
           {droppedFile ? (
             /* File info view */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-              <FileIcon size={36} className="text-[var(--color-text-muted)] opacity-50" />
+              <FileIcon size={36} className="text-[var(--color-text-muted)]" />
               <div>
                 <div className="text-sm font-medium text-[var(--color-text)]">
                   {droppedFile.name}
@@ -532,7 +533,7 @@ export default function Base64Tool() {
               {/* Compact base64 preview */}
               <pre className="max-h-20 overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-bg)] p-3 font-mono text-2xs text-[var(--color-text-muted)]">
                 {droppedFile.dataUri.split(',')[1]?.slice(0, 200) ?? ''}
-                <span className="text-[var(--color-text-muted)] opacity-50">…</span>
+                <span>…</span>
               </pre>
               {/* Zoomable image or file placeholder */}
               {droppedFile.mimeType.startsWith('image/') ? (
@@ -670,7 +671,7 @@ function ZoomBadge({
             onReset()
           }}
         >
-          ↺
+          <ArrowCounterClockwiseIcon size={12} aria-hidden="true" />
         </Button>
       )}
     </div>

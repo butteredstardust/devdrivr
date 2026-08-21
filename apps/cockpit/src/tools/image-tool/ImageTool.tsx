@@ -16,6 +16,9 @@ import {
   LockSimpleIcon,
   LockSimpleOpenIcon,
   ArrowCounterClockwiseIcon,
+  ArrowClockwiseIcon,
+  FlipHorizontalIcon,
+  FlipVerticalIcon,
   DownloadSimpleIcon,
   CopyIcon,
 } from '@phosphor-icons/react'
@@ -35,6 +38,9 @@ type ImageToolState = {
   cropY: number
   cropW: number | null
   cropH: number | null
+  rotation: 0 | 90 | 180 | 270
+  flipX: boolean
+  flipY: boolean
   // Export
   format: 'png' | 'jpeg' | 'webp'
   quality: number
@@ -65,6 +71,7 @@ type CropDragState = {
 const TABS = [
   { id: 'resize', label: 'Resize' },
   { id: 'crop', label: 'Crop' },
+  { id: 'transform', label: 'Rotate & Flip' },
   { id: 'export', label: 'Export' },
 ]
 
@@ -130,6 +137,9 @@ export default function ImageTool() {
     cropY: 0,
     cropW: null,
     cropH: null,
+    rotation: 0,
+    flipX: false,
+    flipY: false,
     format: 'png',
     quality: 85,
   })
@@ -182,6 +192,9 @@ export default function ImageTool() {
             cropW: img.naturalWidth,
             cropH: img.naturalHeight,
             cropEnabled: false,
+            rotation: 0,
+            flipX: false,
+            flipY: false,
           })
           setLastAction(`Opened "${file.name}"`, 'success')
         }
@@ -277,13 +290,31 @@ export default function ImageTool() {
       ? (state.cropH ?? originalImg.naturalHeight)
       : originalImg.naturalHeight
 
-    const outW = Math.max(1, state.resizeW ?? srcW)
-    const outH = Math.max(1, state.resizeH ?? srcH)
+    const sourceOutW = Math.max(1, state.resizeW ?? srcW)
+    const sourceOutH = Math.max(1, state.resizeH ?? srcH)
+    const quarterTurn = state.rotation === 90 || state.rotation === 270
+    const outW = quarterTurn ? sourceOutH : sourceOutW
+    const outH = quarterTurn ? sourceOutW : sourceOutH
 
     canvas.width = outW
     canvas.height = outH
     ctx.clearRect(0, 0, outW, outH)
-    ctx.drawImage(originalImg, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+    ctx.save()
+    ctx.translate(outW / 2, outH / 2)
+    ctx.rotate((state.rotation * Math.PI) / 180)
+    ctx.scale(state.flipX ? -1 : 1, state.flipY ? -1 : 1)
+    ctx.drawImage(
+      originalImg,
+      srcX,
+      srcY,
+      srcW,
+      srcH,
+      -sourceOutW / 2,
+      -sourceOutH / 2,
+      sourceOutW,
+      sourceOutH
+    )
+    ctx.restore()
 
     setOutputSize({ w: outW, h: outH })
 
@@ -545,6 +576,9 @@ export default function ImageTool() {
       cropY: 0,
       cropW: originalImg.naturalWidth,
       cropH: originalImg.naturalHeight,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
       format: 'png',
       quality: 85,
     })
@@ -853,6 +887,20 @@ export default function ImageTool() {
               onChange={handleCropChange}
               onReset={handleResetCrop}
             />
+          ) : state.activeTab === 'transform' ? (
+            <TransformPanel
+              rotation={state.rotation}
+              flipX={state.flipX}
+              flipY={state.flipY}
+              onRotate={() =>
+                updateState({
+                  rotation: ((state.rotation + 90) % 360) as ImageToolState['rotation'],
+                })
+              }
+              onFlipX={() => updateState({ flipX: !state.flipX })}
+              onFlipY={() => updateState({ flipY: !state.flipY })}
+              onReset={() => updateState({ rotation: 0, flipX: false, flipY: false })}
+            />
           ) : (
             <ExportPanel
               format={state.format}
@@ -870,6 +918,56 @@ export default function ImageTool() {
         </div>
       </div>
     </ToolLayout>
+  )
+}
+
+function TransformPanel({
+  rotation,
+  flipX,
+  flipY,
+  onRotate,
+  onFlipX,
+  onFlipY,
+  onReset,
+}: {
+  rotation: ImageToolState['rotation']
+  flipX: boolean
+  flipY: boolean
+  onRotate: () => void
+  onFlipX: () => void
+  onFlipY: () => void
+  onReset: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <SectionLabel as="div" className="mb-2">
+          Orientation
+        </SectionLabel>
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="sm" onClick={onRotate}>
+            <ArrowClockwiseIcon size={14} aria-hidden="true" />
+            Rotate 90° clockwise
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onFlipX} aria-pressed={flipX}>
+            <FlipHorizontalIcon size={14} aria-hidden="true" />
+            Flip horizontally
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onFlipY} aria-pressed={flipY}>
+            <FlipVerticalIcon size={14} aria-hidden="true" />
+            Flip vertically
+          </Button>
+        </div>
+      </div>
+      <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-2xs text-[var(--color-accent)]">
+        Rotation: {rotation}° · Horizontal: {flipX ? 'flipped' : 'normal'} · Vertical:{' '}
+        {flipY ? 'flipped' : 'normal'}
+      </div>
+      <Button variant="ghost" size="xs" onClick={onReset} disabled={!rotation && !flipX && !flipY}>
+        <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
+        Reset orientation
+      </Button>
+    </div>
   )
 }
 
@@ -943,8 +1041,9 @@ function ResizePanel({
             dimension inputs; Button's smallest size is text-xs (12px), which would outweigh
             the fields it annotates. */}
         <button
+          type="button"
           onClick={onReset}
-          className="mt-2 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          className="mt-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
         >
           Reset to original ({originalW} × {originalH})
         </button>
@@ -959,8 +1058,9 @@ function ResizePanel({
             // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
             <button
               key={label}
+              type="button"
               onClick={() => onPreset(w, h)}
-              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               {label}
             </button>
@@ -1069,9 +1169,10 @@ function CropPanel({
             crop inputs; Button's smallest size is text-xs (12px), which would outweigh the
             fields it annotates. */}
         <button
+          type="button"
           onClick={onReset}
           disabled={!enabled}
-          className="mt-3 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none"
+          className="mt-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
         >
           Reset to full image
         </button>

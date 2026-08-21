@@ -89,6 +89,11 @@ function installImageMocks() {
     value: () => ({
       clearRect: vi.fn(),
       drawImage: vi.fn(),
+      save: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      restore: vi.fn(),
     }),
   })
   Object.defineProperty(window.HTMLCanvasElement.prototype, 'toDataURL', {
@@ -202,11 +207,48 @@ describe('ImageTool', () => {
 
   // ── Tab structure ────────────────────────────────────────────────
 
-  it('renders all three tabs', () => {
+  it('renders all image operation tabs', () => {
     renderTool(ImageTool)
     expect(screen.getByText('Resize')).toBeInTheDocument()
     expect(screen.getByText('Crop')).toBeInTheDocument()
+    expect(screen.getByText('Rotate & Flip')).toBeInTheDocument()
     expect(screen.getByText('Export')).toBeInTheDocument()
+  })
+
+  it('rotates and flips an opened image', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+
+    fireEvent.click(screen.getByRole('button', { name: /rotate 90/i }))
+    expect(screen.getByText(/Rotation: 90°/)).toBeInTheDocument()
+
+    const horizontal = screen.getByRole('button', { name: /flip horizontally/i })
+    fireEvent.click(horizontal)
+    expect(horizontal).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps orientation on crop reset and clears it on reset all', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+    fireEvent.click(screen.getByRole('button', { name: /rotate 90/i }))
+    fireEvent.click(screen.getByRole('button', { name: /flip horizontally/i }))
+
+    fireEvent.click(screen.getByText('Crop'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable crop' }))
+    fireEvent.click(screen.getByRole('button', { name: /reset to full image/i }))
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+    expect(screen.getByText(/Rotation: 90°/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /flip horizontally/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByText(/Rotation: 0°/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /flip horizontally/i })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
   })
 
   // ── Resize tab controls ──────────────────────────────────────────

@@ -284,6 +284,14 @@ describe('CsvTools', () => {
     )
   })
 
+  it('keeps the delimiter override reachable in every view', () => {
+    renderTool(CsvTools)
+    for (const view of ['Table', 'Convert', 'Analyze'] as const) {
+      showView(view)
+      expect(screen.getByLabelText('Delimiter')).toBeInTheDocument()
+    }
+  })
+
   it('reports ragged rows and offers to jump to the first one', async () => {
     renderTool(CsvTools)
     typeCsv('a,b\n1,2\n3')

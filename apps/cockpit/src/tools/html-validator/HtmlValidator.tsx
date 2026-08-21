@@ -723,12 +723,15 @@ export default function HtmlValidator() {
             <CopyButton text={input} label="Copy HTML" />
           </ToolbarGroup>
 
+          {/* `aria-controls` is conditional because the panel only exists while open, and an
+              `aria-controls` pointing at an unrendered id is worse than none — it sends the user's
+              cursor nowhere. Matches css-validator, which already had it this way. */}
           <Button
             variant={state.showRules ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => updateState({ showRules: !state.showRules })}
             aria-expanded={state.showRules}
-            aria-controls={rulesPanelId}
+            {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
             className="gap-1"
           >
             <SlidersHorizontalIcon size={14} aria-hidden="true" />
@@ -866,6 +869,7 @@ export default function HtmlValidator() {
           title="HTML preview"
           onClose={() => setIsPopoutOpen(false)}
           closeLabel="Close the full-size preview"
+          size="none"
           className="h-[90vh] w-[min(95vw,80rem)]"
           bodyClassName="p-0"
         >
@@ -883,7 +887,7 @@ export default function HtmlValidator() {
         <Dialog
           title="Replace unsaved changes?"
           onClose={() => setPendingDocument(null)}
-          className="w-[min(30rem,calc(100vw-2rem))]"
+          size="md"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>
@@ -968,7 +972,7 @@ function ResultsPanel({
           size="xs"
           onClick={onToggleOpen}
           aria-expanded={open}
-          aria-controls={panelId}
+          {...(open ? { 'aria-controls': panelId } : {})}
           className="ml-auto gap-1"
         >
           <Caret size={12} aria-hidden="true" />

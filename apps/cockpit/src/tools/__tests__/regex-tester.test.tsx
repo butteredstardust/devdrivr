@@ -1,7 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
-import RegexTester from '@/tools/regex-tester/RegexTester'
+import RegexTester, { describeMatches } from '@/tools/regex-tester/RegexTester'
+
+const setPattern = (value: string) =>
+  fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), { target: { value } })
+const setText = (value: string) =>
+  fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), { target: { value } })
+
+describe('describeMatches', () => {
+  const base = { pattern: '\\d', error: null, count: 0, groupCount: 0, truncated: false }
+
+  it('says nothing until there is a pattern', () => {
+    expect(describeMatches({ ...base, pattern: '' })).toBe('')
+  })
+
+  it('reports an error ahead of any count', () => {
+    expect(describeMatches({ ...base, error: 'Unterminated group', count: 3 })).toBe(
+      'Pattern error: Unterminated group'
+    )
+  })
+
+  it('distinguishes no matches from an empty pattern', () => {
+    expect(describeMatches(base)).toBe('No matches')
+  })
+
+  it('singularises a lone match', () => {
+    expect(describeMatches({ ...base, count: 1 })).toBe('1 match')
+  })
+
+  it('mentions capture groups when there are any', () => {
+    expect(describeMatches({ ...base, count: 2, groupCount: 4 })).toBe(
+      '2 matches, 4 capture groups'
+    )
+  })
+
+  it('makes truncation audible', () => {
+    expect(describeMatches({ ...base, count: 1000, truncated: true })).toBe(
+      'Showing first 1000 matches, more were found'
+    )
+  })
+})
 
 describe('RegexTester (component)', () => {
   it('renders pattern input and test string area', () => {
@@ -166,6 +205,30 @@ describe('RegexTester (component)', () => {
 
     const alerts = await screen.findAllByRole('alert')
     expect(alerts.length).toBeGreaterThan(0)
+  })
+
+  // Two elements state the match count visually; exactly one of them may be live, or every
+  // keystroke is announced twice.
+  it('carries the match count in exactly one live region', async () => {
+    renderTool(RegexTester)
+    setPattern('\\d+')
+    setText('abc 123 def 456')
+
+    expect(await screen.findByText('2')).toBeInTheDocument()
+
+    const live = document.querySelectorAll('[aria-live]')
+    expect(live).toHaveLength(1)
+    expect(live[0]).toHaveAttribute('role', 'status')
+    expect(live[0]).toHaveTextContent('2 matches')
+  })
+
+  it('announces the no-match case, which is otherwise silent', async () => {
+    renderTool(RegexTester)
+    setPattern('zzz')
+    setText('abc')
+
+    const live = await screen.findByRole('status')
+    expect(live).toHaveTextContent('No matches')
   })
 
   it('toggling Diff off returns to plain result view', () => {

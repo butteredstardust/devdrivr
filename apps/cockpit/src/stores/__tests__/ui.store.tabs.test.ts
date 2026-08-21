@@ -605,3 +605,69 @@ describe('pinned tabs', () => {
     expect(useUiStore.getState().tabs).toBe(before)
   })
 })
+
+// Persisting used to end in `.catch(() => {})`, so a workspace that failed to save looked exactly
+// like one that saved — until the next launch, when the tabs were gone.
+describe('reporting a persistence failure', () => {
+  const setSettingMock = vi.mocked(setSetting)
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  // The store suppresses repeat reports until a write succeeds, and that flag is module state.
+  // A successful persist is the only honest way to clear it between tests.
+  beforeEach(async () => {
+    setSettingMock.mockResolvedValue(undefined)
+    useUiStore.getState().openTab('json-tools')
+    await flush()
+    resetStore()
+    vi.clearAllMocks()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('raises a toast when the workspace cannot be saved', async () => {
+    setSettingMock.mockRejectedValue(new Error('disk full'))
+
+    useUiStore.getState().openTab('json-tools')
+    await flush()
+
+    const toasts = useUiStore.getState().toasts
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]!.type).toBe('error')
+    expect(toasts[0]!.message).toContain('disk full')
+  })
+
+  it('reports a sustained outage once, not once per tab click', async () => {
+    setSettingMock.mockRejectedValue(new Error('disk full'))
+
+    useUiStore.getState().openTab('json-tools')
+    await flush()
+    useUiStore.getState().openTab('diff-viewer')
+    await flush()
+    useUiStore.getState().openTab('base64')
+    await flush()
+
+    expect(useUiStore.getState().toasts).toHaveLength(1)
+  })
+
+  it('reports again after a recovery, since that is a new outage', async () => {
+    setSettingMock.mockRejectedValue(new Error('disk full'))
+    useUiStore.getState().openTab('json-tools')
+    await flush()
+
+    setSettingMock.mockResolvedValue(undefined)
+    useUiStore.getState().openTab('diff-viewer')
+    await flush()
+
+    setSettingMock.mockRejectedValue(new Error('disk full again'))
+    useUiStore.getState().openTab('base64')
+    await flush()
+
+    expect(useUiStore.getState().toasts).toHaveLength(2)
+  })
+
+  it('stays quiet while saving works', async () => {
+    useUiStore.getState().openTab('json-tools')
+    await flush()
+
+    expect(useUiStore.getState().toasts).toHaveLength(0)
+  })
+})

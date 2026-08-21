@@ -671,7 +671,7 @@ export function CommandPalette() {
                         : 'No actions available'
                       : `No tools matching "${searchQuery}"`}
                   </p>
-                  <p className="mt-2 text-xs text-[var(--color-text-muted)] opacity-60">
+                  <p className="mt-2 text-xs text-[var(--color-text-muted)]">
                     {isActionMode
                       ? 'Remove > to search tools instead'
                       : 'Tip: type > to search actions'}

@@ -20,7 +20,7 @@ import { join, relative } from 'node:path'
 const ROOT = new URL('..', import.meta.url).pathname
 const SRC = join(ROOT, 'src')
 
-const RULES = [
+export const RULES = [
   {
     id: 'off-scale-text',
     // `text-[9px]` / `text-[11px]` bypass the --text-* scale, so they don't move when the scale
@@ -52,13 +52,58 @@ const RULES = [
   },
   {
     id: 'off-scale-icon',
-    // The audit found six icon sizes doing the work of three. 10/11/13/15 are the strays.
-    pattern: /\bsize=\{(?:10|11|13|15)\}/g,
+    // The audit found six icon sizes doing the work of three. 9/10/11/13/15 are the strays.
+    // 9 was missing from this list until 2026-08-21, which is exactly why four size={9} sites
+    // survived the P1 scale sweep that retired the others.
+    pattern: /\bsize=\{(?:9|10|11|13|15)\}/g,
     message:
       'Off-scale icon size. Use 12 (dense/inline), 14 (toolbar) or 16 (navigation) — DESIGN_SYSTEM.md § Icons.',
     files: /\.tsx$/,
   },
+  {
+    id: 'dimmed-muted-text',
+    // --color-text-muted is already partly transparent in most themes (0.6-0.75 alpha). Stacking
+    // an opacity utility on top composites the two, and the result failed WCAG AA on all 23
+    // themes (2.42-3.55:1 measured). Muted on its own passes on all 23 (5.21-7.37:1), so the fix
+    // is always to drop the opacity, never to add a dimmer token.
+    //
+    // Variant-prefixed opacity is fine and deliberately not matched: `disabled:opacity-50` dims a
+    // control that WCAG exempts, and `opacity-0 group-hover:opacity-100` hides an element rather
+    // than dimming it. Only unprefixed 1-99 composites against the muted colour.
+    pattern: new RegExp(
+      String.raw`text-\[var\(--color-text-muted\)\][^"'\`]*(?<![:\w-])opacity-[1-9][0-9]?\b` +
+        String.raw`|(?<![:\w-])opacity-[1-9][0-9]?\b[^"'\`]*text-\[var\(--color-text-muted\)\]`,
+      'g'
+    ),
+    message:
+      'Opacity stacked on --color-text-muted composites to a WCAG AA failure. Drop the opacity utility (see DESIGN_SYSTEM.md § Colour).',
+  },
 ]
+
+/**
+ * Rule violations in a single source text. Exported so the rules can be unit-tested against
+ * sample strings without walking the tree — a regex that silently stops matching is otherwise
+ * indistinguishable from a clean codebase.
+ */
+export function lintSource(text, file = '') {
+  const lines = text.split('\n')
+  const found = []
+  for (const rule of RULES) {
+    if (rule.files && !rule.files.test(file)) continue
+    lines.forEach((line, i) => {
+      rule.pattern.lastIndex = 0
+      const match = rule.pattern.exec(line)
+      if (!match) return
+      const previous = lines[i - 1] ?? ''
+      // The negative lookahead is what makes the reason mandatory: without it a bare
+      // `/* design-system-ignore: */` satisfies `\S` with the comment's own terminator, and the
+      // escape hatch silently becomes reasonless.
+      if (/design-system-ignore:\s*(?!\*\/\s*$)\S/.test(previous)) return
+      found.push({ line: i + 1, rule: rule.id, match: match[0].trim(), message: rule.message })
+    })
+  }
+  return found
+}
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -73,39 +118,27 @@ function walk(dir, out = []) {
   return out
 }
 
-const violations = []
-
-for (const file of walk(SRC)) {
-  const text = readFileSync(file, 'utf8')
-  const lines = text.split('\n')
-
-  for (const rule of RULES) {
-    if (rule.files && !rule.files.test(file)) continue
-    lines.forEach((line, i) => {
-      rule.pattern.lastIndex = 0
-      const match = rule.pattern.exec(line)
-      if (!match) return
-      // An ignore comment on the preceding line, with a reason after the colon.
-      const previous = lines[i - 1] ?? ''
-      if (/design-system-ignore:\s*\S/.test(previous)) return
-      violations.push({
-        file: relative(ROOT, file),
-        line: i + 1,
-        rule: rule.id,
-        match: match[0].trim(),
-        message: rule.message,
-      })
-    })
+function run() {
+  const violations = []
+  for (const file of walk(SRC)) {
+    const text = readFileSync(file, 'utf8')
+    for (const v of lintSource(text, file)) {
+      violations.push({ ...v, file: relative(ROOT, file) })
+    }
   }
+
+  if (violations.length === 0) {
+    console.log('design-system: no violations')
+    process.exit(0)
+  }
+
+  for (const v of violations) {
+    console.error(`${v.file}:${v.line}  [${v.rule}]  ${v.match}\n    ${v.message}`)
+  }
+  console.error(`\ndesign-system: ${violations.length} violation(s)`)
+  process.exit(1)
 }
 
-if (violations.length === 0) {
-  console.log('design-system: no violations')
-  process.exit(0)
-}
-
-for (const v of violations) {
-  console.error(`${v.file}:${v.line}  [${v.rule}]  ${v.match}\n    ${v.message}`)
-}
-console.error(`\ndesign-system: ${violations.length} violation(s)`)
-process.exit(1)
+// Only run as a CLI. Importing this module (the rule unit tests do) must not walk the tree or
+// call process.exit.
+if (process.argv[1] && process.argv[1].endsWith('lint-design-system.mjs')) run()

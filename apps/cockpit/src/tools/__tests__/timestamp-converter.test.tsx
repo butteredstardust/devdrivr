@@ -32,6 +32,18 @@ describe('TimestampConverter', () => {
     expect(screen.getByText('ISO 8601')).toBeInTheDocument()
     expect(screen.getByText('RFC 2822')).toBeInTheDocument()
     expect(screen.getByText(/Relative/)).toBeInTheDocument()
+    expect(screen.getByText('ISO week')).toBeInTheDocument()
+  })
+
+  it('formats the same instant in the selected timezone', () => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value: '2021-06-01T12:00:00Z' },
+    })
+    fireEvent.change(screen.getByLabelText('Output timezone'), {
+      target: { value: 'Europe/Bucharest' },
+    })
+    expect(screen.getByText('2021-06-01 15:00:00')).toBeInTheDocument()
   })
 
   it('parses a unix timestamp', () => {

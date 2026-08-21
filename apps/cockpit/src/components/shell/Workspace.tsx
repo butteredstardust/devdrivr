@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { getToolById, MONACO_TOOL_IDS } from '@/app/tool-registry'
 import { ToolInstanceContext, type ToolInstance } from '@/app/tool-instance'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
+import { Spinner } from '@/components/shared/Spinner'
 import { useFileDropZone } from '@/hooks/useFileDropZone'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
@@ -56,8 +57,8 @@ function ToolPane({ tab, isActive }: { tab: WorkspaceTab; isActive: boolean }) {
         <ErrorBoundary>
           <Suspense
             fallback={
-              <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)]">
-                <div className="animate-spin h-5 w-5 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]" />
+              <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--color-bg)] text-[var(--color-accent)]">
+                <Spinner size="md" label="Loading tool" />
                 <span className="text-xs text-[var(--color-text-muted)]">Loading…</span>
               </div>
             }

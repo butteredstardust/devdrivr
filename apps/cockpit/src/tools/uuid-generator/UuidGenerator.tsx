@@ -9,6 +9,8 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Alert } from '@/components/shared/Alert'
 import { Panel } from '@/components/shared/Panel'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Field } from '@/components/shared/Field'
+import { sha1 } from '@noble/hashes/legacy.js'
 
 // ── UUID Generation ──────────────────────────────────────────────────
 
@@ -70,7 +72,24 @@ function formatUuid(bytes: Uint8Array): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-const GENERATORS: Record<UuidVersion, () => string> = {
+export function generateV5(namespace: string, name: string): string {
+  const hex = namespace.trim().replace(/-/g, '')
+  if (!/^[0-9a-f]{32}$/i.test(hex)) throw new Error('Namespace must be a valid UUID')
+  if (!name) throw new Error('Name is required for UUID v5')
+
+  const namespaceBytes = Uint8Array.from(hex.match(/.{2}/g) ?? [], (pair) => parseInt(pair, 16))
+  const nameBytes = new TextEncoder().encode(name)
+  const input = new Uint8Array(namespaceBytes.length + nameBytes.length)
+  input.set(namespaceBytes)
+  input.set(nameBytes, namespaceBytes.length)
+  const bytes = sha1(input).slice(0, 16)
+  // RFC 9562: version 5 plus the RFC variant bits.
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
+  return formatUuid(bytes)
+}
+
+const GENERATORS: Record<Exclude<UuidVersion, 'v5'>, () => string> = {
   v1: generateV1,
   v4: generateV4,
   v7: generateV7,
@@ -147,7 +166,7 @@ function parseUuid(input: string): UuidInfo | { valid: false; message: string } 
 
 // ── Component ────────────────────────────────────────────────────────
 
-type UuidVersion = 'v1' | 'v4' | 'v7'
+type UuidVersion = 'v1' | 'v4' | 'v5' | 'v7'
 type BulkFormat = 'lines' | 'json' | 'csv'
 
 type UuidState = {
@@ -156,11 +175,21 @@ type UuidState = {
   validateInput: string
   version: UuidVersion
   bulkFormat: BulkFormat
+  v5Namespace: string
+  v5Name: string
 }
+
+const V5_NAMESPACES = {
+  DNS: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+  URL: '6ba7b811-9dad-11d1-80b4-00c04fd430c8',
+  OID: '6ba7b812-9dad-11d1-80b4-00c04fd430c8',
+  X500: '6ba7b814-9dad-11d1-80b4-00c04fd430c8',
+} as const
 
 const VERSION_LABELS: Record<UuidVersion, string> = {
   v1: 'v1 — Time-based',
   v4: 'v4 — Random',
+  v5: 'v5 — Namespace/name',
   v7: 'v7 — Time-ordered',
 }
 
@@ -171,25 +200,40 @@ export default function UuidGenerator() {
     validateInput: '',
     version: 'v4',
     bulkFormat: 'lines',
+    v5Namespace: V5_NAMESPACES.DNS,
+    v5Name: '',
   })
   const { record } = useToolHistory({ toolId: 'uuid-generator' })
 
   const [bulkUuids, setBulkUuids] = useState<string[]>([])
   const setLastAction = useUiStore((s) => s.setLastAction)
 
+  const generateOne = useCallback(() => {
+    return state.version === 'v5'
+      ? generateV5(state.v5Namespace, state.v5Name)
+      : GENERATORS[state.version]()
+  }, [state.version, state.v5Namespace, state.v5Name])
+
   const generate = useCallback(() => {
-    const uuid = GENERATORS[state.version]()
-    updateState({ lastGenerated: uuid })
-    setLastAction(`Generated UUID ${state.version}`, 'success')
-  }, [state.version, updateState, setLastAction])
+    try {
+      const uuid = generateOne()
+      updateState({ lastGenerated: uuid })
+      setLastAction(`Generated UUID ${state.version}`, 'success')
+    } catch (error) {
+      setLastAction(error instanceof Error ? error.message : String(error), 'error')
+    }
+  }, [state.version, generateOne, updateState, setLastAction])
 
   const generateBulk = useCallback(() => {
     const count = Math.min(Math.max(1, state.bulkCount), 100)
-    const gen = GENERATORS[state.version]
-    const uuids = Array.from({ length: count }, () => gen())
-    setBulkUuids(uuids)
-    setLastAction(`Generated ${count} UUIDs (${state.version})`, 'success')
-  }, [state.bulkCount, state.version, setLastAction])
+    try {
+      const uuids = Array.from({ length: count }, () => generateOne())
+      setBulkUuids(uuids)
+      setLastAction(`Generated ${count} UUIDs (${state.version})`, 'success')
+    } catch (error) {
+      setLastAction(error instanceof Error ? error.message : String(error), 'error')
+    }
+  }, [state.bulkCount, state.version, generateOne, setLastAction])
 
   const bulkOutput = useMemo(() => {
     if (bulkUuids.length === 0) return ''
@@ -262,6 +306,33 @@ export default function UuidGenerator() {
               </div>
             )}
           </div>
+          {state.version === 'v5' && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Namespace UUID">
+                <Input
+                  value={state.v5Namespace}
+                  onChange={(e) => updateState({ v5Namespace: e.target.value })}
+                  list="uuid-v5-namespaces"
+                  className="w-full font-mono"
+                />
+                <datalist id="uuid-v5-namespaces">
+                  {Object.entries(V5_NAMESPACES).map(([label, value]) => (
+                    <option key={label} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </datalist>
+              </Field>
+              <Field label="Name">
+                <Input
+                  value={state.v5Name}
+                  onChange={(e) => updateState({ v5Name: e.target.value })}
+                  placeholder="example.com"
+                  className="w-full"
+                />
+              </Field>
+            </div>
+          )}
         </Panel>
 
         {/* ── Constants ────────────────────────────────────── */}

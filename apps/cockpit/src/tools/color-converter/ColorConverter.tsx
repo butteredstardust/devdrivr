@@ -16,6 +16,8 @@ import { ArrowsLeftRightIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-ico
 type RGB = { r: number; g: number; b: number }
 type HSL = { h: number; s: number; l: number }
 type HSB = { h: number; s: number; b: number }
+type LAB = { l: number; a: number; b: number }
+type LCH = { l: number; c: number; h: number }
 
 type ColorConverterState = {
   input: string
@@ -328,6 +330,42 @@ function rgbToHsb(rgb: RGB): HSB {
   return { h: Math.round(h * 360), s: Math.round(s * 100), b: Math.round(max * 100) }
 }
 
+/** Convert sRGB to CIE Lab (D50), matching the reference white used by CSS Color 4. */
+export function rgbToLab(rgb: RGB): LAB {
+  const linear = ([rgb.r, rgb.g, rgb.b] as const).map((channel) => {
+    const value = channel / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  })
+  const [r, g, b] = linear as [number, number, number]
+  // Bradford-adapted linear sRGB → XYZ D50.
+  const x = 0.4360747 * r + 0.3850649 * g + 0.1430804 * b
+  const y = 0.2225045 * r + 0.7168786 * g + 0.0606169 * b
+  const z = 0.0139322 * r + 0.0971045 * g + 0.7141733 * b
+  const f = (value: number) => {
+    const delta = 6 / 29
+    return value > delta ** 3 ? Math.cbrt(value) : value / (3 * delta ** 2) + 4 / 29
+  }
+  const fx = f(x / 0.96422)
+  const fy = f(y)
+  const fz = f(z / 0.82521)
+  return {
+    l: Math.round((116 * fy - 16) * 10) / 10,
+    a: Math.round(500 * (fx - fy) * 10) / 10,
+    b: Math.round(200 * (fy - fz) * 10) / 10,
+  }
+}
+
+export function labToLch(lab: LAB): LCH {
+  const c = Math.sqrt(lab.a ** 2 + lab.b ** 2)
+  let h = (Math.atan2(lab.b, lab.a) * 180) / Math.PI
+  if (h < 0) h += 360
+  return {
+    l: lab.l,
+    c: Math.round(c * 10) / 10,
+    h: Math.round(h * 10) / 10,
+  }
+}
+
 // ── OKLCH conversion (approximate) ───────────────────────────────────
 
 function rgbToOklch(rgb: RGB): { l: number; c: number; h: number } {
@@ -531,9 +569,11 @@ export default function ColorConverter() {
     if (!rgb) return null
     const hsl = rgbToHsl(rgb)
     const hsb = rgbToHsb(rgb)
+    const lab = rgbToLab(rgb)
+    const lch = labToLch(lab)
     const oklch = rgbToOklch(rgb)
     const cssName = findCssName(rgbToHex(rgb))
-    return { rgb, hsl, hsb, oklch, hex: rgbToHex(rgb), cssName }
+    return { rgb, hsl, hsb, lab, lch, oklch, hex: rgbToHex(rgb), cssName }
   }, [state.input])
 
   const historyRef = useRef(state.history)
@@ -560,6 +600,8 @@ export default function ColorConverter() {
       { label: 'RGB', value: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})` },
       { label: 'HSL', value: `hsl(${color.hsl.h}, ${color.hsl.s}%, ${color.hsl.l}%)` },
       { label: 'HSB', value: `hsb(${color.hsb.h}, ${color.hsb.s}%, ${color.hsb.b}%)` },
+      { label: 'LAB', value: `lab(${color.lab.l}% ${color.lab.a} ${color.lab.b})` },
+      { label: 'LCH', value: `lch(${color.lch.l}% ${color.lch.c} ${color.lch.h})` },
       { label: 'OKLCH', value: `oklch(${color.oklch.l}% ${color.oklch.c} ${color.oklch.h})` },
       ...(color.cssName ? [{ label: 'CSS Name', value: color.cssName }] : []),
     ]

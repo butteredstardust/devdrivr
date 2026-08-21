@@ -3,6 +3,7 @@ import { Button } from '@/components/shared/Button'
 import { Field } from '@/components/shared/Field'
 import { Input } from '@/components/shared/Input'
 import { Dialog } from '@/components/shared/Dialog'
+import { Toggle } from '@/components/shared/Toggle'
 
 type Props = {
   initialText?: string
@@ -41,7 +42,6 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
     <Dialog
       title="Insert Link"
       onClose={onClose}
-      className="w-[400px]"
       initialFocusRef={urlRef}
       closeLabel="Close insert link dialog"
       footer={
@@ -82,18 +82,9 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
             disabled={newTab}
           />
         </Field>
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            checked={newTab}
-            onChange={(e) => setNewTab(e.target.checked)}
-            aria-label="Open in new tab"
-            className="h-3.5 w-3.5 accent-[var(--color-accent)]"
-          />
-          <span className="font-mono text-xs text-[var(--color-text-muted)]">
-            Open in new tab (inserts HTML)
-          </span>
-        </label>
+        {/* A modal settings row is where `Toggle` belongs — unlike the dense per-row checkboxes
+            in the validators, there is room for a switch, and it brings a real focus ring. */}
+        <Toggle checked={newTab} onChange={setNewTab} label="Open in new tab (inserts HTML)" />
       </div>
     </Dialog>
   )

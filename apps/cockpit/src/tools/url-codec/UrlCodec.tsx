@@ -13,6 +13,7 @@ import { Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { TextArea } from '@/components/shared/TextArea'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Toggle } from '@/components/shared/Toggle'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { ArrowLeftIcon, ArrowRightIcon, ArrowsLeftRightIcon } from '@phosphor-icons/react'
 
@@ -20,6 +21,8 @@ type UrlCodecState = {
   input: string
   mode: 'encode' | 'decode'
   encodeMode: 'component' | 'full'
+  bulk: boolean
+  recursive: boolean
 }
 
 type UrlParts = {
@@ -71,6 +74,37 @@ function countEncodedChars(input: string, output: string): number {
   return matches?.length ?? 0
 }
 
+export function transformUrlInput(
+  input: string,
+  options: {
+    mode: UrlCodecState['mode']
+    encodeMode: UrlCodecState['encodeMode']
+    bulk: boolean
+    recursive: boolean
+  }
+): string {
+  const transform = (value: string) => {
+    if (options.mode === 'encode') {
+      return options.encodeMode === 'component' ? encodeURIComponent(value) : encodeURI(value)
+    }
+
+    const decode = options.encodeMode === 'component' ? decodeURIComponent : decodeURI
+    let result = decode(value)
+    if (!options.recursive) return result
+
+    // Cap malformed/adversarial input while still covering every realistic nested URL.
+    for (let level = 1; level < 20; level += 1) {
+      if (!/%[0-9a-f]{2}/i.test(result)) break
+      const next = decode(result)
+      if (next === result) break
+      result = next
+    }
+    return result
+  }
+
+  return options.bulk ? input.split('\n').map(transform).join('\n') : transform(input)
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 export default function UrlCodec() {
@@ -78,6 +112,8 @@ export default function UrlCodec() {
     input: '',
     mode: 'encode',
     encodeMode: 'component',
+    bulk: false,
+    recursive: false,
   })
   const { record } = useToolHistory({ toolId: 'url-codec' })
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -85,27 +121,11 @@ export default function UrlCodec() {
   const output = useMemo(() => {
     if (!state.input.trim()) return { text: '', error: null }
     try {
-      if (state.mode === 'encode') {
-        return {
-          text:
-            state.encodeMode === 'component'
-              ? encodeURIComponent(state.input)
-              : encodeURI(state.input),
-          error: null,
-        }
-      } else {
-        return {
-          text:
-            state.encodeMode === 'component'
-              ? decodeURIComponent(state.input)
-              : decodeURI(state.input),
-          error: null,
-        }
-      }
+      return { text: transformUrlInput(state.input, state), error: null }
     } catch (e) {
       return { text: '', error: (e as Error).message }
     }
-  }, [state.input, state.mode, state.encodeMode])
+  }, [state])
 
   const urlParts = useMemo(() => {
     const decoded = state.mode === 'decode' && output.text ? output.text : state.input
@@ -177,6 +197,18 @@ export default function UrlCodec() {
               <option value="component">Component</option>
               <option value="full">Full URL</option>
             </Select>
+            <Toggle
+              checked={state.bulk}
+              onChange={(bulk) => updateState({ bulk })}
+              label="Each line"
+            />
+            {state.mode === 'decode' && (
+              <Toggle
+                checked={state.recursive}
+                onChange={(recursive) => updateState({ recursive })}
+                label="Decode all levels"
+              />
+            )}
           </ToolbarGroup>
 
           {/* Status badges */}
@@ -201,7 +233,7 @@ export default function UrlCodec() {
           <TextArea
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
-            placeholder="Enter text or URL..."
+            placeholder={state.bulk ? 'Enter one value per line...' : 'Enter text or URL...'}
             monospace
             size="md"
             className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"

@@ -32,4 +32,18 @@ describe('EmptyState', () => {
     render(<EmptyState title="No snippets" action={<button>Create snippet</button>} />)
     expect(screen.getByRole('button', { name: 'Create snippet' })).toBeInTheDocument()
   })
+
+  // --color-text-muted carries 0.6-0.75 alpha in most themes, so an opacity utility on top
+  // composites the two. The description used to carry opacity-60, which measured 2.42-3.55:1
+  // against the background on all 23 themes — an AA failure everywhere. Hierarchy now comes from
+  // the title being full-strength instead, which needs no dimming of the description at all.
+  it('does not dim the description with an opacity utility', () => {
+    render(<EmptyState title="Nothing here" description="Try a different filter" />)
+    expect(screen.getByText('Try a different filter').className).not.toMatch(/\bopacity-\d/)
+  })
+
+  it('separates title from description by colour rather than opacity', () => {
+    render(<EmptyState title="Nothing here" description="Try a different filter" />)
+    expect(screen.getByText('Nothing here').className).toContain('text-[var(--color-text)]')
+  })
 })
