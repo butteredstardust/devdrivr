@@ -785,7 +785,7 @@ export default function SnippetsManager() {
                           <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-2xs text-[var(--color-text-muted)]">
                             {snippet.folder && (
                               <span className="flex min-w-0 items-center gap-1 truncate">
-                                <FolderOpenIcon size={9} aria-hidden="true" />
+                                <FolderOpenIcon size={12} aria-hidden="true" />
                                 {snippet.folder}
                               </span>
                             )}
@@ -998,7 +998,7 @@ export default function SnippetsManager() {
                               aria-label={`Remove ${tag} tag`}
                               className="rounded-full p-0 hover:bg-transparent hover:text-[var(--color-error)]"
                             >
-                              <XIcon size={9} aria-hidden="true" />
+                              <XIcon size={12} aria-hidden="true" />
                             </Button>
                           </span>
                         ))}

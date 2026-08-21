@@ -62,6 +62,20 @@ rather than a value that would be wrong for 21 of them. Read the actual values f
 
 Never use a hex for text. There are exactly two text colours.
 
+**Never stack an opacity utility on `--color-text-muted`.** In most themes the token is already
+partly transparent (0.6–0.75 alpha), so `opacity-60` composites against the background twice.
+Measured across all 23 themes, muted text on its own lands at 5.21–7.37:1 — comfortably past
+WCAG AA — while the same text under `opacity-60` lands at 2.42–3.55:1, which fails on every
+theme. There is no third, dimmer text token, and adding one would recreate the failure by design.
+
+Where you need a third level of hierarchy, take it from the level _above_: make the primary line
+`--color-text` and leave the secondary line muted. That is what `EmptyState` does.
+
+Variant-prefixed opacity is fine and deliberately not linted: `disabled:opacity-50` dims a
+control that WCAG exempts from contrast, and `opacity-0 group-hover:opacity-100` hides an element
+rather than dimming it. The `dimmed-muted-text` rule in `scripts/lint-design-system.mjs` matches
+only unprefixed `opacity-1..99` in the same class string as the muted token.
+
 ### Accent and semantics
 
 | Token                | Role                                                                |

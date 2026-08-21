@@ -131,7 +131,7 @@ function ThemeChip({
             aria-hidden="true"
             className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-bg)]"
           >
-            <CheckIcon size={9} weight="bold" />
+            <CheckIcon size={12} weight="bold" />
           </span>
         )}
       </span>

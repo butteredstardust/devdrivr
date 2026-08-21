@@ -416,8 +416,8 @@ export default function TsPlayground() {
               // only the button itself takes pointer events.
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-[var(--color-text-muted)]">
                 <FileTsIcon size={32} weight="light" aria-hidden="true" />
-                <p className="text-sm">Paste or type TypeScript</p>
-                <p className="max-w-xs text-xs opacity-60">
+                <p className="text-sm text-[var(--color-text)]">Paste or type TypeScript</p>
+                <p className="max-w-xs text-xs">
                   It compiles as you type and reports type errors below.
                 </p>
                 <Button

@@ -71,15 +71,22 @@ hand-roll the same compounding in their own empty bodies:
 Plus `shell/NotesDrawer.tsx:701`, where the drag handle stacks `opacity-60` on muted text but
 recovers on focus/hover — lower severity, same root cause.
 
-- [ ] Introduce a `--color-text-subtle` token (a genuinely dimmer _solid_ value per theme) and use
-      it for description text instead of compounding alpha.
-- [ ] Remove `opacity-60` from `EmptyState` and the five sites above.
-- [ ] Extend `scripts/lint-design-system.mjs` to fail on `opacity-<n>` combined with
-      `text-[var(--color-text-muted)]` in one class string. This is exactly the class of bug the
-      linter exists to catch and currently misses.
+- [x] ~~Introduce a `--color-text-subtle` token (a genuinely dimmer _solid_ value per theme).~~
+      **Rejected on measurement.** Ratios were computed for all 23 theme blocks: muted-on-bg is
+      5.21–7.37:1 (passes AA everywhere) and muted+`opacity-60` is 2.42–3.55:1 (fails everywhere).
+      A token dimmer than muted would recreate the failure by design. Hierarchy now comes from the
+      title being `--color-text` instead, which needs no new token and no per-theme judgement.
+- [x] Remove `opacity-60` from `EmptyState` and the five sites above, plus three more the sweep
+      surfaced (`Base64Tool` ×2, `MermaidPreview`).
+- [x] Extend `scripts/lint-design-system.mjs` with a `dimmed-muted-text` rule. Variant-prefixed
+      opacity (`disabled:`, `group-hover:`, `opacity-0`) is exempt — see `DESIGN_SYSTEM.md`.
 
-**Acceptance:** contrast ratio ≥ 4.5:1 for empty-state descriptions in the lightest and darkest of
-the 22 themes; linter rejects a deliberate re-introduction.
+**Acceptance:** ✅ contrast ≥ 4.5:1 on all 23 themes, computed rather than eyeballed; ✅ linter
+rejects a deliberate re-introduction, covered by unit tests over the rule itself.
+
+**Note:** the linter is line-based, so it catches same-line compounding only. The `EmptyState` case
+— muted on the parent, `opacity-60` on the child — is invisible to it and was found by reading.
+That limit is why the component test asserts the absence directly.
 
 ### C2 — `css-to-tailwind` emits invalid classes for `!important` values
 
@@ -104,11 +111,15 @@ sites survived because the design-system linter checks class strings, not JSX pr
 - `src/components/shell/ThemePicker.tsx:134` (selected check)
 - `src/tools/snippets/SnippetsManager.tsx:788,1001` (folder, clear)
 
-- [ ] Move all four to `size={12}`, the documented dense/inline value.
-- [ ] Teach `lint:ds` to parse `size={…}` on `@phosphor-icons/react` elements and reject anything
-      outside {12, 14, 16}. Without this the scale will drift again.
+- [x] Moved all four to `size={12}`, the documented dense/inline value.
+- [x] Added `9` to the existing `off-scale-icon` rule. The rule already covered 10/11/13/15 — `9`
+      was simply missing from the alternation, which is the whole reason these four survived.
 
-**Acceptance:** zero `size={9}`/`{10}`/`{11}`/`{13}`/`{15}` in `src/`; linter enforces it.
+**Acceptance:** ✅ zero `size={9|10|11|13|15}` in `src/`; ✅ linter enforces it, with unit tests
+covering both the rejected and the allowed sizes.
+
+Landed in Batch 1 rather than Batch 2: the new rule turns these four into gate failures, so they
+had to move in the same commit that added it.
 
 ### C4 — Live regions missing on regex match results
 

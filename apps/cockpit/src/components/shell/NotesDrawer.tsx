@@ -698,7 +698,10 @@ export function NotesDrawer() {
                               draggable
                               onDragStart={(event) => handleNoteDragStart(note, event)}
                               aria-label={`Drag ${note.title || 'untitled note'} to reorder`}
-                              className="mt-0.5 inline-flex min-h-6 min-w-5 cursor-grab items-center justify-center rounded text-[var(--color-text-muted)] opacity-60 focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:opacity-100"
+                              // Rests at muted and brightens to full text on hover/focus. It used
+                              // to rest at opacity-60 over muted, which composited below the 3:1
+                              // WCAG minimum for a UI control on every theme.
+                              className="mt-0.5 inline-flex min-h-6 min-w-5 cursor-grab items-center justify-center rounded text-[var(--color-text-muted)] transition-colors focus-visible:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:text-[var(--color-text)]"
                             >
                               <DotsSixVerticalIcon size={14} aria-hidden="true" />
                             </button>
@@ -803,7 +806,7 @@ export function NotesDrawer() {
                                 key={tag}
                                 className="inline-flex items-center gap-1 rounded-full bg-[var(--color-text-muted)]/10 px-1.5 py-0.5 text-2xs text-[var(--color-text-muted)]"
                               >
-                                <TagIcon size={9} aria-hidden="true" /> {tag}
+                                <TagIcon size={12} aria-hidden="true" /> {tag}
                               </span>
                             ))}
                           </div>

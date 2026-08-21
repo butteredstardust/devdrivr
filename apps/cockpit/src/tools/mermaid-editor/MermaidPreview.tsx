@@ -315,7 +315,7 @@ export default function MermaidPreview({
         {/* Only meaningful once there is something to pan — and in a short pane
             it would otherwise sit on top of the empty state. */}
         {svg && (
-          <p className="pointer-events-none absolute bottom-2 left-2 select-none text-2xs text-[var(--color-text-muted)] opacity-40">
+          <p className="pointer-events-none absolute bottom-2 left-2 select-none text-2xs text-[var(--color-text-muted)]">
             Scroll or +/− to zoom · drag or arrows to pan · double-click to fit
           </p>
         )}
