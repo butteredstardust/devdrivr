@@ -11,6 +11,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Alert } from '@/components/shared/Alert'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
@@ -300,9 +301,9 @@ export default function RegexTester() {
               </Alert>
             )}
             {!matchError && matchCount > 0 && (
-              <span className="rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-xs font-bold text-[var(--color-accent)]">
+              <StatusBadge variant={truncated ? 'warning' : 'info'}>
                 {truncated ? `${matchCount}+` : matchCount}
-              </span>
+              </StatusBadge>
             )}
             {!matchError && truncated && (
               <span className="text-xs text-[var(--color-warning)]">

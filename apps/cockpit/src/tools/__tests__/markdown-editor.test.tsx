@@ -474,7 +474,7 @@ describe('LinkModal', () => {
     fireEvent.change(screen.getByPlaceholderText('Link text'), {
       target: { value: 'My Link' },
     })
-    fireEvent.click(screen.getByLabelText('Open in new tab'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Open in new tab (inserts HTML)' }))
     fireEvent.click(screen.getByText('Insert'))
     expect(onInsert).toHaveBeenCalledWith(
       '<a href="https://example.com" target="_blank" rel="noopener noreferrer">My Link</a>'

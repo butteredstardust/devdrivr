@@ -151,10 +151,18 @@ export default function CaseConverter() {
           {cases.map((c) => {
             const isCurrent = c.value === state.input
             return (
+              // `border` on its own resolves to `currentColor` under Tailwind v4's preflight
+              // (`border: 0 solid`, no colour set), so every non-current card was drawing a
+              // full-strength text-coloured outline instead of `--color-border`. The colour is
+              // picked by the ternary rather than listed alongside the accent: two arbitrary
+              // border-colour utilities in one class list have equal specificity, and which one
+              // wins is generation order, not the order they appear in the string.
               <div
                 key={c.id}
                 className={`flex items-center justify-between rounded-[var(--radius-md)] border px-3 py-2 ${
-                  isCurrent ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30' : ''
+                  isCurrent
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
+                    : 'border-[var(--color-border)]'
                 }`}
               >
                 <div className="min-w-0 flex-1">

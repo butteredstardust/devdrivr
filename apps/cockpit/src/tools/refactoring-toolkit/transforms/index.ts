@@ -19,10 +19,16 @@ export const CATEGORIES: { id: TransformCategory; label: string }[] = [
   { id: 'cleanup', label: 'Cleanup' },
 ]
 
-export const SAFETY_COLORS: Record<SafetyLevel, string> = {
-  safe: 'var(--color-success)',
-  caution: 'var(--color-warning)',
-  destructive: 'var(--color-error)',
+/**
+ * Tailwind classes, not raw `var(...)` strings for an inline `style`.
+ *
+ * The values were always CSS variables, so the inline style bought nothing and cost the usual
+ * things: no variant states, and a `style` attribute that overrides any class a caller adds.
+ */
+export const SAFETY_TEXT_CLASSES: Record<SafetyLevel, string> = {
+  safe: 'text-[var(--color-success)]',
+  caution: 'text-[var(--color-warning)]',
+  destructive: 'text-[var(--color-error)]',
 }
 
 export const SAFETY_LABELS: Record<SafetyLevel, string> = {

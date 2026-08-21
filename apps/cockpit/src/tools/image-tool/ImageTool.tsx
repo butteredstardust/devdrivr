@@ -943,8 +943,9 @@ function ResizePanel({
             dimension inputs; Button's smallest size is text-xs (12px), which would outweigh
             the fields it annotates. */}
         <button
+          type="button"
           onClick={onReset}
-          className="mt-2 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          className="mt-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
         >
           Reset to original ({originalW} × {originalH})
         </button>
@@ -959,8 +960,9 @@ function ResizePanel({
             // eslint-disable-next-line no-restricted-syntax -- dense 10px preset chip grid; Button's smallest size (text-xs, px-1.5) makes the row wrap at this panel width.
             <button
               key={label}
+              type="button"
               onClick={() => onPreset(w, h)}
-              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              className="rounded border border-[var(--color-border)] px-2 py-0.5 text-2xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             >
               {label}
             </button>
@@ -1069,9 +1071,10 @@ function CropPanel({
             crop inputs; Button's smallest size is text-xs (12px), which would outweigh the
             fields it annotates. */}
         <button
+          type="button"
           onClick={onReset}
           disabled={!enabled}
-          className="mt-3 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none"
+          className="mt-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
         >
           Reset to full image
         </button>

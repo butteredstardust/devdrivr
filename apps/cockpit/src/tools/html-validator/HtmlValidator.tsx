@@ -723,12 +723,15 @@ export default function HtmlValidator() {
             <CopyButton text={input} label="Copy HTML" />
           </ToolbarGroup>
 
+          {/* `aria-controls` is conditional because the panel only exists while open, and an
+              `aria-controls` pointing at an unrendered id is worse than none — it sends the user's
+              cursor nowhere. Matches css-validator, which already had it this way. */}
           <Button
             variant={state.showRules ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => updateState({ showRules: !state.showRules })}
             aria-expanded={state.showRules}
-            aria-controls={rulesPanelId}
+            {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
             className="gap-1"
           >
             <SlidersHorizontalIcon size={14} aria-hidden="true" />
@@ -968,7 +971,7 @@ function ResultsPanel({
           size="xs"
           onClick={onToggleOpen}
           aria-expanded={open}
-          aria-controls={panelId}
+          {...(open ? { 'aria-controls': panelId } : {})}
           className="ml-auto gap-1"
         >
           <Caret size={12} aria-hidden="true" />

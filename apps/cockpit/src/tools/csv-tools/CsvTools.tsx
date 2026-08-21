@@ -411,7 +411,17 @@ export default function CsvTools() {
                 Undo {undoBuffer.label.toLowerCase()}
               </Button>
             )}
-            <CopyButton text={activeOutput} label="Copy output" />
+            {/* Three views share this button, and "Copy output" named none of them. */}
+            <CopyButton
+              text={activeOutput}
+              label={
+                view === 'convert'
+                  ? `Copy ${format.toUpperCase()}`
+                  : view === 'analyze'
+                    ? `Copy ${schemaLanguage === 'sql' ? 'SQL' : 'TypeScript'}`
+                    : 'Copy CSV'
+              }
+            />
             <Button
               variant="ghost"
               size="sm"

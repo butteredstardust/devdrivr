@@ -333,7 +333,7 @@ export default function CodeFormatter() {
                 title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
               >
-                <FloppyDiskIcon size={16} aria-hidden="true" />
+                <FloppyDiskIcon size={14} aria-hidden="true" />
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

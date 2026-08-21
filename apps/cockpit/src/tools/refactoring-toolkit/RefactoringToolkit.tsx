@@ -30,7 +30,7 @@ import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
 import {
   TRANSFORMS,
   CATEGORIES,
-  SAFETY_COLORS,
+  SAFETY_TEXT_CLASSES,
   SAFETY_LABELS,
   LANGUAGES,
   type Transform,
@@ -534,8 +534,7 @@ export default function RefactoringToolkit() {
                               {/* Was a bare coloured dot with a title attribute —
                                   invisible to keyboard and screen-reader users. */}
                               <span
-                                className="rounded px-1 text-2xs uppercase"
-                                style={{ color: SAFETY_COLORS[transform.safety] }}
+                                className={`rounded px-1 text-2xs uppercase ${SAFETY_TEXT_CLASSES[transform.safety]}`}
                                 title={SAFETY_LABELS[transform.safety]}
                               >
                                 {transform.safety}

@@ -257,15 +257,35 @@ Low risk, high volume. Batch by finding, not by tool — the same lesson as P3 o
 
 The consistency programme converted chrome; these are the stragglers it did not reach.
 
-- [ ] `ts-playground/TsPlayground.tsx:397-405,440-449` — two hand-rolled pane headers. `PaneHeader`
-      exists; `diff-viewer/DiffViewer.tsx:196` shows the intended shape.
-- [ ] `regex-tester/RegexTester.tsx:254-262` — hand-rolled match-count badge → `StatusBadge`.
-- [ ] `case-converter/CaseConverter.tsx:154-183` — hand-rolled result cards → `Panel`.
-- [ ] `image-tool/ImageTool.tsx:945-950,960-966,1071-1077` — raw `<button>` for aspect presets and
-      resets → `Button variant="ghost" size="xs"`.
-- [ ] `markdown-editor/modals/LinkModal.tsx:85-96` — hand-rolled checkbox.
-- [ ] `refactoring-toolkit/RefactoringToolkit.tsx:537-541` — inline `style={{ color }}` where the
-      values are already CSS variables; className-only.
+- [x] `ts-playground/TsPlayground.tsx` — both hand-rolled pane headers are now `PaneHeader`, with
+      the line count folded into `hint` exactly as `diff-viewer/DiffViewer.tsx:200` does.
+- [x] `regex-tester/RegexTester.tsx` — match-count badge → `StatusBadge`. Colour moves from accent
+      to `info`, and to `warning` when the count is truncated, which the accent version could not
+      express at all.
+- [x] ~~`case-converter/CaseConverter.tsx` result cards → `Panel`.~~ **Rejected.** `Panel` is a
+      titled, padded container; these cards are a single label/value/actions row, so the conversion
+      needs `padded={false}` plus a className re-adding the padding — and `Panel` hardcodes
+      `border-[var(--color-border)]`, so the selected card's accent border would have to win by
+      className override, which is exactly the silent-loss trap documented in `DESIGN_SYSTEM.md`.
+      **A real bug turned up while looking:** the card used a bare `border` with no colour utility.
+      Tailwind v4's preflight is `border: 0 solid` with no colour set, so that resolves to
+      `currentColor` — every unselected card was drawing a full-strength text-coloured outline
+      instead of `--color-border`. Fixed by picking the colour in the existing ternary rather than
+      listing both (two arbitrary border-colour utilities have equal specificity; the winner is
+      generation order, not string order). Swept the rest of `src/` for the same shape — 21
+      candidates, all others legitimate (`border-0`, `border-current`, or a colour supplied by a
+      sibling variant map).
+- [x] ~~`image-tool/ImageTool.tsx` raw `<button>` → `Button variant="ghost" size="xs"`.~~
+      **Rejected.** All three already carry an `eslint-disable no-restricted-syntax` with the
+      reasoning: they are 10px (`text-2xs`) annotations and `Button`'s smallest size is `text-xs`,
+      which would outweigh the fields they label. The audit agent flagged them without reading the
+      comment directly above each. They did lack a focus ring and `type="button"` — both added, so
+      they now behave like `Button` where it matters.
+- [x] `markdown-editor/modals/LinkModal.tsx` — checkbox → `Toggle`. A modal settings row has the
+      space for a switch, unlike the dense per-row checkboxes in the validators.
+- [x] `refactoring-toolkit` — `SAFETY_COLORS` (raw `var(...)` strings for an inline `style`) is now
+      `SAFETY_TEXT_CLASSES`, className-only. The inline style bought nothing, since the values were
+      already CSS variables, and cost variant states.
 
 ### S2 — Modal and breakpoint inconsistency in the Write group
 
@@ -293,19 +313,23 @@ photographing. This audit is static for the same reason.
 
 ### S4 — Assorted single-site polish
 
-- [ ] `base64/Base64Tool.tsx:673` — Unicode `↺` where every sibling uses a Phosphor icon →
-      `ArrowCounterClockwiseIcon size={12}`.
-- [ ] `code-formatter/CodeFormatter.tsx:336` — save icon at 16 among 14s in the same toolbar.
-- [ ] `css-validator/CssValidator.tsx:575` vs `html-validator/HtmlValidator.tsx:731` — the two
-      validators set `aria-controls` differently (conditional vs unconditional) for the same
-      disclosure. Pick the conditional form; an `aria-controls` pointing at an unrendered id is
-      wrong.
-- [ ] `yaml-tools/YamlTools.tsx:593-604` — expand/collapse-all buttons lack the icons their
-      `json-tools` counterparts have, and the icons are **already imported** on lines 4-5.
-- [ ] `csv-tools/CsvTools.tsx:414` — `CopyButton` label is always "Copy output" across three view
-      modes; make it name what it copies.
-- [ ] `docs-browser/DocsBrowser.tsx:43-44,85-101` — "DevDocs.io" and the iframe `title` are
-      hardcoded while `frameSrc` is a prop.
+- [x] `base64/Base64Tool.tsx` — Unicode `↺` → `ArrowCounterClockwiseIcon size={12}`.
+- [x] `code-formatter/CodeFormatter.tsx` — save icon 16 → 14, matching its three toolbar siblings.
+      The remaining 16 in that file is the `DocumentIdentity` icon, which is at navigation scale on
+      purpose.
+- [x] Both validators now use the conditional `aria-controls`. It was `html-validator` that was
+      wrong, in **two** places, not one — both its panels are conditionally rendered, so the
+      unconditional attribute pointed at a non-existent id whenever the disclosure was closed.
+- [x] `yaml-tools/YamlTools.tsx` — expand/collapse-all now carry the same icons as their
+      `json-tools` counterparts. Correction to the finding: the icons were _not_ already imported;
+      lines 4-5 held different arrows. Added the imports.
+- [x] `csv-tools/CsvTools.tsx` — `CopyButton` now names what it copies per view ("Copy JSON",
+      "Copy SQL", "Copy CSV") instead of "Copy output" across all three.
+- [x] `docs-browser/DocsBrowser.tsx` — a new exported `siteLabel()` derives the name from
+      `frameSrc`, and the label, the "Open externally" href, the iframe `title` and all four copy
+      strings now follow it. Previously only `src` did, so pointing the tool anywhere else produced
+      chrome naming the wrong site — which the old test enshrined by asserting "DevDocs.io" while
+      rendering `about:blank`.
 
 ---
 

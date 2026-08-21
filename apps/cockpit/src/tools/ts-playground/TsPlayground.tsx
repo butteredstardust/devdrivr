@@ -18,6 +18,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
+import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
@@ -394,15 +395,10 @@ export default function TsPlayground() {
           aria-label="TypeScript input"
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="font-ui text-xs font-semibold text-[var(--color-text)]">
-              TypeScript
-            </span>
-            <span className="truncate text-2xs text-[var(--color-text-muted)]">input</span>
-            <span className="ml-auto shrink-0 text-2xs tabular-nums text-[var(--color-text-muted)]">
-              {inputLines} line{inputLines === 1 ? '' : 's'}
-            </span>
-          </div>
+          <PaneHeader
+            title="TypeScript"
+            hint={`input · ${inputLines} line${inputLines === 1 ? '' : 's'}`}
+          />
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}
@@ -437,17 +433,10 @@ export default function TsPlayground() {
           aria-label="JavaScript output"
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1">
-            <span className="font-ui text-xs font-semibold text-[var(--color-text)]">
-              JavaScript
-            </span>
-            <span className="truncate text-2xs text-[var(--color-text-muted)]">
-              {state.target} · {state.module}
-            </span>
-            <span className="ml-auto shrink-0 text-2xs tabular-nums text-[var(--color-text-muted)]">
-              {outputLines} line{outputLines === 1 ? '' : 's'}
-            </span>
-          </div>
+          <PaneHeader
+            title="JavaScript"
+            hint={`${state.target} · ${state.module} · ${outputLines} line${outputLines === 1 ? '' : 's'}`}
+          />
           <div className="min-h-0 flex-1 overflow-hidden">
             <Editor
               theme={monacoTheme}

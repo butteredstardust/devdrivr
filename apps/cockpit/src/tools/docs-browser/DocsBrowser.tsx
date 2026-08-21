@@ -10,10 +10,28 @@ type DocsBrowserProps = {
   frameSrc?: string
 }
 
+/**
+ * What to call the embedded site in the chrome and in error copy.
+ *
+ * `frameSrc` is a prop, but the label, the external link and the iframe title all used to say
+ * "DevDocs" regardless — so pointing the tool at anything else produced a UI that named the wrong
+ * site. Falls back to the raw string for non-http sources like `about:blank`, which is at least
+ * true.
+ */
+export function siteLabel(frameSrc: string): string {
+  try {
+    const { hostname } = new URL(frameSrc)
+    return hostname.replace(/^www\./, '') || frameSrc
+  } catch {
+    return frameSrc
+  }
+}
+
 export default function DocsBrowser({
   defaultLoadError = false,
   frameSrc = 'https://devdocs.io',
 }: DocsBrowserProps) {
+  const label = siteLabel(frameSrc)
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [loading, setLoading] = useState(!defaultLoadError)
   const [loadError, setLoadError] = useState(defaultLoadError)
@@ -41,10 +59,10 @@ export default function DocsBrowser({
       toolbar={
         <>
           <Toolbar aria-label="Documentation navigation">
-            <span className="font-mono text-xs text-[var(--color-text-muted)]">DevDocs.io</span>
+            <span className="font-mono text-xs text-[var(--color-text-muted)]">{label}</span>
             <ToolbarSpacer />
             <a
-              href="https://devdocs.io"
+              href={frameSrc}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[var(--color-accent)] hover:underline"
@@ -60,7 +78,7 @@ export default function DocsBrowser({
             >
               {loadError ? (
                 <div className="flex items-center justify-between gap-3">
-                  <span>Embedded docs failed to load. Open DevDocs in your browser or retry.</span>
+                  <span>Embedded docs failed to load. Open {label} in your browser or retry.</span>
                   <Button variant="secondary" size="sm" onClick={handleRetry}>
                     Retry
                   </Button>
@@ -68,14 +86,14 @@ export default function DocsBrowser({
               ) : showSlowFallback ? (
                 <div className="flex items-center justify-between gap-3">
                   <span>
-                    DevDocs is taking longer than usual to load. You can keep waiting or retry.
+                    {label} is taking longer than usual to load. You can keep waiting or retry.
                   </span>
                   <Button variant="secondary" size="sm" onClick={handleRetry}>
                     Retry
                   </Button>
                 </div>
               ) : (
-                <span>Loading DevDocs…</span>
+                <span>Loading {label}…</span>
               )}
             </Alert>
           )}
@@ -86,7 +104,7 @@ export default function DocsBrowser({
         key={frameKey}
         src={frameSrc}
         className="flex-1 border-none"
-        title="DevDocs"
+        title={`${label} documentation`}
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
         onLoad={() => {
           setLoading(false)

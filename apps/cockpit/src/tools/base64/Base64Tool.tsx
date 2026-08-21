@@ -15,6 +15,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { Toggle } from '@/components/shared/Toggle'
 import {
+  ArrowCounterClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsLeftRightIcon,
@@ -670,7 +671,7 @@ function ZoomBadge({
             onReset()
           }}
         >
-          ↺
+          <ArrowCounterClockwiseIcon size={12} aria-hidden="true" />
         </Button>
       )}
     </div>
