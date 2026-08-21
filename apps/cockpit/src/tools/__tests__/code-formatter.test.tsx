@@ -13,6 +13,7 @@ import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
+import { CODE_FORMATTER_SAMPLES } from '@/lib/tool-samples'
 
 vi.mock('@/lib/file-io', () => ({
   saveFileDialog: vi.fn(),
@@ -299,5 +300,35 @@ describe('formatter parser coverage', () => {
     for (const language of LANGUAGES) {
       expect(supported.has(language.id), `${language.id} is missing a parser`).toBe(true)
     }
+  })
+})
+
+describe('CodeFormatter — Load sample', () => {
+  it('names the selected language and loads a sample in it', () => {
+    renderTool(CodeFormatter)
+
+    // The label names the language because the sample depends on it — loading
+    // JavaScript into a buffer set to SQL would format it as SQL.
+    fireEvent.click(screen.getByRole('button', { name: 'Load JavaScript sample' }))
+
+    expect((screen.getByTestId('monaco-editor') as HTMLTextAreaElement).value).toContain(
+      'const orders='
+    )
+    expect(screen.queryByRole('button', { name: /Load .* sample/ })).not.toBeInTheDocument()
+  })
+
+  it('follows the language selector', () => {
+    renderTool(CodeFormatter)
+
+    fireEvent.change(screen.getByLabelText(/language/i), { target: { value: 'sql' } })
+
+    expect(screen.getByRole('button', { name: 'Load SQL sample' })).toBeInTheDocument()
+  })
+
+  it('has a sample for every supported language', () => {
+    // The button renders only when a sample exists, so a language added without
+    // one loses the affordance silently — which reads as a bug, not a decision.
+    const missing = LANGUAGES.filter((l) => !CODE_FORMATTER_SAMPLES[l.id]).map((l) => l.id)
+    expect(missing).toEqual([])
   })
 })

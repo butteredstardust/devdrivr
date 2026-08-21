@@ -422,7 +422,7 @@ export default function TsPlayground() {
                   onClick={loadExample}
                   className="pointer-events-auto"
                 >
-                  Load example
+                  Load sample
                 </Button>
               </div>
             )}

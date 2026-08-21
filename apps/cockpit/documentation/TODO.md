@@ -103,12 +103,56 @@ on first keystroke. That is the pattern to generalise.
 - [x] Sweep every tool for the same shape. The cross-app map found Diff Viewer to be the only tool
       rendering an empty state as a _sibling block_ competing with a live input; every other empty
       state either owns its whole pane or renders inside the input region.
-- [ ] `Load sample` coverage is still inconsistent across tools. **Not addressed in this branch** —
-      it is a content question (which tools deserve a sample, and what it should be) rather than a
-      layout one, and deciding it tool-by-tool is its own piece of work.
+- [x] `Load sample` coverage swept across all 30 tools. This was deferred once as "a content
+      question rather than a layout one", which was true — so it was answered as one. The rule
+      applied, and the outcome per tool, is §3.1 below.
 
-**Acceptance:** met for the layout half; `Load sample` coverage remains open and is called out above
-rather than quietly dropped.
+**Acceptance:** met.
+
+### U2.1 — `Load sample` coverage: the rule and the outcome
+
+A tool earns a sample when **its input is a structured format the user may not have to hand, and a
+worked example teaches both the syntax and what the tool does with it**. That excludes three whole
+categories, which is why the affordance was never going to reach 30 tools and should not have been
+read as "inconsistent" without one.
+
+**Added (4):**
+
+| Tool           | Sample                                                   | Why                                                                                                                                                                                                           |
+| -------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Regex Tester   | pattern + flags + subject                                | The tool shows nothing until _both_ a pattern and a subject exist; a cold start meant inventing two things at once, and the tax falls hardest on the user who came here unsure of the syntax.                 |
+| cURL → fetch   | POST with two headers, a body and a query string         | Exercises every branch of the converter. A bare `curl https://example.com` converts fine and demonstrates none of it.                                                                                         |
+| CSS → Tailwind | a rule that is half convertible                          | The `unconvertible` list is the half of the output that matters most, and a cleanly-converting sample hides it.                                                                                               |
+| Code Formatter | one deliberately mis-formatted snippet per language (12) | Keyed to the selector, because loading JS into a buffer set to SQL formats it as SQL and makes the tool look broken. One JS sample would leave the button missing for eleven languages, which reads as a bug. |
+
+Every added sample is deliberately imperfect, matching the existing `html-validator` and
+`css-validator` samples: one that arrives already correct makes the tool appear to do nothing.
+
+**Not added, by category:**
+
+- **Input is arbitrary text the user brings** — Base64, URL Codec, Case Converter, Hash Generator.
+  Any string works; a sample teaches nothing.
+- **Generates without input** — UUID Generator, Placeholder, Timestamp Converter (defaults to now).
+- **Manages the user's own content** — Snippets, Prompt Templates, Markdown Editor, Notes. A sample
+  here is not a demo, it is someone else's document in your library.
+- **Equivalent affordance already exists under another name** — Mermaid Editor (`Load template`, a
+  picker over several), CSS Specificity (inline examples), JSON Schema Validator (7 templates).
+- **Would require a network call** — API Client. Its empty states are already well-formed, and a
+  sample that reached a real endpoint would contradict "everything stays on this machine".
+- **Empty state already teaches the tool** — Color Converter (the placeholder is the syntax), Image
+  Tool, Docs Browser (both take files or navigation, not typed input).
+
+**Also normalised:** the label. Three spellings existed for one gesture — `Load sample`,
+`Load Sample` (JWT Decoder) and `Load example` (TS Playground, Refactoring Toolkit). All 16 sites now
+read `Load sample`; Code Formatter's names the language (`Load SQL sample`) because there the sample
+genuinely depends on it. A test asserts every formatter language has a sample, so adding a language
+without one fails the suite rather than silently dropping the button.
+
+**Watch out:** `scripts/lint-design-system.mjs` reads raw source text and cannot tell a CSS _sample_
+from a `className` — nor does it spare comments. A sample containing a bare easing keyword or a hex
+colour near the word `class` fails the gate even though it styles nothing, and the documented
+escape-hatch comment does not help, because inside a template literal it would become part of the
+sample. Pick properties that do not collide. This is recorded in `tool-samples.ts` too.
 
 ---
 
@@ -166,8 +210,22 @@ a keyhole. The Shortcuts dialog is a long unfiltered list, clipped at the bottom
       **substring, not Fuse** — deliberately. On ~25 two-word entries at the palette's 0.4 threshold,
       Fuse matches "tab" against "Toggle sidebar", and on a reference table a wrong row is worse than
       no row. It matches the rendered shortcut too, so `⌘K` and `cmd` both find the palette.
-- [ ] Theme swatches as miniature app previews — **not done.** This is a visual-design task of a
-      different kind from the rest of this branch, and it is not blocked by anything here.
+- [x] Theme swatches are miniature app previews. Each swatch now renders the real shell in
+      miniature — title bar, sidebar rail with an accented active item, tab strip with one active
+      tab, content, status bar — where it previously showed three abstract blocks. The mechanism was
+      already right and is unchanged: the theme's class is applied to a scoped wrapper exactly as
+      `tokens.css` applies it to `<html>`, so every band resolves `var(--color-*)` against that
+      theme and **no colour is read or hardcoded in JS**. Only the geometry changed.
+
+      The three blocks could not answer the questions that actually decide a theme: whether its
+      surface separates from its background at all, whether its accent survives against its own
+      active tab (the one place the accent meets `--color-bg` rather than `--color-surface`), and
+      how loud its borders are. All three are legible now. Height went `h-8` → `h-12` to fit five
+      bands; the dialog gained ~30vh earlier in this branch, so there is room.
+
+      One incidental fix: `Swatch`'s `className` now _replaces_ the default instead of appending to
+      it. `SystemSwatch` passes `h-full` for its half-width split, which previously left two height
+      utilities on one element with the winner decided by Tailwind's emit order.
 
 ### U6 — Collapsed sidebar is a dead end — **finding overstated; the real gap is fixed**
 
@@ -235,12 +293,12 @@ Recorded so they are not re-raised.
 
 ## 7. Status
 
-Delivered: U1 (both real items), U2 (layout), U3, U4, U5 (dialogs), U6, S1, S2.
+Delivered: U1, U2 (layout **and** the `Load sample` sweep, §3.1), U3, U4, U5 (dialogs **and** the
+theme previews), U6, S1, S2.
 
-Open and explicitly not done in this branch:
+Open:
 
-- U2 — `Load sample` coverage sweep.
-- U5 — theme swatches as miniature app previews.
-- S3 — screenshot baseline (blocked on manual capture, carried forward).
+- S3 — screenshot baseline (blocked on manual capture, carried forward). This is now the only item
+  left in this document, and it is the one that would have caught every defect in §3 automatically.
 
 See §2 for the gate table.

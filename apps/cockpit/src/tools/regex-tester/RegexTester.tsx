@@ -16,6 +16,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 type RegexTesterState = {
   pattern: string
@@ -137,6 +138,7 @@ export default function RegexTester() {
     replacePattern: '',
   })
   const copy = useCopyToClipboard()
+  const isUntouched = !state.pattern.trim() && !state.testString.trim()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
@@ -301,6 +303,26 @@ export default function RegexTester() {
             >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
+            {/* Only while both fields are untouched. A regex tool needs a pattern
+                *and* a subject before it shows anything, so a cold start means
+                inventing both — and the tax falls hardest on the user who came
+                here because they are unsure of the syntax. Gone on the first
+                keystroke, so it can never overwrite work in progress. */}
+            {isUntouched && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  updateState({
+                    pattern: REGEX_TESTER_SAMPLE.pattern,
+                    flags: REGEX_TESTER_SAMPLE.flags,
+                    testString: REGEX_TESTER_SAMPLE.testString,
+                  })
+                }
+              >
+                Load sample
+              </Button>
+            )}
             {matchError && (
               <Alert variant="error" className="px-2 py-0.5">
                 {matchError}

@@ -1,12 +1,15 @@
 import { useMemo } from 'react'
 import Editor from '@monaco-editor/react'
+import { WindIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
+import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
 
 type CssToTailwindState = {
   input: string
@@ -403,7 +406,22 @@ export default function CssToTailwind() {
                 )}
               </div>
             ) : (
-              <EmptyState title="Enter CSS on the left to convert" />
+              <EmptyState
+                icon={WindIcon}
+                title="Enter CSS on the left to convert"
+                description="Declarations map to Tailwind utilities; anything without an equivalent is listed separately."
+                action={
+                  TOOL_SAMPLES['css-to-tailwind'] ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => updateState({ input: TOOL_SAMPLES['css-to-tailwind'] ?? '' })}
+                    >
+                      Load sample
+                    </Button>
+                  ) : undefined
+                }
+              />
             )}
           </div>
         </div>

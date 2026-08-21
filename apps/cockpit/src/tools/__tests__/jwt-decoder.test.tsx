@@ -50,11 +50,11 @@ describe('JwtDecoder', () => {
     expect(screen.getByText(/invalid jwt/i)).toBeInTheDocument()
   })
 
-  it('loads the fake sample token via Load Sample and decodes it through the same input path as typing', () => {
+  it('loads the fake sample token via Load sample and decodes it through the same input path as typing', () => {
     renderTool(JwtDecoder)
-    expect(screen.getByText('Load Sample')).toBeInTheDocument()
+    expect(screen.getByText('Load sample')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Load Sample'))
+    fireEvent.click(screen.getByText('Load sample'))
 
     const input = screen.getByPlaceholderText(/paste a jwt/i) as HTMLTextAreaElement
     expect(input.value).toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')

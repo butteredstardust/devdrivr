@@ -82,3 +82,27 @@ describe('CssToTailwind', () => {
     })
   })
 })
+
+describe('CssToTailwind — Load sample', () => {
+  it('fills the editor and produces both converted and unconvertible output', () => {
+    renderTool(CssToTailwind)
+
+    // The empty state is the only thing on screen until something is entered,
+    // and before this it offered no way out except knowing what to type.
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
+
+    expect((screen.getByTestId('monaco-editor') as HTMLTextAreaElement).value).toContain(
+      'display: flex'
+    )
+    expect(screen.getByText('Converted Classes')).toBeInTheDocument()
+    // The half that matters: a sample converting cleanly would never show this.
+    expect(screen.getByText('Unconvertible')).toBeInTheDocument()
+  })
+
+  it('replaces the empty state rather than sitting alongside it', () => {
+    renderTool(CssToTailwind)
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
+
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
+  })
+})

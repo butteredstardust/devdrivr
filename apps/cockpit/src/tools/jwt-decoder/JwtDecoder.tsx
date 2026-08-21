@@ -431,7 +431,7 @@ export default function JwtDecoder() {
                   size="sm"
                   onClick={() => updateState({ input: TOOL_SAMPLES['jwt-decoder'] ?? '' })}
                 >
-                  Load Sample
+                  Load sample
                 </Button>
               ) : undefined
             }

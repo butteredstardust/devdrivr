@@ -62,9 +62,9 @@ describe('TsPlayground', () => {
     expect(screen.getByRole('button', { name: /Compile/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Save output to file' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load example' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
     expect(editors()[0]!.value).toContain('interface User')
-    expect(screen.queryByRole('button', { name: 'Load example' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: /Compile/ })).toBeEnabled())
   })
 

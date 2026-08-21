@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import RegexTester, { describeMatches } from '@/tools/regex-tester/RegexTester'
+import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 const setPattern = (value: string) =>
   fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), { target: { value } })
@@ -266,5 +267,31 @@ describe('RegexTester (component)', () => {
 
     // Back to "show diff" title
     expect(screen.getByTitle(/show diff/i)).toBeInTheDocument()
+  })
+})
+
+describe('RegexTester — Load sample', () => {
+  it('fills pattern, flags and subject together and produces matches', async () => {
+    renderTool(RegexTester)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
+
+    expect(screen.getByPlaceholderText(/enter regex pattern/i)).toHaveValue(
+      REGEX_TESTER_SAMPLE.pattern
+    )
+    expect(screen.getByPlaceholderText(/enter text to test/i)).toHaveValue(
+      REGEX_TESTER_SAMPLE.testString
+    )
+    // Both halves at once is the point: a pattern with no subject, or a subject
+    // with no pattern, still shows the user nothing.
+    await expect(screen.findByTestId('match-count')).resolves.toHaveTextContent('3 matches')
+  })
+
+  it('disappears once either field has been touched, so it cannot overwrite work', () => {
+    renderTool(RegexTester)
+
+    setPattern('\\d+')
+
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
   })
 })

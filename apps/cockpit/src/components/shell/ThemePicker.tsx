@@ -41,15 +41,65 @@ const LAST_THEME: Theme = FLAT[FLAT.length - 1] ?? 'system'
 // for the real <html> element, just scoped to this swatch instead. No JS
 // color values are read or hardcoded; the browser resolves var(--color-*)
 // against whichever class is nearest.
-function Swatch({ effective, className = '' }: { effective: EffectiveTheme; className?: string }) {
+//
+// The bands mirror the real shell — title bar, sidebar rail, tab strip with one
+// active tab, content, status bar — rather than the three abstract blocks that
+// were here before. What a user is choosing is how the app will look, and three
+// blocks could not answer the questions that actually decide it: whether this
+// theme's surface separates from its background at all, whether its accent
+// survives against its own active tab, and how loud its borders are. All three
+// are legible here and none were before.
+//
+// `className` replaces the default rather than appending to it, so a caller
+// overriding the height (SystemSwatch's half-width split) doesn't end up with
+// two competing height utilities whose winner depends on Tailwind's emit order.
+function Swatch({
+  effective,
+  className = 'h-12',
+}: {
+  effective: EffectiveTheme
+  className?: string
+}) {
   return (
     <span
       aria-hidden="true"
-      className={`${effective} relative block h-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] ${className}`}
+      data-theme-preview={effective}
+      className={`${effective} flex flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] ${className}`}
     >
-      <span className="absolute inset-x-1 bottom-1 top-3 rounded-[2px] bg-[var(--color-surface)]" />
-      <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-      <span className="absolute inset-x-1.5 bottom-1.5 h-1 w-4 rounded-full bg-[var(--color-text)] opacity-70" />
+      {/* Title bar */}
+      <span className="flex h-[5px] shrink-0 items-center gap-[2px] border-b border-[var(--color-border)] bg-[var(--color-surface)] pl-[3px]">
+        <span className="h-[2px] w-[2px] rounded-full bg-[var(--color-text-muted)]" />
+        <span className="h-[2px] w-[2px] rounded-full bg-[var(--color-text-muted)]" />
+      </span>
+
+      <span className="flex min-h-0 flex-1">
+        {/* Sidebar rail, with the active item accented as it is in the real one */}
+        <span className="flex w-[9px] shrink-0 flex-col items-center gap-[3px] border-r border-[var(--color-border)] bg-[var(--color-surface)] pt-[4px]">
+          <span className="h-[2px] w-[5px] rounded-full bg-[var(--color-accent)]" />
+          <span className="h-[2px] w-[5px] rounded-full bg-[var(--color-text-muted)]" />
+          <span className="h-[2px] w-[5px] rounded-full bg-[var(--color-text-muted)]" />
+        </span>
+
+        <span className="flex min-w-0 flex-1 flex-col">
+          {/* Tab strip. The active tab sits on --color-bg under an accent underline,
+              which is the one place a theme's accent has to hold up against its own
+              background rather than against its surface. */}
+          <span className="flex h-[7px] shrink-0 items-end gap-[2px] border-b border-[var(--color-border)] bg-[var(--color-surface)] px-[2px]">
+            <span className="h-[6px] w-[12px] rounded-t-[2px] border-b border-[var(--color-accent)] bg-[var(--color-bg)]" />
+            <span className="h-[4px] w-[9px] rounded-t-[2px] border border-b-0 border-[var(--color-border)]" />
+          </span>
+
+          {/* Content */}
+          <span className="flex min-h-0 flex-1 flex-col justify-center gap-[3px] px-[4px]">
+            <span className="h-[2px] w-[70%] rounded-full bg-[var(--color-text)] opacity-70" />
+            <span className="h-[2px] w-[42%] rounded-full bg-[var(--color-accent)]" />
+            <span className="h-[2px] w-[58%] rounded-full bg-[var(--color-text)] opacity-40" />
+          </span>
+        </span>
+      </span>
+
+      {/* Status bar */}
+      <span className="h-[4px] shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)]" />
     </span>
   )
 }
@@ -58,7 +108,7 @@ function SystemSwatch() {
   return (
     <span
       aria-hidden="true"
-      className="relative flex h-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)]"
+      className="relative flex h-12 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)]"
     >
       <Swatch effective="midnight" className="h-full w-1/2 rounded-none border-0" />
       <Swatch effective="soft-focus" className="h-full w-1/2 rounded-none border-0" />

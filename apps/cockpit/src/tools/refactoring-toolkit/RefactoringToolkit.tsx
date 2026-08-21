@@ -633,7 +633,7 @@ export default function RefactoringToolkit() {
                 }
                 className="pointer-events-auto"
               >
-                Load example
+                Load sample
               </Button>
             </div>
           )}

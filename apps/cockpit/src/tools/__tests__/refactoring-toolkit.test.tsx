@@ -236,9 +236,9 @@ describe('RefactoringToolkit', () => {
 
   it('offers an example while the buffer is empty', () => {
     renderTool(RefactoringToolkit)
-    fireEvent.click(screen.getByRole('button', { name: 'Load example' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
 
     expect(editor().value).toContain("var API = require('./api')")
-    expect(screen.queryByRole('button', { name: 'Load example' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
   })
 })
