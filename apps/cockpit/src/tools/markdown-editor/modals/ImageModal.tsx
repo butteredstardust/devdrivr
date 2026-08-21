@@ -52,7 +52,6 @@ export function ImageModal({ onInsert, onClose }: Props) {
     <Dialog
       title="Insert Image"
       onClose={onClose}
-      className="w-[420px]"
       initialFocusRef={urlRef}
       closeLabel="Close insert image dialog"
       footer={

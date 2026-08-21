@@ -219,6 +219,34 @@ without `h-full` silently collapse.
 
 ---
 
+## Breakpoints
+
+Two viewport widths, each with one job. Adding a third needs a reason written down here.
+
+| Width      | Means                                              | Written as                                     |
+| ---------- | -------------------------------------------------- | ---------------------------------------------- |
+| **900px**  | A side-by-side split becomes a column              | `stackBelow={900}` — or `max-[900px]:flex-col` |
+| **1000px** | Density: rows wrap, panes narrow, padding tightens | `max-[1000px]:…`                               |
+
+**Prefer `SplitPane`'s `stackBelow` over a raw `max-[900px]:flex-col`** where a split already
+exists: the media query lives in one place, and the drag handle is disabled with it rather than
+left behind as a dead 6px strip.
+
+Two documented departures, both deliberate:
+
+- `MarkdownEditor` and `ApiClient` stack at **1000px**, not 900. Prose needs more line length than
+  most panes before a 50/50 split stops being readable, and a request/response pair is two forms
+  rather than two views of one thing.
+- `CssValidator` and `HtmlValidator` use `min-[700px]:grid-cols-2 min-[1100px]:grid-cols-N` for
+  their rule grids. That's a column _count_ for a list of checkboxes, not a layout mode change, so
+  it doesn't belong on the scale above.
+
+`MasterDetailLayout` narrowed its sidebar at 1100px until 2026-08 while its own comment claimed it
+matched SnippetsManager, which has always used 1000px. Unifying on 1000px cost nothing — keeping a
+pane wide for an extra 100px band is never a regression, whereas wrapping rows _earlier_ could be.
+
+---
+
 ## Shared components
 
 Import from `@/components/shared/<Name>`.

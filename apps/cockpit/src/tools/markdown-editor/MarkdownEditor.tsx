@@ -1338,7 +1338,7 @@ export default function MarkdownEditor() {
         <Dialog
           title="Replace unsaved changes?"
           onClose={() => setPendingDocument(null)}
-          className="w-[min(30rem,calc(100vw-2rem))]"
+          size="md"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>

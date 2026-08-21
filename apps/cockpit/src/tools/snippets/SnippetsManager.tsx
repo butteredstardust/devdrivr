@@ -1139,7 +1139,6 @@ export default function SnippetsManager() {
           title="Delete snippet?"
           onClose={() => setDeleteDialogOpen(false)}
           initialFocusRef={cancelDeleteRef}
-          className="w-[min(26rem,calc(100vw-2rem))]"
           footer={
             <>
               <Button

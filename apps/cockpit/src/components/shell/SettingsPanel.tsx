@@ -1057,7 +1057,7 @@ export function SettingsPanel() {
       title="Settings"
       onClose={() => setOpen(false)}
       closeLabel="Close settings"
-      className="w-full max-w-lg"
+      size="lg"
       bodyClassName="p-0"
       titleClassName="text-[var(--color-accent)]"
       footer={

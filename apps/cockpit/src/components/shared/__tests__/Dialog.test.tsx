@@ -72,4 +72,39 @@ describe('Dialog', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  // Every caller used to supply its own width, and nine different expressions had accumulated —
+  // four of them fixed pixel widths that overflowed a narrow window.
+  describe('width', () => {
+    const widthOf = (el: Element) => Array.from(el.classList).find((c) => c.startsWith('w-['))
+
+    it('is responsive by default, without the caller asking', () => {
+      render(
+        <Dialog title="Default" onClose={vi.fn()}>
+          Content
+        </Dialog>
+      )
+      expect(widthOf(screen.getByRole('dialog'))).toBe('w-[min(26rem,calc(100vw-2rem))]')
+    })
+
+    it.each(['sm', 'md', 'lg', 'xl'] as const)('subtracts the same gutter at size %s', (size) => {
+      render(
+        <Dialog title={`Size ${size}`} onClose={vi.fn()} size={size}>
+          Content
+        </Dialog>
+      )
+      expect(widthOf(screen.getByRole('dialog'))).toMatch(
+        /^w-\[min\(\d+rem,calc\(100vw-2rem\)\)\]$/
+      )
+    })
+
+    it('sets no width at size none, for dialogs that size themselves in both axes', () => {
+      render(
+        <Dialog title="Self-sizing" onClose={vi.fn()} size="none" className="h-[90vh] w-[80rem]">
+          Content
+        </Dialog>
+      )
+      expect(widthOf(screen.getByRole('dialog'))).toBe('w-[80rem]')
+    })
+  })
 })

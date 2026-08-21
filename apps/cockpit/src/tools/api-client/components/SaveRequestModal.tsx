@@ -63,7 +63,6 @@ export function SaveRequestModal({
       closeLabel="Close save request dialog"
       initialFocusRef={nameRef}
       onOpenAutoFocus={handleOpenAutoFocus}
-      className="w-[420px] max-w-[calc(100vw-2rem)]"
       bodyClassName="p-0"
       footer={
         <>

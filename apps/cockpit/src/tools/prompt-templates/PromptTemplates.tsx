@@ -1292,7 +1292,7 @@ export default function PromptTemplates() {
         <Dialog
           title="Delete prompt template?"
           onClose={() => setConfirmDeleteId(null)}
-          className="w-[min(28rem,calc(100vw-2rem))]"
+          size="md"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={() => setConfirmDeleteId(null)}>

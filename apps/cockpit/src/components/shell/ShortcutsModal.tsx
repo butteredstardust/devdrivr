@@ -72,7 +72,7 @@ export function ShortcutsModal() {
       title="Keyboard Shortcuts"
       onClose={() => setOpen(false)}
       closeLabel="Close shortcuts"
-      className="w-full max-w-[560px]"
+      size="lg"
       bodyClassName="max-h-[70vh] px-4 py-3"
       titleClassName="text-[var(--color-accent)]"
     >

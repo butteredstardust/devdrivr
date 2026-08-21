@@ -80,7 +80,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
       onClose={onClose}
       closeLabel="Close import dialog"
       initialFocusRef={textareaRef}
-      className="w-[680px] max-w-[calc(100vw-2rem)]"
+      size="xl"
       bodyClassName="p-0"
       footer={
         <>

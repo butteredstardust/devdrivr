@@ -42,7 +42,6 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
     <Dialog
       title="Insert Link"
       onClose={onClose}
-      className="w-[400px]"
       initialFocusRef={urlRef}
       closeLabel="Close insert link dialog"
       footer={

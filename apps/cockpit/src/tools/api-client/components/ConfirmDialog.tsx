@@ -38,7 +38,6 @@ export function ConfirmDialog({
         onClose={onClose}
         closeLabel={`Close ${title.toLowerCase()} dialog`}
         initialFocusRef={cancelRef}
-        className="w-[26rem] max-w-[calc(100vw-2rem)]"
         footer={
           <>
             <Button ref={cancelRef} type="button" variant="secondary" size="sm" onClick={onClose}>

@@ -881,7 +881,6 @@ export function NotesDrawer() {
         <Dialog
           title="Delete note?"
           onClose={() => setDeleteCandidate(null)}
-          className="w-[min(26rem,calc(100vw-2rem))]"
           footer={
             <>
               <Button variant="secondary" onClick={() => setDeleteCandidate(null)}>

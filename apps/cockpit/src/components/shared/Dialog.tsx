@@ -1,11 +1,39 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { XIcon } from '@phosphor-icons/react'
 
+/**
+ * The dialog width scale.
+ *
+ * `Dialog` used to have no width of its own, so all eighteen callers supplied one and drifted into
+ * nine different expressions — `w-[340px]`, `w-[400px]`, `w-[420px]`, `w-full max-w-[560px]`, and
+ * three different values of the `w-[min(Xrem,…)]` idiom. The four hardcoded pixel widths were not
+ * responsive at all and overflowed a narrow window.
+ *
+ * Every step subtracts the same 2rem gutter, so no size can exceed the viewport. `none` is for the
+ * two dialogs that size against the viewport in both axes and manage it themselves.
+ */
+const SIZE_CLASSES = {
+  sm: 'w-[min(26rem,calc(100vw-2rem))]',
+  md: 'w-[min(30rem,calc(100vw-2rem))]',
+  lg: 'w-[min(35rem,calc(100vw-2rem))]',
+  xl: 'w-[min(42rem,calc(100vw-2rem))]',
+  none: '',
+} as const
+
+type DialogSize = keyof typeof SIZE_CLASSES
+
 type DialogProps = {
   title: ReactNode
   children: ReactNode
   onClose: () => void
   footer?: ReactNode
+  /** Width step. Use `none` only when the dialog sizes itself in both axes. */
+  size?: DialogSize
+  /**
+   * Extra classes. Do **not** set a width here unless `size="none"` — two arbitrary width
+   * utilities have equal specificity, so which one wins is stylesheet generation order rather than
+   * the order they appear in this string.
+   */
   className?: string
   bodyClassName?: string
   titleClassName?: string
@@ -34,6 +62,7 @@ export function Dialog({
   children,
   onClose,
   footer,
+  size = 'sm',
   className = '',
   bodyClassName = 'p-4',
   titleClassName = '',
@@ -112,7 +141,7 @@ export function Dialog({
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
+        className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${SIZE_CLASSES[size]} ${className}`}
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 id={titleId} className={`font-ui text-sm text-[var(--color-text)] ${titleClassName}`}>

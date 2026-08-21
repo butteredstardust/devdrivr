@@ -95,11 +95,20 @@ into arbitrary-value brackets. `color: red !important` becomes `text-[red !impor
 a valid Tailwind class. Grep confirms the string `important` appears **nowhere** in the tool, so
 there is no stripping path anywhere.
 
-- [ ] Strip a trailing `!important` from the value before bracket interpolation, and append
-      Tailwind's `!` importance prefix (`!text-[red]`) so the declaration's intent survives.
-- [ ] Add fixture tests for each of the four affected properties.
+- [x] `!important` is now stripped before anything else looks at the value, and re-applied as
+      Tailwind **v4**'s _trailing_ `!` (`text-[red]!`). The finding above says `!text-[red]`, which
+      is the v3 syntax — v4 moved it to a suffix, so check the installed version before touching
+      this.
+- [x] Scope correction: this affects **every** property, not the four listed. `!important` corrupts
+      the value before any `PROPERTY_MAP` lookup or size/spacing equality check, so
+      `width: 100% !important` missed the `w-full` shortcut too.
+- [x] The unconvertible list still echoes the user's original declaration, `!important` included —
+      echoing the stripped value back would misrepresent their input in the one list they read to
+      find out what went wrong.
+- [x] Seven fixture tests: mapped class, arbitrary colour, size value, keyword shortcut, whitespace
+      before `important`, an ordinary declaration left unmarked, and the unconvertible echo.
 
-**Acceptance:** every emitted class parses as valid Tailwind; `!important` intent is preserved
+**Acceptance:** ✅ every emitted class parses as valid Tailwind; ✅ `!important` intent is preserved
 rather than silently dropped.
 
 ### C3 — Off-scale icons at `size={9}`
@@ -296,9 +305,33 @@ Four tools, four different hardcoded widths and three different stacking breakpo
 - Stack breakpoints: `max-[900px]` (`mermaid-editor:526`, `prompt-templates:526`),
   `max-[1000px]` (`snippets:834,960,1149`), `max-[900px]` (`xml-tools:511`).
 
-- [ ] Adopt a single responsive modal width, e.g. `w-[min(30rem,calc(100vw-2rem))]`.
-- [ ] Settle on **one** stacking breakpoint, record it in `DESIGN_SYSTEM.md`, and prefer
-      `SplitPane`'s `stackBelow` over raw Tailwind breakpoints where a split already exists.
+- [x] **Done, and wider than written.** The audit named three modals; the real count was **18
+      callers spending nine different width expressions**, because `Dialog` had no width of its own
+      and every caller therefore had to invent one. Fixing the call sites would have left the hole
+      open, so the width moved into the primitive: `Dialog` gained a `size` prop
+      (`sm`/`md`/`lg`/`xl`/`none`, default `sm`) over a `w-[min(Xrem,calc(100vw-2rem))]` scale where
+      every step subtracts the same gutter, so no dialog can exceed the viewport. All 18 callers
+      migrated; 14 simply deleted their width. `none` exists for the two dialogs that size against
+      the viewport in both axes (`EnvironmentModal`, the `HtmlValidator` popout) and manage it
+      themselves. `className` now carries a doc comment saying not to set a width there — two
+      arbitrary width utilities have equal specificity, so the winner is stylesheet _generation_
+      order, not string order. Three tests in `Dialog.test.tsx` cover the default, the shared
+      gutter across all four steps, and `none` setting no width at all.
+- [x] **Done.** Recorded in `DESIGN_SYSTEM.md` § Breakpoints: **900px** stacks a split into a
+      column, **1000px** is density (rows wrap, panes narrow, padding tightens). 900px was already
+      consistent across 18 sites and needed no change. The only real drift was one site:
+      `MasterDetailLayout.tsx:56` narrowed at **1100px** while its own line-50 comment claimed the
+      value matched SnippetsManager — which has always used 1000px. The comment was the accurate
+      half; the code was fixed to 1000px and the comment corrected to say so. Unifying downward was
+      the safe direction: holding a pane at full width for an extra 100px band is never a
+      regression, whereas wrapping rows earlier could be, and S3 blocks visual confirmation either
+      way.
+      Two departures are documented rather than flattened: `MarkdownEditor` and `ApiClient` stack at
+      1000px on purpose (prose needs line length; a request/response pair is two forms), and the
+      `min-[1100px]:grid-cols-N` in `CssValidator:609` / `HtmlValidator:768` is a rule-grid _column
+      count_, not a layout mode, so it stays off the scale. `stackBelow` is now stated as the
+      preferred form over a raw `max-[900px]:flex-col` — it keeps the query in one place and
+      disables the drag handle with it, rather than leaving a dead 6px strip.
 
 ### S3 — Screenshot baseline (carried over, still blocked)
 

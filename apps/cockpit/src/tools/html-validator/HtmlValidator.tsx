@@ -869,6 +869,7 @@ export default function HtmlValidator() {
           title="HTML preview"
           onClose={() => setIsPopoutOpen(false)}
           closeLabel="Close the full-size preview"
+          size="none"
           className="h-[90vh] w-[min(95vw,80rem)]"
           bodyClassName="p-0"
         >
@@ -886,7 +887,7 @@ export default function HtmlValidator() {
         <Dialog
           title="Replace unsaved changes?"
           onClose={() => setPendingDocument(null)}
-          className="w-[min(30rem,calc(100vw-2rem))]"
+          size="md"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>
