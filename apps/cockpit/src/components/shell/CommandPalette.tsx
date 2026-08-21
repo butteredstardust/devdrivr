@@ -28,6 +28,7 @@ import {
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Kbd } from '@/components/shared/Kbd'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -232,6 +233,19 @@ export function CommandPalette() {
   )
 
   const allItems = useMemo(() => [...toolItems, ...actions], [toolItems, actions])
+
+  // mod+1..9 switch to the workspace tab at that position (useGlobalShortcuts),
+  // but nothing in the UI ever said so, so the binding was invisible unless you
+  // read the shortcuts modal. Surfacing it on the palette row teaches it at the
+  // moment you're about to click the row instead. Only the first nine tabs get a
+  // digit; a tool open in two tabs gets the leftmost, which is what the key does.
+  const tabShortcuts = useMemo(() => {
+    const map = new Map<string, string>()
+    tabs.slice(0, 9).forEach((tab, i) => {
+      if (!map.has(tab.toolId)) map.set(tab.toolId, formatShortcut(`mod+${i + 1}`))
+    })
+    return map
+  }, [tabs])
 
   const fuseOpts: IFuseOptions<PaletteItem> = useMemo(
     () => ({
@@ -610,6 +624,10 @@ export function CommandPalette() {
                 const isActive = item.kind === 'tool' && item.id === activeTool
                 const isOpenInTab =
                   item.kind === 'tool' && !isActive && tabs.some((t) => t.toolId === item.id)
+                // Actions carry their own `shortcut`; tools borrow the digit of the
+                // tab they're open in, if any.
+                const shortcut =
+                  item.shortcut ?? (item.kind === 'tool' ? tabShortcuts.get(item.id) : undefined)
 
                 return (
                   <button
@@ -654,9 +672,9 @@ export function CommandPalette() {
                         {item.description}
                       </div>
                     </div>
-                    {item.shortcut && (
+                    {shortcut && (
                       <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                        {item.shortcut}
+                        {shortcut}
                       </span>
                     )}
                   </button>

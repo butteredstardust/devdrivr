@@ -612,8 +612,15 @@ export default function HtmlValidator() {
 
   return (
     <ToolLayout fullBleed>
-      <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="HTML document actions">
+      {/* The seam belongs to the rules panel, not the toolbar: it marks the bottom of a chrome
+          block that is genuinely two rows tall. With the panel closed this header is a single
+          toolbar row, and a border would be the divider the toolbar primitive dropped. */}
+      <header
+        className={`bg-[var(--color-surface)] ${
+          state.showRules ? 'border-b border-[var(--color-border)]' : ''
+        }`}
+      >
+        <DocumentToolbar aria-label="HTML document actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled document'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}

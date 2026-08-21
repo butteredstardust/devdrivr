@@ -10,6 +10,21 @@ const FOCUS_RING = 'focus-visible:outline-none focus-visible:shadow-[var(--focus
 
 const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors ${FOCUS_RING}`
 
+const SIDE_CLUSTER_CLASS = 'relative z-10 flex items-center gap-1'
+
+/**
+ * Horizontal space the centred palette overlay keeps clear on *both* sides, so it can never reach
+ * a cluster no matter how narrow the window gets. Symmetric by construction — an asymmetric
+ * reserve would decentre the palette, which is the whole reason the overlay exists.
+ *
+ * Sized to the widest cluster on each platform, since the reserve has to clear both:
+ *   macOS   — leading is 12px gutter + 76px traffic-light allowance + a 28px button = 116px;
+ *             trailing is 12 + two 28px buttons + gap = 72px. Reserve 120.
+ *   others  — leading is 12 + 28 = 40px; trailing adds the 3×46px window controls to the two
+ *             buttons and their gaps = ~218px. Reserve 224.
+ */
+const SIDE_RESERVE_CLASS = { mac: 'px-[120px]', other: 'px-[224px]' } as const
+
 /**
  * Unified client-side-decorated title bar (Safari-style). Replaces the native titlebar removed
  * by `decorations: false` in tauri.conf.json.
@@ -31,6 +46,20 @@ const ICON_BUTTON_CLASS = `flex items-center justify-center rounded p-1.5 text-[
  * overlay scale in styles/tokens.css — layering must not depend on DOM position — and keeps this
  * bar safe to reorder. Both tiers stay below the `z-[39]` window resize handles and the `--z-scrim`
  * overlay tiers, which must still win over the title bar.
+ *
+ * The palette used to be centred by an absolutely-positioned full-width overlay, which kept it
+ * centred but let it centre *through* the left cluster: it is 480px wide, so below a window width
+ * of 820px its left edge crossed x=170 and painted over the icon buttons. The overlay was
+ * `pointer-events-none`, so those buttons stayed clickable while being invisible — worse than
+ * plain occlusion. `minWidth` in tauri.conf.json is 800, so this was reachable at the smallest
+ * window the app allows.
+ *
+ * The overlay stays — true window-centring is the point of the design, and equal-flex side columns
+ * cannot deliver it here, because the macOS traffic-light allowance is padding on one side only
+ * and slides all three columns left (measured: palette centre 794 against a window centre of 756).
+ * Instead the overlay reserves a symmetric `SIDE_RESERVE` gutter wide enough for the *widest*
+ * cluster, so the palette is centred on the window and still cannot reach either cluster. It
+ * shrinks below its 480px maximum rather than overlapping.
  */
 export function TitleBar() {
   const { isMac } = usePlatform()
@@ -47,7 +76,7 @@ export function TitleBar() {
 
   return (
     <div
-      className={`shell-chrome font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] ${isMac ? 'pl-[78px]' : 'pl-2'} pr-2`}
+      className={`shell-chrome font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3`}
     >
       <div
         data-tauri-drag-region
@@ -64,7 +93,11 @@ export function TitleBar() {
         </div>
       )}
 
-      <div className="relative z-10 flex items-center gap-1">
+      {/* Left: the one control with state worth glancing at. Settings and Shortcuts moved to the
+          trailing edge — both are modal, rarely-used and reachable from the palette, and keeping
+          three buttons here left only 14px between them and the macOS traffic lights, so the
+          cluster read as a fourth window control. */}
+      <div className={`${SIDE_CLUSTER_CLASS} ${isMac ? 'pl-[76px]' : ''}`}>
         <button
           type="button"
           onClick={toggleNotes}
@@ -79,6 +112,18 @@ export function TitleBar() {
             )}
           </span>
         </button>
+      </div>
+
+      <div
+        data-testid="titlebar-palette-slot"
+        className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center ${
+          isMac ? SIDE_RESERVE_CLASS.mac : SIDE_RESERVE_CLASS.other
+        }`}
+      >
+        <CommandPalette />
+      </div>
+
+      <div className={`${SIDE_CLUSTER_CLASS} ml-auto`}>
         <button
           type="button"
           onClick={toggleSettingsPanel}
@@ -97,23 +142,12 @@ export function TitleBar() {
         >
           <KeyboardIcon size={16} />
         </button>
+        {!isMac && (
+          <div data-testid="titlebar-right-controls" className="ml-1 flex items-center">
+            <WindowControls />
+          </div>
+        )}
       </div>
-
-      {/* Absolutely centred on the full bar width (Safari-style) — stays centred regardless of
-          how wide the left cluster or right-side window controls are, rather than merely sitting
-          between two flex siblings. */}
-      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-2">
-        <CommandPalette />
-      </div>
-
-      {!isMac && (
-        <div
-          data-testid="titlebar-right-controls"
-          className="relative z-10 ml-auto flex items-center"
-        >
-          <WindowControls />
-        </div>
-      )}
     </div>
   )
 }

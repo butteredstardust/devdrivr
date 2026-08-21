@@ -36,6 +36,7 @@ import {
   supportsJsStyleOptions,
   supportsQuoteStyle,
 } from '@/tools/code-formatter/languages'
+import { CODE_FORMATTER_SAMPLES } from '@/lib/tool-samples'
 
 type CodeFormatterState = {
   input: string
@@ -235,7 +236,7 @@ export default function CodeFormatter() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar border={false} aria-label="Code formatting actions">
+          <DocumentToolbar aria-label="Code formatting actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
               icon={
@@ -326,14 +327,16 @@ export default function CodeFormatter() {
               </Button>
               <CopyButton text={input} />
               <Button
-                variant="icon"
+                variant="secondary"
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasCode}
                 title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save to file"
+                className="gap-1"
               >
                 <FloppyDiskIcon size={14} aria-hidden="true" />
+                Save
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
@@ -426,6 +429,21 @@ export default function CodeFormatter() {
               {LANGUAGES.length} languages supported. Press <Kbd keys="mod+enter" /> to format, or
               open a file with <Kbd keys="mod+o" />.
             </p>
+            {/* Keyed to the selected language, not a single JavaScript snippet:
+                loading JS into a buffer set to SQL would format it as SQL and
+                make the formatter look broken. Every sample is deliberately
+                mis-formatted, because one that came in already tidy would make
+                pressing Format appear to do nothing. */}
+            {CODE_FORMATTER_SAMPLES[state.language] && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => updateState({ input: CODE_FORMATTER_SAMPLES[state.language] ?? '' })}
+                className="pointer-events-auto"
+              >
+                Load {languageLabel(state.language)} sample
+              </Button>
+            )}
           </div>
         )}
       </div>

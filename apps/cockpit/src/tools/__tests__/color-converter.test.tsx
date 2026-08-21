@@ -48,3 +48,28 @@ describe('ColorConverter', () => {
     expect(screen.queryByText(/hsl\(120, 150%/i)).not.toBeInTheDocument()
   })
 })
+
+describe('ColorConverter — status and copy affordance', () => {
+  it('reports the parsed color in the document toolbar', () => {
+    renderTool(ColorConverter)
+
+    expect(screen.getByTestId('color-status')).toHaveTextContent('#39FF14')
+    expect(screen.getByTestId('color-status')).toHaveTextContent('formats')
+  })
+
+  it('says the input was not understood rather than silently showing nothing', () => {
+    renderTool(ColorConverter)
+    fireEvent.change(screen.getByPlaceholderText(/#39ff14/), { target: { value: 'not a color' } })
+
+    expect(screen.getByTestId('color-status')).toHaveTextContent('Unrecognised color')
+  })
+
+  it('makes each format row itself the copy target, not a column of Copy buttons', () => {
+    renderTool(ColorConverter)
+
+    // One button per format, labelled with the format — the seven identically
+    // labelled "Copy" buttons this replaced told you nothing about their target.
+    expect(screen.getByRole('button', { name: /Copy Hex value/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Copy RGB value/ })).toBeInTheDocument()
+  })
+})

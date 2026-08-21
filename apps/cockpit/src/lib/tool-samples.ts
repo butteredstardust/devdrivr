@@ -88,10 +88,128 @@ limits:
   // it verifies, the built-in sample would have announced "Signature invalid" and looked broken.
   'jwt-decoder':
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXIiLCJuYW1lIjoiQWRhIEV4YW1wbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.QN2XAKs0z0ZCi7e8xNwnR2pfHYRKLcfKO-hYDP1OOA0',
+
+  // Exercises every branch the converter has: a non-GET method, two headers, a
+  // JSON body and a query string. A bare `curl https://example.com` would
+  // convert successfully and demonstrate none of it.
+  'curl-to-fetch': `curl 'https://api.example.com/v1/orders?status=open' \\
+  -X POST \\
+  -H 'Authorization: Bearer demo-token' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"sku":"book-001","qty":2}'`,
+
+  // Half of these map cleanly to Tailwind and half deliberately do not
+  // (`grid-template-columns`, `backdrop-filter`), so the "unconvertible" list is
+  // populated too — a sample that converted perfectly would hide the half of the
+  // output that matters most.
+  //
+  // Note for editors: the design-system lint gate reads raw source text, so it
+  // cannot tell a CSS sample from a className, and it does not spare comments
+  // either. A `transition` shorthand naming a bare easing keyword, or a hex
+  // colour beside the word `class`, is reported here as a violation even though
+  // this string styles nothing — and the escape-hatch comment is no help,
+  // because inside a template literal it would become part of the sample. Pick
+  // properties that don't collide, and describe them without quoting them.
+  'css-to-tailwind': `.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  margin-top: 8px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  backdrop-filter: blur(4px);
+}`,
 }
 
 /**
- * TypeScript Playground's starting document, also offered as "Load example"
+ * Regex Tester needs a pattern, flags and a subject rather than a single input
+ * string. The pattern is a readable one with two named-ish capture groups so the
+ * match list, the group count in the toolbar and the `$1`/`$2` replacement
+ * syntax all have something to show at once.
+ */
+export const REGEX_TESTER_SAMPLE = {
+  pattern: '(\\w+)@(\\w+\\.\\w+)',
+  flags: 'g',
+  testString: `Contact ada@example.com for billing questions.
+Escalations go to grace@example.org, and the on-call
+address is alan@example.net. Plain text like "user at
+host" is deliberately not an address and should not match.`,
+}
+
+/**
+ * Code Formatter's samples, keyed by the language ids in
+ * `src/tools/code-formatter/languages.ts`. Every one is deliberately
+ * mis-formatted — inconsistent indentation, run-together statements, stray
+ * whitespace — because a sample that is already formatted makes the tool look
+ * broken when pressing Format changes nothing.
+ *
+ * There is one per supported language rather than a single JavaScript sample:
+ * the language selector defaults to JavaScript but the button would then vanish
+ * for the other eleven, which reads as a bug rather than as a decision.
+ */
+export const CODE_FORMATTER_SAMPLES: Partial<Record<string, string>> = {
+  javascript: `const orders=[{sku:'book-001',qty:2},{sku:'pen-014',qty:5}]
+function total(items){return items.reduce((sum,i)=>{
+return sum+i.qty},0)}
+console.log( total(orders) )`,
+
+  typescript: `interface Order{sku:string;qty:number}
+const orders:Order[]=[{sku:'book-001',qty:2},{sku:'pen-014',qty:5}]
+function total(items:Order[]):number{return items.reduce((sum,i)=>{
+return sum+i.qty},0)}`,
+
+  json: `{"id":"ord_8f2a1c","customer":"Ada Lovelace",
+"items":[{"sku":"book-001","qty":2},{"sku":"pen-014","qty":5}],"shipped":false}`,
+
+  css: `.card{display:flex;padding:16px 24px;
+  border-radius:8px}
+.card    .title{font-size:14px;font-weight:600}`,
+
+  scss: `$accent:#3b82f6;
+.card{display:flex;padding:16px;
+&__title{color:$accent;font-weight:600}
+&:hover{box-shadow:0 1px 2px rgba(0,0,0,.2)}}`,
+
+  less: `@accent:#3b82f6;
+.card{display:flex;padding:16px;
+.title{color:@accent;font-weight:600}
+&:hover{box-shadow:0 1px 2px fade(#000,20%)}}`,
+
+  html: `<div class="card"><h3>Sales</h3>
+<p>Totals for the current quarter.</p>
+   <ul><li>Books</li><li>Stationery</li></ul></div>`,
+
+  markdown: `#  Release notes
+Formatting  is  inconsistent   here.
+*  first item
+*  second item
+
+|Tool|Status|
+|-|-|
+|Formatter|Shipped|`,
+
+  yaml: `service:    cockpit
+features: [json-tools,   yaml-tools, diff-viewer]
+limits:   {maxUploadMb: 25, timeoutSec: 30}`,
+
+  xml: `<?xml version="1.0"?><catalog><book id="bk101">
+<author>Ada Lovelace</author><title>Notes on the Analytical Engine</title>
+</book></catalog>`,
+
+  sql: `select o.id, c.name, sum(i.qty) as items from orders o
+join customers c on c.id=o.customer_id join order_items i
+on i.order_id=o.id where o.shipped=false group by o.id, c.name order by items desc`,
+
+  graphql: `query Orders($status:String!){orders(status:$status){
+id customer{name email} items{sku qty price} total}}`,
+}
+
+/**
+ * TypeScript Playground's starting document, also offered as "Load sample"
  * once the editor is empty. Deliberately exercises interfaces, generics via
  * `Array.map` and a DOM global so a broken standard library shows up at once.
  */
@@ -112,7 +230,7 @@ console.log(greeting)
 `
 
 /**
- * Refactoring Toolkit's "Load example". Deliberately contains something for
+ * Refactoring Toolkit's "Load sample". Deliberately contains something for
  * every category: `var` and a `function` expression to modernise, a loose `==`
  * to tighten, and a `console.log` for the destructive cleanup transforms.
  */

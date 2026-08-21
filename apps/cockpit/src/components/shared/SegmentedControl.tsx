@@ -25,6 +25,12 @@ const SIZE_CLASSES: Record<SegmentedControlSize, string> = {
 
 // Single-select mode toggle (Match/Replace, Edit/Split/Preview, Formats/Shades/Harmony/CSS Var).
 //
+// The selected segment is an accent *tint* (`--color-accent-dim`, defined for every theme), not a
+// solid accent fill. A saturated fill made the selected segment as loud as a primary button, so a
+// toolbar like JSON Tools' showed two maximally-emphatic controls at once — "Format" and "Source"
+// — with nothing to say which was the action and which was the current state. A view mode is
+// state; it should read as selected, not as the thing to press.
+//
 // role="radiogroup" + role="radio" rather than tablist/tab/tabpanel: these
 // segments switch a *view mode*, not independently-addressable document
 // sections with their own tabpanel — there's exactly one mutually exclusive
@@ -97,7 +103,7 @@ export function SegmentedControl<T extends string>({
             onKeyDown={(event) => handleKeyDown(event, index)}
             className={`font-ui inline-flex items-center gap-1 rounded-[var(--radius-sm)] transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${SIZE_CLASSES[size]} ${
               selected
-                ? 'bg-[var(--color-accent)] font-bold text-[var(--color-bg)]'
+                ? 'bg-[var(--color-accent-dim)] font-semibold text-[var(--color-text)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
             }`}
           >

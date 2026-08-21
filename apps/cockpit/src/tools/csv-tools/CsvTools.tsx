@@ -423,14 +423,16 @@ export default function CsvTools() {
               }
             />
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}
               title={`Save the current view to a file (${formatShortcut('mod+s')})`}
               aria-label="Save output to file"
+              className="gap-1"
             >
-              <FloppyDiskIcon size={16} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>

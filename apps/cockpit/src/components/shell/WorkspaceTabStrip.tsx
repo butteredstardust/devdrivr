@@ -68,6 +68,25 @@ export function WorkspaceTabStrip() {
     return `linear-gradient(to right, ${stops.join(', ')})`
   }, [showLeftFade, showRightFade])
 
+  // Keep the active tab on screen.
+  //
+  // The strip scrolls, but nothing scrolled it: mod+1..9, Ctrl+Tab, the
+  // overflow menu and closing a tab can all select a tab that is scrolled out
+  // of view, leaving a strip with no visible active tab and no clue which way
+  // to scroll to find it. `block: 'nearest'` so a tab that is already visible
+  // is left exactly where it is rather than being centred on every switch.
+  const revealActiveTab = useCallback(
+    (behavior: ScrollBehavior) => {
+      if (!activeTabId) return
+      const el = scrollRef.current?.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`)
+      // jsdom has no layout and so no scrollIntoView; feature-detect rather than
+      // stub it globally, so the tests exercise the same code path as the app.
+      if (typeof el?.scrollIntoView !== 'function') return
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior })
+    },
+    [activeTabId]
+  )
+
   // Listen for scroll and container resize
   useEffect(() => {
     const el = scrollRef.current
@@ -75,13 +94,26 @@ export function WorkspaceTabStrip() {
     if (typeof ResizeObserver === 'undefined') return
     updateFades()
     el.addEventListener('scroll', updateFades, { passive: true })
-    const ro = new ResizeObserver(updateFades)
+    // Selecting a tab is not the only thing that can push it out of view — so can
+    // anything that narrows the strip, and none of those go through `activeTabId`:
+    // opening the notes drawer, collapsing the sidebar, dragging the sidebar
+    // resizer, resizing the window. Observed live, opening the drawer scrolled the
+    // active tab off the left edge and nothing brought it back.
+    //
+    // `auto` rather than `smooth` here: a sidebar resize-drag fires this on every
+    // frame, and queuing a smooth animation per frame reads as the strip lagging
+    // behind the pointer. Activation keeps `smooth`, where there is one event and
+    // the motion explains where the tab went.
+    const ro = new ResizeObserver(() => {
+      updateFades()
+      revealActiveTab('auto')
+    })
     ro.observe(el)
     return () => {
       el.removeEventListener('scroll', updateFades)
       ro.disconnect()
     }
-  }, [updateFades])
+  }, [updateFades, revealActiveTab])
 
   // Re-check when tabs are added/removed (scroll width changes without a scroll event)
   useEffect(() => {
@@ -96,13 +128,8 @@ export function WorkspaceTabStrip() {
   // to scroll to find it. `block: 'nearest'` so a tab that is already visible
   // is left exactly where it is rather than being centred on every switch.
   useEffect(() => {
-    if (!activeTabId) return
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`)
-    // jsdom has no layout and so no scrollIntoView; feature-detect rather than
-    // stub it globally, so the tests exercise the same code path as the app.
-    if (typeof el?.scrollIntoView !== 'function') return
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
-  }, [activeTabId, tabs])
+    revealActiveTab('smooth')
+  }, [revealActiveTab, tabs])
 
   // A vertical wheel over a horizontal strip should scroll it — trackpads emit
   // deltaY for the gesture that visually reads as "along the tabs". Ignored
@@ -318,7 +345,7 @@ export function WorkspaceTabStrip() {
         role="tablist"
         aria-label="Open tools"
         style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
-        className="flex flex-1 items-stretch overflow-x-auto [scrollbar-width:none]"
+        className="no-scrollbar flex flex-1 items-stretch overflow-x-auto"
         onWheel={handleWheel}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
@@ -482,18 +509,23 @@ export function WorkspaceTabStrip() {
                 </button>
               )}
 
-              {/* Top pill indicator for the active tab.
+              {/* Top bar indicator for the active tab.
                   The strip sits above the panel, so the active tab's job is to
                   look continuous with the content below it. A bottom pill drew
                   a bright line across exactly the seam that should disappear;
-                  on the top edge it marks the tab without severing it. */}
+                  on the top edge it marks the tab without severing it.
+
+                  Full tab width rather than a centred 40px pill. The pill sat
+                  directly against the title bar's bottom border with empty tab
+                  either side of it, so it read as a stray 3px artifact of that
+                  divider rather than as a deliberate marker — the top edge of
+                  the tab is the thing being marked, so the marker should span
+                  it. */}
               {isActive && (
                 <span
                   aria-hidden="true"
                   data-testid="tab-pill"
-                  className={`pointer-events-none absolute top-0 left-1/2 h-[3px] -translate-x-1/2 rounded-b-full bg-[var(--color-accent)] ${
-                    isPinned ? 'w-5' : 'w-10'
-                  }`}
+                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[var(--color-accent)]"
                 />
               )}
 

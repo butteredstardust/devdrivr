@@ -16,6 +16,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { REGEX_TIMEOUT_MS, useRegexEvaluation } from '@/hooks/useRegexEvaluation'
 import { MAX_REGEX_MATCHES } from '@/workers/regex.api'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 type RegexTesterState = {
   pattern: string
@@ -137,6 +138,7 @@ export default function RegexTester() {
     replacePattern: '',
   })
   const copy = useCopyToClipboard()
+  const isUntouched = !state.pattern.trim() && !state.testString.trim()
   const [showRef, setShowRef] = useState(false)
   const [mode, setMode] = useState<RegexMode>('match')
   const [showDiff, setShowDiff] = useState(false)
@@ -292,18 +294,56 @@ export default function RegexTester() {
                 </Button>
               ))}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowRef(!showRef)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRef(!showRef)}
+              title={showRef ? 'Hide the regex reference' : 'Show the regex syntax reference'}
+              aria-expanded={showRef}
+            >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
+            {/* Only while both fields are untouched. A regex tool needs a pattern
+                *and* a subject before it shows anything, so a cold start means
+                inventing both — and the tax falls hardest on the user who came
+                here because they are unsure of the syntax. Gone on the first
+                keystroke, so it can never overwrite work in progress. */}
+            {isUntouched && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  updateState({
+                    pattern: REGEX_TESTER_SAMPLE.pattern,
+                    flags: REGEX_TESTER_SAMPLE.flags,
+                    testString: REGEX_TESTER_SAMPLE.testString,
+                  })
+                }
+              >
+                Load sample
+              </Button>
+            )}
             {matchError && (
               <Alert variant="error" className="px-2 py-0.5">
                 {matchError}
               </Alert>
             )}
+            {/* The bare number was ambiguous — 3 what? — and the capture-group
+                count existed only in the sr-only live region, so sighted users
+                had to count parentheses. Same `N matches · N groups` shape the
+                document tools use for their status line. */}
             {!matchError && matchCount > 0 && (
-              <StatusBadge variant={truncated ? 'warning' : 'info'}>
-                {truncated ? `${matchCount}+` : matchCount}
-              </StatusBadge>
+              <div className="flex shrink-0 items-center gap-2" data-testid="match-count">
+                <StatusBadge variant={truncated ? 'warning' : 'info'}>
+                  {truncated ? `${matchCount}+` : matchCount}{' '}
+                  {matchCount === 1 && !truncated ? 'match' : 'matches'}
+                </StatusBadge>
+                {groupCount > 0 && (
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {groupCount} group{groupCount === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
             )}
             {!matchError && truncated && (
               <span className="text-xs text-[var(--color-warning)]">

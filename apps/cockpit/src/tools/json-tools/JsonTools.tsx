@@ -551,7 +551,7 @@ export default function JsonTools() {
       fullBleed
       toolbar={
         <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar border={false} aria-label="JSON document actions">
+          <DocumentToolbar aria-label="JSON document actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
               icon={
@@ -591,6 +591,53 @@ export default function JsonTools() {
               </Button>
             )}
 
+            {/* Actions lead, view options trail. This bar wraps to two rows at 1024px — one of
+                the two viewports the UI audit checks — and with view options first the wrap put
+                Indent/Path/Source-Tree-Table on row one and buried every primary action on row
+                two, underneath them. Ordering by importance means the wrap sheds the least
+                important row last. */}
+            <ToolbarGroup label="Document actions" separated>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleFormat()}
+                disabled={!hasInput || isFormatting}
+                loading={isFormatting}
+                title={`Format the document (${formatShortcut('mod+enter')})`}
+              >
+                Format
+                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!isValid}>
+                Minify
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSortKeys}
+                disabled={!isValid}
+                className="gap-1"
+              >
+                <SortAscendingIcon size={14} aria-hidden="true" />
+                Sort keys
+              </Button>
+              <CopyButton text={input} label="Copy JSON" />
+              {/* Labelled, like every other button in this group. As a bare icon it was the only
+                  unlabelled control on the row and the dimmest thing on it, which read as
+                  disabled rather than as an action. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSave}
+                disabled={!hasInput}
+                title={`Save to a file (${formatShortcut('mod+s')})`}
+                className="gap-1"
+              >
+                <FloppyDiskIcon size={14} aria-hidden="true" />
+                Save
+              </Button>
+            </ToolbarGroup>
+
             <ToolbarGroup label="View options" separated>
               <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 <span className="max-[900px]:hidden">Indent</span>
@@ -620,44 +667,6 @@ export default function JsonTools() {
                 onChange={(next) => updateState({ view: next })}
                 options={VIEW_OPTIONS}
               />
-            </ToolbarGroup>
-
-            <ToolbarGroup label="Document actions" separated>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void handleFormat()}
-                disabled={!hasInput || isFormatting}
-                loading={isFormatting}
-                title={`Format the document (${formatShortcut('mod+enter')})`}
-              >
-                Format
-                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!isValid}>
-                Minify
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSortKeys}
-                disabled={!isValid}
-                className="gap-1"
-              >
-                <SortAscendingIcon size={14} aria-hidden="true" />
-                Sort keys
-              </Button>
-              <CopyButton text={input} label="Copy JSON" />
-              <Button
-                variant="icon"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasInput}
-                title={`Save to a file (${formatShortcut('mod+s')})`}
-                aria-label="Save JSON to file"
-              >
-                <FloppyDiskIcon size={16} aria-hidden="true" />
-              </Button>
             </ToolbarGroup>
           </DocumentToolbar>
 

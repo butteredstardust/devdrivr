@@ -57,10 +57,25 @@ const TOOLS: ToolDefinition[] = [
   },
 ]
 
+// The store is a module singleton and one test below swaps `setActiveTool` for a
+// spy. Without restoring it here, every later test that clicks a tool is asserting
+// against the previous test's mock, which silently does nothing.
+const realSetActiveTool = useUiStore.getState().setActiveTool
+
 beforeEach(() => {
   cleanup()
   useToolStateCache.setState({ cache: new Map() })
-  useUiStore.setState({ activeTool: '' })
+  // Tabs and recents are singleton state that clicking a tool writes to, and
+  // `SidebarRecent` renders a `data-sidebar-item` per recent — so a leaked
+  // recent breaks the "one node per tool id" invariant asserted further down.
+  useUiStore.setState({
+    activeTool: '',
+    setActiveTool: realSetActiveTool,
+    recentToolIds: [],
+    tabs: [],
+    tabMru: [],
+    activeTabId: null,
+  })
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
 })
 
@@ -246,6 +261,51 @@ describe('SidebarPinned — favorite tools', () => {
 
     expect(screen.getByRole('heading', { name: 'Pinned' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Base64' })).toBeInTheDocument()
+  })
+})
+
+// ── Pinned tools in the collapsed rail ─────────────────────────────
+
+describe('Sidebar — pinned tools in the collapsed rail', () => {
+  it('gives each pinned tool its own rail button that activates on one click', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true, pinnedToolIds: ['base64'] })
+    // Tabs are module-singleton state and earlier tests leave some behind; a
+    // stale base64 tab would make `openTab` take its "already open" branch and
+    // this assertion pass for the wrong reason.
+    useUiStore.setState({ activeTool: '', tabs: [], tabMru: [], activeTabId: null })
+
+    render(<Sidebar />)
+
+    const pin = screen.getByRole('button', { name: 'Base64 (pinned)' })
+    expect(pin).toBeInTheDocument()
+
+    // One click, not two: the group flyout route costs an extra click, which is
+    // the thing pinning is supposed to buy you out of.
+    fireEvent.click(pin)
+    expect(useUiStore.getState().activeTool).toBe('base64')
+  })
+
+  it('skips pin ids whose tool no longer exists rather than rendering a hole', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true, pinnedToolIds: ['ghost-tool', 'base64'] })
+
+    render(<Sidebar />)
+
+    expect(document.querySelectorAll('[data-sidebar-collapsed-tool]')).toHaveLength(1)
+    expect(document.querySelector('[data-sidebar-collapsed-tool="base64"]')).toBeInTheDocument()
+  })
+
+  it('includes pinned tools in the collapsed rail arrow-key run', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true, pinnedToolIds: ['base64'] })
+
+    render(<Sidebar />)
+
+    const pin = screen.getByRole('button', { name: 'Base64 (pinned)' })
+    pin.focus()
+    fireEvent.keyDown(pin, { key: 'ArrowDown' })
+
+    // Down from the last pin must land on the first group, not skip the pins'
+    // existence entirely and jump somewhere unrelated.
+    expect(document.activeElement).toHaveAttribute('data-sidebar-collapsed-group')
   })
 })
 

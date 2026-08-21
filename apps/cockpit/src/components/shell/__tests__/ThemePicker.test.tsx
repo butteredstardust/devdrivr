@@ -8,7 +8,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemePicker } from '@/components/shell/ThemePicker'
-import { getEffectiveTheme } from '@/lib/theme'
+import { ALL_THEMES, getEffectiveTheme } from '@/lib/theme'
 
 beforeEach(() => {
   document.documentElement.className = 'midnight'
@@ -146,5 +146,51 @@ describe('ThemePicker — focus preview', () => {
 
     expect(document.documentElement.classList.contains('midnight')).toBe(true)
     expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('ThemePicker — swatch previews', () => {
+  it('scopes each preview to its own theme class rather than the active one', () => {
+    document.documentElement.className = 'midnight'
+    const { container } = render(<ThemePicker value="midnight" onChange={vi.fn()} />)
+
+    // The preview resolves var(--color-*) against the nearest theme class, so
+    // the class on the swatch is the entire mechanism — no colour is read or
+    // hardcoded in JS. A Dracula preview under a Midnight <html> only looks
+    // like Dracula because this class is here.
+    const dracula = container.querySelector('[data-theme-preview="dracula"]')
+    expect(dracula).not.toBeNull()
+    expect(dracula).toHaveClass('dracula')
+  })
+
+  it('renders a preview for every selectable theme', () => {
+    const { container } = render(<ThemePicker value="midnight" onChange={vi.fn()} />)
+
+    // System renders two half-width previews of its own, so the count is
+    // ALL_THEMES plus those two rather than an exact match.
+    const previews = container.querySelectorAll('[data-theme-preview]')
+    expect(previews.length).toBe(ALL_THEMES.length + 2)
+  })
+
+  it('mirrors the shell rather than showing abstract blocks', () => {
+    const { container } = render(<ThemePicker value="midnight" onChange={vi.fn()} />)
+    const preview = container.querySelector('[data-theme-preview="nord"]')
+
+    // Surface/background separation and the accent are the three things a
+    // theme choice actually turns on, so each has to appear somewhere in the
+    // miniature. Asserting on tokens, not on the band layout, keeps this from
+    // breaking every time the geometry is nudged.
+    const html = preview?.innerHTML ?? ''
+    expect(html).toContain('--color-surface')
+    expect(html).toContain('--color-accent')
+    expect(html).toContain('--color-border')
+  })
+
+  it('hides previews from assistive tech, which cannot use them', () => {
+    const { container } = render(<ThemePicker value="midnight" onChange={vi.fn()} />)
+
+    for (const preview of container.querySelectorAll('[data-theme-preview]')) {
+      expect(preview.closest('[aria-hidden="true"]')).not.toBeNull()
+    }
   })
 })

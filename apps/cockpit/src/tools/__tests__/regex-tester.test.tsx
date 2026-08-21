@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import RegexTester, { describeMatches } from '@/tools/regex-tester/RegexTester'
+import { REGEX_TESTER_SAMPLE } from '@/lib/tool-samples'
 
 const setPattern = (value: string) =>
   fireEvent.change(screen.getByPlaceholderText(/enter regex pattern/i), { target: { value } })
@@ -57,7 +58,21 @@ describe('RegexTester (component)', () => {
     fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), {
       target: { value: 'abc 123 def 456' },
     })
-    expect(await screen.findByText('2')).toBeInTheDocument()
+    // The badge reads "2 matches", split across text nodes by the JSX — a
+    // bare getByText('2') would miss it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
+  })
+
+  it('names the capture-group count next to the match count', async () => {
+    renderTool(RegexTester)
+    setPattern('(\\d)(\\d)')
+    setText('12 34')
+
+    // Captures across all matches — the same total the sr-only live region and
+    // the matches pane already report. It previously existed only there, so a
+    // sighted user had to count parentheses to get it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
+    expect(screen.getByTestId('match-count')).toHaveTextContent('4 groups')
   })
 
   it('exposes regex flag toggle pressed state', () => {
@@ -175,7 +190,7 @@ describe('RegexTester (component)', () => {
       target: { value: 'a'.repeat(1205) },
     })
 
-    expect(await screen.findByText('1000+')).toBeInTheDocument()
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('1000+ matches')
     expect(screen.getByText('Showing first 1000 matches')).toBeInTheDocument()
     expect(screen.getByText(/First 1000 matches/)).toBeInTheDocument()
   })
@@ -214,7 +229,9 @@ describe('RegexTester (component)', () => {
     setPattern('\\d+')
     setText('abc 123 def 456')
 
-    expect(await screen.findByText('2')).toBeInTheDocument()
+    // The badge reads "2 matches", split across text nodes by the JSX — a
+    // bare getByText('2') would miss it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
 
     const live = document.querySelectorAll('[aria-live]')
     expect(live).toHaveLength(1)
@@ -250,5 +267,31 @@ describe('RegexTester (component)', () => {
 
     // Back to "show diff" title
     expect(screen.getByTitle(/show diff/i)).toBeInTheDocument()
+  })
+})
+
+describe('RegexTester — Load sample', () => {
+  it('fills pattern, flags and subject together and produces matches', async () => {
+    renderTool(RegexTester)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
+
+    expect(screen.getByPlaceholderText(/enter regex pattern/i)).toHaveValue(
+      REGEX_TESTER_SAMPLE.pattern
+    )
+    expect(screen.getByPlaceholderText(/enter text to test/i)).toHaveValue(
+      REGEX_TESTER_SAMPLE.testString
+    )
+    // Both halves at once is the point: a pattern with no subject, or a subject
+    // with no pattern, still shows the user nothing.
+    await expect(screen.findByTestId('match-count')).resolves.toHaveTextContent('3 matches')
+  })
+
+  it('disappears once either field has been touched, so it cannot overwrite work', () => {
+    renderTool(RegexTester)
+
+    setPattern('\\d+')
+
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
   })
 })

@@ -118,3 +118,21 @@ describe('CurlToFetch', () => {
     expect(cached['activeRequestId']).toBeNull()
   })
 })
+
+describe('CurlToFetch — Load sample', () => {
+  it('converts the sample and clears the empty state', async () => {
+    renderTool(CurlToFetch)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
+
+    // A sample that parsed to a bare GET would demonstrate none of the
+    // converter — method, headers and body all have to survive the round trip.
+    await waitFor(() => {
+      const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+      expect(output).toContain("method: 'POST'")
+      expect(output).toContain('Authorization')
+      expect(output).toContain('body')
+    })
+    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
+  })
+})

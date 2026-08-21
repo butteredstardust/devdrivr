@@ -68,6 +68,20 @@ body,
   background: var(--color-text-muted);
 }
 
+/* Opt a scroller out of the bars above.
+ *
+ * `scrollbar-width: none` alone is not enough: it is the Firefox property, and the
+ * app ships in WKWebView (macOS) and WebView2 (Windows), which both need the
+ * `::-webkit-scrollbar` rule. Set on its own it left an 8px bar — inherited from the
+ * global rule above — painted across the bottom of the tab strip, which is only 36px
+ * tall to begin with. Use this class rather than `[scrollbar-width:none]`. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Global focus ring ─────────────────────────────────────────────────────
    Covers every interactive element. Individual components must NOT add
    focus:outline-none unless they supply their own focus-visible style.       */

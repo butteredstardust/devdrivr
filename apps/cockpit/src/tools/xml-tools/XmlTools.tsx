@@ -369,14 +369,16 @@ export default function XmlTools() {
             </Button>
             <CopyButton text={input} label="Copy XML" />
             <Button
-              variant="icon"
+              variant="secondary"
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}
               title={`Save to a file (${formatShortcut('mod+s')})`}
               aria-label="Save XML to file"
+              className="gap-1"
             >
-              <FloppyDiskIcon size={16} aria-hidden="true" />
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>

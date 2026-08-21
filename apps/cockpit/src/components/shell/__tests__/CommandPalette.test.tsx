@@ -142,6 +142,32 @@ describe('CommandPalette', () => {
     expect(lastOption()).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('shows the mod+digit tab binding on rows for tools that are open in a tab', () => {
+    useUiStore.setState({
+      tabs: [
+        { id: 't1', toolId: 'json-tools' },
+        { id: 't2', toolId: 'base64' },
+      ],
+    })
+
+    render(<CommandPalette />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'base64' } })
+
+    // Second tab → the second digit. The binding exists in useGlobalShortcuts but
+    // was invisible everywhere except the shortcuts modal.
+    const option = screen.getByRole('option', { name: /Base64/ })
+    expect(option.textContent).toMatch(/2$/)
+  })
+
+  it('leaves rows for tools with no open tab unbadged', () => {
+    useUiStore.setState({ tabs: [] })
+
+    render(<CommandPalette />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'base64' } })
+
+    expect(screen.getByRole('option', { name: /Base64/ }).textContent).not.toMatch(/[1-9]$/)
+  })
+
   it('does not persist always-on-top when the window pin call fails', async () => {
     windowApi.setAlwaysOnTop.mockRejectedValueOnce(new Error('blocked'))
     useSettingsStore.setState({ alwaysOnTop: false })

@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react'
 import { Dialog } from '@/components/shared/Dialog'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { Input } from '@/components/shared/Input'
 import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
+import { formatShortcut } from '@/lib/shortcut-label'
 import { useUiStore } from '@/stores/ui.store'
 
 type ShortcutEntry = {
@@ -64,6 +68,22 @@ const CATEGORIES: ShortcutCategory[] = [
 export function ShortcutsModal() {
   const open = useUiStore((s) => s.shortcutsModalOpen)
   const setOpen = useUiStore((s) => s.setShortcutsModalOpen)
+  const [query, setQuery] = useState('')
+
+  // Substring, not fuzzy. The list is ~25 entries of two or three words, and
+  // Fuse at the palette's 0.4 threshold matches "tab" against "Toggle sidebar"
+  // — on a reference table, a wrong row is worse than no row. Matching the
+  // rendered shortcut too means "⌘K" and "cmd" both find the palette.
+  const categories = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return CATEGORIES
+    return CATEGORIES.map((cat) => ({
+      ...cat,
+      shortcuts: cat.shortcuts.filter((s) =>
+        `${s.action} ${s.keys} ${formatShortcut(s.keys)}`.toLowerCase().includes(q)
+      ),
+    })).filter((cat) => cat.shortcuts.length > 0)
+  }, [query])
 
   if (!open) return null
 
@@ -73,24 +93,47 @@ export function ShortcutsModal() {
       onClose={() => setOpen(false)}
       closeLabel="Close shortcuts"
       size="lg"
-      bodyClassName="max-h-[70vh] px-4 py-3"
+      // Fills the dialog's 90vh rather than stopping at 70vh, and lets the search
+      // row stay put while only the table below it scrolls.
+      bodyClassName="flex min-h-0 flex-col p-0"
       titleClassName="text-[var(--color-accent)]"
     >
-      {CATEGORIES.map((cat) => (
-        <div key={cat.label} className="mb-4 last:mb-0">
-          <SectionLabel as="h3" className="mb-2">
-            {cat.label}
-          </SectionLabel>
-          <div className="flex flex-col gap-1">
-            {cat.shortcuts.map((s) => (
-              <div key={s.action} className="flex items-center justify-between py-1.5">
-                <span className="text-xs text-[var(--color-text)]">{s.action}</span>
-                <Kbd keys={s.keys} />
+      <div className="shrink-0 border-b border-[var(--color-border)] px-4 py-3">
+        <Input
+          type="search"
+          aria-label="Filter shortcuts"
+          placeholder="Filter shortcuts…"
+          className="w-full"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {categories.length === 0 ? (
+          <EmptyState
+            size="sm"
+            title="No matching shortcuts"
+            description={`Nothing matches “${query.trim()}”.`}
+          />
+        ) : (
+          categories.map((cat) => (
+            <div key={cat.label} className="mb-4 last:mb-0">
+              <SectionLabel as="h3" className="mb-2">
+                {cat.label}
+              </SectionLabel>
+              <div className="flex flex-col gap-1">
+                {cat.shortcuts.map((s) => (
+                  <div key={s.action} className="flex items-center justify-between py-1.5">
+                    <span className="text-xs text-[var(--color-text)]">{s.action}</span>
+                    <Kbd keys={s.keys} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      ))}
+            </div>
+          ))
+        )}
+      </div>
     </Dialog>
   )
 }

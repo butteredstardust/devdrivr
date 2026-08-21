@@ -12,6 +12,9 @@ import { sendToTool } from '@/lib/tool-handoff'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { TOOL_SAMPLES } from '@/lib/tool-samples'
+import { TerminalWindowIcon } from '@phosphor-icons/react'
 import { Alert } from '@/components/shared/Alert'
 import { PlayIcon } from '@phosphor-icons/react'
 
@@ -357,8 +360,24 @@ export default function CurlToFetch() {
               Could not parse cURL command
             </Alert>
           ) : (
-            <div className="p-4 text-sm text-[var(--color-text-muted)]">
-              Paste a cURL command on the left
+            <div className="flex flex-1 items-center justify-center p-4">
+              <EmptyState
+                icon={TerminalWindowIcon}
+                size="sm"
+                title="Paste a cURL command on the left"
+                description="Copy as cURL from any browser's network panel. The command is parsed here — nothing is sent."
+                action={
+                  TOOL_SAMPLES['curl-to-fetch'] ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => updateState({ input: TOOL_SAMPLES['curl-to-fetch'] ?? '' })}
+                    >
+                      Load sample
+                    </Button>
+                  ) : undefined
+                }
+              />
             </div>
           )}
         </div>

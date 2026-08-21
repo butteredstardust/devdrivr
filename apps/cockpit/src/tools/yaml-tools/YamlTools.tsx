@@ -322,8 +322,10 @@ export default function YamlTools() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar border={false} aria-label="YAML document actions">
+        // No seam: nothing stacks under the toolbar inside this wrapper, so a border here would
+        // be the single-row divider the toolbar primitive dropped, moved onto the wrapper.
+        <div>
+          <DocumentToolbar aria-label="YAML document actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
               icon={
@@ -405,14 +407,16 @@ export default function YamlTools() {
               )}
               <CopyButton text={input} label="Copy YAML" />
               <Button
-                variant="icon"
+                variant="secondary"
                 size="sm"
                 onClick={handleSave}
                 disabled={!hasInput}
                 title={`Save to a file (${formatShortcut('mod+s')})`}
                 aria-label="Save YAML to file"
+                className="gap-1"
               >
-                <FloppyDiskIcon size={16} aria-hidden="true" />
+                <FloppyDiskIcon size={14} aria-hidden="true" />
+                Save
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>

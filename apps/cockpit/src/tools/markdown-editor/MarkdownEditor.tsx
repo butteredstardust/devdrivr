@@ -1042,8 +1042,10 @@ export default function MarkdownEditor() {
 
   return (
     <ToolLayout fullBleed>
-      <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <DocumentToolbar border={false} aria-label="Markdown document actions">
+      {/* No seam: nothing stacks under the toolbar inside this header, so a border here would be
+          the single-row divider the toolbar primitive dropped, just re-expressed on the wrapper. */}
+      <header className="bg-[var(--color-surface)]">
+        <DocumentToolbar aria-label="Markdown document actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled document'}
             titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
