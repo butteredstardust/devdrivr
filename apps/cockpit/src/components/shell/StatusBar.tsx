@@ -71,7 +71,7 @@ export function StatusBar() {
   const themeLabel = theme === 'system' ? 'System' : (THEME_META[theme]?.shortLabel ?? theme)
 
   return (
-    <div className="font-ui flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs">
+    <div className="shell-chrome font-ui flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs">
       {/* Left: active tool + last action */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-[var(--color-text-muted)]">{tool?.name ?? ''}</span>

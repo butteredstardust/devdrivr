@@ -20,6 +20,7 @@
 @import 'tailwindcss';
 @import './styles/tokens.css';
 @import './styles/highlight-themes.css';
+@import './styles/shell.css';
 
 @theme {
   --font-pixel: 'Silkscreen', monospace;

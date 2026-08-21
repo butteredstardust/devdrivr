@@ -37,6 +37,7 @@ import { Dialog } from '@/components/shared/Dialog'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
 import { Select } from '@/components/shared/Select'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ThemePicker } from '@/components/shell/ThemePicker'
 import { ALL_THEMES } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
@@ -238,6 +239,7 @@ function GeneralTab() {
   const update = useSettingsStore((s) => s.update)
   const theme = useSettingsStore((s) => s.theme)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
+  const shellStyle = useSettingsStore((s) => s.shellStyle)
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const checkForUpdatesAutomatically = useSettingsStore((s) => s.checkForUpdatesAutomatically)
   const downloadUpdatesAutomatically = useSettingsStore((s) => s.downloadUpdatesAutomatically)
@@ -278,6 +280,23 @@ function GeneralTab() {
           Appearance mode for the app — hover or focus a swatch to preview it
         </p>
         <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
+      </div>
+
+      <div>
+        <h4 className="mb-1 text-xs text-[var(--color-text)]">Shell layout</h4>
+        <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
+          Floating insets the panels into cards; flush packs them edge to edge and gives you back
+          about 16px in each direction
+        </p>
+        <SegmentedControl
+          aria-label="Shell layout"
+          value={shellStyle}
+          options={[
+            { value: 'floating', label: 'Floating' },
+            { value: 'flush', label: 'Flush' },
+          ]}
+          onChange={(v) => void update('shellStyle', v).catch(() => {})}
+        />
       </div>
 
       <div className="space-y-1">
@@ -439,6 +458,7 @@ function DataTab() {
       const state = useSettingsStore.getState()
       const data: AppSettings = {
         theme: state.theme,
+        shellStyle: state.shellStyle,
         alwaysOnTop: state.alwaysOnTop,
         sidebarCollapsed: state.sidebarCollapsed,
         collapsedSidebarGroups: state.collapsedSidebarGroups,

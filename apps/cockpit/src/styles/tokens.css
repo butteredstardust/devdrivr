@@ -63,6 +63,10 @@
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
   --radius-lg: 0.5rem;
+  /* Shell panels in the floating layout only. At 8px a full-height panel still reads
+     as a clipped rectangle rather than a card; nothing smaller than a panel should
+     use this. */
+  --radius-xl: 0.75rem;
 
   --text-2xs: 0.625rem;
   --text-xs: 0.75rem;

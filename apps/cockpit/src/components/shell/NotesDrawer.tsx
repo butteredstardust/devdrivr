@@ -596,7 +596,7 @@ export function NotesDrawer() {
       // re-aiming an eased 200ms animation at a target that had already moved —
       // the edge trailed the cursor and arrived in visible steps. Same fix, and
       // same reason, as the sidebar.
-      className={`relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] ease-[var(--ease-in-out)] ${
+      className={`shell-panel relative flex shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] ease-[var(--ease-in-out)] ${
         resizing ? '' : 'transition-[width,opacity] duration-[var(--duration-panel)]'
       } ${
         drawerOpen ? 'opacity-100' : 'pointer-events-none w-0 overflow-hidden border-l-0 opacity-0'

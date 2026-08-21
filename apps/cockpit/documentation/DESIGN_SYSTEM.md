@@ -217,6 +217,35 @@ for this reason — one existed and reached zero consumers. The only heading a t
 **Tools must be `flex h-full flex-col` at the root** — `ToolLayout` handles this; hand-rolled roots
 without `h-full` silently collapse.
 
+### Shell layout modes
+
+The shell itself has two modes, set by `settings.shellStyle` and applied as `data-shell` on the app
+root. `floating` is the default; `flush` is the original edge-to-edge layout and costs nothing at
+runtime, since with `data-shell="flush"` not one rule in `styles/shell.css` matches.
+
+| Hook            | On                                    |
+| --------------- | ------------------------------------- |
+| `.shell-canvas` | app root — paints the recessed canvas |
+| `.shell-row`    | the sidebar/workspace/drawer row      |
+| `.shell-panel`  | each of the three panels              |
+| `.shell-chrome` | title bar and status bar              |
+
+All the geometry lives in `styles/shell.css`, not in the five shell components, and its selectors
+are attribute + class (specificity 0,2,0) so they beat Tailwind utilities without `!important`.
+Sidebar and notes-drawer tests assert the hook classes, because jsdom applies no stylesheet and a
+rename is otherwise silent.
+
+Two constraints worth knowing before changing it:
+
+- **Panels keep a 1px border in floating mode, not just a shadow.** Several light themes put
+  `--color-surface-sunken` within a couple of percent of `--color-bg` (github-light: `#fbfcfd`
+  against `#ffffff`), where a shadow-only card is invisible. The border carries those themes; the
+  shadow carries the dark ones.
+- **Gutters are margins, not flex `gap`.** The closed notes drawer is `width: 0` rather than
+  unmounted, so that opening it can animate — and flex `gap` would hold a gutter open beside
+  nothing. When `inert`, the panel also drops its border and shadow, both of which a zero-width box
+  still paints.
+
 ---
 
 ## Breakpoints
