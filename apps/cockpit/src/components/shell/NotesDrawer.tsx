@@ -405,6 +405,7 @@ export function NotesDrawer() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const fuseRef = useRef<Fuse<NoteType> | null>(null)
   const draggedNoteIdRef = useRef<string | null>(null)
+  const noteListRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => setWidth(clampWidth(savedWidth)), [savedWidth])
 
@@ -525,53 +526,139 @@ export function NotesDrawer() {
     [setLastAction, setPendingSendTo]
   )
 
-  const clearNoteDragState = useCallback(() => {
-    draggedNoteIdRef.current = null
-    setDraggedNoteId(null)
-    setDragOverNote(null)
+  // Note reordering, on pointer events rather than HTML5 drag-and-drop, for the
+  // same reason the workspace tab strip is: the window runs with Tauri's
+  // `dragDropEnabled` on (the default), whose native handler both delivers file
+  // drops to `useFileDropZone` and swallows in-page `dragover`/`drop`. A
+  // `draggable` handle here fired `dragstart` and then nothing, so the note
+  // never moved — and because the swallowed drop still reached Tauri as a file
+  // drop, a tool with file drop disabled answered the gesture with "File drop
+  // is not supported by the active tool". The two features cannot share the
+  // flag, and file drops are worth more than the browser's drag ghost.
+  //
+  // A drag only begins once the pointer has moved past a small threshold, so a
+  // plain click on the handle still does nothing and the card's own buttons
+  // keep working.
+  const dragOrigin = useRef<{ noteId: string; y: number } | null>(null)
+  // The gesture's state lives in refs; the `useState` copies exist only to
+  // paint it. A pointerup can arrive in the same task as the pointermove before
+  // it, ahead of any re-render, so a handler reading the rendered `dragOverNote`
+  // would drop the note where it was two moves ago — or, when the first move and
+  // the release coincide, default to 'before' and appear to do nothing at all.
+  const dropTargetRef = useRef<DragOverNote | null>(null)
+
+  const handleNotePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>, noteId: string) => {
+      if (event.button !== 0) return
+      dragOrigin.current = { noteId, y: event.clientY }
+    },
+    []
+  )
+
+  useEffect(() => {
+    const DRAG_THRESHOLD = 4
+
+    const endGesture = () => {
+      dragOrigin.current = null
+      draggedNoteIdRef.current = null
+      dropTargetRef.current = null
+      setDraggedNoteId(null)
+      setDragOverNote(null)
+    }
+
+    // A drag that ends over one of the card's buttons would otherwise fire that
+    // button's click on top of the reorder the gesture already performed. One
+    // that ends elsewhere produces no click at all, so a suppressor armed at
+    // pointerup and left waiting would sit armed and eat the user's next,
+    // unrelated click. It has to expire on its own.
+    let suppressorTimer: number | undefined
+    const swallowTrailingClick = (event: MouseEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+    }
+    const disarmSuppressor = () => {
+      window.clearTimeout(suppressorTimer)
+      window.removeEventListener('click', swallowTrailingClick, { capture: true })
+    }
+    const armSuppressor = () => {
+      disarmSuppressor()
+      window.addEventListener('click', swallowTrailingClick, { capture: true, once: true })
+      suppressorTimer = window.setTimeout(disarmSuppressor, 0)
+    }
+
+    const onMove = (event: PointerEvent) => {
+      const origin = dragOrigin.current
+      if (!origin) return
+      if (!draggedNoteIdRef.current && Math.abs(event.clientY - origin.y) < DRAG_THRESHOLD) return
+      if (!draggedNoteIdRef.current) {
+        draggedNoteIdRef.current = origin.noteId
+        setDraggedNoteId(origin.noteId)
+      }
+
+      // Hit-test the rendered cards rather than relying on the pointer being
+      // over one: the list shifts as the placeholder moves, and a pointer that
+      // has run past the end of a section still has a meaningful answer.
+      const list = noteListRef.current
+      if (!list) return
+      const nodes = [...list.querySelectorAll<HTMLElement>('[data-note-id]')]
+      const sourcePinned = nodes.find((node) => node.dataset.noteId === origin.noteId)?.dataset
+        .pinned
+      let target: DragOverNote | null = null
+      for (const node of nodes) {
+        const id = node.dataset.noteId
+        // Pinned and unpinned notes are separate ordering groups — `reorder`
+        // refuses to move a note across the boundary, so offering it as a drop
+        // target would only draw an indicator that does nothing.
+        if (!id || id === origin.noteId || node.dataset.pinned !== sourcePinned) continue
+        const rect = node.getBoundingClientRect()
+        if (event.clientY < rect.top + rect.height / 2) {
+          target = { id, position: 'before' }
+          break
+        }
+        target = { id, position: 'after' }
+      }
+      dropTargetRef.current = target
+      setDragOverNote(target)
+    }
+
+    const onUp = () => {
+      const dragging = draggedNoteIdRef.current
+      const target = dropTargetRef.current
+      if (!dragOrigin.current || !dragging) {
+        endGesture()
+        return
+      }
+      armSuppressor()
+
+      if (target && target.id !== dragging) {
+        // Read the store at drop time: a note may have been added or deleted
+        // while the pointer was down.
+        const { setLastAction: setAction } = useUiStore.getState()
+        void useNotesStore
+          .getState()
+          .reorder(dragging, target.id, target.position)
+          .then(() => setAction('Note moved', 'success'))
+          .catch(() => setAction('Failed to move note', 'error'))
+      }
+      endGesture()
+    }
+
+    // A cancelled pointer, or a window that loses focus mid-gesture, must not
+    // leave the drawer believing a drag is still in flight — the button comes up
+    // somewhere we never hear about, and the next plain click would be read as
+    // the end of the old drag.
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', endGesture)
+    window.addEventListener('blur', endGesture)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', endGesture)
+      window.removeEventListener('blur', endGesture)
+      disarmSuppressor()
+    }
   }, [])
-
-  const handleNoteDragStart = useCallback(
-    (note: NoteType, event: React.DragEvent<HTMLButtonElement>) => {
-      if (!canReorderNotes) return event.preventDefault()
-      event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/plain', note.id)
-      draggedNoteIdRef.current = note.id
-      setDraggedNoteId(note.id)
-    },
-    [canReorderNotes]
-  )
-
-  const handleNoteDragOver = useCallback(
-    (note: NoteType, event: React.DragEvent<HTMLDivElement>) => {
-      const sourceId = draggedNoteIdRef.current ?? draggedNoteId
-      if (!sourceId || sourceId === note.id) return
-      const dragged = notes.find((item) => item.id === sourceId)
-      if (!dragged || dragged.pinned !== note.pinned) return
-      event.preventDefault()
-      const bounds = event.currentTarget.getBoundingClientRect()
-      setDragOverNote({
-        id: note.id,
-        position: event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
-      })
-    },
-    [draggedNoteId, notes]
-  )
-
-  const handleNoteDrop = useCallback(
-    (note: NoteType, event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      const sourceId =
-        draggedNoteIdRef.current ?? draggedNoteId ?? event.dataTransfer.getData('text/plain')
-      const position = dragOverNote?.id === note.id ? dragOverNote.position : 'before'
-      clearNoteDragState()
-      if (!sourceId || sourceId === note.id) return
-      void reorderNotes(sourceId, note.id, position)
-        .then(() => setLastAction('Note moved', 'success'))
-        .catch(() => setLastAction('Failed to move note', 'error'))
-    },
-    [clearNoteDragState, dragOverNote, draggedNoteId, reorderNotes, setLastAction]
-  )
 
   const moveNote = useCallback(
     (source: NoteType, target: NoteType | undefined, position: DropPosition) => {
@@ -653,7 +740,7 @@ export function NotesDrawer() {
             {canReorderNotes && notes.length > 1 && <span>Drag to reorder</span>}
           </div>
 
-          <div className="flex-1 overflow-auto p-2.5">
+          <div ref={noteListRef} className="flex-1 overflow-auto p-2.5">
             {filteredNotes.length === 0 && (
               <EmptyState
                 icon={NoteIcon}
@@ -689,9 +776,8 @@ export function NotesDrawer() {
                       <div
                         key={note.id}
                         data-testid={`note-card-${note.id}`}
-                        onDragOver={(event) => handleNoteDragOver(note, event)}
-                        onDrop={(event) => handleNoteDrop(note, event)}
-                        onDragEnd={clearNoteDragState}
+                        data-note-id={note.id}
+                        data-pinned={note.pinned ? 'true' : 'false'}
                         className={`group rounded-[var(--radius-lg)] border border-l-[3px] transition-colors ${
                           draggedNoteId === note.id ? 'opacity-60' : ''
                         } ${dragPlacement === 'before' ? 'border-t-2 border-t-[var(--color-accent)]' : ''} ${
@@ -705,13 +791,14 @@ export function NotesDrawer() {
                           {canReorderNotes && (
                             <button
                               type="button"
-                              draggable
-                              onDragStart={(event) => handleNoteDragStart(note, event)}
+                              onPointerDown={(event) => handleNotePointerDown(event, note.id)}
                               aria-label={`Drag ${note.title || 'untitled note'} to reorder`}
                               // Rests at muted and brightens to full text on hover/focus. It used
                               // to rest at opacity-60 over muted, which composited below the 3:1
                               // WCAG minimum for a UI control on every theme.
-                              className="mt-0.5 inline-flex min-h-6 min-w-5 cursor-grab items-center justify-center rounded text-[var(--color-text-muted)] transition-colors focus-visible:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:text-[var(--color-text)]"
+                              // `touch-none` so a drag down the list is read as a
+                              // drag and not as a scroll that cancels the pointer.
+                              className="mt-0.5 inline-flex min-h-6 min-w-5 cursor-grab touch-none items-center justify-center rounded text-[var(--color-text-muted)] transition-colors focus-visible:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:text-[var(--color-text)]"
                             >
                               <DotsSixVerticalIcon size={14} aria-hidden="true" />
                             </button>

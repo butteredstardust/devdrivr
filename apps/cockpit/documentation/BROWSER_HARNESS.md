@@ -3,6 +3,8 @@
 How to run the cockpit UI in a plain Chromium page for DOM-level debugging, and the diagnostic
 recipes that come with it.
 
+> One of four harnesses — see [HARNESSES.md](HARNESSES.md) for which to use when.
+
 Vitest runs against jsdom/node and cannot reproduce anything involving real layout, real text
 selection, or the browser's own commit behaviour. The Tauri app can, but it is a black box —
 no DevTools protocol, no scripted input. This harness closes that gap: the same web bundle,
@@ -15,8 +17,13 @@ served by `bun run dev`, driven from Chromium.
 - "It re-renders but I can't see why" — DOM mutation forensics
 - Anything you were about to explain with a theory instead of evidence
 
-Not for: file I/O, SQLite persistence, window/menu behaviour, or shortcuts that go through Rust.
-Those need the real app.
+Not for: window or menu behaviour — that is [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md).
+
+Not for file I/O or SQLite persistence either, but that no longer means "go run the real app and
+squint". [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) (`bun run dev:remote`) keeps everything below
+— Chromium, Playwright, devtools — and swaps the stub for a socket into the live app process, so the
+same session reads the real database. Trade-off is a ~40s rebuild instead of HMR, so stay here while
+the canned data isn't what's in your way.
 
 ## Setup
 
@@ -49,7 +56,8 @@ state through the UI.
 Commands with no browser equivalent — file dialogs, `fs`, `http` — resolve to `null` and log a
 `[tauri-stub] unhandled command` warning. Two of those on boot (`plugin:http|fetch*`, the update
 check) are expected. A warning naming a command your feature depends on means you are testing a
-stub, not the app: run `bunx tauri dev` instead.
+stub, not the app — switch to [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md), which answers those
+commands for real without giving up the browser.
 
 ## Gotchas found the hard way
 

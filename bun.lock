@@ -37,7 +37,7 @@
     },
     "apps/cockpit": {
       "name": "cockpit",
-      "version": "0.1.71",
+      "version": "0.1.73",
       "dependencies": {
         "@fontsource/cascadia-code": "^5.2.3",
         "@fontsource/fira-code": "^5.2.7",
@@ -109,6 +109,7 @@
         "eslint-plugin-react-hooks": "^7.0.1",
         "happy-dom": "^20.8.9",
         "jsdom": "^29.0.2",
+        "tauri-remote-ui": "^1.1.1",
         "typescript": "^5.9",
         "vite": "^7.0.4",
         "vite-plugin-node-stdlib-browser": "^0.2.1",
@@ -4594,6 +4595,8 @@
     "tar": ["tar@6.2.1", "", { "dependencies": { "chownr": "^2.0.0", "fs-minipass": "^2.0.0", "minipass": "^5.0.0", "minizlib": "^2.1.1", "mkdirp": "^1.0.3", "yallist": "^4.0.0" } }, "sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A=="],
 
     "tauri-app": ["tauri-app@workspace:apps/tauri"],
+
+    "tauri-remote-ui": ["tauri-remote-ui@1.1.1", "", { "peerDependencies": { "@tauri-apps/api": ">=2.0.0" } }, "sha512-H7Vz3Uhe40g1WFSYhOnow0fBpDXfUv7yJcXmXRljjG/FxXdAURzAGXKYS1IKt5feDQkQmkKzfHTdTPK1W6Su4w=="],
 
     "temp": ["temp@0.8.4", "", { "dependencies": { "rimraf": "~2.6.2" } }, "sha512-s0ZZzd0BzYv5tLSptZooSjK8oj6C+c19p7Vqta9+6NPOf7r+fxq0cJe6/oN4LTC79sy5NY8ucOJNgwsKCSbfqg=="],
 

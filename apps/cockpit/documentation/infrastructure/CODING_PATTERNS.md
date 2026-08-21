@@ -327,6 +327,52 @@ const logicalSz = sz.toLogical(factor) // logical
 
 ---
 
+## Drag to Reorder — use pointer events, never HTML5 drag-and-drop
+
+The window runs with Tauri's `dragDropEnabled` at its default of `true`, which installs a native
+drag-and-drop handler on the webview. That handler is what delivers OS file drops to
+`useFileDropZone`, and it also **swallows in-page `dragover` and `drop`**. An element marked
+`draggable` therefore fires `dragstart` and then nothing at all: the item never moves.
+
+Worse, the swallowed gesture still reaches Tauri as a file drop, so a tool that has file drop
+disabled answers an in-app drag with the toast **"File drop is not supported by the active tool"** —
+a message about a feature the user wasn't using.
+
+The two features cannot share the flag, and file drops are worth more than the browser's drag ghost.
+So reordering runs on pointer events, which sit below that handler entirely:
+
+```tsx
+// pointerdown on the handle records an origin; it does not start a drag yet
+const dragOrigin = useRef<{ id: string; y: number } | null>(null)
+// window-level pointermove/pointerup, so the gesture survives the pointer
+// leaving the element — and refs, not state, because a pointerup can arrive in
+// the same task as the pointermove before it, ahead of any re-render
+```
+
+Non-negotiables when you write one:
+
+- **Keep the gesture's state in refs.** The `useState` copies exist only to paint it. A handler
+  reading rendered state drops the item where it was two moves ago — or, when the first move and the
+  release coincide, does nothing at all and looks exactly like the bug above.
+- **Require a small movement threshold** (~4px) before a drag begins, so a plain click still clicks.
+- **Suppress the trailing click, and let the suppressor expire on its own.** A drag ending inside the
+  element it started on still produces a click; one ending elsewhere produces none. A suppressor
+  armed at pointerup and left waiting eats the user's next unrelated click.
+- **Listen for `pointercancel` and window `blur`** — otherwise a gesture interrupted by the OS leaves
+  the component believing a drag is still in flight.
+- **Hit-test the rendered items** against the pointer's midpoint rather than trusting the pointer to
+  be over a target; the list shifts under the cursor as items move out of the way.
+- Add `touch-none` to the handle so the gesture isn't read as a scroll.
+
+Worked examples: `WorkspaceTabStrip.tsx` (horizontal, tabs) and `NotesDrawer.tsx` (vertical, and
+grouped — pinned and unpinned notes are separate ordering groups that a drag must not cross).
+
+In tests, jsdom has no layout, so stub `getBoundingClientRect` on the items to lay them out
+deterministically and then drive `pointerDown`/`pointerMove`/`pointerUp`. See the `layOutNotes` and
+`dragNote` helpers in `NotesDrawer.test.tsx`.
+
+---
+
 ## Icons
 
 Always use Phosphor Icons — never inline SVGs or emoji:

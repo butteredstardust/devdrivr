@@ -1,7 +1,18 @@
 mod batch;
 mod mcp;
+#[cfg(feature = "remote-ui")]
+mod remote_ui;
 mod window_commands;
 mod window_corners;
+
+// The bridge pulls in an AGPL-3.0-only crate. Making this a hard build failure rather than a note
+// in a README means a shipped binary cannot acquire that copyleft by way of someone typing
+// `--features remote-ui` out of habit, or a CI job inheriting the flag from a shell profile.
+#[cfg(all(feature = "remote-ui", not(debug_assertions)))]
+compile_error!(
+    "the `remote-ui` feature is dev-only: tauri-remote-ui is AGPL-3.0-only and must never be \
+     linked into a release build. Use `bun run dev:remote`."
+);
 
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -85,11 +96,18 @@ pub fn run() {
         },
     ];
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(feature = "remote-ui")]
+    let builder = builder.plugin(tauri_remote_ui::init());
+
+    builder
         .setup(|app| {
             for window in app.webview_windows().values() {
                 window_corners::apply(&window.as_ref().window_ref());
             }
+            #[cfg(feature = "remote-ui")]
+            remote_ui::start(app.handle());
             Ok(())
         })
         // The radius depends on whether the window is fullscreen, and entering or leaving

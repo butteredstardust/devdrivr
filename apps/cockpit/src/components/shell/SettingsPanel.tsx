@@ -32,7 +32,11 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ShieldCheckIcon,
+  IdentificationBadgeIcon,
+  HeartIcon,
 } from '@phosphor-icons/react'
+import { AboutTab } from '@/components/shell/AboutTab'
+import { AcknowledgmentsTab } from '@/components/shell/AcknowledgmentsTab'
 import { Dialog } from '@/components/shared/Dialog'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
@@ -45,13 +49,15 @@ import { Input } from '@/components/shared/Input'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-type TabId = 'general' | 'editor' | 'data' | 'mcp'
+type TabId = 'general' | 'editor' | 'data' | 'mcp' | 'about' | 'acknowledgments'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'general', label: 'General', icon: <GearSixIcon size={14} /> },
   { id: 'editor', label: 'Editor', icon: <CodeIcon size={14} /> },
   { id: 'data', label: 'Data', icon: <DatabaseIcon size={14} /> },
   { id: 'mcp', label: 'MCP', icon: <PlugsConnectedIcon size={14} /> },
+  { id: 'about', label: 'About', icon: <IdentificationBadgeIcon size={14} /> },
+  { id: 'acknowledgments', label: 'Acknowledgments', icon: <HeartIcon size={14} /> },
 ]
 
 const INDENT_OPTIONS = [2, 4] as const
@@ -1077,7 +1083,9 @@ export function SettingsPanel() {
       title="Settings"
       onClose={() => setOpen(false)}
       closeLabel="Close settings"
-      size="lg"
+      // `xl` since About and Acknowledgments joined: six tabs no longer fit across 35rem, and the
+      // acknowledgments list is two columns of text per row that wrapped at the narrower step.
+      size="xl"
       // The dialog is already a flex column capped at 90vh, so the body only has
       // to opt into filling it. It previously carried a hard `max-h-[60vh]` on the
       // tab content, which scrolled a three-wide theme grid of 20+ swatches
@@ -1095,14 +1103,16 @@ export function SettingsPanel() {
         </div>
       }
     >
-      {/* Tab bar — pinned; only the panel below it scrolls */}
-      <div className="flex shrink-0 border-b border-[var(--color-border)]">
+      {/* Tab bar — pinned; only the panel below it scrolls. It scrolls horizontally rather than
+          squashing, so a narrow window loses the trailing tabs to a swipe instead of crushing six
+          labels into unreadable slivers. */}
+      <div className="no-scrollbar flex shrink-0 overflow-x-auto border-b border-[var(--color-border)]">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`-mb-px flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+            className={`-mb-px flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
               activeTab === tab.id
                 ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]'
                 : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -1120,6 +1130,8 @@ export function SettingsPanel() {
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && <DataTab />}
         {activeTab === 'mcp' && <McpTab />}
+        {activeTab === 'about' && <AboutTab />}
+        {activeTab === 'acknowledgments' && <AcknowledgmentsTab />}
       </div>
     </Dialog>
   )

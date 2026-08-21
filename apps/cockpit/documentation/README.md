@@ -14,16 +14,18 @@ Welcome to the devdrivr cockpit documentation. This directory contains all the d
 8. [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization guidelines
 9. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) - Visual design language, theming, and CSS tokens
 10. [TESTING.md](TESTING.md) - Testing documentation and best practices
-11. [BROWSER_HARNESS.md](BROWSER_HARNESS.md) - Running the UI in Chromium for DOM-level debugging
-12. [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) - Testing the real Tauri window on macOS and Windows: synthetic input, window controls, IPC health
-13. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `apps/cockpit/CONTRIBUTING.md`)
-14. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
-15. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-16. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
-17. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
-18. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
-19. [COCKPIT_STATE_AND_ROADMAP.md](COCKPIT_STATE_AND_ROADMAP.md) - Historical state review and roadmap (2026-06-12; see TODO.md for current status)
-20. [infrastructure/](infrastructure/) - Core infrastructure documentation
+11. [HARNESSES.md](HARNESSES.md) - **Start here for debugging:** which of the four harnesses to use for which symptom
+12. [BROWSER_HARNESS.md](BROWSER_HARNESS.md) - Running the UI in Chromium with stubbed IPC, for DOM-level debugging
+13. [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) - Driving the live app from Chromium with real IPC: real database, filesystem, MCP
+14. [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) - Testing the real Tauri window on macOS and Windows: synthetic input, window controls, IPC health
+15. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `apps/cockpit/CONTRIBUTING.md`)
+16. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
+17. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
+18. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
+19. [STYLE_GUIDE.md](STYLE_GUIDE.md) - Documentation style guidelines
+20. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
+21. [COCKPIT_STATE_AND_ROADMAP.md](COCKPIT_STATE_AND_ROADMAP.md) - Historical state review and roadmap (2026-06-12; see TODO.md for current status)
+22. [infrastructure/](infrastructure/) - Core infrastructure documentation
 
 ## Overview
 

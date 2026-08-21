@@ -3,10 +3,18 @@
 Tools for testing the **real** Tauri window on macOS and Windows — client-side decorations, the
 drag region, window controls, edge resizing, and IPC health.
 
-This is the counterpart to [BROWSER_HARNESS.md](BROWSER_HARNESS.md). The browser harness stubs the
-Tauri API and runs the UI in Chromium; it is faster and has devtools, but it cannot tell you
-anything about window behaviour, because none of it is real there. Everything documented in this
-file exists because a bug was invisible in both vitest and the browser harness.
+> One of four harnesses — see [HARNESSES.md](HARNESSES.md) for which to use when.
+
+This is the counterpart to the two Chromium harnesses:
+[BROWSER_HARNESS.md](BROWSER_HARNESS.md) stubs the Tauri API, and
+[REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) forwards it to a live app process. Both are faster than
+this and both have devtools, and neither can tell you anything about window behaviour, because there
+is no window in either. Everything documented in this file exists because a bug was invisible in
+vitest **and** in Chromium.
+
+Note the division of labour: if what you are chasing is IPC health rather than window chrome, reach
+for the remote harness first — it gives you the real commands with a scriptable page, and only the
+window itself needs the machinery below.
 
 Files live in [`scripts/native-ui/`](../scripts/native-ui/).
 

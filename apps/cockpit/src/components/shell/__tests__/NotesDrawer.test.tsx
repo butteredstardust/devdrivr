@@ -54,6 +54,43 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/**
+ * Reordering runs on pointer events, not HTML5 drag-and-drop — Tauri's native
+ * drag-drop handler (the one `useFileDropZone` needs) swallows in-page
+ * dragover/drop, so a `draggable` handle never moved a note in the real window
+ * and the swallowed drop surfaced as "File drop is not supported by the active
+ * tool" instead.
+ *
+ * jsdom has no layout, so every card reports a zero rect at y=0 unless it is
+ * given one. Stacking them 100px apart lets `clientY` select a card and a half
+ * deterministically: the drawer hit-tests against each card's vertical midpoint.
+ */
+function layOutNotes(height = 100) {
+  const nodes = [...document.querySelectorAll<HTMLElement>('[data-note-id]')]
+  let top = 0
+  for (const node of nodes) {
+    const rect = {
+      top,
+      bottom: top + height,
+      height,
+      left: 0,
+      right: 300,
+      width: 300,
+      x: 0,
+      y: top,
+    }
+    node.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect
+    top += height
+  }
+}
+
+function dragNote(handleLabel: string, toClientY: number) {
+  const handle = screen.getByRole('button', { name: handleLabel })
+  fireEvent.pointerDown(handle, { button: 0, clientY: 0 })
+  fireEvent.pointerMove(window, { clientY: toClientY })
+  fireEvent.pointerUp(window, { clientY: toClientY })
+}
+
 describe('NotesDrawer', () => {
   it('makes the closed drawer inert so its controls leave the tab order', () => {
     const { rerender } = render(<NotesDrawer />)
@@ -143,40 +180,59 @@ describe('NotesDrawer', () => {
     expect(screen.getByPlaceholderText('Search notes...')).toHaveValue('')
   })
 
-  it('calls reorder when a note is dropped onto another note', () => {
+  it('calls reorder when a note is dragged onto another note', () => {
     const reorder = vi.fn().mockResolvedValue(undefined)
     useNotesStore.setState({ notes: [testNote, secondNote], reorder })
     render(<NotesDrawer />)
+    layOutNotes()
 
-    const data = new Map<string, string>()
-    const dataTransfer = {
-      effectAllowed: '',
-      dropEffect: '',
-      setData: vi.fn((type: string, value: string) => data.set(type, value)),
-      getData: vi.fn((type: string) => data.get(type) ?? ''),
-    }
-    const secondCard = screen.getByTestId('note-card-note-2')
-    const firstDragHandle = screen.getByRole('button', { name: 'Drag Test note to reorder' })
-    Object.defineProperty(secondCard, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({
-        top: 0,
-        left: 0,
-        right: 100,
-        bottom: 100,
-        width: 100,
-        height: 100,
-        x: 0,
-        y: 0,
-        toJSON: () => {},
-      }),
-    })
-
-    fireEvent.dragStart(firstDragHandle, { dataTransfer })
-    fireEvent.dragOver(secondCard, { dataTransfer, clientY: 80 })
-    fireEvent.drop(secondCard, { dataTransfer })
+    // note-2 spans y 100–200, so 180 is past its midpoint: land after it.
+    dragNote('Drag Test note to reorder', 180)
 
     expect(reorder).toHaveBeenCalledWith('note-1', 'note-2', 'after')
+  })
+
+  it('drops a note before a target whose upper half the pointer is over', () => {
+    const reorder = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ notes: [testNote, secondNote], reorder })
+    render(<NotesDrawer />)
+    layOutNotes()
+
+    // note-1 spans y 0–100, so 20 is its upper half.
+    dragNote('Drag Second note to reorder', 20)
+
+    expect(reorder).toHaveBeenCalledWith('note-2', 'note-1', 'before')
+  })
+
+  it('leaves the order alone when the pointer never passes the drag threshold', () => {
+    const reorder = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ notes: [testNote, secondNote], reorder })
+    render(<NotesDrawer />)
+    layOutNotes()
+
+    const handle = screen.getByRole('button', { name: 'Drag Test note to reorder' })
+    fireEvent.pointerDown(handle, { button: 0, clientY: 0 })
+    fireEvent.pointerMove(window, { clientY: 2 })
+    fireEvent.pointerUp(window, { clientY: 2 })
+
+    expect(reorder).not.toHaveBeenCalled()
+  })
+
+  it('does not offer a pinned note as a drop target for an unpinned one', () => {
+    const reorder = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({
+      notes: [{ ...testNote, pinned: true }, secondNote],
+      reorder,
+    })
+    render(<NotesDrawer />)
+    layOutNotes()
+
+    // The only other card is in the other ordering group, so there is no target
+    // to land on and the gesture must resolve to nothing rather than to a move
+    // `reorder` would silently refuse.
+    dragNote('Drag Second note to reorder', 20)
+
+    expect(reorder).not.toHaveBeenCalled()
   })
 
   it('supports keyboard-accessible move controls', () => {

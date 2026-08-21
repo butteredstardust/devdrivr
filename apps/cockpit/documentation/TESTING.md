@@ -437,6 +437,12 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 | DB helpers    | No native SQLite integration harness for executing migrations end-to-end | Medium   |
 | Release smoke | Artifact-bound runtime reports remain manual on each supported platform  | Medium   |
 
+These gaps are the reason the harnesses exist: vitest runs on jsdom, which has no layout engine, no
+real event dispatch and no SQLite, so it will cheerfully certify code that cannot run anywhere. When
+a green run and a broken app disagree, see [HARNESSES.md](HARNESSES.md) for which harness can
+actually see the problem — `bun run dev:remote` in particular covers the DB-helpers row above by
+running the real migrations against the real database in a page you can script.
+
 ## How to Add a Test
 
 ### Testing a Pure Utility Function

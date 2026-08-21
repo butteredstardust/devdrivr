@@ -9,6 +9,13 @@ edition = "2021"
 name = "cockpit_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+# Dev-only browser bridge — see src/remote_ui.rs. Off by default and refused outright in release
+# builds, because tauri-remote-ui is AGPL-3.0-only and linking it would put the whole binary under
+# that copyleft. `bun run dev:remote` is the only thing that turns it on.
+remote-ui = ["dep:tauri-remote-ui"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -27,6 +34,9 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "json"] 
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 tokio-util = "0.7"
 uuid = { version = "1", features = ["v4", "serde"] }
+# AGPL-3.0-only. Optional, and gated behind the `remote-ui` feature above — never in a shipped
+# binary, which is why it is absent from src/lib/acknowledgments.ts.
+tauri-remote-ui = { version = "1.1", optional = true }
 
 # Rounding the window corners is an AppKit-level change (see src/window_corners.rs). These are
 # already in the dependency graph via tao/wry, so this pins names rather than pulling new crates.
