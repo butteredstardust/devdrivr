@@ -12,7 +12,7 @@
 
 <br>
 
-![devdrivr cockpit](../../screenshots/Screenshot%202026-04-06%20at%2023.00.12.png)
+![devdrivr cockpit showing the Mermaid Editor in split view](../../screenshots/cockpit-overview.png)
 
 </div>
 
