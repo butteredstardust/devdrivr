@@ -38,6 +38,7 @@ import {
 } from '@/tools/refactoring-toolkit/transforms'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { useIsInstanceActive } from '@/app/tool-instance'
 
 type RefactoringView = 'source' | 'diff'
 
@@ -56,10 +57,12 @@ type RefactoringState = {
    * code it belongs to stayed on screen.
    */
   lastApply: { before: string; after: string } | null
+  applyHistory: Array<{ before: string; after: string }>
 }
 
 /** Largest pre-apply snapshot worth persisting for Undo (~200KB of source). */
 const MAX_SNAPSHOT_LENGTH = 200_000
+const MAX_APPLY_HISTORY = 20
 
 const EXTENSION: Record<string, string> = { javascript: 'js', typescript: 'ts' }
 
@@ -129,6 +132,7 @@ export default function RefactoringToolkit() {
     panelOpen: true,
     view: 'source',
     lastApply: null,
+    applyHistory: [],
   })
 
   const worker = useWorker<RefactoringWorker>(
@@ -146,11 +150,14 @@ export default function RefactoringToolkit() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const panelId = useId()
+  const isInstanceActive = useIsInstanceActive()
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestRef = useRef(0)
 
   const { input, language, selectedTransforms, lastApply } = state
+  const applyHistory = useMemo(() => state.applyHistory ?? [], [state.applyHistory])
+  const latestApply = applyHistory.at(-1) ?? lastApply
   const hasCode = input.trim().length > 0
   const selectedCount = selectedTransforms.length
 
@@ -211,29 +218,54 @@ export default function RefactoringToolkit() {
   )
   // Undo only while the buffer still holds exactly what Apply produced.
   const canUndo =
-    lastApply !== null && input === lastApply.after && lastApply.before !== lastApply.after
+    latestApply !== null && input === latestApply.after && latestApply.before !== latestApply.after
 
   const handleApply = useCallback(() => {
     if (preview === null || preview.source !== input || preview.output === input) return
+    const snapshot = { before: input, after: preview.output }
+    const historyBase = applyHistory.at(-1)?.after === input ? applyHistory : []
+    const nextHistory =
+      input.length > MAX_SNAPSHOT_LENGTH ? [] : [...historyBase, snapshot].slice(-MAX_APPLY_HISTORY)
     updateState({
       input: preview.output,
       selectedTransforms: [],
       view: 'source',
-      lastApply:
-        input.length > MAX_SNAPSHOT_LENGTH ? null : { before: input, after: preview.output },
+      lastApply: input.length > MAX_SNAPSHOT_LENGTH ? null : snapshot,
+      applyHistory: nextHistory,
     })
     setPreview(null)
     setLastAction(
       hasDestructive ? 'Transforms applied — code was removed' : 'Transforms applied',
       hasDestructive ? 'info' : 'success'
     )
-  }, [preview, input, hasDestructive, updateState, setLastAction])
+  }, [preview, input, hasDestructive, applyHistory, updateState, setLastAction])
 
   const handleUndo = useCallback(() => {
-    if (!lastApply) return
-    updateState({ input: lastApply.before, lastApply: null, view: 'source' })
+    if (!latestApply) return
+    const nextHistory = applyHistory.slice(0, -1)
+    updateState({
+      input: latestApply.before,
+      applyHistory: nextHistory,
+      lastApply: nextHistory.at(-1) ?? null,
+      view: 'source',
+    })
     setLastAction('Reverted to the code before the transforms', 'info')
-  }, [lastApply, updateState, setLastAction])
+  }, [latestApply, applyHistory, updateState, setLastAction])
+
+  // Monaco keeps ordinary typing in its own undo stack. Intercept mod+z only when the buffer is
+  // exactly an applied transform snapshot; once the user edits, Monaco remains in charge.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isInstanceActive || !canUndo) return
+      if ((!event.metaKey && !event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== 'z')
+        return
+      event.preventDefault()
+      event.stopPropagation()
+      handleUndo()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [isInstanceActive, canUndo, handleUndo])
 
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleApply)
 
@@ -284,6 +316,7 @@ export default function RefactoringToolkit() {
         selectedTransforms: [],
         view: 'source',
         lastApply: null,
+        applyHistory: [],
         ...(detected ? { language: detected } : {}),
       })
       setError(null)
@@ -595,6 +628,7 @@ export default function RefactoringToolkit() {
                     input: REFACTORING_SAMPLE,
                     fileName: null,
                     lastApply: null,
+                    applyHistory: [],
                   })
                 }
                 className="pointer-events-auto"

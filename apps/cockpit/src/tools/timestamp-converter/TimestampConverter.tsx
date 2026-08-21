@@ -5,12 +5,28 @@ import { CopyButton } from '@/components/shared/CopyButton'
 import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
-import { Input } from '@/components/shared/Input'
+import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
+import {
+  computeFormats,
+  listTimeZones,
+  LOCAL_ZONE,
+  localTimeZone,
+  fromZonedWallClock,
+  toZonedWallClock,
+  zoneOffset,
+} from '@/tools/timestamp-converter/timestamp-formats'
 
 type TimestampState = {
   input: string
+  /**
+   * IANA zone the output list is rendered in, or `LOCAL_ZONE` for "wherever this machine is".
+   *
+   * Stored as the sentinel rather than the resolved zone so a workspace synced or restored on a
+   * laptop that has since travelled still means "here", which is what the user picked.
+   */
+  zone: string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -27,66 +43,6 @@ function parseInput(input: string): Date | null {
   const d = new Date(trimmed)
   if (!isNaN(d.getTime())) return d
   return null
-}
-
-function relativeTime(date: Date): string {
-  const now = Date.now()
-  const diffMs = now - date.getTime()
-  const absDiff = Math.abs(diffMs)
-  const suffix = diffMs >= 0 ? 'ago' : 'from now'
-  if (absDiff < 60_000) return `${Math.round(absDiff / 1000)} seconds ${suffix}`
-  if (absDiff < 3_600_000) return `${Math.round(absDiff / 60_000)} minutes ${suffix}`
-  if (absDiff < 86_400_000) return `${(absDiff / 3_600_000).toFixed(1)} hours ${suffix}`
-  if (absDiff < 2_592_000_000) return `${Math.round(absDiff / 86_400_000)} days ${suffix}`
-  if (absDiff < 31_536_000_000) return `${Math.round(absDiff / 2_592_000_000)} months ${suffix}`
-  return `${(absDiff / 31_536_000_000).toFixed(1)} years ${suffix}`
-}
-
-function getWeekNumber(d: Date): number {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7))
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
-  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
-}
-
-function getTimezoneLabel(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone
-  } catch {
-    return 'Unknown'
-  }
-}
-
-function getUtcOffset(d: Date): string {
-  const offset = -d.getTimezoneOffset()
-  const sign = offset >= 0 ? '+' : '-'
-  const h = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0')
-  const m = String(Math.abs(offset) % 60).padStart(2, '0')
-  return `UTC${sign}${h}:${m}`
-}
-
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-type FormatRow = {
-  label: string
-  value: string
-  live?: boolean
-  muted?: boolean
-}
-
-function computeFormats(date: Date): FormatRow[] {
-  const day = DAYS[date.getDay()] ?? ''
-  const week = getWeekNumber(date)
-  return [
-    { label: 'Unix (seconds)', value: String(Math.floor(date.getTime() / 1000)) },
-    { label: 'Unix (milliseconds)', value: String(date.getTime()) },
-    { label: 'ISO 8601', value: date.toISOString() },
-    { label: 'RFC 2822', value: date.toUTCString() },
-    { label: `Local (${getTimezoneLabel()})`, value: date.toLocaleString() },
-    { label: `UTC (${getUtcOffset(date)})`, value: date.toUTCString() },
-    { label: 'Day / Week', value: `${day} · Week ${week}`, muted: true },
-    { label: 'Relative', value: relativeTime(date), live: true },
-  ]
 }
 
 // ── Presets ─────────────────────────────────────────────────────────
@@ -122,7 +78,11 @@ const PRESETS: Preset[] = [
 export default function TimestampConverter() {
   const [state, updateState] = useToolState<TimestampState>('timestamp-converter', {
     input: '',
+    zone: LOCAL_ZONE,
   })
+  // Enumerated once. `Intl.supportedValuesOf('timeZone')` returns ~400 strings and the list cannot
+  // change while the app is running.
+  const zones = useMemo(() => listTimeZones(), [])
   const { record } = useToolHistory({ toolId: 'timestamp-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
@@ -140,9 +100,9 @@ export default function TimestampConverter() {
 
   const formats = useMemo(() => {
     if (!parsed) return []
-    return computeFormats(parsed.date)
+    return computeFormats(parsed.date, state.zone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed, tick])
+  }, [parsed, state.zone, tick])
 
   const handlePreset = useCallback(
     (preset: Preset) => {
@@ -152,22 +112,20 @@ export default function TimestampConverter() {
     [updateState, setLastAction]
   )
 
-  // Native date/time input value (local ISO format)
-  const dateTimeValue = useMemo(() => {
-    if (!parsed) return ''
-    const d = parsed.date
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  }, [parsed])
+  // The picker reads and writes in the *selected* zone, not the host's. A picker that silently
+  // meant a different zone from the list below it would be exactly the confusion this feature
+  // exists to remove.
+  const dateTimeValue = useMemo(
+    () => (parsed ? toZonedWallClock(parsed.date, state.zone) : ''),
+    [parsed, state.zone]
+  )
 
   const handleDateTimeChange = useCallback(
     (value: string) => {
-      const d = new Date(value)
-      if (!isNaN(d.getTime())) {
-        updateState({ input: String(d.getTime()) })
-      }
+      const d = fromZonedWallClock(value, state.zone)
+      if (d) updateState({ input: String(d.getTime()) })
     },
-    [updateState]
+    [updateState, state.zone]
   )
 
   // Record history when timestamp is successfully converted
@@ -193,8 +151,25 @@ export default function TimestampConverter() {
               </Button>
             ))}
             <ToolbarSpacer />
-            <span className="text-2xs text-[var(--color-text-muted)]">
-              {getTimezoneLabel()} ({getUtcOffset(new Date())})
+            {/* A native select: ~400 zones with OS type-ahead beats anything hand-rolled, and the
+                two entries above the separator cover the cases that aren't a lookup. */}
+            <Select
+              value={state.zone}
+              onChange={(e) => updateState({ zone: e.target.value })}
+              aria-label="Output timezone"
+              className="max-w-[14rem] font-mono"
+            >
+              <option value={LOCAL_ZONE}>Local — {localTimeZone()}</option>
+              <option value="UTC">UTC</option>
+              <option disabled>──────────</option>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </Select>
+            <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
+              {zoneOffset(new Date(), state.zone)}
             </span>
           </Toolbar>
 

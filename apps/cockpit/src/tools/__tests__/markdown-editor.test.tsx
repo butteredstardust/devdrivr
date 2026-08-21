@@ -65,6 +65,11 @@ afterEach(() => {
 })
 
 describe('MarkdownEditor', () => {
+  it('exposes find and replace in the editor toolbar', () => {
+    renderTool(MarkdownEditor)
+    expect(screen.getByRole('button', { name: /^Find \(/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Find and replace \(/ })).toBeInTheDocument()
+  })
   it('renders tab bar with Edit first', () => {
     renderTool(MarkdownEditor)
     const tabs = ['Edit', 'Split', 'Preview'].map((label) => screen.getByText(label))

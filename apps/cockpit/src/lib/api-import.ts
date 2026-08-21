@@ -195,7 +195,7 @@ function importPostmanItem(
     return
   }
 
-  const body = postmanBodyToText(request['body'])
+  const { text: body, mode: declaredBodyMode } = postmanBodyToText(request['body'])
   const method = normalizeMethod(asString(request['method']))
   const collectionName = path.join(' / ')
   const collectionKey = addCollection(builder, collectionName)
@@ -220,7 +220,9 @@ function importPostmanItem(
     url,
     headers,
     body,
-    bodyMode: body ? detectBodyMode(body) : 'none',
+    // A declared form mode wins over sniffing: `a=1&b=2` is valid text, so detection alone would
+    // always downgrade it.
+    bodyMode: declaredBodyMode ?? (body ? detectBodyMode(body) : 'none'),
     auth: normalizeAuth(authValue),
     collectionKey,
   })
@@ -515,8 +517,10 @@ function normalizeMethod(value: string | null | undefined): HttpMethod {
   return HTTP_METHODS.find((method) => method === upper) ?? 'GET'
 }
 
+const BODY_MODE_IDS = new Set(['json', 'text', 'urlencoded', 'formdata', 'none'])
+
 function normalizeBodyMode(value: string | null): string {
-  return value === 'json' || value === 'text' || value === 'none' ? value : 'none'
+  return value && BODY_MODE_IDS.has(value) ? value : 'none'
 }
 
 function normalizeHeaders(value: unknown): ApiHeader[] {
@@ -635,11 +639,23 @@ function postmanUrlToString(value: unknown): string {
   return query.length > 0 ? `${base}?${query.join('&')}` : base
 }
 
-function postmanBodyToText(value: unknown): string {
+type PostmanBody = { text: string; mode: string | null }
+
+/**
+ * Postman's body, with its declared mode preserved.
+ *
+ * This used to return just the text, which meant `urlencoded` and `formdata` bodies arrived as an
+ * opaque query string labelled "text" — no key/value editor and, worse, no `Content-Type`. The
+ * flattened string is still the storage format (it is what the app's form modes read), but the mode
+ * now travels with it so the request comes back in the editor it was authored in.
+ */
+function postmanBodyToText(value: unknown): PostmanBody {
   const body = asRecord(value)
-  if (!body) return ''
+  if (!body) return { text: '', mode: null }
   const mode = asString(body['mode'])
-  if (mode === 'raw') return typeof body['raw'] === 'string' ? body['raw'] : ''
+  if (mode === 'raw') {
+    return { text: typeof body['raw'] === 'string' ? body['raw'] : '', mode: null }
+  }
   if (mode === 'urlencoded' || mode === 'formdata') {
     const entries = asArray(body[mode])
       .map((entry) => asRecord(entry))
@@ -650,9 +666,9 @@ function postmanBodyToText(value: unknown): string {
         return [key, typeof entry['value'] === 'string' ? entry['value'] : ''] as [string, string]
       })
       .filter((entry): entry is [string, string] => entry !== null)
-    return new URLSearchParams(entries).toString()
+    return { text: new URLSearchParams(entries).toString(), mode }
   }
-  return ''
+  return { text: '', mode: null }
 }
 
 function detectBodyMode(body: string): string {

@@ -121,6 +121,25 @@ describe('RefactoringToolkit', () => {
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 
+  it('keeps multiple apply snapshots and handles mod+z', async () => {
+    renderTool(RefactoringToolkit)
+    typeCode("var x = 1 == '1';")
+    checkTransform('var → const/let')
+    await waitFor(() => expect(screen.getByTestId('modified-editor')).toBeInTheDocument(), WAIT)
+    fireEvent.click(screen.getByRole('button', { name: /^Apply/ }))
+    await waitFor(() => expect(editor()).toHaveValue("const x = 1 == '1';"), WAIT)
+
+    checkTransform('== → ===')
+    await waitFor(() => expect(screen.getByTestId('modified-editor')).toBeInTheDocument(), WAIT)
+    fireEvent.click(screen.getByRole('button', { name: /^Apply/ }))
+    await waitFor(() => expect(editor()).toHaveValue("const x = 1 === '1';"), WAIT)
+
+    fireEvent.keyDown(window, { key: 'z', metaKey: true })
+    expect(editor()).toHaveValue("const x = 1 == '1';")
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(editor()).toHaveValue("var x = 1 == '1';")
+  })
+
   it('warns on the Apply button when a destructive transform is selected', async () => {
     renderTool(RefactoringToolkit)
     typeCode('console.log(1)\nvar y = 2;')

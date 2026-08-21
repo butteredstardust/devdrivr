@@ -73,6 +73,61 @@ describe('ApiClient', () => {
     expect(screen.getByText('Send')).toBeInTheDocument()
   })
 
+  it('offers form body editors and cURL export', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+
+    expect(screen.getByRole('button', { name: 'Copy request as cURL' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    expect(screen.getByLabelText('Field 1 name')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+    expect(screen.getByText(/Attached files are not saved/)).toBeInTheDocument()
+  })
+
+  it('keeps repeated multipart file rows distinct and clears files on mode exit', async () => {
+    const { container } = renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: 'upload' } })
+    fireEvent.change(container.querySelectorAll<HTMLInputElement>('input[type="file"]')[0]!, {
+      target: { files: [new File(['a'], 'a.txt', { type: 'text/plain' })] },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.change(screen.getByLabelText('Field 2 name'), { target: { value: 'upload' } })
+    fireEvent.change(container.querySelectorAll<HTMLInputElement>('input[type="file"]')[1]!, {
+      target: { files: [new File(['b'], 'b.txt', { type: 'text/plain' })] },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy request as cURL' }))
+    await waitFor(() => {
+      const command = clipboardWriteText.mock.calls.at(-1)?.[0] as string
+      expect(command).toContain(`-F 'upload=@a.txt'`)
+      expect(command).toContain(`-F 'upload=@b.txt'`)
+    })
+
+    // Clearing a key removes that serialized row; the following file must shift with its row,
+    // never inherit the removed row's file by index.
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy request as cURL' }))
+    await waitFor(() => {
+      const command = clipboardWriteText.mock.calls.at(-1)?.[0] as string
+      expect(command).not.toContain('@a.txt')
+      expect(command).toContain(`-F 'upload=@b.txt'`)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy request as cURL' }))
+    await waitFor(() => {
+      const command = clipboardWriteText.mock.calls.at(-1)?.[0] as string
+      expect(command).not.toContain('@a.txt')
+      expect(command).not.toContain('@b.txt')
+    })
+  })
+
   it('renders import and export controls in the library footer', () => {
     renderTool(ApiClient)
     expect(screen.getByRole('button', { name: 'Import requests' })).toBeInTheDocument()

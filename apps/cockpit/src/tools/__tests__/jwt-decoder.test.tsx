@@ -70,4 +70,21 @@ describe('JwtDecoder', () => {
     expect(screen.getByText('Subject')).toBeInTheDocument()
     expect(screen.getByText('Expiration')).toBeInTheDocument()
   })
+
+  it('offers a shared secret for HMAC tokens', async () => {
+    renderTool(JwtDecoder)
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: TEST_JWT },
+    })
+    expect(await screen.findByPlaceholderText('your-256-bit-secret')).toBeInTheDocument()
+  })
+
+  it('warns prominently for alg none', async () => {
+    renderTool(JwtDecoder)
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: 'eyJhbGciOiJub25lIn0.e30.' },
+    })
+    expect(await screen.findByText(/This token is unsigned/)).toBeInTheDocument()
+    expect(screen.getByText(/anyone who can reach this token can rewrite/i)).toBeInTheDocument()
+  })
 })

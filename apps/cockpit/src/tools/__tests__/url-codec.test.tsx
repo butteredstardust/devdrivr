@@ -1,7 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import UrlCodec from '../url-codec/UrlCodec'
+import UrlCodec, { transformUrlInput } from '../url-codec/UrlCodec'
+
+describe('transformUrlInput', () => {
+  it('decodes every nested level when requested', () => {
+    expect(
+      transformUrlInput('hello%252520world', {
+        mode: 'decode',
+        encodeMode: 'component',
+        bulk: false,
+        recursive: true,
+      })
+    ).toBe('hello world')
+  })
+
+  it('converts each line independently in bulk mode', () => {
+    expect(
+      transformUrlInput('hello world\na/b', {
+        mode: 'encode',
+        encodeMode: 'component',
+        bulk: true,
+        recursive: false,
+      })
+    ).toBe('hello%20world\na%2Fb')
+  })
+})
 
 describe('UrlCodec', () => {
   it('renders encode mode by default', () => {
@@ -27,5 +51,12 @@ describe('UrlCodec', () => {
     renderTool(UrlCodec)
     fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
     expect(screen.getByRole('button', { name: 'Decode' })).toBeInTheDocument()
+  })
+
+  it('exposes bulk and recursive decoding controls', () => {
+    renderTool(UrlCodec)
+    expect(screen.getByRole('switch', { name: 'Each line' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' }))
+    expect(screen.getByRole('switch', { name: 'Decode all levels' })).toBeInTheDocument()
   })
 })

@@ -40,16 +40,15 @@ All four green at `2137e4e`, run from `apps/cockpit` (never the monorepo root).
 | Gate       | Command                          | At `2137e4e`           | After batches 1–4         |
 | ---------- | -------------------------------- | ---------------------- | ------------------------- |
 | TypeScript | `npx tsc --noEmit`               | Pass, no errors        | Pass, no errors           |
-| Tests      | `bunx vitest run`                | 118 files / 1432 tests | 119 files / 1481 tests    |
+| Tests      | `bunx vitest run`                | 118 files / 1432 tests | 123 files / 1558 tests    |
 | ESLint     | `bun run lint`                   | Pass, 0 warnings       | Pass, 0 warnings          |
 | Design sys | `bun run lint:ds`                | 0 violations           | 0 violations              |
 | Rust       | `cargo check` (from `src-tauri`) | Untouched              | Untouched — frontend only |
 
 Re-run and update after each phase.
 
-**Delivered in this branch:** all of §3 (C1–C6) and the S1/S2/S4 items of §5. **Not delivered:**
-§4's capability gaps (G1–G6), which change behaviour rather than presentation and each want their
-own PR and test plan; and **S3**, still blocked on manual capture.
+**Delivered in this branch:** all of §3 (C1–C6), all capability gaps in §4 (G1–G6), and the
+S1/S2/S4 items of §5. **Not delivered:** **S3**, still blocked on manual capture.
 
 ---
 
@@ -208,17 +207,17 @@ No `verify`, `subtle`, or `HMAC` reference exists in the tool. It decodes and di
 signature but cannot tell the user whether it is valid — which is the question most people open a
 JWT tool to answer.
 
-- [ ] Optional secret input; verify HS256/384/512 via WebCrypto `subtle.verify`.
-- [ ] `alg: "none"` warning — currently accepted silently, and it is a genuine security footgun.
-- [ ] Validate `nbf` the way `exp` is already validated (live, with a status badge).
+- [x] Optional secret input; verify HS256/384/512 via WebCrypto `subtle.verify`.
+- [x] `alg: "none"` warning — currently accepted silently, and it is a genuine security footgun.
+- [x] Validate `nbf` the way `exp` is already validated (live, with a status badge).
 
 ### G2 — `hash-generator` is text-only
 
 No `File` or drop handling in the tool. Hashing a downloaded artefact — the common case — is
 impossible.
 
-- [ ] File drop + streaming hash, mirroring the pattern `base64` already implements.
-- [ ] Add SHA-3-256/512 and BLAKE2b. MD5 and SHA-1 ship today and are both broken; offering only
+- [x] File drop + streaming hash, mirroring the pattern `base64` already implements.
+- [x] Add SHA-3-256/512 and BLAKE2b. MD5 and SHA-1 ship today and are both broken; offering only
       broken-or-SHA-2 is a thin menu.
 
 ### G3 — `timestamp-converter` has no timezone picker
@@ -227,15 +226,15 @@ impossible.
 timestamp into another zone — the reason the tool exists for anyone on a distributed team — is not
 possible.
 
-- [ ] Timezone selector driving the output list, defaulting to local.
-- [ ] ISO week format (`YYYY-Www`) in the output list.
+- [x] Timezone selector driving the output list, defaulting to local.
+- [x] ISO week format (`YYYY-Www`) in the output list.
 
 ### G4 — `markdown-editor` has no find/replace
 
 No `mod+f`, `mod+h`, or find UI anywhere in the tool. For a full document editor this is a
 conspicuous absence.
 
-- [ ] Find/replace panel with `mod+f` / `mod+h`, scoped to the editor pane.
+- [x] Find/replace panel with `mod+f` / `mod+h`, scoped to the editor pane.
 
 ### G5 — `api-client` body modes are narrower than the importer
 
@@ -243,22 +242,22 @@ conspicuous absence.
 exposes only JSON/Text/None. An imported collection can therefore hold a body the UI cannot
 represent or edit.
 
-- [ ] Add both modes to `BODY_MODES` with a key/value editor.
-- [ ] File upload in multipart bodies.
-- [ ] Export request as cURL — the inverse of `curl-to-fetch`, which already exists in the app.
+- [x] Add both modes to `BODY_MODES` with a key/value editor.
+- [x] File upload in multipart bodies.
+- [x] Export request as cURL — the inverse of `curl-to-fetch`, which already exists in the app.
 
 ### G6 — Smaller, well-scoped additions
 
-- [ ] `url-codec` — recursive decode ("decode all levels") for double-encoded input, and bulk
+- [x] `url-codec` — recursive decode ("decode all levels") for double-encoded input, and bulk
       line-separated encode/decode.
-- [ ] `csv-tools` — delimiter override reachable from Convert/Analyze views without returning to
+- [x] `csv-tools` — delimiter override reachable from Convert/Analyze views without returning to
       Table view first.
-- [ ] `uuid-generator` — v5 (namespace/name) alongside the existing v1/v4/v7.
-- [ ] `color-converter` — LAB/LCH output; OKLCH already ships.
-- [ ] `image-tool` — rotate and flip.
-- [ ] `refactoring-toolkit` — undo history beyond the single `lastApply` snapshot
+- [x] `uuid-generator` — v5 (namespace/name) alongside the existing v1/v4/v7.
+- [x] `color-converter` — LAB/LCH output; OKLCH already ships.
+- [x] `image-tool` — rotate and flip.
+- [x] `refactoring-toolkit` — undo history beyond the single `lastApply` snapshot
       (`RefactoringToolkit.tsx:214`), with `mod+z`.
-- [ ] `regex-tester` — a sample in `lib/tool-samples.ts`; it is one of the few tools without one.
+- [x] `regex-tester` — a sample in `lib/tool-samples.ts`; it is one of the few tools without one.
 
 ---
 

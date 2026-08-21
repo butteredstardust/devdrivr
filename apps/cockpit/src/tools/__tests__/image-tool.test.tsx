@@ -89,6 +89,11 @@ function installImageMocks() {
     value: () => ({
       clearRect: vi.fn(),
       drawImage: vi.fn(),
+      save: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      restore: vi.fn(),
     }),
   })
   Object.defineProperty(window.HTMLCanvasElement.prototype, 'toDataURL', {
@@ -202,11 +207,24 @@ describe('ImageTool', () => {
 
   // ── Tab structure ────────────────────────────────────────────────
 
-  it('renders all three tabs', () => {
+  it('renders all image operation tabs', () => {
     renderTool(ImageTool)
     expect(screen.getByText('Resize')).toBeInTheDocument()
     expect(screen.getByText('Crop')).toBeInTheDocument()
+    expect(screen.getByText('Rotate & Flip')).toBeInTheDocument()
     expect(screen.getByText('Export')).toBeInTheDocument()
+  })
+
+  it('rotates and flips an opened image', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+
+    fireEvent.click(screen.getByRole('button', { name: /rotate 90/i }))
+    expect(screen.getByText(/Rotation: 90°/)).toBeInTheDocument()
+
+    const horizontal = screen.getByRole('button', { name: /flip horizontally/i })
+    fireEvent.click(horizontal)
+    expect(horizontal).toHaveAttribute('aria-pressed', 'true')
   })
 
   // ── Resize tab controls ──────────────────────────────────────────

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { renderTool } from './test-utils'
-import UuidGenerator from '../uuid-generator/UuidGenerator'
+import UuidGenerator, { generateV5 } from '../uuid-generator/UuidGenerator'
 
 describe('UuidGenerator', () => {
+  it('matches the RFC v5 DNS vector', () => {
+    expect(generateV5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', 'example.com')).toBe(
+      'cfbff0d1-9375-5685-968c-48ce8b15ae17'
+    )
+  })
   it('renders generate button', () => {
     renderTool(UuidGenerator)
     expect(screen.getByText('Generate UUID')).toBeInTheDocument()
@@ -30,5 +35,12 @@ describe('UuidGenerator', () => {
     const input = screen.getByPlaceholderText(/paste a uuid/i)
     fireEvent.change(input, { target: { value: 'not-a-uuid' } })
     expect(screen.getByText(/not a valid/i)).toBeInTheDocument()
+  })
+
+  it('shows namespace and name inputs for v5', () => {
+    renderTool(UuidGenerator)
+    fireEvent.change(screen.getAllByRole('combobox')[0]!, { target: { value: 'v5' } })
+    expect(screen.getByText('Namespace UUID')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('example.com')).toBeInTheDocument()
   })
 })
