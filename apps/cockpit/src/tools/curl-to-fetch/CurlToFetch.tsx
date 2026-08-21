@@ -30,6 +30,31 @@ type ParsedCurl = {
   body: string | null
 }
 
+const VALUE_FLAGS = new Set([
+  '-A',
+  '--user-agent',
+  '-e',
+  '--referer',
+  '-o',
+  '--output',
+  '-x',
+  '--proxy',
+  '--connect-timeout',
+  '--max-time',
+  '--retry',
+  '--cacert',
+  '--cert',
+  '--key',
+  '--resolve',
+])
+
+function encodeBasicCredentials(credentials: string): string {
+  const bytes = new TextEncoder().encode(credentials)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
 // ── Parser ─────────────────────────────────────────────────────────
 
 function parseCurl(input: string): ParsedCurl | null {
@@ -89,11 +114,13 @@ function parseCurl(input: string): ParsedCurl | null {
       if (method === 'GET') method = 'POST'
     } else if (token === '-u' || token === '--user') {
       const creds = tokens[++i] ?? ''
-      headers['Authorization'] = `Basic ${btoa(creds)}`
+      headers['Authorization'] = `Basic ${encodeBasicCredentials(creds)}`
     } else if (token === '-b' || token === '--cookie') {
       headers['Cookie'] = tokens[++i] ?? ''
     } else if (token === '--compressed') {
       headers['Accept-Encoding'] = 'gzip, deflate, br'
+    } else if (VALUE_FLAGS.has(token)) {
+      i++
     } else if (!token.startsWith('-')) {
       url = token
     }

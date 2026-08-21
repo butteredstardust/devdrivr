@@ -32,6 +32,14 @@ describe('CssToTailwind', () => {
     expect(screen.getByText('py-[2rem]')).toBeInTheDocument()
   })
 
+  it('encodes spaces inside arbitrary values', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: 'width: calc(100% - 2rem);' },
+    })
+    expect(screen.getAllByText('w-[calc(100%_-_2rem)]').length).toBeGreaterThan(0)
+  })
+
   it('shows empty state when no input', () => {
     renderTool(CssToTailwind)
     expect(screen.getByText('Enter CSS on the left to convert')).toBeInTheDocument()

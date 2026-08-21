@@ -463,7 +463,9 @@ export default function MermaidEditor() {
         // A transparent PNG shows dark diagram text as invisible on most chat
         // and document backgrounds, so an opaque canvas is the default.
         if (!transparent) {
-          context.fillStyle = mermaidTheme === 'dark' ? '#1e1e1e' : '#ffffff'
+          context.fillStyle = getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-bg')
+            .trim()
           context.fillRect(0, 0, canvas.width, canvas.height)
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -473,7 +475,7 @@ export default function MermaidEditor() {
       }
       image.src = url
     })
-  }, [sizedSvg, exportScale, transparent, mermaidTheme])
+  }, [sizedSvg, exportScale, transparent])
 
   const handleCopyImage = useCallback(async () => {
     setIsExporting(true)

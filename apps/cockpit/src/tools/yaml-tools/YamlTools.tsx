@@ -25,6 +25,7 @@ import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useUiStore } from '@/stores/ui.store'
@@ -57,6 +58,7 @@ type YamlToolsState = {
    * beside the source now, and the view choice persists.
    */
   view: YamlView
+  tabWidth: number
 }
 
 /** Above this many keys the tree starts collapsed — expanding is one click. */
@@ -94,6 +96,7 @@ export default function YamlTools() {
     input: '',
     fileName: null,
     view: 'source',
+    tabWidth: 2,
   })
   const { record } = useToolHistory({ toolId: 'yaml-tools' })
 
@@ -182,7 +185,10 @@ export default function YamlTools() {
     setIsFormatting(true)
     const snapshot = inputRef.current
     try {
-      const result = await formatter.format(snapshot, { language: 'yaml' })
+      const result = await formatter.format(snapshot, {
+        language: 'yaml',
+        tabWidth: state.tabWidth ?? 2,
+      })
       // Writing the result over a buffer the user kept typing into would
       // silently eat those keystrokes.
       if (inputRef.current !== snapshot) {
@@ -199,7 +205,7 @@ export default function YamlTools() {
       formattingRef.current = false
       setIsFormatting(false)
     }
-  }, [formatter, applyResult, setLastAction])
+  }, [formatter, applyResult, setLastAction, state.tabWidth])
 
   const reshape = useCallback(
     (transform: (documents: unknown[]) => string, label: string) => {
@@ -372,6 +378,18 @@ export default function YamlTools() {
                 onChange={(next) => updateState({ view: next })}
                 options={VIEW_OPTIONS}
               />
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                Indent
+                <Select
+                  aria-label="YAML indent width"
+                  value={state.tabWidth ?? 2}
+                  onChange={(event) => updateState({ tabWidth: Number(event.target.value) })}
+                >
+                  <option value={2}>2 spaces</option>
+                  <option value={4}>4 spaces</option>
+                  <option value={8}>8 spaces</option>
+                </Select>
+              </label>
             </ToolbarGroup>
 
             <ToolbarGroup label="Document actions" separated>

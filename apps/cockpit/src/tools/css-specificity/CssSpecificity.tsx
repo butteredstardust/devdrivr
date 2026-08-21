@@ -24,9 +24,14 @@ type SpecResult = {
   a: number // IDs
   b: number // Classes, attributes, pseudo-classes
   c: number // Elements, pseudo-elements
-  score: number
+  sourceIndex: number
   parts: SpecPart[]
   hasImportant: boolean
+}
+
+function compareSpecificity(left: SpecResult, right: SpecResult): number {
+  if (left.hasImportant !== right.hasImportant) return left.hasImportant ? 1 : -1
+  return left.a - right.a || left.b - right.b || left.c - right.c
 }
 
 // ── Specificity Computation ──────────────────────────────────────────
@@ -140,43 +145,58 @@ export default function CssSpecificity() {
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean)
-    const res: SpecResult[] = lines.map((selector) => {
+    const res: SpecResult[] = lines.map((selector, sourceIndex) => {
       const hasImportant = selector.includes('!important')
       const cleanSelector = selector.replace(/!important/g, '').trim()
       const spec = computeSpecificity(cleanSelector)
       return {
         selector,
         ...spec,
-        score: spec.a * 100 + spec.b * 10 + spec.c,
+        sourceIndex,
         hasImportant,
       }
     })
-    return sorted ? [...res].sort((x, y) => y.score - x.score) : res
+    return sorted ? [...res].sort((x, y) => compareSpecificity(y, x)) : res
   }, [state.input, sorted])
 
-  const maxScore = useMemo(() => Math.max(...results.map((r) => r.score), 1), [results])
+  const maxParts = useMemo(
+    () => ({
+      a: Math.max(...results.map((result) => result.a), 1),
+      b: Math.max(...results.map((result) => result.b), 1),
+      c: Math.max(...results.map((result) => result.c), 1),
+    }),
+    [results]
+  )
 
-  const winnerIdx = useMemo(() => {
+  const winner = useMemo(() => {
     if (results.length < 2) return -1
-    let maxS = -1
-    let idx = -1
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i]
-      if (!r) continue
-      const effective = r.hasImportant ? r.score + 10000 : r.score
-      if (effective > maxS) {
-        maxS = effective
-        idx = i
+    let best = results[0]
+    for (const result of results.slice(1)) {
+      const comparison = best ? compareSpecificity(result, best) : 1
+      if (comparison > 0 || (comparison === 0 && result.sourceIndex > (best?.sourceIndex ?? -1))) {
+        best = result
       }
     }
-    return idx
+    return best?.sourceIndex ?? -1
   }, [results])
+
+  const winningResult = results.find((result) => result.sourceIndex === winner)
+  const tiedSources = useMemo(
+    () =>
+      new Set(
+        winningResult
+          ? results
+              .filter((result) => compareSpecificity(result, winningResult) === 0)
+              .map((result) => result.sourceIndex)
+          : []
+      ),
+    [results, winningResult]
+  )
 
   const exportText = useMemo(() => {
     if (results.length === 0) return ''
     const lines = results.map(
-      (r) =>
-        `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})  score=${r.score}${r.hasImportant ? ' !important' : ''}`
+      (r) => `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})${r.hasImportant ? ' !important' : ''}`
     )
     return lines.join('\n')
   }, [results])
@@ -262,7 +282,8 @@ export default function CssSpecificity() {
           {results.length > 0 ? (
             <div className="flex flex-col gap-3">
               {results.map((r, i) => {
-                const isWinner = i === winnerIdx && results.length > 1
+                const isWinner = r.sourceIndex === winner && results.length > 1
+                const isTied = tiedSources.size > 1 && tiedSources.has(r.sourceIndex)
                 return (
                   <div
                     key={i}
@@ -276,7 +297,12 @@ export default function CssSpecificity() {
                       <div className="flex items-center gap-2">
                         {isWinner && (
                           <span className="rounded bg-[var(--color-accent)] px-1.5 py-0.5 text-2xs font-bold text-[var(--color-bg)]">
-                            WINS
+                            {isTied ? 'WINS · LATER RULE' : 'WINS'}
+                          </span>
+                        )}
+                        {isTied && !isWinner && (
+                          <span className="rounded border border-[var(--color-accent)] px-1.5 py-0.5 text-2xs font-bold text-[var(--color-accent)]">
+                            TIED
                           </span>
                         )}
                         <code className="text-xs text-[var(--color-text)]">{r.selector}</code>
@@ -293,41 +319,25 @@ export default function CssSpecificity() {
 
                     {/* Segmented bar */}
                     <div className="flex items-center gap-2">
-                      <div className="h-2.5 flex-1 flex rounded bg-[var(--color-bg)] overflow-hidden">
-                        {r.a > 0 && (
-                          <div
-                            className="h-full"
-                            style={{
-                              width: `${(r.a * 100 * 100) / maxScore}%`,
-                              backgroundColor: TYPE_COLORS.id.bar,
-                            }}
-                            title={`IDs: ${r.a}`}
-                          />
-                        )}
-                        {r.b > 0 && (
-                          <div
-                            className="h-full"
-                            style={{
-                              width: `${(r.b * 10 * 100) / maxScore}%`,
-                              backgroundColor: TYPE_COLORS.class.bar,
-                            }}
-                            title={`Classes: ${r.b}`}
-                          />
-                        )}
-                        {r.c > 0 && (
-                          <div
-                            className="h-full"
-                            style={{
-                              width: `${(r.c * 100) / maxScore}%`,
-                              backgroundColor: TYPE_COLORS.element.bar,
-                            }}
-                            title={`Elements: ${r.c}`}
-                          />
-                        )}
+                      <div className="flex h-2.5 flex-1 gap-1 overflow-hidden rounded bg-[var(--color-bg)]">
+                        {(['a', 'b', 'c'] as const).map((part) => (
+                          <div key={part} className="h-full flex-1">
+                            <div
+                              className="h-full"
+                              style={{
+                                width: `${(r[part] * 100) / maxParts[part]}%`,
+                                backgroundColor:
+                                  part === 'a'
+                                    ? TYPE_COLORS.id.bar
+                                    : part === 'b'
+                                      ? TYPE_COLORS.class.bar
+                                      : TYPE_COLORS.element.bar,
+                              }}
+                              title={`${part === 'a' ? 'IDs' : part === 'b' ? 'Classes' : 'Elements'}: ${r[part]}`}
+                            />
+                          </div>
+                        ))}
                       </div>
-                      <span className="w-8 text-right text-xs text-[var(--color-text-muted)]">
-                        {r.score}
-                      </span>
                     </div>
 
                     {/* Breakdown */}

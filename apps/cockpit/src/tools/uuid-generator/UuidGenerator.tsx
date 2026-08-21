@@ -40,6 +40,8 @@ function generateV1(): string {
   // Variant bits (RFC 4122)
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   bytes[8] = (bytes[8]! & 0x3f) | 0x80 // safe: Uint8Array(16) guarantees index 8 exists
+  // Random nodes set the multicast bit so they cannot be mistaken for real MAC addresses.
+  bytes[10] = (bytes[10]! | 0x01) & 0xff
 
   return formatUuid(bytes)
 }
@@ -110,7 +112,10 @@ type UuidInfo = {
 }
 
 function parseUuid(input: string): UuidInfo | { valid: false; message: string } {
-  const trimmed = input.trim()
+  const trimmed = input
+    .trim()
+    .replace(/^urn:uuid:/i, '')
+    .replace(/^\{(.+)\}$/, '$1')
   if (!UUID_REGEX.test(trimmed)) {
     return { valid: false, message: 'Not a valid UUID format' }
   }

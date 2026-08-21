@@ -20,6 +20,10 @@ type ConversionResult = {
   unconvertible: string[]
 }
 
+function arbitraryValue(value: string): string {
+  return value.replace(/\s+/g, '_')
+}
+
 // Core property → Tailwind class mapping
 const PROPERTY_MAP: Record<string, Record<string, string>> = {
   display: {
@@ -220,7 +224,7 @@ function convertSizeProperty(prop: string, value: string): string | null {
   if (value === 'min-content') return `${p}-min`
   if (value === 'max-content') return `${p}-max`
 
-  return `${p}-[${value}]`
+  return `${p}-[${arbitraryValue(value)}]`
 }
 
 function convertSpacingProperty(prop: string, value: string): string | null {
@@ -244,7 +248,7 @@ function convertSpacingProperty(prop: string, value: string): string | null {
   if (!p) return null
   if (value === '0' || value === '0px') return `${p}-0`
   if (value === 'auto') return `${p}-auto`
-  return `${p}-[${value}]`
+  return `${p}-[${arbitraryValue(value)}]`
 }
 
 function convertCssToTailwind(css: string): ConversionResult {
@@ -303,15 +307,15 @@ function convertCssToTailwind(css: string): ConversionResult {
 
     // Color properties
     if (prop === 'color') {
-      push(`text-[${value}]`)
+      push(`text-[${arbitraryValue(value)}]`)
       continue
     }
     if (prop === 'background-color' || prop === 'background') {
-      push(`bg-[${value}]`)
+      push(`bg-[${arbitraryValue(value)}]`)
       continue
     }
     if (prop === 'border-color') {
-      push(`border-[${value}]`)
+      push(`border-[${arbitraryValue(value)}]`)
       continue
     }
 
@@ -321,7 +325,7 @@ function convertCssToTailwind(css: string): ConversionResult {
         push('border-0')
         continue
       }
-      push(`border-[${value}]`)
+      push(`border-[${arbitraryValue(value)}]`)
       continue
     }
 

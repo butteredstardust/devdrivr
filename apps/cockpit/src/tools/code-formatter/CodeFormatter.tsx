@@ -43,6 +43,8 @@ type CodeFormatterState = {
   fileName: string | null
   language: string
   tabWidth: number
+  useTabs: boolean
+  printWidth: number
   singleQuote: boolean
   trailingComma: 'all' | 'es5' | 'none'
   semi: boolean
@@ -83,6 +85,8 @@ export default function CodeFormatter() {
     fileName: null,
     language: 'javascript',
     tabWidth: 2,
+    useTabs: false,
+    printWidth: 80,
     singleQuote: true,
     trailingComma: 'es5',
     semi: false,
@@ -103,10 +107,20 @@ export default function CodeFormatter() {
   // `state` as a whole changes on every keystroke; the format call only cares
   // about these six fields, so memoising them keeps the callback (and the
   // ⌘↵ shortcut registration that depends on it) stable while typing.
-  const { input, language, tabWidth, singleQuote, trailingComma, semi, lastFormat } = state
+  const {
+    input,
+    language,
+    tabWidth,
+    useTabs,
+    printWidth,
+    singleQuote,
+    trailingComma,
+    semi,
+    lastFormat,
+  } = state
   const formatOptions = useMemo(
-    () => ({ language, tabWidth, singleQuote, trailingComma, semi }),
-    [language, tabWidth, singleQuote, trailingComma, semi]
+    () => ({ language, tabWidth, useTabs, printWidth, singleQuote, trailingComma, semi }),
+    [language, tabWidth, useTabs, printWidth, singleQuote, trailingComma, semi]
   )
   const optionsRef = useRef(formatOptions)
   optionsRef.current = formatOptions
@@ -356,6 +370,23 @@ export default function CodeFormatter() {
                   <option value={2}>2 spaces</option>
                   <option value={4}>4 spaces</option>
                   <option value={8}>8 spaces</option>
+                </Select>
+              </label>
+              <Toggle
+                label="Use tabs"
+                checked={state.useTabs}
+                onChange={(checked) => updateState({ useTabs: checked })}
+              />
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                Width
+                <Select
+                  aria-label="Print width"
+                  value={state.printWidth}
+                  onChange={(e) => updateState({ printWidth: Number(e.target.value) })}
+                >
+                  <option value={80}>80</option>
+                  <option value={100}>100</option>
+                  <option value={120}>120</option>
                 </Select>
               </label>
               <Toggle

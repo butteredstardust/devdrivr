@@ -34,6 +34,19 @@ type TimestampState = {
 function parseInput(input: string): Date | null {
   if (!input.trim()) return null
   const trimmed = input.trim()
+  const compactDate = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
+  if (compactDate) {
+    const date = new Date(`${compactDate[1]}-${compactDate[2]}-${compactDate[3]}T00:00:00`)
+    if (
+      !Number.isNaN(date.getTime()) &&
+      date.getFullYear() === Number(compactDate[1]) &&
+      date.getMonth() + 1 === Number(compactDate[2]) &&
+      date.getDate() === Number(compactDate[3])
+    ) {
+      return date
+    }
+    return null
+  }
   const num = Number(trimmed)
   if (!isNaN(num) && isFinite(num)) {
     const ms = num < 1e12 ? num * 1000 : num
@@ -86,17 +99,18 @@ export default function TimestampConverter() {
   const { record } = useToolHistory({ toolId: 'timestamp-converter' })
   const setLastAction = useUiStore((s) => s.setLastAction)
 
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1_000)
-    return () => clearInterval(id)
-  }, [])
-
   const parsed = useMemo(() => {
     const date = parseInput(state.input)
     if (!date) return null
     return { date }
   }, [state.input])
+
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (!parsed) return
+    const id = setInterval(() => setTick((t) => t + 1), 1_000)
+    return () => clearInterval(id)
+  }, [parsed])
 
   const formats = useMemo(() => {
     if (!parsed) return []

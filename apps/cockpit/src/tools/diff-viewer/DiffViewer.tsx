@@ -26,7 +26,10 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
-import { exportFile } from '@/lib/file-io'
+import { buildExportFilename, exportFile } from '@/lib/file-io'
+import { extensionForLanguage } from '@/tools/code-formatter/languages'
+import type { FormatterWorker } from '@/workers/formatter.worker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
 import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
@@ -48,6 +51,7 @@ type DiffViewerState = {
   mode: 'side-by-side' | 'inline'
   language: string
   ignoreWhitespace: boolean
+  ignoreCase: boolean
   jsonMode: boolean
   view: ViewMode
   optionsOpen: boolean
@@ -239,12 +243,17 @@ export default function DiffViewer() {
     mode: 'side-by-side',
     language: 'plaintext',
     ignoreWhitespace: false,
+    ignoreCase: false,
     jsonMode: false,
     view: 'split',
     optionsOpen: false,
   })
 
   const worker = useWorker<DiffWorker>(() => new DiffWorkerFactory(), ['computeDiff'])
+  const formatter = useWorker<FormatterWorker>(
+    () => new FormatterWorkerFactory(),
+    ['detectLanguage']
+  )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [diffHtml, setDiffHtml] = useState<string>('')
@@ -310,6 +319,7 @@ export default function DiffViewer() {
       try {
         const patch = await worker.computeDiff(current.left, current.right, {
           ignoreWhitespace: current.ignoreWhitespace,
+          ignoreCase: current.ignoreCase,
           jsonMode: current.jsonMode,
         })
         setRawPatch(patch)
@@ -358,7 +368,26 @@ export default function DiffViewer() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.left, state.right, state.ignoreWhitespace, state.jsonMode, state.mode, computeDiff])
+  }, [
+    state.left,
+    state.right,
+    state.ignoreWhitespace,
+    state.ignoreCase,
+    state.jsonMode,
+    state.mode,
+    computeDiff,
+  ])
+
+  useEffect(() => {
+    const source = state.left.trim() || state.right.trim()
+    if (!formatter || state.language !== 'plaintext' || !source) return
+    const timer = setTimeout(() => {
+      void formatter.detectLanguage(source).then((language) => {
+        if (stateRef.current.language === 'plaintext') updateState({ language })
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [formatter, state.left, state.right, state.language, updateState])
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -373,12 +402,16 @@ export default function DiffViewer() {
   }, [state.left, state.right, updateState, setLastAction])
 
   const handleSavePatch = useCallback(() => {
-    void exportFile(rawPatch, 'changes.patch').then(
+    const context =
+      state.language === 'plaintext'
+        ? 'text-changes'
+        : `${extensionForLanguage(state.language)}-changes`
+    void exportFile(rawPatch, buildExportFilename(context, 'patch')).then(
       (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
       (err: unknown) =>
         setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     )
-  }, [rawPatch, setLastAction])
+  }, [rawPatch, setLastAction, state.language])
 
   const loadSample = useCallback(() => {
     updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
@@ -572,6 +605,11 @@ export default function DiffViewer() {
                 label="Ignore whitespace"
                 checked={state.ignoreWhitespace}
                 onChange={(checked) => updateState({ ignoreWhitespace: checked })}
+              />
+              <Toggle
+                label="Ignore case"
+                checked={state.ignoreCase ?? false}
+                onChange={(checked) => updateState({ ignoreCase: checked })}
               />
               <Toggle
                 label="Normalize JSON"

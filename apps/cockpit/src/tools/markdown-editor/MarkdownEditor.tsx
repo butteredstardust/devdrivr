@@ -13,6 +13,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import {
+  buildExportFilename,
   exportFile,
   filenameFromPath,
   openFileDialog,
@@ -112,6 +113,7 @@ const MODE_OPTIONS: { value: EditorMode; label: string }[] = [
 ]
 
 const WORDS_PER_MINUTE = 200
+const TEMPLATE_DATE = '{{current-date}}'
 
 const TEMPLATES: { label: string; content: string }[] = [
   {
@@ -162,7 +164,7 @@ MIT
     label: 'Blog Post',
     content: `# Title of the Post
 
-*Published: ${new Date().toISOString().split('T')[0]}*
+*Published: ${TEMPLATE_DATE}*
 
 ## Introduction
 
@@ -199,7 +201,7 @@ Summarize the key takeaway and call to action.
   },
   {
     label: 'Meeting Notes',
-    content: `# Meeting Notes — ${new Date().toISOString().split('T')[0]}
+    content: `# Meeting Notes — ${TEMPLATE_DATE}
 
 **Attendees:** Alice, Bob, Charlie
 **Facilitator:** Alice
@@ -255,7 +257,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Bug fix description
 
-## [1.0.0] — ${new Date().toISOString().split('T')[0]}
+## [1.0.0] — ${TEMPLATE_DATE}
 
 ### Added
 - Initial release
@@ -880,14 +882,15 @@ export default function MarkdownEditor() {
       const content =
         format === 'md' ? state.content : await buildCurrentExportHtml(BASE_EXPORT_STYLES)
       try {
-        const path = await exportFile(content, `document.${format}`)
+        const baseName = state.fileName?.replace(/\.[^.]+$/, '') ?? 'document'
+        const path = await exportFile(content, buildExportFilename(baseName, format))
         if (path) setLastAction(`Downloaded as .${format}`, 'success')
       } catch {
         setLastAction('Download failed', 'error')
       }
       setShowExport(false)
     },
-    [buildCurrentExportHtml, state.content, setLastAction]
+    [buildCurrentExportHtml, state.content, state.fileName, setLastAction]
   )
 
   // ─── Open / Save ──────────────────────────────────────────────────
@@ -993,9 +996,13 @@ export default function MarkdownEditor() {
 
   const handleTemplateSelect = useCallback(
     (content: string) => {
+      const datedContent = content.replaceAll(
+        TEMPLATE_DATE,
+        new Date().toISOString().split('T')[0]!
+      )
       setShowTemplates(false)
       requestDocument({
-        content,
+        content: datedContent,
         fileName: null,
         filePath: null,
         savedContent: '',
@@ -1286,10 +1293,10 @@ export default function MarkdownEditor() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard
-                      .writeText(state.content)
-                      .then(() => setLastAction('Markdown copied to clipboard', 'success'))
-                      .catch(() => setLastAction('Failed to copy to clipboard', 'error'))
+                    void copy(state.content, {
+                      success: 'Markdown copied to clipboard',
+                      failure: 'Failed to copy to clipboard',
+                    })
                     setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"

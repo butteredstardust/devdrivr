@@ -54,6 +54,14 @@ describe('TimestampConverter', () => {
     expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('parses compact YYYYMMDD dates before treating digits as epoch seconds', () => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value: '20240821' },
+    })
+    expect(screen.getAllByText(/2024-08-21/).length).toBeGreaterThan(0)
+  })
+
   it('shows error for invalid input', () => {
     renderTool(TimestampConverter)
     const input = screen.getByPlaceholderText(/unix timestamp/i)

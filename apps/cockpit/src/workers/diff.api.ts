@@ -7,6 +7,7 @@ import { createTwoFilesPatch } from 'diff'
 
 export type DiffOptions = {
   ignoreWhitespace?: boolean
+  ignoreCase?: boolean
   jsonMode?: boolean
 }
 
@@ -21,6 +22,11 @@ export function computeDiff(left: string, right: string, options: DiffOptions = 
     } catch {
       // If not valid JSON, diff as-is
     }
+  }
+
+  if (options.ignoreCase) {
+    a = a.toLocaleLowerCase()
+    b = b.toLocaleLowerCase()
   }
 
   return createTwoFilesPatch('left', 'right', a, b, undefined, undefined, {

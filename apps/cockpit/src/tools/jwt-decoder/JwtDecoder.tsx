@@ -96,12 +96,8 @@ function decodeBase64Url(str: string): string {
   const padded = str.replace(/-/g, '+').replace(/_/g, '/')
   const pad = padded.length % 4
   const withPadding = pad ? padded + '='.repeat(4 - pad) : padded
-  return decodeURIComponent(
-    atob(withPadding)
-      .split('')
-      .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-      .join('')
-  )
+  const bytes = Uint8Array.from(atob(withPadding), (character) => character.charCodeAt(0))
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
 }
 
 export function isJwtObject(value: unknown): value is Record<string, unknown> {

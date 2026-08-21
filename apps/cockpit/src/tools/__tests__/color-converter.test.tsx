@@ -32,6 +32,15 @@ describe('ColorConverter', () => {
     expect(screen.getByText(/rgb\(255/i)).toBeInTheDocument()
   })
 
+  it('preserves alpha across converted formats', () => {
+    renderTool(ColorConverter)
+    fireEvent.change(screen.getByPlaceholderText(/#39ff14/), {
+      target: { value: 'rgba(255, 0, 0, 0.5)' },
+    })
+    expect(screen.getByRole('button', { name: /Copy Hex value #ff000080/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Copy HSL value .*\/ 0.5/i })).toBeInTheDocument()
+  })
+
   it('shows WCAG contrast section', () => {
     renderTool(ColorConverter)
     expect(screen.getByText(/contrast/i)).toBeInTheDocument()

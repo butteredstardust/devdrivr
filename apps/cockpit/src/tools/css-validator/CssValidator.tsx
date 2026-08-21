@@ -20,6 +20,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useTabDirty } from '@/hooks/useTabDirty'
 import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
@@ -141,6 +142,7 @@ export default function CssValidator() {
   // Without a known saved text, only text this session produced counts as unsaved.
   const isDirty =
     state.savedContent === null ? userEditedRef.current && hasInput : input !== state.savedContent
+  useTabDirty(isDirty)
   const { disabledRules, enabledRules } = state
 
   // --- Analysis --------------------------------------------------------

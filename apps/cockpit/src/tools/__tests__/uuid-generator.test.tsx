@@ -30,6 +30,15 @@ describe('UuidGenerator', () => {
     expect(screen.getByText(/valid uuid/i)).toBeInTheDocument()
   })
 
+  it('accepts braced and URN UUID forms', () => {
+    renderTool(UuidGenerator)
+    const input = screen.getByPlaceholderText(/paste a uuid/i)
+    fireEvent.change(input, {
+      target: { value: 'urn:uuid:{550e8400-e29b-41d4-a716-446655440000}' },
+    })
+    expect(screen.getByText(/valid uuid/i)).toBeInTheDocument()
+  })
+
   it('rejects an invalid UUID', () => {
     renderTool(UuidGenerator)
     const input = screen.getByPlaceholderText(/paste a uuid/i)

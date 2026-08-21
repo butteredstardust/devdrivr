@@ -499,8 +499,22 @@ export default function SnippetsManager() {
         .filter((item): item is NonNullable<typeof item> => item !== null)
       if (validSnippets.length === 0) throw new Error('No valid snippets')
 
+      const existing = new Set(
+        snippets.map((snippet) => `${snippet.title}\u0000${snippet.content}`)
+      )
+      const uniqueSnippets = validSnippets.filter((item) => {
+        const key = `${item.title}\u0000${item.content}`
+        if (existing.has(key)) return false
+        existing.add(key)
+        return true
+      })
+      if (uniqueSnippets.length === 0) {
+        setLastAction('No new snippets to import', 'info')
+        return
+      }
+
       let firstImported: Snippet | null = null
-      for (const item of validSnippets) {
+      for (const item of uniqueSnippets) {
         const created = await addSnippet(
           item.title,
           item.content,
@@ -511,11 +525,15 @@ export default function SnippetsManager() {
         firstImported ??= created
       }
       setSelectedId(firstImported?.id ?? null)
-      setLastAction(`Imported ${validSnippets.length} snippets`, 'success')
+      const skipped = validSnippets.length - uniqueSnippets.length
+      setLastAction(
+        `Imported ${uniqueSnippets.length} snippet${uniqueSnippets.length === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
+        'success'
+      )
     } catch {
       setLastAction('Import failed — choose a valid snippets JSON file', 'error')
     }
-  }, [addSnippet, setLastAction])
+  }, [addSnippet, setLastAction, snippets])
 
   const handleDownload = useCallback(async () => {
     if (!selected) return

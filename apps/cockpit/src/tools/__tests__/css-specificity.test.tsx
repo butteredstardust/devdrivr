@@ -22,4 +22,21 @@ describe('CssSpecificity', () => {
     fireEvent.change(input, { target: { value: '#id\n.class\np' } })
     expect(screen.getByText(/3 selector/i)).toBeInTheDocument()
   })
+
+  it('compares specificity lexicographically instead of collapsing large counts', () => {
+    renderTool(CssSpecificity)
+    fireEvent.change(screen.getByPlaceholderText(/main.*content/i), {
+      target: { value: '#id\n.a.a.a.a.a.a.a.a.a.a.a' },
+    })
+    expect(screen.getByText('#id').closest('.rounded')).toHaveTextContent('WINS')
+  })
+
+  it('explains that the later rule wins a specificity tie', () => {
+    renderTool(CssSpecificity)
+    fireEvent.change(screen.getByPlaceholderText(/main.*content/i), {
+      target: { value: '.first\n.second' },
+    })
+    expect(screen.getByText('WINS · LATER RULE')).toBeInTheDocument()
+    expect(screen.getByText('TIED')).toBeInTheDocument()
+  })
 })
