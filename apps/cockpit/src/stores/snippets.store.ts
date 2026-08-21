@@ -205,10 +205,11 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
         throw err
       } finally {
         deletingIds.delete(id)
-        inFlightMutations.delete(operation)
       }
     })()
     inFlightMutations.add(operation)
+    const finish = () => inFlightMutations.delete(operation)
+    void operation.then(finish, finish)
     return operation
   },
 

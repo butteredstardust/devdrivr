@@ -94,13 +94,6 @@ const PRESET_SIZES = [
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-// Estimate compressed file size from data URL length
-function estimateSizeFromDataUrl(dataUrl: string): number {
-  // data URL is base64 encoded; each 4 chars ≈ 3 bytes
-  const base64 = dataUrl.split(',')[1] ?? ''
-  return Math.round((base64.length * 3) / 4)
-}
-
 type CropRect = {
   x: number
   y: number
@@ -153,7 +146,7 @@ export default function ImageTool() {
   const [fileName, setFileName] = useState<string>('image')
   const [isDragOver, setIsDragOver] = useState(false)
   const [displayMetrics, setDisplayMetrics] = useState<DisplayMetrics | null>(null)
-  const [outputDataUrl, setOutputDataUrl] = useState<string | null>(null)
+  const [outputBlobSize, setOutputBlobSize] = useState(0)
   const [outputSize, setOutputSize] = useState<{ w: number; h: number } | null>(null)
 
   // ── Refs ────────────────────────────────────────────────────────
@@ -320,10 +313,20 @@ export default function ImageTool() {
 
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
+    let live = true
     const encodeTimer = setTimeout(() => {
-      setOutputDataUrl(canvas.toDataURL(mimeType, state.quality / 100))
+      canvas.toBlob(
+        (blob) => {
+          if (live) setOutputBlobSize(blob?.size ?? 0)
+        },
+        mimeType,
+        state.quality / 100
+      )
     }, 180)
-    return () => clearTimeout(encodeTimer)
+    return () => {
+      live = false
+      clearTimeout(encodeTimer)
+    }
   }, [originalImg, state])
 
   // ── Resize helpers ─────────────────────────────────────────────
@@ -600,7 +603,7 @@ export default function ImageTool() {
         }
       : null
 
-  const estimatedBytes = outputDataUrl ? estimateSizeFromDataUrl(outputDataUrl) : 0
+  const estimatedBytes = outputBlobSize
 
   // ── Render ─────────────────────────────────────────────────────
 
@@ -1272,7 +1275,7 @@ function ExportPanel({
             </span>
           </div>
           <div>
-            Est. size:{' '}
+            Size:{' '}
             <span className="font-mono text-[var(--color-text)]">
               {formatBytes(estimatedBytes)}
             </span>

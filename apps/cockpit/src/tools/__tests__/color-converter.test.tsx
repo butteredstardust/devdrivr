@@ -41,6 +41,15 @@ describe('ColorConverter', () => {
     expect(screen.getByRole('button', { name: /Copy HSL value .*\/ 0.5/i })).toBeInTheDocument()
   })
 
+  it('accepts CSS Color 4 short hex and degree hue syntax', () => {
+    renderTool(ColorConverter)
+    const input = screen.getByPlaceholderText(/#39ff14/)
+    fireEvent.change(input, { target: { value: '#0f08' } })
+    expect(screen.getByRole('button', { name: /Copy Hex value #00ff0088/i })).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: 'hsl(120deg 100% 50% / 50%)' } })
+    expect(screen.getByRole('button', { name: /Copy Hex value #00ff0080/i })).toBeInTheDocument()
+  })
+
   it('shows WCAG contrast section', () => {
     renderTool(ColorConverter)
     expect(screen.getByText(/contrast/i)).toBeInTheDocument()

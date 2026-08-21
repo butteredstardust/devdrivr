@@ -7,6 +7,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
+import * as cssTree from 'css-tree'
+import { specificityOf } from '@/tools/css-validator/css-helpers'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -42,71 +44,30 @@ function computeSpecificity(selector: string): {
   c: number
   parts: SpecPart[]
 } {
-  let a = 0
-  let b = 0
-  let c = 0
   const parts: SpecPart[] = []
-
-  // Handle :not() — its contents count but not the pseudo-class itself
-  let s = selector.replace(/:not\(([^)]+)\)/g, (_, inner: string) => {
-    const innerSpec = computeSpecificity(inner)
-    a += innerSpec.a
-    b += innerSpec.b
-    c += innerSpec.c
-    parts.push({
-      text: `:not(${inner})`,
-      type: innerSpec.a > 0 ? 'id' : innerSpec.b > 0 ? 'class' : 'element',
+  try {
+    const ast = cssTree.parse(selector, { context: 'selector' })
+    const [a, b, c] = specificityOf(ast)
+    cssTree.walk(ast, (node) => {
+      if (node.type === 'IdSelector') parts.push({ text: `#${node.name}`, type: 'id' })
+      if (node.type === 'ClassSelector') parts.push({ text: `.${node.name}`, type: 'class' })
+      if (node.type === 'AttributeSelector') {
+        parts.push({ text: cssTree.generate(node), type: 'class' })
+      }
+      if (node.type === 'PseudoClassSelector') {
+        parts.push({ text: `:${node.name}`, type: 'class' })
+      }
+      if (node.type === 'PseudoElementSelector') {
+        parts.push({ text: `::${node.name}`, type: 'element' })
+      }
+      if (node.type === 'TypeSelector' && node.name !== '*') {
+        parts.push({ text: node.name, type: 'element' })
+      }
     })
-    return ''
-  })
-
-  // Attribute selectors [...]
-  s = s.replace(/\[[^\]]*\]/g, (match) => {
-    b++
-    parts.push({ text: match, type: 'class' })
-    return ''
-  })
-
-  // IDs
-  const ids = s.match(/#[a-zA-Z_-][\w-]*/g) ?? []
-  for (const id of ids) {
-    a++
-    parts.push({ text: id, type: 'id' })
+    return { a, b, c, parts }
+  } catch {
+    return { a: 0, b: 0, c: 0, parts }
   }
-
-  // Classes
-  const classes = s.match(/\.[a-zA-Z_-][\w-]*/g) ?? []
-  for (const cls of classes) {
-    b++
-    parts.push({ text: cls, type: 'class' })
-  }
-
-  // Pseudo-elements (::before, ::after, etc.)
-  const pseudoElements = s.match(/::[a-zA-Z][\w-]*/g) ?? []
-  for (const pe of pseudoElements) {
-    c++
-    parts.push({ text: pe, type: 'element' })
-  }
-
-  // Pseudo-classes (:hover, :focus, etc.) — but not pseudo-elements
-  const pseudoClasses = (s.match(/:[a-zA-Z][\w-]*/g) ?? []).filter((p) => !p.startsWith('::'))
-  for (const pc of pseudoClasses) {
-    b++
-    parts.push({ text: pc, type: 'class' })
-  }
-
-  // Remove counted items, count remaining element names
-  s = s
-    .replace(/#[a-zA-Z_-][\w-]*/g, '')
-    .replace(/\.[a-zA-Z_-][\w-]*/g, '')
-    .replace(/:+[a-zA-Z][\w-]*/g, '')
-  const elements = s.match(/[a-zA-Z][\w-]*/g) ?? []
-  for (const el of elements) {
-    c++
-    parts.push({ text: el, type: 'element' })
-  }
-
-  return { a, b, c, parts }
 }
 
 // ── Examples ─────────────────────────────────────────────────────────

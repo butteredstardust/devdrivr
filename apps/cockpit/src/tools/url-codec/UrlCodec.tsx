@@ -102,7 +102,18 @@ export function transformUrlInput(
     return result
   }
 
-  return options.bulk ? input.split('\n').map(transform).join('\n') : transform(input)
+  if (!options.bulk) return transform(input)
+  return input
+    .split('\n')
+    .map((line) => {
+      try {
+        return transform(line)
+      } catch (error) {
+        const message = error instanceof URIError ? 'malformed percent encoding' : String(error)
+        return `[decode error: ${message}] ${line}`
+      }
+    })
+    .join('\n')
 }
 
 // ── Component ──────────────────────────────────────────────────────

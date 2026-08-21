@@ -44,21 +44,22 @@ import {
   RULE_CATEGORIES,
   TEMPLATES,
   buildRuleset,
-  computeStats,
   countIssues,
   countRuleOverrides,
   isRuleEnabled,
   outlineProblemDetails,
-  sortIssues,
   templateById,
   toggleRule,
   type HtmlIssue,
+  type HtmlStats,
   type RuleConfig,
 } from '@/tools/html-validator/html-helpers'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
 import { ProblemsList } from '@/components/shared/ProblemsList'
 import { formatShortcut } from '@/lib/shortcut-label'
+import type { HtmlWorker } from '@/workers/html.worker'
+import HtmlWorkerFactory from '@/workers/html.worker?worker'
 
 type ViewMode = 'editor' | 'split' | 'preview'
 type Panel = 'problems' | 'outline'
@@ -118,8 +119,10 @@ export default function HtmlValidator() {
   })
 
   const formatter = useWorker<FormatterWorker>(() => new FormatterWorkerFactory(), ['format'])
+  const validator = useWorker<HtmlWorker>(() => new HtmlWorkerFactory(), ['validateHtml'])
 
   const [issues, setIssues] = useState<HtmlIssue[]>([])
+  const [stats, setStats] = useState<HtmlStats | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [hasValidated, setHasValidated] = useState(false)
   const [isFormatting, setIsFormatting] = useState(false)
@@ -156,8 +159,13 @@ export default function HtmlValidator() {
     if (!hasInput) {
       validationSeqRef.current += 1
       setIssues([])
+      setStats(null)
       setIsValidating(false)
       setHasValidated(false)
+      return
+    }
+    if (!validator) {
+      setIsValidating(true)
       return
     }
     const seq = validationSeqRef.current + 1
@@ -169,20 +177,13 @@ export default function HtmlValidator() {
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const { HTMLHint } = await import('htmlhint')
-          const found = HTMLHint.verify(input, buildRuleset(disabledRules, enabledRules))
-          if (seq !== validationSeqRef.current) return
-          setIssues(
-            sortIssues(
-              found.map((result) => ({
-                message: result.message,
-                line: result.line,
-                col: result.col,
-                type: result.type === 'error' ? ('error' as const) : ('warning' as const),
-                rule: result.rule.id,
-              }))
-            )
+          const found = await validator.validateHtml(
+            input,
+            buildRuleset(disabledRules, enabledRules)
           )
+          if (seq !== validationSeqRef.current) return
+          setIssues(found.issues)
+          setStats(found.stats)
         } catch {
           if (seq !== validationSeqRef.current) return
           // Without a verdict of its own the status line would sit at "Checking…"
@@ -205,13 +206,12 @@ export default function HtmlValidator() {
       })()
     }, VALIDATE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [input, hasInput, disabledRules, enabledRules])
+  }, [input, hasInput, disabledRules, enabledRules, validator])
 
   const { errors: errorCount, warnings: warningCount } = useMemo(
     () => countIssues(issues),
     [issues]
   )
-  const stats = useMemo(() => (hasInput ? computeStats(input) : null), [hasInput, input])
   const outlineIssues = useMemo(() => (stats ? outlineProblemDetails(stats.headings) : []), [stats])
 
   // Only completed runs of text the user actually produced are worth recording;

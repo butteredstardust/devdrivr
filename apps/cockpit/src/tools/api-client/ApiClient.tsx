@@ -59,6 +59,7 @@ import {
   PlusIcon,
   SidebarIcon,
   TerminalIcon,
+  StopIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
@@ -69,6 +70,8 @@ import { formatShortcut } from '@/lib/shortcut-label'
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 const DEFAULT_REQUEST_NAME = 'Untitled Request'
+const DEFAULT_TIMEOUT_MS = 30_000
+const MAX_DISPLAY_BYTES = 1_000_000
 
 type Param = { key: string; value: string }
 
@@ -99,6 +102,7 @@ type ApiClientState = {
   activeRequestId: string | null
   /** Library sidebar visibility — persisted so narrow windows stay where the user left them. */
   libraryOpen: boolean
+  timeoutMs: number
   // We keep a working draft independent of the saved request
   draft: RequestDraft
 }
@@ -108,6 +112,10 @@ type ResponseData = {
   statusText: string
   headers: Record<string, string>
   body: string
+  blob: Blob
+  mimeType: string
+  isBinary: boolean
+  displayTruncated: boolean
   time: number
   size: number
 }
@@ -184,6 +192,28 @@ function interpolate(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
     return vars[key.trim()] ?? match
   })
+}
+
+export function unresolvedVariableNames(values: string[], vars: Record<string, string>): string[] {
+  const names = new Set<string>()
+  for (const value of values) {
+    for (const match of value.matchAll(/\{\{([^}]+)\}\}/g)) {
+      const name = match[1]?.trim()
+      if (name && vars[name] === undefined) names.add(name)
+    }
+  }
+  return [...names].sort()
+}
+
+function responseMime(headers: Record<string, string>): string {
+  const contentType = Object.entries(headers).find(
+    ([key]) => key.toLowerCase() === 'content-type'
+  )?.[1]
+  return contentType?.split(';')[0]?.trim() || 'application/octet-stream'
+}
+
+function isTextResponse(mimeType: string): boolean {
+  return mimeType.startsWith('text/') || /(?:json|xml|javascript|yaml|graphql|svg)/i.test(mimeType)
 }
 
 function base64EncodeUtf8(text: string): string {
@@ -313,6 +343,7 @@ export default function ApiClient() {
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
     activeRequestId: null,
     libraryOpen: true,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
     draft: createDefaultDraft(),
   })
 
@@ -342,6 +373,17 @@ export default function ApiClient() {
   const [responseCollapsed, setResponseCollapsed] = useState(true)
   const [responsePaneUserToggled, setResponsePaneUserToggled] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
+  const [unresolvedVariables, setUnresolvedVariables] = useState<string[]>([])
+  const requestControllerRef = useRef<AbortController | null>(null)
+  const timedOutRef = useRef(false)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+
+  useEffect(
+    () => () => {
+      requestControllerRef.current?.abort()
+    },
+    []
+  )
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = useMemo(() => activeEnv?.variables ?? {}, [activeEnv])
@@ -582,109 +624,173 @@ export default function ApiClient() {
   // Send request
   // ---------------------------------------------------------------------------
 
-  const handleSend = useCallback(async () => {
-    const interpolatedUrl = interpolate(url, envVars)
-    if (!interpolatedUrl.trim()) {
-      setLastAction('Enter a URL (or ensure {{variable}} is populated)', 'error')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    setResponse(null)
-    const start = performance.now()
-
-    try {
-      const fetchHeaders: Record<string, string> = {}
-
-      // Interpolate user headers
-      for (const h of headers) {
-        if (h.enabled && h.key.trim()) {
-          fetchHeaders[interpolate(h.key, envVars)] = interpolate(h.value, envVars)
-        }
+  const handleSend = useCallback(
+    async (sendAnyway = false) => {
+      const variableInputs = [
+        url,
+        ...headers
+          .filter((header) => header.enabled)
+          .flatMap((header) => [header.key, header.value]),
+        ...(auth.type === 'bearer'
+          ? [auth.token]
+          : auth.type === 'basic'
+            ? [auth.username, auth.password]
+            : []),
+        ...(BODY_METHODS.has(method) && bodyMode !== 'none'
+          ? bodyMode === FORMDATA_MODE
+            ? formFields.flatMap((field) => [field.key, field.value])
+            : [body]
+          : []),
+      ]
+      const missingVariables = unresolvedVariableNames(variableInputs, envVars)
+      if (!sendAnyway && missingVariables.length > 0) {
+        setUnresolvedVariables(missingVariables)
+        setLastAction('Resolve request variables or choose Send anyway', 'error')
+        return
+      }
+      setUnresolvedVariables([])
+      const interpolatedUrl = interpolate(url, envVars)
+      if (!interpolatedUrl.trim()) {
+        setLastAction('Enter a URL (or ensure {{variable}} is populated)', 'error')
+        return
       }
 
-      // Add auth headers
-      if (auth.type === 'bearer') {
-        const token = interpolate(auth.token, envVars)
-        fetchHeaders['Authorization'] = `Bearer ${token}`
-      } else if (auth.type === 'basic') {
-        const u = interpolate(auth.username, envVars)
-        const p = interpolate(auth.password, envVars)
-        fetchHeaders['Authorization'] = `Basic ${base64EncodeUtf8(`${u}:${p}`)}`
-      }
-
-      const opts: RequestInit = { method, headers: fetchHeaders }
-
-      // Header casing is the user's, so the check for an existing Content-Type has to be
-      // case-insensitive — otherwise a hand-typed `content-type` would be silently duplicated.
-      const hasContentType = Object.keys(fetchHeaders).some(
-        (k) => k.toLowerCase() === 'content-type'
+      setLoading(true)
+      setError(null)
+      setResponse(null)
+      const start = performance.now()
+      const controller = new AbortController()
+      requestControllerRef.current?.abort()
+      requestControllerRef.current = controller
+      timedOutRef.current = false
+      const timeout = window.setTimeout(
+        () => {
+          timedOutRef.current = true
+          controller.abort()
+        },
+        Math.max(1_000, state.timeoutMs || DEFAULT_TIMEOUT_MS)
       )
 
-      if (BODY_METHODS.has(method) && bodyMode === FORMDATA_MODE) {
-        const { body: multipart, contentType } = await buildMultipartBody(
-          formFields.map((f) => ({ ...f, value: interpolate(f.value, envVars) }))
-        )
-        // Always overwrite: the boundary is generated per request, so any Content-Type the user
-        // typed for a multipart body is guaranteed to be the wrong one.
-        for (const key of Object.keys(fetchHeaders)) {
-          if (key.toLowerCase() === 'content-type') delete fetchHeaders[key]
+      try {
+        const fetchHeaders: Record<string, string> = {}
+
+        // Interpolate user headers
+        for (const h of headers) {
+          if (h.enabled && h.key.trim()) {
+            fetchHeaders[interpolate(h.key, envVars)] = interpolate(h.value, envVars)
+          }
         }
-        fetchHeaders['Content-Type'] = contentType
-        opts.body = multipart
-      } else if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
-        opts.body = interpolate(body, envVars)
-        const implied = contentTypeFor(bodyMode)
-        if (implied && !hasContentType) fetchHeaders['Content-Type'] = implied
+
+        // Add auth headers
+        if (auth.type === 'bearer') {
+          const token = interpolate(auth.token, envVars)
+          fetchHeaders['Authorization'] = `Bearer ${token}`
+        } else if (auth.type === 'basic') {
+          const u = interpolate(auth.username, envVars)
+          const p = interpolate(auth.password, envVars)
+          fetchHeaders['Authorization'] = `Basic ${base64EncodeUtf8(`${u}:${p}`)}`
+        }
+
+        const opts: RequestInit = { method, headers: fetchHeaders, signal: controller.signal }
+
+        // Header casing is the user's, so the check for an existing Content-Type has to be
+        // case-insensitive — otherwise a hand-typed `content-type` would be silently duplicated.
+        const hasContentType = Object.keys(fetchHeaders).some(
+          (k) => k.toLowerCase() === 'content-type'
+        )
+
+        if (BODY_METHODS.has(method) && bodyMode === FORMDATA_MODE) {
+          const { body: multipart, contentType } = await buildMultipartBody(
+            formFields.map((f) => ({ ...f, value: interpolate(f.value, envVars) }))
+          )
+          // Always overwrite: the boundary is generated per request, so any Content-Type the user
+          // typed for a multipart body is guaranteed to be the wrong one.
+          for (const key of Object.keys(fetchHeaders)) {
+            if (key.toLowerCase() === 'content-type') delete fetchHeaders[key]
+          }
+          fetchHeaders['Content-Type'] = contentType
+          opts.body = multipart
+        } else if (BODY_METHODS.has(method) && bodyMode !== 'none' && body.trim()) {
+          opts.body = interpolate(body, envVars)
+          const implied = contentTypeFor(bodyMode)
+          if (implied && !hasContentType) fetchHeaders['Content-Type'] = implied
+        }
+
+        const res = await tauriFetch(interpolatedUrl, opts)
+        const time = Math.round(performance.now() - start)
+        const responseBytes = new Uint8Array(await res.arrayBuffer())
+        const size = responseBytes.byteLength
+
+        const resHeaders: Record<string, string> = {}
+        res.headers.forEach((value, key) => {
+          resHeaders[key] = value
+        })
+        const mimeType = responseMime(resHeaders)
+        const isBinary = !isTextResponse(mimeType)
+        const displayTruncated = !isBinary && size > MAX_DISPLAY_BYTES
+        const displayBytes = displayTruncated
+          ? responseBytes.slice(0, MAX_DISPLAY_BYTES)
+          : responseBytes
+        const resBody = isBinary ? '' : new TextDecoder().decode(displayBytes)
+        const blob = new Blob([Uint8Array.from(responseBytes)], { type: mimeType })
+
+        setResponse({
+          status: res.status,
+          statusText: res.statusText,
+          headers: resHeaders,
+          body: resBody,
+          blob,
+          mimeType,
+          isBinary,
+          displayTruncated,
+          time,
+          size,
+        })
+        setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
+
+        // Log to history
+        void addRequestHistory({
+          subTab: method,
+          input: `${method} ${interpolatedUrl}`,
+          output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
+        })
+      } catch (e) {
+        if (requestControllerRef.current !== controller) return
+        const msg = controller.signal.aborted
+          ? timedOutRef.current
+            ? `Request timed out after ${Math.round((state.timeoutMs || DEFAULT_TIMEOUT_MS) / 1000)} seconds`
+            : 'Request cancelled'
+          : (e as Error).message
+        setResponse(null)
+        setError(msg)
+        setLastAction('Request failed', 'error')
+      } finally {
+        window.clearTimeout(timeout)
+        if (requestControllerRef.current === controller) {
+          requestControllerRef.current = null
+          setLoading(false)
+        }
       }
+    },
+    [
+      url,
+      method,
+      headers,
+      body,
+      bodyMode,
+      formFields,
+      auth,
+      envVars,
+      setLastAction,
+      addRequestHistory,
+      state.timeoutMs,
+    ]
+  )
 
-      const res = await tauriFetch(interpolatedUrl, opts)
-      const time = Math.round(performance.now() - start)
-      const resBody = await res.text()
-      const size = new Blob([resBody]).size
-
-      const resHeaders: Record<string, string> = {}
-      res.headers.forEach((value, key) => {
-        resHeaders[key] = value
-      })
-
-      setResponse({
-        status: res.status,
-        statusText: res.statusText,
-        headers: resHeaders,
-        body: resBody,
-        time,
-        size,
-      })
-      setLastAction(`${res.status} ${res.statusText} (${time}ms)`, res.ok ? 'success' : 'error')
-
-      // Log to history
-      void addRequestHistory({
-        subTab: method,
-        input: `${method} ${interpolatedUrl}`,
-        output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
-      })
-    } catch (e) {
-      const msg = (e as Error).message
-      setResponse(null)
-      setError(msg)
-      setLastAction('Request failed', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    url,
-    method,
-    headers,
-    body,
-    bodyMode,
-    formFields,
-    auth,
-    envVars,
-    setLastAction,
-    addRequestHistory,
-  ])
+  const handleCancelRequest = useCallback(() => {
+    timedOutRef.current = false
+    requestControllerRef.current?.abort()
+  }, [])
 
   /**
    * Copy the request as a runnable `curl` command — the inverse of the app's curl-to-fetch tool,
@@ -909,9 +1015,21 @@ export default function ApiClient() {
     return detectResponseLanguage(response.headers)
   }, [response])
 
+  useEffect(() => {
+    if (!response?.mimeType.startsWith('image/') || typeof URL.createObjectURL !== 'function') {
+      setImagePreviewUrl(null)
+      return
+    }
+    const objectUrl = URL.createObjectURL(response.blob)
+    setImagePreviewUrl(objectUrl)
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(objectUrl)
+    }
+  }, [response])
+
   const prettyBody = useMemo(() => {
     if (!response?.body) return ''
-    if (responseLanguage === 'json') {
+    if (responseLanguage === 'json' && !response.displayTruncated) {
       try {
         return JSON.stringify(JSON.parse(response.body), null, 2)
       } catch {
@@ -926,15 +1044,21 @@ export default function ApiClient() {
       setLastAction('No response to save yet', 'error')
       return
     }
-    const extension = responseLanguage === 'plaintext' ? 'txt' : responseLanguage
+    const extension = response.mimeType.startsWith('image/')
+      ? response.mimeType.split('/')[1] || 'bin'
+      : responseLanguage === 'plaintext'
+        ? response.isBinary
+          ? 'bin'
+          : 'txt'
+        : responseLanguage
     const filename = buildExportFilename(name || 'response', extension)
     try {
-      const path = await exportFile(prettyBody, filename)
+      const path = await exportFile(response.blob, filename)
       if (path) setLastAction(`Saved ${filename}`, 'success')
     } catch (e) {
       setLastAction(`Save failed — ${(e as Error).message}`, 'error')
     }
-  }, [name, prettyBody, response, responseLanguage, setLastAction])
+  }, [name, response, responseLanguage, setLastAction])
 
   useToolAction((action) => {
     if (action.type === 'execute') {
@@ -1177,18 +1301,41 @@ export default function ApiClient() {
                     if (e.key === 'Enter') void handleSend()
                   }}
                 />
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void handleSend()}
-                  loading={loading}
-                  className="gap-1.5"
-                  title={`Send request (${formatShortcut('mod+enter')})`}
+                <Select
+                  aria-label="Request timeout"
+                  value={state.timeoutMs || DEFAULT_TIMEOUT_MS}
+                  onChange={(event) => updateState({ timeoutMs: Number(event.target.value) })}
+                  title="Request timeout"
                 >
-                  <PaperPlaneTiltIcon size={14} aria-hidden="true" />
-                  Send
-                </Button>
+                  <option value={5000}>5s</option>
+                  <option value={15000}>15s</option>
+                  <option value={30000}>30s</option>
+                  <option value={60000}>60s</option>
+                </Select>
+                {loading ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCancelRequest}
+                    className="gap-1.5"
+                  >
+                    <StopIcon size={14} aria-hidden="true" />
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handleSend()}
+                    className="gap-1.5"
+                    title={`Send request (${formatShortcut('mod+enter')})`}
+                  >
+                    <PaperPlaneTiltIcon size={14} aria-hidden="true" />
+                    Send
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="icon"
@@ -1213,6 +1360,25 @@ export default function ApiClient() {
             </>
           }
         >
+          {unresolvedVariables.length > 0 && (
+            <Alert
+              variant="warning"
+              className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span>
+                  Unresolved request variable{unresolvedVariables.length === 1 ? '' : 's'}:{' '}
+                  {unresolvedVariables.map((name) => `{{${name}}}`).join(', ')}
+                </span>
+                <Button variant="secondary" size="xs" onClick={() => void handleSend(true)}>
+                  Send anyway
+                </Button>
+                <Button variant="ghost" size="xs" onClick={() => setUnresolvedVariables([])}>
+                  Dismiss
+                </Button>
+              </div>
+            </Alert>
+          )}
           <RequestResponseLayout>
             {/* ── Request panel ─────────────────────────────────── */}
             <section
@@ -1526,7 +1692,7 @@ export default function ApiClient() {
                       </span>
                       <ToolbarSpacer />
                       <ToolbarGroup>
-                        <CopyButton text={prettyBody} />
+                        {!response.isBinary && <CopyButton text={prettyBody} />}
                         <Button
                           type="button"
                           variant="icon"
@@ -1546,13 +1712,41 @@ export default function ApiClient() {
                     />
                     <div className="min-h-0 flex-1 overflow-hidden">
                       {responseTab === 'body' ? (
-                        <Editor
-                          theme={monacoTheme}
-                          language={responseLanguage}
-                          value={prettyBody}
-                          onMount={handleResponseEditorMount}
-                          options={{ ...monacoOptions, readOnly: true }}
-                        />
+                        response.mimeType.startsWith('image/') && imagePreviewUrl ? (
+                          <div className="flex h-full items-center justify-center overflow-auto p-4">
+                            <img
+                              src={imagePreviewUrl}
+                              alt="Response preview"
+                              className="max-h-full max-w-full rounded border border-[var(--color-border)]"
+                            />
+                          </div>
+                        ) : response.isBinary ? (
+                          <EmptyState
+                            icon={DownloadSimpleIcon}
+                            title="Binary response"
+                            description={`${response.mimeType} · ${formatBytes(response.size)}. Save the response to inspect the original bytes.`}
+                          />
+                        ) : (
+                          <div className="flex h-full min-h-0 flex-col">
+                            {response.displayTruncated && (
+                              <Alert
+                                variant="warning"
+                                className="rounded-none border-b border-[var(--color-border)] px-3 py-2"
+                              >
+                                Response truncated for display — save to file for the full body.
+                              </Alert>
+                            )}
+                            <div className="min-h-0 flex-1">
+                              <Editor
+                                theme={monacoTheme}
+                                language={responseLanguage}
+                                value={prettyBody}
+                                onMount={handleResponseEditorMount}
+                                options={{ ...monacoOptions, readOnly: true }}
+                              />
+                            </div>
+                          </div>
+                        )
                       ) : (
                         <div className="h-full overflow-auto p-3">
                           {Object.entries(response.headers).map(([key, value]) => (

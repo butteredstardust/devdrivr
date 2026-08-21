@@ -41,7 +41,6 @@ import {
   ALL_RULES,
   RULE_CATEGORIES,
   TEMPLATES,
-  analyzeCss,
   compareSpecificity,
   countIssues,
   countRuleOverrides,
@@ -53,6 +52,8 @@ import {
   type RuleConfig,
   type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
+import type { CssWorker } from '@/workers/css.worker'
+import CssWorkerFactory from '@/workers/css.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 
@@ -110,6 +111,8 @@ export default function CssValidator() {
   })
 
   const formatter = useWorker<FormatterWorker>(() => new FormatterWorkerFactory(), ['format'])
+  const analyzer = useWorker<CssWorker>(() => new CssWorkerFactory(), ['analyze'])
+  const analysisSequenceRef = useRef(0)
 
   const [issues, setIssues] = useState<CssIssue[]>([])
   const [stats, setStats] = useState<CssStats | null>(null)
@@ -144,19 +147,46 @@ export default function CssValidator() {
       setHasAnalyzed(false)
       return
     }
+    if (!analyzer) {
+      setIsAnalyzing(true)
+      return
+    }
     setIsAnalyzing(true)
     // The previous results stay on screen while the next run is computed:
     // clearing them on every keystroke made rows flicker away under the pointer.
+    const sequence = ++analysisSequenceRef.current
     const timer = setTimeout(() => {
-      const analysis = analyzeCss(input, disabledRules, enabledRules)
-      setIssues(analysis.issues)
-      setStats(analysis.stats)
-      setSelectors(analysis.selectors)
-      setIsAnalyzing(false)
-      setHasAnalyzed(true)
+      void (async () => {
+        try {
+          const analysis = await analyzer.analyze(input, disabledRules, enabledRules)
+          if (sequence !== analysisSequenceRef.current) return
+          setIssues(analysis.issues)
+          setStats(analysis.stats)
+          setSelectors(analysis.selectors)
+        } catch {
+          if (sequence !== analysisSequenceRef.current) return
+          setIssues([
+            {
+              message: 'The CSS analyzer failed to run',
+              line: 1,
+              column: 1,
+              type: 'error',
+              rule: 'internal',
+            },
+          ])
+        } finally {
+          if (sequence === analysisSequenceRef.current) {
+            setIsAnalyzing(false)
+            setHasAnalyzed(true)
+          }
+        }
+      })()
     }, ANALYZE_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [input, hasInput, disabledRules, enabledRules])
+    return () => {
+      clearTimeout(timer)
+      analysisSequenceRef.current += 1
+    }
+  }, [input, hasInput, disabledRules, enabledRules, analyzer])
 
   const { errors: errorCount, warnings: warningCount } = useMemo(
     () => countIssues(issues),

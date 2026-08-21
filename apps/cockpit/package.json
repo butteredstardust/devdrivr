@@ -51,6 +51,7 @@
     "monaco-themes": "^0.4.8",
     "nanoid": "^5.1.7",
     "papaparse": "^5.5.3",
+    "parse5": "^8.0.1",
     "prettier": "^3.5.3",
     "react": "^19",
     "react-dom": "^19",

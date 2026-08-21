@@ -5,6 +5,7 @@ import JsonTools, {
   isTabularJsonArray,
   locateJsonError,
   queryJsonPath,
+  normalizeJsonc,
 } from '@/tools/json-tools/JsonTools'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { saveFileDialog } from '@/lib/file-io'
@@ -33,6 +34,12 @@ function showView(name: 'Source' | 'Tree' | 'Table') {
 }
 
 describe('JsonTools helpers', () => {
+  it('normalizes JSONC without stripping comment-like text inside strings', () => {
+    const source = '{\n  // note\n  "url": "https://example.com",\n}'
+    expect(JSON.parse(normalizeJsonc(source))).toEqual({ url: 'https://example.com' })
+    expect(normalizeJsonc(source)).toHaveLength(source.length)
+  })
+
   it('treats only arrays of objects as table-compatible data', () => {
     expect(isTabularJsonArray([{ id: 1 }, { id: 2 }])).toBe(true)
     expect(isTabularJsonArray([1, 2, 3])).toBe(false)

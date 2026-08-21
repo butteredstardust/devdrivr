@@ -55,6 +55,16 @@ describe('JwtDecoder', () => {
     expect(screen.getByText(/invalid jwt/i)).toBeInTheDocument()
   })
 
+  it('names the JWT part and stage that failed', () => {
+    renderTool(JwtDecoder)
+    const header = base64UrlJson({ alg: 'none' })
+    const invalidJson = btoa('{oops').replace(/=/g, '')
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: `${header}.${invalidJson}.` },
+    })
+    expect(screen.getByText(/invalid jwt payload json/i)).toBeInTheDocument()
+  })
+
   it('treats non-object payloads as invalid instead of crashing', () => {
     renderTool(JwtDecoder)
     fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {

@@ -255,7 +255,7 @@ function parseColor(input: string): RGB | null {
 
   // hsl(h, s%, l%) — also modern space syntax
   const hslMatch = trimmed.match(
-    /^hsla?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
+    /^hsla?\(\s*([+-]?[\d.]+)(?:deg)?\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
   )
   if (hslMatch) {
     const hsl = { h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) }

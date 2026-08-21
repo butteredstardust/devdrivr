@@ -41,6 +41,7 @@ import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { InspectorTree } from '@/components/shared/InspectorTree'
+import { Toggle } from '@/components/shared/Toggle'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -56,6 +57,54 @@ type JsonToolsState = {
   query: string
   queryOpen: boolean
   indent: number
+  allowComments: boolean
+}
+
+/** Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable. */
+export function normalizeJsonc(source: string): string {
+  const chars = [...source]
+  let inString = false
+  let escaping = false
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index]
+    const next = chars[index + 1]
+    if (inString) {
+      if (escaping) escaping = false
+      else if (char === '\\') escaping = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      continue
+    }
+    if (char === '/' && next === '/') {
+      chars[index] = ' '
+      chars[index + 1] = ' '
+      index += 2
+      while (index < chars.length && chars[index] !== '\n') {
+        chars[index] = ' '
+        index += 1
+      }
+      index -= 1
+      continue
+    }
+    if (char === '/' && next === '*') {
+      chars[index] = ' '
+      chars[index + 1] = ' '
+      index += 2
+      while (index < chars.length && !(chars[index] === '*' && chars[index + 1] === '/')) {
+        if (chars[index] !== '\n' && chars[index] !== '\r') chars[index] = ' '
+        index += 1
+      }
+      if (index < chars.length) {
+        chars[index] = ' '
+        chars[index + 1] = ' '
+        index += 1
+      }
+    }
+  }
+  return chars.join('').replace(/,(\s*[}\]])/g, ' $1')
 }
 
 /** Above this many keys the tree starts collapsed — expanding is one click. */
@@ -343,6 +392,7 @@ export default function JsonTools() {
     query: '',
     queryOpen: false,
     indent: 2,
+    allowComments: false,
   })
   const { record } = useToolHistory({ toolId: 'json-tools' })
 
@@ -367,12 +417,15 @@ export default function JsonTools() {
   const parsed = useMemo<ParseResult>(() => {
     if (!input.trim()) return { status: 'empty' }
     try {
-      return { status: 'valid', data: JSON.parse(input) as unknown }
+      return {
+        status: 'valid',
+        data: JSON.parse(state.allowComments ? normalizeJsonc(input) : input) as unknown,
+      }
     } catch (e) {
       const message = (e as Error).message
       return { status: 'invalid', message, location: locateJsonError(message, input) }
     }
-  }, [input])
+  }, [input, state.allowComments])
 
   const isValid = parsed.status === 'valid'
   const data = parsed.status === 'valid' ? parsed.data : null
@@ -479,7 +532,11 @@ export default function JsonTools() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        allowComments: action.filename.toLowerCase().endsWith('.jsonc'),
+      })
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
@@ -669,6 +726,11 @@ export default function JsonTools() {
                   <option value={4}>4 spaces</option>
                 </Select>
               </label>
+              <Toggle
+                label="JSONC comments"
+                checked={state.allowComments}
+                onChange={(allowComments) => updateState({ allowComments })}
+              />
               <Button
                 variant="ghost"
                 size="sm"

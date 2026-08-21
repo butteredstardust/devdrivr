@@ -92,33 +92,61 @@ const CLAIM_INFO: Record<string, { label: string; isTime?: boolean }> = {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function decodeBase64Url(str: string): string {
+function decodeBase64Url(str: string): Uint8Array {
   const padded = str.replace(/-/g, '+').replace(/_/g, '/')
   const pad = padded.length % 4
   const withPadding = pad ? padded + '='.repeat(4 - pad) : padded
-  const bytes = Uint8Array.from(atob(withPadding), (character) => character.charCodeAt(0))
-  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  return Uint8Array.from(atob(withPadding), (character) => character.charCodeAt(0))
 }
 
 export function isJwtObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function decodeJwt(token: string): DecodedJwt | null {
+type JwtDecodeResult = { decoded: DecodedJwt; error: null } | { decoded: null; error: string }
+
+function decodeJwt(token: string): JwtDecodeResult {
   const parts = token.trim().split('.')
-  if (parts.length !== 3) return null
+  if (parts.length !== 3) {
+    return { decoded: null, error: 'Invalid JWT structure — expected header.payload.signature' }
+  }
+  const decodePart = (part: string, name: 'header' | 'payload') => {
+    let bytes: Uint8Array
+    try {
+      bytes = decodeBase64Url(part)
+    } catch {
+      throw new Error(`Invalid JWT ${name} Base64URL encoding`)
+    }
+    let raw: string
+    try {
+      raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    } catch {
+      throw new Error(`Invalid JWT ${name} UTF-8`)
+    }
+    let value: unknown
+    try {
+      value = JSON.parse(raw) as unknown
+    } catch {
+      throw new Error(`Invalid JWT ${name} JSON`)
+    }
+    if (!isJwtObject(value)) throw new Error(`Invalid JWT ${name} — expected a JSON object`)
+    return { raw, value }
+  }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const headerRaw = decodeBase64Url(parts[0]!) // safe: length === 3 checked above
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const payloadRaw = decodeBase64Url(parts[1]!) // safe: length === 3 checked above
-    const header = JSON.parse(headerRaw) as unknown
-    const payload = JSON.parse(payloadRaw) as unknown
-    if (!isJwtObject(header) || !isJwtObject(payload)) return null
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return { header, payload, signature: parts[2]!, headerRaw, payloadRaw } // safe: length === 3
-  } catch {
-    return null
+    const header = decodePart(parts[0] ?? '', 'header')
+    const payload = decodePart(parts[1] ?? '', 'payload')
+    return {
+      decoded: {
+        header: header.value,
+        payload: payload.value,
+        signature: parts[2] ?? '',
+        headerRaw: header.raw,
+        payloadRaw: payload.raw,
+      },
+      error: null,
+    }
+  } catch (error) {
+    return { decoded: null, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -138,10 +166,11 @@ export default function JwtDecoder() {
   const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'jwt-decoder' })
   const [now, setNow] = useState(() => Date.now())
 
-  const decoded = useMemo(() => {
-    if (!state.input.trim()) return null
+  const decodeResult = useMemo(() => {
+    if (!state.input.trim()) return { decoded: null, error: null }
     return decodeJwt(state.input)
   }, [state.input])
+  const decoded = decodeResult.decoded
 
   useEffect(() => {
     if (decoded) {
@@ -416,9 +445,7 @@ export default function JwtDecoder() {
             </section>
           </div>
         ) : state.input.trim() ? (
-          <Alert variant="error">
-            Invalid JWT token — expected format: header.payload.signature
-          </Alert>
+          <Alert variant="error">{decodeResult.error ?? 'Invalid JWT token'}</Alert>
         ) : (
           <EmptyState
             icon={IdentificationCardIcon}

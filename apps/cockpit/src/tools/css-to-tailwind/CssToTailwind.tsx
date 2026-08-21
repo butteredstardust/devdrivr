@@ -10,6 +10,7 @@ import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
+import * as cssTree from 'css-tree'
 
 type CssToTailwindState = {
   input: string
@@ -255,31 +256,74 @@ function convertCssToTailwind(css: string): ConversionResult {
   const classes: string[] = []
   const unconvertible: string[] = []
 
-  // Extract declarations from CSS (strip selectors and braces)
-  const declarations = css
-    .replace(/\/\*[\s\S]*?\*\//g, '') // strip comments
-    .replace(/[^{]*\{/g, '') // strip selectors
-    .replace(/\}/g, '') // strip closing braces
-    .split(';')
-    .map((d) => d.trim())
-    .filter(Boolean)
+  const declarations: Array<{
+    prop: string
+    rawValue: string
+    important: boolean
+    variants: string[]
+  }> = []
+  try {
+    const ast = cssTree.parse(css, { positions: true })
+    cssTree.walk(ast, {
+      visit: 'Declaration',
+      enter(node) {
+        const variants: string[] = []
+        const selector = this.rule?.prelude ? cssTree.generate(this.rule.prelude) : ''
+        for (const match of selector.matchAll(
+          /:(hover|focus|active|disabled|visited|checked)\b/g
+        )) {
+          const variant = match[1]
+          if (variant && !variants.includes(variant)) variants.push(variant)
+        }
+        if (this.atrule?.name === 'media' && this.atrule.prelude) {
+          const media = cssTree.generate(this.atrule.prelude)
+          const width = Number(media.match(/min-width\s*:\s*(\d+)px/i)?.[1])
+          const breakpoint =
+            width >= 1536
+              ? '2xl'
+              : width >= 1280
+                ? 'xl'
+                : width >= 1024
+                  ? 'lg'
+                  : width >= 768
+                    ? 'md'
+                    : width >= 640
+                      ? 'sm'
+                      : null
+          if (breakpoint) variants.unshift(breakpoint)
+          else unconvertible.push(`@media ${media} (unsupported context)`)
+        }
+        const value = cssTree.generate(node.value)
+        declarations.push({
+          prop: node.property,
+          rawValue: node.important ? `${value} !important` : value,
+          important: node.important,
+          variants,
+        })
+      },
+    })
+  } catch (error) {
+    return {
+      classes,
+      unconvertible: [error instanceof Error ? error.message : 'Invalid CSS'],
+    }
+  }
 
-  for (const decl of declarations) {
-    const colonIdx = decl.indexOf(':')
-    if (colonIdx < 0) continue
-    const prop = decl.slice(0, colonIdx).trim()
-    const rawValue = decl.slice(colonIdx + 1).trim()
+  for (const declaration of declarations) {
+    const { prop, rawValue, important, variants } = declaration
 
     // `!important` has to come off before anything else looks at the value. Left on, it defeats
     // every lookup in PROPERTY_MAP and every equality check in the size/spacing converters, and
     // then lands inside an arbitrary-value bracket — `color: red !important` produced
     // `text-[red !important]`, which is not a parseable class.
-    const important = /!\s*important$/i.test(rawValue)
     const value = important ? rawValue.replace(/!\s*important$/i, '').trim() : rawValue
 
     // Tailwind v4 marks importance with a trailing `!` (`text-[red]!`). This is one of the
     // breaking changes from v3, which used a leading `!` — check the version before touching.
-    const push = (cls: string) => classes.push(important ? `${cls}!` : cls)
+    const push = (cls: string) => {
+      const contextual = `${variants.map((variant) => `${variant}:`).join('')}${cls}`
+      classes.push(important ? `${contextual}!` : contextual)
+    }
 
     // Check direct mapping
     const directMap = PROPERTY_MAP[prop]
@@ -335,7 +379,7 @@ function convertCssToTailwind(css: string): ConversionResult {
     unconvertible.push(`${prop}: ${rawValue}`)
   }
 
-  return { classes, unconvertible }
+  return { classes: [...new Set(classes)], unconvertible: [...new Set(unconvertible)] }
 }
 
 export default function CssToTailwind() {

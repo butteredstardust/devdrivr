@@ -52,6 +52,25 @@ describe('CurlToFetch', () => {
     expect(editors.some((editor) => editor.value.includes('Basic'))).toBe(true)
   })
 
+  it('parses escaped quotes and ANSI-C quoted request bodies', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: {
+        value: String.raw`curl 'https://api.example.com' -d $'{"message":"it\'s ok"}\n'`,
+      },
+    })
+    const editors = screen.getAllByTestId('monaco-editor') as HTMLTextAreaElement[]
+    expect(editors.some((editor) => editor.value.includes("it's ok"))).toBe(true)
+  })
+
+  it('explicitly refuses file-backed request bodies', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl 'https://api.example.com' --data @payload.json" },
+    })
+    expect(screen.getByText(/file-backed request bodies/i)).toBeInTheDocument()
+  })
+
   it('shows error for invalid input', () => {
     renderTool(CurlToFetch)
     const input = screen.getByPlaceholderText(/curl/i)
