@@ -343,13 +343,35 @@ jumped on every tab switch. The tallest control in the app measures 31px, so `mi
 puts the natural height (43px) _under_ the floor and the floor decides. Every non-wrapping toolbar
 is now exactly 44px — and 44 is the title bar's `h-11`, so the chrome stack shares one rhythm.
 
-### C4 — The toolbar divider was decided 13 times — **done**
+### C4 — The toolbar divider was decided 13 times — **done, after a correction**
 
 Eight of thirteen `DocumentToolbar` call sites had independently passed `border={false}`, leaving a
 third of the app with a seam under its toolbar and two-thirds without. The default moved into the
 primitive (`border = false`), the eight overrides were deleted, and the five toolbars that _lost_ a
 divider were re-checked in the harness — the `--color-surface` → canvas transition separates them on
-its own. Tools that genuinely stack two rows can still opt in with `border`.
+its own.
+
+**The first attempt did not actually fix this**, and code review caught it. Removing the `border`
+prop only unified the _prop_; eight tools re-express the same seam as a `border-b` on the `<header>`
+or `<div>` that wraps the toolbar, which the sweep never looked at. So the app stayed split 8/5 on
+whether a seam appears under the toolbar — the exact inconsistency C4 claimed to close, relocated
+one element outwards.
+
+The rule, stated properly: **the seam marks the bottom of the chrome block, not the bottom of a
+toolbar row.** A wrapper gets `border-b` only when something genuinely stacks under the toolbar
+inside it.
+
+- Kept (a second row really is there): `JsonTools`, `CodeFormatter`, `TsPlayground` — collapsible
+  options/query rows inside the wrapper.
+- Made conditional: `CssValidator` and `HtmlValidator` now border the header only while `showRules`
+  is open. Closed, they were single-row toolbars carrying a divider.
+- Removed: `MermaidEditor`, `MarkdownEditor`, `YamlTools` — nothing stacks under the toolbar inside
+  the wrapper. (`MarkdownEditor`'s formatting bar is a _sibling_ of the header with its own
+  `border-b`, so the block still ends in one seam; the two chrome rows just no longer have a line
+  between them.)
+
+All five re-verified in the harness, including CSS Validator with the rules panel both open and
+closed.
 
 ### C5 — The selected segment competed with primary actions — **done**
 

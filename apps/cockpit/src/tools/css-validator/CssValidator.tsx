@@ -465,7 +465,14 @@ export default function CssValidator() {
 
   return (
     <ToolLayout fullBleed>
-      <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+      {/* The seam belongs to the rules panel, not the toolbar: it marks the bottom of a chrome
+          block that is genuinely two rows tall. With the panel closed this header is a single
+          toolbar row, and a border would be the divider the toolbar primitive dropped. */}
+      <header
+        className={`bg-[var(--color-surface)] ${
+          state.showRules ? 'border-b border-[var(--color-border)]' : ''
+        }`}
+      >
         <DocumentToolbar aria-label="Stylesheet actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled stylesheet'}

@@ -322,7 +322,9 @@ export default function YamlTools() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="border-b border-[var(--color-border)]">
+        // No seam: nothing stacks under the toolbar inside this wrapper, so a border here would
+        // be the single-row divider the toolbar primitive dropped, moved onto the wrapper.
+        <div>
           <DocumentToolbar aria-label="YAML document actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
