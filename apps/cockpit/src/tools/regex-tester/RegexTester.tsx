@@ -93,6 +93,39 @@ const MODE_OPTIONS: { value: RegexMode; label: string }[] = [
 
 const TIMEOUT_MESSAGE = `Pattern timed out after ${REGEX_TIMEOUT_MS}ms — likely catastrophic backtracking. Edit the pattern or the test string to retry.`
 
+/**
+ * The sentence a screen reader hears when the match set changes.
+ *
+ * The visual UI states the count in two places — a badge in the pattern bar and the match-details
+ * header — and neither is a live region, deliberately: making both live would announce every
+ * keystroke twice. This is the single source, and it is a sentence rather than a bare number
+ * because "3" on its own tells a listener nothing about what changed.
+ */
+export function describeMatches({
+  pattern,
+  error,
+  count,
+  groupCount,
+  truncated,
+}: {
+  pattern: string
+  error: string | null
+  count: number
+  groupCount: number
+  truncated: boolean
+}): string {
+  if (!pattern) return ''
+  if (error) return `Pattern error: ${error}`
+  if (count === 0) return 'No matches'
+
+  const head = truncated
+    ? `Showing first ${count} matches, more were found`
+    : `${count} match${count !== 1 ? 'es' : ''}`
+  return groupCount > 0
+    ? `${head}, ${groupCount} capture group${groupCount !== 1 ? 's' : ''}`
+    : head
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 export default function RegexTester() {
@@ -212,10 +245,21 @@ export default function RegexTester() {
   )
 
   const matchCount = matches.length
-  const hasGroups = matches.some((m) => m.groups.length > 0)
+  const groupCount = matches.reduce((n, m) => n + m.groups.length, 0)
+  const hasGroups = groupCount > 0
 
   return (
     <ToolLayout fullBleed>
+      {/* The only live region in this tool — see describeMatches. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {describeMatches({
+          pattern: state.pattern,
+          error: matchError,
+          count: matchCount,
+          groupCount,
+          truncated,
+        })}
+      </div>
       <div className="flex h-full">
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Pattern bar */}
@@ -395,7 +439,7 @@ export default function RegexTester() {
                 <span>
                   {truncated ? `First ${matchCount}` : matchCount} match
                   {matchCount !== 1 ? 'es' : ''}
-                  {hasGroups ? ` · ${matches.reduce((n, m) => n + m.groups.length, 0)} groups` : ''}
+                  {hasGroups ? ` · ${groupCount} groups` : ''}
                 </span>
               </div>
               {matches.map((m, i) => (

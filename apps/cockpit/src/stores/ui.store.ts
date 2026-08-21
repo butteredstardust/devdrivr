@@ -104,9 +104,33 @@ function derivedActiveTool(tabs: WorkspaceTab[], activeTabId: string | null): st
   return tabs.find((t) => t.id === activeTabId)?.toolId ?? ''
 }
 
+/**
+ * True once a persistence failure has been reported, reset by the next success.
+ *
+ * Every tab click persists, so a store that has genuinely stopped writing would otherwise raise a
+ * toast per click and bury the app in its own error. One toast per outage says the same thing.
+ */
+let persistFailureReported = false
+
+function reportPersistFailure(what: string, error: unknown): void {
+  console.error(`[ui.store] failed to persist ${what}`, error)
+  if (persistFailureReported) return
+  persistFailureReported = true
+  const msg = error instanceof Error ? error.message : String(error)
+  useUiStore
+    .getState()
+    .addToast(`Failed to save your workspace: ${msg}. Open tabs may not be restored.`, 'error')
+}
+
 function persistTabs(tabs: WorkspaceTab[], activeTabId: string | null): void {
-  setSetting('openTabs', tabs).catch(() => {})
-  setSetting('activeTabId', activeTabId).catch(() => {})
+  // Silent failure here means a session that quietly does not come back — indistinguishable, until
+  // the next launch, from one that saved.
+  Promise.all([setSetting('openTabs', tabs), setSetting('activeTabId', activeTabId)]).then(
+    () => {
+      persistFailureReported = false
+    },
+    (error: unknown) => reportPersistFailure('open tabs', error)
+  )
 }
 
 /**
@@ -121,7 +145,11 @@ function discardClosedState(closed: WorkspaceTab[]): void {
     const key = tab.stateKey ?? tab.toolId
     if (!key.includes('#')) continue
     useToolStateCache.getState().discard(key)
-    deleteToolState(key).catch(() => {})
+    // Not toast-worthy: a leftover row for a tab id that will never recur is invisible to the user
+    // and harmless. It still belongs in the console rather than nowhere.
+    deleteToolState(key).catch((error: unknown) => {
+      console.error(`[ui.store] failed to discard tool state for ${key}`, error)
+    })
   }
 }
 

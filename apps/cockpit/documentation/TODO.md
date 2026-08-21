@@ -127,35 +127,60 @@ had to move in the same commit that added it.
 detail list update as the user types, with no `aria-live`. A screen-reader user gets no feedback
 that the match count changed.
 
-- [ ] Add `aria-live="polite"` to the match-details container.
-- [ ] Announce the count via a single region only — the toolbar badge and the details pane must not
-      both announce, which is the mistake P3/F2 already had to unpick in the schema validator.
+- [x] Added one `sr-only` `role="status" aria-live="polite"` region at the top of the tool, fed by a
+      new exported `describeMatches()`. Both existing visual counts stay non-live.
+- [x] Announced as a sentence, not a number: "2 matches, 4 capture groups", "No matches", "Pattern
+      error: …". A bare `2` tells a listener nothing about what changed.
 
-**Acceptance:** exactly one live region announces match count; verified by a DOM assertion in the
-test suite.
+Deviation from the plan above: `aria-live` went on a dedicated hidden region rather than on the
+match-details container, because that container only renders when `matchCount > 0` — a live region
+that unmounts cannot announce the transition to zero matches, which is exactly the case a user
+needs to hear. The error and no-match paths announced nothing at all before.
+
+**Acceptance:** ✅ exactly one live region announces match count, asserted directly
+(`document.querySelectorAll('[aria-live]')` has length 1); `describeMatches` unit-tested across all
+six branches.
 
 ### C5 — Accessibility gaps in `api-client` and the shell
 
-- [ ] `api-client/ApiClient.tsx:1096-1101` — bare `<input type="checkbox">` with no associated
-      label; announced unnamed. Wrap in `Field` or the shared toggle treatment.
-- [ ] `app/providers.tsx:218-228` — the top-level error state uses a bare `<button>` with no focus
-      ring. Use `<Button variant="secondary">`.
-- [ ] `shell/Workspace.tsx:59-60` — the Suspense fallback hand-rolls a 20px spinner div with no
-      `role="status"` and no accessible label, while `src/components/shared/Spinner.tsx` exists and
-      provides both. Same again at `app/providers.tsx:234`.
-- [ ] `tools/timestamp-converter/TimestampConverter.tsx:201` — `datetime-local` input sits in the
-      toolbar with no `Field` wrapper and no `aria-label`.
+- [x] ~~`api-client/ApiClient.tsx:1096-1101` — bare checkbox announced unnamed.~~ **Rejected — it
+      already carries `aria-label={`Send header ${h.key || i + 1}`}`.** Swept all eight
+      `type="checkbox"` sites in `src/` while verifying: every other one is wrapped in a `<label>`,
+      and `RefactoringToolkit`'s takes an `ariaLabel` prop. There is no unnamed checkbox in the
+      codebase. Left as native inputs — `Toggle` is a 32px `role="switch"`, wrong for a dense
+      per-row enable.
+- [x] `app/providers.tsx` — the top-level error state's bare `<button>` is now
+      `<Button variant="secondary">`, and the error text is now an `Alert variant="error"`, so the
+      whole-app failure case has `role="alert"` instead of being a silent, empty-looking window.
+- [x] `shell/Workspace.tsx:60` — Suspense fallback now uses `<Spinner size="md">`. The loading state
+      at `app/providers.tsx` was not in fact a hand-rolled spinner, just unlabelled text; it now
+      pairs a `Spinner` with it so the state has a `role="status"`.
+- [x] `tools/timestamp-converter/TimestampConverter.tsx` — `aria-label` on the `datetime-local`
+      picker, and on the free-text input beside it, which was relying on its placeholder.
 
-**Acceptance:** no unnamed form control in the tool or shell layer; `Spinner` is the only spinner.
+**Acceptance:** ✅ no unnamed form control in the tool or shell layer; ✅ `Spinner` is the only
+hand-rolled spinner remaining — every other `animate-spin` in `src/` is a Phosphor `SpinnerIcon`,
+which is an icon rather than a competing primitive.
 
 ### C6 — Silent error swallowing in `ui.store`
 
-`src/stores/ui.store.ts:61,65,94,117,129` — five `.catch(() => {})` handlers. Persistence failures
-vanish, so a workspace that fails to save looks identical to one that saved.
+`src/stores/ui.store.ts` — `.catch(() => {})` handlers. Persistence failures vanish, so a workspace
+that fails to save looks identical to one that saved.
 
-- [ ] Route these through the existing toast/error-reporting path rather than discarding.
+Count corrected on inspection: **three**, not five — `persistTabs` held two and `discardClosedState`
+one. The other two line numbers in the original finding were stale.
 
-**Acceptance:** a forced persistence rejection surfaces to the user.
+- [x] The two in `persistTabs` now report through `addToast`, the same path the other eight stores
+      already use, with the message naming the consequence ("Open tabs may not be restored") rather
+      than just the failure.
+- [x] Coalesced: every tab click persists, so an outage would have raised a toast per click. One
+      report per outage, re-armed by the next successful write.
+- [x] `discardClosedState`'s handler logs rather than toasts. Deliberate — a leftover row keyed to a
+      tab id that can never recur is invisible to the user, so a toast would be noise; a silent
+      `catch` was still wrong.
+
+**Acceptance:** ✅ a forced persistence rejection surfaces to the user; four tests cover the toast,
+the coalescing, the re-arm after recovery, and the silence of the happy path.
 
 ---
 

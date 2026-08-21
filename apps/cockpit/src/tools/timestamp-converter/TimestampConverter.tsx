@@ -203,14 +203,18 @@ export default function TimestampConverter() {
               value={state.input}
               onChange={(e) => updateState({ input: e.target.value })}
               placeholder="Unix timestamp, ISO 8601, or any date string..."
+              aria-label="Timestamp or date to convert"
               size="md"
               className="flex-1 font-mono"
             />
+            {/* No placeholder to fall back on — a date picker announces as an unnamed group
+                without this. */}
             <Input
               type="datetime-local"
               step="1"
               value={dateTimeValue}
               onChange={(e) => handleDateTimeChange(e.target.value)}
+              aria-label="Pick a date and time"
             />
           </div>
         </>

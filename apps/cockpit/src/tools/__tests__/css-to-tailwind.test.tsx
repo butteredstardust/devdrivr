@@ -36,4 +36,49 @@ describe('CssToTailwind', () => {
     renderTool(CssToTailwind)
     expect(screen.getByText('Enter CSS on the left to convert')).toBeInTheDocument()
   })
+
+  // `!important` used to be left on the value, where it defeated every map lookup and equality
+  // check and then landed inside an arbitrary-value bracket: `text-[red !important]`. Tailwind v4
+  // marks importance with a trailing `!`.
+  describe('!important', () => {
+    const convert = (css: string) => {
+      renderTool(CssToTailwind)
+      fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: css } })
+    }
+
+    it('keeps a mapped class resolvable and marks it important', () => {
+      convert('display: flex !important;')
+      expect(screen.getAllByText('flex!').length).toBeGreaterThan(0)
+    })
+
+    it('strips it out of arbitrary colour values', () => {
+      convert('color: red !important;')
+      expect(screen.getAllByText('text-[red]!').length).toBeGreaterThan(0)
+    })
+
+    it('strips it out of size values', () => {
+      convert('width: 100px !important;')
+      expect(screen.getAllByText('w-[100px]!').length).toBeGreaterThan(0)
+    })
+
+    it('still resolves keyword shortcuts', () => {
+      convert('width: 100% !important;')
+      expect(screen.getAllByText('w-full!').length).toBeGreaterThan(0)
+    })
+
+    it('tolerates whitespace before important', () => {
+      convert('color: blue !  important;')
+      expect(screen.getAllByText('text-[blue]!').length).toBeGreaterThan(0)
+    })
+
+    it('leaves ordinary declarations unmarked', () => {
+      convert('color: red;')
+      expect(screen.getAllByText('text-[red]').length).toBeGreaterThan(0)
+    })
+
+    it('echoes the original declaration when it cannot convert', () => {
+      convert('mask-composite: subtract !important;')
+      expect(screen.getAllByText(/mask-composite: subtract !important/).length).toBeGreaterThan(0)
+    })
+  })
 })

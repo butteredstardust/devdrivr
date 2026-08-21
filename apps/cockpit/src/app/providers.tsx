@@ -14,6 +14,9 @@ import { getSetting, setSetting } from '@/lib/db'
 import type { McpDataChangedEvent } from '@/types/models'
 import type { WorkspaceTab } from '@/types/tools'
 import { getToolById } from '@/app/tool-registry'
+import { Alert } from '@/components/shared/Alert'
+import { Button } from '@/components/shared/Button'
+import { Spinner } from '@/components/shared/Spinner'
 
 export function Providers({ children }: { children: ReactNode }) {
   const init = useSettingsStore((s) => s.init)
@@ -216,22 +219,21 @@ export function Providers({ children }: { children: ReactNode }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-        <div className="text-[var(--color-error)]">Failed to initialize: {error}</div>
-        <button
-          type="button"
-          onClick={handleRetry}
-          className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)]"
-        >
+        {/* This is the whole app failing to come up — Alert carries role="alert", so a screen
+            reader hears it rather than landing on a silent, empty-looking window. */}
+        <Alert variant="error">Failed to initialize: {error}</Alert>
+        <Button variant="secondary" onClick={handleRetry}>
           Retry
-        </button>
+        </Button>
       </div>
     )
   }
 
   if (!initialized) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="font-mono text-sm text-[var(--color-accent)]">Loading...</div>
+      <div className="flex h-full items-center justify-center gap-2 text-[var(--color-accent)]">
+        <Spinner size="sm" label="Starting cockpit" />
+        <span className="font-mono text-sm">Loading...</span>
       </div>
     )
   }
