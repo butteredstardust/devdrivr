@@ -118,7 +118,8 @@ bun run dev
 
 # Dev + a browser-drivable copy of the running app at http://127.0.0.1:9090, with real IPC —
 # real database, real filesystem, real MCP server. Use this when a bug needs a browser you can
-# automate, since macOS WKWebView exposes no CDP endpoint. See src-tauri/src/remote_ui.rs.
+# automate, since macOS WKWebView exposes no CDP endpoint.
+# See documentation/REMOTE_UI_HARNESS.md, and documentation/HARNESSES.md for which harness to pick.
 bun run dev:remote
 
 # Production build
