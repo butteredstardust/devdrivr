@@ -158,7 +158,12 @@ describe('computeStats', () => {
 
   it('decodes heading text and collapses its markup', () => {
     const stats = computeStats('<h1>Tips &amp; <em>tricks</em></h1>')
-    expect(stats.headings).toEqual([{ level: 1, text: 'Tips & tricks' }])
+    expect(stats.headings).toEqual([{ level: 1, text: 'Tips & tricks', line: 1, column: 1 }])
+  })
+
+  it('records source locations for outline navigation', () => {
+    const stats = computeStats('<main>\n  <h2>Details</h2>\n</main>')
+    expect(stats.headings[0]).toMatchObject({ line: 2, column: 3 })
   })
 
   it('counts style attributes and scripts', () => {

@@ -45,6 +45,7 @@ import {
 } from '@/tools/yaml-tools/yaml-helpers'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { InspectorTree } from '@/components/shared/InspectorTree'
 
 type YamlView = 'source' | 'tree' | 'json'
 
@@ -505,7 +506,6 @@ export default function YamlTools() {
             keyCount={stats?.keys ?? 0}
             monacoTheme={monacoTheme}
             monacoOptions={monacoOptions}
-            onCopy={copy}
             jsonDraft={jsonDraft}
             onJsonDraftChange={setJsonDraft}
             onApplyJson={handleApplyJson}
@@ -531,7 +531,6 @@ function InspectorPane({
   keyCount,
   monacoTheme,
   monacoOptions,
-  onCopy,
   jsonDraft,
   onJsonDraftChange,
   onApplyJson,
@@ -541,7 +540,6 @@ function InspectorPane({
   keyCount: number
   monacoTheme: string
   monacoOptions: Record<string, unknown>
-  onCopy: CopyToClipboard
   jsonDraft: string | null
   onJsonDraftChange: (draft: string | null) => void
   onApplyJson: (json: string) => void
@@ -578,21 +576,13 @@ function InspectorPane({
           }
         />
       ) : (
-        <TreePane documents={parsed.documents} keyCount={keyCount} onCopy={onCopy} />
+        <TreePane documents={parsed.documents} keyCount={keyCount} />
       )}
     </section>
   )
 }
 
-function TreePane({
-  documents,
-  keyCount,
-  onCopy,
-}: {
-  documents: unknown[]
-  keyCount: number
-  onCopy: CopyToClipboard
-}) {
+function TreePane({ documents, keyCount }: { documents: unknown[]; keyCount: number }) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
   const [expandAll, setExpandAll] = useState<boolean | null>(null)
@@ -652,11 +642,10 @@ function TreePane({
                 Document {i + 1}
               </SectionLabel>
             )}
-            <YamlTree
+            <InspectorTree
               data={document}
-              path={documents.length > 1 ? `$[${i}]` : '$'}
+              rootPath={documents.length > 1 ? `$[${i}]` : '$'}
               defaultExpanded={expanded}
-              onCopy={onCopy}
             />
           </div>
         ))}
@@ -778,7 +767,7 @@ function TreeValueButton({
   )
 }
 
-function YamlTree({
+export function YamlTree({
   data,
   path,
   defaultExpanded,

@@ -45,6 +45,7 @@ import {
 import { formatTextBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 
 type CsvView = 'table' | 'convert' | 'analyze'
 
@@ -295,15 +296,18 @@ export default function CsvTools() {
 
   // The issue list reports a line number; without this the user reads it and
   // then scrolls to find it by hand.
-  const handleGoToIssue = useCallback(() => {
-    const first = issues[0]
-    const editor = editorRef.current
-    if (!first || !editor) return
-    const position = { lineNumber: first.line, column: 1 }
-    editor.revealPositionInCenter(position)
-    editor.setPosition(position)
-    editor.focus()
-  }, [issues])
+  const handleGoToIssue = useCallback(
+    (problem?: ProblemItem) => {
+      const first = problem ?? (issues[0] ? { line: issues[0].line } : undefined)
+      const editor = editorRef.current
+      if (!first || !editor) return
+      const position = { lineNumber: first.line ?? 1, column: 1 }
+      editor.revealPositionInCenter(position)
+      editor.setPosition(position)
+      editor.focus()
+    },
+    [issues]
+  )
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -367,7 +371,7 @@ export default function CsvTools() {
             <Button
               variant="ghost"
               size="xs"
-              onClick={handleGoToIssue}
+              onClick={() => handleGoToIssue()}
               title={`${issues[0].message} (line ${issues[0].line})`}
               className="shrink-0 gap-1"
             >
@@ -508,6 +512,19 @@ export default function CsvTools() {
           )}
         </section>
       </SplitPane>
+      {issues.length > 0 && (
+        <div className="max-h-40 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)]">
+          <ProblemsList
+            items={issues.map((issue, index) => ({
+              id: `${issue.line}-${index}`,
+              message: issue.message,
+              severity: 'warning',
+              line: issue.line,
+            }))}
+            onSelect={handleGoToIssue}
+          />
+        </div>
+      )}
     </ToolLayout>
   )
 }

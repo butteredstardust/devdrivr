@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   ArrowCounterClockwiseIcon,
   CheckCircleIcon,
@@ -14,7 +14,6 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
-import { Alert } from '@/components/shared/Alert'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -37,6 +36,7 @@ import {
   supportsQuoteStyle,
 } from '@/tools/code-formatter/languages'
 import { CODE_FORMATTER_SAMPLES } from '@/lib/tool-samples'
+import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 
 type CodeFormatterState = {
   input: string
@@ -103,6 +103,7 @@ export default function CodeFormatter() {
   const [isFormatting, setIsFormatting] = useState(false)
   const formattingRef = useRef(false)
   const optionsId = useId()
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
 
   // `state` as a whole changes on every keystroke; the format call only cares
   // about these six fields, so memoising them keeps the callback (and the
@@ -128,6 +129,26 @@ export default function CodeFormatter() {
   inputRef.current = input
 
   const hasCode = input.trim().length > 0
+  const formatProblem = useMemo<ProblemItem | null>(() => {
+    if (!error) return null
+    const location = error.match(/(?:\(|\[|\b)(\d+):(\d+)(?:\)|\]|\b)/)
+    return {
+      id: 'format-error',
+      message: error,
+      severity: 'error',
+      ...(location?.[1] ? { line: Number(location[1]) } : {}),
+      ...(location?.[2] ? { column: Number(location[2]) } : {}),
+    }
+  }, [error])
+
+  const goToProblem = useCallback((problem: ProblemItem) => {
+    const editor = editorRef.current
+    if (!editor || problem.line === undefined) return
+    const position = { lineNumber: problem.line, column: problem.column ?? 1 }
+    editor.revealPositionInCenter(position)
+    editor.setPosition(position)
+    editor.focus()
+  }, [])
 
   const status: FormatStatus = !hasCode
     ? 'empty'
@@ -434,13 +455,10 @@ export default function CodeFormatter() {
         </div>
       }
     >
-      {error && (
-        <Alert
-          variant="error"
-          className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-        >
-          {error}
-        </Alert>
+      {formatProblem && (
+        <div className="max-h-28 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+          <ProblemsList items={[formatProblem]} onSelect={goToProblem} />
+        </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <Editor
@@ -449,6 +467,9 @@ export default function CodeFormatter() {
           value={input}
           onChange={(v) => updateState({ input: v ?? '' })}
           options={monacoOptions}
+          onMount={(editor) => {
+            editorRef.current = editor
+          }}
         />
         {!hasCode && (
           // Non-interactive so clicks fall through to the editor underneath —

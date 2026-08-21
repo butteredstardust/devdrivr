@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   CheckCircleIcon,
   FileTsIcon,
   FloppyDiskIcon,
-  InfoIcon,
   SlidersHorizontalIcon,
   WarningCircleIcon,
-  WarningIcon,
-  XCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -32,6 +29,7 @@ import type { TypeScriptWorker } from '@/workers/typescript.worker'
 import TypeScriptWorkerFactory from '@/workers/typescript.worker?worker'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 
 type TsPlaygroundState = {
   input: string
@@ -58,18 +56,6 @@ const TARGETS = [
   'ESNext',
 ]
 const MODULES = ['ES2015', 'ES2020', 'ES2022', 'ESNext', 'CommonJS', 'Node16', 'NodeNext', 'None']
-
-const SEVERITY_ICON = {
-  error: XCircleIcon,
-  warning: WarningIcon,
-  suggestion: InfoIcon,
-} as const
-
-const SEVERITY_COLOR = {
-  error: 'var(--color-error)',
-  warning: 'var(--color-warning)',
-  suggestion: 'var(--color-info)',
-} as const
 
 /** Diagnostics arrive syntactic-first; reading order is by position. */
 function sortDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
@@ -120,6 +106,7 @@ export default function TsPlayground() {
   const [isTranspiling, setIsTranspiling] = useState(false)
   const optionsId = useId()
   const problemsId = useId()
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestRef = useRef(0)
@@ -138,6 +125,15 @@ export default function TsPlayground() {
   inputRef.current = input
 
   const hasCode = input.trim().length > 0
+
+  const goToProblem = useCallback((problem: ProblemItem) => {
+    const editor = editorRef.current
+    if (!editor || problem.line === undefined) return
+    const position = { lineNumber: problem.line, column: problem.column ?? 1 }
+    editor.revealPositionInCenter(position)
+    editor.setPosition(position)
+    editor.focus()
+  }, [])
 
   const runTranspile = useCallback(async () => {
     const source = inputRef.current
@@ -420,6 +416,9 @@ export default function TsPlayground() {
               value={input}
               onChange={(v) => updateState({ input: v ?? '' })}
               options={editorOptions}
+              onMount={(editor) => {
+                editorRef.current = editor
+              }}
             />
             {!hasCode && (
               // Click-through so the hint never stands between user and caret;
@@ -486,41 +485,19 @@ export default function TsPlayground() {
           <span className="text-2xs text-[var(--color-text-muted)]">{summary}</span>
         </div>
         {state.problemsOpen && (
-          <ul id={problemsId} className="min-h-0 flex-1 overflow-auto px-3 pb-2">
-            {sorted.length === 0 ? (
-              <li className="py-1 text-xs text-[var(--color-text-muted)]">
-                {hasCode ? 'No problems found.' : 'Nothing to compile yet.'}
-              </li>
-            ) : (
-              sorted.map((d, i) => {
-                const Icon = SEVERITY_ICON[d.category]
-                return (
-                  <li
-                    key={`${d.code}-${d.line ?? 0}-${d.column ?? 0}-${i}`}
-                    className="flex items-start gap-2 py-0.5 text-xs"
-                  >
-                    <Icon
-                      size={14}
-                      aria-hidden="true"
-                      className="mt-0.5 shrink-0"
-                      style={{ color: SEVERITY_COLOR[d.category] }}
-                    />
-                    {d.line !== undefined && (
-                      <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
-                        {d.line}:{d.column ?? 1}
-                      </span>
-                    )}
-                    <span className="min-w-0 whitespace-pre-wrap text-[var(--color-text)]">
-                      {d.message}
-                    </span>
-                    <span className="ml-auto shrink-0 text-2xs tabular-nums text-[var(--color-text-muted)]">
-                      TS{d.code}
-                    </span>
-                  </li>
-                )
-              })
-            )}
-          </ul>
+          <ProblemsList
+            items={sorted.map((diagnostic, index) => ({
+              id: `${diagnostic.code}-${diagnostic.line ?? 0}-${diagnostic.column ?? 0}-${index}`,
+              message: diagnostic.message,
+              severity: diagnostic.category === 'suggestion' ? 'info' : diagnostic.category,
+              ...(diagnostic.line === undefined ? {} : { line: diagnostic.line }),
+              ...(diagnostic.column === undefined ? {} : { column: diagnostic.column }),
+              code: `TS${diagnostic.code}`,
+            }))}
+            onSelect={goToProblem}
+            emptyMessage={hasCode ? 'No problems found.' : 'Nothing to compile yet.'}
+            className="min-h-0 flex-1 overflow-auto pb-2"
+          />
         )}
       </section>
     </ToolLayout>

@@ -4,8 +4,6 @@ import {
   ArrowsInLineVerticalIcon,
   ArrowsOutLineVerticalIcon,
   BracketsAngleIcon,
-  CaretDownIcon,
-  CaretRightIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
   FloppyDiskIcon,
@@ -35,6 +33,8 @@ import type { XmlInspection, XmlIssue, XmlTreeNode } from '@/workers/xml.api'
 import XmlWorkerFactory from '@/workers/xml.worker?worker'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
+import { InspectorDisclosure } from '@/components/shared/InspectorTree'
 
 type XmlView = 'source' | 'tree' | 'json' | 'xpath'
 
@@ -175,8 +175,6 @@ export default function XmlTools() {
 
   const isValid = inspection?.valid ?? false
   const blockingIssue = inspection ? firstBlockingIssue(inspection.issues) : undefined
-  const warnings = inspection?.issues.filter((issue) => issue.level === 'warning') ?? []
-  const firstWarning = warnings[0]
 
   const status = !hasInput
     ? 'Nothing to inspect yet'
@@ -249,14 +247,18 @@ export default function XmlTools() {
 
   // The parser knows where it went wrong; without this the user reads a line
   // number and then scrolls to find it by hand.
-  const handleGoToError = useCallback(() => {
-    const editor = editorRef.current
-    if (!editor || !blockingIssue?.line) return
-    const position = { lineNumber: blockingIssue.line, column: blockingIssue.column ?? 1 }
-    editor.revealPositionInCenter(position)
-    editor.setPosition(position)
-    editor.focus()
-  }, [blockingIssue])
+  const handleGoToIssue = useCallback(
+    (problem?: ProblemItem) => {
+      const editor = editorRef.current
+      const line = problem?.line ?? blockingIssue?.line
+      if (!editor || !line) return
+      const position = { lineNumber: line, column: problem?.column ?? blockingIssue?.column ?? 1 }
+      editor.revealPositionInCenter(position)
+      editor.setPosition(position)
+      editor.focus()
+    },
+    [blockingIssue]
+  )
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -318,7 +320,7 @@ export default function XmlTools() {
             <Button
               variant="ghost"
               size="xs"
-              onClick={handleGoToError}
+              onClick={() => handleGoToIssue()}
               title="Move the cursor to the parse error"
               className="gap-1"
             >
@@ -392,15 +394,20 @@ export default function XmlTools() {
           <pre className="whitespace-pre-wrap">{error}</pre>
         </Alert>
       )}
-      {!error && firstWarning && isValid && (
-        <Alert
-          variant="warning"
-          className="rounded-none border-b border-[var(--color-border)] px-4 py-2"
-        >
-          {/* Warnings still parse, so they inform rather than block. */}
-          {describeIssue(firstWarning)}
-          {warnings.length > 1 && ` (+${warnings.length - 1} more)`}
-        </Alert>
+      {!error && inspection && inspection.issues.length > 0 && (
+        <div className="max-h-40 shrink-0 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+          <ProblemsList
+            items={inspection.issues.map((issue, index) => ({
+              id: `${issue.level}-${issue.line ?? 0}-${issue.column ?? 0}-${index}`,
+              message: issue.message,
+              severity: issue.level === 'warning' ? 'warning' : 'error',
+              ...(issue.line === undefined ? {} : { line: issue.line }),
+              ...(issue.column === undefined ? {} : { column: issue.column }),
+              code: issue.level,
+            }))}
+            onSelect={handleGoToIssue}
+          />
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1 max-[900px]:flex-col">
@@ -640,7 +647,13 @@ function TreePane({
       />
       <div className="min-h-0 flex-1 overflow-auto p-3 font-mono">
         {tree ? (
-          <TreeNodeRow key={treeKey} node={tree} defaultExpanded={expanded} onCopy={onCopy} />
+          <TreeNodeRow
+            key={treeKey}
+            node={tree}
+            path={tree.type === 'element' ? `/${tree.name}` : '/'}
+            defaultExpanded={expanded}
+            onCopy={onCopy}
+          />
         ) : (
           <EmptyState
             size="sm"
@@ -655,11 +668,13 @@ function TreePane({
 
 function TreeNodeRow({
   node,
+  path,
   depth = 0,
   defaultExpanded,
   onCopy,
 }: {
   node: XmlTreeNode
+  path: string
   depth?: number
   defaultExpanded: boolean
   onCopy: CopyToClipboard
@@ -706,23 +721,19 @@ function TreeNodeRow({
   }
 
   const hasChildren = node.children.length > 0
-  const Caret = expanded ? CaretDownIcon : CaretRightIcon
-
   return (
     <div>
       <div className="group flex items-center gap-1" style={{ paddingLeft: indent }}>
         {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: full-width,
             aligned to the indent grid and disabled on leaves; it is not an action button. */}
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-          onClick={() => hasChildren && setExpanded(!expanded)}
-          aria-expanded={hasChildren ? expanded : undefined}
-          disabled={!hasChildren}
-        >
-          <span className="w-3 shrink-0 text-[var(--color-text-muted)]">
-            {hasChildren && <Caret size={12} aria-hidden="true" />}
-          </span>
+        <div className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)]">
+          <InspectorDisclosure
+            expanded={expanded}
+            hasChildren={hasChildren}
+            label={path}
+            onToggle={() => setExpanded((current) => !current)}
+            className="w-3 shrink-0"
+          />
           {/* One span, no flex gap: the pieces of a tag have to read as a tag,
               not as `<catalog >`. */}
           <span className="truncate">
@@ -736,7 +747,7 @@ function TreeNodeRow({
             ))}
             <span className="text-[var(--color-accent)]">{hasChildren ? '>' : ' />'}</span>
           </span>
-        </button>
+        </div>
         {/* Always in the tab order: a copy affordance that only appears on hover
             is invisible to keyboard and touch users. */}
         <Button
@@ -749,18 +760,48 @@ function TreeNodeRow({
         >
           Copy
         </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+          onClick={() => void onCopy(path, { success: `Copied XPath ${path}` })}
+          aria-label={`Copy XPath ${path}`}
+          title="Copy XPath"
+        >
+          XPath
+        </Button>
       </div>
       {expanded &&
         hasChildren &&
-        node.children.map((child, i) => (
-          <TreeNodeRow
-            key={i}
-            node={child}
-            depth={depth + 1}
-            defaultExpanded={defaultExpanded}
-            onCopy={onCopy}
-          />
-        ))}
+        node.children.map((child, i) => {
+          const siblingIndex =
+            child.type === 'element'
+              ? node.children
+                  .slice(0, i + 1)
+                  .filter((sibling) => sibling.type === 'element' && sibling.name === child.name)
+                  .length
+              : 0
+          const siblingCount =
+            child.type === 'element'
+              ? node.children.filter(
+                  (sibling) => sibling.type === 'element' && sibling.name === child.name
+                ).length
+              : 0
+          const childPath =
+            child.type === 'element'
+              ? `${path}/${child.name}${siblingCount > 1 ? `[${siblingIndex}]` : ''}`
+              : path
+          return (
+            <TreeNodeRow
+              key={i}
+              node={child}
+              path={childPath}
+              depth={depth + 1}
+              defaultExpanded={defaultExpanded}
+              onCopy={onCopy}
+            />
+          )
+        })}
       {expanded && hasChildren && (
         <div
           style={{ paddingLeft: indent }}

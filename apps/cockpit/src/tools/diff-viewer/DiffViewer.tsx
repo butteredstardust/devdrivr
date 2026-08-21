@@ -5,6 +5,8 @@ import 'diff2html/bundles/css/diff2html.min.css'
 import DOMPurify from 'dompurify'
 import {
   ArrowsLeftRightIcon,
+  CaretDownIcon,
+  CaretUpIcon,
   CheckCircleIcon,
   GitDiffIcon,
   SlidersHorizontalIcon,
@@ -259,6 +261,8 @@ export default function DiffViewer() {
   const [diffHtml, setDiffHtml] = useState<string>('')
   const [rawPatch, setRawPatch] = useState<string>('')
   const [isComparing, setIsComparing] = useState(false)
+  const [activeHunk, setActiveHunk] = useState(-1)
+  const diffContainerRef = useRef<HTMLDivElement>(null)
   const comparingRef = useRef(false)
   const pendingCompareRef = useRef(false)
   const announceRef = useRef(false)
@@ -281,6 +285,31 @@ export default function DiffViewer() {
 
   const bothSidesFilled = state.left.trim().length > 0 && state.right.trim().length > 0
   const stats = useMemo(() => (rawPatch ? parseDiffStats(rawPatch) : null), [rawPatch])
+  const hunkCount = useMemo(() => rawPatch.match(/^@@/gm)?.length ?? 0, [rawPatch])
+
+  useEffect(() => setActiveHunk(-1), [rawPatch])
+
+  const navigateHunk = useCallback(
+    (direction: -1 | 1) => {
+      const rows = Array.from(
+        diffContainerRef.current?.querySelectorAll<HTMLElement>('.d2h-info') ?? []
+      ).filter((row) => row.textContent?.trim().startsWith('@@'))
+      if (rows.length === 0) return
+      const next =
+        activeHunk < 0
+          ? direction > 0
+            ? 0
+            : rows.length - 1
+          : (activeHunk + direction + rows.length) % rows.length
+      setActiveHunk(next)
+      const row = rows[next]
+      if (!row) return
+      row.tabIndex = -1
+      if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' })
+      row.focus({ preventScroll: true })
+    },
+    [activeHunk]
+  )
   // `left === right` is only the cheap case. `ignoreWhitespace`/`jsonMode` can
   // also make two textually different sides equivalent, and then the patch has
   // no hunks at all — without this the pane would render an empty diff.
@@ -447,6 +476,7 @@ export default function DiffViewer() {
     </div>
   ) : diffHtml ? (
     <div
+      ref={diffContainerRef}
       // Focusable so the diff can be scrolled from the keyboard without a mouse.
       role="region"
       aria-label="Diff result"
@@ -675,6 +705,38 @@ export default function DiffViewer() {
               showEditors ? 'border-t border-[var(--color-border)]' : ''
             }`}
           >
+            {hunkCount > 0 && (
+              <PaneHeader
+                title="Changes"
+                hint={
+                  activeHunk < 0
+                    ? `${hunkCount} hunk${hunkCount === 1 ? '' : 's'}`
+                    : `${activeHunk + 1} of ${hunkCount} hunks`
+                }
+                actions={
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => navigateHunk(-1)}
+                      title="Previous hunk"
+                      aria-label="Previous hunk"
+                    >
+                      <CaretUpIcon size={12} aria-hidden="true" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => navigateHunk(1)}
+                      title="Next hunk"
+                      aria-label="Next hunk"
+                    >
+                      <CaretDownIcon size={12} aria-hidden="true" />
+                    </Button>
+                  </>
+                }
+              />
+            )}
             {diffBody}
           </section>
         )}

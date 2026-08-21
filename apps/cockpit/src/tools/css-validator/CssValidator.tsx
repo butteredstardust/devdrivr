@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
-  ArrowRightIcon,
   CaretDownIcon,
   CaretUpIcon,
   CheckCircleIcon,
@@ -20,7 +19,8 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useTabDirty } from '@/hooks/useTabDirty'
+import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
+import { ProblemsList } from '@/components/shared/ProblemsList'
 import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
@@ -77,13 +77,7 @@ type CssValidatorState = {
   enabledRules: string[]
 }
 
-type PendingDocument = {
-  input: string
-  fileName: string | null
-  filePath: string | null
-  savedContent: string
-  successMessage: string
-}
+type PendingDocument = PendingValidatorDocument
 
 const ANALYZE_DEBOUNCE_MS = 300
 /** Long stylesheets are common; beyond this the selector list stops helping. */
@@ -133,16 +127,10 @@ export default function CssValidator() {
    * stylesheet is indistinguishable from one the user triggered. Only typing
    * and explicit buffer swaps set this, and only it lets a run reach history.
    */
-  const userEditedRef = useRef(false)
-
   const input = state.input ?? ''
   const inputRef = useRef(input)
   inputRef.current = input
-  const hasInput = input.trim().length > 0
-  // Without a known saved text, only text this session produced counts as unsaved.
-  const isDirty =
-    state.savedContent === null ? userEditedRef.current && hasInput : input !== state.savedContent
-  useTabDirty(isDirty)
+  const { hasInput, isDirty, userEditedRef } = useValidatorDocument(input, state.savedContent)
   const { disabledRules, enabledRules } = state
 
   // --- Analysis --------------------------------------------------------
@@ -853,56 +841,26 @@ function ResultsPanel({
                 }
               />
             ) : (
-              <ul>
-                {issues.map((issue, index) => (
-                  <li key={`${issue.rule}-${issue.line}-${issue.column}-${index}`}>
-                    {/* A problem list nobody can click is a list of coordinates
-                        to scroll to by hand — every row jumps the cursor there. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onGoTo(issue.line, issue.column)}
-                      className="w-full justify-start gap-2 rounded-none px-3 text-left"
-                      title={`Go to line ${issue.line}, column ${issue.column}`}
-                    >
-                      {issue.type === 'error' ? (
-                        <WarningCircleIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-error)]"
-                        />
-                      ) : (
-                        <WarningIcon
-                          size={14}
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--color-warning)]"
-                        />
-                      )}
-                      <span className="shrink-0 font-mono text-2xs text-[var(--color-text-muted)]">
-                        {issue.line}:{issue.column}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text)]">
-                        {issue.message}
-                      </span>
-                      <span className="shrink-0 rounded border border-[var(--color-border)] px-1 text-2xs text-[var(--color-text-muted)]">
-                        {issue.rule}
-                      </span>
-                      <ArrowRightIcon
-                        size={12}
-                        aria-hidden="true"
-                        className="shrink-0 text-[var(--color-text-muted)]"
-                      />
-                    </Button>
-                  </li>
-                ))}
+              <>
+                <ProblemsList
+                  items={issues.map((issue, index) => ({
+                    id: `${issue.rule}-${issue.line}-${issue.column}-${index}`,
+                    message: issue.message,
+                    severity: issue.type,
+                    line: issue.line,
+                    column: issue.column,
+                    code: issue.rule,
+                  }))}
+                  onSelect={(problem) => onGoTo(problem.line ?? 1, problem.column ?? 1)}
+                />
                 {totalIssues > issues.length && (
-                  <li className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
+                  <p className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
                     {totalIssues - issues.length} more problem
                     {totalIssues - issues.length === 1 ? '' : 's'} not listed — fix these first, or
                     switch a rule off.
-                  </li>
+                  </p>
                 )}
-              </ul>
+              </>
             )
           ) : selectors.length === 0 ? (
             <EmptyState

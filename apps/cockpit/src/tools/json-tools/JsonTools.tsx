@@ -40,6 +40,7 @@ import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { InspectorTree } from '@/components/shared/InspectorTree'
 
 type JsonView = 'source' | 'tree' | 'table'
 
@@ -751,6 +752,7 @@ export default function JsonTools() {
             keyCount={stats?.keys ?? 0}
             data={data}
             onCopy={copy}
+            {...(queryResult?.found ? { highlightedPath: query } : {})}
           />
         </SplitPane>
       )}
@@ -768,12 +770,14 @@ function InspectorPane({
   keyCount,
   data,
   onCopy,
+  highlightedPath,
 }: {
   view: Exclude<JsonView, 'source'>
   parsed: ParseResult
   keyCount: number
   data: unknown
   onCopy: CopyToClipboard
+  highlightedPath?: string
 }) {
   // A 5000-key document rendered fully expanded janks the pane on open, so the
   // default follows the document size until the user overrides it.
@@ -859,9 +863,13 @@ function InspectorPane({
         )}
         {parsed.status === 'valid' &&
           (view === 'tree' ? (
-            <div className="p-3 font-mono text-xs">
-              <JsonTree key={treeKey} data={data} path="$" defaultExpanded={expanded} />
-            </div>
+            <InspectorTree
+              key={treeKey}
+              data={data}
+              defaultExpanded={expanded}
+              filterable
+              {...(highlightedPath === undefined ? {} : { highlightedPath })}
+            />
           ) : tableTooLarge ? (
             // The tree can open collapsed; a table cannot, so this is the equivalent
             // brake — every key would become a DOM node the moment the view opens.
@@ -916,7 +924,7 @@ function TreeValueButton({
   )
 }
 
-function JsonTree({
+export function JsonTree({
   data,
   path,
   defaultExpanded = true,

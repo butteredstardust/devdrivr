@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { diffChars } from 'diff'
 import { useToolState } from '@/hooks/useToolState'
-import { CopyButton } from '@/components/shared/CopyButton'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { SectionLabel } from '@/components/shared/SectionLabel'
@@ -132,6 +131,7 @@ export function describeMatches({
 // ── Component ──────────────────────────────────────────────────────
 
 export default function RegexTester() {
+  const testStringRef = useRef<HTMLTextAreaElement>(null)
   const [state, updateState] = useToolState<RegexTesterState>('regex-tester', {
     pattern: '',
     flags: 'g',
@@ -420,6 +420,7 @@ export default function RegexTester() {
             <div className="flex min-h-0 flex-1 flex-col">
               <PaneHeader title="Test String" />
               <TextArea
+                ref={testStringRef}
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}
                 placeholder="Enter text to test against..."
@@ -511,9 +512,17 @@ export default function RegexTester() {
                 </span>
               </div>
               {matches.map((m, i) => (
-                <div
+                <button
+                  type="button"
                   key={i}
-                  className="mb-1.5 flex items-start gap-3 rounded p-1 text-xs hover:bg-[var(--color-surface-hover)]"
+                  onClick={() => {
+                    const input = testStringRef.current
+                    if (!input) return
+                    input.focus()
+                    input.setSelectionRange(m.index, m.index + m.length)
+                  }}
+                  className="mb-1.5 flex w-full items-start gap-3 rounded p-1 text-left text-xs hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                  title={`Select match ${i + 1} in the test string`}
                 >
                   <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">
                     #{i + 1}
@@ -537,8 +546,10 @@ export default function RegexTester() {
                       ))}
                     </span>
                   )}
-                  <CopyButton text={m.full} label="Copy" className="ml-auto shrink-0" />
-                </div>
+                  <span className="ml-auto shrink-0 text-2xs text-[var(--color-text-muted)]">
+                    Select
+                  </span>
+                </button>
               ))}
             </div>
           )}
