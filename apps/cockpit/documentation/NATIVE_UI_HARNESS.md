@@ -280,6 +280,13 @@ foreground is a two-line check that no app logic can influence.
 
 Recorded against Tauri 2.10.3 / macOS 15, on branch `feat/ui-polish-phase-2`.
 
+- **A leading-cluster padding box swallowed all three traffic-light clicks.** The visible notes
+  button needed a 76px traffic-light allowance, but implementing that allowance as `padding-left`
+  made the cluster's transparent box cover close, minimize, and maximize at the same z-index. The
+  later cluster won hit-testing even though the traffic lights remained visible. Using an equivalent
+  `margin-left` keeps the layout unchanged without placing an element over the controls. The event
+  probe exposed this as clicks targeting the leading cluster `DIV` instead of a traffic-light
+  `BUTTON`.
 - **`decorations: false` disables native edge resizing on macOS.** It does not merely clear the
   `NSWindowStyleMask.titled` bit while leaving edge tracking intact. Dragging every edge and corner
   at ±3px around the frame moved nothing; the window could not be resized at all. Hence

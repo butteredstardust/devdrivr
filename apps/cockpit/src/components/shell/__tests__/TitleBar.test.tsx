@@ -193,6 +193,15 @@ describe('TitleBar — platform layout', () => {
     expect(screen.queryByTestId('titlebar-right-controls')).not.toBeInTheDocument()
   })
 
+  it('reserves macOS traffic-light space without covering their hit targets', () => {
+    mocks.platform.current = 'mac'
+    render(<TitleBar />)
+
+    const leadingCluster = screen.getByLabelText('Toggle notes drawer').parentElement
+    expect(leadingCluster).toHaveClass('ml-[76px]')
+    expect(leadingCluster).not.toHaveClass('pl-[76px]')
+  })
+
   it('renders window controls on the right, and none on the left, on non-macOS', () => {
     mocks.platform.current = 'windows'
     render(<TitleBar />)

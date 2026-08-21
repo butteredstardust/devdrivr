@@ -97,7 +97,7 @@ export function TitleBar() {
           trailing edge — both are modal, rarely-used and reachable from the palette, and keeping
           three buttons here left only 14px between them and the macOS traffic lights, so the
           cluster read as a fourth window control. */}
-      <div className={`${SIDE_CLUSTER_CLASS} ${isMac ? 'pl-[76px]' : ''}`}>
+      <div className={`${SIDE_CLUSTER_CLASS} ${isMac ? 'ml-[76px]' : ''}`}>
         <button
           type="button"
           onClick={toggleNotes}
