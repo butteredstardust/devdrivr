@@ -227,6 +227,30 @@ describe('ImageTool', () => {
     expect(horizontal).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('keeps orientation on crop reset and clears it on reset all', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+    fireEvent.click(screen.getByRole('button', { name: /rotate 90/i }))
+    fireEvent.click(screen.getByRole('button', { name: /flip horizontally/i }))
+
+    fireEvent.click(screen.getByText('Crop'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable crop' }))
+    fireEvent.click(screen.getByRole('button', { name: /reset to full image/i }))
+    fireEvent.click(screen.getByText('Rotate & Flip'))
+    expect(screen.getByText(/Rotation: 90°/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /flip horizontally/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByText(/Rotation: 0°/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /flip horizontally/i })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+  })
+
   // ── Resize tab controls ──────────────────────────────────────────
 
   it('shows resize controls when clicking Resize tab', () => {

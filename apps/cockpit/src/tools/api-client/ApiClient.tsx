@@ -499,10 +499,12 @@ export default function ApiClient() {
     })
     // One empty row always shows, so a fresh form has somewhere to type without pressing Add first.
     const blanks = Math.max(blankRows, parsed.length === 0 ? 1 : 0)
-    return [
-      ...parsed,
-      ...Array.from({ length: blanks }, () => ({ key: '', value: '', enabled: true })),
-    ]
+    const blankFields = Array.from({ length: blanks }, (_, offset) => {
+      const field: FormField = { key: '', value: '', enabled: true }
+      const file = formFiles[parsed.length + offset]
+      return file ? { ...field, file } : field
+    })
+    return [...parsed, ...blankFields]
   }, [body, formFiles, blankRows])
 
   const commitFormFields = useCallback(

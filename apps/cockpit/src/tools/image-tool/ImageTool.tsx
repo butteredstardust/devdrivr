@@ -496,9 +496,6 @@ export default function ImageTool() {
       cropY: 0,
       cropW: originalImg.naturalWidth,
       cropH: originalImg.naturalHeight,
-      rotation: 0,
-      flipX: false,
-      flipY: false,
     })
   }, [originalImg, updateState])
 
@@ -579,6 +576,9 @@ export default function ImageTool() {
       cropY: 0,
       cropW: originalImg.naturalWidth,
       cropH: originalImg.naturalHeight,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
       format: 'png',
       quality: 85,
     })

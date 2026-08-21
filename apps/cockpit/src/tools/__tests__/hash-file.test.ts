@@ -36,6 +36,12 @@ describe('added algorithms', () => {
     expect(keyed.blake2b).toHaveLength(128)
     expect(keyed.blake2b).not.toBe(plain.blake2b)
   })
+
+  it('keeps standard HMAC results when a key is too long for keyed BLAKE2b', async () => {
+    const result = await computeHmac('hello', 'x'.repeat(65))
+    expect(result.sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(result.blake2b).toMatch(/requires a key of 1–64 bytes/)
+  })
 })
 
 describe('HASH_ALGORITHMS', () => {

@@ -78,6 +78,10 @@ describe('wall-clock round trip', () => {
   it('returns null for unparseable input instead of jumping to 1970', () => {
     expect(fromZonedWallClock('not a date', 'UTC')).toBeNull()
   })
+
+  it('rejects a wall time skipped by daylight saving', () => {
+    expect(fromZonedWallClock('2021-03-28T03:30:00', 'Europe/Bucharest')).toBeNull()
+  })
 })
 
 describe('listTimeZones', () => {

@@ -128,6 +128,24 @@ describe('ApiClient', () => {
     })
   })
 
+  it('keeps a multipart file selected before its field is named', async () => {
+    const { container } = renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(['avatar'], 'avatar.png', { type: 'image/png' })] },
+    })
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: 'avatar' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy request as cURL' }))
+
+    await waitFor(() => {
+      const command = clipboardWriteText.mock.calls.at(-1)?.[0] as string
+      expect(command).toContain(`-F 'avatar=@avatar.png'`)
+    })
+  })
+
   it('renders import and export controls in the library footer', () => {
     renderTool(ApiClient)
     expect(screen.getByRole('button', { name: 'Import requests' })).toBeInTheDocument()

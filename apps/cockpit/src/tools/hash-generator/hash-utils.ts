@@ -71,7 +71,10 @@ export async function computeHmac(input: string, secret: string): Promise<Hashes
     sha3_512: bytesToHex(hmac(sha3_512, key, data)),
     // BLAKE2b is keyed natively rather than through HMAC. Wrapping it in HMAC would produce a
     // digest no other tool agrees with, which is worse than not offering it.
-    blake2b: bytesToHex(blake2b(data, { key })),
+    blake2b:
+      key.length >= 1 && key.length <= 64
+        ? bytesToHex(blake2b(data, { key }))
+        : '(Keyed BLAKE2b requires a key of 1–64 bytes)',
   }
 }
 

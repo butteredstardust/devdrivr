@@ -179,8 +179,9 @@ export function toZonedWallClock(date: Date, zone: string): string {
  * the second pass corrects it. Two passes are enough for every real zone; a third would only
  * matter for an offset that changes within an hour of itself, which does not exist.
  *
- * Returns `null` for unparseable input rather than an epoch date, so the caller can leave the
- * user's timestamp alone instead of silently jumping to 1970.
+ * Returns `null` for unparseable or nonexistent wall times rather than silently normalising them.
+ * During a fall-back fold both candidate instants exist; the iteration deterministically keeps the
+ * candidate reached from the UTC-shaped initial guess.
  */
 export function fromZonedWallClock(value: string, zone: string): Date | null {
   const asUtc = Date.parse(`${value}Z`)
@@ -191,7 +192,9 @@ export function fromZonedWallClock(value: string, zone: string): Date | null {
     const seen = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second)
     ts += asUtc - seen
   }
-  return new Date(ts)
+  const result = new Date(ts)
+  const requestedWallClock = toZonedWallClock(new Date(asUtc), 'UTC')
+  return toZonedWallClock(result, zone) === requestedWallClock ? result : null
 }
 
 export type FormatRow = {
