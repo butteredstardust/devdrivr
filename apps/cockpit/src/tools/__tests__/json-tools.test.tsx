@@ -199,6 +199,38 @@ describe('JsonTools', () => {
     expect(table.getByText('null')).toBeInTheDocument()
   })
 
+  it('asks before rendering a table for a document too large to open collapsed', () => {
+    renderTool(JsonTools)
+    // The tree opens collapsed above 500 keys; the table has no equivalent, so it
+    // would otherwise mount a DOM node per key the instant the view is selected.
+    const rows = Array.from({ length: 300 }, (_, i) => ({ a: i, b: i }))
+    typeJson(JSON.stringify(rows))
+    showView('Table')
+
+    const pane = within(screen.getByRole('region', { name: 'Table view' }))
+    expect(pane.getByText('Large document')).toBeInTheDocument()
+    expect(pane.queryByRole('table')).not.toBeInTheDocument()
+
+    fireEvent.click(pane.getByRole('button', { name: 'Render anyway' }))
+    expect(pane.getByRole('table')).toBeInTheDocument()
+  })
+
+  it('stops nesting tables at a fixed depth instead of recursing without a bound', () => {
+    renderTool(JsonTools)
+    // 40 levels of nesting: unbounded, this recurses once per level during render,
+    // and a deep enough document takes the app down rather than just the pane.
+    let deep = JSON.stringify({ leaf: 1 })
+    for (let i = 0; i < 40; i += 1) deep = `{"a":${deep}}`
+    typeJson(deep)
+    showView('Table')
+
+    // Deep but narrow: 41 keys, so the large-document prompt does not apply.
+    const pane = within(screen.getByRole('region', { name: 'Table view' }))
+    // The tail below the cap is printed as compact JSON, so nothing is hidden.
+    expect(pane.getAllByRole('table')).toHaveLength(20)
+    expect(pane.getByRole('button', { name: /^Copy value \{"a":/ })).toBeInTheDocument()
+  })
+
   it('sorts table columns and exposes the direction to assistive tech', () => {
     renderTool(JsonTools)
     typeJson('[{"name":"b","qty":2},{"name":"a","qty":10}]')

@@ -84,7 +84,9 @@ export const RULES = [
     // with no scale to point at. They are tokens now (--duration-fast/panel/spin,
     // --ease-out/--ease-in-out), and a literal utility is how a fourth duration gets in.
     // The lookbehind keeps `ease-[var(--ease-in-out)]` — the token form — from matching itself.
-    pattern: /\bduration-\d+\b|(?<!-)\bease-(?:linear|in|out|in-out)\b/g,
+    // `in-out` comes before `in`: alternation is first-match-wins, so the shorter
+    // alternative first would report `ease-in` as the match text for `ease-in-out`.
+    pattern: /\bduration-\d+\b|(?<!-)\bease-(?:linear|in-out|in|out)\b/g,
     message:
       'Off-scale duration or easing. Use duration-[var(--duration-fast|panel)] and ease-[var(--ease-out|in-out)] (see DESIGN_SYSTEM.md § Motion).',
   },
