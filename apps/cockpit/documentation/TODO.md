@@ -277,16 +277,23 @@ photographing. This audit is static for the same reason.
 
 Raised by the audit, checked against source, **not real**. Recorded so they are not re-raised.
 
-| Claim                                                            | Verdict                                                                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `jwt-decoder` leaks a `setInterval` on unmount                   | **False.** `JwtDecoder.tsx:130-132` returns `clearInterval`.                                                              |
-| `api-client` history breaks on URLs containing spaces            | **False.** `CollectionsSidebar.tsx:492-493` destructures with a rest spread then `urlParts.join(' ')` — round-trips fine. |
-| `api-client` history throws when the `·` delimiter is absent     | **False.** `:514` is `split('·')[1]?.trim() ?? ''` — optional chaining plus a fallback.                                   |
-| `docs-browser` slow-load timeout leaks on error                  | **False.** `DocsBrowser.tsx:23-29` has correct cleanup and deps.                                                          |
-| `regex-tester` has no catastrophic-backtracking protection       | **False.** A timeout guard exists; `RegexTester.tsx:119` reads `evaluation.status === 'timeout'`.                         |
-| `Panel` and `Field` are dead primitives                          | **Stale.** True before P4; `Panel` now has 2 consumers, `Field` has 11.                                                   |
-| `diff-viewer` lacks word-level intra-line diff                   | **Unfounded.** It renders Monaco's `DiffEditor`, which does intra-line diffing itself.                                    |
-| Several agent findings cited `api-client/CollectionsSidebar.tsx` | **Wrong path.** The file is `api-client/components/CollectionsSidebar.tsx`. Line numbers were right.                      |
+- **"`jwt-decoder` leaks a `setInterval` on unmount"** — False. `JwtDecoder.tsx:130-132` returns
+  `clearInterval`.
+- **"`api-client` history breaks on URLs containing spaces"** — False.
+  `CollectionsSidebar.tsx:492-493` destructures with a rest spread then `urlParts.join(' ')`, which
+  round-trips correctly.
+- **"`api-client` history throws when the `·` delimiter is absent"** — False. `:514` reads
+  `split('·')[1]?.trim() ?? ''` — optional chaining plus a fallback.
+- **"`docs-browser` slow-load timeout leaks on error"** — False. `DocsBrowser.tsx:23-29` has correct
+  cleanup and dependencies.
+- **"`regex-tester` has no catastrophic-backtracking protection"** — False. A timeout guard exists;
+  `RegexTester.tsx:119` reads `evaluation.status === 'timeout'`.
+- **"`Panel` and `Field` are dead primitives"** — Stale. True before P4; `Panel` now has 2
+  consumers, `Field` has 11.
+- **"`diff-viewer` lacks word-level intra-line diff"** — Unfounded. It renders Monaco's
+  `DiffEditor`, which does intra-line diffing itself.
+- **Wrong path, right findings** — several agent findings cited `api-client/CollectionsSidebar.tsx`.
+  The file is `api-client/components/CollectionsSidebar.tsx`; the line numbers were accurate.
 
 ---
 
