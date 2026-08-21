@@ -11,6 +11,12 @@
 # exercise is to be able to read a stack trace and a React component name.
 set -euo pipefail
 
+# A development-mode build with sourcemaps holds far more in memory than a production one, and
+# `--watch` keeps the whole module graph resident across rebuilds. The default heap is not enough:
+# the watcher died with "Ineffective mark-compacts near heap limit" partway through a rebuild,
+# leaving a half-written dist/ that served a blank page — a failure that reads like an app bug.
+export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=8192"
+
 COCKPIT_REMOTE_UI=1 bunx vite build --watch --mode development --sourcemap &
 VITE_PID=$!
 # Without this the watcher outlives Ctrl-C and quietly keeps rewriting dist/ under the next run.
