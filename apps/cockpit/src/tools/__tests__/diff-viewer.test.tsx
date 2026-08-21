@@ -280,3 +280,35 @@ describe('diff helpers', () => {
     )
   })
 })
+
+// The comparison pane used to take half the window before there was anything to
+// compare, so the largest thing on screen was an empty state telling you to use
+// the editors it had just squashed.
+describe('DiffViewer — uncompared layout', () => {
+  it('reduces the comparison pane to a single prompt line in split view', () => {
+    renderTool(DiffViewer)
+
+    const grid = document.querySelector('.grid')
+    expect(grid?.className).toContain('grid-rows-[1fr_auto]')
+    expect(screen.getByText(/Paste the original on the left/)).toBeInTheDocument()
+    // The full-pane empty state belongs to the diff-only view, not this one.
+    expect(screen.queryByText('Nothing to compare')).not.toBeInTheDocument()
+  })
+
+  it('gives the comparison half the window once there is a result', async () => {
+    renderTool(DiffViewer)
+    fillBothSides()
+    pressCompareShortcut()
+
+    await waitFor(() => {
+      expect(document.querySelector('.grid')?.className).toContain('grid-rows-2')
+    })
+  })
+
+  it('keeps the full empty state in the diff-only view, where the pane is all there is', () => {
+    renderTool(DiffViewer)
+    fireEvent.click(screen.getByRole('radio', { name: 'Diff' }))
+
+    expect(screen.getByText('Nothing to compare')).toBeInTheDocument()
+  })
+})

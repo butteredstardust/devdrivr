@@ -292,7 +292,13 @@ export default function RegexTester() {
                 </Button>
               ))}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowRef(!showRef)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRef(!showRef)}
+              title={showRef ? 'Hide the regex reference' : 'Show the regex syntax reference'}
+              aria-expanded={showRef}
+            >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
             {matchError && (
@@ -300,10 +306,22 @@ export default function RegexTester() {
                 {matchError}
               </Alert>
             )}
+            {/* The bare number was ambiguous — 3 what? — and the capture-group
+                count existed only in the sr-only live region, so sighted users
+                had to count parentheses. Same `N matches · N groups` shape the
+                document tools use for their status line. */}
             {!matchError && matchCount > 0 && (
-              <StatusBadge variant={truncated ? 'warning' : 'info'}>
-                {truncated ? `${matchCount}+` : matchCount}
-              </StatusBadge>
+              <div className="flex shrink-0 items-center gap-2" data-testid="match-count">
+                <StatusBadge variant={truncated ? 'warning' : 'info'}>
+                  {truncated ? `${matchCount}+` : matchCount}{' '}
+                  {matchCount === 1 && !truncated ? 'match' : 'matches'}
+                </StatusBadge>
+                {groupCount > 0 && (
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {groupCount} group{groupCount === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
             )}
             {!matchError && truncated && (
               <span className="text-xs text-[var(--color-warning)]">

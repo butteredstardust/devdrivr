@@ -11,6 +11,7 @@ import { SidebarGroup } from './SidebarGroup'
 import { SidebarRecent } from './SidebarRecent'
 import { SidebarPinned } from './SidebarPinned'
 import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
+import { SidebarCollapsedTool } from './SidebarCollapsedTool'
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { SearchInput } from '@/components/shared/SearchInput'
 
@@ -35,6 +36,17 @@ export function Sidebar() {
   const activeTool = useUiStore((s) => s.activeTool)
 
   const savedWidth = useSettingsStore((s) => s.sidebarWidth)
+  const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
+
+  // Same resolution as `SidebarPinned`: pin order, skipping ids whose tool no
+  // longer exists (a stale pin from a removed tool must not render a hole).
+  const collapsedPinnedTools = useMemo(
+    () =>
+      pinnedToolIds
+        .map((id) => TOOLS.find((tool) => tool.id === id))
+        .filter((tool): tool is (typeof TOOLS)[number] => tool != null),
+    [pinnedToolIds]
+  )
 
   const [filterQuery, setFilterQuery] = useState('')
   const [width, setWidth] = useState(() => clampSidebarWidth(savedWidth))
@@ -228,8 +240,13 @@ export function Sidebar() {
   const handleCollapsedNavKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     const container = e.currentTarget
+    // Pinned tools sit in the same rail and above the groups, so they are part of
+    // the same arrow-key run — a selector matching only groups would let Down
+    // skip straight past them, which is exactly the wrong thing to skip.
     const items = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-sidebar-collapsed-group]')
+      container.querySelectorAll<HTMLElement>(
+        '[data-sidebar-collapsed-tool], [data-sidebar-collapsed-group]'
+      )
     )
     if (items.length === 0) return
 
@@ -302,6 +319,22 @@ export function Sidebar() {
             className="flex flex-1 flex-col items-center gap-0.5"
             onKeyDown={handleCollapsedNavKeyDown}
           >
+            {/* Pinned tools first, one click each. Everything below is a group
+                flyout costing two, which is the wrong price for the tools the
+                user has explicitly said they keep coming back to. Omitted
+                entirely when nothing is pinned, so the rail is unchanged for
+                anyone who has never used the pin. */}
+            {collapsedPinnedTools.length > 0 && (
+              <>
+                {collapsedPinnedTools.map((tool) => (
+                  <SidebarCollapsedTool key={tool.id} tool={tool} />
+                ))}
+                <span
+                  aria-hidden="true"
+                  className="my-1 h-px w-5 shrink-0 bg-[var(--color-border)]"
+                />
+              </>
+            )}
             {TOOL_GROUPS.map((group, index) => {
               const tools = TOOLS.filter((t) => t.group === group.id)
               return (

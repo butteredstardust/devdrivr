@@ -387,6 +387,19 @@ export default function DiffViewer() {
   const showEditors = state.view !== 'diff'
   const showDiff = state.view !== 'editors'
 
+  // Is there anything in the comparison pane worth giving half the window to?
+  //
+  // "Nothing to compare" is not. Splitting the pane 50/50 regardless meant the
+  // empty state — whose entire message is "paste into the editors" — was the
+  // largest thing on screen, crowding out the editors it was pointing at. The
+  // editors keep the space until there is a real result to show.
+  const hasComparison = identical || isComparing || !!diffHtml
+
+  const prompt = bothSidesFilled
+    ? `Press ${formatShortcut('mod+enter')} to compare the two sides.`
+    : 'Paste the original on the left and the modified version on the right.'
+  const canLoadSample = !state.left.trim() && !state.right.trim()
+
   const diffBody = identical ? (
     <EmptyState
       icon={CheckCircleIcon}
@@ -413,18 +426,29 @@ export default function DiffViewer() {
       style={D2H_THEME_VARS}
       dangerouslySetInnerHTML={sanitizedDiffProp}
     />
+  ) : showEditors ? (
+    // Split view, nothing compared yet: one line, not a full-pane empty state.
+    // The editors above already say what to do by being empty and focusable, and
+    // the toolbar carries Compare — this only has to name the next step and hand
+    // over the sample.
+    <div className="flex items-center gap-2 px-3 py-2 text-xs text-[var(--color-text-muted)]">
+      <GitDiffIcon size={14} aria-hidden="true" />
+      <span>{prompt}</span>
+      {canLoadSample && (
+        <Button variant="ghost" size="xs" onClick={loadSample}>
+          Load sample
+        </Button>
+      )}
+    </div>
   ) : (
+    // Diff-only view: the pane is all there is, so the full empty state is right.
     <EmptyState
       icon={GitDiffIcon}
       size="sm"
       title={bothSidesFilled ? 'No comparison yet' : 'Nothing to compare'}
-      description={
-        bothSidesFilled
-          ? `Press ${formatShortcut('mod+enter')} to compare the two sides.`
-          : 'Paste the original on the left and the modified version on the right.'
-      }
+      description={prompt}
       action={
-        !state.left.trim() && !state.right.trim() ? (
+        canLoadSample ? (
           <Button variant="secondary" size="sm" onClick={loadSample}>
             Load sample
           </Button>
@@ -575,7 +599,11 @@ export default function DiffViewer() {
       {/* Editors and diff coexist: comparing never takes the editors away. */}
       <div
         className={`grid min-h-0 flex-1 overflow-hidden ${
-          showEditors && showDiff ? 'grid-rows-2' : 'grid-rows-1'
+          showEditors && showDiff
+            ? hasComparison
+              ? 'grid-rows-2'
+              : 'grid-rows-[1fr_auto]'
+            : 'grid-rows-1'
         }`}
       >
         {showEditors && (

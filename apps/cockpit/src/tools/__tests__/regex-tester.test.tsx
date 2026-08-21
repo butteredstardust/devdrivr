@@ -57,7 +57,21 @@ describe('RegexTester (component)', () => {
     fireEvent.change(screen.getByPlaceholderText(/enter text to test/i), {
       target: { value: 'abc 123 def 456' },
     })
-    expect(await screen.findByText('2')).toBeInTheDocument()
+    // The badge reads "2 matches", split across text nodes by the JSX — a
+    // bare getByText('2') would miss it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
+  })
+
+  it('names the capture-group count next to the match count', async () => {
+    renderTool(RegexTester)
+    setPattern('(\\d)(\\d)')
+    setText('12 34')
+
+    // Captures across all matches — the same total the sr-only live region and
+    // the matches pane already report. It previously existed only there, so a
+    // sighted user had to count parentheses to get it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
+    expect(screen.getByTestId('match-count')).toHaveTextContent('4 groups')
   })
 
   it('exposes regex flag toggle pressed state', () => {
@@ -175,7 +189,7 @@ describe('RegexTester (component)', () => {
       target: { value: 'a'.repeat(1205) },
     })
 
-    expect(await screen.findByText('1000+')).toBeInTheDocument()
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('1000+ matches')
     expect(screen.getByText('Showing first 1000 matches')).toBeInTheDocument()
     expect(screen.getByText(/First 1000 matches/)).toBeInTheDocument()
   })
@@ -214,7 +228,9 @@ describe('RegexTester (component)', () => {
     setPattern('\\d+')
     setText('abc 123 def 456')
 
-    expect(await screen.findByText('2')).toBeInTheDocument()
+    // The badge reads "2 matches", split across text nodes by the JSX — a
+    // bare getByText('2') would miss it.
+    expect(await screen.findByTestId('match-count')).toHaveTextContent('2 matches')
 
     const live = document.querySelectorAll('[aria-live]')
     expect(live).toHaveLength(1)

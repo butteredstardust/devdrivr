@@ -1078,7 +1078,11 @@ export function SettingsPanel() {
       onClose={() => setOpen(false)}
       closeLabel="Close settings"
       size="lg"
-      bodyClassName="p-0"
+      // The dialog is already a flex column capped at 90vh, so the body only has
+      // to opt into filling it. It previously carried a hard `max-h-[60vh]` on the
+      // tab content, which scrolled a three-wide theme grid of 20+ swatches
+      // through a keyhole while ~30vh of the dialog sat unused below it.
+      bodyClassName="flex min-h-0 flex-col p-0"
       titleClassName="text-[var(--color-accent)]"
       footer={
         <div className="flex w-full items-center justify-between">
@@ -1091,8 +1095,8 @@ export function SettingsPanel() {
         </div>
       }
     >
-      {/* Tab bar */}
-      <div className="flex border-b border-[var(--color-border)]">
+      {/* Tab bar — pinned; only the panel below it scrolls */}
+      <div className="flex shrink-0 border-b border-[var(--color-border)]">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -1111,7 +1115,7 @@ export function SettingsPanel() {
       </div>
 
       {/* Tab content */}
-      <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && <DataTab />}

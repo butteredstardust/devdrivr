@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
-import { getToolById } from '@/app/tool-registry'
 import { THEME_META } from '@/lib/theme'
 import { PushPinIcon, ClockIcon } from '@phosphor-icons/react'
 
@@ -53,8 +52,6 @@ export function StatusBar() {
     void updateSetting('notesDrawerOpen', true)
   }
 
-  const tool = getToolById(activeTool)
-
   // Clear stale last action when switching tools
   useEffect(() => {
     if (lastAction) clearLastAction()
@@ -72,9 +69,15 @@ export function StatusBar() {
 
   return (
     <div className="shell-chrome font-ui flex h-7 shrink-0 items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs">
-      {/* Left: active tool + last action */}
+      {/* Left: last action.
+       *
+       * The tool's name used to sit here too. The tab strip already names the
+       * active tool one strip above, and each tool now carries its own live
+       * status in its document toolbar — so this was a third copy of the least
+       * informative of the three, permanently occupying the one slot where a
+       * transient message needs to be noticed. Quiet when there's nothing to
+       * say is the right behaviour for a status bar. */}
       <div className="flex items-center gap-3">
-        <span className="font-medium text-[var(--color-text-muted)]">{tool?.name ?? ''}</span>
         {lastAction && lastAction.message && (
           <span
             key={`${lastAction.message}-${lastAction.timestamp}`}

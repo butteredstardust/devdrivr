@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { DocumentIdentity, DocumentToolbar } from '@/components/shared/Toolbar'
 import { Field } from '@/components/shared/Field'
 import { Panel } from '@/components/shared/Panel'
 import { useUiStore } from '@/stores/ui.store'
@@ -9,7 +11,14 @@ import { Input } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { ArrowsLeftRightIcon, CheckCircleIcon, XCircleIcon } from '@phosphor-icons/react'
+import {
+  ArrowsLeftRightIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  CopyIcon,
+  PaletteIcon,
+  XCircleIcon,
+} from '@phosphor-icons/react'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -478,6 +487,62 @@ function findCssName(hex: string): string | null {
   return null
 }
 
+// ── Format Row ───────────────────────────────────────────────────────
+
+/**
+ * One `LABEL: value` row in the Formats section.
+ *
+ * The whole row is the copy target. It used to be a static row with a `CopyButton`
+ * pinned to its right, which meant seven identically-labelled "Copy" buttons in a
+ * column — the label carried no information and the value, the thing you were
+ * actually aiming at, wasn't clickable. The tick replaces the trailing icon in
+ * place so the row doesn't reflow on copy.
+ */
+function FormatRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = useCopyToClipboard()
+
+  async function handleCopy() {
+    if (!(await copy(value))) return
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    /* A clickable row, not a button: no Button variant expresses a bordered surface panel with
+     * justify-between content, and overriding one's padding and background via className would
+     * fight the primitive rather than use it. */
+    // eslint-disable-next-line no-restricted-syntax -- clickable row, see above
+    <button
+      type="button"
+      onClick={() => {
+        void handleCopy()
+      }}
+      aria-label={copied ? `${label} copied` : `Copy ${label} value ${value}`}
+      className="group flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left transition-colors duration-[var(--duration-fast)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+    >
+      <div>
+        <span className="text-xs text-[var(--color-text-muted)]">{label}: </span>
+        <span className="font-mono text-sm text-[var(--color-text)]">{value}</span>
+      </div>
+      {copied ? (
+        <CheckIcon
+          size={14}
+          weight="bold"
+          aria-hidden="true"
+          className="shrink-0 text-[var(--color-success)]"
+        />
+      ) : (
+        <CopyIcon
+          size={14}
+          aria-hidden="true"
+          className="shrink-0 text-[var(--color-text-muted)] opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-visible:opacity-100"
+        />
+      )}
+    </button>
+  )
+}
+
 // ── Contrast Inputs (avoids double parseColor calls) ─────────────────
 
 function ContrastInputs({
@@ -629,7 +694,57 @@ export default function ColorConverter() {
   }, [state.contrastFg, state.contrastBg, updateState, setLastAction])
 
   return (
-    <ToolLayout maxWidth="max-w-4xl">
+    <ToolLayout
+      maxWidth="max-w-4xl"
+      toolbar={
+        // Same chrome grammar as the document tools: identity on the left, live
+        // status beside it. This tool had neither, so a parse failure showed up
+        // only as the rest of the page silently not being there.
+        <DocumentToolbar aria-label="Color status">
+          <DocumentIdentity
+            title={color ? (color.cssName ?? color.hex.toUpperCase()) : 'No color'}
+            icon={
+              color ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 rounded border border-[var(--color-border)]"
+                  style={{ backgroundColor: color.hex }}
+                />
+              ) : (
+                <PaletteIcon
+                  size={16}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-text-muted)]"
+                />
+              )
+            }
+            status={
+              color
+                ? `${color.hex.toUpperCase()} · ${formats.length} formats`
+                : state.input.trim()
+                  ? 'Unrecognised color'
+                  : 'Enter a color to convert'
+            }
+            statusTestId="color-status"
+            statusIcon={
+              color ? (
+                <CheckCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-success)]"
+                />
+              ) : state.input.trim() ? (
+                <XCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-[var(--color-error)]"
+                />
+              ) : undefined
+            }
+          />
+        </DocumentToolbar>
+      }
+    >
       <div className="flex flex-col gap-4">
         {/* ── Input ──────────────────────────────────────── */}
         <Panel title="Color Input">
@@ -691,16 +806,7 @@ export default function ColorConverter() {
             {activeSection === 'formats' && (
               <section className="flex flex-col gap-2">
                 {formats.map((f) => (
-                  <div
-                    key={f.label}
-                    className="flex items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2"
-                  >
-                    <div>
-                      <span className="text-xs text-[var(--color-text-muted)]">{f.label}: </span>
-                      <span className="font-mono text-sm text-[var(--color-text)]">{f.value}</span>
-                    </div>
-                    <CopyButton text={f.value} />
-                  </div>
+                  <FormatRow key={f.label} label={f.label} value={f.value} />
                 ))}
               </section>
             )}

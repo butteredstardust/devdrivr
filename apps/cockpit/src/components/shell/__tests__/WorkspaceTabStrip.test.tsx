@@ -771,3 +771,75 @@ describe('WorkspaceTabStrip — overflow menu', () => {
     })
   })
 })
+
+// ── Keeping the active tab in view ─────────────────────────────────
+//
+// The reveal effect used to key only on `[activeTabId, tabs]`, so it fired when
+// you *selected* a tab and never again. Everything else that can push the active
+// tab out of view — opening the notes drawer, collapsing or dragging the sidebar,
+// resizing the window — changes the strip's width without touching either
+// dependency, and left you looking at a strip with no visible active tab.
+//
+// jsdom has neither layout nor `ResizeObserver`, so both are stubbed here. That
+// makes this a test of the *wiring* (does a resize reach `scrollIntoView`, and
+// with which behaviour) rather than of the scrolling itself, which is the part
+// that was actually missing.
+describe('WorkspaceTabStrip — reveal on resize', () => {
+  function withResizeObserver(run: (trigger: () => void) => void) {
+    const callbacks: (() => void)[] = []
+    class StubResizeObserver {
+      constructor(cb: () => void) {
+        callbacks.push(cb)
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      value: StubResizeObserver,
+      configurable: true,
+      writable: true,
+    })
+    const scrollIntoView = vi.fn()
+    window.Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      run(() => callbacks.forEach((cb) => cb()))
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'ResizeObserver', original)
+      else delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver
+      delete (window.Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  }
+
+  it('scrolls the active tab back into view when the strip is resized', () => {
+    withResizeObserver((resize) => {
+      seedTabs(['json-tools', 'diff-viewer', 'base64'])
+      render(<WorkspaceTabStrip />)
+
+      const scrollIntoView = window.Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+      scrollIntoView.mockClear()
+
+      act(() => resize())
+
+      expect(scrollIntoView).toHaveBeenCalled()
+      // `auto`, not `smooth`: a sidebar resize-drag fires this on every frame,
+      // and nine overlapping smooth scrolls fight each other.
+      expect(scrollIntoView).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }))
+    })
+  })
+
+  it('does nothing when there is no active tab to reveal', () => {
+    withResizeObserver((resize) => {
+      useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+      render(<WorkspaceTabStrip />)
+
+      const scrollIntoView = window.Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+      scrollIntoView.mockClear()
+
+      act(() => resize())
+
+      expect(scrollIntoView).not.toHaveBeenCalled()
+    })
+  })
+})
