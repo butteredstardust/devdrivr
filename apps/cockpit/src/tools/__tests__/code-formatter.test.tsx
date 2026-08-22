@@ -60,17 +60,22 @@ describe('CodeFormatter', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Not formatted yet')
   })
 
-  it('keeps style options behind a disclosure so the toolbar stays narrow', () => {
+  it('keeps style options in a popover so opening them never resizes the editor', () => {
     renderTool(CodeFormatter)
     const toggle = screen.getByRole('button', { name: /Style/ })
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByLabelText('Indent width')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Indent')).not.toBeInTheDocument()
 
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('Indent width')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Style' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Indent')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Single quotes' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   // `trailingComma` was in persisted state with no control anywhere in the UI —

@@ -352,6 +352,46 @@ Import from `@/components/shared/<Name>`.
 | `SectionLabel` | The small uppercase label naming a region                        |
 | `Dialog`       | Modal; owns focus trap, escape, and backdrop                     |
 
+### Floating surfaces
+
+| Component         | Use                                                                   |
+| ----------------- | --------------------------------------------------------------------- |
+| `Dialog`          | Modal. Owns focus trap, escape, backdrop. Centred, not anchored.      |
+| `Popover`         | Anchored dismissible surface — menus, flyouts, anything above chrome  |
+| `SettingsPopover` | The toolbar options surface: gear-style trigger plus rows of settings |
+
+**Never hand-roll `absolute right-0 top-full` plus a `mousedown` effect.** Five surfaces were
+written that way before `Popover` existed and between them managed: no Escape handling at all, a
+raw `z-20` that put a menu underneath every other popover, clamping in one direction only, three
+duplicated dismiss effects in one file, and not one that returned focus to its trigger.
+
+`Popover` takes its trigger as a render prop, because `aria-expanded`, `aria-controls` and the
+anchoring ref all have to land on the same element and every hand-rolled version forgot at least
+one of the three. It anchors by the trigger's trailing edge, so it needs no measurement pass and
+never paints at the wrong coordinates; vertically it takes the room left below as `max-height` and
+scrolls rather than flipping above, since a toolbar popover that flipped would cover the thing it
+configures.
+
+#### Tool options go in a `SettingsPopover`, not a second toolbar row
+
+A collapsible options row costs more than its space: it resizes the editor underneath, so toggling
+an option relayouts the document at the moment the user is reading it, and it makes toolbar height
+a function of which tool is open. Code Formatter, TS Playground, HTML Validator and CSS Validator
+all use the popover.
+
+What stays in the toolbar:
+
+- **Anything acted on repeatedly while working.** Diff Viewer's ignore-whitespace and ignore-case
+  get cycled several times per comparison, and CSV Tools' delimiter is the first thing tried when
+  a paste won't parse. These are working controls wearing an option's clothes; a gear costs two
+  clicks per attempt. Diff Viewer keeps its second row for exactly this reason.
+- **Actions.** A popover full of settings is live-applied — no OK, no Cancel, and nothing that
+  performs an operation. A settings surface with a confirm button is a dialog in disguise.
+- **Read-outs.** A line count or a byte size is a fact about the document, not a setting.
+
+Pass `badge` wherever "back to defaults" is meaningful state. Hiding settings means the toolbar
+stops showing that any were changed; the badge is what buys that back.
+
 Use semantic variants (`info`/`success`/`warning`/`error`) rather than styling status text at the
 call site. Do not add check marks, warning glyphs, emoji, or custom SVG — the component or a
 Phosphor icon supplies the cue.

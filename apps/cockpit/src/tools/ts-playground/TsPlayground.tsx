@@ -4,7 +4,6 @@ import {
   CheckCircleIcon,
   FileTsIcon,
   FloppyDiskIcon,
-  SlidersHorizontalIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -21,6 +20,7 @@ import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { SettingsPopover, SettingsRow, SettingsSection } from '@/components/shared/SettingsPopover'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { TS_PLAYGROUND_SAMPLE } from '@/lib/tool-samples'
@@ -40,7 +40,6 @@ type TsPlaygroundState = {
   strict: boolean
   jsx: boolean
   /** Compiler options live behind a disclosure; the choice is persisted. */
-  optionsOpen: boolean
   problemsOpen: boolean
 }
 
@@ -94,7 +93,6 @@ export default function TsPlayground() {
     module: 'ESNext',
     strict: true,
     jsx: false,
-    optionsOpen: false,
     problemsOpen: true,
   })
 
@@ -107,7 +105,8 @@ export default function TsPlayground() {
   const [typesChecked, setTypesChecked] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isTranspiling, setIsTranspiling] = useState(false)
-  const optionsId = useId()
+  // Session state: a popover that restored itself open would cover the editor at launch.
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const problemsId = useId()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
@@ -290,148 +289,134 @@ export default function TsPlayground() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar aria-label="TypeScript playground actions">
-            <DocumentIdentity
-              title={state.fileName ?? 'Untitled.ts'}
-              icon={
-                <FileTsIcon
-                  size={16}
+        <DocumentToolbar border aria-label="TypeScript playground actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled.ts'}
+            icon={
+              <FileTsIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            // Only the settled result is announced. "Compiling…" goes in
+            // aria-hidden so a keystroke-triggered run does not speak twice,
+            // while the live region itself stays mounted — a region added and
+            // removed around each run announces nothing at all.
+            status={
+              isTranspiling && hasCode ? <span aria-hidden="true">{summary}</span> : settledSummary
+            }
+            statusIcon={
+              !isTranspiling && hasCode && !error && sorted.length === 0 ? (
+                <CheckCircleIcon
+                  size={12}
                   aria-hidden="true"
-                  className="shrink-0 text-[var(--color-text-muted)]"
+                  className="shrink-0 text-[var(--color-success)]"
                 />
-              }
-              // Only the settled result is announced. "Compiling…" goes in
-              // aria-hidden so a keystroke-triggered run does not speak twice,
-              // while the live region itself stays mounted — a region added and
-              // removed around each run announces nothing at all.
-              status={
-                isTranspiling && hasCode ? (
-                  <span aria-hidden="true">{summary}</span>
-                ) : (
-                  settledSummary
-                )
-              }
-              statusIcon={
-                !isTranspiling && hasCode && !error && sorted.length === 0 ? (
-                  <CheckCircleIcon
-                    size={12}
-                    aria-hidden="true"
-                    className="shrink-0 text-[var(--color-success)]"
-                  />
-                ) : !isTranspiling && sorted.length > 0 ? (
-                  <WarningCircleIcon
-                    size={12}
-                    aria-hidden="true"
-                    className="shrink-0"
-                    style={{
-                      color: errorCount > 0 ? 'var(--color-error)' : 'var(--color-warning)',
-                    }}
-                  />
-                ) : undefined
-              }
-            />
+              ) : !isTranspiling && sorted.length > 0 ? (
+                <WarningCircleIcon
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0"
+                  style={{
+                    color: errorCount > 0 ? 'var(--color-error)' : 'var(--color-warning)',
+                  }}
+                />
+              ) : undefined
+            }
+          />
 
-            <ToolbarGroup label="Playground actions" separated>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => updateState({ optionsOpen: !state.optionsOpen })}
-                aria-expanded={state.optionsOpen}
-                {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
-                className="gap-1"
-              >
-                <SlidersHorizontalIcon size={14} aria-hidden="true" />
-                Options
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleCompile}
-                disabled={!hasCode}
-                // Deliberately not `loading`: a background auto-compile would
-                // then disable the very button that requests an announced one.
-                title={`Compile now (${formatShortcut('mod+enter')})`}
-              >
-                Compile
-                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-              </Button>
-              <CopyButton text={output} label="Copy output" />
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!output}
-                onClick={() =>
-                  sendToTool('code-formatter', { input: output, language: 'javascript' })
-                }
-                title="Open the compiled JavaScript in Code Formatter"
-              >
-                Format output
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSave}
-                disabled={!output}
-                title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
-                aria-label="Save output to file"
-                className="gap-1"
-              >
-                <FloppyDiskIcon size={14} aria-hidden="true" />
-                Save
-              </Button>
-            </ToolbarGroup>
-          </DocumentToolbar>
-
-          {state.optionsOpen && (
-            <div
-              id={optionsId}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
+          <ToolbarGroup label="Playground actions" separated>
+            <SettingsPopover
+              label="Options"
+              title="Compiler options"
+              open={optionsOpen}
+              onOpenChange={setOptionsOpen}
+              description="Compiles automatically as you type."
             >
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                Target
-                <Select
-                  aria-label="Target"
-                  value={state.target}
-                  onChange={(e) => updateState({ target: e.target.value })}
-                >
-                  {TARGETS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                Module
-                <Select
-                  aria-label="Module"
-                  value={state.module}
-                  onChange={(e) => updateState({ module: e.target.value })}
-                >
-                  {MODULES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <Toggle
-                label="Strict"
-                checked={state.strict}
-                onChange={(checked) => updateState({ strict: checked })}
-              />
-              <Toggle
-                label="JSX / TSX"
-                checked={state.jsx}
-                onChange={(checked) => updateState({ jsx: checked })}
-              />
-              <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
-                Compiles automatically as you type.
-              </span>
-            </div>
-          )}
-        </div>
+              <SettingsSection>
+                <SettingsRow label="Target">
+                  <Select
+                    value={state.target}
+                    onChange={(e) => updateState({ target: e.target.value })}
+                  >
+                    {TARGETS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </Select>
+                </SettingsRow>
+                <SettingsRow label="Module">
+                  <Select
+                    value={state.module}
+                    onChange={(e) => updateState({ module: e.target.value })}
+                  >
+                    {MODULES.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </Select>
+                </SettingsRow>
+                <SettingsRow label="Strict">
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.strict}
+                      onChange={(checked) => updateState({ strict: checked })}
+                    />
+                  )}
+                </SettingsRow>
+                <SettingsRow label="JSX / TSX">
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.jsx}
+                      onChange={(checked) => updateState({ jsx: checked })}
+                    />
+                  )}
+                </SettingsRow>
+              </SettingsSection>
+            </SettingsPopover>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCompile}
+              disabled={!hasCode}
+              // Deliberately not `loading`: a background auto-compile would
+              // then disable the very button that requests an announced one.
+              title={`Compile now (${formatShortcut('mod+enter')})`}
+            >
+              Compile
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+            </Button>
+            <CopyButton text={output} label="Copy output" />
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!output}
+              onClick={() =>
+                sendToTool('code-formatter', { input: output, language: 'javascript' })
+              }
+              title="Open the compiled JavaScript in Code Formatter"
+            >
+              Format output
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSave}
+              disabled={!output}
+              title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
+              aria-label="Save output to file"
+              className="gap-1"
+            >
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
+            </Button>
+          </ToolbarGroup>
+        </DocumentToolbar>
       }
     >
       {error && (

@@ -11,7 +11,6 @@ import {
   FrameCornersIcon,
   InfoIcon,
   ListBulletsIcon,
-  SlidersHorizontalIcon,
   WarningCircleIcon,
   WarningIcon,
 } from '@phosphor-icons/react'
@@ -24,7 +23,7 @@ import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
-import { SectionLabel } from '@/components/shared/SectionLabel'
+import { SettingsPopover, SettingsSection } from '@/components/shared/SettingsPopover'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -78,7 +77,6 @@ type HtmlValidatorState = {
   savedContent: string | null
   viewMode: ViewMode
   templateId: string
-  showRules: boolean
   panel: Panel
   panelOpen: boolean
   /** Departures from the rule defaults, so new defaults still reach the user. */
@@ -103,7 +101,9 @@ export default function HtmlValidator() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'html-validator' })
-  const rulesPanelId = useId()
+  // Session state: the rules surface floats over the editor, so restoring it open would
+  // hide the document the moment the tool loads.
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const [state, updateState] = useToolState<HtmlValidatorState>('html-validator', {
     input: '',
@@ -112,7 +112,6 @@ export default function HtmlValidator() {
     savedContent: null,
     viewMode: 'split',
     templateId: TEMPLATES[0]?.id ?? 'minimal',
-    showRules: false,
     panel: 'problems',
     panelOpen: true,
     disabledRules: [],
@@ -601,203 +600,173 @@ export default function HtmlValidator() {
 
   return (
     <ToolLayout fullBleed>
-      {/* The seam belongs to the rules panel, not the toolbar: it marks the bottom of a chrome
-          block that is genuinely two rows tall. With the panel closed this header is a single
-          toolbar row, and a border would be the divider the toolbar primitive dropped. */}
-      <header
-        className={`bg-[var(--color-surface)] ${
-          state.showRules ? 'border-b border-[var(--color-border)]' : ''
-        }`}
-      >
-        <DocumentToolbar aria-label="HTML document actions">
-          <DocumentIdentity
-            title={state.fileName ?? 'Untitled document'}
-            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
-            titleTestId="file-name"
-            icon={
-              <FileHtmlIcon
-                size={16}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
-              />
-            }
-            stateLabel={isDirty ? 'Modified' : 'Saved'}
-            stateChanged={isDirty}
-            status={status}
-            statusTestId="validation-status"
-            statusIcon={
-              hasInput && hasValidated && issues.length === 0 ? (
-                <CheckCircleIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-success)]"
-                />
-              ) : errorCount > 0 ? (
-                <WarningCircleIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-error)]"
-                />
-              ) : errorCount === 0 && warningCount > 0 ? (
-                <WarningIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-warning)]"
-                />
-              ) : undefined
-            }
-          />
-
-          <ToolbarGroup label="View controls" separated>
-            <SegmentedControl
-              aria-label="View mode"
-              options={VIEW_OPTIONS}
-              value={viewMode}
-              onChange={(next) => updateState({ viewMode: next })}
+      <DocumentToolbar aria-label="HTML document actions">
+        <DocumentIdentity
+          title={state.fileName ?? 'Untitled document'}
+          titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
+          titleTestId="file-name"
+          icon={
+            <FileHtmlIcon
+              size={16}
+              aria-hidden="true"
+              className="shrink-0 text-[var(--color-text-muted)]"
             />
-          </ToolbarGroup>
+          }
+          stateLabel={isDirty ? 'Modified' : 'Saved'}
+          stateChanged={isDirty}
+          status={status}
+          statusTestId="validation-status"
+          statusIcon={
+            hasInput && hasValidated && issues.length === 0 ? (
+              <CheckCircleIcon
+                size={12}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-success)]"
+              />
+            ) : errorCount > 0 ? (
+              <WarningCircleIcon
+                size={12}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-error)]"
+              />
+            ) : errorCount === 0 && warningCount > 0 ? (
+              <WarningIcon
+                size={12}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-warning)]"
+              />
+            ) : undefined
+          }
+        />
 
-          <ToolbarGroup label="Document actions" separated>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={handleNew}
-              title="New HTML document"
-              aria-label="New HTML document"
-            >
-              <FilePlusIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleOpen()}
-              title={`Open an .html file (${formatShortcut('mod+o')})`}
-              aria-label="Open HTML file"
-            >
-              <FolderOpenIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleSave()}
-              title={`Save the document (${formatShortcut('mod+s')})`}
-              aria-label="Save HTML document"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-            </Button>
-          </ToolbarGroup>
+        <ToolbarGroup label="View controls" separated>
+          <SegmentedControl
+            aria-label="View mode"
+            options={VIEW_OPTIONS}
+            value={viewMode}
+            onChange={(next) => updateState({ viewMode: next })}
+          />
+        </ToolbarGroup>
 
-          <ToolbarGroup label="Template actions" separated>
-            <Select
-              aria-label="Starter template"
-              value={state.templateId}
-              onChange={(e) => updateState({ templateId: e.target.value })}
-            >
-              {TEMPLATES.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.label}
-                </option>
-              ))}
-            </Select>
-            <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
-              Load
-            </Button>
-          </ToolbarGroup>
+        <ToolbarGroup label="Document actions" separated>
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={handleNew}
+            title="New HTML document"
+            aria-label="New HTML document"
+          >
+            <FilePlusIcon size={14} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={() => void handleOpen()}
+            title={`Open an .html file (${formatShortcut('mod+o')})`}
+            aria-label="Open HTML file"
+          >
+            <FolderOpenIcon size={14} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={() => void handleSave()}
+            title={`Save the document (${formatShortcut('mod+s')})`}
+            aria-label="Save HTML document"
+          >
+            <FloppyDiskIcon size={14} aria-hidden="true" />
+          </Button>
+        </ToolbarGroup>
 
-          <ToolbarGroup label="Markup output" separated>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void handleFormat()}
-              disabled={!hasInput || isFormatting}
-              loading={isFormatting}
-              title={`Reformat the markup (${formatShortcut('mod+enter')})`}
-            >
-              Format
-              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-            </Button>
-            <CopyButton text={input} label="Copy HTML" />
-          </ToolbarGroup>
+        <ToolbarGroup label="Template actions" separated>
+          <Select
+            aria-label="Starter template"
+            value={state.templateId}
+            onChange={(e) => updateState({ templateId: e.target.value })}
+          >
+            {TEMPLATES.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.label}
+              </option>
+            ))}
+          </Select>
+          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+            Load
+          </Button>
+        </ToolbarGroup>
 
-          {/* `aria-controls` is conditional because the panel only exists while open, and an
+        <ToolbarGroup label="Markup output" separated>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void handleFormat()}
+            disabled={!hasInput || isFormatting}
+            loading={isFormatting}
+            title={`Reformat the markup (${formatShortcut('mod+enter')})`}
+          >
+            Format
+            <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+          </Button>
+          <CopyButton text={input} label="Copy HTML" />
+        </ToolbarGroup>
+
+        {/* `aria-controls` is conditional because the panel only exists while open, and an
               `aria-controls` pointing at an unrendered id is worse than none — it sends the user's
               cursor nowhere. Matches css-validator, which already had it this way. */}
-          <Button
-            variant={state.showRules ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => updateState({ showRules: !state.showRules })}
-            aria-expanded={state.showRules}
-            {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
-            className="gap-1"
-          >
-            <SlidersHorizontalIcon size={14} aria-hidden="true" />
-            Rules
-            {overrideCount > 0 && (
-              <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
-                {overrideCount}
-              </span>
-            )}
-          </Button>
-        </DocumentToolbar>
-
-        {state.showRules && (
-          <section
-            id={rulesPanelId}
-            aria-label="Validation rules"
-            className="max-h-56 overflow-auto border-t border-[var(--color-border)] px-4 py-3"
-          >
-            <div className="mb-2 flex items-center gap-3">
-              <p className="text-2xs text-[var(--color-text-muted)]">
-                {overrideCount === 0
-                  ? 'Using the default rules.'
-                  : `${overrideCount} rule${overrideCount === 1 ? '' : 's'} changed from the defaults.`}
-              </p>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleResetRules}
-                disabled={overrideCount === 0}
-              >
-                Reset to defaults
-              </Button>
-            </div>
-            <div className="grid gap-x-8 gap-y-3 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-4">
-              {RULE_CATEGORIES.map((category) => (
-                <div key={category.id}>
-                  <SectionLabel as="h2" className="mb-1">
-                    {category.label}
-                  </SectionLabel>
-                  {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
-                    const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
-                    return (
-                      <label
-                        key={rule.id}
-                        // The hint explains *why* — the rule ids alone told the
-                        // user nothing they could act on.
-                        title={`${rule.id} — ${rule.hint}`}
-                        className="flex cursor-pointer items-start gap-1.5 py-0.5 text-xs"
-                      >
-                        <Checkbox
-                          checked={enabled}
-                          onChange={(e) => handleToggleRule(rule, e.target.checked)}
-                          className="mt-0.5"
-                        />
-                        <span
-                          className={
-                            enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
-                          }
-                        >
-                          {rule.label}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </header>
+        <SettingsPopover
+          label="Rules"
+          title="Validation rules"
+          open={rulesOpen}
+          onOpenChange={setRulesOpen}
+          badge={overrideCount}
+          width="lg"
+          description={
+            overrideCount === 0
+              ? 'Using the default rules.'
+              : `${overrideCount} rule${overrideCount === 1 ? '' : 's'} changed from the defaults.`
+          }
+          footer={
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleResetRules}
+              disabled={overrideCount === 0}
+            >
+              Reset to defaults
+            </Button>
+          }
+        >
+          {RULE_CATEGORIES.map((category) => (
+            <SettingsSection key={category.id} title={category.label} dense>
+              {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
+                const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
+                return (
+                  <label
+                    key={rule.id}
+                    // The hint explains *why* — the rule ids alone told the
+                    // user nothing they could act on.
+                    title={`${rule.id} — ${rule.hint}`}
+                    className="flex cursor-pointer items-start gap-1.5 text-xs"
+                  >
+                    <Checkbox
+                      checked={enabled}
+                      onChange={(e) => handleToggleRule(rule, e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span
+                      className={
+                        enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
+                      }
+                    >
+                      {rule.label}
+                    </span>
+                  </label>
+                )
+              })}
+            </SettingsSection>
+          ))}
+        </SettingsPopover>
+      </DocumentToolbar>
 
       {formatError && (
         <Alert

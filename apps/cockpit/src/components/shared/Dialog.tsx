@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { XIcon } from '@phosphor-icons/react'
+import { cycleFocus, getFocusableElements } from '@/lib/focus'
 
 /**
  * The dialog width scale.
@@ -40,21 +41,6 @@ type DialogProps = {
   closeLabel?: string
   initialFocusRef?: RefObject<HTMLElement | null>
   onOpenAutoFocus?: (target: HTMLElement) => void
-}
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
-
-function getFocusableElements(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
-    return el.tabIndex >= 0 && el.getAttribute('aria-hidden') !== 'true'
-  })
 }
 
 export function Dialog({
@@ -103,26 +89,8 @@ export function Dialog({
     const panel = panelRef.current
     if (!panel) return
 
-    const focusable = getFocusableElements(panel)
-    if (focusable.length === 0) {
+    if (cycleFocus(panel, { shiftKey: e.shiftKey }) === 'wrapped') {
       e.preventDefault()
-      panel.focus()
-      return
-    }
-
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const active = document.activeElement
-
-    if (e.shiftKey && (!active || active === first || !panel.contains(active))) {
-      e.preventDefault()
-      last?.focus()
-      return
-    }
-
-    if (!e.shiftKey && active === last) {
-      e.preventDefault()
-      first?.focus()
     }
   }
 

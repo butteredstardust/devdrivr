@@ -9,7 +9,6 @@ import {
   FloppyDiskIcon,
   FolderOpenIcon,
   InfoIcon,
-  SlidersHorizontalIcon,
   WarningCircleIcon,
   WarningIcon,
 } from '@phosphor-icons/react'
@@ -23,7 +22,7 @@ import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/use
 import { ProblemsList } from '@/components/shared/ProblemsList'
 import { Alert } from '@/components/shared/Alert'
 import { Kbd } from '@/components/shared/Kbd'
-import { SectionLabel } from '@/components/shared/SectionLabel'
+import { SettingsPopover, SettingsSection } from '@/components/shared/SettingsPopover'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
@@ -71,7 +70,6 @@ type CssValidatorState = {
    */
   savedContent: string | null
   templateId: string
-  showRules: boolean
   panel: Panel
   panelOpen: boolean
   /** Departures from the rule defaults, so new defaults still reach the user. */
@@ -104,7 +102,9 @@ export default function CssValidator() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const { record } = useToolHistory({ toolId: 'css-validator' })
-  const rulesPanelId = useId()
+  // Session state: the rules surface floats over the editor, so restoring it open would
+  // hide the document the moment the tool loads.
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const [state, updateState] = useToolState<CssValidatorState>('css-validator', {
     input: '',
@@ -112,7 +112,6 @@ export default function CssValidator() {
     filePath: null,
     savedContent: null,
     templateId: TEMPLATES[0]?.id ?? 'flexbox',
-    showRules: false,
     panel: 'problems',
     panelOpen: true,
     disabledRules: [],
@@ -525,202 +524,172 @@ export default function CssValidator() {
 
   return (
     <ToolLayout fullBleed>
-      {/* The seam belongs to the rules panel, not the toolbar: it marks the bottom of a chrome
-          block that is genuinely two rows tall. With the panel closed this header is a single
-          toolbar row, and a border would be the divider the toolbar primitive dropped. */}
-      <header
-        className={`bg-[var(--color-surface)] ${
-          state.showRules ? 'border-b border-[var(--color-border)]' : ''
-        }`}
-      >
-        <DocumentToolbar aria-label="Stylesheet actions">
-          <DocumentIdentity
-            title={state.fileName ?? 'Untitled stylesheet'}
-            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}
-            titleTestId="file-name"
-            icon={
-              <FileCssIcon
-                size={16}
+      <DocumentToolbar aria-label="Stylesheet actions">
+        <DocumentIdentity
+          title={state.fileName ?? 'Untitled stylesheet'}
+          titleTooltip={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}
+          titleTestId="file-name"
+          icon={
+            <FileCssIcon
+              size={16}
+              aria-hidden="true"
+              className="shrink-0 text-[var(--color-text-muted)]"
+            />
+          }
+          stateLabel={isDirty ? 'Modified' : 'Saved'}
+          stateChanged={isDirty}
+          status={status}
+          statusTestId="validation-status"
+          statusIcon={
+            hasInput && hasAnalyzed && issues.length === 0 ? (
+              <CheckCircleIcon
+                size={12}
                 aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
+                className="shrink-0 text-[var(--color-success)]"
               />
-            }
-            stateLabel={isDirty ? 'Modified' : 'Saved'}
-            stateChanged={isDirty}
-            status={status}
-            statusTestId="validation-status"
-            statusIcon={
-              hasInput && hasAnalyzed && issues.length === 0 ? (
-                <CheckCircleIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-success)]"
-                />
-              ) : errorCount > 0 ? (
-                <WarningCircleIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-error)]"
-                />
-              ) : errorCount === 0 && warningCount > 0 ? (
-                <WarningIcon
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 text-[var(--color-warning)]"
-                />
-              ) : undefined
-            }
-          />
+            ) : errorCount > 0 ? (
+              <WarningCircleIcon
+                size={12}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-error)]"
+              />
+            ) : errorCount === 0 && warningCount > 0 ? (
+              <WarningIcon
+                size={12}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-warning)]"
+              />
+            ) : undefined
+          }
+        />
 
-          <ToolbarGroup label="Document actions" separated>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={handleNew}
-              title="New stylesheet"
-              aria-label="New stylesheet"
-            >
-              <FilePlusIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleOpen()}
-              title={`Open a .css file (${formatShortcut('mod+o')})`}
-              aria-label="Open CSS file"
-            >
-              <FolderOpenIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleSave()}
-              title={`Save the stylesheet (${formatShortcut('mod+s')})`}
-              aria-label="Save stylesheet"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-            </Button>
-          </ToolbarGroup>
-
-          <ToolbarGroup label="Template actions" separated>
-            <Select
-              aria-label="Stylesheet syntax"
-              value={state.syntax}
-              onChange={(event) =>
-                updateState({ syntax: event.target.value as CssValidatorState['syntax'] })
-              }
-            >
-              <option value="css">CSS</option>
-              <option value="scss">SCSS</option>
-              <option value="less">Less</option>
-            </Select>
-            <Select
-              aria-label="Starter template"
-              value={state.templateId}
-              onChange={(e) => updateState({ templateId: e.target.value })}
-            >
-              {TEMPLATES.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.label}
-                </option>
-              ))}
-            </Select>
-            <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
-              Load
-            </Button>
-          </ToolbarGroup>
-
-          <ToolbarGroup label="Stylesheet output" separated>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void handleFormat()}
-              disabled={!hasInput || isFormatting || !formatter}
-              loading={isFormatting}
-              title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
-            >
-              Format
-              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-            </Button>
-            <CopyButton text={input} label="Copy CSS" />
-          </ToolbarGroup>
-
+        <ToolbarGroup label="Document actions" separated>
           <Button
-            variant={state.showRules ? 'secondary' : 'ghost'}
+            variant="icon"
             size="sm"
-            onClick={() => updateState({ showRules: !state.showRules })}
-            aria-expanded={state.showRules}
-            {...(state.showRules ? { 'aria-controls': rulesPanelId } : {})}
-            className="gap-1"
+            onClick={handleNew}
+            title="New stylesheet"
+            aria-label="New stylesheet"
           >
-            <SlidersHorizontalIcon size={14} aria-hidden="true" />
-            Rules
-            {overrideCount > 0 && (
-              <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-2xs text-[var(--color-bg)]">
-                {overrideCount}
-              </span>
-            )}
+            <FilePlusIcon size={14} aria-hidden="true" />
           </Button>
-        </DocumentToolbar>
-
-        {state.showRules && (
-          <section
-            id={rulesPanelId}
-            aria-label="Lint rules"
-            className="max-h-56 overflow-auto border-t border-[var(--color-border)] px-4 py-3"
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={() => void handleOpen()}
+            title={`Open a .css file (${formatShortcut('mod+o')})`}
+            aria-label="Open CSS file"
           >
-            <div className="mb-2 flex items-center gap-3">
-              <p className="text-2xs text-[var(--color-text-muted)]">
-                {overrideCount === 0
-                  ? 'Using the default rules.'
-                  : `${overrideCount} rule${overrideCount === 1 ? '' : 's'} changed from the defaults.`}
-              </p>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleResetRules}
-                disabled={overrideCount === 0}
-              >
-                Reset to defaults
-              </Button>
-            </div>
-            <div className="grid gap-x-8 gap-y-3 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3">
-              {RULE_CATEGORIES.map((category) => (
-                <div key={category.id}>
-                  <SectionLabel as="h2" className="mb-1">
-                    {category.label}
-                  </SectionLabel>
-                  {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
-                    const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
-                    return (
-                      <label
-                        key={rule.id}
-                        // The hint explains *why* — the rule ids alone told the
-                        // user nothing they could act on.
-                        title={`${rule.id} — ${rule.hint}`}
-                        className="flex cursor-pointer items-start gap-1.5 py-0.5 text-xs"
-                      >
-                        <Checkbox
-                          checked={enabled}
-                          onChange={(e) => handleToggleRule(rule, e.target.checked)}
-                          className="mt-0.5"
-                        />
-                        <span
-                          className={
-                            enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
-                          }
-                        >
-                          {rule.label}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </header>
+            <FolderOpenIcon size={14} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="icon"
+            size="sm"
+            onClick={() => void handleSave()}
+            title={`Save the stylesheet (${formatShortcut('mod+s')})`}
+            aria-label="Save stylesheet"
+          >
+            <FloppyDiskIcon size={14} aria-hidden="true" />
+          </Button>
+        </ToolbarGroup>
+
+        <ToolbarGroup label="Template actions" separated>
+          <Select
+            aria-label="Stylesheet syntax"
+            value={state.syntax}
+            onChange={(event) =>
+              updateState({ syntax: event.target.value as CssValidatorState['syntax'] })
+            }
+          >
+            <option value="css">CSS</option>
+            <option value="scss">SCSS</option>
+            <option value="less">Less</option>
+          </Select>
+          <Select
+            aria-label="Starter template"
+            value={state.templateId}
+            onChange={(e) => updateState({ templateId: e.target.value })}
+          >
+            {TEMPLATES.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.label}
+              </option>
+            ))}
+          </Select>
+          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+            Load
+          </Button>
+        </ToolbarGroup>
+
+        <ToolbarGroup label="Stylesheet output" separated>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void handleFormat()}
+            disabled={!hasInput || isFormatting || !formatter}
+            loading={isFormatting}
+            title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
+          >
+            Format
+            <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+          </Button>
+          <CopyButton text={input} label="Copy CSS" />
+        </ToolbarGroup>
+
+        <SettingsPopover
+          label="Rules"
+          title="Lint rules"
+          open={rulesOpen}
+          onOpenChange={setRulesOpen}
+          badge={overrideCount}
+          width="lg"
+          description={
+            overrideCount === 0
+              ? 'Using the default rules.'
+              : `${overrideCount} rule${overrideCount === 1 ? '' : 's'} changed from the defaults.`
+          }
+          footer={
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleResetRules}
+              disabled={overrideCount === 0}
+            >
+              Reset to defaults
+            </Button>
+          }
+        >
+          {RULE_CATEGORIES.map((category) => (
+            <SettingsSection key={category.id} title={category.label} dense>
+              {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
+                const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
+                return (
+                  <label
+                    key={rule.id}
+                    // The hint explains *why* — the rule ids alone told the
+                    // user nothing they could act on.
+                    title={`${rule.id} — ${rule.hint}`}
+                    className="flex cursor-pointer items-start gap-1.5 text-xs"
+                  >
+                    <Checkbox
+                      checked={enabled}
+                      onChange={(e) => handleToggleRule(rule, e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span
+                      className={
+                        enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
+                      }
+                    >
+                      {rule.label}
+                    </span>
+                  </label>
+                )
+              })}
+            </SettingsSection>
+          ))}
+        </SettingsPopover>
+      </DocumentToolbar>
 
       {formatError && (
         <Alert

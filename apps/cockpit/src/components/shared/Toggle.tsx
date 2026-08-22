@@ -5,9 +5,23 @@ type ToggleProps = {
   onChange: (checked: boolean) => void
   label?: string
   disabled?: boolean
+  /**
+   * Names the switch from text rendered elsewhere — a `SettingsRow` label, say. A switch is a
+   * `<button role="switch">`, which is not a labelable element, so an enclosing `<label>` gives
+   * it no name; without one of these it is announced as an unnamed button.
+   */
+  'aria-labelledby'?: string
+  'aria-label'?: string
 }
 
-export function Toggle({ checked, onChange, label, disabled = false }: ToggleProps) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-label': ariaLabel,
+}: ToggleProps) {
   const id = useId()
 
   return (
@@ -16,6 +30,8 @@ export function Toggle({ checked, onChange, label, disabled = false }: TogglePro
         id={id}
         role="switch"
         aria-checked={checked}
+        aria-labelledby={ariaLabelledBy}
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--duration-panel)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
