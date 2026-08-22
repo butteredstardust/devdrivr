@@ -76,7 +76,12 @@ export function TitleBar() {
 
   return (
     <div
-      className={`shell-chrome font-ui relative flex h-11 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3`}
+      // The hairline is an inset shadow rather than `border-b` so this row's content box stays an
+      // even 44px. With a border it was 43px, and centring an even-sized icon in an odd box lands it
+      // on a half pixel — which is why every control up here (window buttons, notes, settings,
+      // shortcuts, and the palette's magnifier) rendered a touch soft and low. Shadow draws the same
+      // 1px line without taking a pixel out of the box.
+      className={`shell-chrome font-ui relative flex h-11 shrink-0 items-center bg-[var(--color-surface)] px-3 shadow-[inset_0_-1px_0_var(--color-border)]`}
     >
       <div
         data-tauri-drag-region

@@ -27,6 +27,13 @@
   --font-mono: 'Source Code Pro', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --text-2xs: 0.625rem;
+  /* Pair every font size with a line height that lands on a whole pixel. Without this, `text-2xs`
+     fell back to the ratio Tailwind derives for unpaired sizes and computed to 13.333px. A
+     fractional line box makes its element fractionally tall, and once one flex item in a row is
+     33.328px instead of 34px, every sibling centred against it — icons especially — is laid out on
+     a half pixel and renders soft and visibly off-centre. The ⌘K keycap in the title-bar search did
+     exactly that to the magnifier beside it. 10px x 1.4 = 14px. */
+  --text-2xs--line-height: 1.4;
 }
 
 *,

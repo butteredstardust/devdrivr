@@ -18,10 +18,17 @@ export type SearchInputProps = Omit<
   className?: string
 }
 
-/** Icon geometry per size: magnifier px, clear glyph px, and the padding that clears them. */
+/**
+ * Icon geometry per size: magnifier px, clear glyph px, and the padding that clears them.
+ *
+ * All four are even on purpose. These glyphs are centred in an even-height box, so an odd size
+ * leaves an odd remainder to split and puts the icon on a half pixel, where it renders soft and
+ * reads as slightly low. The sizes were 13/11 and 15/13; a pixel either way is invisible, a half
+ * pixel of blur is not.
+ */
 const SIZES: Record<SearchInputSize, { icon: number; clear: number; padding: string }> = {
-  sm: { icon: 13, clear: 11, padding: 'pl-7 pr-7' },
-  md: { icon: 15, clear: 13, padding: 'pl-8 pr-8' },
+  sm: { icon: 12, clear: 10, padding: 'pl-7 pr-7' },
+  md: { icon: 16, clear: 12, padding: 'pl-8 pr-8' },
 }
 
 /**
@@ -46,7 +53,15 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
     const geometry = SIZES[size]
 
     return (
-      <div className={`relative ${className}`}>
+      // `flex`, not the bare `relative` this used to be. An `<input>` is inline-block, so a block
+      // wrapper builds a line box around it and adds the strut's descender space underneath: the
+      // wrapper measured 24.5px around a 22px field. The magnifier is centred on the wrapper, so it
+      // sat 1.25px below the centre of the field it belongs to — the "magnifier isn't centred in the
+      // search box" you can see once you look for it. Flex blockifies the field, so the wrapper is
+      // exactly as tall as it is. It also stops the half-pixel leaking outward: the sidebar header
+      // holds one of these, so its fractional height was making the tool list's `flex-1` 733.5px and
+      // putting every icon below it on a half pixel too.
+      <div className={`relative flex ${className}`}>
         <MagnifyingGlassIcon
           size={geometry.icon}
           aria-hidden="true"
