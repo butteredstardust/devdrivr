@@ -89,9 +89,10 @@ bun run build:web    # Production web build
 
 ## Screenshots
 
-![Code Formatter with JavaScript source and formatting options](screenshots/cockpit-code-formatter.png)
+![Code Formatter with the Style popover open over formatted JavaScript](screenshots/cockpit-code-formatter.png)
 
-**Format** — Prettier-backed formatting with indent, quote, semicolon, and trailing-comma controls.
+**Format** — Prettier-backed formatting, with indent, quote, semicolon, and trailing-comma controls
+in a popover that floats over your code instead of pushing it around.
 
 ![Diff Viewer comparing two files side by side above a unified patch](screenshots/cockpit-code-tools.png)
 
@@ -105,9 +106,10 @@ bun run build:web    # Production web build
 
 **Tabular** — Read CSV as a sortable table, convert it to JSON, or validate it against a schema.
 
-![API Client with a saved request library and request workspace](screenshots/cockpit-api-client.png)
+![API Client showing a GET request and its 200 OK JSON response](screenshots/cockpit-api-client.png)
 
-**Network** — Organize saved requests, environments, authentication, and responses.
+**Network** — Send requests and read responses, with a saved request library, environments, and
+authentication a panel away.
 
 ![Markdown Editor showing source and rendered preview](screenshots/cockpit-writing-tools.png)
 
