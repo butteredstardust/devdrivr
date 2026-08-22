@@ -338,7 +338,10 @@ export function WorkspaceTabStrip() {
   const hasRight = contextTabIdx !== -1 && tabs.slice(contextTabIdx + 1).some((t) => !t.pinned)
 
   return (
-    <div className="font-ui relative flex h-9 shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+    // Inset shadow rather than `border-b`, for the same reason as the title bar: the border ate a
+    // pixel out of `h-9`, leaving an odd 35px content box for the full-height tab buttons to centre
+    // their icons in.
+    <div className="font-ui relative flex h-9 shrink-0 bg-[var(--color-surface)] shadow-[inset_0_-1px_0_var(--color-border)]">
       {/* Scrollable tab row */}
       <div
         ref={scrollRef}

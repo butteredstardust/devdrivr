@@ -23,14 +23,7 @@
     "fs:default",
     {
       "identifier": "http:default",
-      "allow": [
-        { "url": "https://github.com/**" },
-        { "url": "https://objects.githubusercontent.com/**" },
-        { "url": "https://raw.githubusercontent.com/**" },
-        { "url": "https://json.schemastore.org/**" },
-        { "url": "https://json-schema.org/**" },
-        { "url": "https://devdocs.io/**" }
-      ]
+      "allow": [{ "url": "http://*:*" }, { "url": "https://*:*" }]
     },
     "dialog:default",
     "fs:allow-read-text-file",
