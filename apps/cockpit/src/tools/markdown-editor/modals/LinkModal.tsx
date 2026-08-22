@@ -62,6 +62,7 @@ export function LinkModal({ initialText = '', onInsert, onClose }: Props) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://example.com"
+            monospace
             size="md"
           />
         </Field>

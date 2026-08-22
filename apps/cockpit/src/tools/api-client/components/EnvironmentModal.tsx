@@ -235,7 +235,7 @@ export function EnvironmentModal({ onClose }: Props) {
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                  <h3 className="text-xs text-[var(--color-text-muted)]">
                     Variables — use as <code>{'{{name}}'}</code>
                   </h3>
                   <Button

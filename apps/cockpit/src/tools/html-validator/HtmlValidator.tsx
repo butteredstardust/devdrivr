@@ -57,6 +57,7 @@ import {
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
 import { ProblemsList } from '@/components/shared/ProblemsList'
+import { Checkbox } from '@/components/shared/Checkbox'
 import { formatShortcut } from '@/lib/shortcut-label'
 import type { HtmlWorker } from '@/workers/html.worker'
 import HtmlWorkerFactory from '@/workers/html.worker?worker'
@@ -776,11 +777,10 @@ export default function HtmlValidator() {
                         title={`${rule.id} — ${rule.hint}`}
                         className="flex cursor-pointer items-start gap-1.5 py-0.5 text-xs"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={enabled}
                           onChange={(e) => handleToggleRule(rule, e.target.checked)}
-                          className="mt-0.5 accent-[var(--color-accent)]"
+                          className="mt-0.5"
                         />
                         <span
                           className={

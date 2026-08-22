@@ -1276,7 +1276,7 @@ function ExportPanel({
         <div>
           <div className="mb-2 flex items-center justify-between">
             <SectionLabel as="div">Quality</SectionLabel>
-            <span className="font-mono text-xs text-[var(--color-text)]">{quality}%</span>
+            <span className="text-xs tabular-nums text-[var(--color-text)]">{quality}%</span>
           </div>
           <input
             type="range"

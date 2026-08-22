@@ -122,6 +122,38 @@ Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
 **The split is semantic, not decorative:** chrome is `font-ui`, content the user typed or the tool
 produced is `font-mono`. A _label naming_ a monospace region is chrome and takes `font-ui`.
 
+#### `--font-ui` is the inherited default; monospace is opted into
+
+`html, body, #root` set `font-family: var(--font-ui)`, so **chrome needs no font class at all** —
+a `<span>` with no font utility is already correct. Only content opts out, and it does so in one
+of four ways, in order of preference:
+
+1. **The right tag.** `pre`, `code`, `kbd` and `samp` are monospace by a base rule in `index.css`.
+   Tool output rendered in `<code>` or `<pre>` needs nothing else.
+2. **A primitive's `monospace` prop.** `Input` and `TextArea` both take one; it is off by default,
+   because a field is chrome until proven otherwise. Turn it on for URLs, header values, JSONPath,
+   identifiers, tokens, colour literals — anything read character by character.
+3. **`font-mono` on the container** of a content region (a tree view, a results pane), so every
+   row inherits it rather than repeating the class.
+4. **`font-mono` on the element**, last resort.
+
+This was inverted until the typography pass. With mono inherited, every label, badge, status line
+and empty state had to _remember_ `font-ui` or silently render monospace — three of forty-six tool
+files did, so a tool title in system-ui routinely sat beside its own status text in Source Code
+Pro, in the same toolbar row. Do not flip it back: the default must be the case that needs the
+fewest exceptions, and chrome outnumbers content by an order of magnitude.
+
+Two consequences worth knowing:
+
+- `--font-mono` is **theme-dependent** — 11 of the 22 themes pick `'Source Code Pro'`, the rest a
+  generic `ui-monospace` stack. Both the `font-mono` utility and the tag rule read the same
+  variable, so they always agree within a theme. Never hard-code a family.
+- The `neon-brutalist` theme sets `--font-ui: var(--font-mono)` on purpose, for an all-mono
+  aesthetic.
+  That keeps working precisely _because_ chrome reads `--font-ui` rather than naming a family, and
+  it is the reason chrome must never be given `font-mono` "to look right" — that would make the
+  theme unable to opt out.
+
 ### Size scale
 
 Five sizes. Nothing else. `text-[13px]` and friends are a lint error.

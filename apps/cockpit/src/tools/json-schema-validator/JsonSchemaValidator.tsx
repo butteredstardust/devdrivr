@@ -683,6 +683,7 @@ export default function JsonSchemaValidator() {
                 <Input
                   type="url"
                   aria-label="Schema URL"
+                  monospace
                   placeholder="Schema URL"
                   value={state.schemaUrl}
                   onChange={(e) => updateState({ schemaUrl: e.target.value })}

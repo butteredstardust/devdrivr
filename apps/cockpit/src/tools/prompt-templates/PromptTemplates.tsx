@@ -66,6 +66,7 @@ import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { sendToTool } from '@/lib/tool-handoff'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { Checkbox } from '@/components/shared/Checkbox'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -144,7 +145,7 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
     <div className="space-y-3">
       {template.variables.map((variable) => (
         <label key={variable.name} className="block">
-          <span className="mb-1 flex items-center gap-1 font-mono text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
+          <span className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
             {variable.label}
             {variable.required && <span className="text-[var(--color-error)]">*</span>}
           </span>
@@ -168,6 +169,7 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
               placeholder={variable.placeholder}
               rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
               aria-label={variable.label}
+              monospace
               className="min-h-24 resize-none"
             />
           ) : (
@@ -175,6 +177,7 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
               value={values[variable.name] ?? ''}
               onChange={(event) => onChange(variable.name, event.target.value)}
               placeholder={variable.placeholder}
+              monospace
               className="w-full"
               aria-label={variable.label}
             />
@@ -199,7 +202,7 @@ function PreviewPane({ renderedPrompt, tokens, missingVariables }: PreviewPanePr
       <PaneHeader
         title="Preview"
         actions={
-          <span className={`font-mono rounded border px-2 py-0.5 text-2xs ${tokenClass(tone)}`}>
+          <span className={`rounded border px-2 py-0.5 text-2xs tabular-nums ${tokenClass(tone)}`}>
             ~{tokens} tokens (chars/4 estimate)
           </span>
         }
@@ -346,7 +349,9 @@ function QuickFillModal({
             <VariableForm template={template} values={values} onChange={onChange} />
           </div>
           <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
-            <span className={`rounded border px-2 py-0.5 font-mono text-2xs ${tokenClass(tone)}`}>
+            <span
+              className={`rounded border px-2 py-0.5 text-2xs tabular-nums ${tokenClass(tone)}`}
+            >
               ~{tokens} tokens (chars/4 estimate)
             </span>
             <div className="flex gap-2">
@@ -702,8 +707,7 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
                       ))}
                     </Select>
                     <label className="flex items-center justify-center gap-1 text-2xs text-[var(--color-text-muted)]">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={variable.required ?? false}
                         onChange={(event) =>
                           setDraft((current) => ({

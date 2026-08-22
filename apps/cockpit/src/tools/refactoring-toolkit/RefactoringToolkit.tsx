@@ -22,6 +22,7 @@ import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
 import { saveFileDialog } from '@/lib/file-io'
 import { REFACTORING_SAMPLE } from '@/lib/tool-samples'
@@ -100,18 +101,12 @@ function IndeterminateCheckbox({
   onChange: () => void
   'aria-label': string
 }) {
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = indeterminate
-  }, [indeterminate])
   return (
-    <input
-      ref={ref}
-      type="checkbox"
+    <Checkbox
+      indeterminate={indeterminate}
       checked={checked}
       onChange={onChange}
       aria-label={ariaLabel}
-      className="accent-[var(--color-accent)]"
     />
   )
 }
@@ -554,6 +549,7 @@ export default function RefactoringToolkit() {
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     aria-label="Identifier to rename"
+                    monospace
                     placeholder="oldName"
                     value={state.customFind}
                     onChange={(event) =>
@@ -562,6 +558,7 @@ export default function RefactoringToolkit() {
                   />
                   <Input
                     aria-label="Replacement identifier"
+                    monospace
                     placeholder="newName"
                     value={state.customReplace}
                     onChange={(event) =>
@@ -613,11 +610,10 @@ export default function RefactoringToolkit() {
                           key={transform.id}
                           className="mb-1 flex cursor-pointer items-start gap-2 rounded p-1.5 text-xs hover:bg-[var(--color-surface-hover)]"
                         >
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={selectedTransforms.includes(transform.id)}
                             onChange={() => toggleTransform(transform.id)}
-                            className="mt-0.5 accent-[var(--color-accent)]"
+                            className="mt-0.5"
                           />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5">

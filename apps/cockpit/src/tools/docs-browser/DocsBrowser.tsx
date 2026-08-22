@@ -122,7 +122,7 @@ export default function DocsBrowser({ defaultLoadError = false, frameSrc }: Docs
                 ))}
               </Select>
             )}
-            <span className="font-mono text-xs text-[var(--color-text-muted)]">{label}</span>
+            <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
             <Button variant="secondary" size="sm" onClick={handleRetry}>
               Reload
             </Button>

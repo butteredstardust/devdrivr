@@ -297,7 +297,7 @@ export default function JwtDecoder() {
       {/* Token input */}
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
-          <span className="font-mono text-xs text-[var(--color-text-muted)]">JWT Token</span>
+          <span className="text-xs text-[var(--color-text-muted)]">JWT Token</span>
           {claimWindow && (
             <StatusBadge variant={claimWindowVariant(claimWindow.state)}>
               {WINDOW_LABELS[claimWindow.state]} · {claimWindow.relative}
@@ -458,7 +458,7 @@ export default function JwtDecoder() {
               {/* Header */}
               <section>
                 <div className="mb-1 flex items-center justify-between">
-                  <h3 className="font-mono text-xs text-[var(--color-info)]">Header</h3>
+                  <h3 className="text-xs text-[var(--color-info)]">Header</h3>
                   <CopyButton text={JSON.stringify(decoded.header, null, 2)} />
                 </div>
                 <pre className="rounded border border-[var(--color-info)]/30 bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
@@ -469,7 +469,7 @@ export default function JwtDecoder() {
               {/* Signature */}
               <section>
                 <div className="mb-1 flex items-center justify-between">
-                  <h3 className="font-mono text-xs text-[var(--color-error)]">Signature</h3>
+                  <h3 className="text-xs text-[var(--color-error)]">Signature</h3>
                   <CopyButton text={decoded.signature} />
                 </div>
                 <pre className="break-all rounded border border-[var(--color-error)]/30 bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
@@ -481,7 +481,7 @@ export default function JwtDecoder() {
             {/* Payload with claim annotations */}
             <section>
               <div className="mb-1 flex items-center justify-between">
-                <h3 className="font-mono text-xs text-[var(--color-success)]">Payload Claims</h3>
+                <h3 className="text-xs text-[var(--color-success)]">Payload Claims</h3>
                 <CopyButton text={JSON.stringify(decoded.payload, null, 2)} />
               </div>
               <div className="rounded border border-[var(--color-success)]/30 bg-[var(--color-surface)] p-3">

@@ -751,7 +751,8 @@ export default function JsonTools() {
                   value={query}
                   onChange={(e) => updateState({ query: e.target.value })}
                   placeholder="$.items[0].sku"
-                  className="min-w-0 flex-1 font-mono"
+                  monospace
+                  className="min-w-0 flex-1"
                 />
               </label>
               {queryResult?.found && <CopyButton text={toText(queryResult.value)} />}

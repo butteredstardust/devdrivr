@@ -111,10 +111,7 @@ export function SidebarGroup({
         {/* SectionLabel rather than a bespoke type treatment, so group headers
             and the Pinned/Recent headers above them are one style instead of
             two competing ones in the same column. */}
-        <SectionLabel
-          as="span"
-          hint={<span className="font-mono tabular-nums">{tools.length}</span>}
-        >
+        <SectionLabel as="span" hint={<span className="tabular-nums">{tools.length}</span>}>
           <CaretRightIcon
             size={12}
             className={`shrink-0 transition-transform duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${collapsed ? '' : 'rotate-90'}`}

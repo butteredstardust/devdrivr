@@ -81,6 +81,7 @@ export function ImageModal({ onInsert, onClose }: Props) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/image.png"
+              monospace
               size="md"
               className="flex-1"
             />

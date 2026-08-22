@@ -35,6 +35,21 @@
   box-sizing: border-box;
 }
 
+/* ─── Typography default ─────────────────────────────────────────────────────
+   The app's inherited font is `--font-ui`, and monospace is opted into.
+   It used to be the other way round, which quietly lost the argument: the
+   design system says chrome is `font-ui` and only tool content is `font-mono`,
+   but with mono inherited, every label, button, badge, status line and empty
+   state had to *remember* to say `font-ui` or silently render monospace. Three
+   of forty-six tool files remembered. The result was a tool title in system-ui
+   sitting beside its own status text in Source Code Pro, in the same row.
+
+   Chrome outnumbers content by an order of magnitude in element count, but
+   content is concentrated in a handful of places — Monaco (which sets its own
+   font), `pre`/`code`/`kbd`/`samp` (covered by the rule below), and the
+   primitives that take a `monospace` prop. So the correct default is the one
+   that needs the fewest exceptions, and the exceptions are all somewhere a
+   reviewer will actually look.                                                */
 html,
 body,
 #root {
@@ -44,6 +59,15 @@ body,
   overflow: hidden;
   background-color: var(--color-bg);
   color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+/* Content elements are monospace by tag, so a tool rendering output in the
+   obvious element gets the right font without a class. */
+pre,
+code,
+kbd,
+samp {
   font-family: var(--font-mono);
 }
 

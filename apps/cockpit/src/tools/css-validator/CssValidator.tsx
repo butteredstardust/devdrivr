@@ -32,6 +32,7 @@ import { Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
 import { openFileDialog, saveFileDialog, filenameFromPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
@@ -699,11 +700,10 @@ export default function CssValidator() {
                         title={`${rule.id} — ${rule.hint}`}
                         className="flex cursor-pointer items-start gap-1.5 py-0.5 text-xs"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={enabled}
                           onChange={(e) => handleToggleRule(rule, e.target.checked)}
-                          className="mt-0.5 accent-[var(--color-accent)]"
+                          className="mt-0.5"
                         />
                         <span
                           className={

@@ -560,7 +560,7 @@ export default function RegexTester() {
           {/* Match details */}
           {matchCount > 0 && (
             <div className="max-h-48 shrink-0 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[var(--color-text-muted)]">
+              <div className="mb-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
                 <span>
                   {truncated ? `First ${matchCount}` : matchCount} match
                   {matchCount !== 1 ? 'es' : ''}
@@ -621,7 +621,7 @@ export default function RegexTester() {
         {/* Reference sidebar */}
         {showRef && (
           <div className="w-56 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-            <div className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
+            <div className="mb-2 text-xs text-[var(--color-text-muted)]">
               Reference · click to insert
             </div>
             {REFERENCE_CATEGORIES.map((cat) => (

@@ -1012,7 +1012,8 @@ function XPathPane({
           value={xpath}
           onChange={(e) => onXPathChange(e.target.value)}
           placeholder="/catalog/book or //title"
-          className="w-full font-mono"
+          monospace
+          className="w-full"
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-3">

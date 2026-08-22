@@ -730,7 +730,7 @@ function DataTab() {
 function StatCard({ label, count }: { label: string; count: number }) {
   return (
     <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-center">
-      <div className="font-mono text-sm font-bold text-[var(--color-text)]">{count}</div>
+      <div className="text-sm font-bold tabular-nums text-[var(--color-text)]">{count}</div>
       <div className="text-xs text-[var(--color-text-muted)]">{label}</div>
     </div>
   )

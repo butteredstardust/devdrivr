@@ -541,9 +541,7 @@ export default function CssToTailwind() {
               <div className="flex flex-col gap-4">
                 {result.classes.length > 0 && (
                   <section>
-                    <h3 className="mb-2 font-mono text-xs text-[var(--color-success)]">
-                      Converted Classes
-                    </h3>
+                    <h3 className="mb-2 text-xs text-[var(--color-success)]">Converted Classes</h3>
                     <div className="flex flex-wrap gap-2">
                       {result.classes.map((cls, i) => (
                         <code
@@ -564,9 +562,7 @@ export default function CssToTailwind() {
                 )}
                 {result.selectors.length > 0 && (
                   <section>
-                    <h3 className="mb-2 font-mono text-xs text-[var(--color-text-muted)]">
-                      Per selector
-                    </h3>
+                    <h3 className="mb-2 text-xs text-[var(--color-text-muted)]">Per selector</h3>
                     <div className="space-y-2">
                       {result.selectors.map((entry) => (
                         <div
@@ -586,13 +582,11 @@ export default function CssToTailwind() {
                 )}
                 {result.unconvertible.length > 0 && (
                   <section>
-                    <h3 className="mb-2 font-mono text-xs text-[var(--color-warning)]">
-                      Unconvertible
-                    </h3>
+                    <h3 className="mb-2 text-xs text-[var(--color-warning)]">Unconvertible</h3>
                     {result.unconvertible.map((prop, i) => (
-                      <div key={i} className="text-xs text-[var(--color-text-muted)]">
+                      <code key={i} className="block text-xs text-[var(--color-text-muted)]">
                         {prop}
-                      </div>
+                      </code>
                     ))}
                   </section>
                 )}

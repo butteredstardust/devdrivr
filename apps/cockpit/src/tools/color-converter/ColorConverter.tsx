@@ -628,6 +628,7 @@ function ContrastInputs({
         <div className="flex items-center gap-2">
           <Input
             id="contrast-fg"
+            monospace
             value={contrastFg}
             onChange={(e) => onFgChange(e.target.value)}
             size="md"
@@ -655,6 +656,7 @@ function ContrastInputs({
         <div className="flex items-center gap-2">
           <Input
             id="contrast-bg"
+            monospace
             value={contrastBg}
             onChange={(e) => onBgChange(e.target.value)}
             size="md"
@@ -829,6 +831,7 @@ export default function ColorConverter() {
               value={state.input}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="#39ff14, rgb(255,0,0), hsl(120,100%,50%), oklch(87% 0.35 145), red"
+              monospace
               size="md"
               className="flex-1"
             />
