@@ -103,11 +103,19 @@ export function Popover({
       if (!anchor) return
 
       const rect = anchor.getBoundingClientRect()
-      const top = rect.bottom + GAP
-      const next: CSSProperties = {
-        top,
-        maxHeight: Math.max(MIN_HEIGHT, window.innerHeight - top - EDGE),
+      let top = rect.bottom + GAP
+      let maxHeight = window.innerHeight - top - EDGE
+
+      if (maxHeight < MIN_HEIGHT) {
+        // Too little room below to be usable. Lift the surface until its floor is back on
+        // screen rather than letting the bottom overhang: a `fixed` surface cannot be scrolled
+        // to, so anything past the viewport edge — the footer, and a reset action with it — is
+        // not merely clipped but unreachable. Overlapping the trigger is the lesser harm.
+        maxHeight = Math.min(MIN_HEIGHT, window.innerHeight - EDGE * 2)
+        top = Math.max(EDGE, window.innerHeight - EDGE - maxHeight)
       }
+
+      const next: CSSProperties = { top, maxHeight }
 
       if (align === 'end') {
         next.right = Math.max(EDGE, window.innerWidth - rect.right)
@@ -115,7 +123,18 @@ export function Popover({
         next.left = Math.max(EDGE, rect.left)
       }
 
-      setPosition(next)
+      // Scroll fires on capture for every scrollable container in the app, including this
+      // surface's own list, so an unconditional set would re-render the popover on each tick
+      // of a scroll that never moved it.
+      setPosition((prev) =>
+        prev &&
+        prev.top === next.top &&
+        prev.maxHeight === next.maxHeight &&
+        prev.right === next.right &&
+        prev.left === next.left
+          ? prev
+          : next
+      )
     }
 
     reposition()

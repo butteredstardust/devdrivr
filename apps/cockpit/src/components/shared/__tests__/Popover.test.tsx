@@ -66,6 +66,25 @@ describe('Popover', () => {
     expect(surface.style.top).not.toBe('')
   })
 
+  it('keeps the surface on screen when there is no room below the trigger', () => {
+    // A `fixed` surface cannot be scrolled to, so anything past the bottom edge is unreachable
+    // rather than merely clipped — in the validators that is the footer, and the reset action
+    // with it. jsdom reports a zero-height trigger, so the case is forced with a short window.
+    const originalHeight = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', { value: 100, configurable: true })
+
+    try {
+      render(<PopoverHarness />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open popover' }))
+
+      const { top, maxHeight } = screen.getByRole('dialog').style
+      expect(parseFloat(top) + parseFloat(maxHeight)).toBeLessThanOrEqual(100)
+      expect(parseFloat(top)).toBeGreaterThanOrEqual(0)
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+    }
+  })
+
   it('renders into the document body so it cannot be clipped by the toolbar', () => {
     render(<PopoverHarness />)
     fireEvent.click(screen.getByRole('button', { name: 'Open popover' }))
