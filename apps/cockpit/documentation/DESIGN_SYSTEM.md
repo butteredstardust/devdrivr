@@ -122,6 +122,38 @@ Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
 **The split is semantic, not decorative:** chrome is `font-ui`, content the user typed or the tool
 produced is `font-mono`. A _label naming_ a monospace region is chrome and takes `font-ui`.
 
+#### `--font-ui` is the inherited default; monospace is opted into
+
+`html, body, #root` set `font-family: var(--font-ui)`, so **chrome needs no font class at all** —
+a `<span>` with no font utility is already correct. Only content opts out, and it does so in one
+of four ways, in order of preference:
+
+1. **The right tag.** `pre`, `code`, `kbd` and `samp` are monospace by a base rule in `index.css`.
+   Tool output rendered in `<code>` or `<pre>` needs nothing else.
+2. **A primitive's `monospace` prop.** `Input` and `TextArea` both take one; it is off by default,
+   because a field is chrome until proven otherwise. Turn it on for URLs, header values, JSONPath,
+   identifiers, tokens, colour literals — anything read character by character.
+3. **`font-mono` on the container** of a content region (a tree view, a results pane), so every
+   row inherits it rather than repeating the class.
+4. **`font-mono` on the element**, last resort.
+
+This was inverted until the typography pass. With mono inherited, every label, badge, status line
+and empty state had to _remember_ `font-ui` or silently render monospace — three of forty-six tool
+files did, so a tool title in system-ui routinely sat beside its own status text in Source Code
+Pro, in the same toolbar row. Do not flip it back: the default must be the case that needs the
+fewest exceptions, and chrome outnumbers content by an order of magnitude.
+
+Two consequences worth knowing:
+
+- `--font-mono` is **theme-dependent** — 11 of the 22 themes pick `'Source Code Pro'`, the rest a
+  generic `ui-monospace` stack. Both the `font-mono` utility and the tag rule read the same
+  variable, so they always agree within a theme. Never hard-code a family.
+- The `neon-brutalist` theme sets `--font-ui: var(--font-mono)` on purpose, for an all-mono
+  aesthetic.
+  That keeps working precisely _because_ chrome reads `--font-ui` rather than naming a family, and
+  it is the reason chrome must never be given `font-mono` "to look right" — that would make the
+  theme unable to opt out.
+
 ### Size scale
 
 Five sizes. Nothing else. `text-[13px]` and friends are a lint error.
@@ -319,6 +351,46 @@ Import from `@/components/shared/<Name>`.
 | `Spinner`      | Indeterminate progress                                           |
 | `SectionLabel` | The small uppercase label naming a region                        |
 | `Dialog`       | Modal; owns focus trap, escape, and backdrop                     |
+
+### Floating surfaces
+
+| Component         | Use                                                                   |
+| ----------------- | --------------------------------------------------------------------- |
+| `Dialog`          | Modal. Owns focus trap, escape, backdrop. Centred, not anchored.      |
+| `Popover`         | Anchored dismissible surface — menus, flyouts, anything above chrome  |
+| `SettingsPopover` | The toolbar options surface: gear-style trigger plus rows of settings |
+
+**Never hand-roll `absolute right-0 top-full` plus a `mousedown` effect.** Five surfaces were
+written that way before `Popover` existed and between them managed: no Escape handling at all, a
+raw `z-20` that put a menu underneath every other popover, clamping in one direction only, three
+duplicated dismiss effects in one file, and not one that returned focus to its trigger.
+
+`Popover` takes its trigger as a render prop, because `aria-expanded`, `aria-controls` and the
+anchoring ref all have to land on the same element and every hand-rolled version forgot at least
+one of the three. It anchors by the trigger's trailing edge, so it needs no measurement pass and
+never paints at the wrong coordinates; vertically it takes the room left below as `max-height` and
+scrolls rather than flipping above, since a toolbar popover that flipped would cover the thing it
+configures.
+
+#### Tool options go in a `SettingsPopover`, not a second toolbar row
+
+A collapsible options row costs more than its space: it resizes the editor underneath, so toggling
+an option relayouts the document at the moment the user is reading it, and it makes toolbar height
+a function of which tool is open. Code Formatter, TS Playground, HTML Validator and CSS Validator
+all use the popover.
+
+What stays in the toolbar:
+
+- **Anything acted on repeatedly while working.** Diff Viewer's ignore-whitespace and ignore-case
+  get cycled several times per comparison, and CSV Tools' delimiter is the first thing tried when
+  a paste won't parse. These are working controls wearing an option's clothes; a gear costs two
+  clicks per attempt. Diff Viewer keeps its second row for exactly this reason.
+- **Actions.** A popover full of settings is live-applied — no OK, no Cancel, and nothing that
+  performs an operation. A settings surface with a confirm button is a dialog in disguise.
+- **Read-outs.** A line count or a byte size is a fact about the document, not a setting.
+
+Pass `badge` wherever "back to defaults" is meaningful state. Hiding settings means the toolbar
+stops showing that any were changed; the badge is what buys that back.
 
 Use semantic variants (`info`/`success`/`warning`/`error`) rather than styling status text at the
 call site. Do not add check marks, warning glyphs, emoji, or custom SVG — the component or a

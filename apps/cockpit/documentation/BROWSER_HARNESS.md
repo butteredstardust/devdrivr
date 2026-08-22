@@ -74,6 +74,68 @@ commands for real without giving up the browser.
   bug is in your coordinates, not in the app.
 - **Toolbar buttons collide by name.** `getByRole('button', { name: 'Templates' })` matched three
   elements; pass `{ exact: true }`.
+- **Tools you have visited stay mounted.** Switching tools does not unmount the previous one; it
+  collapses to zero height. So `document.querySelector('.monaco-editor')` can return a hidden
+  editor from two tools ago and report `height: 0`, and a locator can fail strict mode against a
+  toolbar the user cannot see. Filter to what is on screen:
+  `[...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0)`.
+- **Monaco has no editable `<textarea>` to type into.** This build uses an edit context; the only
+  `textarea` in the page is a read-only IME shim, so `fill()` times out with "element is not
+  editable". Drive the content through the API instead — `window.monaco.editor.getModels()` and
+  `.getEditors()` are both reachable from `page.evaluate`, and `setValue` fires the same change
+  event the tool listens to. Pick the editor by visibility, not by index.
+- **An editor's index is not its role.** `getEditors()` returns them in creation order, which is
+  neither left-to-right nor the order the labels suggest. JSON Schema Validator puts the _data_ on
+  the left and the _schema_ on the right; an agent that assumed the opposite wrote each into the
+  other and reported a validator that "fails to detect type violations" — a schema of
+  `{"age":"not_a_number"}` has no recognised keywords, so it accepts everything, and the tool was
+  right. Read the pane heading (`JSON DATA` / `JSON SCHEMA`) or sort by
+  `getDomNode().getBoundingClientRect().x` and confirm the existing content matches what you expect
+  before you overwrite it.
+- **Results are debounced.** Lint, compile and format land ~1–2s after the model changes. Reading
+  the output straight after `setValue` reports the previous run, which reads exactly like "the
+  setting had no effect".
+- **The first minutes on a cold dep cache are not the app.** Tools import their heavy dependencies
+  lazily, so the first visit to one sends Vite off to pre-bundle — and when it finishes it reloads
+  the page under you. Anything in flight across that reload dies loudly and misleadingly: a worker
+  module 504s (`[useWorker] Worker error: Event`), a half-loaded CommonJS dep throws
+  `X is not a function`, and the tool renders its error state. An agent reported exactly that as a
+  critical CSV Tools bug; it was Vite. The tell is in the dev server log, not the page:
+
+  ```
+  [vite] ✨ new dependencies optimized: prettier/standalone, …
+  [vite] ✨ optimized dependencies changed. reloading
+  ```
+
+  Warm the cache before you measure anything — visit the tools you plan to test once, let the
+  reload happen, then start. If a failure will not reproduce after that, it was never real.
+
+## Driving the app as an agent
+
+The harness rewards evidence and punishes assumption, so the failure mode to guard against is
+reporting something you inferred rather than saw.
+
+- **Reproduce before reporting.** Do the interaction twice. An HMR reload can drop the app back to
+  the launcher, and a selector that "does not match any elements" then means the page moved on, not
+  that the control is missing.
+- **Ask whether the user can reach it.** The window is created with `minWidth: 800` /
+  `minHeight: 500` ([`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)); a defect that only
+  appears at 250px tall is real for the browser and remote-ui paths but unreachable in the desktop
+  app, and the report should say which.
+- **A green Vitest run is not evidence about layout, focus or fonts.** jsdom implements none of
+  them. It will happily report a `visibility: hidden` element as focused — that exact gap hid a
+  dead keyboard path in `Popover` behind a passing assertion.
+- **Prefer one `page.evaluate` that returns a fact over a screenshot you interpret.** "Right edges
+  align to within 1.5px" is checkable; "looks aligned" is not.
+- **Read the console before calling anything a crash.** The page's error state tells you a promise
+  rejected, not why. An agent that reports "Something broke" without the console line behind it has
+  found a symptom that may not even belong to the app (see the cold-cache gotcha above).
+- **Quote, don't paraphrase.** A report is actionable when it carries the verbatim error string and
+  the exact code that produced it — selector, input, waits. "The parser failed" is a rumour.
+- **"It opens correctly" is not a finding, and its absence is not a clean bill of health.** A tool
+  mounting proves the router works. Exercising it means changing a setting and asserting the output
+  changed: toggle ignore-whitespace and diff the diff.
+- Artifacts land in the gitignored `.playwright-mcp/`, so nothing you capture reaches a commit.
 
 ## Recipe: who is rewriting my DOM?
 

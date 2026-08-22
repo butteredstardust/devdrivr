@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import {
   ArrowCounterClockwiseIcon,
@@ -7,7 +7,6 @@ import {
   FloppyDiskIcon,
   MagicWandIcon,
   PencilSimpleIcon,
-  SlidersHorizontalIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -23,6 +22,7 @@ import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { SettingsPopover, SettingsRow, SettingsSection } from '@/components/shared/SettingsPopover'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
@@ -48,8 +48,6 @@ type CodeFormatterState = {
   singleQuote: boolean
   trailingComma: 'all' | 'es5' | 'none'
   semi: boolean
-  /** Style options are collapsed by default — persisted so the choice sticks. */
-  optionsOpen: boolean
   /** Opt-in because formatting incomplete code while typing can be surprising. */
   autoFormat: boolean
   /**
@@ -92,7 +90,6 @@ export default function CodeFormatter() {
     singleQuote: true,
     trailingComma: 'es5',
     semi: false,
-    optionsOpen: false,
     autoFormat: false,
     lastFormat: null,
   })
@@ -107,7 +104,9 @@ export default function CodeFormatter() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [pendingFormat, setPendingFormat] = useState<{ before: string; after: string } | null>(null)
   const formattingRef = useRef(false)
-  const optionsId = useId()
+  // Session state, deliberately not persisted: a floating surface that reopened itself on
+  // launch would cover the document before the user had asked for anything.
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
 
   // `state` as a whole changes on every keystroke; the format call only cares
@@ -310,221 +309,224 @@ export default function CodeFormatter() {
     <ToolLayout
       fullBleed
       toolbar={
-        <div className="border-b border-[var(--color-border)]">
-          <DocumentToolbar aria-label="Code formatting actions">
-            <DocumentIdentity
-              title={state.fileName ?? 'Untitled'}
-              icon={
-                <CodeBlockIcon
-                  size={16}
+        <DocumentToolbar border aria-label="Code formatting actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled'}
+            icon={
+              <CodeBlockIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            status={isFormatting ? 'Formatting…' : describeStatus(status)}
+            statusIcon={
+              status === 'formatted' ? (
+                <CheckCircleIcon
+                  size={12}
                   aria-hidden="true"
-                  className="shrink-0 text-[var(--color-text-muted)]"
+                  className="shrink-0 text-[var(--color-success)]"
                 />
-              }
-              status={isFormatting ? 'Formatting…' : describeStatus(status)}
-              statusIcon={
-                status === 'formatted' ? (
-                  <CheckCircleIcon
-                    size={12}
-                    aria-hidden="true"
-                    className="shrink-0 text-[var(--color-success)]"
-                  />
-                ) : status === 'modified' ? (
-                  <PencilSimpleIcon size={12} aria-hidden="true" className="shrink-0" />
-                ) : undefined
-              }
-            />
+              ) : status === 'modified' ? (
+                <PencilSimpleIcon size={12} aria-hidden="true" className="shrink-0" />
+              ) : undefined
+            }
+          />
 
-            {/* Two groups so a narrow window breaks between "what to format" and
-                "act on it" rather than orphaning a single icon on its own row. */}
-            <ToolbarGroup label="Formatting options" separated>
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                <span className="max-[900px]:hidden">Language</span>
-                <Select
-                  aria-label="Language"
-                  value={state.language}
-                  onChange={(e) => updateState({ language: e.target.value })}
-                >
-                  {LANGUAGES.map((lang) => (
-                    <option key={lang.id} value={lang.id}>
-                      {lang.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleAutoDetect()}
-                disabled={!hasCode}
-                title="Guess the language from the code"
-                className="gap-1"
-              >
-                <MagicWandIcon size={14} aria-hidden="true" />
-                Auto-detect
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => updateState({ optionsOpen: !state.optionsOpen })}
-                aria-expanded={state.optionsOpen}
-                // Only advertise the relationship while the panel exists in the DOM.
-                {...(state.optionsOpen ? { 'aria-controls': optionsId } : {})}
-                className="gap-1"
-              >
-                <SlidersHorizontalIcon size={14} aria-hidden="true" />
-                Style
-              </Button>
-            </ToolbarGroup>
-
-            <ToolbarGroup label="Document actions" separated>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void handleFormat()}
-                disabled={!canFormat}
-                loading={isFormatting}
-                title={`Format the code (${formatShortcut('mod+enter')})`}
-              >
-                Format
-                <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRevert}
-                disabled={!canRevert}
-                title="Restore the code as it was before formatting"
-                className="gap-1"
-              >
-                <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
-                Revert
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPreviewOpen((open) => !open)}
-                disabled={!pendingFormat && (!lastFormat || lastFormat.before === lastFormat.after)}
-                aria-pressed={previewOpen}
-                title="Compare the source before and after formatting"
-              >
-                Diff
-              </Button>
-              {pendingFormat && (
-                <>
-                  <Button variant="primary" size="sm" onClick={handleAcceptPreview}>
-                    Apply format
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setPendingFormat(null)
-                      setPreviewOpen(false)
-                    }}
-                  >
-                    Discard preview
-                  </Button>
-                </>
-              )}
-              <CopyButton text={input} />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasCode}
-                title={`Save to a file (${formatShortcut('mod+s')})`}
-                aria-label="Save to file"
-                className="gap-1"
-              >
-                <FloppyDiskIcon size={14} aria-hidden="true" />
-                Save
-              </Button>
-            </ToolbarGroup>
-          </DocumentToolbar>
-
-          {state.optionsOpen && (
-            <div
-              id={optionsId}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
-            >
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                Indent
-                <Select
-                  aria-label="Indent width"
-                  value={state.tabWidth}
-                  onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
-                >
-                  <option value={2}>2 spaces</option>
-                  <option value={4}>4 spaces</option>
-                  <option value={8}>8 spaces</option>
-                </Select>
-              </label>
-              <Toggle
-                label="Use tabs"
-                checked={state.useTabs}
-                onChange={(checked) => updateState({ useTabs: checked })}
-              />
-              <Toggle
-                label="Auto-format"
-                checked={state.autoFormat}
-                onChange={(checked) => updateState({ autoFormat: checked })}
-              />
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                Width
-                <Select
-                  aria-label="Print width"
-                  value={state.printWidth}
-                  onChange={(e) => updateState({ printWidth: Number(e.target.value) })}
-                >
-                  <option value={80}>80</option>
-                  <option value={100}>100</option>
-                  <option value={120}>120</option>
-                </Select>
-              </label>
-              <Toggle
-                label="Single quotes"
-                checked={state.singleQuote}
-                disabled={!quoteStyle}
-                onChange={(checked) => updateState({ singleQuote: checked })}
-              />
-              <Toggle
-                label="Semicolons"
-                checked={state.semi}
-                disabled={!jsOptions}
-                onChange={(checked) => updateState({ semi: checked })}
-              />
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                Trailing commas
-                <Select
-                  aria-label="Trailing commas"
-                  value={state.trailingComma}
-                  disabled={!jsOptions}
-                  onChange={(e) =>
-                    updateState({
-                      trailingComma: e.target.value as CodeFormatterState['trailingComma'],
-                    })
-                  }
-                >
-                  <option value="none">None</option>
-                  <option value="es5">ES5</option>
-                  <option value="all">All</option>
-                </Select>
-              </label>
-              {(!jsOptions || !quoteStyle) && (
-                <span className="text-2xs text-[var(--color-text-muted)]">
-                  Greyed-out options have no effect on {languageLabel(state.language)}.
-                </span>
-              )}
-              {stats && (
-                <span className="ml-auto text-2xs text-[var(--color-text-muted)]">
-                  {stats.lines} line{stats.lines === 1 ? '' : 's'} · {stats.characters} character
-                  {stats.characters === 1 ? '' : 's'}
-                </span>
-              )}
-            </div>
+          {stats && (
+            <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
+              {stats.lines} line{stats.lines === 1 ? '' : 's'} · {stats.characters} character
+              {stats.characters === 1 ? '' : 's'}
+            </span>
           )}
-        </div>
+
+          {/* Two groups so a narrow window breaks between "what to format" and
+                "act on it" rather than orphaning a single icon on its own row. */}
+          <ToolbarGroup label="Formatting options" separated>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+              <span className="max-[900px]:hidden">Language</span>
+              <Select
+                aria-label="Language"
+                value={state.language}
+                onChange={(e) => updateState({ language: e.target.value })}
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.id} value={lang.id}>
+                    {lang.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleAutoDetect()}
+              disabled={!hasCode}
+              title="Guess the language from the code"
+              className="gap-1"
+            >
+              <MagicWandIcon size={14} aria-hidden="true" />
+              Auto-detect
+            </Button>
+            <SettingsPopover
+              label="Style"
+              open={optionsOpen}
+              onOpenChange={setOptionsOpen}
+              description={
+                jsOptions && quoteStyle
+                  ? undefined
+                  : `Greyed-out options have no effect on ${languageLabel(state.language)}.`
+              }
+            >
+              <SettingsSection>
+                <SettingsRow label="Indent">
+                  <Select
+                    value={state.tabWidth}
+                    onChange={(e) => updateState({ tabWidth: Number(e.target.value) })}
+                  >
+                    <option value={2}>2 spaces</option>
+                    <option value={4}>4 spaces</option>
+                    <option value={8}>8 spaces</option>
+                  </Select>
+                </SettingsRow>
+                <SettingsRow label="Use tabs">
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.useTabs}
+                      onChange={(checked) => updateState({ useTabs: checked })}
+                    />
+                  )}
+                </SettingsRow>
+                <SettingsRow label="Print width">
+                  <Select
+                    value={state.printWidth}
+                    onChange={(e) => updateState({ printWidth: Number(e.target.value) })}
+                  >
+                    <option value={80}>80</option>
+                    <option value={100}>100</option>
+                    <option value={120}>120</option>
+                  </Select>
+                </SettingsRow>
+                <SettingsRow label="Single quotes" disabled={!quoteStyle}>
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.singleQuote}
+                      disabled={!quoteStyle}
+                      onChange={(checked) => updateState({ singleQuote: checked })}
+                    />
+                  )}
+                </SettingsRow>
+                <SettingsRow label="Semicolons" disabled={!jsOptions}>
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.semi}
+                      disabled={!jsOptions}
+                      onChange={(checked) => updateState({ semi: checked })}
+                    />
+                  )}
+                </SettingsRow>
+                <SettingsRow label="Trailing commas" disabled={!jsOptions}>
+                  <Select
+                    value={state.trailingComma}
+                    disabled={!jsOptions}
+                    onChange={(e) =>
+                      updateState({
+                        trailingComma: e.target.value as CodeFormatterState['trailingComma'],
+                      })
+                    }
+                  >
+                    <option value="none">None</option>
+                    <option value="es5">ES5</option>
+                    <option value="all">All</option>
+                  </Select>
+                </SettingsRow>
+              </SettingsSection>
+
+              <SettingsSection title="Behaviour">
+                <SettingsRow
+                  label="Auto-format"
+                  hint="Reformat as you type, without pressing Format."
+                >
+                  {({ labelId }) => (
+                    <Toggle
+                      aria-labelledby={labelId}
+                      checked={state.autoFormat}
+                      onChange={(checked) => updateState({ autoFormat: checked })}
+                    />
+                  )}
+                </SettingsRow>
+              </SettingsSection>
+            </SettingsPopover>
+          </ToolbarGroup>
+
+          <ToolbarGroup label="Document actions" separated>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void handleFormat()}
+              disabled={!canFormat}
+              loading={isFormatting}
+              title={`Format the code (${formatShortcut('mod+enter')})`}
+            >
+              Format
+              <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleRevert}
+              disabled={!canRevert}
+              title="Restore the code as it was before formatting"
+              className="gap-1"
+            >
+              <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
+              Revert
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPreviewOpen((open) => !open)}
+              disabled={!pendingFormat && (!lastFormat || lastFormat.before === lastFormat.after)}
+              aria-pressed={previewOpen}
+              title="Compare the source before and after formatting"
+            >
+              Diff
+            </Button>
+            {pendingFormat && (
+              <>
+                <Button variant="primary" size="sm" onClick={handleAcceptPreview}>
+                  Apply format
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setPendingFormat(null)
+                    setPreviewOpen(false)
+                  }}
+                >
+                  Discard preview
+                </Button>
+              </>
+            )}
+            <CopyButton text={input} />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSave}
+              disabled={!hasCode}
+              title={`Save to a file (${formatShortcut('mod+s')})`}
+              aria-label="Save to file"
+              className="gap-1"
+            >
+              <FloppyDiskIcon size={14} aria-hidden="true" />
+              Save
+            </Button>
+          </ToolbarGroup>
+        </DocumentToolbar>
       }
     >
       {formatProblem && (

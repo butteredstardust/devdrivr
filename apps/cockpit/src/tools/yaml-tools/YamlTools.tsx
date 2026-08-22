@@ -483,7 +483,8 @@ export default function YamlTools() {
                   value={query}
                   onChange={(event) => updateState({ query: event.target.value })}
                   placeholder="$.spec.template.spec.containers[*].name"
-                  className="min-w-0 flex-1 font-mono"
+                  monospace
+                  className="min-w-0 flex-1"
                 />
               </label>
               <output className="w-full font-mono text-xs text-[var(--color-text)]">

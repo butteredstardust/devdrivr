@@ -17,6 +17,7 @@ import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolba
 import { SplitPane } from '@/components/shared/SplitPane'
 import { Alert } from '@/components/shared/Alert'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -1588,9 +1589,7 @@ export default function ApiClient() {
               {requestTab === 'params' && (
                 <div className="min-h-0 flex-1 overflow-auto p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
-                      Query Parameters
-                    </h3>
+                    <h3 className="text-xs text-[var(--color-text-muted)]">Query Parameters</h3>
                     <Button
                       type="button"
                       variant="secondary"
@@ -1648,7 +1647,7 @@ export default function ApiClient() {
               {requestTab === 'headers' && (
                 <div className="min-h-0 flex-1 overflow-auto p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                    <h3 className="text-xs text-[var(--color-text-muted)]">
                       Headers
                       {activeHeaderCount > 0 && (
                         <span className="ml-1 text-[var(--color-text)]">({activeHeaderCount})</span>
@@ -1669,12 +1668,10 @@ export default function ApiClient() {
                     <div className="flex flex-col gap-1">
                       {headers.map((h, i) => (
                         <div key={i} className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={h.enabled}
                             onChange={(e) => updateHeader(i, { enabled: e.target.checked })}
                             aria-label={`Send header ${h.key || i + 1}`}
-                            className="accent-[var(--color-accent)]"
                           />
                           <Input
                             value={h.key}
@@ -1749,7 +1746,7 @@ export default function ApiClient() {
                   {showFormEditor ? (
                     <div className="min-h-0 flex-1 overflow-auto p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <h3 className="font-mono text-xs text-[var(--color-text-muted)]">
+                        <h3 className="text-xs text-[var(--color-text-muted)]">
                           {bodyMode === FORMDATA_MODE ? 'Multipart fields' : 'Form fields'}
                         </h3>
                         <Button
@@ -1947,7 +1944,12 @@ export default function ApiClient() {
                       ) : (
                         <div className="h-full overflow-auto p-3">
                           {Object.entries(response.headers).map(([key, value]) => (
-                            <div key={key} className="mb-1 flex items-start gap-1 text-xs">
+                            // Response headers are what the server sent, not chrome — the
+                            // whole row is mono so the name, colon and value share metrics.
+                            <div
+                              key={key}
+                              className="mb-1 flex items-start gap-1 font-mono text-xs"
+                            >
                               <span className="shrink-0 font-bold text-[var(--color-accent)]">
                                 {key}
                               </span>

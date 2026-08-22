@@ -233,7 +233,7 @@ export function Providers({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-[var(--color-accent)]">
         <Spinner size="sm" label="Starting cockpit" />
-        <span className="font-mono text-sm">Loading...</span>
+        <span className="text-sm">Loading...</span>
       </div>
     )
   }

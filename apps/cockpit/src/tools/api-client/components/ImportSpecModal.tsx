@@ -106,7 +106,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
       <div className="flex flex-col gap-4 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="font-mono text-xs text-[var(--color-text-muted)]">Source</div>
+            <div className="text-xs text-[var(--color-text-muted)]">Source</div>
             <div className="text-sm text-[var(--color-text)]">
               {filename ??
                 'Paste a Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or cockpit JSON spec'}
@@ -141,7 +141,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
         {preview && (
           <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-mono text-[var(--color-text-muted)]">Detected:</span>
+              <span className="text-[var(--color-text-muted)]">Detected:</span>
               <span className="font-bold text-[var(--color-accent)]">
                 {FORMAT_LABELS[preview.format]}
               </span>
