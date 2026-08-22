@@ -74,6 +74,38 @@ commands for real without giving up the browser.
   bug is in your coordinates, not in the app.
 - **Toolbar buttons collide by name.** `getByRole('button', { name: 'Templates' })` matched three
   elements; pass `{ exact: true }`.
+- **Tools you have visited stay mounted.** Switching tools does not unmount the previous one; it
+  collapses to zero height. So `document.querySelector('.monaco-editor')` can return a hidden
+  editor from two tools ago and report `height: 0`, and a locator can fail strict mode against a
+  toolbar the user cannot see. Filter to what is on screen:
+  `[...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0)`.
+- **Monaco has no editable `<textarea>` to type into.** This build uses an edit context; the only
+  `textarea` in the page is a read-only IME shim, so `fill()` times out with "element is not
+  editable". Drive the content through the API instead — `window.monaco.editor.getModels()` and
+  `.getEditors()` are both reachable from `page.evaluate`, and `setValue` fires the same change
+  event the tool listens to. Pick the editor by visibility, not by index.
+- **Results are debounced.** Lint, compile and format land ~1–2s after the model changes. Reading
+  the output straight after `setValue` reports the previous run, which reads exactly like "the
+  setting had no effect".
+
+## Driving the app as an agent
+
+The harness rewards evidence and punishes assumption, so the failure mode to guard against is
+reporting something you inferred rather than saw.
+
+- **Reproduce before reporting.** Do the interaction twice. An HMR reload can drop the app back to
+  the launcher, and a selector that "does not match any elements" then means the page moved on, not
+  that the control is missing.
+- **Ask whether the user can reach it.** The window is created with `minWidth: 800` /
+  `minHeight: 500` ([`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)); a defect that only
+  appears at 250px tall is real for the browser and remote-ui paths but unreachable in the desktop
+  app, and the report should say which.
+- **A green Vitest run is not evidence about layout, focus or fonts.** jsdom implements none of
+  them. It will happily report a `visibility: hidden` element as focused — that exact gap hid a
+  dead keyboard path in `Popover` behind a passing assertion.
+- **Prefer one `page.evaluate` that returns a fact over a screenshot you interpret.** "Right edges
+  align to within 1.5px" is checkable; "looks aligned" is not.
+- Artifacts land in the gitignored `.playwright-mcp/`, so nothing you capture reaches a commit.
 
 ## Recipe: who is rewriting my DOM?
 
