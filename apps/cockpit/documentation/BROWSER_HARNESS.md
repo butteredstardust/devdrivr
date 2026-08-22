@@ -87,6 +87,20 @@ commands for real without giving up the browser.
 - **Results are debounced.** Lint, compile and format land ~1–2s after the model changes. Reading
   the output straight after `setValue` reports the previous run, which reads exactly like "the
   setting had no effect".
+- **The first minutes on a cold dep cache are not the app.** Tools import their heavy dependencies
+  lazily, so the first visit to one sends Vite off to pre-bundle — and when it finishes it reloads
+  the page under you. Anything in flight across that reload dies loudly and misleadingly: a worker
+  module 504s (`[useWorker] Worker error: Event`), a half-loaded CommonJS dep throws
+  `X is not a function`, and the tool renders its error state. An agent reported exactly that as a
+  critical CSV Tools bug; it was Vite. The tell is in the dev server log, not the page:
+
+  ```
+  [vite] ✨ new dependencies optimized: prettier/standalone, …
+  [vite] ✨ optimized dependencies changed. reloading
+  ```
+
+  Warm the cache before you measure anything — visit the tools you plan to test once, let the
+  reload happen, then start. If a failure will not reproduce after that, it was never real.
 
 ## Driving the app as an agent
 
@@ -105,6 +119,14 @@ reporting something you inferred rather than saw.
   dead keyboard path in `Popover` behind a passing assertion.
 - **Prefer one `page.evaluate` that returns a fact over a screenshot you interpret.** "Right edges
   align to within 1.5px" is checkable; "looks aligned" is not.
+- **Read the console before calling anything a crash.** The page's error state tells you a promise
+  rejected, not why. An agent that reports "Something broke" without the console line behind it has
+  found a symptom that may not even belong to the app (see the cold-cache gotcha above).
+- **Quote, don't paraphrase.** A report is actionable when it carries the verbatim error string and
+  the exact code that produced it — selector, input, waits. "The parser failed" is a rumour.
+- **"It opens correctly" is not a finding, and its absence is not a clean bill of health.** A tool
+  mounting proves the router works. Exercising it means changing a setting and asserting the output
+  changed: toggle ignore-whitespace and diff the diff.
 - Artifacts land in the gitignored `.playwright-mcp/`, so nothing you capture reaches a commit.
 
 ## Recipe: who is rewriting my DOM?
