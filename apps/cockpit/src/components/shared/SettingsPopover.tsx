@@ -142,15 +142,16 @@ export function SettingsSection({
   )
 }
 
-type SettingsRowIds = { controlId: string; labelId: string }
+type SettingsRowIds = { labelId: string }
 
 type SettingsRowProps = {
   label: string
   /**
-   * The control. As a function when it needs the generated ids — a `Toggle` renders a
-   * `role="switch"` button, which is not a labelable element, so a wrapping `<label>` would
-   * leave it with no accessible name at all. Selects and inputs can take the node form and be
-   * associated by `htmlFor`.
+   * The control. As a function when the control cannot be labelled the ordinary way — a `Toggle`
+   * renders a `role="switch"` button, which is not a labelable element, so neither a wrapping
+   * `<label>` nor an `htmlFor` gives it a name. That form hands back `labelId` to point
+   * `aria-labelledby` at instead. Selects and inputs take the node form and are associated
+   * structurally.
    */
   children: ReactNode | ((ids: SettingsRowIds) => ReactNode)
   hint?: ReactNode
@@ -165,10 +166,9 @@ type SettingsRowProps = {
  * left and its labels down the right at the same time.
  */
 export function SettingsRow({ label, children, hint, disabled = false }: SettingsRowProps) {
-  const controlId = useId()
   const labelId = useId()
   const isRenderProp = typeof children === 'function'
-  const content = isRenderProp ? children({ controlId, labelId }) : children
+  const content = isRenderProp ? children({ labelId }) : children
 
   // Node form: the row *is* a `<label>`, so the single control inside is associated
   // structurally and there is no id to keep in sync — the same trade `Field` makes.
@@ -178,13 +178,11 @@ export function SettingsRow({ label, children, hint, disabled = false }: Setting
     <Wrapper className={`block ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-between gap-3">
         {isRenderProp ? (
-          <label
-            id={labelId}
-            htmlFor={controlId}
-            className="text-xs text-[var(--color-text)] select-none"
-          >
+          // No `htmlFor`: this branch exists for controls that are not labelable, so a `for`
+          // attribute could only ever dangle. `aria-labelledby` does the naming instead.
+          <span id={labelId} className="text-xs text-[var(--color-text)] select-none">
             {label}
-          </label>
+          </span>
         ) : (
           <span className="text-xs text-[var(--color-text)] select-none">{label}</span>
         )}
