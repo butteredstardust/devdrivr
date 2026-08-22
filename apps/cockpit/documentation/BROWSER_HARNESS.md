@@ -84,6 +84,14 @@ commands for real without giving up the browser.
   editable". Drive the content through the API instead — `window.monaco.editor.getModels()` and
   `.getEditors()` are both reachable from `page.evaluate`, and `setValue` fires the same change
   event the tool listens to. Pick the editor by visibility, not by index.
+- **An editor's index is not its role.** `getEditors()` returns them in creation order, which is
+  neither left-to-right nor the order the labels suggest. JSON Schema Validator puts the _data_ on
+  the left and the _schema_ on the right; an agent that assumed the opposite wrote each into the
+  other and reported a validator that "fails to detect type violations" — a schema of
+  `{"age":"not_a_number"}` has no recognised keywords, so it accepts everything, and the tool was
+  right. Read the pane heading (`JSON DATA` / `JSON SCHEMA`) or sort by
+  `getDomNode().getBoundingClientRect().x` and confirm the existing content matches what you expect
+  before you overwrite it.
 - **Results are debounced.** Lint, compile and format land ~1–2s after the model changes. Reading
   the output straight after `setValue` reports the previous run, which reads exactly like "the
   setting had no effect".
