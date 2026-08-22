@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { AboutTab } from '@/components/shell/AboutTab'
 import { QUOTES, randomQuote } from '@/lib/quotes'
 
@@ -36,9 +36,40 @@ describe('AboutTab', () => {
     expect(quoted()).not.toBeNull()
   })
 
-  it('renders the frog with an accessible name', () => {
+  it('copies the resolved versions, not the placeholders', async () => {
+    // Patch only `clipboard`: jsdom keeps `userAgent` on the prototype, so replacing the whole
+    // navigator object would leave the copied text saying `User agent: undefined`.
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    // Restore from a hook, not the end of the body: a failing assertion below would otherwise leave
+    // the stub installed for every test after it.
+    onTestFinished(() => {
+      if (original) Object.defineProperty(navigator, 'clipboard', original)
+      else Reflect.deleteProperty(navigator, 'clipboard')
+    })
+
     render(<AboutTab />)
-    expect(screen.getByRole('img', { name: /frog/i })).toBeInTheDocument()
+    // Wait for the Tauri promises: copying before they settle is a real state, but a report saying
+    // "version unknown" is exactly what this button exists to avoid.
+    await waitFor(() => expect(screen.getByText('v9.9.9')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /copy build info/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+
+    const copied = writeText.mock.calls[0]![0] as string
+    expect(copied).toContain('devdrivr v9.9.9')
+    expect(copied).toContain('Tauri v2.10.3')
+    expect(copied).toContain(`User agent: ${navigator.userAgent}`)
+    expect(copied).not.toContain('unknown')
+  })
+
+  it('renders the mascot with an accessible name', () => {
+    render(<AboutTab />)
+    expect(screen.getByRole('img', { name: /geometric mascot/i })).toBeInTheDocument()
   })
 })
 

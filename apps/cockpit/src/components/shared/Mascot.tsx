@@ -1,13 +1,21 @@
 // Mathematical Penrose Triangle mascot — Geometric & Minimalist
 // Representing structural logic and the cockpit's developer utility focus.
 
-export function Mascot({ className }: { className?: string }) {
+export function Mascot({
+  size = 24,
+  className,
+}: {
+  /** Rendered edge length in CSS pixels. The artwork is a square viewBox, so this is both axes. */
+  size?: number
+  className?: string
+}) {
   return (
     <svg
-      width={24}
-      height={24}
+      width={size}
+      height={size}
       viewBox="0 0 100 100"
       className={className}
+      role="img"
       aria-label="devdrivr geometric mascot"
     >
       <style>{`
