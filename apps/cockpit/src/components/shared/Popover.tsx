@@ -75,11 +75,21 @@ export function Popover({
   const surfaceId = useId()
   const isInstanceActive = useIsInstanceActive()
   const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const surfaceRef = useRef<HTMLDivElement>(null)
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState<CSSProperties | null>(null)
 
   const setTriggerRef = useCallback((node: HTMLButtonElement | null) => {
     triggerRef.current = node
+  }, [])
+
+  // Focus on mount rather than in an effect keyed on `open`. The surface is not in the DOM until
+  // a position exists, so an effect that fires when `open` flips would be aiming at nothing —
+  // and an unpositioned surface rendered `visibility: hidden` to hide the flash cannot take
+  // focus at all, which is a silent no-op rather than an error. Mounting already positioned
+  // removes both problems, and a ref callback focuses exactly once per open for free.
+  const setSurfaceRef = useCallback((node: HTMLDivElement | null) => {
+    surfaceRef.current = node
+    node?.focus()
   }, [])
 
   useLayoutEffect(() => {
@@ -150,9 +160,6 @@ export function Popover({
   useEffect(() => {
     if (!open) return
 
-    const surface = surfaceRef.current
-    surface?.focus()
-
     return () => {
       // Only reclaim focus if the surface still had it. Once the surface unmounts the browser
       // parks focus on <body>, so that is what "the user did not click anything else" looks
@@ -185,15 +192,16 @@ export function Popover({
         ...(open ? { 'aria-controls': surfaceId } : {}),
       })}
       {open &&
+        position &&
         createPortal(
           <div
-            ref={surfaceRef}
+            ref={setSurfaceRef}
             id={surfaceId}
             role="dialog"
             aria-label={label}
             tabIndex={-1}
             onKeyDown={handleKeyDown}
-            style={position ?? { top: 0, left: 0, visibility: 'hidden' }}
+            style={position}
             className={`animate-fade-in fixed z-[var(--z-popover)] flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
           >
             {children}

@@ -52,6 +52,20 @@ describe('Popover', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('never mounts the surface before it has been positioned', () => {
+    // Regression: the surface used to render for one commit with `visibility: hidden` while it
+    // waited for a position. A hidden element cannot be focused, so the focus call was a silent
+    // no-op and the whole keyboard path — Tab into the surface, Escape back to the trigger —
+    // was dead in the browser. jsdom does not implement that restriction and had happily
+    // reported the surface as focused, so the assertion below is on the *cause* instead.
+    render(<PopoverHarness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open popover' }))
+
+    const surface = screen.getByRole('dialog')
+    expect(surface.style.visibility).toBe('')
+    expect(surface.style.top).not.toBe('')
+  })
+
   it('renders into the document body so it cannot be clipped by the toolbar', () => {
     render(<PopoverHarness />)
     fireEvent.click(screen.getByRole('button', { name: 'Open popover' }))
