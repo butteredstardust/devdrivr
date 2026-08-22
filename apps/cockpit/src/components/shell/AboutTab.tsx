@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getVersion, getTauriVersion } from '@tauri-apps/api/app'
 import { ArrowsClockwiseIcon, QuotesIcon } from '@phosphor-icons/react'
-import { FrogMascot } from '@/components/shell/FrogMascot'
+import { Mascot } from '@/components/shared/Mascot'
+import { CopyButton } from '@/components/shared/CopyButton'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TOOLS } from '@/app/tool-registry'
 import { randomQuote, type Quote } from '@/lib/quotes'
@@ -39,22 +40,35 @@ export function AboutTab() {
 
   const shuffle = useCallback(() => setQuote((previous) => randomQuote(previous)), [])
 
+  // What a bug report needs, in a form that survives being pasted into one. The user agent is in
+  // here because it is the only OS and WebView version this app can name without taking on
+  // `@tauri-apps/plugin-os` for one string, and "which WebKit" is exactly the question a rendering
+  // bug turns on. `unknown` rather than the `—` the cards show: a dash is legible in a table and
+  // meaningless in a pasted report, and the version calls fail silently, so this really can be hit.
+  const buildInfo = [
+    `devdrivr ${appVersion ? `v${appVersion}` : 'version unknown'}`,
+    `Tauri ${tauriVersion ? `v${tauriVersion}` : 'version unknown'}`,
+    `User agent: ${navigator.userAgent}`,
+  ].join('\n')
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center gap-1 pt-1">
-        <FrogMascot size={148} />
+        <Mascot size={112} />
         <h3 className="font-pixel text-sm text-[var(--color-accent)]">devdrivr</h3>
-        <p className="text-2xs text-[var(--color-text-muted)]">
-          Local-first developer utility workspace
-        </p>
       </div>
 
-      <dl className="grid grid-cols-2 gap-2">
-        <FactCard label="Version" value={appVersion ? `v${appVersion}` : '—'} />
-        <FactCard label="Tauri" value={tauriVersion ? `v${tauriVersion}` : '—'} />
-        <FactCard label="Tools" value={String(TOOLS.length)} />
-        <FactCard label="License" value="MIT" />
-      </dl>
+      <div className="space-y-2">
+        <dl className="grid grid-cols-2 gap-2">
+          <FactCard label="Version" value={appVersion ? `v${appVersion}` : '—'} />
+          <FactCard label="Tauri" value={tauriVersion ? `v${tauriVersion}` : '—'} />
+          <FactCard label="Tools" value={String(TOOLS.length)} />
+          <FactCard label="License" value="MIT" />
+        </dl>
+        <div className="flex justify-end">
+          <CopyButton text={buildInfo} label="Copy build info" />
+        </div>
+      </div>
 
       <div>
         <SectionLabel as="h4" className="mb-2">
@@ -78,10 +92,6 @@ export function AboutTab() {
           </footer>
         </blockquote>
       </div>
-
-      <p className="text-2xs text-[var(--color-text-muted)]">
-        No cloud, no accounts, no telemetry. Everything you type stays on this machine.
-      </p>
     </div>
   )
 }
