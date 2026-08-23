@@ -318,7 +318,7 @@ Import from `@/components/shared/<Name>`.
 | -------------------- | -------------------------------------------------------------------------------------- |
 | `ToolLayout`         | Every tool's outer shell. `fullBleed` for editors, `maxWidth` for forms. No title slot |
 | `Toolbar`            | The chrome row. `ToolbarGroup` for families, `ToolbarSpacer` to push                   |
-| `DocumentToolbar`    | Wrapping variant for document tools; pairs with `DocumentIdentity`                     |
+| `DocumentToolbar`    | Single-row variant for document tools; pairs with `DocumentIdentity`                   |
 | `PaneHeader`         | Header strip for one pane of a split — title, optional status/actions                  |
 | `Panel`              | Bordered section container with optional title + actions                               |
 | `SplitPane`          | Resizable two-pane split; persists ratio via `storageKey`                              |
@@ -395,6 +395,26 @@ stops showing that any were changed; the badge is what buys that back.
 Use semantic variants (`info`/`success`/`warning`/`error`) rather than styling status text at the
 call site. Do not add check marks, warning glyphs, emoji, or custom SVG — the component or a
 Phosphor icon supplies the cue.
+
+#### Toolbar overflow is measured collapse, never wrapping
+
+A toolbar row's height must not depend on how many controls it happens to hold — a row that wraps
+pushes the document down and makes every tool read as a different app. `Toolbar` therefore keeps
+one line at any width: when the controls no longer fit, whole trailing groups fold into a
+"More actions" caret menu at the end of the row, and unfold again when space returns.
+
+The rules this encodes:
+
+- **Group order is priority order.** Groups leave from the right, so put what must survive first
+  in JSX. Identity (which truncates) and file actions outlast view options; view options outlast
+  document actions.
+- **Only `ToolbarGroup`s collapse.** Bare buttons and inputs always stay in the row — wrap them
+  in a group if they may be shed.
+- **No opt-out.** The old `wrap` prop is gone; horizontal scrolling of chrome is not an
+  alternative the app offers.
+
+The overflow menu reuses the group's own label as its section heading and restacks the same
+controls vertically, so nothing needs duplicating and state stays unique.
 
 ### `SectionLabel`
 

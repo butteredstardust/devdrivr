@@ -1,4 +1,20 @@
-import type { ReactNode } from 'react'
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
+import { CaretDownIcon } from '@phosphor-icons/react'
+import { Button } from './Button'
+import { Popover, type PopoverTriggerProps } from './Popover'
+import { SectionLabel } from './SectionLabel'
 
 type ToolbarProps = {
   children: ReactNode
@@ -7,8 +23,6 @@ type ToolbarProps = {
   border?: boolean
   /** Accessible label for a toolbar containing several action groups. */
   'aria-label'?: string
-  /** Disable wrapping for horizontally scrollable editor toolbars. */
-  wrap?: boolean
   /** For a collapsible secondary row that a disclosure button's `aria-controls` points at. */
   id?: string
 }
@@ -22,32 +36,188 @@ type ToolbarProps = {
 // 1024px, toolbars came out 42, 43, 46 and 47px tall depending purely on which controls a tool
 // happened to contain, so the line under the tab strip jumped every time you switched tabs. The
 // tallest control in the app measures 31px, which `py-1.5` leaves at 43px — under the floor — so
-// the floor now decides, and every non-wrapping toolbar is exactly 44px.
+// the floor now decides, and every toolbar is exactly 44px, always: the row never wraps.
 export function Toolbar({
   children,
   className = '',
   border = true,
-  wrap = true,
   id,
   'aria-label': ariaLabel,
 }: ToolbarProps) {
+  const analysis = useMemo(() => analyzeChildren(children), [children])
+  const analysisRef = useRef(analysis)
+  analysisRef.current = analysis
+
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const groupNodes = useRef(new Map<number, HTMLDivElement>())
+  const moreNode = useRef<HTMLButtonElement | null>(null)
+  const [collapsedCount, setCollapsedCount] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [tick, forceTick] = useState(0)
+  // Whether the row currently renders every group. Honest measurement needs the expanded
+  // layout, so a resize pass first expands, then measures on the following render.
+  const expandedRef = useRef(true)
+  const collapsedRef = useRef(0)
+
+  const measure = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    if (!expandedRef.current) {
+      expandedRef.current = true
+      setCollapsedCount(0)
+      forceTick((t) => t + 1)
+      return
+    }
+    const { groupsTotal } = analysisRef.current
+    if (groupsTotal === 0) return
+
+    // A zero-width row means no real layout — a hidden tab or a test environment's stubs.
+    // Collapsing there would hide controls from tests and from backgrounded instances.
+    if (el.clientWidth <= 0) return
+
+    const style = window.getComputedStyle(el)
+    const gap = parseFloat(style.columnGap) || 0
+    const available =
+      el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
+
+    const kids = Array.from(el.children) as HTMLElement[]
+    let fixedNeeded = 0
+    for (const kid of kids) fixedNeeded += kid.getBoundingClientRect().width
+    const childCount = kids.length
+
+    const groupWidths: number[] = []
+    for (let ordinal = 0; ordinal < groupsTotal; ordinal++) {
+      const node = groupNodes.current.get(ordinal)
+      const width = node ? node.getBoundingClientRect().width : 0
+      groupWidths.push(width)
+      fixedNeeded -= width
+    }
+
+    const moreWidth = moreNode.current ? moreNode.current.offsetWidth : MORE_RESERVE
+
+    const next = planCollapse({
+      available,
+      fixedWidth: fixedNeeded,
+      groupWidths,
+      moreWidth,
+      gap,
+      childCount,
+    })
+    if (next === collapsedRef.current) return
+    collapsedRef.current = next
+    if (next > 0) expandedRef.current = false
+    setCollapsedCount(next)
+    setMenuOpen(false)
+  }, [])
+
+  // Re-measure whenever the toolbar's structure changes or an expansion pass has just rendered.
+  useLayoutEffect(() => {
+    measure()
+  }, [measure, analysis.signature, tick])
+
+  const rafRef = useRef(0)
+  const requestMeasure = useCallback(() => {
+    if (rafRef.current) return
+    if (typeof requestAnimationFrame !== 'function') {
+      measure()
+      return
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      measure()
+    })
+  }, [measure])
+
+  useEffect(() => {
+    const el = containerRef.current
+    // jsdom has no ResizeObserver — toolbars render fully expanded in tests.
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(requestMeasure)
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+    }
+  }, [requestMeasure])
+
+  const setGroupNode = useCallback((ordinal: number, node: HTMLDivElement | null) => {
+    if (node) groupNodes.current.set(ordinal, node)
+    else groupNodes.current.delete(ordinal)
+  }, [])
+
+  const hiddenFrom = analysis.groupsTotal - collapsedCount
+  const collapsedGroups = analysis.groupElements.slice(hiddenFrom)
+
   return (
     <div
       id={id}
+      ref={containerRef}
       role="toolbar"
       aria-label={ariaLabel}
-      className={`flex min-h-11 items-center gap-2 bg-[var(--color-surface)] px-4 py-1.5 ${wrap ? 'flex-wrap' : 'overflow-x-auto'} ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
+      className={`flex min-h-11 items-center gap-2 bg-[var(--color-surface)] px-4 py-1.5 ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
     >
-      {children}
+      {analysis.nodes.map((node, index) => {
+        const ordinal = analysis.groupOrdinal.get(index)
+        if (ordinal === undefined) return node
+        if (ordinal >= hiddenFrom) return null
+        return cloneElement(node as ReactElement<ToolbarGroupProps>, {
+          ref: (el: HTMLDivElement | null) => setGroupNode(ordinal, el),
+        })
+      })}
+      {collapsedCount > 0 && (
+        <Popover
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          label="More actions"
+          align="end"
+          className="min-w-56"
+          trigger={(triggerProps: PopoverTriggerProps) => (
+            <Button
+              {...triggerProps}
+              ref={(node: HTMLButtonElement | null) => {
+                triggerProps.ref(node)
+                moreNode.current = node
+              }}
+              variant="ghost"
+              size="sm"
+              aria-label="More actions"
+              data-testid="toolbar-more-trigger"
+              className="shrink-0 px-1.5"
+            >
+              <CaretDownIcon size={12} aria-hidden="true" />
+            </Button>
+          )}
+        >
+          <div
+            className="divide-y divide-[var(--color-border)]"
+            onClickCapture={(event) => {
+              // One-shot actions close the menu; the row they acted on is visible underneath.
+              if ((event.target as HTMLElement).closest('button')) setMenuOpen(false)
+            }}
+          >
+            {collapsedGroups.map((group, index) => (
+              <OverflowSection key={group.key ?? index} element={group} />
+            ))}
+          </div>
+        </Popover>
+      )}
     </div>
   )
 }
+
+/** Width budgeted for the overflow trigger before it has rendered once. */
+const MORE_RESERVE = 34
 
 type ToolbarGroupProps = {
   children: ReactNode
   label?: string
   separated?: boolean
   className?: string
+  /** Used by `Toolbar` to measure the group for overflow. Not part of the public contract. */
+  ref?: (node: HTMLDivElement | null) => void
 }
 
 export function ToolbarGroup({
@@ -55,16 +225,113 @@ export function ToolbarGroup({
   label,
   separated = false,
   className = '',
+  ref,
 }: ToolbarGroupProps) {
   return (
     <div
+      ref={ref}
       role="group"
       aria-label={label}
+      data-toolbar-group=""
       className={`flex shrink-0 items-center gap-1.5 ${separated ? 'border-l border-[var(--color-border)] pl-2' : ''} ${className}`}
     >
       {children}
     </div>
   )
+}
+
+type OverflowSectionProps = {
+  element: ReactElement<ToolbarGroupProps>
+}
+
+/**
+ * One collapsed group inside the overflow surface: its label as a section heading, its
+ * controls restacked vertically. The controls are the very same elements the row renders —
+ * they only ever mount in one place, so ids and state stay unique.
+ */
+function OverflowSection({ element }: OverflowSectionProps) {
+  const { label, children } = element.props
+  return (
+    <section aria-label={label} className="px-2 py-2">
+      {label && <SectionLabel className="mb-1.5">{label}</SectionLabel>}
+      <div className="flex flex-col items-stretch gap-0.5 [&_>_button]:w-full [&_>_button]:justify-start [&_>_button]:text-left">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+type ChildAnalysis = {
+  nodes: ReactNode[]
+  /** Ordinal (among groups) of the group at each child position. */
+  groupOrdinal: Map<number, number>
+  groupElements: ReactElement<ToolbarGroupProps>[]
+  groupsTotal: number
+  signature: string
+}
+
+function analyzeChildren(children: ReactNode): ChildAnalysis {
+  const nodes = Children.toArray(children)
+  const groupOrdinal = new Map<number, number>()
+  const groupElements: ReactElement<ToolbarGroupProps>[] = []
+  let signature = ''
+  nodes.forEach((node, index) => {
+    if (isValidElement(node) && node.type === ToolbarGroup) {
+      groupOrdinal.set(index, groupElements.length)
+      groupElements.push(node as ReactElement<ToolbarGroupProps>)
+      signature += 'g'
+    } else {
+      signature += 'o'
+    }
+  })
+  return { nodes, groupOrdinal, groupElements, groupsTotal: groupElements.length, signature }
+}
+
+type CollapsePlanInput = {
+  /** Content-box width the row may occupy. */
+  available: number
+  /** Combined width of everything that never collapses (identity, file actions, bare buttons). */
+  fixedWidth: number
+  /** Natural widths of every group, in row order. */
+  groupWidths: number[]
+  moreWidth: number
+  gap: number
+  /** Total mounted children — groups and fixed nodes — at full expansion. */
+  childCount: number
+}
+
+/**
+ * How many trailing groups to fold into the overflow menu so the rest fits.
+ *
+ * Pure arithmetic so the edge cases — the trigger's own width, the gaps collapsing removes,
+ * the rounding slop — are testable without a layout engine. Collapsing proceeds from the
+ * right because groups are ordered by importance: the row sheds the least important first.
+ */
+export function planCollapse({
+  available,
+  fixedWidth,
+  groupWidths,
+  moreWidth,
+  gap,
+  childCount,
+}: CollapsePlanInput): number {
+  const total = groupWidths.length
+  let needed = fixedWidth
+  for (const width of groupWidths) needed += width
+  needed += Math.max(0, childCount - 1) * gap
+
+  let collapsed = 0
+  while (collapsed < total && needed > available + 0.75) {
+    const width = groupWidths[total - 1 - collapsed] ?? 0
+    needed -= width
+    collapsed += 1
+    if (collapsed === 1) {
+      // The trigger appears, and one gap with it.
+      needed += moreWidth + gap
+    }
+    needed -= gap
+  }
+  return collapsed
 }
 
 export function ToolbarSpacer() {
@@ -74,9 +341,10 @@ export function ToolbarSpacer() {
 type DocumentToolbarProps = ToolbarProps
 
 /**
- * Compact, wrapping chrome for document-oriented tools. Identity, view controls,
- * and primary actions share one row at normal widths and wrap as groups when the
- * workspace narrows.
+ * Compact chrome for document-oriented tools, on a single line that never wraps. The identity
+ * truncates first, then whole groups fold into the trailing "More actions" menu as the
+ * workspace narrows, in reverse row order — so group order in JSX is priority order, most
+ * important first. The row's height never varies with its contents.
  *
  * No bottom border by default, where `Toolbar` has one. A document toolbar is chrome *for* the
  * document directly beneath it and should look continuous with it — the same argument the tab
@@ -93,7 +361,7 @@ export function DocumentToolbar({
   ...props
 }: DocumentToolbarProps) {
   return (
-    <Toolbar {...props} border={border} className={`gap-x-3 gap-y-2 ${className}`}>
+    <Toolbar {...props} border={border} className={`gap-x-3 ${className}`}>
       {children}
     </Toolbar>
   )

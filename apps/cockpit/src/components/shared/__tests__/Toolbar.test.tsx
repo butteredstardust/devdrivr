@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, beforeEach } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import {
   DocumentIdentity,
   DocumentToolbar,
+  planCollapse,
   Toolbar,
   ToolbarGroup,
   ToolbarSpacer,
@@ -82,5 +83,193 @@ describe('Toolbar', () => {
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByText('~/notes.md')).toBeInTheDocument()
+  })
+})
+
+describe('planCollapse', () => {
+  const plan = (
+    available: number,
+    groupWidths: number[],
+    overrides: Partial<Parameters<typeof planCollapse>[0]> = {}
+  ) =>
+    planCollapse({
+      available,
+      fixedWidth: 100,
+      groupWidths,
+      moreWidth: 34,
+      gap: 8,
+      childCount: groupWidths.length + 1,
+      ...overrides,
+    })
+
+  it('keeps every group when the row fits', () => {
+    // 100 fixed + 240 groups + 2 gaps = 356
+    expect(plan(356, [120, 120])).toBe(0)
+  })
+
+  it('sheds trailing groups from the right until the row fits', () => {
+    // Collapsing one: 100 + 120 kept + trigger 34, gaps net out — 254.
+    expect(plan(355, [120, 120])).toBe(1)
+    // Collapsing two: 100 fixed + 34 trigger + 1 remaining gap — 142.
+    expect(plan(253, [120, 120])).toBe(2)
+  })
+
+  it('collapses every group rather than overflowing, even when nothing fits', () => {
+    expect(plan(10, [120, 120])).toBe(2)
+  })
+
+  it('returns zero when there is nothing to collapse', () => {
+    expect(
+      planCollapse({
+        available: 0,
+        fixedWidth: 100,
+        groupWidths: [],
+        moreWidth: 34,
+        gap: 8,
+        childCount: 1,
+      })
+    ).toBe(0)
+  })
+})
+
+class MockResizeObserver {
+  static instances: MockResizeObserver[] = []
+  callback: ResizeObserverCallback
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    MockResizeObserver.instances.push(this)
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+
+  trigger(): void {
+    this.callback([], this as unknown as ResizeObserver)
+  }
+}
+
+/** jsdom has no layout — stub the toolbar's width and each child's measured width. */
+function stubLayout(toolbar: HTMLElement, clientWidth: number, childWidths: number[]) {
+  Object.defineProperty(toolbar, 'clientWidth', { configurable: true, value: clientWidth })
+  Array.from(toolbar.children).forEach((child, index) => {
+    child.getBoundingClientRect = () => ({ width: childWidths[index] ?? 0 }) as unknown as DOMRect
+  })
+}
+
+describe('Toolbar overflow', () => {
+  beforeEach(() => {
+    MockResizeObserver.instances = []
+    // jsdom has neither ResizeObserver nor rAF — the observer stub drives measurement,
+    // and a synchronous rAF makes each resize pass deterministic.
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: MockResizeObserver,
+    })
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        callback(0)
+        return 0
+      },
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: () => {},
+    })
+  })
+
+  it('folds trailing groups into a "More actions" menu when the row runs out of width', () => {
+    render(
+      <Toolbar aria-label="Overflow">
+        <button>Fixed</button>
+        <ToolbarGroup label="First">
+          <button>First action</button>
+        </ToolbarGroup>
+        <ToolbarGroup label="Second">
+          <button>Second action</button>
+        </ToolbarGroup>
+      </Toolbar>
+    )
+    // 100 + 120 + 120 needs 340; without the second group the row needs 254.
+    stubLayout(screen.getByRole('toolbar', { name: 'Overflow' }), 260, [100, 120, 120])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Overflow' })
+    expect(screen.getByTestId('toolbar-more-trigger')).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'First action' })).toBeInTheDocument()
+    expect(within(toolbar).queryByRole('button', { name: 'Second action' })).toBeNull()
+
+    fireEvent.click(screen.getByTestId('toolbar-more-trigger'))
+    const menu = screen.getByRole('dialog', { name: 'More actions' })
+    expect(within(menu).getByRole('button', { name: 'Second action' })).toBeInTheDocument()
+    expect(within(menu).getByRole('region', { name: 'Second' })).toBeInTheDocument()
+  })
+
+  it('closes the menu when a collapsed action is activated', () => {
+    render(
+      <Toolbar aria-label="Overflow">
+        <ToolbarGroup label="Only">
+          <button>Only action</button>
+        </ToolbarGroup>
+      </Toolbar>
+    )
+    stubLayout(screen.getByRole('toolbar', { name: 'Overflow' }), 50, [120])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+
+    fireEvent.click(screen.getByTestId('toolbar-more-trigger'))
+    expect(screen.getByRole('dialog', { name: 'More actions' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Only action' }))
+    expect(screen.queryByRole('dialog', { name: 'More actions' })).toBeNull()
+  })
+
+  it('restores collapsed groups when width returns', () => {
+    render(
+      <Toolbar aria-label="Widen">
+        <button>Fixed</button>
+        <ToolbarGroup label="First">
+          <button>First action</button>
+        </ToolbarGroup>
+        <ToolbarGroup label="Second">
+          <button>Second action</button>
+        </ToolbarGroup>
+      </Toolbar>
+    )
+    const toolbar = screen.getByRole('toolbar', { name: 'Widen' })
+    stubLayout(toolbar, 200, [100, 120, 120])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+    expect(screen.queryByTestId('toolbar-more-trigger')).not.toBeNull()
+
+    stubLayout(toolbar, 400, [100, 120, 120])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+
+    expect(screen.queryByTestId('toolbar-more-trigger')).toBeNull()
+    expect(within(toolbar).getByRole('button', { name: 'Second action' })).toBeInTheDocument()
+  })
+
+  it('never collapses a toolbar without groups', () => {
+    render(
+      <Toolbar aria-label="Bare">
+        <button>Fixed</button>
+      </Toolbar>
+    )
+    stubLayout(screen.getByRole('toolbar', { name: 'Bare' }), 10, [500])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+
+    expect(screen.queryByTestId('toolbar-more-trigger')).toBeNull()
   })
 })

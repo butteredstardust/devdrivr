@@ -8,7 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { Spinner } from '@/components/shared/Spinner'
-import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { fitScale, svgSize, type SvgSize } from './mermaid-helpers'
 
 type Transform = { x: number; y: number; scale: number }
@@ -215,52 +215,56 @@ export default function MermaidPreview({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-surface)]">
-      <Toolbar className="gap-1" wrap={false} aria-label="Diagram view controls">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => zoomBy(1 / ZOOM_STEP)}
-          aria-label="Zoom out"
-          title="Zoom out (−)"
-        >
-          <MagnifyingGlassMinusIcon size={14} aria-hidden="true" />
-        </Button>
-        <span
-          className="w-12 text-center font-mono text-2xs text-[var(--color-text-muted)] tabular-nums"
-          title="Zoom level"
-        >
-          {percent}%
-        </span>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => zoomBy(ZOOM_STEP)}
-          aria-label="Zoom in"
-          title="Zoom in (+)"
-        >
-          <MagnifyingGlassPlusIcon size={14} aria-hidden="true" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={fitToView}
-          disabled={!svg}
-          className="gap-1"
-          title="Fit the whole diagram in the pane (F)"
-        >
-          <ArrowsOutSimpleIcon size={14} aria-hidden="true" />
-          Fit
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={resetView}
-          className="gap-1"
-          title="Back to 100% (0)"
-        >
-          <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
-          Reset
-        </Button>
+      <Toolbar className="gap-1" aria-label="Diagram view controls">
+        <ToolbarGroup label="Zoom">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => zoomBy(1 / ZOOM_STEP)}
+            aria-label="Zoom out"
+            title="Zoom out (−)"
+          >
+            <MagnifyingGlassMinusIcon size={14} aria-hidden="true" />
+          </Button>
+          <span
+            className="w-12 text-center font-mono text-2xs text-[var(--color-text-muted)] tabular-nums"
+            title="Zoom level"
+          >
+            {percent}%
+          </span>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => zoomBy(ZOOM_STEP)}
+            aria-label="Zoom in"
+            title="Zoom in (+)"
+          >
+            <MagnifyingGlassPlusIcon size={14} aria-hidden="true" />
+          </Button>
+        </ToolbarGroup>
+        <ToolbarGroup label="View" separated>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={fitToView}
+            disabled={!svg}
+            className="gap-1"
+            title="Fit the whole diagram in the pane (F)"
+          >
+            <ArrowsOutSimpleIcon size={14} aria-hidden="true" />
+            Fit
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={resetView}
+            className="gap-1"
+            title="Back to 100% (0)"
+          >
+            <ArrowCounterClockwiseIcon size={14} aria-hidden="true" />
+            Reset
+          </Button>
+        </ToolbarGroup>
 
         <ToolbarSpacer />
         <span className="flex items-center gap-1 text-2xs text-[var(--color-text-muted)]">
