@@ -3,10 +3,12 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import {
   ArrowUUpLeftIcon,
+  ArticleIcon,
+  BroomIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
   DownloadSimpleIcon,
-  FloppyDiskIcon,
+  FilesIcon,
   MagicWandIcon,
   ShieldCheckIcon,
   WarningCircleIcon,
@@ -14,6 +16,7 @@ import {
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
@@ -23,8 +26,9 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentToolbar } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog } from '@/lib/file-io'
 import {
   MAX_ISSUES,
   generateSample,
@@ -383,6 +387,15 @@ export default function JsonSchemaValidator() {
     [state.dataFileName, state.schemaFileName, setLastAction]
   )
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
   // --- Schema from a URL -----------------------------------------------
 
   const fetchIdRef = useRef(0)
@@ -564,6 +577,14 @@ export default function JsonSchemaValidator() {
             )}
           </div>
 
+          <DocumentFileActions
+            open={{
+              label: 'Open JSON data or schema',
+              title: `Open JSON data or schema (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+          />
+
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Select
               aria-label="Template"
@@ -588,6 +609,7 @@ export default function JsonSchemaValidator() {
               onClick={() => loadTemplate(templateKey)}
               title="Replace both panes with this template and its sample"
             >
+              <FilesIcon size={14} aria-hidden="true" />
               Load template
             </Button>
             <Button
@@ -605,7 +627,9 @@ export default function JsonSchemaValidator() {
               size="sm"
               onClick={handleGenerateSample}
               title="Replace the data with a sample the schema accepts"
+              className="gap-1"
             >
+              <ArticleIcon size={14} aria-hidden="true" />
               Sample data
             </Button>
             <Button
@@ -618,6 +642,7 @@ export default function JsonSchemaValidator() {
                 strict ? 'border-[var(--color-warning)] text-[var(--color-warning)]' : undefined
               }
             >
+              <ShieldCheckIcon size={14} aria-hidden="true" />
               Strict
             </Button>
             {undoBuffer && (
@@ -861,7 +886,14 @@ function EditorPane({
         actions={
           <>
             {headerExtras}
-            <Button variant="ghost" size="xs" onClick={onFormat} disabled={!value.trim()}>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onFormat}
+              disabled={!value.trim()}
+              className="gap-1"
+            >
+              <BroomIcon size={14} aria-hidden="true" />
               Format
             </Button>
             <CopyButton text={value} label={copyLabel} className="min-w-0" />
@@ -870,12 +902,12 @@ function EditorPane({
               size="xs"
               onClick={onSave}
               disabled={!value.trim()}
-              aria-label={`Save ${title.toLowerCase()} to file`}
-              title={`Save to a file (${formatShortcut('mod+s')})`}
+              aria-label={`Export ${title.toLowerCase()}`}
+              title={`Export to a file (${formatShortcut('mod+s')})`}
               className="gap-1"
             >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
+              Export
             </Button>
           </>
         }

@@ -3,11 +3,10 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   CaretDownIcon,
   CaretUpIcon,
+  BroomIcon,
   CheckCircleIcon,
   FileCssIcon,
-  FilePlusIcon,
-  FloppyDiskIcon,
-  FolderOpenIcon,
+  FilesIcon,
   InfoIcon,
   WarningCircleIcon,
   WarningIcon,
@@ -31,9 +30,10 @@ import { Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
-import { openFileDialog, saveFileDialog, filenameFromPath } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -409,7 +409,7 @@ export default function CssValidator() {
     }
   }, [requestDocument, setLastAction])
 
-  const handleSave = useCallback(async () => {
+  const handleSaveAs = useCallback(async () => {
     const snapshot = inputRef.current
     if (!snapshot.trim()) {
       setLastAction('Nothing to save yet', 'info')
@@ -427,6 +427,25 @@ export default function CssValidator() {
       setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
     }
   }, [state.fileName, state.syntax, updateState, setLastAction])
+
+  const handleSave = useCallback(async () => {
+    const snapshot = inputRef.current
+    if (!snapshot.trim()) {
+      setLastAction('Nothing to save yet', 'info')
+      return
+    }
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, snapshot)
+      updateState({ savedContent: snapshot })
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction, updateState])
 
   // --- Format ----------------------------------------------------------
 
@@ -563,37 +582,28 @@ export default function CssValidator() {
           }
         />
 
-        <ToolbarGroup label="Document actions" separated>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={handleNew}
-            title="New stylesheet"
-            aria-label="New stylesheet"
-          >
-            <FilePlusIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={() => void handleOpen()}
-            title={`Open a .css file (${formatShortcut('mod+o')})`}
-            aria-label="Open CSS file"
-          >
-            <FolderOpenIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={() => void handleSave()}
-            title={`Save the stylesheet (${formatShortcut('mod+s')})`}
-            aria-label="Save stylesheet"
-          >
-            <FloppyDiskIcon size={14} aria-hidden="true" />
-          </Button>
-        </ToolbarGroup>
+        <DocumentFileActions
+          newDocument={{ label: 'New stylesheet', onClick: handleNew }}
+          open={{
+            label: 'Open CSS file',
+            title: `Open a .css file (${formatShortcut('mod+o')})`,
+            onClick: () => void handleOpen(),
+          }}
+          save={{
+            label: 'Save stylesheet',
+            title: `Save the stylesheet (${formatShortcut('mod+s')})`,
+            onClick: () => void handleSave(),
+            disabled: !hasInput,
+          }}
+          saveAs={{
+            label: 'Save stylesheet as',
+            title: 'Save the stylesheet to a new file',
+            onClick: () => void handleSaveAs(),
+            disabled: !hasInput,
+          }}
+        />
 
-        <ToolbarGroup label="Template actions" separated>
+        <ToolbarGroup label="Input options" separated>
           <Select
             aria-label="Stylesheet syntax"
             value={state.syntax}
@@ -605,6 +615,9 @@ export default function CssValidator() {
             <option value="scss">SCSS</option>
             <option value="less">Less</option>
           </Select>
+        </ToolbarGroup>
+
+        <ToolbarGroup label="Template actions" separated>
           <Select
             aria-label="Starter template"
             value={state.templateId}
@@ -616,7 +629,14 @@ export default function CssValidator() {
               </option>
             ))}
           </Select>
-          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleLoadTemplate}
+            title="Load the selected stylesheet template"
+            className="gap-1"
+          >
+            <FilesIcon size={14} aria-hidden="true" />
             Load
           </Button>
         </ToolbarGroup>
@@ -630,6 +650,7 @@ export default function CssValidator() {
             loading={isFormatting}
             title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
           >
+            <BroomIcon size={14} aria-hidden="true" />
             Format
             <Kbd keys="mod+enter" variant="inline" className="ml-1" />
           </Button>

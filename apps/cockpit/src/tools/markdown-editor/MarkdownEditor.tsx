@@ -9,6 +9,7 @@ import { SelectionContextToolbar } from '@/components/shared/SelectionContextToo
 import { SplitPane } from '@/components/shared/SplitPane'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
@@ -37,9 +38,9 @@ import {
   CaretDownIcon,
   CodeIcon,
   CopyIcon,
-  FilePlusIcon,
-  FloppyDiskIcon,
-  FolderOpenIcon,
+  DownloadSimpleIcon,
+  FileMdIcon,
+  FilesIcon,
   ImageIcon,
   LinkIcon,
   MagnifyingGlassIcon,
@@ -513,12 +514,10 @@ export default function MarkdownEditor() {
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
-  const [showFileMenu, setShowFileMenu] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
-  const fileMenuRef = useRef<HTMLDivElement>(null)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -637,17 +636,6 @@ export default function MarkdownEditor() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showExport])
-
-  useEffect(() => {
-    if (!showFileMenu) return
-    const handler = (e: MouseEvent) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
-        setShowFileMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showFileMenu])
 
   // ─── Formatting insertion ────────────────────────────────────────
 
@@ -1067,6 +1055,28 @@ export default function MarkdownEditor() {
             // The path is context, not a result — announcing it on every open
             // would talk over the Modified/Saved indicator that matters.
             statusLive={false}
+            icon={
+              <FileMdIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+          />
+
+          <DocumentFileActions
+            newDocument={{ label: 'New markdown document', onClick: handleNewDocument }}
+            open={{
+              label: 'Open markdown file',
+              title: `Open a markdown file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save markdown document',
+              title: `Save the document (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+            }}
+            saveAs={{ label: 'Save markdown document as', onClick: () => void handleSaveAs() }}
           />
 
           <ToolbarGroup label="View options" separated>
@@ -1138,108 +1148,6 @@ export default function MarkdownEditor() {
             </Button>
           </ToolbarGroup>
 
-          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-[var(--color-border)]" />
-          <Button
-            type="button"
-            variant="icon"
-            size="sm"
-            onClick={handleNewDocument}
-            title="New document"
-            aria-label="New document"
-          >
-            <FilePlusIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="icon"
-            size="sm"
-            onClick={() => void handleOpen()}
-            title="Open markdown file"
-            aria-label="Open markdown file"
-          >
-            <FolderOpenIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => void handleSave()}
-            className="gap-1.5"
-          >
-            <FloppyDiskIcon size={14} aria-hidden="true" /> Save
-          </Button>
-
-          <div ref={fileMenuRef} className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowFileMenu(!showFileMenu)}
-              className={
-                showFileMenu ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-              }
-              aria-expanded={showFileMenu}
-              aria-haspopup="menu"
-            >
-              File <CaretDownIcon size={12} aria-hidden="true" className="ml-1" />
-            </Button>
-            {showFileMenu && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-20 mt-1 min-w-36 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
-              >
-                <Button
-                  role="menuitem"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    handleNewDocument()
-                    setShowFileMenu(false)
-                  }}
-                  className="w-full justify-start"
-                >
-                  New
-                </Button>
-                <Button
-                  role="menuitem"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleOpen()
-                    setShowFileMenu(false)
-                  }}
-                  className="w-full justify-start"
-                >
-                  Open…
-                </Button>
-                <Button
-                  role="menuitem"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleSave()
-                    setShowFileMenu(false)
-                  }}
-                  className="w-full justify-start"
-                >
-                  Save
-                </Button>
-                <Button
-                  role="menuitem"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleSaveAs()
-                    setShowFileMenu(false)
-                  }}
-                  className="w-full justify-start"
-                >
-                  Save As…
-                </Button>
-              </div>
-            )}
-          </div>
-
           <div ref={templatesRef} className="relative">
             <Button
               type="button"
@@ -1252,6 +1160,7 @@ export default function MarkdownEditor() {
               aria-expanded={showTemplates}
               aria-haspopup="menu"
             >
+              <FilesIcon size={14} aria-hidden="true" />
               Templates
             </Button>
             {showTemplates && (
@@ -1285,6 +1194,7 @@ export default function MarkdownEditor() {
               aria-expanded={showExport}
               aria-haspopup="menu"
             >
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
               Export <CaretDownIcon size={12} aria-hidden="true" />
             </Button>
             {showExport && (

@@ -2,15 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   ArrowUUpLeftIcon,
+  BracketsCurlyIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
+  DownloadSimpleIcon,
   FileCsvIcon,
-  FloppyDiskIcon,
+  ShieldCheckIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -20,9 +23,10 @@ import { Select } from '@/components/shared/Select'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import CsvTable from './CsvTable'
 import CsvConvert from './CsvConvert'
@@ -306,6 +310,15 @@ export default function CsvTools() {
     )
   }, [currentOutput, activeExtension, state.fileName, setLastAction])
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
   const handleLoadSample = useCallback(() => {
     const sample = TOOL_SAMPLES['csv-tools']
     if (!sample) return
@@ -388,6 +401,13 @@ export default function CsvTools() {
               ) : undefined
             }
           />
+          <DocumentFileActions
+            open={{
+              label: 'Open CSV or JSON file',
+              title: `Open a data file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+          />
           {issues.length > 0 && issues[0] && (
             <Button
               variant="ghost"
@@ -401,7 +421,7 @@ export default function CsvTools() {
             </Button>
           )}
 
-          <ToolbarGroup className="gap-3">
+          <ToolbarGroup label="CSV options and output" separated className="gap-3">
             <SegmentedControl
               aria-label="Input format"
               value={inputMode}
@@ -470,6 +490,7 @@ export default function CsvTools() {
               disabled={!rows.length}
               title="Open the current rows in JSON Tools"
             >
+              <BracketsCurlyIcon size={14} aria-hidden="true" />
               JSON
             </Button>
             <Button
@@ -484,6 +505,7 @@ export default function CsvTools() {
               disabled={!rows.length}
               title="Validate the current rows against an inferred JSON Schema"
             >
+              <ShieldCheckIcon size={14} aria-hidden="true" />
               Validate schema
             </Button>
             <Button
@@ -491,12 +513,12 @@ export default function CsvTools() {
               size="sm"
               onClick={handleSave}
               disabled={!hasInput}
-              title={`Save the current view to a file (${formatShortcut('mod+s')})`}
-              aria-label="Save output to file"
+              title={`Export the current view (${formatShortcut('mod+s')})`}
+              aria-label="Export current view"
               className="gap-1"
             >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
+              Export
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>

@@ -58,6 +58,9 @@ import {
   CopyIcon,
   DownloadSimpleIcon,
   FilePlusIcon,
+  FloppyDiskBackIcon,
+  FloppyDiskIcon,
+  FolderOpenIcon,
   GearSixIcon,
   LinkIcon,
   ListBulletsIcon,
@@ -1429,7 +1432,45 @@ export default function ApiClient() {
                   <FilePlusIcon size={16} aria-hidden="true" />
                 </Button>
 
-                <ToolbarGroup>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() => setShowImportModal(true)}
+                  title="Open or import an API specification"
+                  aria-label="Open API specification"
+                >
+                  <FolderOpenIcon size={16} aria-hidden="true" />
+                </Button>
+
+                <ToolbarGroup label="Request file actions" separated>
+                  <Button
+                    type="button"
+                    variant={dirty ? 'primary' : 'secondary'}
+                    size="sm"
+                    loading={saving}
+                    disabled={!dirty && !!state.activeRequestId}
+                    onClick={() => void handleSave()}
+                    title="Save request"
+                    className="gap-1"
+                  >
+                    <FloppyDiskIcon size={14} aria-hidden="true" />
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSaveAs}
+                    title="Save request as a new library entry"
+                    className="gap-1"
+                  >
+                    <FloppyDiskBackIcon size={14} aria-hidden="true" />
+                    Save As
+                  </Button>
+                </ToolbarGroup>
+
+                <ToolbarGroup label="Environment" separated>
                   <Select
                     value={activeEnvironmentId || ''}
                     onChange={(e) => setActiveEnvironmentId(e.target.value || null)}
@@ -1453,23 +1494,6 @@ export default function ApiClient() {
                     aria-label="Manage environments"
                   >
                     <GearSixIcon size={16} aria-hidden="true" />
-                  </Button>
-                </ToolbarGroup>
-
-                <ToolbarGroup>
-                  <Button
-                    type="button"
-                    variant={dirty ? 'primary' : 'secondary'}
-                    size="sm"
-                    loading={saving}
-                    disabled={!dirty && !!state.activeRequestId}
-                    onClick={() => void handleSave()}
-                    title="Save request"
-                  >
-                    Save
-                  </Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={handleSaveAs}>
-                    Save As
                   </Button>
                 </ToolbarGroup>
               </Toolbar>

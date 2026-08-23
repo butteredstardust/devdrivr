@@ -8,6 +8,7 @@ import {
   CaretDownIcon,
   CaretUpIcon,
   CheckCircleIcon,
+  DownloadSimpleIcon,
   GitDiffIcon,
   SlidersHorizontalIcon,
   TrashIcon,
@@ -28,7 +29,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
-import { buildExportFilename, exportFile } from '@/lib/file-io'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { extensionForLanguage } from '@/tools/code-formatter/languages'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -37,6 +39,7 @@ import type { DiffWorker } from '@/workers/diff.worker'
 import DiffWorkerFactory from '@/workers/diff.worker?worker'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { languageFromFilename } from '@/tools/code-formatter/languages'
 
 const { sanitize } = DOMPurify
@@ -468,6 +471,15 @@ export default function DiffViewer() {
     )
   }, [rawPatch, setLastAction, state.language])
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
   const loadSample = useCallback(() => {
     updateState({ left: DIFF_VIEWER_SAMPLE.left, right: DIFF_VIEWER_SAMPLE.right })
   }, [updateState])
@@ -586,6 +598,15 @@ export default function DiffViewer() {
               )}
             </span>
 
+            <DocumentFileActions
+              separated={false}
+              open={{
+                label: 'Open comparison file',
+                title: `Open the next comparison file (${formatShortcut('mod+o')})`,
+                onClick: () => void handleOpen(),
+              }}
+            />
+
             <ToolbarSpacer />
 
             <ToolbarGroup>
@@ -619,8 +640,22 @@ export default function DiffViewer() {
                 loading={isComparing}
                 title={`Compare both sides (${formatShortcut('mod+enter')})`}
               >
+                <GitDiffIcon size={14} aria-hidden="true" />
                 Compare
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
+              </Button>
+              <CopyButton text={rawPatch} label="Copy patch" />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSavePatch}
+                disabled={!rawPatch || identical}
+                title="Export the unified patch"
+                aria-label="Export patch"
+                className="gap-1"
+              >
+                <DownloadSimpleIcon size={14} aria-hidden="true" />
+                Export
               </Button>
             </ToolbarGroup>
           </Toolbar>
@@ -685,19 +720,6 @@ export default function DiffViewer() {
                 checked={state.jsonMode}
                 onChange={(checked) => updateState({ jsonMode: checked })}
               />
-              <ToolbarSpacer />
-              <ToolbarGroup>
-                <CopyButton text={rawPatch} label="Copy patch" />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleSavePatch}
-                  disabled={!rawPatch || identical}
-                  title="Save the unified patch to a file"
-                >
-                  Save patch…
-                </Button>
-              </ToolbarGroup>
             </Toolbar>
           )}
         </div>

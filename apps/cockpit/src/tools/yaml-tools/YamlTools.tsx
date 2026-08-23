@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   ArrowsInLineVerticalIcon,
   ArrowsOutLineVerticalIcon,
   ArrowUUpLeftIcon,
+  BracketsCurlyIcon,
+  BroomIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
   FileCodeIcon,
-  FloppyDiskIcon,
   MagnifyingGlassIcon,
   SortAscendingIcon,
   WarningCircleIcon,
@@ -18,6 +19,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
@@ -29,8 +31,9 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -56,6 +59,7 @@ type YamlView = 'source' | 'tree' | 'table' | 'json'
 type YamlToolsState = {
   input: string
   fileName: string | null
+  filePath: string | null
   /**
    * Tree and JSON used to be tabs that replaced the editor, so inspecting a
    * document meant leaving it, and the conversion tab kept its own second
@@ -103,6 +107,7 @@ export default function YamlTools() {
   const [state, updateState] = useToolState<YamlToolsState>('yaml-tools', {
     input: '',
     fileName: null,
+    filePath: null,
     view: 'source',
     tabWidth: 2,
     query: '',
@@ -116,6 +121,7 @@ export default function YamlTools() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const queryId = useId()
   const copy = useCopyToClipboard()
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
@@ -292,13 +298,41 @@ export default function YamlTools() {
     setLastAction('Reverted', 'info')
   }, [undoBuffer, updateState, setLastAction])
 
-  const handleSave = useCallback(() => {
-    void saveFileDialog(inputRef.current, state.fileName ?? 'document.yaml').then(
-      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-      (err: unknown) =>
-        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    )
-  }, [state.fileName, setLastAction])
+  const handleSaveAs = useCallback(async () => {
+    try {
+      const path = await saveFileDialog(inputRef.current, state.fileName ?? 'document.yaml')
+      if (!path) {
+        setLastAction('Save cancelled', 'info')
+        return
+      }
+      updateState({ filePath: path, fileName: filenameFromPath(path) })
+      setLastAction(`Saved ${path}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.fileName, setLastAction, updateState])
+
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, inputRef.current)
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
 
   // The parse error knows where it is; without this the user reads the line
   // number and then scrolls to find it by hand.
@@ -314,7 +348,11 @@ export default function YamlTools() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        filePath: action.path ?? null,
+      })
       setError(null)
       setUndoBuffer(null)
       setJsonDraft(null)
@@ -325,7 +363,7 @@ export default function YamlTools() {
         setLastAction('Nothing to save yet', 'info')
         return
       }
-      handleSave()
+      void handleSave()
     }
     if (action.type === 'copy-output') {
       void copy(inputRef.current, { success: 'Copied YAML' })
@@ -349,6 +387,7 @@ export default function YamlTools() {
           <DocumentToolbar aria-label="YAML document actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
+              titleTooltip={state.filePath ?? state.fileName ?? 'Untitled'}
               icon={
                 <FileCodeIcon
                   size={16}
@@ -372,6 +411,24 @@ export default function YamlTools() {
                   />
                 ) : undefined
               }
+            />
+            <DocumentFileActions
+              open={{
+                label: 'Open YAML file',
+                title: `Open a YAML file (${formatShortcut('mod+o')})`,
+                onClick: () => void handleOpen(),
+              }}
+              save={{
+                label: 'Save YAML file',
+                title: `Save the YAML (${formatShortcut('mod+s')})`,
+                onClick: () => void handleSave(),
+                disabled: !hasInput,
+              }}
+              saveAs={{
+                label: 'Save YAML file as',
+                onClick: () => void handleSaveAs(),
+                disabled: !hasInput,
+              }}
             />
             {parsed.status === 'invalid' && parsed.location && (
               <Button
@@ -398,6 +455,7 @@ export default function YamlTools() {
                 size="sm"
                 onClick={() => updateState({ queryOpen: !state.queryOpen })}
                 aria-expanded={state.queryOpen}
+                aria-controls={queryId}
                 className="gap-1"
               >
                 <MagnifyingGlassIcon size={14} aria-hidden="true" />
@@ -426,6 +484,7 @@ export default function YamlTools() {
                 loading={isFormatting}
                 title={`Format the document (${formatShortcut('mod+enter')})`}
               >
+                <BroomIcon size={14} aria-hidden="true" />
                 Format
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
@@ -439,7 +498,14 @@ export default function YamlTools() {
                 <SortAscendingIcon size={14} aria-hidden="true" />
                 Sort keys
               </Button>
-              <Button variant="secondary" size="sm" onClick={handleCompact} disabled={!hasInput}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCompact}
+                disabled={!hasInput}
+                className="gap-1"
+              >
+                <ArrowsInLineVerticalIcon size={14} aria-hidden="true" />
                 Compact
               </Button>
               {undoBuffer && (
@@ -458,24 +524,16 @@ export default function YamlTools() {
                 disabled={!isValid}
                 title="Open this YAML as JSON"
               >
+                <BracketsCurlyIcon size={14} aria-hidden="true" />
                 JSON
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasInput}
-                title={`Save to a file (${formatShortcut('mod+s')})`}
-                aria-label="Save YAML to file"
-                className="gap-1"
-              >
-                <FloppyDiskIcon size={14} aria-hidden="true" />
-                Save
               </Button>
             </ToolbarGroup>
           </DocumentToolbar>
           {state.queryOpen && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2">
+            <div
+              id={queryId}
+              className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2"
+            >
               <label className="flex min-w-0 flex-1 items-center gap-2 text-2xs text-[var(--color-text-muted)]">
                 Path
                 <Input
@@ -546,7 +604,13 @@ export default function YamlTools() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateState({ input: TOOL_SAMPLES['yaml-tools'] ?? '' })}
+                        onClick={() =>
+                          updateState({
+                            input: TOOL_SAMPLES['yaml-tools'] ?? '',
+                            fileName: null,
+                            filePath: null,
+                          })
+                        }
                       >
                         Load sample
                       </Button>

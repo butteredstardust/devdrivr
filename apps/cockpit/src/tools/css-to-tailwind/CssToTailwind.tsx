@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import Editor from '@monaco-editor/react'
-import { WindIcon } from '@phosphor-icons/react'
+import { DownloadSimpleIcon, WindIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
@@ -10,11 +10,20 @@ import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
+import { useToolAction } from '@/hooks/useToolAction'
+import { useUiStore } from '@/stores/ui.store'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
+import { formatShortcut } from '@/lib/shortcut-label'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import * as cssTree from 'css-tree'
 
 type CssToTailwindState = {
   input: string
+  fileName: string | null
   version: '3' | '4'
 }
 
@@ -490,8 +499,11 @@ export default function CssToTailwind() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CssToTailwindState>('css-to-tailwind', {
     input: '',
+    fileName: null,
     version: '4',
   })
+  const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
   const result = useMemo(() => {
     if (!state.input.trim()) return null
     return convertCssToTailwind(state.input, state.version)
@@ -499,8 +511,80 @@ export default function CssToTailwind() {
 
   const classString = result?.classes.join(' ') ?? ''
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
+  const handleExport = useCallback(async () => {
+    if (!classString) {
+      setLastAction('Nothing to export yet', 'info')
+      return
+    }
+    try {
+      const base = state.fileName?.replace(/\.[^.]+$/, '') ?? 'tailwind-classes'
+      const path = await exportFile(classString, buildExportFilename(base, 'txt'))
+      setLastAction(path ? `Exported ${path}` : 'Export cancelled', path ? 'success' : 'info')
+    } catch (err) {
+      setLastAction(`Export failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [classString, state.fileName, setLastAction])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ input: action.content, fileName: action.filename })
+      setLastAction(`Opened ${action.filename}`, 'success')
+    }
+    if (action.type === 'save-file') void handleExport()
+    if (action.type === 'copy-output' && classString) {
+      void copy(classString, { success: 'Tailwind classes copied', failure: 'Copy failed' })
+    }
+  })
+
   return (
-    <ToolLayout fullBleed>
+    <ToolLayout
+      fullBleed
+      toolbar={
+        <DocumentToolbar aria-label="CSS to Tailwind actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled CSS'}
+            icon={
+              <WindIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            status={classString ? `${result?.classes.length ?? 0} utilities` : 'Nothing converted'}
+          />
+          <DocumentFileActions
+            open={{
+              label: 'Open CSS file',
+              title: `Open a CSS file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+          />
+          <ToolbarGroup label="Converted output" separated>
+            <CopyButton text={classString} label="Copy Tailwind classes" />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleExport()}
+              disabled={!classString}
+              title={`Export Tailwind classes (${formatShortcut('mod+s')})`}
+              className="gap-1"
+            >
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
+              Export
+            </Button>
+          </ToolbarGroup>
+        </DocumentToolbar>
+      }
+    >
       <SplitPane storageKey="css-to-tailwind" aria-label="Resize CSS input and Tailwind output">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <PaneHeader
@@ -532,10 +616,7 @@ export default function CssToTailwind() {
           </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
-          <PaneHeader
-            title="Tailwind Output"
-            actions={classString ? <CopyButton text={classString} /> : undefined}
-          />
+          <PaneHeader title="Tailwind Output" />
           <div className="flex-1 overflow-auto p-4">
             {result ? (
               <div className="flex flex-col gap-4">

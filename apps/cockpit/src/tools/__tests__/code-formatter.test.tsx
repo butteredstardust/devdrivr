@@ -130,11 +130,14 @@ describe('CodeFormatter', () => {
   it('saves current output and handles cancellation', async () => {
     vi.mocked(saveFileDialog).mockResolvedValueOnce('/tmp/formatted.js').mockResolvedValueOnce(null)
     renderTool(CodeFormatter)
+    typeCode('const value=1')
 
     act(() => dispatchToolAction({ type: 'save-file' }))
-    await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('', 'formatted.js'))
+    await waitFor(() =>
+      expect(saveFileDialog).toHaveBeenCalledWith('const value=1', 'formatted.js')
+    )
 
-    act(() => dispatchToolAction({ type: 'save-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save code file as' }))
     await waitFor(() => expect(saveFileDialog).toHaveBeenCalledTimes(2))
     expect(useUiStore.getState().lastAction).toMatchObject({
       message: 'Save cancelled',
@@ -246,7 +249,8 @@ describe('CodeFormatter', () => {
     renderTool(CodeFormatter)
     expect(screen.getByRole('button', { name: /Format/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Auto-detect/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Save to file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save code file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save code file as' })).toBeDisabled()
   })
 })
 

@@ -153,7 +153,7 @@ describe('DiffViewer', () => {
 
     openOptions()
     expect(screen.getByRole('button', { name: 'Copy patch' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save patch/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Export patch' })).toBeEnabled()
   })
 
   it('reports the change counts as text and to screen readers', async () => {
@@ -238,7 +238,7 @@ describe('DiffViewer', () => {
 
     // Header-only patches used to leave a blank pane and an enabled Save button.
     await waitFor(() => expect(screen.getByText('No differences')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /Save patch/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export patch' })).toBeDisabled()
   })
 
   it('writes the patch out through the shared export helper', async () => {
@@ -248,7 +248,7 @@ describe('DiffViewer', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: 'Diff result' })).toBeTruthy())
 
     openOptions()
-    fireEvent.click(screen.getByRole('button', { name: /Save patch/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export patch' }))
 
     await waitFor(() => {
       expect(exportFile).toHaveBeenCalledWith(

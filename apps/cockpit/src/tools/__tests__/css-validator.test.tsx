@@ -18,7 +18,7 @@ import {
   toggleRule,
   type CssIssue,
 } from '@/tools/css-validator/css-helpers'
-import { openFileDialog, saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import * as cssTree from 'css-tree'
 
@@ -31,6 +31,7 @@ vi.mock('@/hooks/useToolHistory', () => ({
 vi.mock('@/lib/file-io', () => ({
   openFileDialog: vi.fn(),
   saveFileDialog: vi.fn(),
+  saveFileToPath: vi.fn(),
   filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
 }))
 
@@ -429,20 +430,24 @@ describe('CssValidator', () => {
     expect(screen.getByTestId('monaco-editor')).toHaveValue('.a { color: red; } }')
   })
 
-  it('round trips a file through Open and Save', async () => {
+  it('opens a file and saves back to its known path', async () => {
     vi.mocked(openFileDialog).mockResolvedValue({
       content: '.opened { color: red; }',
       filename: 'site.css',
       path: '/tmp/site.css',
     })
-    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/out.css')
+    vi.mocked(saveFileToPath).mockResolvedValue(undefined)
     renderTool(CssValidator)
 
     fireEvent.click(screen.getByRole('button', { name: /Open/ }))
     await waitFor(() => expect(screen.getByTestId('file-name')).toHaveTextContent('site.css'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Save/ }))
-    await waitFor(() => expect(screen.getByTestId('file-name')).toHaveTextContent('out.css'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save stylesheet' }))
+    await waitFor(() =>
+      expect(saveFileToPath).toHaveBeenCalledWith('/tmp/site.css', '.opened { color: red; }')
+    )
+    expect(saveFileDialog).not.toHaveBeenCalled()
+    expect(screen.getByTestId('file-name')).toHaveTextContent('site.css')
     expect(screen.getByText('Saved')).toBeInTheDocument()
   })
 

@@ -173,6 +173,6 @@ describe('CurlToFetch — Load sample', () => {
       expect(output).toContain('Authorization')
       expect(output).toContain('body')
     })
-    expect(screen.queryByRole('button', { name: 'Load sample' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load sample' })).toBeInTheDocument()
   })
 })

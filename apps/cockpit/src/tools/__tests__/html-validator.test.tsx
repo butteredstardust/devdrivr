@@ -420,7 +420,7 @@ describe('HtmlValidator', () => {
     typeHtml('<p>a</p>')
     expect(screen.getByText('Modified')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Save/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save HTML document' }))
     await waitFor(() => expect(screen.getByTestId('file-name')).toHaveTextContent('out.html'))
     expect(saveFileDialog).toHaveBeenCalledWith('<p>a</p>', 'page.html')
     expect(screen.getByText('Saved')).toBeInTheDocument()

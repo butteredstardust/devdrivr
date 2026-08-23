@@ -91,12 +91,14 @@ export function Workspace() {
   const hasActivePane = mountedTabs.some((tab) => tab.id === activeTabId && getToolById(tab.toolId))
 
   const handleFileDrop = useCallback(
-    (content: string, filename: string) => {
+    (content: string, filename: string, path: string) => {
       if (!supportsToolFileAction(activeTool, 'open-file')) {
         addToast('File drop is not supported by the active tool', 'error')
         return
       }
-      dispatchToolAction({ type: 'open-file', content, filename })
+      // The path travels with the drop so the first ⌘S overwrites the dropped
+      // file instead of reopening a Save As dialog for a file we already know.
+      dispatchToolAction({ type: 'open-file', content, filename, path })
       addToast(`Loaded ${filename}`, 'success')
     },
     [activeTool, addToast]

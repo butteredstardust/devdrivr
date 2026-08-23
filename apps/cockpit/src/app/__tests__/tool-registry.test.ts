@@ -60,13 +60,15 @@ describe('tool capability flags', () => {
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 14', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 16', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
         'code-formatter',
+        'css-to-tailwind',
         'css-validator',
         'csv-tools',
+        'curl-to-fetch',
         'diff-viewer',
         'html-validator',
         'json-schema-validator',
@@ -81,13 +83,15 @@ describe('tool capability flags', () => {
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 13', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 15', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
         'code-formatter',
+        'css-to-tailwind',
         'css-validator',
         'csv-tools',
+        'curl-to-fetch',
         'html-validator',
         'json-schema-validator',
         'json-tools',
