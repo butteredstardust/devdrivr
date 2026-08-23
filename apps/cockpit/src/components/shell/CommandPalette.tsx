@@ -396,6 +396,7 @@ export function CommandPalette() {
                   type: 'open-file',
                   content: result.content,
                   filename: result.filename,
+                  path: result.path,
                 })
                 addToast(`Opened ${result.filename}`, 'success')
               }

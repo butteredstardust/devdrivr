@@ -3,7 +3,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { filenameFromPath, readSupportedTextFile } from '@/lib/file-io'
 
 export function useFileDropZone(
-  onDrop: (content: string, filename: string) => void,
+  onDrop: (content: string, filename: string, path: string) => void,
   onError?: (message: string) => void,
   enabled = true
 ) {
@@ -37,7 +37,7 @@ export function useFileDropZone(
             readSupportedTextFile(filePath)
               .then((content) => {
                 if (cancelled) return
-                onDropRef.current(content, filename)
+                onDropRef.current(content, filename, filePath)
               })
               .catch((err) => {
                 if (cancelled) return

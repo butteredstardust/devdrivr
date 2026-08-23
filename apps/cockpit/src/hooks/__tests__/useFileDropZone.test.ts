@@ -42,7 +42,11 @@ describe('useFileDropZone', () => {
       })
     })
 
-    await waitFor(() => expect(onDrop).toHaveBeenCalledWith('dropped content', 'example.json'))
+    // The absolute path rides along so the tool can overwrite the dropped file
+    // on ⌘S instead of falling back to Save As.
+    await waitFor(() =>
+      expect(onDrop).toHaveBeenCalledWith('dropped content', 'example.json', '/tmp/example.json')
+    )
     unmount()
     expect(mocks.unlisten).toHaveBeenCalledOnce()
   })

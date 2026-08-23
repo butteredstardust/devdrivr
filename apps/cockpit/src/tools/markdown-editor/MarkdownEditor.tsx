@@ -1066,8 +1066,16 @@ export default function MarkdownEditor() {
 
           <DocumentFileActions
             newDocument={{ label: 'New markdown document', onClick: handleNewDocument }}
-            open={{ label: 'Open markdown file', onClick: () => void handleOpen() }}
-            save={{ label: 'Save markdown document', onClick: () => void handleSave() }}
+            open={{
+              label: 'Open markdown file',
+              title: `Open a markdown file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save markdown document',
+              title: `Save the document (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+            }}
             saveAs={{ label: 'Save markdown document as', onClick: () => void handleSaveAs() }}
           />
 
