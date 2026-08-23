@@ -56,6 +56,9 @@ export function Toolbar({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const groupNodes = useRef(new Map<number, HTMLDivElement>())
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  // Targets observed but not yet heard from — see the observer effect for why their first
+  // callback has to be swallowed.
+  const pendingInitialRef = useRef(new Set<Element>())
   const moreNode = useRef<HTMLButtonElement | null>(null)
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -142,12 +145,31 @@ export function Toolbar({
     const el = containerRef.current
     // jsdom has no ResizeObserver — toolbars render fully expanded in tests.
     if (!el || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(requestMeasure)
+    // `observe()` always delivers one callback describing the element's current size, before
+    // anything has actually resized. That callback carries no news — the layout effect measures
+    // on the very same commit that mounted the node. Acting on it is worse than useless here:
+    // an expansion pass remounts the collapsed groups, `setGroupNode` observes the new nodes,
+    // their initial callbacks re-enter `measure`, and the row expands and collapses forever at
+    // frame rate. So swallow the first callback per target and only react to real resizes.
+    const pendingInitial = pendingInitialRef.current
+    const observer = new ResizeObserver((entries) => {
+      let resized = false
+      for (const entry of entries) {
+        if (pendingInitial.delete(entry.target)) continue
+        resized = true
+      }
+      if (resized) requestMeasure()
+    })
     resizeObserverRef.current = observer
+    pendingInitial.add(el)
     observer.observe(el)
-    for (const node of groupNodes.current.values()) observer.observe(node)
+    for (const node of groupNodes.current.values()) {
+      pendingInitial.add(node)
+      observer.observe(node)
+    }
     return () => {
       resizeObserverRef.current = null
+      pendingInitial.clear()
       observer.disconnect()
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current)
@@ -159,9 +181,13 @@ export function Toolbar({
   const setGroupNode = useCallback((ordinal: number, node: HTMLDivElement | null) => {
     const previous = groupNodes.current.get(ordinal)
     if (previous === node) return
-    if (previous) resizeObserverRef.current?.unobserve(previous)
+    if (previous) {
+      pendingInitialRef.current.delete(previous)
+      resizeObserverRef.current?.unobserve(previous)
+    }
     if (node) {
       groupNodes.current.set(ordinal, node)
+      pendingInitialRef.current.add(node)
       resizeObserverRef.current?.observe(node)
     } else {
       groupNodes.current.delete(ordinal)

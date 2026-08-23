@@ -139,7 +139,6 @@ class MockResizeObserver {
   static instances: MockResizeObserver[] = []
   callback: ResizeObserverCallback
   targets = new Set<Element>()
-  deliveredInitial = false
 
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback
@@ -154,10 +153,7 @@ class MockResizeObserver {
    */
   observe(target: Element): void {
     this.targets.add(target)
-    if (!this.deliveredInitial) {
-      this.deliveredInitial = true
-      this.callback([], this as unknown as ResizeObserver)
-    }
+    this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver)
   }
   unobserve(target: Element): void {
     this.targets.delete(target)
@@ -168,7 +164,11 @@ class MockResizeObserver {
 
   trigger(target?: Element): void {
     if (target && !this.targets.has(target)) return
-    this.callback([], this as unknown as ResizeObserver)
+    const targets = target ? [target] : Array.from(this.targets)
+    this.callback(
+      targets.map((observedTarget) => ({ target: observedTarget }) as ResizeObserverEntry),
+      this as unknown as ResizeObserver
+    )
   }
 }
 
