@@ -4,9 +4,7 @@ import {
   ArrowRightIcon,
   CopyIcon,
   DownloadSimpleIcon,
-  FilePlusIcon,
-  FloppyDiskIcon,
-  FolderOpenIcon,
+  FilesIcon,
   GraphIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -21,6 +19,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { Select } from '@/components/shared/Select'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toggle } from '@/components/shared/Toggle'
 import { useUiStore } from '@/stores/ui.store'
@@ -629,6 +628,25 @@ export default function MermaidEditor() {
             status={statusText}
           />
 
+          <DocumentFileActions
+            newDocument={{ label: 'New diagram', onClick: handleNewDiagram }}
+            open={{
+              label: 'Open Mermaid file',
+              title: `Open a .mmd file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save Mermaid source',
+              title: `Save the source (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+            }}
+            saveAs={{
+              label: 'Save Mermaid source as',
+              title: 'Save the source to a new file',
+              onClick: () => void handleSaveAs(),
+            }}
+          />
+
           <ToolbarGroup label="View controls" separated>
             <SegmentedControl
               aria-label="Editor view mode"
@@ -636,36 +654,6 @@ export default function MermaidEditor() {
               value={mode}
               onChange={(next) => updateState({ mode: next })}
             />
-          </ToolbarGroup>
-
-          <ToolbarGroup label="Document actions" separated>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={handleNewDiagram}
-              title="New diagram"
-              aria-label="New diagram"
-            >
-              <FilePlusIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleOpen()}
-              title={`Open a .mmd file (${formatShortcut('mod+o')})`}
-              aria-label="Open Mermaid file"
-            >
-              <FolderOpenIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={() => void handleSave()}
-              title={`Save the source (${formatShortcut('mod+s')})`}
-              aria-label="Save Mermaid source"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-            </Button>
           </ToolbarGroup>
 
           <ToolbarGroup label="Template actions" separated>
@@ -680,7 +668,14 @@ export default function MermaidEditor() {
                 </option>
               ))}
             </Select>
-            <Button variant="secondary" size="sm" onClick={() => handleLoadTemplate()}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleLoadTemplate()}
+              title="Load the selected diagram template"
+              className="gap-1"
+            >
+              <FilesIcon size={14} aria-hidden="true" />
               Load
             </Button>
           </ToolbarGroup>
@@ -738,15 +733,17 @@ export default function MermaidEditor() {
             </Button>
           </ToolbarGroup>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void handleCopySource()}
-            className="gap-1"
-          >
-            <CopyIcon size={14} aria-hidden="true" />
-            Copy source
-          </Button>
+          <ToolbarGroup label="Source output" separated>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleCopySource()}
+              className="gap-1"
+            >
+              <CopyIcon size={14} aria-hidden="true" />
+              Copy source
+            </Button>
+          </ToolbarGroup>
         </DocumentToolbar>
       </header>
 

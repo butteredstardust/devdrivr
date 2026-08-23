@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
 import {
   ArrowCounterClockwiseIcon,
+  BroomIcon,
+  CheckIcon,
   CheckCircleIcon,
   CodeBlockIcon,
-  FloppyDiskIcon,
+  GitDiffIcon,
   MagicWandIcon,
   PencilSimpleIcon,
+  XIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -16,12 +19,14 @@ import { Kbd } from '@/components/shared/Kbd'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { saveFileDialog } from '@/lib/file-io'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { SettingsPopover, SettingsRow, SettingsSection } from '@/components/shared/SettingsPopover'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -41,6 +46,7 @@ import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList
 type CodeFormatterState = {
   input: string
   fileName: string | null
+  filePath: string | null
   language: string
   tabWidth: number
   useTabs: boolean
@@ -83,6 +89,7 @@ export default function CodeFormatter() {
   const [state, updateState] = useToolState<CodeFormatterState>('code-formatter', {
     input: '',
     fileName: null,
+    filePath: null,
     language: 'javascript',
     tabWidth: 2,
     useTabs: false,
@@ -253,14 +260,46 @@ export default function CodeFormatter() {
     }
   }, [formatter, updateState, setLastAction])
 
-  const handleSave = useCallback(() => {
+  const handleSaveAs = useCallback(async () => {
+    if (!inputRef.current.trim()) {
+      setLastAction('Nothing to save yet', 'info')
+      return
+    }
     const defaultName = state.fileName ?? `formatted.${extensionForLanguage(state.language)}`
-    void saveFileDialog(inputRef.current, defaultName).then(
-      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-      (err: unknown) =>
-        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    )
-  }, [state.fileName, state.language, setLastAction])
+    try {
+      const path = await saveFileDialog(inputRef.current, defaultName)
+      if (!path) {
+        setLastAction('Save cancelled', 'info')
+        return
+      }
+      updateState({ filePath: path, fileName: filenameFromPath(path) })
+      setLastAction(`Saved ${path}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.fileName, state.language, setLastAction, updateState])
+
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, inputRef.current)
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -271,6 +310,7 @@ export default function CodeFormatter() {
       updateState({
         input: action.content,
         fileName: action.filename,
+        filePath: action.path ?? null,
         lastFormat: null,
         ...(fromName ? { language: fromName } : {}),
       })
@@ -291,7 +331,7 @@ export default function CodeFormatter() {
           })
       }
     }
-    if (action.type === 'save-file') handleSave()
+    if (action.type === 'save-file') void handleSave()
   })
 
   useKeyboardShortcut(
@@ -312,6 +352,7 @@ export default function CodeFormatter() {
         <DocumentToolbar border aria-label="Code formatting actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled'}
             icon={
               <CodeBlockIcon
                 size={16}
@@ -331,6 +372,25 @@ export default function CodeFormatter() {
                 <PencilSimpleIcon size={12} aria-hidden="true" className="shrink-0" />
               ) : undefined
             }
+          />
+
+          <DocumentFileActions
+            open={{
+              label: 'Open code file',
+              title: `Open a code file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save code file',
+              title: `Save the code (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+              disabled: !hasCode,
+            }}
+            saveAs={{
+              label: 'Save code file as',
+              onClick: () => void handleSaveAs(),
+              disabled: !hasCode,
+            }}
           />
 
           {stats && (
@@ -471,6 +531,7 @@ export default function CodeFormatter() {
               loading={isFormatting}
               title={`Format the code (${formatShortcut('mod+enter')})`}
             >
+              <BroomIcon size={14} aria-hidden="true" />
               Format
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
@@ -493,11 +554,13 @@ export default function CodeFormatter() {
               aria-pressed={previewOpen}
               title="Compare the source before and after formatting"
             >
+              <GitDiffIcon size={14} aria-hidden="true" />
               Diff
             </Button>
             {pendingFormat && (
               <>
-                <Button variant="primary" size="sm" onClick={handleAcceptPreview}>
+                <Button variant="primary" size="sm" onClick={handleAcceptPreview} className="gap-1">
+                  <CheckIcon size={14} aria-hidden="true" />
                   Apply format
                 </Button>
                 <Button
@@ -508,23 +571,12 @@ export default function CodeFormatter() {
                     setPreviewOpen(false)
                   }}
                 >
+                  <XIcon size={14} aria-hidden="true" />
                   Discard preview
                 </Button>
               </>
             )}
             <CopyButton text={input} />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleSave}
-              disabled={!hasCode}
-              title={`Save to a file (${formatShortcut('mod+s')})`}
-              aria-label="Save to file"
-              className="gap-1"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
-            </Button>
           </ToolbarGroup>
         </DocumentToolbar>
       }
@@ -574,7 +626,13 @@ export default function CodeFormatter() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => updateState({ input: CODE_FORMATTER_SAMPLES[state.language] ?? '' })}
+                onClick={() =>
+                  updateState({
+                    input: CODE_FORMATTER_SAMPLES[state.language] ?? '',
+                    fileName: null,
+                    filePath: null,
+                  })
+                }
                 className="pointer-events-auto"
               >
                 Load {languageLabel(state.language)} sample

@@ -103,16 +103,19 @@ describe('MarkdownEditor', () => {
     )
   })
 
-  it('File dropdown renders Open, Save, and Save As entries', () => {
+  it('renders canonical file actions in the toolbar', () => {
     renderTool(MarkdownEditor)
-    fireEvent.click(screen.getByText('File'))
-    const menu = within(screen.getByRole('menu'))
-    expect(menu.getByText('Open…')).toBeInTheDocument()
-    expect(menu.getByText('Save')).toBeInTheDocument()
-    expect(menu.getByText('Save As…')).toBeInTheDocument()
+    const files = screen.getByRole('group', { name: 'File actions' })
+    expect(within(files).getByRole('button', { name: 'Open markdown file' })).toBeInTheDocument()
+    expect(
+      within(files).getByRole('button', { name: 'Save markdown document' })
+    ).toBeInTheDocument()
+    expect(
+      within(files).getByRole('button', { name: 'Save markdown document as' })
+    ).toBeInTheDocument()
   })
 
-  it('File > Open… populates content, fileName, and filePath', async () => {
+  it('Open populates content, fileName, and filePath', async () => {
     vi.mocked(openFileDialog).mockResolvedValue({
       content: '# From disk',
       filename: 'notes.md',
@@ -120,14 +123,13 @@ describe('MarkdownEditor', () => {
     })
     renderTool(MarkdownEditor)
 
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Open…'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open markdown file' }))
 
     await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
     expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
   })
 
-  it('File > Save writes directly to a known filePath without opening the save dialog', async () => {
+  it('Save writes directly to a known filePath without opening the save dialog', async () => {
     vi.mocked(openFileDialog).mockResolvedValue({
       content: '# From disk',
       filename: 'notes.md',
@@ -136,26 +138,23 @@ describe('MarkdownEditor', () => {
     vi.mocked(saveFileToPath).mockResolvedValue(undefined)
     renderTool(MarkdownEditor)
 
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Open…'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open markdown file' }))
     await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
 
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save markdown document' }))
 
     await waitFor(() => expect(saveFileToPath).toHaveBeenCalledWith('/tmp/notes.md', '# From disk'))
     expect(saveFileDialog).not.toHaveBeenCalled()
   })
 
-  it('File > Save falls back to the Save As dialog when no filePath is known', async () => {
+  it('Save falls back to the Save As dialog when no filePath is known', async () => {
     vi.mocked(saveFileDialog).mockResolvedValue('/tmp/document.md')
     renderTool(MarkdownEditor)
 
     fireEvent.change(screen.getByTestId('monaco-editor'), {
       target: { value: '# Untitled' },
     })
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save markdown document' }))
 
     await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('# Untitled', 'document.md'))
     expect(saveFileToPath).not.toHaveBeenCalled()
@@ -170,8 +169,7 @@ describe('MarkdownEditor', () => {
     vi.mocked(saveFileToPath).mockResolvedValue(undefined)
     renderTool(MarkdownEditor)
 
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(screen.getByText('Open…'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open markdown file' }))
     await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('# From disk'))
     expect(screen.getByTestId('file-name')).toHaveTextContent('notes.md')
     expect(screen.getByText('Saved')).toBeInTheDocument()
@@ -181,8 +179,7 @@ describe('MarkdownEditor', () => {
     })
     await waitFor(() => expect(screen.getByText('Modified')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByText('File'))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save markdown document' }))
 
     await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
   })
@@ -192,7 +189,7 @@ describe('MarkdownEditor', () => {
     const editor = screen.getByTestId('monaco-editor')
     fireEvent.change(editor, { target: { value: '# Keep me' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New markdown document' }))
 
     expect(screen.getByRole('dialog', { name: 'Replace unsaved changes?' })).toBeInTheDocument()
     expect(editor).toHaveValue('# Keep me')

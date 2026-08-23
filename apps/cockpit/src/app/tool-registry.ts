@@ -213,6 +213,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(WindIcon),
     description: 'Convert CSS rules to Tailwind classes',
     component: CssToTailwind,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   // --- Convert ---
@@ -264,6 +266,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(TerminalWindowIcon),
     description: 'Convert cURL to fetch, axios, ky, XHR, Node.js with syntax highlighting',
     component: CurlToFetch,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
     usesMonaco: true,
   },
   {

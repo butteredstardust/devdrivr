@@ -10,16 +10,23 @@ import { Button } from '@/components/shared/Button'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { sendToTool } from '@/lib/tool-handoff'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { TextArea } from '@/components/shared/TextArea'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
-import { TerminalWindowIcon } from '@phosphor-icons/react'
+import { DownloadSimpleIcon, FilesIcon, PlayIcon, TerminalWindowIcon } from '@phosphor-icons/react'
 import { Alert } from '@/components/shared/Alert'
-import { PlayIcon } from '@phosphor-icons/react'
+import { useToolAction } from '@/hooks/useToolAction'
+import { useUiStore } from '@/stores/ui.store'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
+import { formatShortcut } from '@/lib/shortcut-label'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type CurlToFetchState = {
   input: string
+  fileName: string | null
   outputTab: string
 }
 
@@ -297,8 +304,11 @@ export default function CurlToFetch() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const [state, updateState] = useToolState<CurlToFetchState>('curl-to-fetch', {
     input: '',
+    fileName: null,
     outputTab: 'fetch',
   })
+  const setLastAction = useUiStore((s) => s.setLastAction)
+  const copy = useCopyToClipboard()
 
   const parseResult = useMemo(() => parseCurl(state.input), [state.input])
   const parsed = parseResult.parsed
@@ -354,12 +364,66 @@ export default function CurlToFetch() {
     })
   }, [parsed])
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
+  const handleExport = useCallback(async () => {
+    if (!output) {
+      setLastAction('Nothing to export yet', 'info')
+      return
+    }
+    try {
+      const path = await exportFile(output, buildExportFilename(`${state.outputTab}-request`, 'js'))
+      setLastAction(path ? `Exported ${path}` : 'Export cancelled', path ? 'success' : 'info')
+    } catch (err) {
+      setLastAction(`Export failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [output, state.outputTab, setLastAction])
+
+  const handleLoadSample = useCallback(() => {
+    updateState({ input: TOOL_SAMPLES['curl-to-fetch'] ?? '', fileName: null })
+  }, [updateState])
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      updateState({ input: action.content, fileName: action.filename })
+      setLastAction(`Opened ${action.filename}`, 'success')
+    }
+    if (action.type === 'save-file') void handleExport()
+    if (action.type === 'copy-output' && output) {
+      void copy(output, { success: 'Generated request copied', failure: 'Copy failed' })
+    }
+  })
+
   return (
     <ToolLayout
       fullBleed
       toolbar={
-        parsed && (
-          <Toolbar className="gap-x-3" aria-label="Parsed request">
+        <DocumentToolbar aria-label="cURL conversion actions">
+          <DocumentIdentity
+            title={state.fileName ?? 'Untitled cURL command'}
+            icon={
+              <TerminalWindowIcon
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-[var(--color-text-muted)]"
+              />
+            }
+            status={
+              parsed
+                ? `${parsed.url} · ${headerCount} header${headerCount === 1 ? '' : 's'}${parsed.body ? ` · ${parsed.body.length} body chars` : ''}`
+                : state.input.trim()
+                  ? 'Invalid cURL command'
+                  : 'Nothing converted'
+            }
+          />
+          {parsed && (
             <span
               className="rounded px-2 py-0.5 text-xs font-bold"
               style={{
@@ -369,32 +433,54 @@ export default function CurlToFetch() {
             >
               {parsed.method}
             </span>
-            <span className="min-w-0 truncate font-mono text-xs text-[var(--color-text)]">
-              {parsed.url}
-            </span>
-            {headerCount > 0 && (
-              <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                {headerCount} header{headerCount !== 1 ? 's' : ''}
-              </span>
-            )}
-            {parsed.body && (
-              <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                body: {parsed.body.length} chars
-              </span>
-            )}
-            <ToolbarSpacer />
+          )}
+          <DocumentFileActions
+            open={{
+              label: 'Open cURL command',
+              title: `Open a cURL command (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+          />
+          <ToolbarGroup label="Template actions" separated>
             <Button
-              variant="ghost"
-              size="xs"
-              onClick={handleTestInApiClient}
-              title="Open this request in API Client"
-              className="shrink-0 gap-1"
+              variant="secondary"
+              size="sm"
+              onClick={handleLoadSample}
+              disabled={!TOOL_SAMPLES['curl-to-fetch']}
+              title="Load a sample cURL command"
+              className="gap-1"
             >
-              <PlayIcon size={12} />
-              Test in API Client
+              <FilesIcon size={14} aria-hidden="true" />
+              Load sample
             </Button>
-          </Toolbar>
-        )
+          </ToolbarGroup>
+          <ToolbarGroup label="Converted output" separated>
+            <CopyButton text={output} label="Copy generated request" />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleExport()}
+              disabled={!output}
+              title={`Export generated request (${formatShortcut('mod+s')})`}
+              className="gap-1"
+            >
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
+              Export
+            </Button>
+            {parsed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleTestInApiClient}
+                title="Open this request in API Client"
+                className="gap-1"
+              >
+                <PlayIcon size={14} aria-hidden="true" />
+                Test in API Client
+              </Button>
+            )}
+          </ToolbarGroup>
+        </DocumentToolbar>
       }
     >
       <SplitPane
@@ -424,7 +510,6 @@ export default function CurlToFetch() {
               activeTab={state.outputTab}
               onTabChange={(id) => updateState({ outputTab: id })}
             />
-            <CopyButton text={output} className="mr-2" />
           </div>
           {parsed ? (
             <div className="min-h-0 flex-1 overflow-hidden">
@@ -446,17 +531,6 @@ export default function CurlToFetch() {
                 size="sm"
                 title="Paste a cURL command on the left"
                 description="Copy as cURL from any browser's network panel. The command is parsed here — nothing is sent."
-                action={
-                  TOOL_SAMPLES['curl-to-fetch'] ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => updateState({ input: TOOL_SAMPLES['curl-to-fetch'] ?? '' })}
-                    >
-                      Load sample
-                    </Button>
-                  ) : undefined
-                }
               />
             </div>
           )}

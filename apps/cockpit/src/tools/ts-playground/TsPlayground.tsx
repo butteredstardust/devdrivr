@@ -2,8 +2,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   CheckCircleIcon,
+  DownloadSimpleIcon,
   FileTsIcon,
-  FloppyDiskIcon,
+  MagicWandIcon,
+  PlayIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -11,6 +13,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
@@ -20,9 +23,10 @@ import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { SettingsPopover, SettingsRow, SettingsSection } from '@/components/shared/SettingsPopover'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { openFileDialog, saveFileDialog } from '@/lib/file-io'
 import { TS_PLAYGROUND_SAMPLE } from '@/lib/tool-samples'
 import type { Diagnostic } from '@/workers/typescript.api'
 import type { TypeScriptWorker } from '@/workers/typescript.worker'
@@ -248,6 +252,15 @@ export default function TsPlayground() {
     )
   }, [output, state.fileName, setLastAction])
 
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
+
   const loadExample = useCallback(() => {
     updateState({ input: TS_PLAYGROUND_SAMPLE, fileName: null })
   }, [updateState])
@@ -326,6 +339,14 @@ export default function TsPlayground() {
             }
           />
 
+          <DocumentFileActions
+            open={{
+              label: 'Open TypeScript file',
+              title: `Open a TypeScript file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+          />
+
           <ToolbarGroup label="Playground actions" separated>
             <SettingsPopover
               label="Options"
@@ -388,6 +409,7 @@ export default function TsPlayground() {
               // then disable the very button that requests an announced one.
               title={`Compile now (${formatShortcut('mod+enter')})`}
             >
+              <PlayIcon size={14} aria-hidden="true" />
               Compile
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
@@ -401,6 +423,7 @@ export default function TsPlayground() {
               }
               title="Open the compiled JavaScript in Code Formatter"
             >
+              <MagicWandIcon size={14} aria-hidden="true" />
               Format output
             </Button>
             <Button
@@ -408,12 +431,12 @@ export default function TsPlayground() {
               size="sm"
               onClick={handleSave}
               disabled={!output}
-              title={`Save the JavaScript output to a file (${formatShortcut('mod+s')})`}
-              aria-label="Save output to file"
+              title={`Export the JavaScript output (${formatShortcut('mod+s')})`}
+              aria-label="Export JavaScript output"
               className="gap-1"
             >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
+              Export
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>

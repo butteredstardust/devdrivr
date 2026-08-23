@@ -60,7 +60,7 @@ describe('TsPlayground', () => {
     typeCode('')
 
     expect(screen.getByRole('button', { name: /Compile/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Save output to file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export JavaScript output' })).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Load sample' }))
     expect(editors()[0]!.value).toContain('interface User')

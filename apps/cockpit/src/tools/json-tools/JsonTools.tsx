@@ -6,13 +6,14 @@ import {
   ArrowsOutLineVerticalIcon,
   ArrowUUpLeftIcon,
   BracketsCurlyIcon,
+  BroomIcon,
   CaretDownIcon,
   CaretUpIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
-  FloppyDiskIcon,
   MagnifyingGlassIcon,
   SortAscendingIcon,
+  TreeStructureIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -21,6 +22,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Button } from '@/components/shared/Button'
@@ -32,8 +34,9 @@ import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -51,6 +54,7 @@ type JsonView = 'source' | 'tree' | 'table'
 type JsonToolsState = {
   input: string
   fileName: string | null
+  filePath: string | null
   /**
    * Tree and Table used to be tabs that replaced the editor, so inspecting a
    * document meant leaving it: every fix was "switch tab, edit, switch back".
@@ -367,6 +371,7 @@ export default function JsonTools() {
   const [state, updateState] = useToolState<JsonToolsState>('json-tools', {
     input: '',
     fileName: null,
+    filePath: null,
     view: 'source',
     query: '',
     queryOpen: false,
@@ -489,13 +494,41 @@ export default function JsonTools() {
     setLastAction(`Undid ${undoBuffer.label.toLowerCase()}`, 'info')
   }, [setLastAction, undoBuffer, updateState])
 
-  const handleSave = useCallback(() => {
-    void saveFileDialog(inputRef.current, state.fileName ?? 'data.json').then(
-      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-      (err: unknown) =>
-        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    )
-  }, [state.fileName, setLastAction])
+  const handleSaveAs = useCallback(async () => {
+    try {
+      const path = await saveFileDialog(inputRef.current, state.fileName ?? 'data.json')
+      if (!path) {
+        setLastAction('Save cancelled', 'info')
+        return
+      }
+      updateState({ filePath: path, fileName: filenameFromPath(path) })
+      setLastAction(`Saved ${path}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.fileName, setLastAction, updateState])
+
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, inputRef.current)
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
 
   // The parse error knows where it is; without this the user has to count
   // characters to find `position 428`.
@@ -514,6 +547,7 @@ export default function JsonTools() {
       updateState({
         input: action.content,
         fileName: action.filename,
+        filePath: action.path ?? null,
         allowComments: action.filename.toLowerCase().endsWith('.jsonc'),
       })
       setError(null)
@@ -524,7 +558,7 @@ export default function JsonTools() {
         setLastAction('Nothing to save yet', 'info')
         return
       }
-      handleSave()
+      void handleSave()
     }
   })
 
@@ -582,7 +616,13 @@ export default function JsonTools() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => updateState({ input: TOOL_SAMPLES['json-tools'] ?? '' })}
+                    onClick={() =>
+                      updateState({
+                        input: TOOL_SAMPLES['json-tools'] ?? '',
+                        fileName: null,
+                        filePath: null,
+                      })
+                    }
                   >
                     Load sample
                   </Button>
@@ -603,6 +643,7 @@ export default function JsonTools() {
           <DocumentToolbar aria-label="JSON document actions">
             <DocumentIdentity
               title={state.fileName ?? 'Untitled'}
+              titleTooltip={state.filePath ?? state.fileName ?? 'Untitled'}
               icon={
                 <BracketsCurlyIcon
                   size={16}
@@ -626,6 +667,24 @@ export default function JsonTools() {
                   />
                 ) : undefined
               }
+            />
+            <DocumentFileActions
+              open={{
+                label: 'Open JSON file',
+                title: `Open a JSON file (${formatShortcut('mod+o')})`,
+                onClick: () => void handleOpen(),
+              }}
+              save={{
+                label: 'Save JSON file',
+                title: `Save the JSON (${formatShortcut('mod+s')})`,
+                onClick: () => void handleSave(),
+                disabled: !hasInput,
+              }}
+              saveAs={{
+                label: 'Save JSON file as',
+                onClick: () => void handleSaveAs(),
+                disabled: !hasInput,
+              }}
             />
             {parsed.status === 'invalid' && parsed.location && (
               <Button
@@ -654,10 +713,18 @@ export default function JsonTools() {
                 loading={isFormatting}
                 title={`Format the document (${formatShortcut('mod+enter')})`}
               >
+                <BroomIcon size={14} aria-hidden="true" />
                 Format
                 <Kbd keys="mod+enter" variant="inline" className="ml-1" />
               </Button>
-              <Button variant="secondary" size="sm" onClick={handleMinify} disabled={!isValid}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleMinify}
+                disabled={!isValid}
+                className="gap-1"
+              >
+                <ArrowsInLineVerticalIcon size={14} aria-hidden="true" />
                 Minify
               </Button>
               <Button
@@ -677,20 +744,6 @@ export default function JsonTools() {
                 </Button>
               )}
               <CopyButton text={input} label="Copy JSON" />
-              {/* Labelled, like every other button in this group. As a bare icon it was the only
-                  unlabelled control on the row and the dimmest thing on it, which read as
-                  disabled rather than as an action. */}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasInput}
-                title={`Save to a file (${formatShortcut('mod+s')})`}
-                className="gap-1"
-              >
-                <FloppyDiskIcon size={14} aria-hidden="true" />
-                Save
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -698,6 +751,7 @@ export default function JsonTools() {
                 disabled={!hasInput}
                 title="Open this JSON in YAML Tools"
               >
+                <TreeStructureIcon size={14} aria-hidden="true" />
                 YAML
               </Button>
             </ToolbarGroup>

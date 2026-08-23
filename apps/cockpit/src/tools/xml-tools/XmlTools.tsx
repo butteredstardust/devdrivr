@@ -4,9 +4,9 @@ import {
   ArrowsInLineVerticalIcon,
   ArrowsOutLineVerticalIcon,
   BracketsAngleIcon,
+  BroomIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
-  FloppyDiskIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
@@ -15,6 +15,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker, type WorkerRpc } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
@@ -25,8 +26,9 @@ import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { XmlWorker } from '@/workers/xml.worker'
 import type { XmlInspection, XmlIssue, XmlTreeNode } from '@/workers/xml.api'
@@ -42,6 +44,7 @@ type XmlView = 'source' | 'tree' | 'json' | 'xpath'
 type XmlToolsState = {
   input: string
   fileName: string | null
+  filePath: string | null
   /**
    * Tree, JSON and XPath used to be tabs that replaced the editor, so every
    * "look at the document, fix the document" loop cost two tab switches. They
@@ -118,6 +121,7 @@ export default function XmlTools() {
   const [state, updateState] = useToolState<XmlToolsState>('xml-tools', {
     input: '',
     fileName: null,
+    filePath: null,
     view: 'source',
     xpath: '',
     indent: 2,
@@ -238,13 +242,41 @@ export default function XmlTools() {
     [worker, indent, updateState, setLastAction, recordRun]
   )
 
-  const handleSave = useCallback(() => {
-    void saveFileDialog(inputRef.current, state.fileName ?? 'document.xml').then(
-      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-      (err: unknown) =>
-        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    )
-  }, [state.fileName, setLastAction])
+  const handleSaveAs = useCallback(async () => {
+    try {
+      const path = await saveFileDialog(inputRef.current, state.fileName ?? 'document.xml')
+      if (!path) {
+        setLastAction('Save cancelled', 'info')
+        return
+      }
+      updateState({ filePath: path, fileName: filenameFromPath(path) })
+      setLastAction(`Saved ${path}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.fileName, setLastAction, updateState])
+
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, inputRef.current)
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
 
   // The parser knows where it went wrong; without this the user reads a line
   // number and then scrolls to find it by hand.
@@ -263,7 +295,11 @@ export default function XmlTools() {
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      updateState({ input: action.content, fileName: action.filename })
+      updateState({
+        input: action.content,
+        fileName: action.filename,
+        filePath: action.path ?? null,
+      })
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
@@ -272,7 +308,7 @@ export default function XmlTools() {
         setLastAction('Nothing to save yet', 'info')
         return
       }
-      handleSave()
+      void handleSave()
     }
     if (action.type === 'copy-output' && inputRef.current.trim()) {
       void copy(inputRef.current, { success: 'Copied XML' })
@@ -293,6 +329,7 @@ export default function XmlTools() {
         <DocumentToolbar aria-label="XML document actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled'}
             icon={
               <BracketsAngleIcon
                 size={16}
@@ -316,6 +353,24 @@ export default function XmlTools() {
                 />
               ) : undefined
             }
+          />
+          <DocumentFileActions
+            open={{
+              label: 'Open XML file',
+              title: `Open an XML file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save XML file',
+              title: `Save the XML (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+              disabled: !hasInput,
+            }}
+            saveAs={{
+              label: 'Save XML file as',
+              onClick: () => void handleSaveAs(),
+              disabled: !hasInput,
+            }}
           />
           {blockingIssue?.line !== undefined && (
             <Button
@@ -359,6 +414,7 @@ export default function XmlTools() {
               loading={isBusy}
               title={`Format the document (${formatShortcut('mod+enter')})`}
             >
+              <BroomIcon size={14} aria-hidden="true" />
               Format
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
@@ -368,21 +424,10 @@ export default function XmlTools() {
               onClick={() => void runTransform('minify')}
               disabled={!hasInput || isBusy}
             >
+              <ArrowsInLineVerticalIcon size={14} aria-hidden="true" />
               Minify
             </Button>
             <CopyButton text={input} label="Copy XML" />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleSave}
-              disabled={!hasInput}
-              title={`Save to a file (${formatShortcut('mod+s')})`}
-              aria-label="Save XML to file"
-              className="gap-1"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
-            </Button>
           </ToolbarGroup>
         </DocumentToolbar>
       }
@@ -443,7 +488,13 @@ export default function XmlTools() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateState({ input: TOOL_SAMPLES['xml-tools'] ?? '' })}
+                        onClick={() =>
+                          updateState({
+                            input: TOOL_SAMPLES['xml-tools'] ?? '',
+                            fileName: null,
+                            filePath: null,
+                          })
+                        }
                       >
                         Load sample
                       </Button>

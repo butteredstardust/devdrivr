@@ -3,8 +3,9 @@ import Editor, { DiffEditor } from '@monaco-editor/react'
 import {
   ArrowCounterClockwiseIcon,
   ArrowsClockwiseIcon,
+  CheckIcon,
   CheckCircleIcon,
-  FloppyDiskIcon,
+  MagicWandIcon,
   MagnifyingGlassIcon,
   SlidersHorizontalIcon,
   WarningCircleIcon,
@@ -14,6 +15,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
@@ -22,9 +24,10 @@ import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
-import { saveFileDialog } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { REFACTORING_SAMPLE } from '@/lib/tool-samples'
 import type { RefactoringWorker } from '@/workers/refactoring.worker'
 import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
@@ -47,6 +50,7 @@ type RefactoringView = 'source' | 'diff'
 type RefactoringState = {
   input: string
   fileName: string | null
+  filePath: string | null
   selectedTransforms: string[]
   language: string
   /** The transform list is a disclosure so an 800px-wide window still has an editor. */
@@ -126,6 +130,7 @@ export default function RefactoringToolkit() {
   const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
     input: '',
     fileName: null,
+    filePath: null,
     selectedTransforms: [],
     language: 'javascript',
     panelOpen: true,
@@ -307,14 +312,42 @@ export default function RefactoringToolkit() {
     [visibleTransforms, state.selectedTransforms, updateState]
   )
 
-  const handleSave = useCallback(() => {
+  const handleSaveAs = useCallback(async () => {
     const defaultName = state.fileName ?? `refactored.${EXTENSION[language] ?? 'js'}`
-    void saveFileDialog(input, defaultName).then(
-      (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-      (err: unknown) =>
-        setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    )
-  }, [state.fileName, language, input, setLastAction])
+    try {
+      const path = await saveFileDialog(input, defaultName)
+      if (!path) {
+        setLastAction('Save cancelled', 'info')
+        return
+      }
+      updateState({ filePath: path, fileName: filenameFromPath(path) })
+      setLastAction(`Saved ${path}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.fileName, language, input, setLastAction, updateState])
+
+  const handleSave = useCallback(async () => {
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, input)
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [state.filePath, state.fileName, input, handleSaveAs, setLastAction])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const opened = await openFileDialog()
+      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
+    } catch (err) {
+      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [setLastAction])
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -322,6 +355,7 @@ export default function RefactoringToolkit() {
       updateState({
         input: action.content,
         fileName: action.filename,
+        filePath: action.path ?? null,
         selectedTransforms: [],
         view: 'source',
         lastApply: null,
@@ -338,7 +372,7 @@ export default function RefactoringToolkit() {
         setLastAction('Nothing to save yet', 'info')
         return
       }
-      handleSave()
+      void handleSave()
     }
     if (action.type === 'copy-output' && hasCode) {
       void copy(copyText, { success: 'Code copied', failure: 'Copy failed' })
@@ -366,6 +400,7 @@ export default function RefactoringToolkit() {
         <DocumentToolbar aria-label="Refactoring actions">
           <DocumentIdentity
             title={state.fileName ?? 'Untitled'}
+            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled'}
             icon={
               <ArrowsClockwiseIcon
                 size={16}
@@ -389,6 +424,25 @@ export default function RefactoringToolkit() {
                 />
               ) : undefined
             }
+          />
+
+          <DocumentFileActions
+            open={{
+              label: 'Open code file',
+              title: `Open a code file (${formatShortcut('mod+o')})`,
+              onClick: () => void handleOpen(),
+            }}
+            save={{
+              label: 'Save code file',
+              title: `Save the code (${formatShortcut('mod+s')})`,
+              onClick: () => void handleSave(),
+              disabled: !hasCode,
+            }}
+            saveAs={{
+              label: 'Save code file as',
+              onClick: () => void handleSaveAs(),
+              disabled: !hasCode,
+            }}
           />
 
           <ToolbarGroup label="Refactoring options" separated>
@@ -453,6 +507,7 @@ export default function RefactoringToolkit() {
                   : `Apply the transforms to the buffer (${formatShortcut('mod+enter')})`
               }
             >
+              <CheckIcon size={14} aria-hidden="true" />
               {hasDestructive ? 'Apply (removes code)' : 'Apply'}
               <Kbd keys="mod+enter" variant="inline" className="ml-1" />
             </Button>
@@ -475,19 +530,8 @@ export default function RefactoringToolkit() {
               disabled={!hasCode}
               title="Open the current code in Code Formatter"
             >
+              <MagicWandIcon size={14} aria-hidden="true" />
               Format
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleSave}
-              disabled={!hasCode}
-              title={`Save the code to a file (${formatShortcut('mod+s')})`}
-              aria-label="Save code to file"
-              className="gap-1"
-            >
-              <FloppyDiskIcon size={14} aria-hidden="true" />
-              Save
             </Button>
           </ToolbarGroup>
         </DocumentToolbar>
@@ -683,6 +727,7 @@ export default function RefactoringToolkit() {
                   updateState({
                     input: REFACTORING_SAMPLE,
                     fileName: null,
+                    filePath: null,
                     lastApply: null,
                     applyHistory: [],
                     customFind: '',

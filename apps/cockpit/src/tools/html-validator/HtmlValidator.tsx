@@ -3,11 +3,10 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import {
   CaretDownIcon,
   CaretUpIcon,
+  BroomIcon,
   CheckCircleIcon,
   FileHtmlIcon,
-  FilePlusIcon,
-  FloppyDiskIcon,
-  FolderOpenIcon,
+  FilesIcon,
   FrameCornersIcon,
   InfoIcon,
   ListBulletsIcon,
@@ -33,8 +32,9 @@ import { Select } from '@/components/shared/Input'
 import { SegmentedControl, type SegmentedControlOption } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { openFileDialog, saveFileDialog, filenameFromPath } from '@/lib/file-io'
+import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -417,7 +417,7 @@ export default function HtmlValidator() {
     }
   }, [requestDocument, setLastAction])
 
-  const handleSave = useCallback(async () => {
+  const handleSaveAs = useCallback(async () => {
     const snapshot = inputRef.current
     if (!snapshot.trim()) {
       setLastAction('Nothing to save yet', 'info')
@@ -435,6 +435,25 @@ export default function HtmlValidator() {
       setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
     }
   }, [state.fileName, updateState, setLastAction])
+
+  const handleSave = useCallback(async () => {
+    const snapshot = inputRef.current
+    if (!snapshot.trim()) {
+      setLastAction('Nothing to save yet', 'info')
+      return
+    }
+    if (!state.filePath) {
+      await handleSaveAs()
+      return
+    }
+    try {
+      await saveFileToPath(state.filePath, snapshot)
+      updateState({ savedContent: snapshot })
+      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
+    } catch (err) {
+      setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
+    }
+  }, [state.filePath, state.fileName, handleSaveAs, setLastAction, updateState])
 
   // --- Format ----------------------------------------------------------
 
@@ -639,6 +658,27 @@ export default function HtmlValidator() {
           }
         />
 
+        <DocumentFileActions
+          newDocument={{ label: 'New HTML document', onClick: handleNew }}
+          open={{
+            label: 'Open HTML file',
+            title: `Open an .html file (${formatShortcut('mod+o')})`,
+            onClick: () => void handleOpen(),
+          }}
+          save={{
+            label: 'Save HTML document',
+            title: `Save the document (${formatShortcut('mod+s')})`,
+            onClick: () => void handleSave(),
+            disabled: !hasInput,
+          }}
+          saveAs={{
+            label: 'Save HTML document as',
+            title: 'Save the HTML document to a new file',
+            onClick: () => void handleSaveAs(),
+            disabled: !hasInput,
+          }}
+        />
+
         <ToolbarGroup label="View controls" separated>
           <SegmentedControl
             aria-label="View mode"
@@ -646,36 +686,6 @@ export default function HtmlValidator() {
             value={viewMode}
             onChange={(next) => updateState({ viewMode: next })}
           />
-        </ToolbarGroup>
-
-        <ToolbarGroup label="Document actions" separated>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={handleNew}
-            title="New HTML document"
-            aria-label="New HTML document"
-          >
-            <FilePlusIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={() => void handleOpen()}
-            title={`Open an .html file (${formatShortcut('mod+o')})`}
-            aria-label="Open HTML file"
-          >
-            <FolderOpenIcon size={14} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={() => void handleSave()}
-            title={`Save the document (${formatShortcut('mod+s')})`}
-            aria-label="Save HTML document"
-          >
-            <FloppyDiskIcon size={14} aria-hidden="true" />
-          </Button>
         </ToolbarGroup>
 
         <ToolbarGroup label="Template actions" separated>
@@ -690,7 +700,14 @@ export default function HtmlValidator() {
               </option>
             ))}
           </Select>
-          <Button variant="secondary" size="sm" onClick={handleLoadTemplate}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleLoadTemplate}
+            title="Load the selected HTML template"
+            className="gap-1"
+          >
+            <FilesIcon size={14} aria-hidden="true" />
             Load
           </Button>
         </ToolbarGroup>
@@ -704,6 +721,7 @@ export default function HtmlValidator() {
             loading={isFormatting}
             title={`Reformat the markup (${formatShortcut('mod+enter')})`}
           >
+            <BroomIcon size={14} aria-hidden="true" />
             Format
             <Kbd keys="mod+enter" variant="inline" className="ml-1" />
           </Button>
