@@ -213,8 +213,9 @@ export function Toolbar({
         >
           <div
             className="divide-y divide-[var(--color-border)]"
-            onClickCapture={(event) => {
-              // One-shot actions close the menu; the row they acted on is visible underneath.
+            onClick={(event) => {
+              // Dismiss in bubble phase, after the action's own handler has run. Capture phase
+              // unmounts nested popovers before a trusted browser click reaches its target.
               const button = (event.target as HTMLElement).closest('button')
               if (button && button.getAttribute('aria-haspopup') !== 'dialog') setMenuOpen(false)
             }}

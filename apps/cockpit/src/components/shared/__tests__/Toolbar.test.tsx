@@ -328,8 +328,14 @@ describe('Toolbar overflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }))
     expect(screen.getByRole('dialog', { name: 'Nested settings' })).toBeInTheDocument()
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Apply setting' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Apply setting' }))
+    const action = screen.getByRole('button', { name: 'Apply setting' })
+    // Match a trusted mouse click's ordering. The native mousedown listener must keep both
+    // layers mounted, then the action must run before the outer menu dismisses on click bubbling.
+    fireEvent.mouseDown(action)
+    expect(screen.getByRole('dialog', { name: 'More actions' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Nested settings' })).toBeInTheDocument()
+    fireEvent.mouseUp(action)
+    fireEvent.click(action)
     expect(onAction).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog', { name: 'More actions' })).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Nested settings' })).toBeNull()
