@@ -36,7 +36,12 @@ type ToolbarProps = {
 // 1024px, toolbars came out 42, 43, 46 and 47px tall depending purely on which controls a tool
 // happened to contain, so the line under the tab strip jumped every time you switched tabs. The
 // tallest control in the app measures 31px, which `py-1.5` leaves at 43px — under the floor — so
-// the floor now decides, and every toolbar is exactly 44px, always: the row never wraps.
+// for a row of buttons the floor decides and the height is 44px regardless of contents.
+//
+// It is a floor, not a fixed height: rows built around a text field instead of buttons (the regex
+// pattern, the API request URL) measure 51–65px, set by that control. What the floor buys is that
+// height never varies with *how many* controls a row holds — the row never wraps, and overflow is
+// resolved by collapsing groups into the trailing menu.
 export function Toolbar({
   children,
   className = '',
@@ -64,6 +69,10 @@ export function Toolbar({
     if (!el) return
     if (!expandedRef.current) {
       expandedRef.current = true
+      // The row is about to render fully expanded, so the bookkeeping has to say so too.
+      // Leaving this at its old value made the next pass's identical result look like "no
+      // change" and skip the update, stranding the row expanded and overflowing forever.
+      collapsedRef.current = 0
       setCollapsedCount(0)
       forceTick((t) => t + 1)
       return

@@ -7,7 +7,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import {
   computeFormats,
   listTimeZones,
@@ -163,11 +163,13 @@ export default function TimestampConverter() {
       toolbar={
         <>
           <Toolbar aria-label="Timestamp presets">
-            {PRESETS.map((p) => (
-              <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
-                {p.label}
-              </Button>
-            ))}
+            <ToolbarGroup label="Presets">
+              {PRESETS.map((p) => (
+                <Button key={p.label} variant="secondary" size="sm" onClick={() => handlePreset(p)}>
+                  {p.label}
+                </Button>
+              ))}
+            </ToolbarGroup>
             <ToolbarSpacer />
             {/* A native select: ~400 zones with OS type-ahead beats anything hand-rolled, and the
                 two entries above the separator cover the cases that aren't a lookup. */}

@@ -141,7 +141,15 @@ class MockResizeObserver {
     MockResizeObserver.instances.push(this)
   }
 
-  observe(): void {}
+  /**
+   * A real ResizeObserver delivers one callback as soon as it starts observing. Omitting that
+   * initial delivery is what let a desync between the rendered collapse count and the ref
+   * tracking it pass this suite while every toolbar in the app overflowed: the stale ref made
+   * the follow-up measurement look like "no change", so the row never collapsed at all.
+   */
+  observe(): void {
+    this.callback([], this as unknown as ResizeObserver)
+  }
   unobserve(): void {}
   disconnect(): void {}
 
@@ -156,6 +164,35 @@ function stubLayout(toolbar: HTMLElement, clientWidth: number, childWidths: numb
   Array.from(toolbar.children).forEach((child, index) => {
     child.getBoundingClientRect = () => ({ width: childWidths[index] ?? 0 }) as unknown as DOMRect
   })
+}
+
+/**
+ * Stub layout globally *before* mounting, so the very first measurement sees a real width.
+ * `stubLayout` can only run after render, which means the mount-time pass reads a zero-width
+ * row and bails — the one path where collapse and the observer's initial callback interact.
+ */
+function installGlobalLayout(toolbarWidth: number, groupWidth: number, fixedWidth: number) {
+  const { Element, HTMLElement } = window
+  const originalRect = Element.prototype.getBoundingClientRect
+  const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth')
+
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.getAttribute('role') === 'toolbar' ? toolbarWidth : 0
+    },
+  })
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const width = this.hasAttribute('data-toolbar-group') ? groupWidth : fixedWidth
+    return { width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0 } as DOMRect
+  }
+
+  return () => {
+    Element.prototype.getBoundingClientRect = originalRect
+    if (originalClientWidth) {
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth)
+    }
+  }
 }
 
 describe('Toolbar overflow', () => {
@@ -271,5 +308,32 @@ describe('Toolbar overflow', () => {
     })
 
     expect(screen.queryByTestId('toolbar-more-trigger')).toBeNull()
+  })
+
+  it('stays collapsed after the observer delivers its initial callback', () => {
+    // The live failure: the mount pass collapses, the observer's first callback runs the
+    // "expand, then re-measure" pass, and the re-measure computes the same count it started
+    // with. Unless the expansion resets that bookkeeping too, the equality check reads it as
+    // "nothing changed" and the row is left expanded and overflowing for good.
+    const restore = installGlobalLayout(260, 120, 100)
+    try {
+      render(
+        <Toolbar aria-label="Sticky">
+          <button>Fixed</button>
+          <ToolbarGroup label="First">
+            <button>First action</button>
+          </ToolbarGroup>
+          <ToolbarGroup label="Second">
+            <button>Second action</button>
+          </ToolbarGroup>
+        </Toolbar>
+      )
+
+      const toolbar = screen.getByRole('toolbar', { name: 'Sticky' })
+      expect(screen.getByTestId('toolbar-more-trigger')).toBeInTheDocument()
+      expect(within(toolbar).queryByRole('button', { name: 'Second action' })).toBeNull()
+    } finally {
+      restore()
+    }
   })
 })

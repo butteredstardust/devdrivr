@@ -365,7 +365,7 @@ export default function RegexTester() {
             >
               {showRef ? 'Hide' : 'Ref'}
             </Button>
-            <div className="flex shrink-0 gap-1">
+            <ToolbarGroup label="Examples" className="gap-1">
               {REGEX_PRESETS.map((preset) => (
                 <Button
                   key={preset.label}
@@ -383,7 +383,7 @@ export default function RegexTester() {
                   {preset.label}
                 </Button>
               ))}
-            </div>
+            </ToolbarGroup>
             {/* Only while both fields are untouched. A regex tool needs a pattern
                 *and* a subject before it shows anything, so a cold start means
                 inventing both — and the tax falls hardest on the user who came
