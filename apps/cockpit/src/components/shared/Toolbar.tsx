@@ -55,6 +55,7 @@ export function Toolbar({
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const groupNodes = useRef(new Map<number, HTMLDivElement>())
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const moreNode = useRef<HTMLButtonElement | null>(null)
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -142,8 +143,11 @@ export function Toolbar({
     // jsdom has no ResizeObserver — toolbars render fully expanded in tests.
     if (!el || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(requestMeasure)
+    resizeObserverRef.current = observer
     observer.observe(el)
+    for (const node of groupNodes.current.values()) observer.observe(node)
     return () => {
+      resizeObserverRef.current = null
       observer.disconnect()
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current)
@@ -153,8 +157,15 @@ export function Toolbar({
   }, [requestMeasure])
 
   const setGroupNode = useCallback((ordinal: number, node: HTMLDivElement | null) => {
-    if (node) groupNodes.current.set(ordinal, node)
-    else groupNodes.current.delete(ordinal)
+    const previous = groupNodes.current.get(ordinal)
+    if (previous === node) return
+    if (previous) resizeObserverRef.current?.unobserve(previous)
+    if (node) {
+      groupNodes.current.set(ordinal, node)
+      resizeObserverRef.current?.observe(node)
+    } else {
+      groupNodes.current.delete(ordinal)
+    }
   }, [])
 
   const hiddenFrom = analysis.groupsTotal - collapsedCount
@@ -204,7 +215,8 @@ export function Toolbar({
             className="divide-y divide-[var(--color-border)]"
             onClickCapture={(event) => {
               // One-shot actions close the menu; the row they acted on is visible underneath.
-              if ((event.target as HTMLElement).closest('button')) setMenuOpen(false)
+              const button = (event.target as HTMLElement).closest('button')
+              if (button && button.getAttribute('aria-haspopup') !== 'dialog') setMenuOpen(false)
             }}
           >
             {collapsedGroups.map((group, index) => (

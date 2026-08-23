@@ -1,5 +1,8 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { useState } from 'react'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { Button } from '@/components/shared/Button'
+import { Popover } from '@/components/shared/Popover'
 import {
   DocumentIdentity,
   DocumentToolbar,
@@ -135,6 +138,8 @@ describe('planCollapse', () => {
 class MockResizeObserver {
   static instances: MockResizeObserver[] = []
   callback: ResizeObserverCallback
+  targets = new Set<Element>()
+  deliveredInitial = false
 
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback
@@ -147,15 +152,61 @@ class MockResizeObserver {
    * tracking it pass this suite while every toolbar in the app overflowed: the stale ref made
    * the follow-up measurement look like "no change", so the row never collapsed at all.
    */
-  observe(): void {
-    this.callback([], this as unknown as ResizeObserver)
+  observe(target: Element): void {
+    this.targets.add(target)
+    if (!this.deliveredInitial) {
+      this.deliveredInitial = true
+      this.callback([], this as unknown as ResizeObserver)
+    }
   }
-  unobserve(): void {}
-  disconnect(): void {}
+  unobserve(target: Element): void {
+    this.targets.delete(target)
+  }
+  disconnect(): void {
+    this.targets.clear()
+  }
 
-  trigger(): void {
+  trigger(target?: Element): void {
+    if (target && !this.targets.has(target)) return
     this.callback([], this as unknown as ResizeObserver)
   }
+}
+
+function NestedPopoverGroup({ onAction }: { onAction: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Toolbar aria-label="Nested overflow">
+      <ToolbarGroup label="Settings">
+        <Popover
+          open={open}
+          onOpenChange={setOpen}
+          label="Nested settings"
+          trigger={(props) => <Button {...props}>Configure</Button>}
+        >
+          <Button
+            onClick={() => {
+              onAction()
+              setOpen(false)
+            }}
+          >
+            Apply setting
+          </Button>
+        </Popover>
+      </ToolbarGroup>
+    </Toolbar>
+  )
+}
+
+function DynamicGroup() {
+  const [wide, setWide] = useState(false)
+  return (
+    <Toolbar aria-label="Dynamic overflow">
+      <Button onClick={() => setWide(true)}>Change</Button>
+      <ToolbarGroup label="Dynamic">
+        <Button>{wide ? 'A much wider action label' : 'Short'}</Button>
+      </ToolbarGroup>
+    </Toolbar>
+  )
 }
 
 /** jsdom has no layout — stub the toolbar's width and each child's measured width. */
@@ -263,6 +314,44 @@ describe('Toolbar overflow', () => {
     expect(screen.getByRole('dialog', { name: 'More actions' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Only action' }))
     expect(screen.queryByRole('dialog', { name: 'More actions' })).toBeNull()
+  })
+
+  it('keeps a nested popover mounted until its action is activated', () => {
+    const onAction = vi.fn()
+    render(<NestedPopoverGroup onAction={onAction} />)
+    stubLayout(screen.getByRole('toolbar', { name: 'Nested overflow' }), 50, [120])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Configure' }))
+    expect(screen.getByRole('dialog', { name: 'Nested settings' })).toBeInTheDocument()
+
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Apply setting' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply setting' }))
+    expect(onAction).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: 'More actions' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Nested settings' })).toBeNull()
+  })
+
+  it('remeasures when a mounted group changes width', () => {
+    render(<DynamicGroup />)
+    const toolbar = screen.getByRole('toolbar', { name: 'Dynamic overflow' })
+    stubLayout(toolbar, 150, [20, 50])
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger()
+    })
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+    stubLayout(toolbar, 150, [20, 250])
+    const group = screen.getByRole('group', { name: 'Dynamic' })
+    act(() => {
+      MockResizeObserver.instances.at(-1)?.trigger(group)
+    })
+
+    expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument()
   })
 
   it('restores collapsed groups when width returns', () => {
