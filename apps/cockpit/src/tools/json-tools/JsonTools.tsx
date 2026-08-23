@@ -699,11 +699,9 @@ export default function JsonTools() {
               </Button>
             )}
 
-            {/* Actions lead, view options trail. This bar wraps to two rows at 1024px — one of
-                the two viewports the UI audit checks — and with view options first the wrap put
-                Indent/Path/Source-Tree-Table on row one and buried every primary action on row
-                two, underneath them. Ordering by importance means the wrap sheds the least
-                important row last. */}
+            {/* Actions lead, view options trail. Narrow viewports shed groups into the
+                trailing overflow menu from the right, so ordering by importance decides what
+                survives at 1024px — the primary actions are the last to leave the row. */}
             <ToolbarGroup label="Document actions" separated>
               <Button
                 variant="primary"

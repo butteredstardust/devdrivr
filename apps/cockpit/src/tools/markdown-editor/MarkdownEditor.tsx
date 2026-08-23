@@ -9,6 +9,7 @@ import { SelectionContextToolbar } from '@/components/shared/SelectionContextToo
 import { SplitPane } from '@/components/shared/SplitPane'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
+import { Popover } from '@/components/shared/Popover'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -516,8 +517,6 @@ export default function MarkdownEditor() {
   const [showExport, setShowExport] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
-  const templatesRef = useRef<HTMLDivElement>(null)
-  const exportRef = useRef<HTMLDivElement>(null)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -612,30 +611,6 @@ export default function MarkdownEditor() {
   // ─── TOC ─────────────────────────────────────────────────────────
 
   const toc = useMemo(() => extractToc(html), [html])
-
-  // ─── Outside-click dismiss for Templates & Export dropdowns ──────
-
-  useEffect(() => {
-    if (!showTemplates) return
-    const handler = (e: MouseEvent) => {
-      if (templatesRef.current && !templatesRef.current.contains(e.target as Node)) {
-        setShowTemplates(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showTemplates])
-
-  useEffect(() => {
-    if (!showExport) return
-    const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setShowExport(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showExport])
 
   // ─── Formatting insertion ────────────────────────────────────────
 
@@ -1148,30 +1123,31 @@ export default function MarkdownEditor() {
             </Button>
           </ToolbarGroup>
 
-          <div ref={templatesRef} className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowTemplates(!showTemplates)}
-              className={
-                showTemplates ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-              }
-              aria-expanded={showTemplates}
-              aria-haspopup="menu"
+          <ToolbarGroup label="Templates" separated>
+            <Popover
+              open={showTemplates}
+              onOpenChange={setShowTemplates}
+              label="Templates"
+              align="end"
+              trigger={(triggerProps) => (
+                <Button
+                  {...triggerProps}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={
+                    showTemplates ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                  }
+                >
+                  <FilesIcon size={14} aria-hidden="true" />
+                  Templates
+                </Button>
+              )}
             >
-              <FilesIcon size={14} aria-hidden="true" />
-              Templates
-            </Button>
-            {showTemplates && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
-              >
+              <div className="py-1">
                 {TEMPLATES.map((template) => (
                   <Button
                     key={template.label}
-                    role="menuitem"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleTemplateSelect(template.content)}
@@ -1181,29 +1157,30 @@ export default function MarkdownEditor() {
                   </Button>
                 ))}
               </div>
-            )}
-          </div>
+            </Popover>
+          </ToolbarGroup>
 
-          <div ref={exportRef} className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowExport(!showExport)}
-              className={`gap-1 ${showExport ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
-              aria-expanded={showExport}
-              aria-haspopup="menu"
-            >
-              <DownloadSimpleIcon size={14} aria-hidden="true" />
-              Export <CaretDownIcon size={12} aria-hidden="true" />
-            </Button>
-            {showExport && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
-              >
+          <ToolbarGroup label="Export" separated>
+            <Popover
+              open={showExport}
+              onOpenChange={setShowExport}
+              label="Export"
+              align="end"
+              trigger={(triggerProps) => (
                 <Button
-                  role="menuitem"
+                  {...triggerProps}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={`gap-1 ${showExport ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
+                >
+                  <DownloadSimpleIcon size={14} aria-hidden="true" />
+                  Export <CaretDownIcon size={12} aria-hidden="true" />
+                </Button>
+              )}
+            >
+              <div className="py-1">
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -1218,11 +1195,11 @@ export default function MarkdownEditor() {
                   Copy Markdown
                 </Button>
                 <Button
-                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleCopyHtml()
+                    setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
@@ -1230,41 +1207,41 @@ export default function MarkdownEditor() {
                 </Button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
                 <Button
-                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleDownload('md')
+                    setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Download .md
                 </Button>
                 <Button
-                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleDownload('html')
+                    setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Download .html
                 </Button>
                 <Button
-                  role="menuitem"
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     void handleExportPdf()
+                    setShowExport(false)
                   }}
                   className="w-full justify-start text-left hover:text-[var(--color-text)]"
                 >
                   Print / PDF
                 </Button>
               </div>
-            )}
-          </div>
+            </Popover>
+          </ToolbarGroup>
         </DocumentToolbar>
       </header>
 

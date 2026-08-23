@@ -1518,22 +1518,26 @@ export default function ApiClient() {
                   placeholder="{{baseUrl}}/endpoint"
                   aria-label="Request URL"
                   size="md"
-                  className="min-w-40 flex-1 basis-48 font-mono"
+                  className="min-w-24 flex-1 basis-48 font-mono"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void handleSend()
                   }}
                 />
-                <Select
-                  aria-label="Request timeout"
-                  value={state.timeoutMs || DEFAULT_TIMEOUT_MS}
-                  onChange={(event) => updateState({ timeoutMs: Number(event.target.value) })}
-                  title="Request timeout"
-                >
-                  <option value={5000}>5s</option>
-                  <option value={15000}>15s</option>
-                  <option value={30000}>30s</option>
-                  <option value={60000}>60s</option>
-                </Select>
+                {/* The only optional control on this row — method, URL and Send all have to
+                    stay reachable, so the timeout is what the row sheds when it narrows. */}
+                <ToolbarGroup label="Timeout">
+                  <Select
+                    aria-label="Request timeout"
+                    value={state.timeoutMs || DEFAULT_TIMEOUT_MS}
+                    onChange={(event) => updateState({ timeoutMs: Number(event.target.value) })}
+                    title="Request timeout"
+                  >
+                    <option value={5000}>5s</option>
+                    <option value={15000}>15s</option>
+                    <option value={30000}>30s</option>
+                    <option value={60000}>60s</option>
+                  </Select>
+                </ToolbarGroup>
                 {loading ? (
                   <Button
                     type="button"

@@ -1,8 +1,11 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -47,6 +50,13 @@ type PopoverProps = {
   className?: string
 }
 
+type PopoverLayer = {
+  registerDescendant: (node: HTMLDivElement) => void
+  unregisterDescendant: (node: HTMLDivElement) => void
+}
+
+const PopoverLayerContext = createContext<PopoverLayer | null>(null)
+
 /**
  * A dismissible surface anchored to its trigger.
  *
@@ -74,8 +84,10 @@ export function Popover({
 }: PopoverProps) {
   const surfaceId = useId()
   const isInstanceActive = useIsInstanceActive()
+  const parentLayer = useContext(PopoverLayerContext)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
+  const descendantSurfacesRef = useRef(new Set<HTMLDivElement>())
   const [position, setPosition] = useState<CSSProperties | null>(null)
 
   const setTriggerRef = useCallback((node: HTMLButtonElement | null) => {
@@ -87,10 +99,40 @@ export function Popover({
   // and an unpositioned surface rendered `visibility: hidden` to hide the flash cannot take
   // focus at all, which is a silent no-op rather than an error. Mounting already positioned
   // removes both problems, and a ref callback focuses exactly once per open for free.
-  const setSurfaceRef = useCallback((node: HTMLDivElement | null) => {
-    surfaceRef.current = node
-    node?.focus()
-  }, [])
+  const setSurfaceRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      const previous = surfaceRef.current
+      if (previous === node) return
+      if (previous) parentLayer?.unregisterDescendant(previous)
+      surfaceRef.current = node
+      if (node) {
+        parentLayer?.registerDescendant(node)
+        node.focus()
+      }
+    },
+    [parentLayer]
+  )
+
+  const registerDescendant = useCallback(
+    (node: HTMLDivElement) => {
+      descendantSurfacesRef.current.add(node)
+      parentLayer?.registerDescendant(node)
+    },
+    [parentLayer]
+  )
+
+  const unregisterDescendant = useCallback(
+    (node: HTMLDivElement) => {
+      descendantSurfacesRef.current.delete(node)
+      parentLayer?.unregisterDescendant(node)
+    },
+    [parentLayer]
+  )
+
+  const layer = useMemo(
+    () => ({ registerDescendant, unregisterDescendant }),
+    [registerDescendant, unregisterDescendant]
+  )
 
   useLayoutEffect(() => {
     if (!open) {
@@ -155,6 +197,9 @@ export function Popover({
       if (!isInstanceActive) return
       const target = e.target as Node
       if (surfaceRef.current?.contains(target)) return
+      for (const descendant of descendantSurfacesRef.current) {
+        if (descendant.contains(target)) return
+      }
       // The trigger is excluded so a click on it toggles once, rather than closing here and
       // reopening in the click handler a moment later.
       if (triggerRef.current?.contains(target)) return
@@ -200,7 +245,7 @@ export function Popover({
   }
 
   return (
-    <>
+    <PopoverLayerContext.Provider value={layer}>
       {trigger({
         ref: setTriggerRef,
         onClick: () => onOpenChange(!open),
@@ -227,6 +272,6 @@ export function Popover({
           </div>,
           document.body
         )}
-    </>
+    </PopoverLayerContext.Provider>
   )
 }
