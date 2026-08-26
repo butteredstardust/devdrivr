@@ -38,6 +38,10 @@
       "allow": [{ "path": "$DOWNLOAD/**" }]
     },
     "core:window:allow-scale-factor",
-    "core:window:allow-inner-position"
+    "core:window:allow-inner-position",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "http://*" }, { "url": "https://*" }, { "url": "mailto:*" }]
+    }
   ]
 }

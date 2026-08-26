@@ -59,6 +59,12 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
+    name: '@tauri-apps/plugin-opener',
+    version: '2.5.4',
+    license: 'MIT OR Apache-2.0',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
     name: '@tauri-apps/plugin-http',
     version: '2.5.8',
     license: 'MIT OR Apache-2.0',
@@ -182,6 +188,12 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   {
     name: 'tauri-plugin-fs',
     version: '2.4.5',
+    license: 'Apache-2.0 OR MIT',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
+    name: 'tauri-plugin-opener',
+    version: '2.5.4',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },

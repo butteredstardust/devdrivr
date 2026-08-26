@@ -126,6 +126,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        // Links rendered inside the app (Markdown preview, docs, notes) must leave for the user's
+        // browser rather than navigate this webview: there is no back button, so following one
+        // in-place strands the user on a web page with the app gone.
+        .plugin(tauri_plugin_opener::init())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
