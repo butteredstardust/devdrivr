@@ -207,6 +207,9 @@ samp {
   padding-left: 1.25rem;
   margin: 0.5rem 0;
 }
+.markdown-preview-source-active {
+  box-shadow: -3px 0 0 var(--color-border);
+}
 
 /* ─── Reduced motion ─────────────────────────────────────────────────────────
    Users who ask the OS for reduced motion get a still interface. This

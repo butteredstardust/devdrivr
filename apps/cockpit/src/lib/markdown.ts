@@ -1,4 +1,4 @@
-import { unified } from 'unified'
+import { unified, type Plugin } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
@@ -107,4 +107,92 @@ export const markdownEditorProcessor = unified()
   .use(remarkRehype)
   .use(rehypeHighlight, { detect: true })
   .use(rehypeSanitize, markdownEditorSanitizeSchema)
+  .use(rehypeStringify)
+
+const EDITABLE_MARKDOWN_BLOCKS = new Set([
+  'blockquote',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'li',
+  'p',
+  'pre',
+  'table',
+])
+
+type PositionedHastNode = {
+  type: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  position?: {
+    start: { line?: number; offset?: number }
+    end: { line?: number; offset?: number }
+  }
+  children?: PositionedHastNode[]
+}
+
+type MarkdownHastRoot = Parameters<ReturnType<typeof rehypeSanitize>>[0]
+
+/**
+ * Retains Markdown source offsets on rendered block elements. These attributes let the Markdown
+ * Editor reveal and edit one source block in-place without attempting a lossy HTML-to-Markdown
+ * conversion of the entire sanitized preview.
+ */
+const annotateEditableMarkdownBlocks: Plugin<[], MarkdownHastRoot> = () => {
+  return (tree) => {
+    const visit = (node: PositionedHastNode) => {
+      const start = node.position?.start?.offset
+      const end = node.position?.end?.offset
+      const startLine = node.position?.start?.line
+      const endLine = node.position?.end?.line
+      if (
+        node.type === 'element' &&
+        typeof node.tagName === 'string' &&
+        EDITABLE_MARKDOWN_BLOCKS.has(node.tagName) &&
+        typeof start === 'number' &&
+        typeof end === 'number' &&
+        typeof startLine === 'number' &&
+        typeof endLine === 'number'
+      ) {
+        node.properties = {
+          ...node.properties,
+          dataMarkdownStart: start,
+          dataMarkdownEnd: end,
+          dataMarkdownStartLine: startLine,
+          dataMarkdownEndLine: endLine,
+        }
+      }
+      node.children?.forEach(visit)
+    }
+
+    visit(tree as unknown as PositionedHastNode)
+  }
+}
+
+const markdownEditableSanitizeSchema = {
+  ...markdownEditorSanitizeSchema,
+  attributes: {
+    ...markdownEditorSanitizeSchema.attributes,
+    '*': [
+      ...(defaultSchema.attributes?.['*'] ?? []),
+      'dataMarkdownStart',
+      'dataMarkdownEnd',
+      'dataMarkdownStartLine',
+      'dataMarkdownEndLine',
+    ],
+  },
+}
+
+/** Markdown Editor preview pipeline with sanitized source-range metadata for in-preview editing. */
+export const markdownEditableEditorProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype)
+  .use(annotateEditableMarkdownBlocks)
+  .use(rehypeHighlight, { detect: true })
+  .use(rehypeSanitize, markdownEditableSanitizeSchema)
   .use(rehypeStringify)

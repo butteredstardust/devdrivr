@@ -35,7 +35,8 @@ import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
 import { nextHeadingId } from '@/tools/markdown-editor/heading-ids'
 import {
-  ArrowsClockwiseIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
   CaretDownIcon,
   CodeIcon,
   CopyIcon,
@@ -57,7 +58,7 @@ import {
 // enabled (not `disabled`) so the preview can toggle them — see the sanitize schema
 // comment in src/lib/markdown.ts for why that variant exists instead of loosening
 // the shared schema for every surface.
-import { markdownEditorProcessor } from '@/lib/markdown'
+import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTabDirty } from '@/hooks/useTabDirty'
@@ -73,6 +74,10 @@ type MarkdownEditorState = {
   mode: string
   showToc: boolean
   scrollSync: boolean
+  scrollSyncDirections?: {
+    editorToPreview: boolean
+    previewToEditor: boolean
+  }
 }
 
 type TocEntry = {
@@ -490,6 +495,16 @@ export async function renderMarkdownContent(content: string): Promise<string> {
   }
 }
 
+async function renderEditableMarkdownContent(content: string): Promise<string> {
+  if (!content.trim()) return ''
+  try {
+    const result = await markdownEditableEditorProcessor.process(content)
+    return String(result)
+  } catch {
+    return renderMarkdownContent(content)
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function MarkdownEditor() {
@@ -511,21 +526,32 @@ export default function MarkdownEditor() {
   const previewRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorRef = useRef<EditorInstance | null>(null)
+  const pendingRevealLineRef = useRef<number | null>(null)
+  const pendingCaretOffsetRef = useRef<number | null>(null)
   const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
+  const [activeSourceLine, setActiveSourceLine] = useState<number | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
+  const [previewEditing, setPreviewEditing] = useState(false)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
   const showEditor = state.mode === 'split' || state.mode === 'edit'
   const showPreview = state.mode === 'split' || state.mode === 'preview'
   const isDirty = state.content !== state.savedContent
+  const syncPreviewWithEditor = state.scrollSyncDirections?.editorToPreview ?? state.scrollSync
+  const syncEditorWithPreview = state.scrollSyncDirections?.previewToEditor ?? state.scrollSync
   useTabDirty(isDirty)
 
-  useScrollSync(editorRef, previewRef, state.scrollSync && state.mode === 'split')
+  useScrollSync(
+    mountedEditor,
+    previewRef,
+    syncPreviewWithEditor && state.mode === 'split',
+    syncEditorWithPreview && state.mode === 'split'
+  )
   const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
   useMarkdownListEditing(mountedEditor)
   useMarkdownSmartPaste(mountedEditor)
@@ -534,10 +560,47 @@ export default function MarkdownEditor() {
 
   // ─── Editor mount ────────────────────────────────────────────────
 
-  const handleEditorMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor
-    setMountedEditor(editor)
-  }, [])
+  const revealEditorLocation = useCallback(
+    (editor: EditorInstance, line: number | null, offset: number | null) => {
+      const model = editor.getModel()
+      if (!model) return
+      const position =
+        offset !== null
+          ? model.getPositionAt(Math.min(Math.max(0, offset), model.getValueLength()))
+          : {
+              lineNumber: Math.min(Math.max(1, line ?? 1), model.getLineCount()),
+              column: 1,
+            }
+      editor.setPosition(position)
+      editor.revealLineInCenter(position.lineNumber)
+      editor.focus()
+      setActiveSourceLine(position.lineNumber)
+    },
+    []
+  )
+
+  const handleEditorMount: OnMount = useCallback(
+    (editor) => {
+      editorRef.current = editor
+      setMountedEditor(editor)
+      const pendingOffset = pendingCaretOffsetRef.current
+      const pendingLine = pendingRevealLineRef.current
+      if (pendingOffset !== null || pendingLine !== null) {
+        pendingCaretOffsetRef.current = null
+        pendingRevealLineRef.current = null
+        requestAnimationFrame(() => revealEditorLocation(editor, pendingLine, pendingOffset))
+      }
+    },
+    [revealEditorLocation]
+  )
+
+  useEffect(() => {
+    if (!mountedEditor || !showEditor) return
+    const updateLine = () => setActiveSourceLine(mountedEditor.getPosition()?.lineNumber ?? null)
+    updateLine()
+    const disposable = mountedEditor.onDidChangeCursorPosition(updateLine)
+    return () => disposable.dispose()
+  }, [mountedEditor, showEditor])
 
   useEffect(() => {
     return () => {
@@ -551,7 +614,7 @@ export default function MarkdownEditor() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     let cancelled = false
     debounceRef.current = setTimeout(async () => {
-      const nextHtml = await renderMarkdownContent(state.content)
+      const nextHtml = await renderEditableMarkdownContent(state.content)
       if (!cancelled) setHtml(nextHtml)
     }, 300)
 
@@ -766,7 +829,10 @@ export default function MarkdownEditor() {
     (replace: boolean) => {
       // Preview has no editor to search. Switching to split is better than refusing: the user asked
       // to find something, and the only way to honour that is to show them the text.
-      if (state.mode === 'preview') updateState({ mode: 'split' })
+      if (state.mode === 'preview') {
+        setPreviewEditing(false)
+        updateState({ mode: 'split' })
+      }
 
       // Retried rather than deferred one frame, and the check is DOM connectivity rather than
       // `editorRef.current != null`. Preview unmounts the editor without clearing the ref, so the
@@ -964,6 +1030,26 @@ export default function MarkdownEditor() {
     [state.content, updateState]
   )
 
+  const handleRevealSource = useCallback(
+    (line: number) => {
+      setPreviewEditing(false)
+      const editor = editorRef.current
+      if (state.mode === 'split' && editor?.getDomNode()?.isConnected) {
+        revealEditorLocation(editor, line, null)
+        return
+      }
+      pendingRevealLineRef.current = line
+      pendingCaretOffsetRef.current = null
+      updateState({ mode: 'edit' })
+    },
+    [revealEditorLocation, state.mode, updateState]
+  )
+
+  const handlePreviewEditCaret = useCallback((offset: number) => {
+    pendingCaretOffsetRef.current = offset
+    pendingRevealLineRef.current = null
+  }, [])
+
   const handleTemplateSelect = useCallback(
     (content: string) => {
       const datedContent = content.replaceAll(TEMPLATE_DATE, new Date().toISOString().slice(0, 10))
@@ -1007,9 +1093,17 @@ export default function MarkdownEditor() {
       <MarkdownPreview
         ref={previewRef}
         html={html}
+        source={state.content}
         showToc={state.showToc}
         toc={toc}
         onToggleTask={handleToggleTask}
+        activeSourceLine={state.mode === 'split' ? activeSourceLine : null}
+        editingEnabled={state.mode === 'preview' && previewEditing}
+        showEditingToggle={state.mode === 'preview'}
+        onEditingEnabledChange={setPreviewEditing}
+        onSourceChange={(content) => updateState({ content })}
+        onEditCaretChange={handlePreviewEditCaret}
+        onRevealSource={handleRevealSource}
       />
     </div>
   )
@@ -1059,26 +1153,77 @@ export default function MarkdownEditor() {
               aria-label="Editor view mode"
               options={MODE_OPTIONS}
               value={state.mode as EditorMode}
-              onChange={(mode) => updateState({ mode })}
+              onChange={(mode) => {
+                if (mode !== 'preview') setPreviewEditing(false)
+                updateState({ mode })
+              }}
             />
 
             {state.mode === 'split' && (
-              <Button
-                type="button"
-                variant="icon"
-                size="sm"
-                onClick={() => updateState({ scrollSync: !state.scrollSync })}
-                title={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
-                aria-label={state.scrollSync ? 'Disable scroll sync' : 'Enable scroll sync'}
-                aria-pressed={state.scrollSync}
-                className={state.scrollSync ? 'text-[var(--color-accent)]' : ''}
-              >
-                <ArrowsClockwiseIcon
-                  size={14}
-                  weight={state.scrollSync ? 'bold' : 'regular'}
-                  aria-hidden="true"
-                />
-              </Button>
+              <div className="flex items-center" role="group" aria-label="Scroll synchronization">
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() =>
+                    updateState({
+                      scrollSyncDirections: {
+                        editorToPreview: !syncPreviewWithEditor,
+                        previewToEditor: syncEditorWithPreview,
+                      },
+                    })
+                  }
+                  title={
+                    syncPreviewWithEditor
+                      ? 'Stop syncing preview with editor'
+                      : 'Sync preview with editor'
+                  }
+                  aria-label={
+                    syncPreviewWithEditor
+                      ? 'Stop syncing preview with editor'
+                      : 'Sync preview with editor'
+                  }
+                  aria-pressed={syncPreviewWithEditor}
+                  className={syncPreviewWithEditor ? 'text-[var(--color-accent)]' : ''}
+                >
+                  <ArrowRightIcon
+                    size={14}
+                    weight={syncPreviewWithEditor ? 'bold' : 'regular'}
+                    aria-hidden="true"
+                  />
+                </Button>
+                <Button
+                  type="button"
+                  variant="icon"
+                  size="sm"
+                  onClick={() =>
+                    updateState({
+                      scrollSyncDirections: {
+                        editorToPreview: syncPreviewWithEditor,
+                        previewToEditor: !syncEditorWithPreview,
+                      },
+                    })
+                  }
+                  title={
+                    syncEditorWithPreview
+                      ? 'Stop syncing editor with preview'
+                      : 'Sync editor with preview'
+                  }
+                  aria-label={
+                    syncEditorWithPreview
+                      ? 'Stop syncing editor with preview'
+                      : 'Sync editor with preview'
+                  }
+                  aria-pressed={syncEditorWithPreview}
+                  className={syncEditorWithPreview ? 'text-[var(--color-accent)]' : ''}
+                >
+                  <ArrowLeftIcon
+                    size={14}
+                    weight={syncEditorWithPreview ? 'bold' : 'regular'}
+                    aria-hidden="true"
+                  />
+                </Button>
+              </div>
             )}
 
             {toc.length > 0 && (
