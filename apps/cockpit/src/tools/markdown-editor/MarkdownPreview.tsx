@@ -119,6 +119,12 @@ const PREVIEW_STYLES = [
   proseSpacing,
 ].join(' ')
 
+// Double-click reveals the source line, which would otherwise steal the gesture from anything the
+// user can operate in place. Sanitized markdown can only produce a subset of these, but listing the
+// full set keeps the guard from silently missing an element the sanitize schema later allows.
+const INTERACTIVE_SELECTOR =
+  'a, button, input, textarea, select, option, label, summary, details, video, audio, iframe, [contenteditable="true"]'
+
 function findSourceBlock(surface: HTMLElement, start: number, tagName: string): HTMLElement | null {
   const matches = Array.from(
     surface.querySelectorAll<HTMLElement>(`[data-markdown-start="${start}"]`)
@@ -161,6 +167,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     const ignoreNextBlurRef = useRef(false)
     const previewUndoStackRef = useRef<string[]>([])
     const mermaidRenderSeqRef = useRef(0)
+    const scrollTopRef = useRef(0)
     const [activeEdit, setActiveEdit] = useState<ActiveBlockEdit | null>(null)
     const editHelpId = useId()
     const theme = useSettingsStore((s) => s.theme)
@@ -202,13 +209,19 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         if (!block || !innerRef.current?.contains(block)) return false
         const start = Number(block.dataset.markdownStart)
         const end = Number(block.dataset.markdownEnd)
-        if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
+        if (
+          !Number.isInteger(start) ||
+          !Number.isInteger(end) ||
+          start < 0 ||
+          end < start ||
+          end > source.length
+        ) {
           return false
         }
         beginBlockEdit(block, start, end)
         return true
       },
-      [beginBlockEdit, editingEnabled]
+      [beginBlockEdit, editingEnabled, source.length]
     )
 
     // ─── Task checkbox interaction (click + Enter; Space reaches here via the
@@ -232,7 +245,10 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           e.preventDefault()
           return
         }
-        if (beginEditFromTarget(e.target)) e.preventDefault()
+        if (beginEditFromTarget(e.target)) {
+          e.preventDefault()
+          return
+        }
       },
       [beginEditFromTarget, toggleFromEventTarget]
     )
@@ -249,7 +265,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       (event: React.MouseEvent<HTMLDivElement>) => {
         if (editingEnabled || !onRevealSource) return
         if (!(event.target instanceof window.HTMLElement)) return
-        if (event.target.closest('a, button, input, textarea')) return
+        if (event.target.closest(INTERACTIVE_SELECTOR)) return
         const block = event.target.closest<HTMLElement>(
           '[data-markdown-start-line][data-markdown-end-line]'
         )
@@ -297,6 +313,18 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       if (!editingEnabled) previewUndoStackRef.current = []
     }, [editingEnabled])
 
+    // Flipping the mode remounts the rendered markup (see the `key` below), which collapses the
+    // scroll container back to the top. Put the reader back where they were.
+    useLayoutEffect(() => {
+      const surface = innerRef.current
+      if (!surface || scrollTopRef.current === 0) return
+      surface.scrollTop = scrollTopRef.current
+    }, [editingEnabled])
+
+    // Deliberately gated on `!activeEdit`: inside the textarea, Control/Command+Z belongs to the
+    // browser's own text undo, which is what a user editing a block expects. The preview-level
+    // stack — one entry per committed block edit — takes over once the edit is finished or
+    // cancelled. The help text below states this.
     useEffect(() => {
       if (!editingEnabled || activeEdit || !onSourceChange) return
       const handleUndo = (event: KeyboardEvent) => {
@@ -354,27 +382,44 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       })
     }, [])
 
+    // Identifies *which* block is being edited, unlike `activeEdit`, which changes on every
+    // keystroke. Observers below are keyed on this so typing does not tear them down and rebuild
+    // them a character at a time.
+    const activeBlockKey = activeEdit ? `${activeEdit.start}:${activeEdit.tagName}` : null
+
     useLayoutEffect(() => {
-      if (!activeEdit || !innerRef.current) return
+      if (!activeBlockKey || !innerRef.current) return
       const surface = innerRef.current
-      const block = findSourceBlock(surface, activeEdit.start, activeEdit.tagName)
-      const frame = scheduleFrame(remeasureActiveEdit)
       const handleResize = () => remeasureActiveEdit()
       window.addEventListener('resize', handleResize)
 
-      let observer: ResizeObserver | null = null
-      if (typeof ResizeObserver !== 'undefined') {
-        observer = new ResizeObserver(handleResize)
-        observer.observe(surface)
-        if (block) observer.observe(block)
+      let resizeObserver: ResizeObserver | null = null
+      if (window.ResizeObserver) {
+        resizeObserver = new window.ResizeObserver(handleResize)
+        resizeObserver.observe(surface)
+      }
+
+      // The edited block element itself is not observed: re-rendering the preview replaces it, so
+      // a direct observation would go stale. Watching the surface for child changes covers both
+      // the replacement and anything that reflows around it.
+      let mutationObserver: MutationObserver | null = null
+      if (window.MutationObserver) {
+        mutationObserver = new window.MutationObserver(handleResize)
+        mutationObserver.observe(surface, { childList: true, subtree: true })
       }
 
       return () => {
-        cancelFrame(frame)
         window.removeEventListener('resize', handleResize)
-        observer?.disconnect()
+        resizeObserver?.disconnect()
+        mutationObserver?.disconnect()
       }
-    }, [activeEdit, html, remeasureActiveEdit, showToc])
+    }, [activeBlockKey, remeasureActiveEdit])
+
+    useLayoutEffect(() => {
+      if (!activeBlockKey) return
+      const frame = scheduleFrame(remeasureActiveEdit)
+      return () => cancelFrame(frame)
+    }, [activeBlockKey, html, remeasureActiveEdit, showToc])
 
     useLayoutEffect(() => {
       const editor = editorRef.current
@@ -533,6 +578,9 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           onClick={handlePreviewClick}
           onDoubleClick={handlePreviewDoubleClick}
           onKeyDown={handlePreviewKeyDown}
+          onScroll={(event) => {
+            scrollTopRef.current = event.currentTarget.scrollTop
+          }}
         >
           {html ? (
             <div
@@ -590,6 +638,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
               />
               <span id={editHelpId} className="sr-only">
                 Press Escape to cancel changes or Control or Command plus Enter to finish editing.
+                Control or Command plus Z undoes a previous block edit once this edit is finished.
               </span>
             </>
           )}

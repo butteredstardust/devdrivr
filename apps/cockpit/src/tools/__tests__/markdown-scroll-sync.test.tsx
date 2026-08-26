@@ -51,6 +51,40 @@ describe('Markdown scroll synchronization', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('measures preview blocks once per markup change rather than once per scroll frame', async () => {
+    const preview = document.createElement('div')
+    document.body.appendChild(preview)
+    const measure = vi.spyOn(preview, 'querySelectorAll')
+    const editor: ScrollSyncEditor = {
+      onDidScrollChange: vi.fn(() => ({ dispose: vi.fn() })),
+      getVisibleRanges: vi.fn(() => [{ startLineNumber: 1 }]),
+      getTopForLineNumber: vi.fn(() => 0),
+      setScrollTop: vi.fn(),
+    }
+    // The hook falls back to a timeout when rAF is unavailable, as it is here.
+    const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+    const { unmount } = renderHook(() => useScrollSync(editor, { current: preview }, false, true))
+
+    preview.dispatchEvent(new window.Event('scroll'))
+    await nextFrame()
+    expect(measure).toHaveBeenCalledTimes(1)
+
+    preview.dispatchEvent(new window.Event('scroll'))
+    await nextFrame()
+    expect(measure).toHaveBeenCalledTimes(1)
+
+    // Re-rendered markup invalidates the cache through the MutationObserver.
+    preview.appendChild(document.createElement('p'))
+    await nextFrame()
+    preview.dispatchEvent(new window.Event('scroll'))
+    await nextFrame()
+    expect(measure).toHaveBeenCalledTimes(2)
+
+    unmount()
+    preview.remove()
+  })
+
   it('attaches only the enabled synchronization direction', () => {
     const preview = document.createElement('div')
     const addListener = vi.spyOn(preview, 'addEventListener')

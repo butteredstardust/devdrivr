@@ -19,7 +19,21 @@ type ScrollSource = 'editor' | 'preview' | null
 
 const SOURCE_SELECTOR =
   '[data-markdown-start-line][data-markdown-end-line][data-markdown-start][data-markdown-end]'
-const COOLDOWN_MS = 80
+// Back to the pre-line-mapping value: the extra window existed to cover per-frame DOM measurement,
+// which the entry cache removed. Shorter means the other pane regains control sooner.
+const COOLDOWN_MS = 50
+
+// Mirrors the preview's own scheduler: environments without rAF (jsdom, and the tests that run
+// there) still need the deferred measurement to happen rather than throw.
+function scheduleFrame(callback: () => void): number {
+  if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback)
+  return window.setTimeout(callback, 0)
+}
+
+function cancelFrame(handle: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle)
+  else window.clearTimeout(handle)
+}
 
 function interpolate(
   value: number,
@@ -116,6 +130,56 @@ function clampScrollTop(value: number, scrollHeight: number, clientHeight: numbe
   return Math.min(Math.max(0, scrollHeight - clientHeight), Math.max(0, value))
 }
 
+/**
+ * Measuring every annotated block costs a full layout pass, so it must not happen on each scroll
+ * frame. The entry list only changes when the rendered markup changes or the layout reflows, so
+ * cache it and invalidate from a MutationObserver plus a ResizeObserver instead. Entries are stored
+ * relative to the scroll container's content box (rect offset plus `scrollTop`), which scrolling
+ * does not alter — that is what makes the cache safe to keep across scroll events.
+ */
+function createLineEntryCache(preview: HTMLDivElement) {
+  let entries: PreviewLineEntry[] | null = null
+
+  const invalidate = () => {
+    entries = null
+  }
+
+  // Reached through `window` rather than as bare globals: the test harness attaches jsdom to
+  // `window` without mirroring it onto `globalThis`, so the bare names would read as undefined and
+  // quietly disable invalidation there.
+  const mutationObserver = window.MutationObserver
+    ? new window.MutationObserver(() => {
+        invalidate()
+        observeContent()
+      })
+    : null
+  const resizeObserver = window.ResizeObserver ? new window.ResizeObserver(invalidate) : null
+
+  // Content height can change without a mutation (images and Mermaid SVGs settling late), so the
+  // rendered wrapper is observed alongside the scroll container itself.
+  function observeContent() {
+    if (!resizeObserver) return
+    resizeObserver.disconnect()
+    resizeObserver.observe(preview)
+    for (const child of Array.from(preview.children)) resizeObserver.observe(child)
+  }
+
+  mutationObserver?.observe(preview, { childList: true, subtree: true })
+  observeContent()
+
+  return {
+    get(): PreviewLineEntry[] {
+      if (entries === null) entries = getPreviewLineEntries(preview)
+      return entries
+    },
+    dispose() {
+      mutationObserver?.disconnect()
+      resizeObserver?.disconnect()
+      entries = null
+    },
+  }
+}
+
 export function useScrollSync(
   editor: ScrollSyncEditor | null,
   previewRef: RefObject<HTMLDivElement | null>,
@@ -131,6 +195,8 @@ export function useScrollSync(
     const preview = previewRef.current
     if (!preview) return
 
+    const lineEntries = createLineEntryCache(preview)
+
     const resetSource = () => {
       if (cooldownRef.current) clearTimeout(cooldownRef.current)
       cooldownRef.current = setTimeout(() => {
@@ -144,11 +210,11 @@ export function useScrollSync(
           sourceRef.current = 'editor'
           resetSource()
 
-          if (rafRef.current) cancelAnimationFrame(rafRef.current)
-          rafRef.current = requestAnimationFrame(() => {
+          if (rafRef.current) cancelFrame(rafRef.current)
+          rafRef.current = scheduleFrame(() => {
             const visibleLine = editor.getVisibleRanges()[0]?.startLineNumber
             if (!visibleLine) return
-            const target = previewOffsetForSourceLine(getPreviewLineEntries(preview), visibleLine)
+            const target = previewOffsetForSourceLine(lineEntries.get(), visibleLine)
             preview.scrollTop = clampScrollTop(target, preview.scrollHeight, preview.clientHeight)
           })
         })
@@ -159,9 +225,9 @@ export function useScrollSync(
       sourceRef.current = 'preview'
       resetSource()
 
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        const line = sourceLineForPreviewOffset(getPreviewLineEntries(preview), preview.scrollTop)
+      if (rafRef.current) cancelFrame(rafRef.current)
+      rafRef.current = scheduleFrame(() => {
+        const line = sourceLineForPreviewOffset(lineEntries.get(), preview.scrollTop)
         editor.setScrollTop(editor.getTopForLineNumber(line))
       })
     }
@@ -171,12 +237,13 @@ export function useScrollSync(
     }
 
     return () => {
+      lineEntries.dispose()
       editorDisposable?.dispose()
       if (syncEditorWithPreview) {
         preview.removeEventListener('scroll', handlePreviewScroll)
       }
       if (cooldownRef.current) clearTimeout(cooldownRef.current)
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (rafRef.current) cancelFrame(rafRef.current)
       sourceRef.current = null
     }
   }, [editor, previewRef, syncEditorWithPreview, syncPreviewWithEditor])

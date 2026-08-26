@@ -566,6 +566,47 @@ describe('MarkdownEditor', () => {
     expect(editor).toHaveStyle({ width: '320px' })
   })
 
+  it('refuses to edit a block whose source range falls outside the document', () => {
+    const { container } = render(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="99" data-markdown-start-line="1" data-markdown-end-line="1">Original</p>'
+        source="Original"
+        showToc={false}
+        toc={[]}
+        editingEnabled
+        onSourceChange={() => {}}
+      />
+    )
+    fireEvent.click(container.querySelector('p')!)
+    expect(screen.queryByRole('textbox', { name: 'Edit markdown block' })).toBeNull()
+  })
+
+  it('keeps the preview scroll position when edit mode is toggled', () => {
+    const html =
+      '<p data-markdown-start="0" data-markdown-end="8" data-markdown-start-line="1" data-markdown-end-line="1">Original</p>'
+    const { container, rerender } = render(
+      <MarkdownPreview html={html} source="Original" showToc={false} toc={[]} />
+    )
+    const surface = container.querySelector<HTMLElement>(
+      '[data-selection-surface="markdown-preview"]'
+    )!
+    surface.scrollTop = 240
+    fireEvent.scroll(surface)
+    surface.scrollTop = 0 // Remounting the rendered markup collapses the scroll offset.
+
+    rerender(
+      <MarkdownPreview
+        html={html}
+        source="Original"
+        showToc={false}
+        toc={[]}
+        editingEnabled
+        onSourceChange={() => {}}
+      />
+    )
+    expect(surface.scrollTop).toBe(240)
+  })
+
   it('uses the light Mermaid theme in preview when the app theme is light', async () => {
     useSettingsStore.setState({ ...DEFAULT_SETTINGS, theme: 'github-light' })
     mermaidMock.render.mockResolvedValue({ svg: '<svg><text>diagram</text></svg>' })
