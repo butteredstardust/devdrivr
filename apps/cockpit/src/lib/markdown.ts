@@ -129,8 +129,8 @@ type PositionedHastNode = {
   tagName?: string
   properties?: Record<string, unknown>
   position?: {
-    start: { offset?: number }
-    end: { offset?: number }
+    start: { line?: number; offset?: number }
+    end: { line?: number; offset?: number }
   }
   children?: PositionedHastNode[]
 }
@@ -147,17 +147,23 @@ const annotateEditableMarkdownBlocks: Plugin<[], MarkdownHastRoot> = () => {
     const visit = (node: PositionedHastNode) => {
       const start = node.position?.start?.offset
       const end = node.position?.end?.offset
+      const startLine = node.position?.start?.line
+      const endLine = node.position?.end?.line
       if (
         node.type === 'element' &&
         typeof node.tagName === 'string' &&
         EDITABLE_MARKDOWN_BLOCKS.has(node.tagName) &&
         typeof start === 'number' &&
-        typeof end === 'number'
+        typeof end === 'number' &&
+        typeof startLine === 'number' &&
+        typeof endLine === 'number'
       ) {
         node.properties = {
           ...node.properties,
           dataMarkdownStart: start,
           dataMarkdownEnd: end,
+          dataMarkdownStartLine: startLine,
+          dataMarkdownEndLine: endLine,
         }
       }
       node.children?.forEach(visit)
@@ -171,7 +177,13 @@ const markdownEditableSanitizeSchema = {
   ...markdownEditorSanitizeSchema,
   attributes: {
     ...markdownEditorSanitizeSchema.attributes,
-    '*': [...(defaultSchema.attributes?.['*'] ?? []), 'dataMarkdownStart', 'dataMarkdownEnd'],
+    '*': [
+      ...(defaultSchema.attributes?.['*'] ?? []),
+      'dataMarkdownStart',
+      'dataMarkdownEnd',
+      'dataMarkdownStartLine',
+      'dataMarkdownEndLine',
+    ],
   },
 }
 

@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useId,
   forwardRef,
   useImperativeHandle,
 } from 'react'
@@ -32,9 +34,16 @@ type MarkdownPreviewProps = {
   showEditingToggle?: boolean
   onEditingEnabledChange?: (enabled: boolean) => void
   onSourceChange?: (source: string) => void
+  onEditCaretChange?: (offset: number) => void
+  onRevealSource?: (line: number) => void
+  activeSourceLine?: number | null
 }
 
 type ActiveBlockEdit = {
+  start: number
+  tagName: string
+  originalSource: string
+  changed: boolean
   prefix: string
   suffix: string
   draft: string
@@ -110,6 +119,23 @@ const PREVIEW_STYLES = [
   proseSpacing,
 ].join(' ')
 
+function findSourceBlock(surface: HTMLElement, start: number, tagName: string): HTMLElement | null {
+  const matches = Array.from(
+    surface.querySelectorAll<HTMLElement>(`[data-markdown-start="${start}"]`)
+  )
+  return matches.find((element) => element.tagName === tagName) ?? matches[0] ?? null
+}
+
+function scheduleFrame(callback: () => void): number {
+  if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback)
+  return window.setTimeout(callback, 0)
+}
+
+function cancelFrame(handle: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle)
+  else window.clearTimeout(handle)
+}
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
@@ -124,13 +150,19 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       showEditingToggle = false,
       onEditingEnabledChange,
       onSourceChange,
+      onEditCaretChange,
+      onRevealSource,
+      activeSourceLine = null,
     },
     ref
   ) {
     const innerRef = useRef<HTMLDivElement>(null)
     const editorRef = useRef<HTMLTextAreaElement>(null)
+    const ignoreNextBlurRef = useRef(false)
+    const previewUndoStackRef = useRef<string[]>([])
     const mermaidRenderSeqRef = useRef(0)
     const [activeEdit, setActiveEdit] = useState<ActiveBlockEdit | null>(null)
+    const editHelpId = useId()
     const theme = useSettingsStore((s) => s.theme)
 
     const beginBlockEdit = useCallback(
@@ -138,21 +170,29 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         if (!innerRef.current || !onSourceChange) return
         const surfaceRect = innerRef.current.getBoundingClientRect()
         const blockRect = element.getBoundingClientRect()
+        const draft = source.slice(start, end)
         setActiveEdit({
+          start,
+          tagName: element.tagName,
+          originalSource: source,
+          changed: false,
           prefix: source.slice(0, start),
           suffix: source.slice(end),
-          draft: source.slice(start, end),
+          draft,
           left: blockRect.left - surfaceRect.left + innerRef.current.scrollLeft,
           top: blockRect.top - surfaceRect.top + innerRef.current.scrollTop,
           width: blockRect.width,
           minHeight: Math.max(blockRect.height, 44),
         })
-        requestAnimationFrame(() => {
-          editorRef.current?.focus()
-          editorRef.current?.select()
+        scheduleFrame(() => {
+          const editor = editorRef.current
+          if (!editor) return
+          editor.focus()
+          editor.setSelectionRange(draft.length, draft.length)
+          onEditCaretChange?.(start + draft.length)
         })
       },
-      [onSourceChange, source]
+      [onEditCaretChange, onSourceChange, source]
     )
 
     const beginEditFromTarget = useCallback(
@@ -205,19 +245,74 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       [beginEditFromTarget, toggleFromEventTarget]
     )
 
-    const updateDraft = useCallback(
-      (draft: string) => {
-        setActiveEdit((current) => (current ? { ...current, draft } : null))
-        if (activeEdit) onSourceChange?.(`${activeEdit.prefix}${draft}${activeEdit.suffix}`)
-        requestAnimationFrame(() => {
-          const editor = editorRef.current
-          if (!editor) return
-          editor.style.height = '0px'
-          editor.style.height = `${Math.max(activeEdit?.minHeight ?? 44, editor.scrollHeight)}px`
-        })
+    const handlePreviewDoubleClick = useCallback(
+      (event: React.MouseEvent<HTMLDivElement>) => {
+        if (editingEnabled || !onRevealSource) return
+        if (!(event.target instanceof window.HTMLElement)) return
+        if (event.target.closest('a, button, input, textarea')) return
+        const block = event.target.closest<HTMLElement>(
+          '[data-markdown-start-line][data-markdown-end-line]'
+        )
+        if (!block || !innerRef.current?.contains(block)) return
+        const line = Number(block.dataset.markdownStartLine)
+        if (!Number.isInteger(line) || line < 1) return
+        event.preventDefault()
+        onRevealSource(line)
       },
-      [activeEdit, onSourceChange]
+      [editingEnabled, onRevealSource]
     )
+
+    const updateDraft = useCallback(
+      (draft: string, caret: number) => {
+        if (!activeEdit) return
+        if (!activeEdit.changed) previewUndoStackRef.current.push(activeEdit.originalSource)
+        setActiveEdit((current) => (current ? { ...current, changed: true, draft } : null))
+        onSourceChange?.(`${activeEdit.prefix}${draft}${activeEdit.suffix}`)
+        onEditCaretChange?.(activeEdit.start + caret)
+      },
+      [activeEdit, onEditCaretChange, onSourceChange]
+    )
+
+    const finishBlockEdit = useCallback(() => {
+      if (!activeEdit) return
+      onEditCaretChange?.(
+        activeEdit.start + (editorRef.current?.selectionStart ?? activeEdit.draft.length)
+      )
+      setActiveEdit(null)
+    }, [activeEdit, onEditCaretChange])
+
+    const cancelBlockEdit = useCallback(() => {
+      if (!activeEdit) return
+      ignoreNextBlurRef.current = true
+      if (activeEdit.changed) previewUndoStackRef.current.pop()
+      onSourceChange?.(activeEdit.originalSource)
+      onEditCaretChange?.(activeEdit.start)
+      setActiveEdit(null)
+      window.queueMicrotask(() => {
+        ignoreNextBlurRef.current = false
+      })
+    }, [activeEdit, onEditCaretChange, onSourceChange])
+
+    useEffect(() => {
+      if (!editingEnabled) previewUndoStackRef.current = []
+    }, [editingEnabled])
+
+    useEffect(() => {
+      if (!editingEnabled || activeEdit || !onSourceChange) return
+      const handleUndo = (event: KeyboardEvent) => {
+        if (event.key.toLowerCase() !== 'z' || (!event.metaKey && !event.ctrlKey)) return
+        const surface = innerRef.current
+        const focused = document.activeElement
+        if (!surface || (focused !== document.body && !surface.contains(focused))) return
+        const previous = previewUndoStackRef.current.pop()
+        if (previous === undefined) return
+        event.preventDefault()
+        onSourceChange(previous)
+        onEditCaretChange?.(0)
+      }
+      window.addEventListener('keydown', handleUndo)
+      return () => window.removeEventListener('keydown', handleUndo)
+    }, [activeEdit, editingEnabled, onEditCaretChange, onSourceChange])
 
     // ─── Rendered HTML payload ────────────────────────────────────
     // Memoised deliberately. React 19's `updateProperties` compares
@@ -230,6 +325,92 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     // re-renders this component, which wiped the very selection being tracked.
     // Keeping the object stable makes React skip the write entirely.
     const htmlProp = useMemo(() => ({ __html: html }), [html])
+
+    const remeasureActiveEdit = useCallback(() => {
+      const surface = innerRef.current
+      if (!surface) return
+      setActiveEdit((current) => {
+        if (!current) return null
+        const block = findSourceBlock(surface, current.start, current.tagName)
+        if (!block) return current
+        const surfaceRect = surface.getBoundingClientRect()
+        const blockRect = block.getBoundingClientRect()
+        if (blockRect.width <= 0 || blockRect.height <= 0) return current
+        const nextGeometry = {
+          left: blockRect.left - surfaceRect.left + surface.scrollLeft,
+          top: blockRect.top - surfaceRect.top + surface.scrollTop,
+          width: blockRect.width,
+          minHeight: Math.max(blockRect.height, 44),
+        }
+        if (
+          current.left === nextGeometry.left &&
+          current.top === nextGeometry.top &&
+          current.width === nextGeometry.width &&
+          current.minHeight === nextGeometry.minHeight
+        ) {
+          return current
+        }
+        return { ...current, ...nextGeometry }
+      })
+    }, [])
+
+    useLayoutEffect(() => {
+      if (!activeEdit || !innerRef.current) return
+      const surface = innerRef.current
+      const block = findSourceBlock(surface, activeEdit.start, activeEdit.tagName)
+      const frame = scheduleFrame(remeasureActiveEdit)
+      const handleResize = () => remeasureActiveEdit()
+      window.addEventListener('resize', handleResize)
+
+      let observer: ResizeObserver | null = null
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(handleResize)
+        observer.observe(surface)
+        if (block) observer.observe(block)
+      }
+
+      return () => {
+        cancelFrame(frame)
+        window.removeEventListener('resize', handleResize)
+        observer?.disconnect()
+      }
+    }, [activeEdit, html, remeasureActiveEdit, showToc])
+
+    useLayoutEffect(() => {
+      const editor = editorRef.current
+      if (!editor || !activeEdit) return
+      editor.style.height = '0px'
+      editor.style.height = `${Math.max(activeEdit.minHeight, editor.scrollHeight)}px`
+    }, [activeEdit])
+
+    useEffect(() => {
+      const surface = innerRef.current
+      if (!surface) return
+      const previous = surface.querySelector<HTMLElement>('[data-source-active]')
+      previous?.removeAttribute('data-source-active')
+      previous?.classList.remove('markdown-preview-source-active')
+      if (activeSourceLine === null) return
+
+      const candidates = Array.from(
+        surface.querySelectorAll<HTMLElement>('[data-markdown-start-line][data-markdown-end-line]')
+      ).filter((element) => {
+        const startLine = Number(element.dataset.markdownStartLine)
+        const endLine = Number(element.dataset.markdownEndLine)
+        return activeSourceLine >= startLine && activeSourceLine <= endLine
+      })
+      const active = candidates.sort((a, b) => {
+        const aSpan = Number(a.dataset.markdownEndLine) - Number(a.dataset.markdownStartLine)
+        const bSpan = Number(b.dataset.markdownEndLine) - Number(b.dataset.markdownStartLine)
+        return aSpan - bSpan
+      })[0]
+      active?.setAttribute('data-source-active', '')
+      active?.classList.add('markdown-preview-source-active')
+
+      return () => {
+        active?.removeAttribute('data-source-active')
+        active?.classList.remove('markdown-preview-source-active')
+      }
+    }, [activeSourceLine, html])
 
     // The rendered elements come from sanitized HTML, so opt them into the tab order only while
     // editing is enabled. Enter then follows the same delegated path as a pointer click.
@@ -271,6 +452,15 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
             if (cancelled || renderSeq !== mermaidRenderSeqRef.current) return
             const wrapper = document.createElement('div')
             wrapper.className = 'mermaid-diagram'
+            for (const attribute of parent.attributes) {
+              if (attribute.name.startsWith('data-markdown-')) {
+                wrapper.setAttribute(attribute.name, attribute.value)
+              }
+            }
+            if (parent.hasAttribute('data-source-active')) {
+              wrapper.setAttribute('data-source-active', '')
+              wrapper.classList.add('markdown-preview-source-active')
+            }
             wrapper.innerHTML = svg
             parent.replaceWith(wrapper)
           } catch {
@@ -304,7 +494,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
             <Toggle
               checked={editingEnabled}
               onChange={(enabled) => {
-                setActiveEdit(null)
+                finishBlockEdit()
                 onEditingEnabledChange(enabled)
               }}
               label="Edit preview"
@@ -341,6 +531,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           className={`relative flex-1 overflow-auto p-6 ${editingEnabled ? 'cursor-text' : ''}`}
           data-selection-surface="markdown-preview"
           onClick={handlePreviewClick}
+          onDoubleClick={handlePreviewDoubleClick}
           onKeyDown={handlePreviewKeyDown}
         >
           {html ? (
@@ -365,27 +556,42 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
             </div>
           )}
           {editingEnabled && activeEdit && (
-            <TextArea
-              ref={editorRef}
-              value={activeEdit.draft}
-              onChange={(event) => updateDraft(event.target.value)}
-              onBlur={() => setActiveEdit(null)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  setActiveEdit(null)
+            <>
+              <TextArea
+                ref={editorRef}
+                value={activeEdit.draft}
+                onChange={(event) =>
+                  updateDraft(event.target.value, event.currentTarget.selectionStart)
                 }
-              }}
-              aria-label="Edit markdown block"
-              monospace
-              className="absolute z-10 resize-none overflow-hidden shadow-lg shadow-[var(--color-shadow)]"
-              style={{
-                left: `${activeEdit.left}px`,
-                top: `${activeEdit.top}px`,
-                width: `${activeEdit.width}px`,
-                minHeight: `${activeEdit.minHeight}px`,
-              }}
-            />
+                onBlur={() => {
+                  if (ignoreNextBlurRef.current) return
+                  finishBlockEdit()
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    cancelBlockEdit()
+                  } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault()
+                    finishBlockEdit()
+                  }
+                }}
+                aria-label="Edit markdown block"
+                aria-describedby={editHelpId}
+                monospace
+                className="absolute z-10 resize-none overflow-hidden shadow-lg shadow-[var(--color-shadow)]"
+                style={{
+                  left: `${activeEdit.left}px`,
+                  top: `${activeEdit.top}px`,
+                  width: `${activeEdit.width}px`,
+                  minHeight: `${activeEdit.minHeight}px`,
+                }}
+              />
+              <span id={editHelpId} className="sr-only">
+                Press Escape to cancel changes or Control or Command plus Enter to finish editing.
+              </span>
+            </>
           )}
         </div>
       </div>

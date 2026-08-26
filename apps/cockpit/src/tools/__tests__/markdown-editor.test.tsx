@@ -5,7 +5,7 @@ import MarkdownEditor, {
   prefixMarkdownLines,
   renderMarkdownContent,
 } from '@/tools/markdown-editor/MarkdownEditor'
-import { markdownEditorProcessor } from '@/lib/markdown'
+import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
 import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
 import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
@@ -123,8 +123,27 @@ describe('MarkdownEditor', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'Edit' }))
     expect(screen.getByTestId('monaco-editor')).toHaveValue(
-      '## Updated heading\n\nKeep **this** paragraph.'
+      '# Original heading\n\nKeep **this** paragraph.'
     )
+  })
+
+  it('exposes independent editor and preview scroll synchronization controls', () => {
+    renderTool(MarkdownEditor)
+    const group = screen.getByRole('group', { name: 'Scroll synchronization' })
+    const previewSync = within(group).getByRole('button', {
+      name: 'Stop syncing preview with editor',
+    })
+    const editorSync = within(group).getByRole('button', {
+      name: 'Stop syncing editor with preview',
+    })
+
+    fireEvent.click(previewSync)
+
+    expect(within(group).getByRole('button', { name: 'Sync preview with editor' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    expect(editorSync).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('renders editor', () => {
@@ -424,6 +443,127 @@ describe('MarkdownEditor', () => {
     rerender(<MarkdownPreview html={html} showToc={false} toc={[]} onToggleTask={() => {}} />)
 
     expect(container.querySelector('p')).toBe(paragraph)
+  })
+
+  it('marks the rendered block containing the active editor line', () => {
+    const { container, rerender } = render(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="12" data-markdown-start-line="2" data-markdown-end-line="3">Active</p>'
+        showToc={false}
+        toc={[]}
+        activeSourceLine={3}
+      />
+    )
+    const paragraph = container.querySelector('p')
+    expect(paragraph).toHaveAttribute('data-source-active')
+    expect(paragraph).toHaveClass('markdown-preview-source-active')
+
+    rerender(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="12" data-markdown-start-line="2" data-markdown-end-line="3">Active</p>'
+        showToc={false}
+        toc={[]}
+        activeSourceLine={8}
+      />
+    )
+    expect(paragraph).not.toHaveAttribute('data-source-active')
+  })
+
+  it('preserves source offsets and line ranges in editable preview HTML', async () => {
+    const html = String(await markdownEditableEditorProcessor.process('# Heading\n\nParagraph'))
+
+    expect(html).toContain('data-markdown-start="0"')
+    expect(html).toContain('data-markdown-start-line="1"')
+    expect(html).toContain('data-markdown-end-line="1"')
+    expect(html).toContain('data-markdown-start-line="3"')
+  })
+
+  it('reveals an annotated source line on preview double-click while preserving links', () => {
+    const onRevealSource = vi.fn()
+    const { container } = render(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="20" data-markdown-start-line="4" data-markdown-end-line="4">Text <a href="#target">link</a></p>'
+        showToc={false}
+        toc={[]}
+        onRevealSource={onRevealSource}
+      />
+    )
+    fireEvent.doubleClick(container.querySelector('p')!)
+    expect(onRevealSource).toHaveBeenCalledWith(4)
+
+    fireEvent.doubleClick(screen.getByRole('link', { name: 'link' }))
+    expect(onRevealSource).toHaveBeenCalledTimes(1)
+  })
+
+  it('commits preview edits and can undo the committed block change', () => {
+    const onSourceChange = vi.fn()
+    const onEditCaretChange = vi.fn()
+    const { container } = render(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="8" data-markdown-start-line="1" data-markdown-end-line="1">Original</p>'
+        source="Original"
+        showToc={false}
+        toc={[]}
+        editingEnabled
+        onSourceChange={onSourceChange}
+        onEditCaretChange={onEditCaretChange}
+      />
+    )
+    fireEvent.click(container.querySelector('p')!)
+    const editor = screen.getByRole('textbox', { name: 'Edit markdown block' })
+    fireEvent.change(editor, { target: { value: 'Updated', selectionStart: 7 } })
+    fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
+    expect(screen.queryByRole('textbox', { name: 'Edit markdown block' })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    expect(onSourceChange).toHaveBeenLastCalledWith('Original')
+    expect(onEditCaretChange).toHaveBeenLastCalledWith(0)
+  })
+
+  it('remeasures the preview edit overlay when the viewport changes', () => {
+    const { container } = render(
+      <MarkdownPreview
+        html='<p data-markdown-start="0" data-markdown-end="8" data-markdown-start-line="1" data-markdown-end-line="1">Original</p>'
+        source="Original"
+        showToc={false}
+        toc={[]}
+        editingEnabled
+        onSourceChange={() => {}}
+      />
+    )
+    const surface = container.querySelector('[data-selection-surface="markdown-preview"]')!
+    const paragraph = container.querySelector('p')!
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      left: 10,
+      top: 20,
+      width: 500,
+      height: 500,
+      right: 510,
+      bottom: 520,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    })
+    let blockWidth = 240
+    vi.spyOn(paragraph, 'getBoundingClientRect').mockImplementation(() => ({
+      left: 30,
+      top: 50,
+      width: blockWidth,
+      height: 60,
+      right: 30 + blockWidth,
+      bottom: 110,
+      x: 30,
+      y: 50,
+      toJSON: () => ({}),
+    }))
+
+    fireEvent.click(paragraph)
+    const editor = screen.getByRole('textbox', { name: 'Edit markdown block' })
+    expect(editor).toHaveStyle({ left: '20px', top: '30px', width: '240px' })
+
+    blockWidth = 320
+    fireEvent.resize(window)
+    expect(editor).toHaveStyle({ width: '320px' })
   })
 
   it('uses the light Mermaid theme in preview when the app theme is light', async () => {
