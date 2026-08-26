@@ -54,6 +54,13 @@ export function installTauriStub() {
         lastError: null,
       }
     }
+    // External links: the real app hands these to the OS. A browser harness has no OS to hand
+    // them to, so record them for assertions and leave the page where it is.
+    if (cmd === 'plugin:opener|open_url') {
+      window.__tauriStubOpenedUrls = window.__tauriStubOpenedUrls ?? []
+      window.__tauriStubOpenedUrls.push(args?.url ?? null)
+      return null
+    }
     if (cmd === 'window_is_maximized' || cmd === 'window_toggle_maximize') return false
     if (
       cmd === 'window_focus' ||

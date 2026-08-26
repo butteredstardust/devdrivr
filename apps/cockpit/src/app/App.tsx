@@ -10,11 +10,13 @@ import { SettingsPanel } from '@/components/shell/SettingsPanel'
 import { ShortcutsModal } from '@/components/shell/ShortcutsModal'
 import { UpdateNotification } from '@/components/shell/UpdateNotification'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
+import { useExternalLinks } from '@/hooks/useExternalLinks'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 import { useSettingsStore } from '@/stores/settings.store'
 
 export function App() {
   useGlobalShortcuts()
+  useExternalLinks()
   const shellStyle = useSettingsStore((s) => s.shellStyle)
 
   const [sendTo, setSendTo] = useState<{
