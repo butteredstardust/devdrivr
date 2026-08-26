@@ -79,6 +79,54 @@ describe('MarkdownEditor', () => {
     expect(tabs[1]!.compareDocumentPosition(tabs[2]!)).toBe(4)
   })
 
+  it('shows the edit-preview switch only in Preview mode', () => {
+    renderTool(MarkdownEditor)
+    expect(screen.queryByRole('switch', { name: 'Edit preview' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Preview' }))
+
+    const toggle = screen.getByRole('switch', { name: 'Edit preview' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Split' }))
+    expect(screen.queryByRole('switch', { name: 'Edit preview' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Preview' }))
+    expect(screen.getByRole('switch', { name: 'Edit preview' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+  })
+
+  it('edits a rendered block in Preview mode without changing surrounding markdown', async () => {
+    renderTool(MarkdownEditor)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '# Original heading\n\nKeep **this** paragraph.' },
+    })
+    fireEvent.click(screen.getByRole('radio', { name: 'Preview' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Original heading' })).toBeVisible()
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Edit preview' }))
+    const heading = screen.getByRole('heading', { name: 'Original heading' })
+    expect(heading).toHaveAttribute('tabindex', '0')
+    heading.focus()
+    fireEvent.keyDown(heading, { key: 'Enter' })
+
+    const blockEditor = screen.getByRole('textbox', { name: 'Edit markdown block' })
+    expect(blockEditor).toHaveValue('# Original heading')
+    fireEvent.change(blockEditor, { target: { value: '## Updated heading' } })
+    fireEvent.keyDown(blockEditor, { key: 'Escape' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Edit' }))
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(
+      '## Updated heading\n\nKeep **this** paragraph.'
+    )
+  })
+
   it('renders editor', () => {
     renderTool(MarkdownEditor)
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()

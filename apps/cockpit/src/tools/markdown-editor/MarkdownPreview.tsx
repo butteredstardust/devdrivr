@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { Button } from '@/components/shared/Button'
 import { SectionLabel } from '@/components/shared/SectionLabel'
+import { TextArea } from '@/components/shared/TextArea'
+import { Toggle } from '@/components/shared/Toggle'
 import { nextHeadingId } from './heading-ids'
 
 type TocEntry = {
@@ -17,6 +27,21 @@ type MarkdownPreviewProps = {
   toc: TocEntry[]
   /** Called with the source-order index of a GFM task-list checkbox that was toggled. */
   onToggleTask?: (index: number) => void
+  source?: string
+  editingEnabled?: boolean
+  showEditingToggle?: boolean
+  onEditingEnabledChange?: (enabled: boolean) => void
+  onSourceChange?: (source: string) => void
+}
+
+type ActiveBlockEdit = {
+  prefix: string
+  suffix: string
+  draft: string
+  left: number
+  top: number
+  width: number
+  minHeight: number
 }
 
 // ─── Preview Styles (extracted + polished) ──────────────────────────
@@ -88,10 +113,63 @@ const PREVIEW_STYLES = [
 // ─── Component ──────────────────────────────────────────────────────
 
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
-  function MarkdownPreview({ html, showToc, toc, onToggleTask }, ref) {
+  function MarkdownPreview(
+    {
+      html,
+      showToc,
+      toc,
+      onToggleTask,
+      source = '',
+      editingEnabled = false,
+      showEditingToggle = false,
+      onEditingEnabledChange,
+      onSourceChange,
+    },
+    ref
+  ) {
     const innerRef = useRef<HTMLDivElement>(null)
+    const editorRef = useRef<HTMLTextAreaElement>(null)
     const mermaidRenderSeqRef = useRef(0)
+    const [activeEdit, setActiveEdit] = useState<ActiveBlockEdit | null>(null)
     const theme = useSettingsStore((s) => s.theme)
+
+    const beginBlockEdit = useCallback(
+      (element: HTMLElement, start: number, end: number) => {
+        if (!innerRef.current || !onSourceChange) return
+        const surfaceRect = innerRef.current.getBoundingClientRect()
+        const blockRect = element.getBoundingClientRect()
+        setActiveEdit({
+          prefix: source.slice(0, start),
+          suffix: source.slice(end),
+          draft: source.slice(start, end),
+          left: blockRect.left - surfaceRect.left + innerRef.current.scrollLeft,
+          top: blockRect.top - surfaceRect.top + innerRef.current.scrollTop,
+          width: blockRect.width,
+          minHeight: Math.max(blockRect.height, 44),
+        })
+        requestAnimationFrame(() => {
+          editorRef.current?.focus()
+          editorRef.current?.select()
+        })
+      },
+      [onSourceChange, source]
+    )
+
+    const beginEditFromTarget = useCallback(
+      (target: EventTarget | null) => {
+        if (!editingEnabled || !(target instanceof window.HTMLElement)) return false
+        const block = target.closest<HTMLElement>('[data-markdown-start][data-markdown-end]')
+        if (!block || !innerRef.current?.contains(block)) return false
+        const start = Number(block.dataset.markdownStart)
+        const end = Number(block.dataset.markdownEnd)
+        if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
+          return false
+        }
+        beginBlockEdit(block, start, end)
+        return true
+      },
+      [beginBlockEdit, editingEnabled]
+    )
 
     // ─── Task checkbox interaction (click + Enter; Space reaches here via the
     // native click a focused checkbox fires) ──────────────────────────────
@@ -110,17 +188,35 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
 
     const handlePreviewClick = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (toggleFromEventTarget(e.target)) e.preventDefault()
+        if (toggleFromEventTarget(e.target)) {
+          e.preventDefault()
+          return
+        }
+        if (beginEditFromTarget(e.target)) e.preventDefault()
       },
-      [toggleFromEventTarget]
+      [beginEditFromTarget, toggleFromEventTarget]
     )
 
     const handlePreviewKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (e.key !== 'Enter') return
-        if (toggleFromEventTarget(e.target)) e.preventDefault()
+        if (toggleFromEventTarget(e.target) || beginEditFromTarget(e.target)) e.preventDefault()
       },
-      [toggleFromEventTarget]
+      [beginEditFromTarget, toggleFromEventTarget]
+    )
+
+    const updateDraft = useCallback(
+      (draft: string) => {
+        setActiveEdit((current) => (current ? { ...current, draft } : null))
+        if (activeEdit) onSourceChange?.(`${activeEdit.prefix}${draft}${activeEdit.suffix}`)
+        requestAnimationFrame(() => {
+          const editor = editorRef.current
+          if (!editor) return
+          editor.style.height = '0px'
+          editor.style.height = `${Math.max(activeEdit?.minHeight ?? 44, editor.scrollHeight)}px`
+        })
+      },
+      [activeEdit, onSourceChange]
     )
 
     // ─── Rendered HTML payload ────────────────────────────────────
@@ -135,13 +231,24 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     // Keeping the object stable makes React skip the write entirely.
     const htmlProp = useMemo(() => ({ __html: html }), [html])
 
+    // The rendered elements come from sanitized HTML, so opt them into the tab order only while
+    // editing is enabled. Enter then follows the same delegated path as a pointer click.
+    useEffect(() => {
+      if (!editingEnabled || !innerRef.current) return
+      const blocks = innerRef.current.querySelectorAll<HTMLElement>(
+        '[data-markdown-start][data-markdown-end]'
+      )
+      blocks.forEach((block) => block.setAttribute('tabindex', '0'))
+      return () => blocks.forEach((block) => block.removeAttribute('tabindex'))
+    }, [editingEnabled, html])
+
     // Expose the inner div via forwarded ref for scroll sync
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     useImperativeHandle(ref, () => innerRef.current!, []) // safe: called after mount, ref is populated
 
     // ─── Mermaid diagrams (theme-aware) ───────────────────────────
     useEffect(() => {
-      if (!html || !innerRef.current) return
+      if (!html || !innerRef.current || editingEnabled) return
       const renderSeq = (mermaidRenderSeqRef.current += 1)
       let cancelled = false
       const mermaidBlocks = innerRef.current.querySelectorAll('code.language-mermaid')
@@ -174,7 +281,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       return () => {
         cancelled = true
       }
-    }, [html, theme])
+    }, [editingEnabled, html, theme])
 
     // ─── TOC scroll ───────────────────────────────────────────────
     function scrollToHeading(id: string) {
@@ -191,7 +298,21 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     }
 
     return (
-      <div className="flex h-full overflow-hidden">
+      <div className="relative flex h-full overflow-hidden">
+        {showEditingToggle && onEditingEnabledChange && (
+          <div className="absolute right-3 top-3 z-20 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 shadow-sm">
+            <Toggle
+              checked={editingEnabled}
+              onChange={(enabled) => {
+                setActiveEdit(null)
+                onEditingEnabledChange(enabled)
+              }}
+              label="Edit preview"
+              aria-label="Edit preview"
+            />
+          </div>
+        )}
+
         {/* TOC Sidebar */}
         {showToc && toc.length > 0 && (
           <div className="w-48 shrink-0 overflow-auto border-r border-[var(--color-border)] p-3">
@@ -217,17 +338,54 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         {/* Preview Content */}
         <div
           ref={innerRef}
-          className="flex-1 overflow-auto p-6"
+          className={`relative flex-1 overflow-auto p-6 ${editingEnabled ? 'cursor-text' : ''}`}
           data-selection-surface="markdown-preview"
           onClick={handlePreviewClick}
           onKeyDown={handlePreviewKeyDown}
         >
           {html ? (
-            <div className={PREVIEW_STYLES} dangerouslySetInnerHTML={htmlProp} />
+            <div
+              // Remounting only when the mode flips restores canonical markup after Mermaid may
+              // have replaced a source code block with SVG. Ordinary renders retain DOM identity.
+              key={editingEnabled ? 'editing' : 'reading'}
+              className={`${PREVIEW_STYLES} ${
+                editingEnabled
+                  ? '[&_[data-markdown-start]]:cursor-text [&_[data-markdown-start]:hover]:outline [&_[data-markdown-start]:hover]:outline-1 [&_[data-markdown-start]:hover]:outline-[var(--color-accent-dim)]'
+                  : ''
+              }`}
+              dangerouslySetInnerHTML={htmlProp}
+            />
           ) : (
-            <div className="text-sm text-[var(--color-text-muted)]">
+            <div
+              className="min-h-11 text-sm text-[var(--color-text-muted)]"
+              data-markdown-start="0"
+              data-markdown-end="0"
+            >
               Start typing markdown in the editor...
             </div>
+          )}
+          {editingEnabled && activeEdit && (
+            <TextArea
+              ref={editorRef}
+              value={activeEdit.draft}
+              onChange={(event) => updateDraft(event.target.value)}
+              onBlur={() => setActiveEdit(null)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setActiveEdit(null)
+                }
+              }}
+              aria-label="Edit markdown block"
+              monospace
+              className="absolute z-10 resize-none overflow-hidden shadow-lg shadow-[var(--color-shadow)]"
+              style={{
+                left: `${activeEdit.left}px`,
+                top: `${activeEdit.top}px`,
+                width: `${activeEdit.width}px`,
+                minHeight: `${activeEdit.minHeight}px`,
+              }}
+            />
           )}
         </div>
       </div>

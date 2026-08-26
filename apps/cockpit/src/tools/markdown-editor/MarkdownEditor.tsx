@@ -57,7 +57,7 @@ import {
 // enabled (not `disabled`) so the preview can toggle them — see the sanitize schema
 // comment in src/lib/markdown.ts for why that variant exists instead of loosening
 // the shared schema for every surface.
-import { markdownEditorProcessor } from '@/lib/markdown'
+import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTabDirty } from '@/hooks/useTabDirty'
@@ -490,6 +490,16 @@ export async function renderMarkdownContent(content: string): Promise<string> {
   }
 }
 
+async function renderEditableMarkdownContent(content: string): Promise<string> {
+  if (!content.trim()) return ''
+  try {
+    const result = await markdownEditableEditorProcessor.process(content)
+    return String(result)
+  } catch {
+    return renderMarkdownContent(content)
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function MarkdownEditor() {
@@ -517,6 +527,7 @@ export default function MarkdownEditor() {
   const [showExport, setShowExport] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
+  const [previewEditing, setPreviewEditing] = useState(false)
 
   // ─── Hooks ────────────────────────────────────────────────────────
 
@@ -551,7 +562,7 @@ export default function MarkdownEditor() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     let cancelled = false
     debounceRef.current = setTimeout(async () => {
-      const nextHtml = await renderMarkdownContent(state.content)
+      const nextHtml = await renderEditableMarkdownContent(state.content)
       if (!cancelled) setHtml(nextHtml)
     }, 300)
 
@@ -766,7 +777,10 @@ export default function MarkdownEditor() {
     (replace: boolean) => {
       // Preview has no editor to search. Switching to split is better than refusing: the user asked
       // to find something, and the only way to honour that is to show them the text.
-      if (state.mode === 'preview') updateState({ mode: 'split' })
+      if (state.mode === 'preview') {
+        setPreviewEditing(false)
+        updateState({ mode: 'split' })
+      }
 
       // Retried rather than deferred one frame, and the check is DOM connectivity rather than
       // `editorRef.current != null`. Preview unmounts the editor without clearing the ref, so the
@@ -1007,9 +1021,14 @@ export default function MarkdownEditor() {
       <MarkdownPreview
         ref={previewRef}
         html={html}
+        source={state.content}
         showToc={state.showToc}
         toc={toc}
         onToggleTask={handleToggleTask}
+        editingEnabled={state.mode === 'preview' && previewEditing}
+        showEditingToggle={state.mode === 'preview'}
+        onEditingEnabledChange={setPreviewEditing}
+        onSourceChange={(content) => updateState({ content })}
       />
     </div>
   )
@@ -1059,7 +1078,10 @@ export default function MarkdownEditor() {
               aria-label="Editor view mode"
               options={MODE_OPTIONS}
               value={state.mode as EditorMode}
-              onChange={(mode) => updateState({ mode })}
+              onChange={(mode) => {
+                if (mode !== 'preview') setPreviewEditing(false)
+                updateState({ mode })
+              }}
             />
 
             {state.mode === 'split' && (
