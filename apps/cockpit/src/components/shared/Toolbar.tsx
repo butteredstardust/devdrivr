@@ -452,7 +452,15 @@ export function DocumentIdentity({
       {icon}
       <span
         data-testid={titleTestId}
-        className="font-ui max-w-56 truncate text-xs font-semibold text-[var(--color-text)]"
+        // `min-w-20` is the floor that keeps the row's overflow arithmetic honest. Without it the
+        // identity is a `flex-1` item with no minimum, so it silently absorbs every pixel the row
+        // is short — and because `planCollapse` measures the *rendered* width of non-group
+        // children, a crushed identity made `needed` look small enough to stop collapsing groups.
+        // The row read as "fits" while showing a one-glyph filename (measured at the app's own
+        // 800px minimum window width: title 10px, then 0px). With a floor the identity reports an
+        // honest width, groups keep folding into the overflow menu until the name is readable,
+        // and the status line beside it (`min-w-0`) is what yields instead.
+        className="font-ui min-w-20 max-w-56 truncate text-xs font-semibold text-[var(--color-text)]"
         title={titleTooltip ?? title}
       >
         {title}

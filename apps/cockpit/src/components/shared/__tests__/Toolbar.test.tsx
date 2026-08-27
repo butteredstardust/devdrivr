@@ -81,6 +81,17 @@ describe('Toolbar', () => {
     expect(screen.getByText('Modified')).toHaveAttribute('aria-live', 'polite')
   })
 
+  it('gives the identity title a width floor so overflow measurement stays honest', () => {
+    render(<DocumentIdentity title="a-long-document-name.md" status="~/notes.md" />)
+
+    // Not a layout assertion — jsdom has none. This guards the structural fix: the identity is a
+    // `flex-1` item, so without a floor it absorbs every pixel the row is short, and because
+    // `planCollapse` measures rendered widths, a crushed identity made the row look like it fit
+    // while showing a one-glyph filename. The status line beside it is what should yield instead.
+    expect(screen.getByText('a-long-document-name.md')).toHaveClass('min-w-20', 'truncate')
+    expect(screen.getByRole('status')).toHaveClass('min-w-0', 'truncate')
+  })
+
   it('leaves static context out of the live region', () => {
     render(<DocumentIdentity title="notes.md" status="~/notes.md" statusLive={false} />)
 

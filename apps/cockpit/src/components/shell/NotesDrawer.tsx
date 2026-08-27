@@ -29,9 +29,9 @@ import { useUiStore } from '@/stores/ui.store'
 import type { Note as NoteType, NoteColor } from '@/types/models'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { InlineInput } from '@/components/shared/InlineInput'
+import { useShellWidth } from '@/hooks/useShellWidth'
+import { clampNotesDrawerWidth as clampWidth, fitShellPanels } from '@/lib/shell-layout'
 
-const MIN_WIDTH = 280
-const MAX_WIDTH = 600
 const AUTOSAVE_DELAY_MS = 450
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
@@ -52,10 +52,6 @@ type DropPosition = 'before' | 'after'
 type DragOverNote = { id: string; position: DropPosition }
 type Draft = Pick<NoteType, 'title' | 'content'>
 type SaveState = 'saved' | 'saving' | 'error'
-
-function clampWidth(width: number): number {
-  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width))
-}
 
 function timeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -393,6 +389,21 @@ export function NotesDrawer() {
 
   const [width, setWidth] = useState(() => clampWidth(savedWidth))
   const [resizing, setResizing] = useState(false)
+
+  // `width` is what the user asked for; `renderedWidth` is what the row can spare once the
+  // workspace has taken its floor. The drawer is the last panel asked to give ground — the
+  // sidebar rails first — so this differs from `width` only below the minimum window size.
+  // See lib/shell-layout.ts.
+  const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed)
+  const sidebarWidth = useSettingsStore((state) => state.sidebarWidth)
+  const shellWidth = useShellWidth()
+  const renderedWidth = fitShellPanels({
+    shellWidth,
+    sidebarWidth,
+    sidebarCollapsed,
+    notesDrawerWidth: width,
+    notesDrawerOpen: drawerOpen,
+  }).notesDrawerWidth
   const [activeTab, setActiveTab] = useState('notes')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -688,7 +699,7 @@ export function NotesDrawer() {
       } ${
         drawerOpen ? 'opacity-100' : 'pointer-events-none w-0 overflow-hidden border-l-0 opacity-0'
       }`}
-      style={drawerOpen ? { width } : undefined}
+      style={drawerOpen ? { width: renderedWidth } : undefined}
     >
       <div
         onMouseDown={handleDragStart}

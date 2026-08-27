@@ -119,9 +119,16 @@ export function TitleBar() {
         </button>
       </div>
 
+      {/* `@container` makes the reserved gutter the query container for the palette inside it, so
+          the palette can drop its own trimmings as the window narrows. It has to degrade rather
+          than just shrink: the ⌘K chip is `shrink-0`, so once the slot fell below ~200px the chip
+          stopped fitting and spilled out over the settings and shortcuts buttons instead of
+          truncating with everything else. That is reachable on Windows well before it is on
+          macOS, because the trailing cluster there also carries the three window controls and the
+          symmetric reserve is 224px a side against macOS's 120. */}
       <div
         data-testid="titlebar-palette-slot"
-        className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center ${
+        className={`@container pointer-events-none absolute inset-0 z-10 flex items-center justify-center ${
           isMac ? SIDE_RESERVE_CLASS.mac : SIDE_RESERVE_CLASS.other
         }`}
       >
