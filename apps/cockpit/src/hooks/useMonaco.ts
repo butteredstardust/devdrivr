@@ -452,6 +452,16 @@ export function useMonaco() {
 
 /**
  * Base Monaco editor options shared across all tools.
+ *
+ * `wordWrap: 'on'` is not a preference — do not override it to `'off'` in a
+ * tool. Editors here live in panes that are frequently half a window wide (a
+ * split tool, the notes drawer open, a narrow window), and a long line with
+ * wrap off is simply not readable: Monaco's horizontal scrollbar is a 12px
+ * sliver that stays `visibility: hidden` until you scroll, so the line reads as
+ * truncated rather than scrollable. Two tools did override it — the text ran
+ * off the right edge of both panes with no visible way to reach it. Monaco
+ * hard-breaks tokens longer than the viewport, so this holds for minified JSON
+ * and long URLs too, and with wrap on no horizontal scrollbar appears at all.
  */
 export const EDITOR_OPTIONS = {
   minimap: { enabled: false },

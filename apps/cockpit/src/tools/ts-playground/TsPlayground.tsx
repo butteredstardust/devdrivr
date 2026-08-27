@@ -82,12 +82,9 @@ export function describeProblems(diagnostics: Diagnostic[]): string {
 
 export default function TsPlayground() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
+  const editorOptions = monacoOptions
   // Merged once: a fresh options object on every keystroke makes
   // @monaco-editor/react re-apply the whole configuration to both editors.
-  const editorOptions = useMemo(
-    () => ({ ...monacoOptions, wordWrap: 'off' as const }),
-    [monacoOptions]
-  )
   const outputOptions = useMemo(() => ({ ...editorOptions, readOnly: true }), [editorOptions])
 
   const [state, updateState] = useToolState<TsPlaygroundState>('ts-playground', {

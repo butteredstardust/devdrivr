@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { buildCockpitTheme, contrastRatio } from '@/hooks/useMonaco'
+import fs from 'node:fs'
+import path from 'node:path'
+import { EDITOR_OPTIONS, buildCockpitTheme, contrastRatio } from '@/hooks/useMonaco'
 
 // getCssColor() resolves CSS custom properties by setting `color: var(--x)`
 // on a temp element and reading window.getComputedStyle(...).color. jsdom
@@ -184,5 +186,34 @@ describe('contrastRatio', () => {
 
   it('returns 1 for identical colours', () => {
     expect(contrastRatio('#336699', '#336699')).toBeCloseTo(1, 5)
+  })
+})
+
+describe('EDITOR_OPTIONS word wrap', () => {
+  const toolsDir = path.resolve(__dirname, '../../tools')
+
+  function tsxFiles(dir: string): string[] {
+    return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) return entry.name === '__tests__' ? [] : tsxFiles(full)
+      return /\.tsx?$/.test(entry.name) ? [full] : []
+    })
+  }
+
+  it('wraps by default', () => {
+    expect(EDITOR_OPTIONS.wordWrap).toBe('on')
+  })
+
+  // A tool that turns wrapping off puts long lines out of reach: Monaco's
+  // horizontal scrollbar is a 12px sliver that stays hidden until you scroll,
+  // and these editors routinely sit in a half-window pane. Two tools had done
+  // it, and the text ran off the right edge of both with no visible scrollbar.
+  // Caught here rather than in a per-tool render test because the failure is
+  // invisible to jsdom — it has no layout, so nothing overflows anything.
+  it('is not overridden to "off" by any tool', () => {
+    const offenders = tsxFiles(toolsDir).filter((file) =>
+      /wordWrap:\s*['"]off['"]/.test(fs.readFileSync(file, 'utf8'))
+    )
+    expect(offenders.map((f) => path.relative(toolsDir, f))).toEqual([])
   })
 })

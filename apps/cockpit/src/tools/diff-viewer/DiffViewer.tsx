@@ -241,12 +241,11 @@ function EditorPane({
 export default function DiffViewer() {
   const optionsId = useId()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
-  // Merged once: spreading inline made a new object every render, which
-  // @monaco-editor/react re-applies to both editors on every keystroke.
-  const editorOptions = useMemo(
-    () => ({ ...monacoOptions, wordWrap: 'off' as const }),
-    [monacoOptions]
-  )
+  // useMonaco() already memoises this; the alias keeps the two <Editor>s below
+  // reading from one object rather than spreading inline, which made a new one
+  // every render and had @monaco-editor/react re-apply the whole configuration
+  // to both editors on every keystroke.
+  const editorOptions = monacoOptions
   const [state, updateState] = useToolState<DiffViewerState>('diff-viewer', {
     left: '',
     right: '',
