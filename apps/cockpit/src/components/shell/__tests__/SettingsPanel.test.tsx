@@ -172,6 +172,24 @@ describe('SettingsPanel', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('shellStyle', 'flush'))
   })
 
+  it('names every setting row control from the row label', async () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editor' }))
+
+    // A role="switch" is a <button>, which is not labelable — the row's <label>
+    // would name nothing, so the row publishes its label id via context instead.
+    const wrap = screen.getByRole('switch', { name: 'Word Wrap' })
+    fireEvent.click(wrap)
+    await waitFor(() => expect(update).toHaveBeenCalledWith('editorWordWrap', false))
+
+    // Same problem, same fix, for the bare <select> beside a row label.
+    expect(screen.getByRole('combobox', { name: 'Render Whitespace' })).toBeInTheDocument()
+  })
+
   it('imports settings that use newer registered themes', async () => {
     const addToast = useUiStore.getState().addToast
     Object.defineProperty(navigator, 'clipboard', {

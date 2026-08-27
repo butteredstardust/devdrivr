@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -40,6 +40,7 @@ import { AcknowledgmentsTab } from '@/components/shell/AcknowledgmentsTab'
 import { Dialog } from '@/components/shared/Dialog'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
+import { ControlLabelProvider, useControlLabelId } from '@/components/shared/ControlLabel'
 import { Select } from '@/components/shared/Select'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ThemePicker } from '@/components/shell/ThemePicker'
@@ -147,13 +148,23 @@ function SettingRow({
   hint?: string
   children: React.ReactNode
 }) {
+  const labelId = useId()
   return (
     <div className="flex items-center justify-between py-2">
       <div className="flex flex-col">
-        <span className="text-xs text-[var(--color-text)]">{label}</span>
+        <span id={labelId} className="text-xs text-[var(--color-text)]">
+          {label}
+        </span>
         {hint && <span className="text-2xs text-[var(--color-text-muted)]">{hint}</span>}
       </div>
-      <div className="flex items-center">{children}</div>
+      {/* The row's label names its control. Without this every switch here is a
+          `<button role="switch">` sitting next to unrelated text — announced as
+          an unnamed button, so arrowing through Settings reads as "switch, on"
+          over and over. Toggle and SelectInput pick the id up from context, so
+          no call site below repeats the label as an aria-label. */}
+      <ControlLabelProvider id={labelId}>
+        <div className="flex items-center">{children}</div>
+      </ControlLabelProvider>
     </div>
   )
 }
@@ -167,10 +178,12 @@ function SelectInput({
   onChange: (v: string) => void
   options: { value: string | number; label: string }[]
 }) {
+  const labelId = useControlLabelId()
   return (
     <Select
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      aria-labelledby={labelId}
       className="bg-[var(--color-bg)]"
     >
       {options.map((o) => (

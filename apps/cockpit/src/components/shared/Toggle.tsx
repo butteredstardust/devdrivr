@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { useControlLabelId } from '@/components/shared/ControlLabel'
 
 type ToggleProps = {
   checked: boolean
@@ -9,6 +10,9 @@ type ToggleProps = {
    * Names the switch from text rendered elsewhere — a `SettingsRow` label, say. A switch is a
    * `<button role="switch">`, which is not a labelable element, so an enclosing `<label>` gives
    * it no name; without one of these it is announced as an unnamed button.
+   *
+   * Usually unnecessary: inside a `ControlLabelProvider` (which every settings row is) the
+   * surrounding label's id is picked up automatically. Pass this only to override that.
    */
   'aria-labelledby'?: string
   'aria-label'?: string
@@ -23,6 +27,10 @@ export function Toggle({
   'aria-label': ariaLabel,
 }: ToggleProps) {
   const id = useId()
+  const rowLabelId = useControlLabelId()
+  // `label` renders its own <label htmlFor>, and an explicit aria-* always wins;
+  // the row's label is the fallback for a switch that would otherwise be unnamed.
+  const labelledBy = ariaLabelledBy ?? (label || ariaLabel ? undefined : rowLabelId)
 
   return (
     <div className="flex items-center gap-2">
@@ -30,7 +38,7 @@ export function Toggle({
         id={id}
         role="switch"
         aria-checked={checked}
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={labelledBy}
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => onChange(!checked)}
