@@ -147,6 +147,34 @@ Access settings through the gear icon in the top right or with `Cmd/Ctrl + ,`.
 - **Editor Settings**: Font size, tab size, word wrap, line numbers
 - **Window Behavior**: Window management preferences
 
+### Editor
+
+The **Editor** tab configures every tool that embeds a code editor — the JSON,
+YAML, XML and CSV panes, the diff viewer, the TypeScript playground and the
+rest. There is no per-tool override; a change here applies everywhere at once.
+
+| Setting             | Default              | Effect                                                 |
+| ------------------- | -------------------- | ------------------------------------------------------ |
+| Font Family / Size  | JetBrains Mono, 14px | Editor typeface and size; line height follows          |
+| Indent Size         | 2 spaces             | Spaces per indent level (tab width when tabs are used) |
+| Editor Theme        | Dark                 | Editor colours, or match the app theme                 |
+| Format on Paste     | Off                  | Reformat pasted code                                   |
+| Word Wrap           | On                   | Wrap long lines instead of scrolling sideways          |
+| Insert Spaces       | On                   | Off indents with real tab characters                   |
+| Line Numbers        | On                   | Gutter line numbers                                    |
+| Code Folding        | On                   | Collapse blocks from the gutter                        |
+| Minimap             | Off                  | Overview strip down the right edge                     |
+| Sticky Scroll       | Off                  | Pin enclosing scopes to the top of the pane            |
+| Bracket Pair Colors | On                   | Tint matching brackets by nesting depth                |
+| Render Whitespace   | None                 | Show spaces and tabs (`none` / `boundary` / `all`)     |
+| Cursor Style        | Line                 | Caret shape (`line` / `block` / `underline`)           |
+
+Word Wrap is worth calling out: with it off, a long line scrolls horizontally,
+and the editor's horizontal scrollbar is a thin strip that is easy to miss. The
+app pins that scrollbar permanently visible whenever wrap is off, so the rest of
+the line is always reachable. Minimap and Sticky Scroll default off because these
+panes are often half a window wide, where both cost more room than they earn.
+
 ### Keyboard Shortcuts
 
 All keyboard shortcuts can be customized:

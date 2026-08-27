@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { EDITOR_OPTIONS, buildCockpitTheme, contrastRatio } from '@/hooks/useMonaco'
+import {
+  EDITOR_OPTIONS,
+  buildCockpitTheme,
+  buildEditorOptions,
+  contrastRatio,
+} from '@/hooks/useMonaco'
+import { DEFAULT_SETTINGS } from '@/types/models'
 
 // getCssColor() resolves CSS custom properties by setting `color: var(--x)`
 // on a temp element and reading window.getComputedStyle(...).color. jsdom
@@ -215,5 +221,75 @@ describe('EDITOR_OPTIONS word wrap', () => {
       /wordWrap:\s*['"]off['"]/.test(fs.readFileSync(file, 'utf8'))
     )
     expect(offenders.map((f) => path.relative(toolsDir, f))).toEqual([])
+  })
+})
+
+describe('buildEditorOptions', () => {
+  const prefs = {
+    editorFontSize: DEFAULT_SETTINGS.editorFontSize,
+    editorFont: DEFAULT_SETTINGS.editorFont,
+    defaultIndentSize: DEFAULT_SETTINGS.defaultIndentSize,
+    formatOnPaste: DEFAULT_SETTINGS.formatOnPaste,
+    editorWordWrap: DEFAULT_SETTINGS.editorWordWrap,
+    editorMinimap: DEFAULT_SETTINGS.editorMinimap,
+    editorLineNumbers: DEFAULT_SETTINGS.editorLineNumbers,
+    editorFolding: DEFAULT_SETTINGS.editorFolding,
+    editorStickyScroll: DEFAULT_SETTINGS.editorStickyScroll,
+    editorRenderWhitespace: DEFAULT_SETTINGS.editorRenderWhitespace,
+    editorInsertSpaces: DEFAULT_SETTINGS.editorInsertSpaces,
+    editorBracketPairColorization: DEFAULT_SETTINGS.editorBracketPairColorization,
+    editorCursorStyle: DEFAULT_SETTINGS.editorCursorStyle,
+  }
+
+  it('maps each preference onto its Monaco option', () => {
+    const options = buildEditorOptions({
+      ...prefs,
+      editorFontSize: 16,
+      editorFont: 'Fira Code',
+      defaultIndentSize: 4,
+      editorMinimap: true,
+      editorLineNumbers: false,
+      editorFolding: false,
+      editorStickyScroll: true,
+      editorRenderWhitespace: 'all',
+      editorInsertSpaces: false,
+      editorBracketPairColorization: false,
+      editorCursorStyle: 'block',
+    })
+    expect(options).toMatchObject({
+      fontSize: 16,
+      fontFamily: 'Fira Code',
+      tabSize: 4,
+      insertSpaces: false,
+      minimap: { enabled: true },
+      lineNumbers: 'off',
+      folding: false,
+      stickyScroll: { enabled: true },
+      renderWhitespace: 'all',
+      bracketPairColorization: { enabled: false },
+      cursorStyle: 'block',
+    })
+  })
+
+  // Monaco keeps its own line height when the font size changes under it, which
+  // leaves the text crowded or floating in a row sized for the old size.
+  it('scales line height with font size, never below 20px', () => {
+    expect(buildEditorOptions({ ...prefs, editorFontSize: 20 }).lineHeight).toBe(30)
+    expect(buildEditorOptions({ ...prefs, editorFontSize: 12 }).lineHeight).toBe(20)
+  })
+
+  // Turning wrap off is allowed, but must not reproduce the bug it caused when
+  // two tools did it silently: Monaco leaves the horizontal scrollbar hidden
+  // until a scroll happens, so an unreachable long line reads as truncated.
+  it('pins the horizontal scrollbar visible only when wrap is off', () => {
+    const wrapped = buildEditorOptions({ ...prefs, editorWordWrap: true })
+    expect(wrapped.wordWrap).toBe('on')
+    // Stated, not omitted — Monaco's updateOptions() merges, so an absent key
+    // would leave the bar pinned from whatever the previous setting was.
+    expect(wrapped.scrollbar).toEqual({ horizontal: 'auto' })
+
+    const unwrapped = buildEditorOptions({ ...prefs, editorWordWrap: false })
+    expect(unwrapped.wordWrap).toBe('off')
+    expect(unwrapped.scrollbar).toEqual({ horizontal: 'visible' })
   })
 })

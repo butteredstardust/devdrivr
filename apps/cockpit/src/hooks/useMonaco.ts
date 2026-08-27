@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { loader } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
+import type { AppSettings } from '@/types/models'
 
 // Pre-built Monaco theme JSONs (sourced from monaco-themes package, stored locally)
 import draculaTheme from '@/lib/editor-themes/dracula.json'
@@ -363,13 +364,90 @@ function resolveMonacoTheme(appTheme: string, editorTheme: string): string {
   return pkg ? pkg.monacoId : 'cockpit-current'
 }
 
+/**
+ * The subset of AppSettings that shapes a Monaco editor, as a flat object so
+ * buildEditorOptions() can be unit-tested without a store or a React render.
+ */
+export type MonacoPreferences = Pick<
+  AppSettings,
+  | 'editorFontSize'
+  | 'editorFont'
+  | 'defaultIndentSize'
+  | 'formatOnPaste'
+  | 'editorWordWrap'
+  | 'editorMinimap'
+  | 'editorLineNumbers'
+  | 'editorFolding'
+  | 'editorStickyScroll'
+  | 'editorRenderWhitespace'
+  | 'editorInsertSpaces'
+  | 'editorBracketPairColorization'
+  | 'editorCursorStyle'
+>
+
+/**
+ * Layer the user's Editor preferences over EDITOR_OPTIONS.
+ *
+ * One function rather than a spread at each call site: every tool goes through
+ * useMonaco(), so a preference added here reaches all ~20 editors at once, and
+ * the awkward cases (the horizontal scrollbar below, the line height that has
+ * to track font size) get decided once instead of per tool.
+ *
+ * `satisfies` rather than a return-type annotation: the values are still checked
+ * against Monaco's option types, but the inferred literal type is what callers
+ * see, and several tools type their editor `options` prop as
+ * `Record<string, unknown>` — which `IStandaloneEditorConstructionOptions`,
+ * having no index signature, is not assignable to.
+ */
+export function buildEditorOptions(prefs: MonacoPreferences) {
+  return {
+    ...EDITOR_OPTIONS,
+    fontSize: prefs.editorFontSize,
+    fontFamily: prefs.editorFont,
+    // Monaco won't derive a line height from a font size the user just changed;
+    // left alone it keeps the old one and the text crowds or floats in its row.
+    lineHeight: Math.max(20, Math.ceil(prefs.editorFontSize * 1.5)),
+    tabSize: prefs.defaultIndentSize,
+    insertSpaces: prefs.editorInsertSpaces,
+    formatOnPaste: prefs.formatOnPaste,
+    wordWrap: prefs.editorWordWrap ? ('on' as const) : ('off' as const),
+    // Pinned visible only when wrapping is off. Monaco otherwise leaves the
+    // horizontal scrollbar hidden until a scroll actually happens, which is
+    // what made unwrapped long lines look truncated in the first place; with
+    // wrapping on there is nothing to scroll and a pinned bar is just a
+    // permanent 12px strip of dead space. Always stated, never omitted:
+    // updateOptions() merges, so leaving the key out when wrapping is switched
+    // back on would leave the bar pinned from the previous setting.
+    scrollbar: { horizontal: prefs.editorWordWrap ? ('auto' as const) : ('visible' as const) },
+    minimap: { enabled: prefs.editorMinimap },
+    lineNumbers: prefs.editorLineNumbers ? ('on' as const) : ('off' as const),
+    folding: prefs.editorFolding,
+    stickyScroll: { enabled: prefs.editorStickyScroll },
+    renderWhitespace: prefs.editorRenderWhitespace,
+    bracketPairColorization: { enabled: prefs.editorBracketPairColorization },
+    cursorStyle: prefs.editorCursorStyle,
+  } satisfies editor.IStandaloneEditorConstructionOptions
+}
+
 export function useMonacoSettings() {
   const theme = useSettingsStore((s) => s.theme)
   const editorTheme = useSettingsStore((s) => s.editorTheme)
+  // Selected one field at a time on purpose: a selector returning an object
+  // makes a new reference on every store write and re-renders every editor in
+  // the app whenever any unrelated setting changes.
   const editorFontSize = useSettingsStore((s) => s.editorFontSize)
   const editorFont = useSettingsStore((s) => s.editorFont)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
+  const editorWordWrap = useSettingsStore((s) => s.editorWordWrap)
+  const editorMinimap = useSettingsStore((s) => s.editorMinimap)
+  const editorLineNumbers = useSettingsStore((s) => s.editorLineNumbers)
+  const editorFolding = useSettingsStore((s) => s.editorFolding)
+  const editorStickyScroll = useSettingsStore((s) => s.editorStickyScroll)
+  const editorRenderWhitespace = useSettingsStore((s) => s.editorRenderWhitespace)
+  const editorInsertSpaces = useSettingsStore((s) => s.editorInsertSpaces)
+  const editorBracketPairColorization = useSettingsStore((s) => s.editorBracketPairColorization)
+  const editorCursorStyle = useSettingsStore((s) => s.editorCursorStyle)
 
   const effective = getEffectiveTheme(theme)
   const resolvedTheme = resolveMonacoTheme(effective, editorTheme)
@@ -423,29 +501,48 @@ export function useMonacoSettings() {
     }
   }, [resolvedTheme, effective, editorFont])
 
-  return {
-    theme: resolvedTheme,
-    fontSize: editorFontSize,
-    fontFamily: editorFont,
-    tabSize: defaultIndentSize,
-    formatOnPaste,
-  }
+  const prefs = useMemo(
+    (): MonacoPreferences => ({
+      editorFontSize,
+      editorFont,
+      defaultIndentSize,
+      formatOnPaste,
+      editorWordWrap,
+      editorMinimap,
+      editorLineNumbers,
+      editorFolding,
+      editorStickyScroll,
+      editorRenderWhitespace,
+      editorInsertSpaces,
+      editorBracketPairColorization,
+      editorCursorStyle,
+    }),
+    [
+      editorFontSize,
+      editorFont,
+      defaultIndentSize,
+      formatOnPaste,
+      editorWordWrap,
+      editorMinimap,
+      editorLineNumbers,
+      editorFolding,
+      editorStickyScroll,
+      editorRenderWhitespace,
+      editorInsertSpaces,
+      editorBracketPairColorization,
+      editorCursorStyle,
+    ]
+  )
+
+  return { theme: resolvedTheme, prefs }
 }
 
 export function useMonaco() {
   const settings = useMonacoSettings()
 
-  const options = useMemo(
-    () => ({
-      ...EDITOR_OPTIONS,
-      fontSize: settings.fontSize,
-      fontFamily: settings.fontFamily,
-      lineHeight: Math.max(20, Math.ceil(settings.fontSize * 1.5)),
-      tabSize: settings.tabSize,
-      formatOnPaste: settings.formatOnPaste,
-    }),
-    [settings.fontSize, settings.fontFamily, settings.tabSize, settings.formatOnPaste]
-  )
+  // useMonacoSettings() already memoises `prefs`, so this rebuilds only when a
+  // preference actually changes — tools hold the result across every keystroke.
+  const options = useMemo(() => buildEditorOptions(settings.prefs), [settings.prefs])
 
   return { theme: settings.theme, options }
 }
@@ -453,15 +550,21 @@ export function useMonaco() {
 /**
  * Base Monaco editor options shared across all tools.
  *
- * `wordWrap: 'on'` is not a preference — do not override it to `'off'` in a
- * tool. Editors here live in panes that are frequently half a window wide (a
- * split tool, the notes drawer open, a narrow window), and a long line with
+ * These are the ones no tool and no user needs to argue with. Everything a user
+ * can reasonably want differently lives in Settings → Editor and is layered on
+ * top by buildEditorOptions() — add new preferences there, not here.
+ *
+ * `wordWrap: 'on'` is the default for a reason, and a tool must not override it
+ * to `'off'`. Editors here live in panes that are frequently half a window wide
+ * (a split tool, the notes drawer open, a narrow window), and a long line with
  * wrap off is simply not readable: Monaco's horizontal scrollbar is a 12px
  * sliver that stays `visibility: hidden` until you scroll, so the line reads as
  * truncated rather than scrollable. Two tools did override it — the text ran
  * off the right edge of both panes with no visible way to reach it. Monaco
  * hard-breaks tokens longer than the viewport, so this holds for minified JSON
  * and long URLs too, and with wrap on no horizontal scrollbar appears at all.
+ * The user *may* turn wrapping off globally; buildEditorOptions() then pins the
+ * horizontal scrollbar visible so the choice doesn't reproduce the same trap.
  */
 export const EDITOR_OPTIONS = {
   minimap: { enabled: false },

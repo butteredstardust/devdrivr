@@ -79,6 +79,33 @@ const EDITOR_THEME_OPTIONS: { value: AppSettings['editorTheme']; label: string }
   { value: 'match-app', label: 'Match App Theme' },
 ]
 
+const WHITESPACE_OPTIONS: { value: AppSettings['editorRenderWhitespace']; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'boundary', label: 'Boundary' },
+  { value: 'all', label: 'All' },
+]
+
+const CURSOR_STYLE_OPTIONS: { value: AppSettings['editorCursorStyle']; label: string }[] = [
+  { value: 'line', label: 'Line' },
+  { value: 'block', label: 'Block' },
+  { value: 'underline', label: 'Underline' },
+]
+
+/**
+ * Editor toggles the settings import validates as a group. They are all plain
+ * booleans with no further constraint, so listing them beats another nine
+ * near-identical `if (typeof obj[...] === 'boolean')` lines.
+ */
+const BOOLEAN_EDITOR_SETTINGS = [
+  'editorWordWrap',
+  'editorMinimap',
+  'editorLineNumbers',
+  'editorFolding',
+  'editorStickyScroll',
+  'editorInsertSpaces',
+  'editorBracketPairColorization',
+] as const satisfies readonly (keyof AppSettings)[]
+
 const MIN_MCP_PORT = 1024
 const MAX_MCP_PORT = 65535
 
@@ -388,58 +415,152 @@ function EditorTab() {
   const editorTheme = useSettingsStore((s) => s.editorTheme)
   const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
+  const editorWordWrap = useSettingsStore((s) => s.editorWordWrap)
+  const editorMinimap = useSettingsStore((s) => s.editorMinimap)
+  const editorLineNumbers = useSettingsStore((s) => s.editorLineNumbers)
+  const editorFolding = useSettingsStore((s) => s.editorFolding)
+  const editorStickyScroll = useSettingsStore((s) => s.editorStickyScroll)
+  const editorRenderWhitespace = useSettingsStore((s) => s.editorRenderWhitespace)
+  const editorInsertSpaces = useSettingsStore((s) => s.editorInsertSpaces)
+  const editorBracketPairColorization = useSettingsStore((s) => s.editorBracketPairColorization)
+  const editorCursorStyle = useSettingsStore((s) => s.editorCursorStyle)
 
   return (
-    <div className="space-y-1">
-      <SettingRow label="Font Family" hint="Monaco editor font family">
-        <SelectInput
-          value={editorFont}
-          onChange={(v) =>
-            void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
-          }
-          options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
-        />
-      </SettingRow>
-      <SettingRow label="Font Size" hint="Monaco editor font size">
-        <SelectInput
-          value={editorFontSize}
-          onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
-          options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
-        />
-      </SettingRow>
-      <SettingRow label="Indent Size" hint="Spaces per indent level">
-        <SelectInput
-          value={defaultIndentSize}
-          onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
-          options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
-        />
-      </SettingRow>
-      <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
-        <SelectInput
-          value={editorTheme}
-          onChange={(v) =>
-            void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
-          }
-          options={EDITOR_THEME_OPTIONS}
-        />
-      </SettingRow>
-      <SettingRow label="Keybinding Mode" hint="Monaco standard shortcuts">
-        <SelectInput
-          value={editorKeybindingMode}
-          onChange={(v) =>
-            void update('editorKeybindingMode', v as AppSettings['editorKeybindingMode']).catch(
-              () => {}
-            )
-          }
-          options={KEYBINDING_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-        />
-      </SettingRow>
-      <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
-        <Toggle
-          checked={formatOnPaste}
-          onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
-        />
-      </SettingRow>
+    <div className="space-y-5">
+      <div className="space-y-1">
+        <SettingRow label="Font Family" hint="Monaco editor font family">
+          <SelectInput
+            value={editorFont}
+            onChange={(v) =>
+              void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
+            }
+            options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
+          />
+        </SettingRow>
+        <SettingRow label="Font Size" hint="Monaco editor font size">
+          <SelectInput
+            value={editorFontSize}
+            onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
+            options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
+          />
+        </SettingRow>
+        <SettingRow label="Indent Size" hint="Spaces per indent level">
+          <SelectInput
+            value={defaultIndentSize}
+            onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
+            options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
+          />
+        </SettingRow>
+        <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
+          <SelectInput
+            value={editorTheme}
+            onChange={(v) =>
+              void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
+            }
+            options={EDITOR_THEME_OPTIONS}
+          />
+        </SettingRow>
+        <SettingRow label="Keybinding Mode" hint="Monaco standard shortcuts">
+          <SelectInput
+            value={editorKeybindingMode}
+            onChange={(v) =>
+              void update('editorKeybindingMode', v as AppSettings['editorKeybindingMode']).catch(
+                () => {}
+              )
+            }
+            options={KEYBINDING_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          />
+        </SettingRow>
+        <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
+          <Toggle
+            checked={formatOnPaste}
+            onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
+          />
+        </SettingRow>
+      </div>
+
+      {/* Applies to every tool that embeds Monaco — the JSON, YAML, XML, diff
+          and playground panes all read these through useMonaco(). */}
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          <CodeIcon size={12} />
+          Editor Behavior
+        </SectionLabel>
+        <div className="space-y-1">
+          <SettingRow
+            label="Word Wrap"
+            hint={
+              editorWordWrap
+                ? 'Wrap long lines instead of scrolling sideways'
+                : 'Off — long lines scroll horizontally'
+            }
+          >
+            <Toggle
+              checked={editorWordWrap}
+              onChange={(v) => void update('editorWordWrap', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Insert Spaces" hint="Off indents with tab characters">
+            <Toggle
+              checked={editorInsertSpaces}
+              onChange={(v) => void update('editorInsertSpaces', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Line Numbers" hint="Show the gutter line numbers">
+            <Toggle
+              checked={editorLineNumbers}
+              onChange={(v) => void update('editorLineNumbers', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Code Folding" hint="Collapse blocks from the gutter">
+            <Toggle
+              checked={editorFolding}
+              onChange={(v) => void update('editorFolding', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Minimap" hint="Overview strip down the right edge">
+            <Toggle
+              checked={editorMinimap}
+              onChange={(v) => void update('editorMinimap', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Sticky Scroll" hint="Pin enclosing scopes to the top">
+            <Toggle
+              checked={editorStickyScroll}
+              onChange={(v) => void update('editorStickyScroll', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Bracket Pair Colors" hint="Tint matching brackets by depth">
+            <Toggle
+              checked={editorBracketPairColorization}
+              onChange={(v) => void update('editorBracketPairColorization', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Render Whitespace" hint="Show spaces and tabs as dots">
+            <SelectInput
+              value={editorRenderWhitespace}
+              onChange={(v) =>
+                void update(
+                  'editorRenderWhitespace',
+                  v as AppSettings['editorRenderWhitespace']
+                ).catch(() => {})
+              }
+              options={WHITESPACE_OPTIONS}
+            />
+          </SettingRow>
+          <SettingRow label="Cursor Style" hint="Shape of the text caret">
+            <SelectInput
+              value={editorCursorStyle}
+              onChange={(v) =>
+                void update('editorCursorStyle', v as AppSettings['editorCursorStyle']).catch(
+                  () => {}
+                )
+              }
+              options={CURSOR_STYLE_OPTIONS}
+            />
+          </SettingRow>
+        </div>
+      </div>
     </div>
   )
 }
@@ -479,6 +600,15 @@ function DataTab() {
         editorFontSize: state.editorFontSize,
         editorTheme: state.editorTheme,
         editorKeybindingMode: state.editorKeybindingMode,
+        editorWordWrap: state.editorWordWrap,
+        editorMinimap: state.editorMinimap,
+        editorLineNumbers: state.editorLineNumbers,
+        editorFolding: state.editorFolding,
+        editorStickyScroll: state.editorStickyScroll,
+        editorRenderWhitespace: state.editorRenderWhitespace,
+        editorInsertSpaces: state.editorInsertSpaces,
+        editorBracketPairColorization: state.editorBracketPairColorization,
+        editorCursorStyle: state.editorCursorStyle,
         historyRetentionPerTool: state.historyRetentionPerTool,
         formatOnPaste: state.formatOnPaste,
         checkForUpdatesAutomatically: state.checkForUpdatesAutomatically,
@@ -534,9 +664,25 @@ function DataTab() {
         ['cockpit-dark', 'cockpit-light', 'match-app'].includes(obj['editorTheme'])
       )
         await su('editorTheme', obj['editorTheme'] as AppSettings['editorTheme'])
+      if (
+        typeof obj['editorRenderWhitespace'] === 'string' &&
+        ['none', 'boundary', 'all'].includes(obj['editorRenderWhitespace'])
+      )
+        await su(
+          'editorRenderWhitespace',
+          obj['editorRenderWhitespace'] as AppSettings['editorRenderWhitespace']
+        )
+      if (
+        typeof obj['editorCursorStyle'] === 'string' &&
+        ['line', 'block', 'underline'].includes(obj['editorCursorStyle'])
+      )
+        await su('editorCursorStyle', obj['editorCursorStyle'] as AppSettings['editorCursorStyle'])
       // Boolean fields
       if (typeof obj['alwaysOnTop'] === 'boolean') await su('alwaysOnTop', obj['alwaysOnTop'])
       if (typeof obj['formatOnPaste'] === 'boolean') await su('formatOnPaste', obj['formatOnPaste'])
+      for (const key of BOOLEAN_EDITOR_SETTINGS) {
+        if (typeof obj[key] === 'boolean') await su(key, obj[key])
+      }
       if (typeof obj['checkForUpdatesAutomatically'] === 'boolean')
         await su('checkForUpdatesAutomatically', obj['checkForUpdatesAutomatically'])
       if (typeof obj['downloadUpdatesAutomatically'] === 'boolean')
