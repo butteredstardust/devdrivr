@@ -232,6 +232,15 @@ describe('settings store updates', () => {
       'solarized-light',
       'tomorrow-night',
       'oceanic-next',
+      'inked',
+      'urban-nocturne',
+      'amethyst-haze',
+      'lapis-velvet',
+      'amethyst-mint',
+      'fireside',
+      'marina',
+      'pearl',
+      'yacht-club',
       'system', // wraps back
     ]
 

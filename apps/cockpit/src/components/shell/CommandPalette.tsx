@@ -573,12 +573,18 @@ export function CommandPalette() {
           aria-activedescendant={isOpen ? selectedOptionId : undefined}
           className="min-w-0 flex-1 bg-transparent text-left text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
         />
+        {/* Both chips are fixed-size and would otherwise spill out of a bar too narrow to hold
+            them — see the `@container` note on the palette slot in TitleBar. Below 200px the bar
+            is down to a magnifier and a sliver of placeholder anyway, and the shortcut it would
+            advertise still works. */}
         {isActionMode && isOpen ? (
-          <span className="rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
+          <span className="@max-[200px]:hidden rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
             Actions
           </span>
         ) : (
-          <Kbd keys="mod+k" />
+          <span className="@max-[200px]:hidden flex shrink-0 items-center">
+            <Kbd keys="mod+k" />
+          </span>
         )}
       </div>
 

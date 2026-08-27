@@ -16,6 +16,15 @@
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
+  /* Typefaces are global, not a theme concern — declared here and nowhere else.
+     A theme block must not redeclare --font-ui or --font-mono. Twelve of them
+     used to: eleven restated 'Source Code Pro' identically (noise), two swapped
+     --font-mono for a generic ui-monospace stack, and neon-brutalist aliased
+     --font-ui to --font-mono for an all-mono look. The last one is the reason
+     for this rule: picking a colour scheme silently reflowed every label,
+     button and menu in the app into a different typeface, which reads as a bug
+     rather than a style. A theme changes colour; the user changes fonts, in
+     Settings → Editor. tokens.test.ts enforces this. */
   --font-mono: 'Source Code Pro', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -98,6 +107,14 @@
      --duration-panel  200ms  A surface changing size or position: drawer
                               open/close, accordion, toggle knob, chevron.
      --duration-spin   700ms  The one continuous loop (loading spinners).
+     --duration-theme  260ms  The whole-window colour cross-fade when the
+                              theme changes. Longer than --duration-panel
+                              because it repaints every surface at once and
+                              a shorter fade reads as the flash it replaced;
+                              short enough that arrowing through the theme
+                              picker still feels like browsing. Used by
+                              exactly one rule — `.theme-transition` in
+                              index.css.
 
      --ease-out        Anything entering, opening or growing — decelerates
                        into place, so the surface feels caught rather than
@@ -125,6 +142,7 @@
   --duration-fast: 150ms;
   --duration-panel: 200ms;
   --duration-spin: 700ms;
+  --duration-theme: 260ms;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -146,7 +164,6 @@
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f59e0b;
   --note-green: #10b981;
   --note-blue: #3b82f6;
@@ -173,7 +190,6 @@
   --color-success: #06d6a0;
   --color-shadow: rgba(0, 0, 0, 0.4);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #ffd166;
   --note-green: #06d6a0;
   --note-blue: #118ab2;
@@ -198,12 +214,15 @@
   --color-info: #3a86ff;
   --color-warning: #f59e0b;
   --color-success: #8338ec;
-  --color-shadow: rgba(255, 0, 110, 0.2);
-  --color-scrim: rgba(255, 0, 110, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
-  /* Keeps the all-mono terminal aesthetic that defines this theme — chrome
-     reads in the same code font as data, on purpose. */
-  --font-ui: var(--font-mono);
+  /* Neutral, like every other theme. These two tokens are the theme's only
+     full-surface ones — --color-scrim covers the whole window behind every
+     dialog (Dialog.tsx, CommandPalette.tsx) and --color-shadow feeds all three
+     --elevation-* steps. This theme used to set both to its magenta #ff006e,
+     which turned the settings dialog's backdrop into a sheet of hot pink over
+     the entire app. The neon belongs in --color-accent and the --note-* hues,
+     where it lands on a control the user is looking at, not over everything. */
+  --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.5);
   --note-yellow: #ffbe0b;
   --note-green: #3a86ff;
   --note-blue: #8338ec;
@@ -230,7 +249,6 @@
   --color-success: #00b894;
   --color-shadow: rgba(0, 0, 0, 0.3);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #fdcb6e;
   --note-green: #00b894;
   --note-blue: #0984e3;
@@ -257,9 +275,6 @@
   --color-error: #e94560;
   --color-shadow: rgba(0, 0, 0, 0.6);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
   --note-yellow: #d4af37;
   --note-green: #22c55e;
   --note-blue: #533483;
@@ -287,7 +302,6 @@
   --color-success: #9ece6a;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e0af68;
   --note-green: #9ece6a;
   --note-blue: #7aa2f7;
@@ -315,7 +329,6 @@
   --color-success: #385f0d;
   --color-shadow: rgba(0, 0, 0, 0.1);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #8f5e15;
   --note-green: #385f0d;
   --note-blue: #2959aa;
@@ -343,7 +356,6 @@
   --color-success: #a6e3a1;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f9e2af;
   --note-green: #a6e3a1;
   --note-blue: #89b4fa;
@@ -371,7 +383,6 @@
   --color-success: #a6da95;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #eed49f;
   --note-green: #a6da95;
   --note-blue: #8aadf4;
@@ -399,7 +410,6 @@
   --color-success: #a6d189;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e5c890;
   --note-green: #a6d189;
   --note-blue: #8caaee;
@@ -427,7 +437,6 @@
   --color-success: #40a02b;
   --color-shadow: rgba(0, 0, 0, 0.1);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #df8e1d;
   --note-green: #40a02b;
   --note-blue: #1e66f5;
@@ -455,9 +464,6 @@
   --color-success: #16a34a;
   --color-shadow: rgba(0, 0, 0, 0.05);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
   --note-yellow: #f59e0b;
   --note-green: #16a34a;
   --note-blue: #6c5ce7;
@@ -736,4 +742,258 @@
   --note-orange: #f99157;
   --note-red: #ec5f67;
   --note-gray: #4f5b66;
+}
+
+/* ─── Palette-derived themes ───────────────────────────────────────────────
+   The nine blocks below are drawn from a palette reference rather than from an
+   editor theme, so each one starts from 2–4 source hues and fills in the rest
+   of the token set around them. The source colours land on --color-bg,
+   --color-accent and --color-border; the surface ramp is built from the base
+   hue at fixed lightness steps, and the semantic tokens (info/warning/error/
+   success) are tuned per theme for contrast rather than taken from the source,
+   which never carries four status colours. --color-shadow and --color-scrim
+   stay neutral in all of them — see the note in .neon-brutalist for why.
+   ────────────────────────────────────────────────────────────────────── */
+
+.inked {
+  --color-bg: #000000;
+  --color-surface: #121212;
+  --color-surface-raised: #1c1c1c;
+  --color-surface-sunken: #080808;
+  --color-surface-hover: #272727;
+  --color-border: #464545;
+  --color-text: #dfdedc;
+  --color-text-muted: rgba(223, 222, 220, 0.7);
+  --color-accent: #00acac;
+  --color-accent-dim: rgba(0, 172, 172, 0.2);
+  --color-info: #4ab5b5;
+  --color-warning: #e2b714;
+  --color-error: #ef4444;
+  --color-success: #34c98a;
+  --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+  --note-yellow: #e2b714;
+  --note-green: #34c98a;
+  --note-blue: #4ab5b5;
+  --note-pink: #d46a9f;
+  --note-purple: #9b7ede;
+  --note-orange: #f08c3a;
+  --note-red: #ef4444;
+  --note-gray: #464545;
+}
+
+.urban-nocturne {
+  --color-bg: #141414;
+  --color-surface: #1e1e1e;
+  --color-surface-raised: #2a2a2a;
+  --color-surface-sunken: #0f0f0f;
+  --color-surface-hover: #363636;
+  --color-border: #444444;
+  --color-text: #d6d6d6;
+  --color-text-muted: rgba(214, 214, 214, 0.7);
+  --color-accent: #e2e800;
+  --color-accent-dim: rgba(226, 232, 0, 0.2);
+  --color-info: #8ec1de;
+  --color-warning: #f5a524;
+  --color-error: #ff5c5c;
+  --color-success: #79ed91;
+  --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+  --note-yellow: #e2e800;
+  --note-green: #79ed91;
+  --note-blue: #8ec1de;
+  --note-pink: #f090c0;
+  --note-purple: #b39ddb;
+  --note-orange: #f5a524;
+  --note-red: #ff5c5c;
+  --note-gray: #444444;
+}
+
+.amethyst-haze {
+  --color-bg: #250b4a;
+  --color-surface: #341067;
+  --color-surface-raised: #472f5b;
+  --color-surface-sunken: #1c0836;
+  --color-surface-hover: #573a70;
+  --color-border: #533a7b;
+  --color-text: #ede7fb;
+  --color-text-muted: rgba(237, 231, 251, 0.72);
+  --color-accent: #c4aef4;
+  --color-accent-dim: rgba(196, 174, 244, 0.2);
+  --color-info: #8ec1de;
+  --color-warning: #f0b429;
+  --color-error: #ff7597;
+  --color-success: #7ee0b8;
+  --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.45);
+  --note-yellow: #f0b429;
+  --note-green: #7ee0b8;
+  --note-blue: #8ec1de;
+  --note-pink: #cca4b4;
+  --note-purple: #c4aef4;
+  --note-orange: #f2955c;
+  --note-red: #ff7597;
+  --note-gray: #533a7b;
+}
+
+.lapis-velvet {
+  --color-bg: #081849;
+  --color-surface: #13245e;
+  --color-surface-raised: #213885;
+  --color-surface-sunken: #050f33;
+  --color-surface-hover: #2c4599;
+  --color-border: #2f4488;
+  --color-text: #ecdfd2;
+  --color-text-muted: rgba(236, 223, 210, 0.72);
+  --color-accent: #a8c4ec;
+  --color-accent-dim: rgba(168, 196, 236, 0.2);
+  --color-info: #8fd9fb;
+  --color-warning: #ecb914;
+  --color-error: #fc8f8f;
+  --color-success: #06d6a0;
+  --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.45);
+  --note-yellow: #ecb914;
+  --note-green: #06d6a0;
+  --note-blue: #a8c4ec;
+  --note-pink: #d396a6;
+  --note-purple: #b3a8e8;
+  --note-orange: #fc9c44;
+  --note-red: #fc8f8f;
+  --note-gray: #2f4488;
+}
+
+.amethyst-mint {
+  --color-bg: #16211d;
+  --color-surface: #2a3f38;
+  --color-surface-raised: #354d44;
+  --color-surface-sunken: #101a17;
+  --color-surface-hover: #3f5b50;
+  --color-border: #43594f;
+  --color-text: #e6f2ec;
+  --color-text-muted: rgba(230, 242, 236, 0.72);
+  --color-accent: #8df688;
+  --color-accent-dim: rgba(141, 246, 136, 0.2);
+  --color-info: #7fd1c1;
+  --color-warning: #e8b84b;
+  --color-error: #ef7a7a;
+  --color-success: #6ee36a;
+  --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.45);
+  --note-yellow: #e8b84b;
+  --note-green: #8df688;
+  --note-blue: #7fd1c1;
+  --note-pink: #d99ad2;
+  --note-purple: #a98bc4;
+  --note-orange: #eb9b5c;
+  --note-red: #ef7a7a;
+  --note-gray: #43594f;
+}
+
+.fireside {
+  --color-bg: #1a1210;
+  --color-surface: #241a16;
+  --color-surface-raised: #30231d;
+  --color-surface-sunken: #120c0a;
+  --color-surface-hover: #3d2c24;
+  --color-border: #4a352b;
+  --color-text: #d8d4bc;
+  --color-text-muted: rgba(216, 212, 188, 0.7);
+  --color-accent: #e76814;
+  --color-accent-dim: rgba(231, 104, 20, 0.2);
+  --color-info: #7fa8b5;
+  --color-warning: #dc8236;
+  --color-error: #ef5350;
+  --color-success: #9bbf5a;
+  --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+  --note-yellow: #e5b33c;
+  --note-green: #9bbf5a;
+  --note-blue: #7fa8b5;
+  --note-pink: #d98a8a;
+  --note-purple: #b08fbd;
+  --note-orange: #dc8236;
+  --note-red: #ef5350;
+  --note-gray: #4a352b;
+}
+
+.marina {
+  --color-bg: #fff1e7;
+  --color-surface: #f7e5d8;
+  --color-surface-raised: #efd9c9;
+  --color-surface-sunken: #fdf7f2;
+  --color-surface-hover: #e6cdb9;
+  --color-border: #dcc3b1;
+  --color-text: #23323d;
+  --color-text-muted: rgba(35, 50, 61, 0.75);
+  --color-accent: #326080;
+  --color-accent-dim: rgba(50, 96, 128, 0.2);
+  --color-info: #4c7d9e;
+  --color-warning: #b45309;
+  --color-error: #b91c1c;
+  --color-success: #15803d;
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --note-yellow: #b45309;
+  --note-green: #15803d;
+  --note-blue: #326080;
+  --note-pink: #a8436b;
+  --note-purple: #6b4c9a;
+  --note-orange: #c2410c;
+  --note-red: #b91c1c;
+  --note-gray: #dcc3b1;
+}
+
+.pearl {
+  --color-bg: #f4f0ec;
+  --color-surface: #e9e3de;
+  --color-surface-raised: #ded6cf;
+  --color-surface-sunken: #faf7f4;
+  --color-surface-hover: #d1c7bd;
+  --color-border: #cabfb3;
+  --color-text: #3b3633;
+  --color-text-muted: rgba(59, 54, 51, 0.75);
+  --color-accent: #8a6f4a;
+  --color-accent-dim: rgba(138, 111, 74, 0.2);
+  --color-info: #5c718f;
+  --color-warning: #b45309;
+  --color-error: #b91c1c;
+  --color-success: #15803d;
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --note-yellow: #c08a2e;
+  --note-green: #15803d;
+  --note-blue: #5c718f;
+  --note-pink: #a8436b;
+  --note-purple: #6b4c9a;
+  --note-orange: #c2410c;
+  --note-red: #b91c1c;
+  --note-gray: #cabfb3;
+}
+
+.yacht-club {
+  --color-bg: #f7f6f5;
+  --color-surface: #edebea;
+  --color-surface-raised: #e2e0df;
+  --color-surface-sunken: #fbfafa;
+  --color-surface-hover: #d6d4d3;
+  --color-border: #cbc9c8;
+  --color-text: #22282b;
+  --color-text-muted: rgba(34, 40, 43, 0.75);
+  --color-accent: #245f73;
+  --color-accent-dim: rgba(36, 95, 115, 0.2);
+  --color-info: #3f7f96;
+  --color-warning: #b45309;
+  --color-error: #b91c1c;
+  --color-success: #15803d;
+  --color-shadow: rgba(0, 0, 0, 0.06);
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --note-yellow: #b45309;
+  --note-green: #15803d;
+  --note-blue: #245f73;
+  --note-pink: #a8436b;
+  --note-purple: #6b4c9a;
+  --note-orange: #c2410c;
+  --note-red: #b91c1c;
+  --note-gray: #cbc9c8;
 }

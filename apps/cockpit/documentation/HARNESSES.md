@@ -19,7 +19,7 @@ cannot see. This page is the routing table; the linked documents are the how-to.
 | Text selection, caret, clipboard                                   | Browser       |
 | Scroll, resize, measured layout, overflow, focus order             | Browser       |
 | "It re-renders and I can't see why"                                | Browser       |
-| Contrast/theming across all 22 themes                              | Browser       |
+| Contrast/theming across all 31 themes                              | Browser       |
 | Data that is wrong _after_ a reload, or only wrong with real rows  | **Remote UI** |
 | SQLite reads/writes, migrations, the notes/history/snippets stores | **Remote UI** |
 | Anything the stub logs `[tauri-stub] unhandled command` for        | **Remote UI** |

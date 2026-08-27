@@ -116,10 +116,10 @@ describe('theme text-muted contrast (WCAG AA)', () => {
   const css = readFileSync(cssPath, 'utf-8')
   const themes = parseThemes(css)
 
-  it('finds all 22 themes', () => {
+  it('finds all 31 themes', () => {
     // Guards against a parser regression silently matching zero/few blocks,
     // which would make the per-theme assertions below vacuously pass.
-    expect(themes.length).toBe(22)
+    expect(themes.length).toBe(31)
   })
 
   it.each(themes.map((t) => [t.name, t] as const))(

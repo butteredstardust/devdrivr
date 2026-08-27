@@ -535,16 +535,33 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     return (
       <div className="relative flex h-full overflow-hidden">
         {showEditingToggle && onEditingEnabledChange && (
-          <div className="absolute right-3 top-3 z-20 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 shadow-sm">
-            <Toggle
-              checked={editingEnabled}
-              onChange={(enabled) => {
-                finishBlockEdit()
-                onEditingEnabledChange(enabled)
-              }}
-              label="Edit preview"
-              aria-label="Edit preview"
-            />
+          // Anchored to a full-width strip rather than to `right-3` alone, so the chip can never
+          // be wider than the pane it floats in: this container clips (`overflow-hidden`), and a
+          // fixed-width absolute child in a pane narrower than itself is not truncated, it is cut
+          // off entirely. That is how the toggle "disappeared" on a narrow window — the shell had
+          // no workspace floor and squeezed this pane under the chip's own 131px.
+          //
+          // The strip is `pointer-events-none` so only the chip itself takes clicks; a full-width
+          // interactive band across the top would eat clicks on the first line of the document,
+          // which in edit mode is how you start editing a block.
+          //
+          // `@container` + `@max-[220px]` drops the label before the chip runs out of room, so the
+          // control degrades to its switch instead of overflowing.
+          <div className="@container pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-end">
+            <div
+              title="Edit preview"
+              className="@max-[220px]:[&_label]:hidden pointer-events-auto max-w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 shadow-sm"
+            >
+              <Toggle
+                checked={editingEnabled}
+                onChange={(enabled) => {
+                  finishBlockEdit()
+                  onEditingEnabledChange(enabled)
+                }}
+                label="Edit preview"
+                aria-label="Edit preview"
+              />
+            </div>
           </div>
         )}
 

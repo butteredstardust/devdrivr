@@ -13,8 +13,8 @@ authoritative and this document is a bug — fix it in the same commit.
 **All visual values come from CSS custom properties.** Never hardcode a hex value, an `rgb()`, or a
 Tailwind palette utility like `bg-zinc-900`.
 
-This is not a style preference. The app ships **22 themes**. A hardcoded colour is correct under
-exactly one of them and silently wrong under the other 21 — and it will look fine to whoever wrote
+This is not a style preference. The app ships **31 themes**. A hardcoded colour is correct under
+exactly one of them and silently wrong under the other 30 — and it will look fine to whoever wrote
 it, because they only ran the theme they were using.
 
 `bun run lint:ds` fails the build on hardcoded colours, off-scale type, off-scale icons, and
@@ -26,7 +26,7 @@ non-standard focus rings. See § Enforcement.
 
 | File                              | Contains                                                             |
 | --------------------------------- | -------------------------------------------------------------------- |
-| `src/styles/tokens.css`           | All tokens: 22 theme palettes, z-index, spacing, radius, type, focus |
+| `src/styles/tokens.css`           | All tokens: 31 theme palettes, z-index, spacing, radius, type, focus |
 | `src/index.css`                   | Font imports, `@theme` font families, keyframes, reduced-motion      |
 | `src/styles/highlight-themes.css` | Syntax-highlighting palettes                                         |
 
@@ -36,8 +36,8 @@ non-standard focus rings. See § Enforcement.
 
 ## Colour tokens
 
-Values are **per-theme** and there are 22 themes, so this table documents each token's _role_
-rather than a value that would be wrong for 21 of them. Read the actual values from
+Values are **per-theme** and there are 31 themes, so this table documents each token's _role_
+rather than a value that would be wrong for 30 of them. Read the actual values from
 `src/styles/tokens.css`.
 
 ### Surfaces
@@ -92,6 +92,14 @@ only unprefixed `opacity-1..99` in the same class string as the muted token.
 Accent is the single point of visual focus — use it sparingly. Prefer the semantic variants on
 `Alert` / `StatusBadge` over colouring text at the call site.
 
+**`--color-shadow` and `--color-scrim` must stay neutral in every theme** (a black `rgba()`; a
+theme may only vary the alpha). They are the two tokens that paint across everything at once —
+the scrim covers the whole window behind any dialog or the command palette, and the shadow feeds
+all three `--elevation-*` steps. A hue in either is not an accent, it is a filter over the entire
+app: `neon-brutalist` set both to its magenta, and opening Settings in it turned the app hot pink.
+Theme personality belongs in `--color-accent` and the `--note-*` hues. `tokens.test.ts` enforces
+this.
+
 ### Stacking
 
 One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
@@ -110,11 +118,11 @@ One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
 
 ### Families
 
-| Token          | Value                                            | Use                                            |
-| -------------- | ------------------------------------------------ | ---------------------------------------------- |
-| `--font-ui`    | `system-ui, -apple-system, …`                    | UI chrome: buttons, labels, toolbars, headings |
-| `--font-mono`  | `'Source Code Pro', monospace` (theme-dependent) | Code, editors, values, IDs, output             |
-| `--font-pixel` | `'Silkscreen', monospace`                        | App logo / branding only                       |
+| Token          | Value                          | Use                                            |
+| -------------- | ------------------------------ | ---------------------------------------------- |
+| `--font-ui`    | `system-ui, -apple-system, …`  | UI chrome: buttons, labels, toolbars, headings |
+| `--font-mono`  | `'Source Code Pro', monospace` | Code, editors, values, IDs, output             |
+| `--font-pixel` | `'Silkscreen', monospace`      | App logo / branding only                       |
 
 Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
 `font-[family-name:var(--font-mono)]`).
@@ -145,14 +153,18 @@ fewest exceptions, and chrome outnumbers content by an order of magnitude.
 
 Two consequences worth knowing:
 
-- `--font-mono` is **theme-dependent** — 11 of the 22 themes pick `'Source Code Pro'`, the rest a
-  generic `ui-monospace` stack. Both the `font-mono` utility and the tag rule read the same
-  variable, so they always agree within a theme. Never hard-code a family.
-- The `neon-brutalist` theme sets `--font-ui: var(--font-mono)` on purpose, for an all-mono
-  aesthetic.
-  That keeps working precisely _because_ chrome reads `--font-ui` rather than naming a family, and
-  it is the reason chrome must never be given `font-mono` "to look right" — that would make the
-  theme unable to opt out.
+- **A theme must never declare a font family.** `--font-ui` and `--font-mono` are declared once in
+  `:root` and nowhere else; `tokens.test.ts` fails any theme block that redeclares either. Themes
+  change colour. Twelve of them used to break this — eleven restated `'Source Code Pro'` verbatim,
+  two swapped `--font-mono` for a generic `ui-monospace` stack, and `neon-brutalist` aliased
+  `--font-ui` to `--font-mono` for an all-mono look, so picking a colour scheme silently reflowed
+  every label, button and menu in the app into a different typeface. That reads as a bug, not a
+  style, and it made the same word render differently depending on an unrelated preference.
+- Chrome must never be given `font-mono` "to look right". Chrome inherits `--font-ui`; naming a
+  family at the element takes it outside the token system, where nothing can change it later.
+
+The user does control the editor typeface — `editorFont` in Settings → Editor — but that feeds
+Monaco, not the chrome.
 
 ### Size scale
 
@@ -498,20 +510,37 @@ keyboard-first — every core action must be reachable without a mouse (`useGlob
 
 ## Motion
 
-Two durations and two easings, in `tokens.css`. Everything stays under 200ms — this is a utility
-app, it should feel instant.
+Three durations and two easings, in `tokens.css`. Interaction feedback stays under 200ms — this is
+a utility app, it should feel instant. The one exception is the theme cross-fade, which repaints
+every surface at once and needs longer to read as a fade rather than a flash.
 
 | Token              | Value                           | Use                                           |
 | ------------------ | ------------------------------- | --------------------------------------------- |
 | `--duration-fast`  | `150ms`                         | hovers, colour changes, focus, small reveals  |
 | `--duration-panel` | `200ms`                         | panels opening/closing, layout-sized movement |
 | `--duration-spin`  | `700ms`                         | the loading spinner only                      |
+| `--duration-theme` | `260ms`                         | the whole-window theme cross-fade only        |
 | `--ease-out`       | `cubic-bezier(0.16, 1, 0.3, 1)` | things entering — fast start, soft landing    |
 | `--ease-in-out`    | `cubic-bezier(0.4, 0, 0.2, 1)`  | things that move both ways (panel width)      |
 
 ```tsx
 className = 'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]'
 ```
+
+### Theme cross-fade
+
+Changing themes rewrites every `--color-*` token at once. Custom properties do not animate, so
+nothing interpolates on its own and the window repaints in one frame. `setThemeClass()` in
+`src/lib/theme.ts` is the only supported way to swap the theme class: it puts `.theme-transition`
+on `<html>`, swaps the class, and removes it on a timer. The rule in `index.css` gives every
+element a temporary colour transition for that window, so the new palette fades in.
+
+Two things not to change without reading the comments:
+
+- It is a temporary class, not a standing `* { transition: colors }`. The latter would slow every
+  hover and focus in the app to the theme duration.
+- It uses `--ease-in-out`. `--ease-out` is front-loaded enough that the palette lands in ~60ms and
+  reads as the flash it replaces.
 
 Literal `duration-150` / `ease-in-out` are blocked by `lint:ds` — that is how a fourth duration
 gets in, and the same interaction then runs at two speeds depending on which file it lives in.

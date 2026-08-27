@@ -25,6 +25,15 @@ export type Theme =
   | 'solarized-light'
   | 'tomorrow-night'
   | 'oceanic-next'
+  | 'inked'
+  | 'urban-nocturne'
+  | 'amethyst-haze'
+  | 'lapis-velvet'
+  | 'amethyst-mint'
+  | 'fireside'
+  | 'marina'
+  | 'pearl'
+  | 'yacht-club'
 
 /**
  * `flush` packs the shell panels edge to edge, separated by 1px borders. `floating`
@@ -57,6 +66,25 @@ export type AppSettings = {
   editorFontSize: number
   editorTheme: 'cockpit-dark' | 'cockpit-light' | 'match-app'
   editorKeybindingMode: 'standard' | 'vim' | 'emacs'
+  /**
+   * Wrap long lines instead of scrolling them horizontally.
+   *
+   * Defaults on, and that default matters: Monaco's horizontal scrollbar is a
+   * 12px sliver that stays hidden until you scroll, so with wrap off a long
+   * line reads as truncated rather than scrollable. Turning this off therefore
+   * also forces the horizontal scrollbar permanently visible (see
+   * buildEditorOptions) so the rest of the line is at least reachable.
+   */
+  editorWordWrap: boolean
+  editorMinimap: boolean
+  editorLineNumbers: boolean
+  editorFolding: boolean
+  editorStickyScroll: boolean
+  editorRenderWhitespace: 'none' | 'boundary' | 'all'
+  /** False indents with real tab characters; `defaultIndentSize` is then the tab's display width. */
+  editorInsertSpaces: boolean
+  editorBracketPairColorization: boolean
+  editorCursorStyle: 'line' | 'block' | 'underline'
   historyRetentionPerTool: number
   formatOnPaste: boolean
   checkForUpdatesAutomatically: boolean
@@ -81,6 +109,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
   editorFontSize: 14,
   editorTheme: 'cockpit-dark',
   editorKeybindingMode: 'standard',
+  editorWordWrap: true,
+  // Off: these editors routinely sit in a half-window pane, where a minimap
+  // costs more width than it navigates.
+  editorMinimap: false,
+  editorLineNumbers: true,
+  editorFolding: true,
+  // Off: sticky scroll eats rows off the top of an already short pane, and most
+  // tool content here is a single payload rather than deeply nested source.
+  editorStickyScroll: false,
+  editorRenderWhitespace: 'none',
+  editorInsertSpaces: true,
+  editorBracketPairColorization: true,
+  editorCursorStyle: 'line',
   historyRetentionPerTool: 500,
   formatOnPaste: false,
   checkForUpdatesAutomatically: true,

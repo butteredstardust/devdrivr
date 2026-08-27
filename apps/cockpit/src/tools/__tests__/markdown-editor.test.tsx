@@ -100,6 +100,23 @@ describe('MarkdownEditor', () => {
     )
   })
 
+  it('anchors the edit-preview switch to a strip that cannot be wider than the pane', () => {
+    renderTool(MarkdownEditor)
+    fireEvent.click(screen.getByRole('radio', { name: 'Preview' }))
+
+    const chip = screen.getByRole('switch', { name: 'Edit preview' }).closest('[title]')
+    expect(chip).toHaveClass('max-w-full')
+
+    // The switch used to hang off `right-3` at its own natural 131px. The preview container
+    // clips, so in a pane narrower than the chip it was not truncated — it was cut off entirely,
+    // which is how it "disappeared" on a narrow window. A full-width strip cannot outgrow the
+    // pane; it stays `pointer-events-none` so it doesn't swallow clicks on the first line, which
+    // in edit mode is how a block edit starts.
+    const strip = chip?.parentElement
+    expect(strip).toHaveClass('inset-x-3', 'pointer-events-none')
+    expect(chip).toHaveClass('pointer-events-auto')
+  })
+
   it('edits a rendered block in Preview mode without changing surrounding markdown', async () => {
     renderTool(MarkdownEditor)
     fireEvent.change(screen.getByTestId('monaco-editor'), {

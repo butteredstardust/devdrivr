@@ -5,7 +5,14 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useFuseSearchWithMatches, type MatchRange } from '@/hooks/useFuseSearch'
+import { useShellWidth } from '@/hooks/useShellWidth'
 import { TOOL_FUSE_OPTIONS, toolSearchable } from '@/lib/tool-search'
+import {
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  clampSidebarWidth,
+  fitShellPanels,
+} from '@/lib/shell-layout'
 import { Mascot } from '@/components/shared/Mascot'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarRecent } from './SidebarRecent'
@@ -19,15 +26,6 @@ import { SearchInput } from '@/components/shared/SearchInput'
 // non-mod combos while focus sits in another text field, so this never
 // hijacks "/" while the user is typing in an editor or input elsewhere.
 const FILTER_COMBO = { key: '/' } as const
-
-// Floor is where the longest tool names stop being readable at all; ceiling
-// keeps the sidebar from eating a window that is only ~800px wide to begin with.
-const MIN_SIDEBAR_WIDTH = 180
-const MAX_SIDEBAR_WIDTH = 420
-
-function clampSidebarWidth(width: number): number {
-  return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)))
-}
 
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -51,6 +49,23 @@ export function Sidebar() {
   const [filterQuery, setFilterQuery] = useState('')
   const [width, setWidth] = useState(() => clampSidebarWidth(savedWidth))
   const [resizing, setResizing] = useState(false)
+
+  // The stored `sidebarCollapsed` is the user's preference; `collapsed` is what the row can
+  // actually afford. When the workspace would otherwise drop below its floor the sidebar renders
+  // its rail regardless of the setting — and returns to the user's width the moment there is room
+  // again, because nothing here writes to the store. See lib/shell-layout.ts for the yield order.
+  const notesDrawerOpen = useSettingsStore((s) => s.notesDrawerOpen)
+  const notesDrawerWidth = useSettingsStore((s) => s.notesDrawerWidth)
+  const shellWidth = useShellWidth()
+  const fit = fitShellPanels({
+    shellWidth,
+    sidebarWidth: width,
+    sidebarCollapsed,
+    notesDrawerWidth,
+    notesDrawerOpen,
+  })
+  const collapsed = fit.sidebarRailed
+
   const filterInputRef = useRef<HTMLInputElement>(null)
   const resizeSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Set by the "/" shortcut when the sidebar is collapsed (no room for the
@@ -73,8 +88,11 @@ export function Sidebar() {
     void update('openedSidebarGroups', [...openedSidebarGroups, activeGroup]).catch(() => {})
   }, [activeGroup, openedSidebarGroups, update])
 
+  // Toggles against what is on screen, not what is stored: while the rail is forced by layout
+  // pressure the stored value can still say "expanded", and toggling that would make the expand
+  // caret collapse the sidebar.
   const toggleCollapsed = () => {
-    void update('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
+    void update('sidebarCollapsed', !collapsed).catch(() => {})
   }
 
   useEffect(() => setWidth(clampSidebarWidth(savedWidth)), [savedWidth])
@@ -136,23 +154,23 @@ export function Sidebar() {
   useKeyboardShortcut(
     FILTER_COMBO,
     useCallback(() => {
-      if (sidebarCollapsed) {
+      if (collapsed) {
         pendingFilterFocusRef.current = true
         void update('sidebarCollapsed', false).catch(() => {})
         return
       }
       filterInputRef.current?.focus()
       filterInputRef.current?.select()
-    }, [sidebarCollapsed, update])
+    }, [collapsed, update])
   )
 
   useEffect(() => {
-    if (sidebarCollapsed || !pendingFilterFocusRef.current) return
+    if (collapsed || !pendingFilterFocusRef.current) return
     pendingFilterFocusRef.current = false
     // Wait a frame so the expanded tree (and the input inside it) has mounted.
     const raf = requestAnimationFrame(() => filterInputRef.current?.focus())
     return () => cancelAnimationFrame(raf)
-  }, [sidebarCollapsed])
+  }, [collapsed])
 
   // ─── Filtering ───────────────────────────────────────────────────
   // Reuses the same Fuse.js scoring as the command palette (see
@@ -280,7 +298,7 @@ export function Sidebar() {
       // to size there — and the transition is suppressed mid-drag, since
       // animating towards a target that moves every mousemove makes the edge
       // lag the cursor.
-      style={{ width: sidebarCollapsed ? 40 : width }}
+      style={{ width: fit.sidebarWidth }}
       className={`shell-panel font-ui relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] ease-[var(--ease-in-out)] ${
         resizing ? '' : 'transition-[width] duration-[var(--duration-fast)]'
       }`}
@@ -301,7 +319,7 @@ export function Sidebar() {
           icon column, so "/" while collapsed expands the sidebar first
           (see the effect above) rather than trying to cram a filter
           affordance into the icon rail. */}
-      {sidebarCollapsed ? (
+      {collapsed ? (
         <div key="collapsed" className="flex h-full flex-col items-center py-2 animate-fade-in">
           {/* Expand button — h-8 w-8 for a comfortable click target */}
           <button
@@ -428,7 +446,7 @@ export function Sidebar() {
       {/* Resize handle. Hidden while collapsed, where there is no width to
           set. A slider role rather than a bare div so the value is
           announced and the arrow keys have a documented meaning. */}
-      {!sidebarCollapsed && (
+      {!collapsed && (
         <div
           role="slider"
           tabIndex={0}

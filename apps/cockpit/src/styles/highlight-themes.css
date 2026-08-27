@@ -223,3 +223,154 @@
 .soft-focus .hljs-strong {
   font-weight: bold;
 }
+
+/* hljs overrides for the palette-derived light themes (marina, pearl,
+   yacht-club) — GitHub Light palette, the same one soft-focus uses above.
+   Without an override a light theme inherits the Atom One Dark defaults at the
+   top of this file, which are picked for a dark backdrop and go unreadable on
+   one of these. The three share a rule set because none of their source
+   palettes carries a syntax scheme of its own; what they need is a legible
+   light-background one, and there is no reason for three different answers. */
+.marina .hljs-keyword,
+.pearl .hljs-keyword,
+.yacht-club .hljs-keyword {
+  color: #d73a49;
+}
+.marina .hljs-string,
+.pearl .hljs-string,
+.yacht-club .hljs-string {
+  color: #032f62;
+}
+.marina .hljs-number,
+.pearl .hljs-number,
+.yacht-club .hljs-number {
+  color: #005cc5;
+}
+.marina .hljs-comment,
+.pearl .hljs-comment,
+.yacht-club .hljs-comment {
+  color: #6a737d;
+}
+.marina .hljs-function,
+.pearl .hljs-function,
+.yacht-club .hljs-function {
+  color: #6f42c1;
+}
+.marina .hljs-tag,
+.pearl .hljs-tag,
+.yacht-club .hljs-tag {
+  color: #22863a;
+}
+.marina .hljs-attr,
+.pearl .hljs-attr,
+.yacht-club .hljs-attr {
+  color: #005cc5;
+}
+.marina .hljs-built_in,
+.pearl .hljs-built_in,
+.yacht-club .hljs-built_in {
+  color: #e36209;
+}
+.marina .hljs-type,
+.pearl .hljs-type,
+.yacht-club .hljs-type {
+  color: #d73a49;
+}
+.marina .hljs-meta,
+.pearl .hljs-meta,
+.yacht-club .hljs-meta {
+  color: #6a737d;
+}
+.marina .hljs-quote,
+.pearl .hljs-quote,
+.yacht-club .hljs-quote {
+  color: #6a737d;
+}
+.marina .hljs-doctag,
+.pearl .hljs-doctag,
+.yacht-club .hljs-doctag,
+.marina .hljs-formula,
+.pearl .hljs-formula,
+.yacht-club .hljs-formula {
+  color: #d73a49;
+}
+.marina .hljs-section,
+.pearl .hljs-section,
+.yacht-club .hljs-section,
+.marina .hljs-name,
+.pearl .hljs-name,
+.yacht-club .hljs-name,
+.marina .hljs-selector-tag,
+.pearl .hljs-selector-tag,
+.yacht-club .hljs-selector-tag,
+.marina .hljs-deletion,
+.pearl .hljs-deletion,
+.yacht-club .hljs-deletion,
+.marina .hljs-subst,
+.pearl .hljs-subst,
+.yacht-club .hljs-subst {
+  color: #cb2431;
+}
+.marina .hljs-literal,
+.pearl .hljs-literal,
+.yacht-club .hljs-literal {
+  color: #005cc5;
+}
+.marina .hljs-addition,
+.pearl .hljs-addition,
+.yacht-club .hljs-addition,
+.marina .hljs-attribute,
+.pearl .hljs-attribute,
+.yacht-club .hljs-attribute,
+.marina .hljs-meta-string,
+.pearl .hljs-meta-string,
+.yacht-club .hljs-meta-string,
+.marina .hljs-regexp,
+.pearl .hljs-regexp,
+.yacht-club .hljs-regexp {
+  color: #22863a;
+}
+.marina .hljs-variable,
+.pearl .hljs-variable,
+.yacht-club .hljs-variable,
+.marina .hljs-template-variable,
+.pearl .hljs-template-variable,
+.yacht-club .hljs-template-variable,
+.marina .hljs-selector-class,
+.pearl .hljs-selector-class,
+.yacht-club .hljs-selector-class,
+.marina .hljs-selector-attr,
+.pearl .hljs-selector-attr,
+.yacht-club .hljs-selector-attr,
+.marina .hljs-selector-pseudo,
+.pearl .hljs-selector-pseudo,
+.yacht-club .hljs-selector-pseudo {
+  color: #e36209;
+}
+.marina .hljs-symbol,
+.pearl .hljs-symbol,
+.yacht-club .hljs-symbol,
+.marina .hljs-bullet,
+.pearl .hljs-bullet,
+.yacht-club .hljs-bullet,
+.marina .hljs-link,
+.pearl .hljs-link,
+.yacht-club .hljs-link,
+.marina .hljs-selector-id,
+.pearl .hljs-selector-id,
+.yacht-club .hljs-selector-id,
+.marina .hljs-title,
+.pearl .hljs-title,
+.yacht-club .hljs-title {
+  color: #005cc5;
+}
+.marina .hljs-emphasis,
+.pearl .hljs-emphasis,
+.yacht-club .hljs-emphasis {
+  font-style: italic;
+}
+.marina .hljs-strong,
+.pearl .hljs-strong,
+.yacht-club .hljs-strong {
+  font-weight: bold;
+}

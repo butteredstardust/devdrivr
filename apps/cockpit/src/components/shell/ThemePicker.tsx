@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, MonitorIcon } from '@phosphor-icons/react'
 import type { Theme } from '@/types/models'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { ALL_THEMES, THEME_META, getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import {
+  ALL_THEMES,
+  THEME_META,
+  getEffectiveTheme,
+  isLightEffectiveTheme,
+  setThemeClass,
+} from '@/lib/theme'
 import type { EffectiveTheme } from '@/lib/theme'
 
 const COLS = 3
@@ -191,10 +197,9 @@ function ThemeChip({
 }
 
 function applyPreviewClass(theme: Theme): void {
-  const effective = getEffectiveTheme(theme)
-  const html = document.documentElement
-  html.classList.remove(...ALL_THEMES)
-  html.classList.add(effective)
+  // Same class swap (and same cross-fade) the committed path uses, minus the
+  // localStorage write — a preview must not survive the window closing.
+  setThemeClass(getEffectiveTheme(theme))
 }
 
 export type ThemePickerProps = {
