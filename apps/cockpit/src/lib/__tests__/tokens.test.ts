@@ -119,6 +119,19 @@ describe('design tokens (src/styles/tokens.css)', () => {
     expect(Number(declared)).toBe(THEME_TRANSITION_MS)
   })
 
+  // A theme changes colour, nothing else. neon-brutalist used to alias
+  // --font-ui to --font-mono, so choosing a colour scheme silently reflowed
+  // every label, button and menu in the app into a different typeface — which
+  // reads as a bug, not a style. Eleven other themes restated the :root mono
+  // family verbatim and two swapped it for a generic stack. Fonts belong to
+  // :root and to the user's Settings → Editor choice.
+  it.each(ALL_THEMES)('".%s" declares no font family', (theme) => {
+    const block = getThemeBlock(tokensCss, theme)
+    for (const token of ['--font-ui', '--font-mono']) {
+      expect(getDeclaredValue(block, token), `${theme} redeclares ${token}`).toBeNull()
+    }
+  })
+
   it.each(ALL_THEMES)(
     '"--color-surface-hover" differs from "--color-surface-raised" in .%s',
     (theme) => {

@@ -16,6 +16,15 @@
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
+  /* Typefaces are global, not a theme concern — declared here and nowhere else.
+     A theme block must not redeclare --font-ui or --font-mono. Twelve of them
+     used to: eleven restated 'Source Code Pro' identically (noise), two swapped
+     --font-mono for a generic ui-monospace stack, and neon-brutalist aliased
+     --font-ui to --font-mono for an all-mono look. The last one is the reason
+     for this rule: picking a colour scheme silently reflowed every label,
+     button and menu in the app into a different typeface, which reads as a bug
+     rather than a style. A theme changes colour; the user changes fonts, in
+     Settings → Editor. tokens.test.ts enforces this. */
   --font-mono: 'Source Code Pro', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -155,7 +164,6 @@
   --color-success: #22c55e;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f59e0b;
   --note-green: #10b981;
   --note-blue: #3b82f6;
@@ -182,7 +190,6 @@
   --color-success: #06d6a0;
   --color-shadow: rgba(0, 0, 0, 0.4);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #ffd166;
   --note-green: #06d6a0;
   --note-blue: #118ab2;
@@ -216,10 +223,6 @@
      where it lands on a control the user is looking at, not over everything. */
   --color-shadow: rgba(0, 0, 0, 0.6);
   --color-scrim: rgba(0, 0, 0, 0.5);
-  --font-mono: 'Source Code Pro', monospace;
-  /* Keeps the all-mono terminal aesthetic that defines this theme — chrome
-     reads in the same code font as data, on purpose. */
-  --font-ui: var(--font-mono);
   --note-yellow: #ffbe0b;
   --note-green: #3a86ff;
   --note-blue: #8338ec;
@@ -246,7 +249,6 @@
   --color-success: #00b894;
   --color-shadow: rgba(0, 0, 0, 0.3);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #fdcb6e;
   --note-green: #00b894;
   --note-blue: #0984e3;
@@ -273,9 +275,6 @@
   --color-error: #e94560;
   --color-shadow: rgba(0, 0, 0, 0.6);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
   --note-yellow: #d4af37;
   --note-green: #22c55e;
   --note-blue: #533483;
@@ -303,7 +302,6 @@
   --color-success: #9ece6a;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e0af68;
   --note-green: #9ece6a;
   --note-blue: #7aa2f7;
@@ -331,7 +329,6 @@
   --color-success: #385f0d;
   --color-shadow: rgba(0, 0, 0, 0.1);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #8f5e15;
   --note-green: #385f0d;
   --note-blue: #2959aa;
@@ -359,7 +356,6 @@
   --color-success: #a6e3a1;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #f9e2af;
   --note-green: #a6e3a1;
   --note-blue: #89b4fa;
@@ -387,7 +383,6 @@
   --color-success: #a6da95;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #eed49f;
   --note-green: #a6da95;
   --note-blue: #8aadf4;
@@ -415,7 +410,6 @@
   --color-success: #a6d189;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #e5c890;
   --note-green: #a6d189;
   --note-blue: #8caaee;
@@ -443,7 +437,6 @@
   --color-success: #40a02b;
   --color-shadow: rgba(0, 0, 0, 0.1);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono: 'Source Code Pro', monospace;
   --note-yellow: #df8e1d;
   --note-green: #40a02b;
   --note-blue: #1e66f5;
@@ -471,9 +464,6 @@
   --color-success: #16a34a;
   --color-shadow: rgba(0, 0, 0, 0.05);
   --color-scrim: rgba(0, 0, 0, 0.4);
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
   --note-yellow: #f59e0b;
   --note-green: #16a34a;
   --note-blue: #6c5ce7;

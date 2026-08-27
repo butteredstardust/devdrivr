@@ -118,11 +118,11 @@ One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
 
 ### Families
 
-| Token          | Value                                            | Use                                            |
-| -------------- | ------------------------------------------------ | ---------------------------------------------- |
-| `--font-ui`    | `system-ui, -apple-system, …`                    | UI chrome: buttons, labels, toolbars, headings |
-| `--font-mono`  | `'Source Code Pro', monospace` (theme-dependent) | Code, editors, values, IDs, output             |
-| `--font-pixel` | `'Silkscreen', monospace`                        | App logo / branding only                       |
+| Token          | Value                          | Use                                            |
+| -------------- | ------------------------------ | ---------------------------------------------- |
+| `--font-ui`    | `system-ui, -apple-system, …`  | UI chrome: buttons, labels, toolbars, headings |
+| `--font-mono`  | `'Source Code Pro', monospace` | Code, editors, values, IDs, output             |
+| `--font-pixel` | `'Silkscreen', monospace`      | App logo / branding only                       |
 
 Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
 `font-[family-name:var(--font-mono)]`).
@@ -153,14 +153,18 @@ fewest exceptions, and chrome outnumbers content by an order of magnitude.
 
 Two consequences worth knowing:
 
-- `--font-mono` is **theme-dependent** — 11 of the 31 themes pick `'Source Code Pro'`, the rest a
-  generic `ui-monospace` stack. Both the `font-mono` utility and the tag rule read the same
-  variable, so they always agree within a theme. Never hard-code a family.
-- The `neon-brutalist` theme sets `--font-ui: var(--font-mono)` on purpose, for an all-mono
-  aesthetic.
-  That keeps working precisely _because_ chrome reads `--font-ui` rather than naming a family, and
-  it is the reason chrome must never be given `font-mono` "to look right" — that would make the
-  theme unable to opt out.
+- **A theme must never declare a font family.** `--font-ui` and `--font-mono` are declared once in
+  `:root` and nowhere else; `tokens.test.ts` fails any theme block that redeclares either. Themes
+  change colour. Twelve of them used to break this — eleven restated `'Source Code Pro'` verbatim,
+  two swapped `--font-mono` for a generic `ui-monospace` stack, and `neon-brutalist` aliased
+  `--font-ui` to `--font-mono` for an all-mono look, so picking a colour scheme silently reflowed
+  every label, button and menu in the app into a different typeface. That reads as a bug, not a
+  style, and it made the same word render differently depending on an unrelated preference.
+- Chrome must never be given `font-mono` "to look right". Chrome inherits `--font-ui`; naming a
+  family at the element takes it outside the token system, where nothing can change it later.
+
+The user does control the editor typeface — `editorFont` in Settings → Editor — but that feeds
+Monaco, not the chrome.
 
 ### Size scale
 
