@@ -211,6 +211,44 @@ samp {
   box-shadow: -3px 0 0 var(--color-border);
 }
 
+/* ─── Theme cross-fade ───────────────────────────────────────────────────────
+   Switching themes rewrites every --color-* token at once. Custom properties
+   are not animatable, so nothing interpolates on its own and the whole window
+   repaints in a single frame — a hard flash, and a bright one on any dark→light
+   switch. This class, applied to <html> for the length of the change and then
+   removed (see beginThemeTransition in src/lib/theme.ts), gives every element a
+   temporary transition on the properties those tokens actually feed, so the new
+   palette fades in instead.
+
+   Why a class and not a permanent `* { transition: ... }`: a standing global
+   colour transition would also slow every hover, focus and selection change in
+   the app to the theme duration, and would fight the per-component durations
+   the design system defines. This borrows the elements for the length of one
+   switch and gives them back.
+
+   The `html.theme-transition *` selector outranks a component's own
+   `transition-colors duration-[...]` utility (one class + universal beats one
+   class), so it wins while the switch is in flight. Reduced motion needs no
+   handling here — the block below zeroes it app-wide with !important.  */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition-property:
+    background-color, border-color, color, fill, stroke, box-shadow, text-decoration-color,
+    outline-color;
+  transition-duration: var(--duration-theme);
+  /* --ease-in-out, not --ease-out. The design system's --ease-out
+     (0.16, 1, 0.3, 1) is deliberately front-loaded — it puts ~85% of an
+     animation into its first 15% so a surface feels caught on arrival. Applied
+     to this, the palette lands within about 60ms and reads as the flash it was
+     meant to replace. A theme change is also reversible state the user drives
+     both ways (hover a swatch, hover away), which is the case the system
+     assigns to --ease-in-out anyway.  */
+  transition-timing-function: var(--ease-in-out);
+  transition-delay: 0s;
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────────────────────
    Users who ask the OS for reduced motion get a still interface. This
    collapses every CSS transition/animation duration app-wide (sidebar

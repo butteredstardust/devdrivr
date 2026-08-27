@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ALL_THEMES } from '../theme'
+import { ALL_THEMES, THEME_TRANSITION_MS } from '../theme'
 
 // Parses src/styles/tokens.css directly rather than relying on jsdom to apply
 // the real CSS cascade (jsdom does not compute custom-property inheritance
@@ -75,8 +75,8 @@ function getDeclaredValue(block: string, token: string): string | null {
 }
 
 describe('design tokens (src/styles/tokens.css)', () => {
-  it('covers all 22 registered themes', () => {
-    expect(ALL_THEMES).toHaveLength(22)
+  it('covers all 31 registered themes', () => {
+    expect(ALL_THEMES).toHaveLength(31)
   })
 
   it('defines every global (theme-agnostic) token exactly once in :root', () => {
@@ -93,6 +93,30 @@ describe('design tokens (src/styles/tokens.css)', () => {
       expect(value, `${theme} is missing ${token}`).not.toBeNull()
       expect(value, `${theme} has an empty value for ${token}`).not.toBe('')
     }
+  })
+
+  // --color-scrim covers the entire window behind every dialog and command
+  // palette; --color-shadow feeds all three --elevation-* steps, which appear
+  // under every raised surface at once. A hue in either is not an accent, it's
+  // a filter over the whole app: .neon-brutalist set both to its magenta
+  // #ff006e, and opening Settings in it turned the app hot pink. A theme's
+  // colour belongs in --color-accent and the --note-* hues.
+  it.each(ALL_THEMES)('".%s" keeps its scrim and shadow neutral', (theme) => {
+    const block = getThemeBlock(tokensCss, theme)
+    for (const token of ['--color-scrim', '--color-shadow']) {
+      const value = getDeclaredValue(block, token)
+      const channels = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(value ?? '')
+      expect(channels, `${theme} ${token} should be an rgb/rgba value, got ${value}`).not.toBeNull()
+      const [r, g, b] = (channels ?? []).slice(1).map(Number)
+      const spread = Math.max(r!, g!, b!) - Math.min(r!, g!, b!)
+      expect(spread, `${theme} ${token} is tinted (${value})`).toBeLessThanOrEqual(8)
+    }
+  })
+
+  it('declares --duration-theme with the value theme.ts schedules cleanup against', () => {
+    const declared = /--duration-theme:\s*(\d+)ms;/.exec(tokensCss)?.[1]
+    expect(declared, '--duration-theme should be declared in ms in tokens.css').toBeDefined()
+    expect(Number(declared)).toBe(THEME_TRANSITION_MS)
   })
 
   it.each(ALL_THEMES)(

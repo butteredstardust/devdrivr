@@ -25,6 +25,15 @@ export type Theme =
   | 'solarized-light'
   | 'tomorrow-night'
   | 'oceanic-next'
+  | 'inked'
+  | 'urban-nocturne'
+  | 'amethyst-haze'
+  | 'lapis-velvet'
+  | 'amethyst-mint'
+  | 'fireside'
+  | 'marina'
+  | 'pearl'
+  | 'yacht-club'
 
 /**
  * `flush` packs the shell panels edge to edge, separated by 1px borders. `floating`
