@@ -1,0 +1,80 @@
+name: 'Updater Dry Run (temporary)'
+
+# TEMPORARY — delete before merging PR #111.
+#
+# tauri.yml cannot test this branch: its build job checks out `ref: main`, and its bump job would
+# cut a real release. This builds the branch as-is with the signing secrets, publishes nothing, and
+# prints the bundle filenames — the one detail that could not be verified locally is whether the
+# Windows updater artifact is really named `devdrivr_<version>_x64-setup.nsis.zip`.
+
+on:
+  push:
+    branches:
+      - feat/tauri-updater-plugin
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 'Dry-run build'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-26
+            args: --target aarch64-apple-darwin
+          - platform: windows-latest
+            args: ''
+          - platform: ubuntu-24.04
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/cockpit/src-tauri -> target
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # No tagName/releaseName, so tauri-action builds without creating or uploading a release.
+      - name: Build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: ./apps/cockpit/
+          tauriScript: bunx tauri
+          args: ${{ matrix.args }}
+
+      - name: List produced bundles
+        shell: bash
+        run: |
+          echo "=== bundle artifacts ==="
+          find apps/cockpit/src-tauri/target -path '*/release/bundle/*' \
+            \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.tar.gz' \
+               -o -name '*.zip' -o -name '*.sig' \) -exec basename {} \; | sort
