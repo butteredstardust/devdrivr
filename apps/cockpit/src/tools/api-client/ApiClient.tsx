@@ -1163,15 +1163,36 @@ export default function ApiClient() {
       ? `Saved in ${activeCollectionName ?? 'Unassigned'}`
       : 'New request — not saved yet'
 
+  // The layout closes the library itself when there is no room for it beside the request — at the
+  // 800px minimum window with the notes drawer open, keeping both left this toolbar 230px wide and
+  // pushed Send off the edge. Tracking it here keeps the toggle from offering to "hide" a pane
+  // that is already gone.
+  const [libraryCramped, setLibraryCramped] = useState(false)
+  const [showCrampedLibrary, setShowCrampedLibrary] = useState(false)
+  const libraryVisible = state.libraryOpen && (!libraryCramped || showCrampedLibrary)
+
+  const handleLibraryCrampedChange = useCallback((next: boolean) => {
+    setLibraryCramped(next)
+    if (!next) setShowCrampedLibrary(false)
+  }, [])
+
   const toggleLibrary = useCallback(() => {
+    if (libraryCramped) {
+      if (!libraryVisible) updateState({ libraryOpen: true })
+      setShowCrampedLibrary(!libraryVisible)
+      return
+    }
     updateState({ libraryOpen: !state.libraryOpen })
-  }, [state.libraryOpen, updateState])
+  }, [libraryCramped, libraryVisible, state.libraryOpen, updateState])
 
   return (
     <>
       <CollectionsSidebar
         activeRequestId={state.activeRequestId}
         open={state.libraryOpen}
+        onCrampedChange={handleLibraryCrampedChange}
+        showWhenCramped={showCrampedLibrary}
+        onCloseCramped={toggleLibrary}
         onSelect={handleSelectLoadedRequest}
         onLoadFromHistory={handleLoadFromHistory}
         onRunCollection={(collection) => void runCollection(collection)}
@@ -1191,13 +1212,11 @@ export default function ApiClient() {
                   variant="icon"
                   size="sm"
                   onClick={toggleLibrary}
-                  aria-expanded={state.libraryOpen}
-                  aria-label={state.libraryOpen ? 'Hide request library' : 'Show request library'}
-                  title={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                  aria-expanded={libraryVisible}
+                  aria-label={libraryVisible ? 'Hide request library' : 'Show request library'}
+                  title={libraryVisible ? 'Hide request library' : 'Show request library'}
                   className={
-                    state.libraryOpen
-                      ? 'text-[var(--color-accent)]'
-                      : 'text-[var(--color-text-muted)]'
+                    libraryVisible ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'
                   }
                 >
                   <SidebarIcon size={16} aria-hidden="true" />
@@ -1323,8 +1342,8 @@ export default function ApiClient() {
                     if (e.key === 'Enter') void handleSend()
                   }}
                 />
-                {/* The only optional control on this row — method, URL and Send all have to
-                    stay reachable, so the timeout is what the row sheds when it narrows. */}
+                {/* Method, URL and Send have to stay reachable at any width, so the timeout is
+                    among what the row sheds as it narrows — after the trailing actions below. */}
                 <ToolbarGroup label="Timeout">
                   <Select
                     aria-label="Request timeout"
@@ -1362,26 +1381,33 @@ export default function ApiClient() {
                     Send
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={handleCopyAsCurl}
-                  aria-label="Copy request as cURL"
-                  title="Copy request as cURL"
-                >
-                  <TerminalIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleResponsePane}
-                  aria-expanded={responseVisible}
-                  aria-controls={responsePaneId}
-                >
-                  {responseVisible ? 'Hide Response' : 'Show Response'}
-                </Button>
+                {/* Grouped so the row can shed them. As bare children they were unshrinkable and
+                    uncollapsible: below roughly 900px of workspace they simply ran off the right
+                    edge of the toolbar, since `planCollapse` can only fold whole groups. Last in
+                    the row means first into the overflow menu, which is the right order — method,
+                    URL and Send are the row, these two are conveniences. */}
+                <ToolbarGroup label="Request actions">
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={handleCopyAsCurl}
+                    aria-label="Copy request as cURL"
+                    title="Copy request as cURL"
+                  >
+                    <TerminalIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleResponsePane}
+                    aria-expanded={responseVisible}
+                    aria-controls={responsePaneId}
+                  >
+                    {responseVisible ? 'Hide Response' : 'Show Response'}
+                  </Button>
+                </ToolbarGroup>
               </Toolbar>
             </>
           }
