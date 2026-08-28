@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import DocsBrowser, { siteLabel } from '@/tools/docs-browser/DocsBrowser'
 
 vi.mock('@tauri-apps/plugin-http', () => ({
-  fetch: vi.fn().mockResolvedValue({ status: 200 }),
+  fetch: vi.fn(),
 }))
+
+const probe = vi.mocked(tauriFetch)
+
+beforeEach(() => {
+  probe.mockReset()
+  probe.mockResolvedValue({ status: 200 } as Response)
+})
 
 describe('siteLabel', () => {
   it('names the site the tool is actually pointed at', () => {
@@ -67,5 +75,53 @@ describe('DocsBrowser', () => {
     expect(screen.getByText(/failed to load/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(screen.getByText(/loading about:blank/i)).toBeInTheDocument())
+  })
+
+  // NET-04: an iframe's onError does not fire for cross-origin HTTP failures, so without the probe
+  // reporting what it saw, a 503 or an auth wall is indistinguishable from a slow page.
+  it('names a non-2xx status instead of leaving the frame silently blank', async () => {
+    probe.mockResolvedValue({ status: 503 } as Response)
+    render(<DocsBrowser />)
+
+    expect(await screen.findByText(/returned HTTP 503/i)).toBeInTheDocument()
+    // Still a warning, not a verdict: the page may well frame fine.
+    expect(screen.getByText(/may show an error page or stay blank/i)).toBeInTheDocument()
+  })
+
+  it('treats a 404 as definitive and says so', async () => {
+    probe.mockResolvedValue({ status: 404 } as Response)
+    render(<DocsBrowser />)
+
+    expect(await screen.findByText(/returned HTTP 404/i)).toBeInTheDocument()
+    expect(screen.getByText(/no document at this address/i)).toBeInTheDocument()
+  })
+
+  // CDNs commonly reject HEAD outright; that is not evidence the page cannot load.
+  it('does not report failure when the probe itself is rejected', async () => {
+    probe.mockRejectedValue(new Error('405 Method Not Allowed'))
+    render(<DocsBrowser />)
+
+    await waitFor(() => expect(probe).toHaveBeenCalled())
+    expect(screen.queryByText(/returned HTTP/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/loading devdocs.io/i)).toBeInTheDocument()
+  })
+
+  it('offers the browser as the reliable fallback from every failure state', async () => {
+    probe.mockResolvedValue({ status: 500 } as Response)
+    render(<DocsBrowser />)
+
+    expect(await screen.findByRole('link', { name: 'Open in browser' })).toHaveAttribute(
+      'href',
+      'https://devdocs.io'
+    )
+  })
+
+  // NET-05: a fixed documentation viewer does not need popups, forms or device access.
+  it('embeds documentation with the narrow capability set it actually needs', () => {
+    render(<DocsBrowser frameSrc="about:blank" />)
+    const iframe = document.querySelector('iframe')!
+
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin')
+    expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer')
   })
 })
