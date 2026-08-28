@@ -24,12 +24,25 @@ devdrivr cockpit is a powerful, local-first developer utility workspace that pro
 
 ### System Requirements
 
-- **Operating System**: macOS 12.0+, Windows 10+, or Linux with a modern desktop environment
+- **Operating System**: macOS 12.0+ on Apple Silicon, Windows 10+, or Linux with a modern desktop
+  environment
 - **Runtime**: Tauri 2
 - **Framework**: React 19
 - **Storage**: SQLite with WAL mode for fast local data persistence
 
 ### Installation
+
+Download the installer for your platform from the
+[latest release](https://github.com/butteredstardust/devdrivr/releases/latest):
+`devdrivr_<version>_aarch64.dmg`, `devdrivr_<version>_x64-setup.exe`, or
+`devdrivr_<version>_amd64.AppImage`.
+
+The builds are unsigned, so the first launch is blocked — on macOS with either _"devdrivr" is
+damaged and can't be opened_ or _Apple cannot check it for malicious software_, on Windows by
+SmartScreen. The [Unsigned builds](../../../README.md#unsigned-builds) section of the root README
+has the fix for each.
+
+### Running from source
 
 1. Ensure you have Rust and cargo-cp-artifact installed
 2. Install Bun v1.0+ from [bun.sh](https://bun.sh)
@@ -46,7 +59,7 @@ The devdrivr cockpit interface is designed for efficiency and keyboard navigatio
 1. **Sidebar**: Contains all tools organized by category
 2. **Main Content Area**: Where the active tool is displayed
 3. **Status Bar**: Shows current application status and connection information
-4. **Command Palette**: Accessible via `Cmd/Ctrl + Shift + K`
+4. **Command Palette**: Accessible via `Cmd/Ctrl + K`
 
 ### Sidebar Navigation
 

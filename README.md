@@ -264,10 +264,34 @@ The practical consequence is that the first launch takes one extra click.
 
 ### macOS — Gatekeeper
 
-Opening the app normally gets you _"devdrivr" can't be opened because Apple cannot check it for
-malicious software_. Pick whichever you prefer:
+Gatekeeper shows one of two messages, and they need different handling. Both have the same cause:
+your browser flagged the download with a `com.apple.quarantine` attribute, and the app carries no
+Developer ID signature for macOS to check that flag against.
 
-**Through the UI**
+#### _"devdrivr" is damaged and can't be opened. You should move it to the Trash._
+
+Nothing is damaged — this is what Gatekeeper says about a quarantined app it cannot validate at all,
+which is what you get on Apple Silicon. Note that this message offers **no Open Anyway button**;
+looking for one in System Settings is a dead end. Clear the quarantine attribute instead:
+
+1. Drag `devdrivr.app` into **Applications** first, so you clear the flag on the copy you will
+   actually launch.
+2. Run:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/devdrivr.app
+   ```
+
+   If that returns `Operation not permitted`, repeat it with `sudo`.
+
+3. Open the app normally. It should not ask again.
+
+Still says damaged afterwards? Then the download really is broken — usually a truncated `.dmg`.
+Delete it, empty the Trash, and download the release asset again.
+
+#### _"devdrivr" can't be opened because Apple cannot check it for malicious software_
+
+This one can be cleared without the terminal:
 
 1. Drag `devdrivr.app` to Applications and double-click it. Let the warning appear, then dismiss it.
 2. Open **System Settings → Privacy & Security** and scroll to the Security section.
@@ -277,14 +301,9 @@ malicious software_. Pick whichever you prefer:
 On macOS 14 and earlier you can skip that by right-clicking the app and choosing **Open** from the
 context menu. macOS 15 (Sequoia) removed that shortcut — use System Settings.
 
-**Through the terminal**
-
-```bash
-xattr -dr com.apple.quarantine /Applications/devdrivr.app
-```
-
-This strips the quarantine flag Safari/Chrome attached to the download, which is what Gatekeeper is
-reacting to. Only run it on a file you actually meant to download.
+The `xattr` command above works for this message too, if you would rather not click through Settings.
+Only run it on a file you actually meant to download: it is the check being removed, not a check
+being passed.
 
 ### Windows — SmartScreen
 
