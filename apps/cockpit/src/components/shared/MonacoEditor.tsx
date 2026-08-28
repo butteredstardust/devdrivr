@@ -1,3 +1,5 @@
+// Side-effect import: points the loader at the bundled Monaco. See `monaco-runtime.ts`.
+import '@/lib/monaco-runtime'
 import Editor, { type EditorProps } from '@monaco-editor/react'
 import { useCallback } from 'react'
 import { flushSync } from 'react-dom'

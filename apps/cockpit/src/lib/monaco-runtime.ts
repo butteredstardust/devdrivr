@@ -15,7 +15,11 @@ type MonacoWorkerEnvironment = typeof globalThis & {
 
 // @monaco-editor/react defaults to jsDelivr's AMD loader. Cockpit is a local-first desktop app,
 // so the editor runtime and every language worker must come from the production bundle instead.
-// Configure this before React mounts: the first lazy tool may call loader.init() immediately.
+//
+// Import this for its side effects from anything that touches Monaco, never from `main.tsx`:
+// the runtime is a 3.8MB chunk and belongs in the lazy tool chunks, not in app startup. ESM
+// evaluates it before the importing module's body, so `loader.config` always lands before the
+// `loader.init()` in `useMonaco` — which is the ordering that actually matters here.
 ;(globalThis as MonacoWorkerEnvironment).monaco = monaco
 ;(globalThis as MonacoWorkerEnvironment).MonacoEnvironment = {
   getWorker: (_moduleId, label) => {

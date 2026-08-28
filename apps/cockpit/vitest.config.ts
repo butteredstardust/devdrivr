@@ -52,6 +52,12 @@ export default defineConfig({
         find: '@/workers/xml.worker?worker',
         replacement: resolve(__dirname, './src/__mocks__/xml-worker.ts'),
       },
+      {
+        // Also before the bare '@': the real module imports `monaco-editor`, which reaches for
+        // browser globals as it evaluates and takes 21 suites down with it under `node`.
+        find: '@/lib/monaco-runtime',
+        replacement: resolve(__dirname, './src/__mocks__/monaco-runtime.ts'),
+      },
       { find: '@', replacement: resolve(__dirname, './src') },
       {
         find: '@monaco-editor/react',
