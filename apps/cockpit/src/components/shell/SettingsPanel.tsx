@@ -47,6 +47,7 @@ import { ThemePicker } from '@/components/shell/ThemePicker'
 import { ALL_THEMES } from '@/lib/theme'
 import { getVersion } from '@tauri-apps/api/app'
 import { Input } from '@/components/shared/Input'
+import { clampSidebarWidth } from '@/lib/shell-layout'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -692,6 +693,9 @@ function DataTab() {
         await su('editorCursorStyle', obj['editorCursorStyle'] as AppSettings['editorCursorStyle'])
       // Boolean fields
       if (typeof obj['alwaysOnTop'] === 'boolean') await su('alwaysOnTop', obj['alwaysOnTop'])
+      if (obj['shellStyle'] === 'flush' || obj['shellStyle'] === 'floating') {
+        await su('shellStyle', obj['shellStyle'])
+      }
       if (typeof obj['formatOnPaste'] === 'boolean') await su('formatOnPaste', obj['formatOnPaste'])
       for (const key of BOOLEAN_EDITOR_SETTINGS) {
         if (typeof obj[key] === 'boolean') await su(key, obj[key])
@@ -715,6 +719,9 @@ function DataTab() {
         await su('historyRetentionPerTool', obj['historyRetentionPerTool'])
       if (typeof obj['notesDrawerWidth'] === 'number')
         await su('notesDrawerWidth', obj['notesDrawerWidth'])
+      if (typeof obj['sidebarWidth'] === 'number' && Number.isFinite(obj['sidebarWidth'])) {
+        await su('sidebarWidth', clampSidebarWidth(obj['sidebarWidth']))
+      }
       // String fields
       const validFonts = new Set<AppSettings['editorFont']>([
         'JetBrains Mono',

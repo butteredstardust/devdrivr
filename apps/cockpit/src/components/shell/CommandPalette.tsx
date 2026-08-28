@@ -208,6 +208,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   // ─── Palette items ─────────────────────────────────────────────
@@ -447,6 +448,8 @@ export function CommandPalette() {
 
   useEffect(() => {
     if (isOpen) {
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
       setQuery('')
       setSelectedIndex(0)
       requestAnimationFrame(() => inputRef.current?.focus())
@@ -456,6 +459,11 @@ export function CommandPalette() {
     } else {
       setQuery('')
       inputRef.current?.blur()
+      const previousFocus = previousFocusRef.current
+      previousFocusRef.current = null
+      if (previousFocus && previousFocus !== inputRef.current && document.contains(previousFocus)) {
+        previousFocus.focus()
+      }
     }
   }, [isOpen])
 
@@ -530,13 +538,18 @@ export function CommandPalette() {
   // ─── Render ────────────────────────────────────────────────────
 
   return (
-    <>
+    <div
+      role={isOpen ? 'dialog' : undefined}
+      aria-modal={isOpen || undefined}
+      aria-labelledby={isOpen ? 'command-palette-title' : undefined}
+      className="pointer-events-none relative w-full min-w-0 max-w-[480px]"
+    >
       <div
         // Pointer-down rather than focus (see the input below): clicking anywhere on the bar,
         // including the magnifier and the ⌘K chip, is a deliberate "open the palette". The
         // effect above focuses the input once `isOpen` flips, so this need only set the state.
         onPointerDown={() => setOpen(true)}
-        className={`pointer-events-auto relative flex w-full min-w-0 max-w-[480px] items-center gap-2 rounded-md border bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs shadow-sm transition-colors ${
+        className={`pointer-events-auto relative flex w-full min-w-0 items-center gap-2 rounded-md border bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs shadow-sm transition-colors ${
           isOpen
             ? 'z-[51] border-[var(--color-accent)] shadow-[var(--focus-ring)]'
             : 'border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]'
@@ -596,11 +609,7 @@ export function CommandPalette() {
             style={{ backgroundColor: 'var(--color-scrim)' }}
             onClick={() => setOpen(false)}
           />
-          <div
-            role="dialog"
-            aria-labelledby="command-palette-title"
-            className="font-ui pointer-events-auto animate-fade-in fixed left-1/2 top-11 z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded-b border border-t-0 border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
-          >
+          <div className="font-ui pointer-events-auto animate-fade-in fixed left-1/2 top-11 z-[var(--z-modal)] w-[540px] -translate-x-1/2 overflow-hidden rounded-b border border-t-0 border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg">
             <h2 id="command-palette-title" className="sr-only">
               Command palette
             </h2>
@@ -715,6 +724,6 @@ export function CommandPalette() {
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }
