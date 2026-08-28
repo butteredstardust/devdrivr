@@ -4,11 +4,12 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
 import { importApiSpec } from '@/lib/api-import'
-import ApiClient, {
+import ApiClient from '@/tools/api-client/ApiClient'
+import {
   buildUrlWithParams,
   parseQueryParams,
   unresolvedVariableNames,
-} from '@/tools/api-client/ApiClient'
+} from '@/tools/api-client/request-model'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 
 const fetchMock = vi.hoisted(() => vi.fn())
