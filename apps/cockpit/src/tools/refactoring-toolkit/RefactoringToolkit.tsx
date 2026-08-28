@@ -64,7 +64,7 @@ type RefactoringState = {
    */
   lastApply: { before: string; after: string } | null
   applyHistory: Array<{ before: string; after: string }>
-  /** Bounded custom codemod: AST-aware identifier rename, executed in the worker. */
+  /** Bounded global identifier rewrite, executed in the worker. */
   customFind: string
   customReplace: string
 }
@@ -611,7 +611,7 @@ export default function RefactoringToolkit() {
                   />
                 </div>
                 <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
-                  Renames matching identifiers through the parsed AST; invalid names are ignored.
+                  Renames matching identifiers globally; existing replacement names are rejected.
                 </p>
               </fieldset>
               {visibleTransforms.length === 0 ? (
