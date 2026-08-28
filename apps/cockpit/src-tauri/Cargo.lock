@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "cockpit"
-version = "0.1.54"
+version = "0.1.84"
 dependencies = [
  "axum",
  "objc2",

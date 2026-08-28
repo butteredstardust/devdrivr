@@ -7,6 +7,8 @@ const root = path.join(__dirname, '..');
 
 const packageJsonPath = path.join(root, 'package.json');
 const tauriConfPath = path.join(root, 'src-tauri', 'tauri.conf.json');
+const cargoTomlPath = path.join(root, 'src-tauri', 'Cargo.toml');
+const cargoLockPath = path.join(root, 'src-tauri', 'Cargo.lock');
 
 function bump(version) {
   const parts = version.split('.').map(Number);
@@ -21,16 +23,20 @@ function bump(version) {
  * lint-staged) then collapses again on the next human commit — so each release used to leave
  * unrelated formatting churn in tauri.conf.json and the two tools took turns undoing each other.
  */
-function writeVersion(filePath, oldVersion, newVersion) {
+function replaceOnce(filePath, needle, replacement) {
   const raw = fs.readFileSync(filePath, 'utf8');
-  const needle = `"version": "${oldVersion}"`;
   const occurrences = raw.split(needle).length - 1;
   if (occurrences !== 1) {
     throw new Error(
-      `Expected exactly one \`${needle}\` in ${path.basename(filePath)}, found ${occurrences}`
+      `Expected exactly one \`${needle.replace(/\n/g, '\\n')}\` in ${path.basename(filePath)}, ` +
+        `found ${occurrences}`
     );
   }
-  fs.writeFileSync(filePath, raw.replace(needle, `"version": "${newVersion}"`));
+  fs.writeFileSync(filePath, raw.replace(needle, replacement));
+}
+
+function writeVersion(filePath, oldVersion, newVersion) {
+  replaceOnce(filePath, `"version": "${oldVersion}"`, `"version": "${newVersion}"`);
 }
 
 try {
@@ -50,6 +56,18 @@ try {
   }
   writeVersion(tauriConfPath, oldVersion, newVersion);
   console.log(`Bumping tauri.conf.json: ${oldVersion} -> ${newVersion}`);
+
+  // 3. Bump the Rust crate, and the entry Cargo.lock keeps for it. Nothing user-facing reads this
+  // version — the bundle takes its version from tauri.conf.json — but leaving it behind means
+  // `cargo` output, panic reports and the lockfile all name a version that shipped long ago.
+  // Rewriting the lock here also keeps `cargo build` from dirtying the tree on every release.
+  replaceOnce(cargoTomlPath, `\nversion = "${oldVersion}"\n`, `\nversion = "${newVersion}"\n`);
+  replaceOnce(
+    cargoLockPath,
+    `name = "cockpit"\nversion = "${oldVersion}"`,
+    `name = "cockpit"\nversion = "${newVersion}"`
+  );
+  console.log(`Bumping Cargo.toml + Cargo.lock: ${oldVersion} -> ${newVersion}`);
 
   // Output for CI
   if (process.env.GITHUB_OUTPUT) {
