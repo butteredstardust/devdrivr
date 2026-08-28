@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useId, type ReactNode, type RefObject } from 'react'
 import { XIcon } from '@phosphor-icons/react'
-import { cycleFocus, getFocusableElements } from '@/lib/focus'
+import { useModalFocus } from '@/hooks/useModalFocus'
 
 /**
  * The dialog width scale.
@@ -57,42 +57,11 @@ export function Dialog({
   onOpenAutoFocus,
 }: DialogProps) {
   const titleId = useId()
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const panel = panelRef.current
-    if (!panel) return
-
-    const previousFocus =
-      document.activeElement instanceof window.HTMLElement ? document.activeElement : null
-    const focusTarget = initialFocusRef?.current ?? getFocusableElements(panel)[0] ?? panel
-
-    focusTarget.focus()
-    onOpenAutoFocus?.(focusTarget)
-
-    return () => {
-      if (previousFocus && document.contains(previousFocus)) {
-        previousFocus.focus()
-      }
-    }
-  }, [initialFocusRef, onOpenAutoFocus])
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-      return
-    }
-
-    if (e.key !== 'Tab') return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    if (cycleFocus(panel, { shiftKey: e.shiftKey }) === 'wrapped') {
-      e.preventDefault()
-    }
-  }
+  const { panelRef, onKeyDown } = useModalFocus<HTMLDivElement>({
+    onClose,
+    ...(initialFocusRef ? { initialFocusRef } : {}),
+    ...(onOpenAutoFocus ? { onOpenAutoFocus } : {}),
+  })
 
   return (
     <>
@@ -108,7 +77,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        onKeyDown={handleKeyDown}
+        onKeyDown={onKeyDown}
         className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${SIZE_CLASSES[size]} ${className}`}
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">

@@ -27,11 +27,26 @@ type TimestampState = {
    * laptop that has since travelled still means "here", which is what the user picked.
    */
   zone: string
+  /**
+   * How a bare number is read. `auto` uses the magnitude heuristic, which cannot tell a
+   * pre-2001 millisecond epoch from a far-future second epoch — the explicit modes exist so
+   * negative and historical epochs can be entered unambiguously.
+   */
+  epochUnit: EpochUnit
 }
+
+type EpochUnit = 'auto' | 'seconds' | 'milliseconds'
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function parseInput(input: string): Date | null {
+function epochToMs(num: number, unit: EpochUnit): number {
+  if (unit === 'seconds') return num * 1000
+  if (unit === 'milliseconds') return num
+  // `auto`: values whose absolute magnitude is below the millisecond threshold read as seconds.
+  return Math.abs(num) < 1e12 ? num * 1000 : num
+}
+
+function parseInput(input: string, epochUnit: EpochUnit = 'auto'): Date | null {
   if (!input.trim()) return null
   const trimmed = input.trim()
   const compactDate = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
@@ -49,7 +64,7 @@ function parseInput(input: string): Date | null {
   }
   const num = Number(trimmed)
   if (!isNaN(num) && isFinite(num)) {
-    const ms = num < 1e12 ? num * 1000 : num
+    const ms = epochToMs(num, epochUnit)
     const d = new Date(ms)
     if (!isNaN(d.getTime())) return d
   }
@@ -92,6 +107,7 @@ export default function TimestampConverter() {
   const [state, updateState] = useToolState<TimestampState>('timestamp-converter', {
     input: '',
     zone: LOCAL_ZONE,
+    epochUnit: 'auto',
   })
   // Enumerated once. `Intl.supportedValuesOf('timeZone')` returns ~400 strings and the list cannot
   // change while the app is running.
@@ -100,10 +116,10 @@ export default function TimestampConverter() {
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const parsed = useMemo(() => {
-    const date = parseInput(state.input)
+    const date = parseInput(state.input, state.epochUnit ?? 'auto')
     if (!date) return null
     return { date }
-  }, [state.input])
+  }, [state.input, state.epochUnit])
 
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -118,13 +134,20 @@ export default function TimestampConverter() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, state.zone, tick])
 
+  // Generated values are written in whatever unit the input is currently read as, so a preset
+  // or picker selection round-trips instead of landing 1000× away.
+  const writeEpoch = useCallback(
+    (ms: number) => String(state.epochUnit === 'seconds' ? Math.round(ms / 1000) : ms),
+    [state.epochUnit]
+  )
+
   const handlePreset = useCallback(
     (preset: Preset) => {
       markUserEdit()
-      updateState({ input: String(preset.getMs()) })
+      updateState({ input: writeEpoch(preset.getMs()) })
       setLastAction(`Set to ${preset.label}`, 'success')
     },
-    [markUserEdit, updateState, setLastAction]
+    [markUserEdit, updateState, setLastAction, writeEpoch]
   )
 
   // The picker reads and writes in the *selected* zone, not the host's. A picker that silently
@@ -140,10 +163,10 @@ export default function TimestampConverter() {
       const d = fromZonedWallClock(value, state.zone)
       if (d) {
         markUserEdit()
-        updateState({ input: String(d.getTime()) })
+        updateState({ input: writeEpoch(d.getTime()) })
       }
     },
-    [markUserEdit, updateState, state.zone]
+    [markUserEdit, updateState, state.zone, writeEpoch]
   )
 
   // Record history when timestamp is successfully converted
@@ -171,6 +194,16 @@ export default function TimestampConverter() {
               ))}
             </ToolbarGroup>
             <ToolbarSpacer />
+            <Select
+              value={state.epochUnit ?? 'auto'}
+              onChange={(e) => updateState({ epochUnit: e.target.value as EpochUnit })}
+              aria-label="Numeric input unit"
+              className="max-w-[10rem]"
+            >
+              <option value="auto">Auto detect</option>
+              <option value="seconds">Seconds</option>
+              <option value="milliseconds">Milliseconds</option>
+            </Select>
             {/* A native select: ~400 zones with OS type-ahead beats anything hand-rolled, and the
                 two entries above the separator cover the cases that aren't a lookup. */}
             <Select

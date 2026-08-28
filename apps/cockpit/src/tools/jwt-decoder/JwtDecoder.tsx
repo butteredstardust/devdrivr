@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IdentificationCardIcon, WarningIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
@@ -14,6 +14,7 @@ import { TextArea } from '@/components/shared/TextArea'
 import { Input } from '@/components/shared/Input'
 import { Field } from '@/components/shared/Field'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { Toggle } from '@/components/shared/Toggle'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import {
   claimWindowVariant,
@@ -30,17 +31,15 @@ import {
 } from '@/tools/jwt-decoder/jwt-verify'
 
 type JwtDecoderState = {
-  input: string
   /**
-   * The shared secret is persisted with the rest of the tool state, same as any other input.
-   *
-   * That is a deliberate call, not an oversight: cockpit is local-first and single-user, the token
-   * itself — which is the actual credential — is already persisted beside it, and a secret box that
-   * empties every time you switch tabs makes the feature unusable for the case it exists for.
+   * Only written while {@link JwtDecoderState.rememberToken} is on. A JWT is a bearer credential:
+   * persisting it puts it in the SQLite file and every backup of it, so keeping it is the user's
+   * explicit choice rather than a side effect of pasting.
    */
-  secret: string
+  input: string
+  /** Opt-in token persistence. Off by default; see {@link JwtDecoderState.input}. */
+  rememberToken: boolean
   secretEncoding: 'utf8' | 'base64'
-  publicKey: string
   publicKeyFormat: PublicKeyFormat
 }
 
@@ -167,39 +166,65 @@ function formatTimestamp(value: unknown): string | null {
 export default function JwtDecoder() {
   const [state, updateState] = useToolState<JwtDecoderState>('jwt-decoder', {
     input: '',
-    secret: '',
+    rememberToken: false,
     secretEncoding: 'utf8',
-    publicKey: '',
     publicKeyFormat: 'jwk',
   })
   const { recordEdited, markUserEdit } = useToolHistory({ toolId: 'jwt-decoder' })
+  // Signing material never leaves this component: no tool state, no cache, no history row.
+  const [secret, setSecret] = useState('')
+  const [publicKey, setPublicKey] = useState('')
+  // The token lives here too, and only reaches persisted state while `rememberToken` is on.
+  const [token, setToken] = useState(state.input)
+  const tokenRef = useRef(token)
+  tokenRef.current = token
   const [now, setNow] = useState(() => Date.now())
   const [payloadDraft, setPayloadDraft] = useState('')
   const [signing, setSigning] = useState(false)
   const copy = useCopyToClipboard()
   const setLastAction = useUiStore((s) => s.setLastAction)
 
-  const decodeResult = useMemo(() => {
-    if (!state.input.trim()) return { decoded: null, error: null }
-    return decodeJwt(state.input)
+  // A remembered token is read out of SQLite after mount; adopt it only while the field is still
+  // untouched, so a paste made during the read is never overwritten by last session's token.
+  useEffect(() => {
+    if (state.input && !tokenRef.current) setToken(state.input)
   }, [state.input])
+
+  const applyToken = useCallback(
+    (value: string) => {
+      setToken(value)
+      // Nothing to write while the token is volatile — and no debounced save to schedule either.
+      if (state.rememberToken) updateState({ input: value })
+      else if (state.input) updateState({ input: '' })
+    },
+    [state.rememberToken, state.input, updateState]
+  )
+
+  const handleClearSensitive = useCallback(() => {
+    setToken('')
+    setSecret('')
+    setPublicKey('')
+    updateState({ input: '' })
+    setLastAction('Cleared token and signing material', 'success')
+  }, [updateState, setLastAction])
+
+  const handleRememberChange = useCallback(
+    (rememberToken: boolean) => {
+      updateState({ rememberToken, input: rememberToken ? tokenRef.current : '' })
+    },
+    [updateState]
+  )
+
+  const decodeResult = useMemo(() => {
+    if (!token.trim()) return { decoded: null, error: null }
+    return decodeJwt(token)
+  }, [token])
   const decoded = decodeResult.decoded
 
   useEffect(() => {
     if (decoded) setPayloadDraft(JSON.stringify(decoded.payload, null, 2))
     else setPayloadDraft('')
   }, [decoded])
-
-  useEffect(() => {
-    if (decoded) {
-      recordEdited({
-        input: state.input.slice(0, 1000),
-        output: JSON.stringify({ header: decoded.header, payload: decoded.payload }),
-        subTab: 'decoded',
-        success: true,
-      })
-    }
-  }, [decoded, recordEdited, state.input])
 
   // Live-tick while either time-bounded claim is present. `nbf` needs the tick as much as `exp`
   // does — a token that becomes valid in forty seconds should stop saying so on its own.
@@ -233,10 +258,10 @@ export default function JwtDecoder() {
     // so a slow first `importKey` could otherwise land after a later, more correct answer.
     let live = true
     void verifyJwtSignature({
-      token: state.input,
+      token,
       alg,
-      secret: state.secret,
-      publicKey: state.publicKey,
+      secret,
+      publicKey,
       publicKeyFormat: state.publicKeyFormat,
       encoding: state.secretEncoding,
     }).then((result) => {
@@ -245,15 +270,7 @@ export default function JwtDecoder() {
     return () => {
       live = false
     }
-  }, [
-    decoded,
-    state.input,
-    state.secret,
-    state.secretEncoding,
-    state.publicKey,
-    state.publicKeyFormat,
-    alg,
-  ])
+  }, [decoded, token, secret, state.secretEncoding, publicKey, state.publicKeyFormat, alg])
 
   const handleSign = async () => {
     if (!decoded) return
@@ -268,15 +285,23 @@ export default function JwtDecoder() {
     }
     setSigning(true)
     try {
-      const token = await signJwt({
+      const signed = await signJwt({
         header: decoded.header,
         payload,
-        secret: state.secret,
+        secret,
         encoding: state.secretEncoding,
       })
-      updateState({ input: token })
+      applyToken(signed)
+      // The only history this tool writes, and only for an explicit action. Claim names but no
+      // claim values, and never the secret: a history row must not be a second copy of the token.
+      recordEdited({
+        input: `Re-signed ${alg ?? 'JWT'} token`,
+        output: `Claims: ${Object.keys(payload).join(', ') || '(none)'}`,
+        subTab: 'signed',
+        success: true,
+      })
       setLastAction('Re-signed JWT and updated the token field', 'success')
-      await copy(token, { success: 'Re-signed JWT copied', failure: 'Could not copy JWT' })
+      await copy(signed, { success: 'Re-signed JWT copied', failure: 'Could not copy JWT' })
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : 'Could not sign JWT', 'error')
     } finally {
@@ -286,11 +311,11 @@ export default function JwtDecoder() {
 
   // Color-coded token parts
   const tokenParts = useMemo(() => {
-    const trimmed = state.input.trim()
+    const trimmed = token.trim()
     const parts = trimmed.split('.')
     if (parts.length !== 3) return null
     return parts
-  }, [state.input])
+  }, [token])
 
   return (
     <ToolLayout fullBleed>
@@ -308,12 +333,35 @@ export default function JwtDecoder() {
               {VERIFY_LABELS[verification.status]}
             </StatusBadge>
           )}
+          <div className="ml-auto flex items-center gap-3">
+            {/* Off by default: a JWT is a bearer credential, so remembering it writes it
+                unencrypted into this machine's database and every backup of it. The secret and
+                public key are never stored either way. */}
+            <Toggle
+              checked={state.rememberToken}
+              onChange={handleRememberChange}
+              label="Remember token"
+            />
+            <span className="max-w-[22rem] text-2xs text-[var(--color-text-muted)]">
+              {state.rememberToken
+                ? 'Token is stored unencrypted on this machine. Secrets and keys never are.'
+                : 'Token, secret and key are kept in memory only.'}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearSensitive}
+              disabled={!token && !secret && !publicKey}
+            >
+              Clear sensitive data
+            </Button>
+          </div>
         </div>
         <TextArea
-          value={state.input}
+          value={token}
           onChange={(e) => {
             markUserEdit()
-            updateState({ input: e.target.value })
+            applyToken(e.target.value)
           }}
           placeholder="Paste a JWT token (eyJ...)"
           rows={3}
@@ -348,8 +396,8 @@ export default function JwtDecoder() {
               >
                 <Input
                   type="password"
-                  value={state.secret}
-                  onChange={(e) => updateState({ secret: e.target.value })}
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
                   placeholder="your-256-bit-secret"
                   size="md"
                   spellCheck={false}
@@ -364,8 +412,8 @@ export default function JwtDecoder() {
                 className="min-w-[20rem] flex-1"
               >
                 <TextArea
-                  value={state.publicKey}
-                  onChange={(e) => updateState({ publicKey: e.target.value })}
+                  value={publicKey}
+                  onChange={(e) => setPublicKey(e.target.value)}
                   placeholder={
                     state.publicKeyFormat === 'jwk'
                       ? '{ "kty": "RSA", ... }'
@@ -505,7 +553,7 @@ export default function JwtDecoder() {
                       size="sm"
                       className="mt-2"
                       onClick={() => void handleSign()}
-                      disabled={signing || !state.secret}
+                      disabled={signing || !secret}
                     >
                       {signing ? 'Signing…' : 'Re-sign with secret'}
                     </Button>
@@ -566,7 +614,7 @@ export default function JwtDecoder() {
               </div>
             </section>
           </div>
-        ) : state.input.trim() ? (
+        ) : token.trim() ? (
           <Alert variant="error">{decodeResult.error ?? 'Invalid JWT token'}</Alert>
         ) : (
           <EmptyState
@@ -579,7 +627,7 @@ export default function JwtDecoder() {
                   size="sm"
                   onClick={() => {
                     markUserEdit()
-                    updateState({ input: TOOL_SAMPLES['jwt-decoder'] ?? '' })
+                    applyToken(TOOL_SAMPLES['jwt-decoder'] ?? '')
                   }}
                 >
                   Load sample

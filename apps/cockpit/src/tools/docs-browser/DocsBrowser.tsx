@@ -38,6 +38,26 @@ export function siteLabel(frameSrc: string): string {
   }
 }
 
+/**
+ * What the HEAD preflight learned about the source.
+ *
+ * Embedding a third-party site is best-effort: an iframe's `onError` does not fire for
+ * cross-origin HTTP failures, so a 401 or a 503 renders as a blank frame that stays "loading"
+ * forever. The probe cannot be authoritative either — CDNs reject HEAD, and a probe that succeeds
+ * says nothing about whether the response allows framing. So it reports what it saw and the UI
+ * says so, rather than pretending to know.
+ */
+type ProbeStatus =
+  | { kind: 'pending' }
+  /** 2xx/3xx — the URL resolves; framing may still be refused. */
+  | { kind: 'ok' }
+  /** 404/410 — definitively not a document. */
+  | { kind: 'missing'; status: number }
+  /** Any other non-2xx: auth walls, rate limits, outages. */
+  | { kind: 'http-error'; status: number }
+  /** HEAD was rejected or the network failed; this tells us nothing either way. */
+  | { kind: 'unverified' }
+
 export default function DocsBrowser({ defaultLoadError = false, frameSrc }: DocsBrowserProps) {
   const [selectedSource, setSelectedSource] = useState(DEFAULT_DOCS_SOURCE)
   const effectiveSrc = frameSrc ?? selectedSource
@@ -47,24 +67,36 @@ export default function DocsBrowser({ defaultLoadError = false, frameSrc }: Docs
   const [loadError, setLoadError] = useState(defaultLoadError)
   const [showSlowFallback, setShowSlowFallback] = useState(false)
   const [frameKey, setFrameKey] = useState(0)
+  const [probe, setProbe] = useState<ProbeStatus>({ kind: 'pending' })
 
   useEffect(() => {
     if (frameSrc) return
     const controller = new AbortController()
+    setProbe({ kind: 'pending' })
     void tauriFetch(effectiveSrc, { method: 'HEAD', signal: controller.signal })
       .then((response) => {
-        // HEAD is an advisory probe: CDNs commonly reject it even while GET and
-        // iframe navigation work. Only definitive not-found responses override
-        // the iframe's own load/error signals.
-        if (!controller.signal.aborted && (response.status === 404 || response.status === 410)) {
+        if (controller.signal.aborted) return
+        const status = response.status
+        if (status === 404 || status === 410) {
+          // Definitive: stop waiting on an iframe that will never load a document.
+          setProbe({ kind: 'missing', status })
           setLoading(false)
           setLoadError(true)
           setShowSlowFallback(false)
+          return
         }
+        if (status >= 400) {
+          // Not definitive — the page may still frame fine, or may be an error document. Record it
+          // so the copy can name the status instead of leaving the user at a blank panel.
+          setProbe({ kind: 'http-error', status })
+          return
+        }
+        setProbe({ kind: 'ok' })
       })
       .catch(() => {
         // Let the iframe and slow-load fallback decide; a failed HEAD alone is
         // not evidence that the page cannot load.
+        if (!controller.signal.aborted) setProbe({ kind: 'unverified' })
       })
     return () => controller.abort()
   }, [effectiveSrc, frameSrc, frameKey])
@@ -161,26 +193,44 @@ export default function DocsBrowser({ defaultLoadError = false, frameSrc }: Docs
               Open externally
             </a>
           </Toolbar>
-          {(loading || loadError || showSlowFallback) && (
+          {(loading || loadError || showSlowFallback || probe.kind === 'http-error') && (
             <Alert
-              variant={loadError ? 'error' : showSlowFallback ? 'warning' : 'info'}
+              variant={
+                loadError
+                  ? 'error'
+                  : showSlowFallback || probe.kind === 'http-error'
+                    ? 'warning'
+                    : 'info'
+              }
               className="rounded-none border-b border-[var(--color-border)] px-4 py-3"
             >
-              {loadError ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span>Embedded docs failed to load. Open {label} in your browser or retry.</span>
-                  <Button variant="secondary" size="sm" onClick={handleRetry}>
-                    Retry
-                  </Button>
-                </div>
-              ) : showSlowFallback ? (
+              {loadError || showSlowFallback || probe.kind === 'http-error' ? (
                 <div className="flex items-center justify-between gap-3">
                   <span>
-                    {label} is taking longer than usual to load. You can keep waiting or retry.
+                    {loadError
+                      ? probe.kind === 'missing'
+                        ? `${label} returned HTTP ${probe.status} — there is no document at this address.`
+                        : `Embedded docs failed to load. Open ${label} in your browser or retry.`
+                      : probe.kind === 'http-error'
+                        ? `${label} returned HTTP ${probe.status}. The embedded view may show an error page or stay blank.`
+                        : `${label} is taking longer than usual to load. You can keep waiting or retry.`}
                   </span>
-                  <Button variant="secondary" size="sm" onClick={handleRetry}>
-                    Retry
-                  </Button>
+                  {/* Opening in the real browser is the fallback that always works — embedding is
+                      best-effort, so the escape hatch is offered here and not only in the toolbar. */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <a
+                      href={effectiveSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[var(--color-accent)] hover:underline"
+                      onClick={() => setLastAction('Opened in browser', 'info')}
+                    >
+                      Open in browser
+                    </a>
+                    <Button variant="secondary" size="sm" onClick={handleRetry}>
+                      Retry
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <span>Loading {label}…</span>
@@ -195,7 +245,26 @@ export default function DocsBrowser({ defaultLoadError = false, frameSrc }: Docs
         src={effectiveSrc}
         className="flex-1 border-none"
         title={`${label} documentation`}
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        /*
+         * Trust boundary for the embedded documentation.
+         *
+         * DevDocs is a client-rendered app that keeps its downloaded doc sets in IndexedDB, so
+         * `allow-scripts` and `allow-same-origin` are load-bearing: without them the frame renders
+         * an empty shell. Everything else is dropped. `allow-forms` was never needed — DevDocs'
+         * search is a scripted input, not a submitted form — and `allow-popups` let a third-party
+         * page open windows inside the app when "Open externally" is the supported way out.
+         * `allow-top-navigation` is absent, so the frame cannot navigate the cockpit itself.
+         *
+         * Note that `allow-scripts` plus `allow-same-origin` is, by design, close to unsandboxed
+         * for a same-origin document; the real containment here is the Tauri CSP and the fact that
+         * the frame's origin is never the app's own. This is a read-only viewer for a fixed list
+         * of sources — it is not a general browser, and it must not become one without revisiting
+         * this attribute.
+         */
+        sandbox="allow-scripts allow-same-origin"
+        // No device or storage capabilities need to reach a documentation page.
+        allow=""
+        referrerPolicy="no-referrer"
         onLoad={() => {
           setLoading(false)
           setLoadError(false)

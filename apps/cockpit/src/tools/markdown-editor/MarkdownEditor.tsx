@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -33,7 +34,6 @@ import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
 import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
-import { nextHeadingId } from '@/tools/markdown-editor/heading-ids'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -43,8 +43,6 @@ import {
   DownloadSimpleIcon,
   FileMdIcon,
   FilesIcon,
-  ImageIcon,
-  LinkIcon,
   MagnifyingGlassIcon,
   QuotesIcon,
   SwapIcon,
@@ -52,458 +50,32 @@ import {
   TextItalicIcon,
 } from '@phosphor-icons/react'
 
-// Shared markdown pipeline — see src/lib/markdown.ts for plugin order rationale.
-// This tool renders through `markdownEditorProcessor`, which is identical to the
-// Notes drawer's `markdownProcessor` except that GFM task-list checkboxes are left
-// enabled (not `disabled`) so the preview can toggle them — see the sanitize schema
-// comment in src/lib/markdown.ts for why that variant exists instead of loosening
-// the shared schema for every surface.
-import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
 
-// ─── Types ───────────────────────────────────────────────────────────
-
-type MarkdownEditorState = {
-  content: string
-  fileName: string | null
-  filePath: string | null
-  savedContent: string
-  mode: string
-  showToc: boolean
-  scrollSync: boolean
-  scrollSyncDirections?: {
-    editorToPreview: boolean
-    previewToEditor: boolean
-  }
-}
-
-type TocEntry = {
-  level: number
-  text: string
-  id: string
-}
-
-type PendingDocument = {
-  content: string
-  fileName: string | null
-  filePath: string | null
-  savedContent: string
-  successMessage: string
-}
-
-type EditorInstance = Parameters<OnMount>[0]
-
-type FormattingAction = {
-  label: string
-  title: string
-  prefix: string
-  suffix: string
-  placeholder: string
-  line?: boolean
-  modal?: 'link' | 'image' | 'code' | 'table'
-  group: number
-  icon?: React.ComponentType<{ size?: number }>
-}
-
-// ─── Constants ───────────────────────────────────────────────────────
-
-type EditorMode = 'edit' | 'split' | 'preview'
-
-// Edit first — natural workflow order
-const MODE_OPTIONS: { value: EditorMode; label: string }[] = [
-  { value: 'edit', label: 'Edit' },
-  { value: 'split', label: 'Split' },
-  { value: 'preview', label: 'Preview' },
-]
-
-const WORDS_PER_MINUTE = 200
-const TEMPLATE_DATE = '{{current-date}}'
-
-const TEMPLATES: { label: string; content: string }[] = [
-  {
-    label: 'README',
-    content: `# Project Name
-
-> Short description of what this project does.
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- Bun
-
-### Installation
-
-\`\`\`bash
-bun install
-bun run dev
-\`\`\`
-
-## Usage
-
-Describe how to use the project here.
-
-## API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET    | /api/items | List all items |
-| POST   | /api/items | Create an item |
-
-## Contributing
-
-1. Fork it
-2. Create your feature branch (\`git checkout -b feat/amazing\`)
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
-## License
-
-MIT
-`,
-  },
-  {
-    label: 'Blog Post',
-    content: `# Title of the Post
-
-*Published: ${TEMPLATE_DATE}*
-
-## Introduction
-
-Hook the reader with a compelling opening paragraph.
-
-## Main Point
-
-Develop your argument here. Use examples:
-
-> "A relevant quote that supports your point."
-
-### Supporting Detail
-
-- First reason
-- Second reason
-- Third reason
-
-## Code Example
-
-\`\`\`typescript
-function greet(name: string): string {
-  return \\\`Hello, \\\${name}!\\\`
-}
-\`\`\`
-
-## Conclusion
-
-Summarize the key takeaway and call to action.
-
----
-
-*Thanks for reading! Follow me for more posts.*
-`,
-  },
-  {
-    label: 'Meeting Notes',
-    content: `# Meeting Notes — ${TEMPLATE_DATE}
-
-**Attendees:** Alice, Bob, Charlie
-**Facilitator:** Alice
-
-## Agenda
-
-1. Status updates
-2. Blockers
-3. Next steps
-
-## Discussion
-
-### Status Updates
-
-- **Alice:** Completed the auth flow, PR open for review
-- **Bob:** Working on database migration, ETA tomorrow
-- **Charlie:** Researching caching strategy
-
-### Blockers
-
-- [ ] CI pipeline timing out on integration tests
-- [ ] Waiting on design review for settings page
-
-## Action Items
-
-| Owner | Task | Due |
-|-------|------|-----|
-| Bob   | Fix CI timeout | EOD |
-| Charlie | Share caching proposal | Thursday |
-| Alice | Review Bob's migration PR | Tomorrow |
-
-## Next Meeting
-
-Same time next week.
-`,
-  },
-  {
-    label: 'Changelog',
-    content: `# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/).
-
-## [Unreleased]
-
-### Added
-- New feature description
-
-### Changed
-- Updated behavior description
-
-### Fixed
-- Bug fix description
-
-## [1.0.0] — ${TEMPLATE_DATE}
-
-### Added
-- Initial release
-- Core feature A
-- Core feature B
-
-### Security
-- Dependency audit completed
-`,
-  },
-]
-
-const FORMATTING_ACTIONS: FormattingAction[] = [
-  // Group 1 — inline text formatting
-  {
-    label: 'B',
-    title: `Bold (${formatShortcut('mod+b')})`,
-    prefix: '**',
-    suffix: '**',
-    placeholder: 'bold text',
-    group: 1,
-  },
-  {
-    label: 'I',
-    title: `Italic (${formatShortcut('mod+i')})`,
-    prefix: '_',
-    suffix: '_',
-    placeholder: 'italic text',
-    group: 1,
-  },
-  {
-    label: '~~',
-    title: 'Strikethrough',
-    prefix: '~~',
-    suffix: '~~',
-    placeholder: 'strikethrough',
-    group: 1,
-  },
-  { label: '`', title: 'Inline Code', prefix: '`', suffix: '`', placeholder: 'code', group: 1 },
-  // Group 2 — headings
-  {
-    label: 'H1',
-    title: 'Heading 1',
-    prefix: '# ',
-    suffix: '',
-    placeholder: 'Heading',
-    line: true,
-    group: 2,
-  },
-  {
-    label: 'H2',
-    title: 'Heading 2',
-    prefix: '## ',
-    suffix: '',
-    placeholder: 'Heading',
-    line: true,
-    group: 2,
-  },
-  {
-    label: 'H3',
-    title: 'Heading 3',
-    prefix: '### ',
-    suffix: '',
-    placeholder: 'Heading',
-    line: true,
-    group: 2,
-  },
-  // Group 3 — structure / lists
-  {
-    label: '•',
-    title: 'Bullet List',
-    prefix: '- ',
-    suffix: '',
-    placeholder: 'item',
-    line: true,
-    group: 3,
-  },
-  {
-    label: '1.',
-    title: 'Numbered List',
-    prefix: '1. ',
-    suffix: '',
-    placeholder: 'item',
-    line: true,
-    group: 3,
-  },
-  {
-    label: '☐',
-    title: 'Task List',
-    prefix: '- [ ] ',
-    suffix: '',
-    placeholder: 'task',
-    line: true,
-    group: 3,
-  },
-  {
-    label: '>',
-    title: 'Blockquote',
-    prefix: '> ',
-    suffix: '',
-    placeholder: 'quote',
-    line: true,
-    group: 3,
-  },
-  {
-    label: '—',
-    title: 'Horizontal Rule',
-    prefix: '\n---\n',
-    suffix: '',
-    placeholder: '',
-    line: true,
-    group: 3,
-  },
-  // Group 4 — media / insertions
-  {
-    label: 'Link',
-    title: 'Link',
-    prefix: '[',
-    suffix: '](url)',
-    placeholder: 'link text',
-    modal: 'link',
-    group: 4,
-    icon: LinkIcon,
-  },
-  {
-    label: 'Image',
-    title: 'Image',
-    prefix: '![',
-    suffix: '](url)',
-    placeholder: 'alt text',
-    modal: 'image',
-    group: 4,
-    icon: ImageIcon,
-  },
-  // Group 5 — code / data blocks
-  {
-    label: '```',
-    title: 'Code Block',
-    prefix: '```\n',
-    suffix: '\n```',
-    placeholder: 'code',
-    line: true,
-    modal: 'code',
-    group: 5,
-  },
-  {
-    label: '⊞',
-    title: 'Table',
-    prefix: '| Column 1 | Column 2 | Column 3 |\n|----------|----------|----------|\n| ',
-    suffix: ' |  |  |',
-    placeholder: 'cell',
-    line: true,
-    modal: 'table',
-    group: 5,
-  },
-]
-
-// ─── Export style constants ───────────────────────────────────────────
-
-const BASE_EXPORT_STYLES =
-  ':root{' +
-  '--export-bg:Canvas;' +
-  '--export-text:CanvasText;' +
-  '--export-muted:color-mix(in srgb, CanvasText 55%, Canvas 45%);' +
-  '--export-border:color-mix(in srgb, CanvasText 18%, Canvas 82%);' +
-  '--export-surface:color-mix(in srgb, Canvas 90%, CanvasText 10%);' +
-  '--export-inverse-bg:color-mix(in srgb, CanvasText 88%, Canvas 12%);' +
-  '--export-inverse-text:Canvas;' +
-  '--export-accent:#8b5cf6;' +
-  '--export-success:#16a34a;' +
-  '--export-info:#0284c7;' +
-  '}' +
-  'body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;background:var(--export-bg);color:var(--export-text)}' +
-  'code{background:var(--export-surface);padding:2px 6px;border-radius:3px;font-size:0.9em}' +
-  'pre{background:var(--export-inverse-bg);color:var(--export-inverse-text);padding:16px;border-radius:6px;overflow-x:auto}' +
-  'pre code{background:none;padding:0}' +
-  '.hljs-comment,.hljs-quote{color:var(--export-muted)}' +
-  '.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-type{color:var(--export-accent)}' +
-  '.hljs-string,.hljs-title,.hljs-name,.hljs-attribute{color:var(--export-success)}' +
-  '.hljs-number,.hljs-symbol,.hljs-bullet{color:var(--export-info)}' +
-  'table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--export-border);padding:8px 12px;text-align:left}' +
-  'th{background:var(--export-surface)}blockquote{border-left:4px solid var(--export-border);margin:0;padding:0 16px;color:var(--export-muted)}img{max-width:100%}'
-
-const PRINT_STYLES = '@media print{body{margin:0}}' + BASE_EXPORT_STYLES
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function extractToc(html: string): TocEntry[] {
-  const entries: TocEntry[] = []
-  const headingCounts = new Map<string, number>()
-  const re = /<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi
-  let match
-  while ((match = re.exec(html)) !== null) {
-    const level = parseInt(match[1] as string, 10)
-    const text = (match[2] as string).replace(/<[^>]+>/g, '')
-    const id = nextHeadingId(text, headingCounts)
-    entries.push({ level, text, id })
-  }
-  return entries
-}
-
-function readingTime(words: number): string {
-  const minutes = Math.ceil(words / WORDS_PER_MINUTE)
-  return minutes <= 1 ? '< 1 min read' : `${minutes} min read`
-}
-
-export function prefixMarkdownLines(text: string, prefix: string): string {
-  return text
-    .split('\n')
-    .map((line) => (line.length > 0 ? `${prefix}${line}` : line))
-    .join('\n')
-}
-
-// Exported for tests only — proves this entry point and processMarkdown()
-// (used by NotesDrawer) render identically since both call the same
-// `markdownProcessor` from src/lib/markdown.ts.
-export async function renderMarkdownContent(content: string): Promise<string> {
-  if (!content.trim()) return ''
-  try {
-    const result = await markdownEditorProcessor.process(content)
-    return String(result)
-  } catch (e) {
-    const msg = (e as Error).message
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-    return `<p role="alert" aria-live="assertive" style="color: var(--color-error)">Render error: ${msg}</p>`
-  }
-}
-
-async function renderEditableMarkdownContent(content: string): Promise<string> {
-  if (!content.trim()) return ''
-  try {
-    const result = await markdownEditableEditorProcessor.process(content)
-    return String(result)
-  } catch {
-    return renderMarkdownContent(content)
-  }
-}
+import {
+  BASE_EXPORT_STYLES,
+  type EditorInstance,
+  type EditorMode,
+  MODE_OPTIONS,
+  type MarkdownEditorState,
+  PRINT_STYLES,
+  type PendingDocument,
+  TEMPLATE_DATE,
+  extractToc,
+  readingTime,
+  renderEditableMarkdownContent,
+  renderMarkdownContent,
+  prefixMarkdownLines,
+} from '@/tools/markdown-editor/markdown-model'
+import { TEMPLATES } from '@/tools/markdown-editor/document-templates'
+import { FORMATTING_ACTIONS } from '@/tools/markdown-editor/formatting-actions'
+
+// Re-exported because the tests (and lib/markdown's parity test) have always reached for the
+// renderer through the tool's entry point.
+export { prefixMarkdownLines, renderMarkdownContent } from '@/tools/markdown-editor/markdown-model'
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -594,6 +166,14 @@ export default function MarkdownEditor() {
     [revealEditorLocation]
   )
 
+  const handleModeChange = useCallback(
+    (mode: EditorMode) => {
+      if (mode !== 'preview') setPreviewEditing(false)
+      updateState({ mode })
+    },
+    [updateState]
+  )
+
   useEffect(() => {
     if (!mountedEditor || !showEditor) return
     const updateLine = () => setActiveSourceLine(mountedEditor.getPosition()?.lineNumber ?? null)
@@ -601,12 +181,6 @@ export default function MarkdownEditor() {
     const disposable = mountedEditor.onDidChangeCursorPosition(updateLine)
     return () => disposable.dispose()
   }, [mountedEditor, showEditor])
-
-  useEffect(() => {
-    return () => {
-      editorRef.current?.getModel()?.dispose()
-    }
-  }, [])
 
   // ─── Markdown → HTML (debounced 300ms) ───────────────────────────
 
@@ -1153,10 +727,7 @@ export default function MarkdownEditor() {
               aria-label="Editor view mode"
               options={MODE_OPTIONS}
               value={state.mode as EditorMode}
-              onChange={(mode) => {
-                if (mode !== 'preview') setPreviewEditing(false)
-                updateState({ mode })
-              }}
+              onChange={handleModeChange}
             />
 
             {state.mode === 'split' && (
@@ -1435,23 +1006,18 @@ export default function MarkdownEditor() {
       )}
 
       {/* ─── Body ───────────────────────────────────────────────── */}
-      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
-          Below ~1000px SplitPane stacks them — markdown needs more line length than most panes
-          before a 50/50 split stops being readable. */}
-      {showEditor && showPreview ? (
-        <SplitPane
-          storageKey="markdown-editor"
-          stackBelow={1000}
-          aria-label="Resize editor and preview"
-        >
-          {editorPane}
-          {previewPane}
-        </SplitPane>
-      ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {showEditor ? editorPane : previewPane}
-        </div>
-      )}
+      {/* Keep both panes mounted across mode changes so Monaco retains its model, cursor, scroll,
+          selection and undo history. SplitPane hides the inactive pane and expands the other. */}
+      <SplitPane
+        storageKey="markdown-editor"
+        stackBelow={1000}
+        firstVisible={showEditor}
+        secondVisible={showPreview}
+        aria-label="Resize editor and preview"
+      >
+        {editorPane}
+        {previewPane}
+      </SplitPane>
 
       <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
         <span>{isDirty ? 'Unsaved changes' : 'All changes saved'}</span>

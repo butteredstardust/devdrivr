@@ -483,7 +483,9 @@ describe('setTabDirty', () => {
     useUiStore.getState().setTabDirty(first!.id, true)
     useUiStore.getState().setTabDirty(second!.id, true)
 
+    // Closing a dirty tab now asks first (SH-02); the flag is dropped once the close goes through.
     useUiStore.getState().closeTab(first!.id)
+    useUiStore.getState().confirmPendingTabClose()
 
     expect(useUiStore.getState().dirtyTabIds).toEqual([second!.id])
   })
@@ -496,6 +498,7 @@ describe('setTabDirty', () => {
     for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
 
     useUiStore.getState().closeOtherTabs(tabs[1]!.id)
+    useUiStore.getState().confirmPendingTabClose()
 
     expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[1]!.id])
   })
@@ -508,6 +511,7 @@ describe('setTabDirty', () => {
     for (const tab of tabs) useUiStore.getState().setTabDirty(tab.id, true)
 
     useUiStore.getState().closeTabsToRight(tabs[0]!.id)
+    useUiStore.getState().confirmPendingTabClose()
 
     expect(useUiStore.getState().dirtyTabIds).toEqual([tabs[0]!.id])
   })

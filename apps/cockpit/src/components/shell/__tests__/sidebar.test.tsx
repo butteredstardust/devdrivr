@@ -307,6 +307,26 @@ describe('Sidebar — pinned tools in the collapsed rail', () => {
     // existence entirely and jump somewhere unrelated.
     expect(document.activeElement).toHaveAttribute('data-sidebar-collapsed-group')
   })
+
+  // Found in the browser harness, invisible to the isolated flyout tests: the flyout is portalled
+  // to document.body, but React events bubble through the component tree, so an arrow key pressed
+  // in the flyout also reached the rail's own arrow handler — which saw focus outside its item
+  // list and dragged it back onto a group trigger, out of the open flyout.
+  it('leaves the arrow keys to the flyout while one is open', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true, pinnedToolIds: [] })
+
+    render(<Sidebar />)
+
+    const firstGroup = document.querySelectorAll<HTMLElement>('[data-sidebar-collapsed-group]')
+    fireEvent.click(firstGroup[1]!)
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.keyDown(dialog, { key: 'ArrowDown' })
+
+    const focused = document.activeElement as HTMLElement
+    expect(dialog.contains(focused)).toBe(true)
+    expect(focused).not.toHaveAttribute('data-sidebar-collapsed-group')
+  })
 })
 
 // ── Collapsed flyout icon rendering ────────────────────────────────
@@ -319,6 +339,64 @@ describe('SidebarCollapsedGroup — flyout icons', () => {
 
     expect(screen.getByRole('button', { name: 'Tool A' })).toBeInTheDocument()
     expect(screen.getByTestId('icon-a')).toBeInTheDocument()
+  })
+
+  it('advertises the flyout as a dialog the trigger controls, and only while it is open', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    const trigger = screen.getByRole('button', { name: 'TestGroup' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).not.toHaveAttribute('aria-controls')
+
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'TestGroup tools' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('aria-controls', dialog.id)
+  })
+
+  it('moves focus into the flyout on open and back to the trigger on Escape', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    const trigger = screen.getByRole('button', { name: 'TestGroup' })
+    fireEvent.click(trigger)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'TestGroup tools' }))
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('walks the tools with the arrow keys and wraps at both ends', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'TestGroup' }))
+    const dialog = screen.getByRole('dialog', { name: 'TestGroup tools' })
+
+    // Focus starts on the surface itself, so the first ArrowDown lands on the first tool.
+    fireEvent.keyDown(dialog, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tool A' }))
+
+    fireEvent.keyDown(dialog, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: TOOLS[TOOLS.length - 1]!.name })
+    )
+  })
+
+  // The list div sits inside the popover surface, so a handler on both would fire twice as the
+  // key bubbles and step past every second tool.
+  it('advances one tool per key press when the key is pressed on a tool', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'TestGroup' }))
+    const first = screen.getByRole('button', { name: 'Tool A' })
+    first.focus()
+
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tool B' }))
+
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(first)
   })
 })
 
@@ -756,11 +834,11 @@ describe('Sidebar — resize handle', () => {
       render(<Sidebar />)
       const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
 
-      fireEvent.mouseDown(handle, { clientX: 240 })
-      fireEvent.mouseMove(document, { clientX: 300 })
+      fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+      fireEvent.pointerMove(document, { clientX: 300, pointerId: 1 })
       expect(handle).toHaveAttribute('aria-valuenow', '300')
 
-      fireEvent.mouseUp(document, { clientX: 300 })
+      fireEvent.pointerUp(document, { clientX: 300, pointerId: 1 })
       // The save is debounced, so nothing is written mid-drag.
       expect(update).not.toHaveBeenCalledWith('sidebarWidth', 300)
       act(() => void vi.advanceTimersByTime(500))
@@ -774,12 +852,51 @@ describe('Sidebar — resize handle', () => {
     render(<Sidebar />)
     const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
 
-    fireEvent.mouseDown(handle, { clientX: 240 })
+    fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
     expect(document.body.style.cursor).toBe('col-resize')
 
-    fireEvent.mouseUp(document, { clientX: 260 })
+    fireEvent.pointerUp(document, { clientX: 260, pointerId: 1 })
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+  })
+
+  // Releasing the button over another window delivers no pointer-up here, so the gesture has to
+  // end on its own or the sidebar stays stuck to the cursor when the user comes back.
+  it('ends the drag when the window loses focus mid-gesture', () => {
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    // Measured from wherever the sidebar starts, since the settings store carries state in from
+    // whatever ran before this.
+    const start = Number(handle.getAttribute('aria-valuenow'))
+    fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+    fireEvent.pointerMove(document, { clientX: 300, pointerId: 1 })
+    const dragged = String(start + 60)
+    expect(handle).toHaveAttribute('aria-valuenow', dragged)
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    // And the handle no longer tracks the pointer.
+    fireEvent.pointerMove(document, { clientX: 400, pointerId: 1 })
+    expect(handle).toHaveAttribute('aria-valuenow', dragged)
+  })
+
+  it('restores the previous body cursor instead of clearing it', () => {
+    document.body.style.cursor = 'progress'
+    try {
+      render(<Sidebar />)
+      const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+      fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+      fireEvent.pointerUp(document, { clientX: 260, pointerId: 1 })
+
+      expect(document.body.style.cursor).toBe('progress')
+    } finally {
+      document.body.style.cursor = ''
+    }
   })
 
   it('has no handle to drag while collapsed', () => {

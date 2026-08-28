@@ -448,18 +448,25 @@ export function DocumentIdentity({
   className = '',
 }: DocumentIdentityProps) {
   return (
-    <div className={`flex min-w-0 flex-1 items-center gap-2 ${className}`}>
+    // The floor and the clip both live here, on the flex item the row actually measures.
+    //
+    // `min-w-0` let this box absorb every pixel the row was short — measured at 10px wide around a
+    // 141px title and status. Because `planCollapse` sums the *rendered* widths of non-group
+    // children, a crushed identity made `needed` look small enough to stop folding groups into the
+    // overflow menu, so the row read as "fits" while its own text spilled out of a 10px box and
+    // painted over the file-action icons to its right. A minimum on the title span alone could not
+    // fix that: the children hold their minimums and overflow the parent, which is the spill.
+    //
+    // With a floor the identity reports an honest width and groups keep collapsing until the name
+    // is readable; `overflow-hidden` handles the rest, so the last few pixels truncate the status
+    // instead of escaping the box. Safe to clip here — this subtree is text, with no focus ring to
+    // cut off.
+    <div className={`flex min-w-32 flex-1 items-center gap-2 overflow-hidden ${className}`}>
       {icon}
       <span
         data-testid={titleTestId}
-        // `min-w-20` is the floor that keeps the row's overflow arithmetic honest. Without it the
-        // identity is a `flex-1` item with no minimum, so it silently absorbs every pixel the row
-        // is short — and because `planCollapse` measures the *rendered* width of non-group
-        // children, a crushed identity made `needed` look small enough to stop collapsing groups.
-        // The row read as "fits" while showing a one-glyph filename (measured at the app's own
-        // 800px minimum window width: title 10px, then 0px). With a floor the identity reports an
-        // honest width, groups keep folding into the overflow menu until the name is readable,
-        // and the status line beside it (`min-w-0`) is what yields instead.
+        // Within that floor the title is what holds its ground and the status line (`min-w-0`) is
+        // what yields, so a name stays readable while the context beside it shortens.
         className="font-ui min-w-20 max-w-56 truncate text-xs font-semibold text-[var(--color-text)]"
         title={titleTooltip ?? title}
       >

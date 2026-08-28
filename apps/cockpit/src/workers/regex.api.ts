@@ -9,6 +9,14 @@
 
 export const MAX_REGEX_MATCHES = 1000
 
+function advanceStringIndex(text: string, index: number, unicode: boolean): number {
+  if (!unicode || index + 1 >= text.length) return index + 1
+  const first = text.charCodeAt(index)
+  if (first < 0xd800 || first > 0xdbff) return index + 1
+  const second = text.charCodeAt(index + 1)
+  return second >= 0xdc00 && second <= 0xdfff ? index + 2 : index + 1
+}
+
 export type RegexMatch = {
   full: string
   index: number
@@ -189,7 +197,15 @@ export function evaluateRegex(input: RegexEvaluationInput): RegexEvaluation {
         })
       }
       scanned.push({ full: m[0], index: m.index, length: m[0].length, groups })
-      if (m[0] === '') scanner.lastIndex++
+      if (m[0] === '') {
+        const nextIndex = advanceStringIndex(
+          text,
+          scanner.lastIndex,
+          flags.includes('u') || flags.includes('v')
+        )
+        if (nextIndex > text.length) break
+        scanner.lastIndex = nextIndex
+      }
     }
   }
 

@@ -74,6 +74,10 @@ function countEncodedChars(input: string, output: string): number {
   return matches?.length ?? 0
 }
 
+export type UrlLineError = { line: number; message: string }
+
+export type UrlTransformResult = { text: string; lineErrors: UrlLineError[] }
+
 export function transformUrlInput(
   input: string,
   options: {
@@ -82,7 +86,7 @@ export function transformUrlInput(
     bulk: boolean
     recursive: boolean
   }
-): string {
+): UrlTransformResult {
   const transform = (value: string) => {
     if (options.mode === 'encode') {
       return options.encodeMode === 'component' ? encodeURIComponent(value) : encodeURI(value)
@@ -102,18 +106,21 @@ export function transformUrlInput(
     return result
   }
 
-  if (!options.bulk) return transform(input)
-  return input
-    .split('\n')
-    .map((line) => {
-      try {
-        return transform(line)
-      } catch (error) {
-        const message = error instanceof URIError ? 'malformed percent encoding' : String(error)
-        return `[decode error: ${message}] ${line}`
-      }
-    })
-    .join('\n')
+  if (!options.bulk) return { text: transform(input), lineErrors: [] }
+
+  // Failed lines are preserved verbatim so the payload stays copyable and round-trippable;
+  // the diagnostics travel alongside it rather than inside it.
+  const lineErrors: UrlLineError[] = []
+  const lines = input.split('\n').map((line, index) => {
+    try {
+      return transform(line)
+    } catch (error) {
+      const message = error instanceof URIError ? 'malformed percent encoding' : String(error)
+      lineErrors.push({ line: index + 1, message })
+      return line
+    }
+  })
+  return { text: lines.join('\n'), lineErrors }
 }
 
 // ── Component ──────────────────────────────────────────────────────
@@ -130,11 +137,12 @@ export default function UrlCodec() {
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const output = useMemo(() => {
-    if (!state.input.trim()) return { text: '', error: null }
+    if (!state.input.trim()) return { text: '', error: null, lineErrors: [] as UrlLineError[] }
     try {
-      return { text: transformUrlInput(state.input, state), error: null }
+      const { text, lineErrors } = transformUrlInput(state.input, state)
+      return { text, error: null, lineErrors }
     } catch (e) {
-      return { text: '', error: (e as Error).message }
+      return { text: '', error: (e as Error).message, lineErrors: [] as UrlLineError[] }
     }
   }, [state])
 
@@ -261,6 +269,17 @@ export default function UrlCodec() {
             hint={state.mode === 'encode' ? 'Encoded' : 'Text'}
             actions={<CopyButton text={output.text} />}
           />
+          {output.lineErrors.length > 0 && (
+            <Alert variant="warning" className="m-4">
+              {output.lineErrors.length} line{output.lineErrors.length !== 1 ? 's' : ''} could not
+              be converted and {output.lineErrors.length !== 1 ? 'were' : 'was'} left unchanged:{' '}
+              {output.lineErrors
+                .slice(0, 5)
+                .map((e) => `line ${e.line} (${e.message})`)
+                .join(', ')}
+              {output.lineErrors.length > 5 ? ', …' : ''}
+            </Alert>
+          )}
           {output.error ? (
             <Alert variant="error" className="m-4">
               {output.error}

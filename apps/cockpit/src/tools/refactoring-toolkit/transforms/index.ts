@@ -60,22 +60,73 @@ export const TRANSFORMS: Transform[] = [
     name: 'var → const/let',
     description: 'Convert var declarations to const (or let if reassigned)',
     category: 'modernize',
-    safety: 'safe',
+    safety: 'caution',
     languages: ['javascript', 'typescript'],
     apply: (root, j) => {
       root.find(j.VariableDeclaration, { kind: 'var' }).forEach((path) => {
+        const parent = path.parent.node
+        const grandparent = path.parent.parent?.node
+        const isFunctionBody =
+          parent.type === 'BlockStatement' &&
+          grandparent !== undefined &&
+          [
+            'FunctionDeclaration',
+            'FunctionExpression',
+            'ArrowFunctionExpression',
+            'ObjectMethod',
+            'ClassMethod',
+          ].includes(grandparent.type)
+        if (parent.type !== 'Program' && !isFunctionBody) return
+
         const names = path.node.declarations
           .map((d) => {
             const decl = d as unknown as { id: { type: string; name?: string } }
             return decl.id.type === 'Identifier' && decl.id.name ? decl.id.name : null
           })
           .filter((n): n is string => n !== null)
+        if (names.length !== path.node.declarations.length) return
+
+        const declarationLine = path.node.loc?.start.line
+        const hasPreDeclarationReference = names.some((name) => {
+          const declarationScope = path.scope.lookup(name)
+          if (!declarationScope || declarationLine === undefined) return true
+          let found = false
+          root.find(j.Identifier, { name }).forEach((identifierPath) => {
+            const firstDeclarator = path.node.declarations[0] as unknown as
+              | { id?: unknown }
+              | undefined
+            if (found || identifierPath.node === firstDeclarator?.id) return
+            const line = identifierPath.node.loc?.start.line
+            if (line === undefined || line >= declarationLine) return
+            if (identifierPath.scope.lookup(name) === declarationScope) found = true
+          })
+          return found
+        })
+        if (hasPreDeclarationReference) return
 
         const isReassigned = names.some((name) => {
+          const declarationScope = path.scope.lookup(name)
+          if (!declarationScope) return true
           let found = false
           root.find(j.AssignmentExpression).forEach((assignPath) => {
             const left = assignPath.node.left as unknown as Named
-            if (assignPath.node.left.type === 'Identifier' && left.name === name) found = true
+            if (
+              assignPath.node.left.type === 'Identifier' &&
+              left.name === name &&
+              assignPath.scope.lookup(name) === declarationScope
+            ) {
+              found = true
+            }
+          })
+          root.find(j.UpdateExpression).forEach((updatePath) => {
+            const argument = updatePath.node.argument as unknown as Named
+            if (
+              updatePath.node.argument.type === 'Identifier' &&
+              argument.name === name &&
+              updatePath.scope.lookup(name) === declarationScope
+            ) {
+              found = true
+            }
           })
           return found
         })
@@ -89,7 +140,7 @@ export const TRANSFORMS: Transform[] = [
     name: 'Arrow functions',
     description: 'Convert anonymous function expressions to arrow functions',
     category: 'modernize',
-    safety: 'safe',
+    safety: 'caution',
     languages: ['javascript', 'typescript'],
     apply: (root, j) => {
       root
@@ -97,12 +148,20 @@ export const TRANSFORMS: Transform[] = [
         .filter((path) => {
           if (path.node.id) return false // skip named function expressions
           const parent = path.parent.node
-          return (
+          const supportedParent =
             parent.type !== 'Property' &&
             parent.type !== 'MethodDefinition' &&
             parent.type !== 'ObjectMethod' &&
             parent.type !== 'ClassMethod'
-          )
+          if (!supportedParent) return false
+
+          const subtree = j(path)
+          const usesDynamicContext =
+            subtree.find(j.ThisExpression).size() > 0 ||
+            subtree.find(j.Super).size() > 0 ||
+            subtree.find(j.MetaProperty).size() > 0 ||
+            subtree.find(j.Identifier, { name: 'arguments' }).size() > 0
+          return !usesDynamicContext
         })
         .forEach((path) => {
           j(path).replaceWith(j.arrowFunctionExpression(path.node.params, path.node.body, false))
@@ -325,7 +384,7 @@ export const TRANSFORMS: Transform[] = [
     name: '== → ===',
     description: 'Convert loose equality to strict equality',
     category: 'safety',
-    safety: 'safe',
+    safety: 'caution',
     languages: ['javascript', 'typescript'],
     apply: (root, j) => {
       root.find(j.BinaryExpression, { operator: '==' }).forEach((path) => {
@@ -445,6 +504,17 @@ export const TRANSFORMS: Transform[] = [
     safety: 'caution',
     languages: ['javascript', 'typescript'],
     apply: (root, j) => {
+      const callableTypes = new Set(['Identifier', 'ArrowFunctionExpression', 'FunctionExpression'])
+      const uniqueIdentifier = (base: string) => {
+        let candidate = base
+        let suffix = 1
+        while (root.find(j.Identifier, { name: candidate }).size() > 0) {
+          candidate = `${base}${suffix}`
+          suffix += 1
+        }
+        return j.identifier(candidate)
+      }
+
       root
         .find(j.CallExpression, {
           callee: {
@@ -476,13 +546,30 @@ export const TRANSFORMS: Transform[] = [
             arguments: unknown[]
           }
           const originalExpr = (thenCall.callee as { object: unknown }).object
-          const thenFn = thenCall.arguments[0]
-          const catchFn = path.node.arguments[0]
+          const thenFn = thenCall.arguments[0] as { type?: string } | undefined
+          const catchFn = path.node.arguments[0] as unknown as { type?: string } | undefined
 
-          if (!thenFn || !catchFn) return
+          if (
+            !thenFn?.type ||
+            !catchFn?.type ||
+            !callableTypes.has(thenFn.type) ||
+            !callableTypes.has(catchFn.type)
+          )
+            return
 
-          const resultId = j.identifier('_result')
-          const errorId = j.identifier('_error')
+          const resultId = uniqueIdentifier('_result')
+          const errorId = uniqueIdentifier('_error')
+
+          const thenResult = j.awaitExpression(
+            j.callExpression(thenFn as Parameters<typeof j.callExpression>[0], [resultId])
+          )
+          const catchResult = j.awaitExpression(
+            j.callExpression(catchFn as Parameters<typeof j.callExpression>[0], [errorId])
+          )
+
+          const isStandalone =
+            path.parent.node.type === 'ExpressionStatement' &&
+            path.parent.parent?.node.type === 'Program'
 
           const tryCatch = j.tryStatement(
             j.blockStatement([
@@ -492,17 +579,13 @@ export const TRANSFORMS: Transform[] = [
                   j.awaitExpression(originalExpr as Parameters<typeof j.awaitExpression>[0])
                 ),
               ]),
-              j.expressionStatement(
-                j.callExpression(thenFn as Parameters<typeof j.callExpression>[0], [resultId])
-              ),
+              isStandalone ? j.expressionStatement(thenResult) : j.returnStatement(thenResult),
             ]),
             j.catchClause(
               errorId,
               null,
               j.blockStatement([
-                j.expressionStatement(
-                  j.callExpression(catchFn as Parameters<typeof j.callExpression>[0], [errorId])
-                ),
+                isStandalone ? j.expressionStatement(catchResult) : j.returnStatement(catchResult),
               ])
             )
           )
@@ -510,10 +593,7 @@ export const TRANSFORMS: Transform[] = [
           // A standalone chain at module scope can use top-level await directly.
           // Keep the async-IIFE fallback when the chain is nested in another
           // expression, where replacing it with statements would be invalid.
-          if (
-            path.parent.node.type === 'ExpressionStatement' &&
-            path.parent.parent?.node.type === 'Program'
-          ) {
+          if (isStandalone) {
             j(path.parent).replaceWith(tryCatch)
           } else {
             const asyncFn = j.arrowFunctionExpression([], j.blockStatement([tryCatch]))

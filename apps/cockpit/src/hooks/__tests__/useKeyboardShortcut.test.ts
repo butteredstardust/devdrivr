@@ -72,6 +72,41 @@ describe('useKeyboardShortcut', () => {
     }
   )
 
+  it('stops a matching Monaco shortcut before the editor can consume it', () => {
+    const handler = vi.fn()
+    renderHook(() => useKeyboardShortcut({ key: 'k', mod: true }, handler))
+    const editor = document.createElement('div')
+    editor.className = 'monaco-editor'
+    const target = document.createElement('div')
+    const monacoHandler = vi.fn()
+    target.addEventListener('keydown', monacoHandler)
+    editor.append(target)
+    document.body.append(editor)
+
+    const event = dispatchKey(target, { key: 'k', metaKey: true })
+
+    expect(handler).toHaveBeenCalledOnce()
+    expect(monacoHandler).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('leaves unmatched Monaco shortcuts for the editor', () => {
+    const handler = vi.fn()
+    renderHook(() => useKeyboardShortcut({ key: 'k', mod: true }, handler))
+    const editor = document.createElement('div')
+    editor.className = 'monaco-editor'
+    const target = document.createElement('div')
+    const monacoHandler = vi.fn()
+    target.addEventListener('keydown', monacoHandler)
+    editor.append(target)
+    document.body.append(editor)
+
+    dispatchKey(target, { key: 'f', metaKey: true })
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(monacoHandler).toHaveBeenCalledOnce()
+  })
+
   it.each(EDITABLE_TARGETS)(
     'ignores non-modifier shortcuts from an editable %s target',
     (_name, createTarget) => {

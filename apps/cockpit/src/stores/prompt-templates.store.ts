@@ -18,7 +18,13 @@ import {
 type PromptTemplatesStore = {
   userTemplates: PromptTemplate[]
   initialized: boolean
+  /** True while at least one write is in flight. Derived from {@link savingCount}. */
   saving: boolean
+  /**
+   * Writes currently in flight. A single boolean lets the first operation to finish report
+   * "done" while another is still running, so the count owns the flag instead.
+   */
+  savingCount: number
   init: () => Promise<void>
   refresh: () => Promise<void>
   create: (draft: PromptTemplateDraft) => Promise<PromptTemplate>
@@ -64,10 +70,17 @@ function toUserTemplate(draft: PromptTemplateDraft, id = crypto.randomUUID()): P
   }
 }
 
+/** One completed write: `saving` stays true until every in-flight write has finished. */
+function endSaving(state: { savingCount: number }): { savingCount: number; saving: boolean } {
+  const savingCount = Math.max(0, state.savingCount - 1)
+  return { savingCount, saving: savingCount > 0 }
+}
+
 export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get) => ({
   userTemplates: [],
   initialized: false,
   saving: false,
+  savingCount: 0,
 
   init: async () => {
     if (!initPromise) {
@@ -92,16 +105,16 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
 
   create: async (draft) => {
     const template = toUserTemplate(draft)
-    set({ saving: true })
+    set((state) => ({ savingCount: state.savingCount + 1, saving: true }))
     try {
       await saveUserPromptTemplate(template)
       set((state) => ({
         userTemplates: [template, ...state.userTemplates].sort(byUpdatedDesc),
-        saving: false,
+        ...endSaving(state),
       }))
       return template
     } catch (err) {
-      set({ saving: false })
+      set((state) => endSaving(state))
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to save prompt template: ' + msg, 'error')
       throw err
@@ -118,18 +131,18 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
       author: 'user',
       updatedAt: Date.now(),
     }
-    set({ saving: true })
+    set((state) => ({ savingCount: state.savingCount + 1, saving: true }))
     try {
       await saveUserPromptTemplate(updated)
       set((state) => ({
         userTemplates: state.userTemplates
           .map((template) => (template.id === id ? updated : template))
           .sort(byUpdatedDesc),
-        saving: false,
+        ...endSaving(state),
       }))
       return updated
     } catch (err) {
-      set({ saving: false })
+      set((state) => endSaving(state))
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to save prompt template: ' + msg, 'error')
       throw err
@@ -137,15 +150,15 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
   },
 
   remove: async (id) => {
-    set({ saving: true })
+    set((state) => ({ savingCount: state.savingCount + 1, saving: true }))
     try {
       await deleteUserPromptTemplate(id)
       set((state) => ({
         userTemplates: state.userTemplates.filter((template) => template.id !== id),
-        saving: false,
+        ...endSaving(state),
       }))
     } catch (err) {
-      set({ saving: false })
+      set((state) => endSaving(state))
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to delete prompt template: ' + msg, 'error')
       throw err
@@ -154,16 +167,16 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
 
   importMany: async (drafts) => {
     const templates = drafts.map((draft) => toUserTemplate(draft))
-    set({ saving: true })
+    set((state) => ({ savingCount: state.savingCount + 1, saving: true }))
     try {
       await saveUserPromptTemplates(templates)
       set((state) => ({
         userTemplates: [...templates, ...state.userTemplates].sort(byUpdatedDesc),
-        saving: false,
+        ...endSaving(state),
       }))
       return templates
     } catch (err) {
-      set({ saving: false })
+      set((state) => endSaving(state))
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to import prompt templates: ' + msg, 'error')
       throw err

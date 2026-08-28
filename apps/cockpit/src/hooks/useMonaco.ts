@@ -1,3 +1,8 @@
+// Side-effect import, and it has to come before the `loader.init()` below: it points the loader
+// at the bundled Monaco instead of jsDelivr. Imported here rather than from `main.tsx` so the
+// 3.8MB runtime stays in the lazy tool chunks — every Monaco tool reaches it through this hook or
+// through `MonacoEditor`, and ESM evaluates an imported module before the importer's body.
+import '@/lib/monaco-runtime'
 import { useEffect, useMemo } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'

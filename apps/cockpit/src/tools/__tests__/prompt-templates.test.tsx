@@ -90,7 +90,7 @@ describe('prompt template utilities', () => {
           variables: [{ name: 'language', type: 'select' }],
         })
       )
-    ).toThrow(/prompt template format/)
+    ).toThrow(/Select variables require at least one option/)
   })
 
   it('rejects select variables with only blank options on import', () => {
@@ -102,7 +102,7 @@ describe('prompt template utilities', () => {
           variables: [{ name: 'language', type: 'select', options: ['  '] }],
         })
       )
-    ).toThrow(/prompt template format/)
+    ).toThrow(/Select variables require at least one option/)
   })
 })
 
@@ -174,11 +174,39 @@ describe('PromptTemplates', () => {
 
     const searchInput = screen.getByRole('searchbox', { name: 'Search prompt templates' })
     fireEvent.click(screen.getByRole('button', { name: 'Focus mode' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
 
-    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+    fireEvent.keyDown(dialog, { key: 'f', metaKey: true })
 
     await waitFor(() => expect(document.activeElement).not.toBe(searchInput))
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+  })
+
+  it('closes quick fill on Escape and hands focus back to the trigger', async () => {
+    renderTool(PromptTemplates)
+
+    const trigger = screen.getByRole('button', { name: 'Focus mode' })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('moves focus into the template editor and traps Tab inside it', async () => {
+    renderTool(PromptTemplates)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New' }))
+
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
+
+    // Shift-Tab from the first field wraps to the last control rather than escaping to the page.
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
   })
 
   it('opens quick fill with Enter when focus is not in an interactive field', async () => {

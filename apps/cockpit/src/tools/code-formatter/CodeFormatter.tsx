@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
+import { DiffEditor, type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import {
   ArrowCounterClockwiseIcon,
   BroomIcon,
@@ -12,6 +13,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -19,8 +21,6 @@ import { Kbd } from '@/components/shared/Kbd'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
@@ -109,8 +109,13 @@ export default function CodeFormatter() {
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewMounted, setPreviewMounted] = useState(false)
   const [pendingFormat, setPendingFormat] = useState<{ before: string; after: string } | null>(null)
   const formattingRef = useRef(false)
+  // A request that arrives mid-run is remembered rather than dropped: with auto-format on, the
+  // newest input would otherwise stay unformatted until the user happened to type again.
+  const queuedFormatRef = useRef<{ showPreview: boolean } | null>(null)
+  const handleFormatRef = useRef<((showPreview?: boolean) => Promise<void>) | null>(null)
   // Session state, deliberately not persisted: a floating surface that reopened itself on
   // launch would cover the document before the user had asked for anything.
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -182,7 +187,12 @@ export default function CodeFormatter() {
   const handleFormat = useCallback(
     async (showPreview = true) => {
       const source = inputRef.current
-      if (!formatter || !source.trim() || formattingRef.current) return
+      if (!formatter || !source.trim()) return
+      if (formattingRef.current) {
+        // Repeated requests collapse into one re-run against whatever the newest input is by then.
+        queuedFormatRef.current = { showPreview }
+        return
+      }
       formattingRef.current = true
       setIsFormatting(true)
       try {
@@ -191,6 +201,7 @@ export default function CodeFormatter() {
         if (inputRef.current !== source) return
         if (showPreview && result !== source) {
           setPendingFormat({ before: source, after: result })
+          setPreviewMounted(true)
           setPreviewOpen(true)
           setError(null)
           setLastAction('Format preview ready', 'success')
@@ -214,10 +225,16 @@ export default function CodeFormatter() {
       } finally {
         formattingRef.current = false
         setIsFormatting(false)
+        const queued = queuedFormatRef.current
+        if (queued) {
+          queuedFormatRef.current = null
+          void handleFormatRef.current?.(queued.showPreview)
+        }
       }
     },
     [formatter, updateState, setLastAction]
   )
+  handleFormatRef.current = handleFormat
 
   const handleRevert = useCallback(() => {
     if (!lastFormat) return
@@ -238,6 +255,11 @@ export default function CodeFormatter() {
     setPreviewOpen(false)
     setLastAction('Formatted', 'success')
   }, [pendingFormat, updateState, setLastAction])
+
+  const togglePreview = useCallback(() => {
+    setPreviewMounted(true)
+    setPreviewOpen((open) => !open)
+  }, [])
 
   useEffect(() => {
     if (!state.autoFormat || !hasCode || pendingFormat || input === lastFormat?.after) return
@@ -260,46 +282,13 @@ export default function CodeFormatter() {
     }
   }, [formatter, updateState, setLastAction])
 
-  const handleSaveAs = useCallback(async () => {
-    if (!inputRef.current.trim()) {
-      setLastAction('Nothing to save yet', 'info')
-      return
-    }
-    const defaultName = state.fileName ?? `formatted.${extensionForLanguage(state.language)}`
-    try {
-      const path = await saveFileDialog(inputRef.current, defaultName)
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path) })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.fileName, state.language, setLastAction, updateState])
-
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, inputRef.current)
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
+  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
+    getContent: () => inputRef.current,
+    filePath: state.filePath ?? null,
+    fileName: state.fileName ?? null,
+    defaultFileName: () => `formatted.${extensionForLanguage(optionsRef.current.language)}`,
+    onSaved: updateState,
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -549,7 +538,7 @@ export default function CodeFormatter() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setPreviewOpen((open) => !open)}
+              onClick={togglePreview}
               disabled={!pendingFormat && (!lastFormat || lastFormat.before === lastFormat.after)}
               aria-pressed={previewOpen}
               title="Compare the source before and after formatting"
@@ -587,15 +576,7 @@ export default function CodeFormatter() {
         </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {previewOpen && (pendingFormat || lastFormat) ? (
-          <DiffEditor
-            theme={monacoTheme}
-            language={state.language}
-            original={(pendingFormat ?? lastFormat)?.before ?? ''}
-            modified={(pendingFormat ?? lastFormat)?.after ?? ''}
-            options={{ ...monacoOptions, readOnly: true, renderSideBySide: true }}
-          />
-        ) : (
+        <div className={`absolute inset-0 ${previewOpen ? 'hidden' : ''}`}>
           <Editor
             theme={monacoTheme}
             language={state.language}
@@ -606,6 +587,17 @@ export default function CodeFormatter() {
               editorRef.current = editor
             }}
           />
+        </div>
+        {previewMounted && (
+          <div className={`absolute inset-0 ${previewOpen ? '' : 'hidden'}`}>
+            <DiffEditor
+              theme={monacoTheme}
+              language={state.language}
+              original={(pendingFormat ?? lastFormat)?.before ?? ''}
+              modified={(pendingFormat ?? lastFormat)?.after ?? ''}
+              options={{ ...monacoOptions, readOnly: true, renderSideBySide: true }}
+            />
+          </div>
         )}
         {!hasCode && (
           // Non-interactive so clicks fall through to the editor underneath —

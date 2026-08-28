@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { useCallback, useId, useMemo, useRef, useState } from 'react'
+import { type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import {
-  ArrowsDownUpIcon,
   ArrowsInLineVerticalIcon,
-  ArrowsOutLineVerticalIcon,
   ArrowUUpLeftIcon,
   BracketsCurlyIcon,
   BroomIcon,
-  CaretDownIcon,
-  CaretUpIcon,
   CheckCircleIcon,
   CrosshairSimpleIcon,
   MagnifyingGlassIcon,
@@ -17,17 +14,16 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
-import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
@@ -36,20 +32,34 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import { formatBytes } from '@/lib/format'
-import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { sortKeysDeepBounded } from '@/lib/traversal'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
-import { InspectorTree } from '@/components/shared/InspectorTree'
 import { Toggle } from '@/components/shared/Toggle'
 import { sendToTool } from '@/lib/tool-handoff'
 export { queryJsonPath, type JsonPathResult } from '@/lib/json-path'
 import { queryJsonPath } from '@/lib/json-path'
+import {
+  type JsonView,
+  JsoncSyntaxError,
+  normalizeJsonc,
+  VIEW_OPTIONS,
+  jsonStats,
+  offsetToLineColumn,
+  locateJsonError,
+  toText,
+  type ParseResult,
+} from '@/tools/json-tools/json-model'
+import { InspectorPane } from '@/tools/json-tools/JsonInspector'
 
-type JsonView = 'source' | 'tree' | 'table'
+// Re-exported for consumers that grew up with this being one file: YAML Tools renders the table,
+// and the tests reach for the parse helpers.
+export { isTabularJsonArray, locateJsonError, normalizeJsonc } from '@/tools/json-tools/json-model'
+export { JsonTable } from '@/tools/json-tools/JsonTable'
+export { JsonTree } from '@/tools/json-tools/JsonTree'
 
 type JsonToolsState = {
   input: string
@@ -67,304 +77,12 @@ type JsonToolsState = {
   allowComments: boolean
 }
 
-/** Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable. */
-export function normalizeJsonc(source: string): string {
-  const chars = [...source]
-  let inString = false
-  let escaping = false
-  for (let index = 0; index < chars.length; index += 1) {
-    const char = chars[index]
-    const next = chars[index + 1]
-    if (inString) {
-      if (escaping) escaping = false
-      else if (char === '\\') escaping = true
-      else if (char === '"') inString = false
-      continue
-    }
-    if (char === '"') {
-      inString = true
-      continue
-    }
-    if (char === '/' && next === '/') {
-      chars[index] = ' '
-      chars[index + 1] = ' '
-      index += 2
-      while (index < chars.length && chars[index] !== '\n') {
-        chars[index] = ' '
-        index += 1
-      }
-      index -= 1
-      continue
-    }
-    if (char === '/' && next === '*') {
-      chars[index] = ' '
-      chars[index + 1] = ' '
-      index += 2
-      while (index < chars.length && !(chars[index] === '*' && chars[index + 1] === '/')) {
-        if (chars[index] !== '\n' && chars[index] !== '\r') chars[index] = ' '
-        index += 1
-      }
-      if (index < chars.length) {
-        chars[index] = ' '
-        chars[index + 1] = ' '
-        index += 1
-      }
-    }
-  }
-  return chars.join('').replace(/,(\s*[}\]])/g, ' $1')
-}
-
-/** Above this many keys the tree starts collapsed — expanding is one click. */
-const LARGE_DOCUMENT_KEYS = 500
-
 /**
- * Table view has no collapsing to fall back on: every key becomes a DOM node the
- * moment the view opens, and the nested renderer recurses once per level. Above
- * this many keys it asks first rather than freezing the pane on a document the
- * user only meant to glance at.
- */
-const LARGE_TABLE_KEYS = LARGE_DOCUMENT_KEYS
-
-/**
- * Nested tables stop nesting here and print the remaining subtree as compact
- * JSON. Two reasons: past ~20 levels each cell is a few pixels wide and unreadable
- * anyway, and a hand-built document can nest deeply enough to overflow the render
- * stack, which takes the whole app down rather than just the pane.
- */
-const MAX_NESTED_TABLE_DEPTH = 20
-
-const VIEW_OPTIONS = [
-  { value: 'source' as const, label: 'Source' },
-  { value: 'tree' as const, label: 'Tree' },
-  { value: 'table' as const, label: 'Table' },
-]
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function sortKeysDeep(data: unknown): unknown {
-  if (Array.isArray(data)) return data.map(sortKeysDeep)
-  if (data !== null && typeof data === 'object') {
-    const sorted: Record<string, unknown> = {}
-    const keys = Object.keys(data as Record<string, unknown>).sort()
-    for (const key of keys) {
-      sorted[key] = sortKeysDeep((data as Record<string, unknown>)[key])
-    }
-    return sorted
-  }
-  return data
-}
-
-function jsonStats(data: unknown): { keys: number; depth: number; size: string } {
-  let keyCount = 0
-  let maxDepth = 0
-
-  function walk(val: unknown, depth: number) {
-    if (depth > maxDepth) maxDepth = depth
-    if (Array.isArray(val)) {
-      for (const item of val) walk(item, depth + 1)
-    } else if (val !== null && typeof val === 'object') {
-      const entries = Object.entries(val as Record<string, unknown>)
-      keyCount += entries.length
-      for (const [, v] of entries) walk(v, depth + 1)
-    }
-  }
-
-  walk(data, 0)
-  const bytes = new Blob([JSON.stringify(data)]).size
-  return { keys: keyCount, depth: maxDepth, size: formatBytes(bytes) }
-}
-
-class JsonScanError {
-  constructor(readonly index: number) {}
-}
-
-const NUMBER_PATTERN = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y
-
-/**
- * Finds the offset of the first character that breaks the document.
+ * Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable.
  *
- * V8 puts `position N` in the message; JavaScriptCore — the engine behind
- * WKWebView, i.e. the one this app actually ships on — says only
- * `JSON Parse error: Unexpected EOF`. Relying on the message means the whole
- * "jump to the error" feature is dead in the release build, so scan the source
- * ourselves. Only ever runs on documents `JSON.parse` already rejected.
+ * Throws on an unterminated block comment rather than blanking the rest of the file: treating
+ * `{"ok":true} /* never closes` as valid would let Format or Minify silently discard it.
  */
-function scanJsonErrorIndex(source: string): number | null {
-  let i = 0
-
-  // A declaration, not a `const` arrow: only the former lets control-flow
-  // analysis treat `fail()` as terminating.
-  function fail(): never {
-    throw new JsonScanError(Math.min(i, Math.max(source.length - 1, 0)))
-  }
-
-  function skipWhitespace() {
-    while (i < source.length) {
-      const c = source[i]
-      if (c === ' ' || c === '\t' || c === '\n' || c === '\r') i++
-      else break
-    }
-  }
-
-  function scanString() {
-    i++ // opening quote
-    while (i < source.length) {
-      const c = source[i]
-      if (c === undefined) break
-      if (c === '"') {
-        i++
-        return
-      }
-      if (c === '\\') {
-        const escape = source[i + 1]
-        if (escape === undefined) fail()
-        if (escape === 'u') {
-          if (!/^[0-9a-fA-F]{4}$/.test(source.slice(i + 2, i + 6))) fail()
-          i += 6
-          continue
-        }
-        if (!'"\\/bfnrt'.includes(escape)) fail()
-        i += 2
-        continue
-      }
-      if (c < ' ') fail() // raw control characters must be escaped
-      i++
-    }
-    fail() // unterminated
-  }
-
-  function scanValue() {
-    skipWhitespace()
-    if (i >= source.length) fail()
-    const c = source[i]
-    if (c === '{') return scanObject()
-    if (c === '[') return scanArray()
-    if (c === '"') return scanString()
-    if (source.startsWith('true', i)) return void (i += 4)
-    if (source.startsWith('false', i)) return void (i += 5)
-    if (source.startsWith('null', i)) return void (i += 4)
-    NUMBER_PATTERN.lastIndex = i
-    const number = NUMBER_PATTERN.exec(source)
-    if (!number) fail()
-    i += number[0].length
-  }
-
-  function scanObject() {
-    i++ // {
-    skipWhitespace()
-    if (source[i] === '}') {
-      i++
-      return
-    }
-    for (;;) {
-      skipWhitespace()
-      if (source[i] !== '"') fail()
-      scanString()
-      skipWhitespace()
-      if (source[i] !== ':') fail()
-      i++
-      scanValue()
-      skipWhitespace()
-      if (source[i] === ',') {
-        i++
-        continue
-      }
-      if (source[i] === '}') {
-        i++
-        return
-      }
-      fail()
-    }
-  }
-
-  function scanArray() {
-    i++ // [
-    skipWhitespace()
-    if (source[i] === ']') {
-      i++
-      return
-    }
-    for (;;) {
-      scanValue()
-      skipWhitespace()
-      if (source[i] === ',') {
-        i++
-        continue
-      }
-      if (source[i] === ']') {
-        i++
-        return
-      }
-      fail()
-    }
-  }
-
-  try {
-    scanValue()
-    skipWhitespace()
-    if (i < source.length) fail() // trailing junk
-    return null
-  } catch (e) {
-    // A RangeError from a pathologically nested document lands here too: no
-    // location is better than a wrong one.
-    return e instanceof JsonScanError ? e.index : null
-  }
-}
-
-/**
- * `JSON.parse` reports a character offset at best, which is useless against a
- * 2000-line document. Translate whatever the engine gives us — or a scan of the
- * source when it gives us nothing — into the line/column the editor can jump to.
- */
-export function locateJsonError(
-  message: string,
-  source: string
-): { line: number; column: number } | null {
-  const lineColumn = /line (\d+) column (\d+)/i.exec(message)
-  if (lineColumn?.[1] && lineColumn[2]) {
-    return { line: Number(lineColumn[1]), column: Number(lineColumn[2]) }
-  }
-  const position = /position (\d+)/.exec(message)
-  const index = position?.[1] ? Number(position[1]) : scanJsonErrorIndex(source)
-  if (index === null) return null
-  const clamped = Math.min(index, source.length)
-  const before = source.slice(0, clamped)
-  return { line: before.split('\n').length, column: clamped - before.lastIndexOf('\n') }
-}
-
-function isJsonRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-export function isTabularJsonArray(data: unknown): data is Record<string, unknown>[] {
-  return Array.isArray(data) && data.every(isJsonRecord)
-}
-
-/** Column order is first-seen across every row, so sparse records still line up. */
-function unionKeys(rows: Record<string, unknown>[]): string[] {
-  const keys = new Set<string>()
-  for (const row of rows) {
-    for (const key of Object.keys(row)) keys.add(key)
-  }
-  return Array.from(keys)
-}
-
-function toText(value: unknown): string {
-  return typeof value === 'object' && value !== null
-    ? JSON.stringify(value, null, 2)
-    : String(value ?? (value === null ? 'null' : ''))
-}
-
-type ParseResult =
-  | { status: 'empty' }
-  | { status: 'valid'; data: unknown }
-  | { status: 'invalid'; message: string; location: { line: number; column: number } | null }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export default function JsonTools() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
@@ -407,6 +125,9 @@ export default function JsonTools() {
       }
     } catch (e) {
       const message = (e as Error).message
+      if (e instanceof JsoncSyntaxError) {
+        return { status: 'invalid', message, location: offsetToLineColumn(input, e.index) }
+      }
       return { status: 'invalid', message, location: locateJsonError(message, input) }
     }
   }, [input, state.allowComments])
@@ -479,7 +200,7 @@ export default function JsonTools() {
   const handleSortKeys = useCallback(() => {
     if (!isValid) return
     setUndoBuffer({ input, label: 'Sort keys' })
-    const output = JSON.stringify(sortKeysDeep(data), null, indent)
+    const output = JSON.stringify(sortKeysDeepBounded(data), null, indent)
     updateState({ input: output })
     setError(null)
     setLastAction('Keys sorted', 'success')
@@ -494,41 +215,13 @@ export default function JsonTools() {
     setLastAction(`Undid ${undoBuffer.label.toLowerCase()}`, 'info')
   }, [setLastAction, undoBuffer, updateState])
 
-  const handleSaveAs = useCallback(async () => {
-    try {
-      const path = await saveFileDialog(inputRef.current, state.fileName ?? 'data.json')
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path) })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.fileName, setLastAction, updateState])
-
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, inputRef.current)
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
+  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
+    getContent: () => inputRef.current,
+    filePath: state.filePath ?? null,
+    fileName: state.fileName ?? null,
+    defaultFileName: 'data.json',
+    onSaved: updateState,
+  })
 
   // The parse error knows where it is; without this the user has to count
   // characters to find `position 428`.
@@ -553,13 +246,7 @@ export default function JsonTools() {
       setError(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
-    if (action.type === 'save-file') {
-      if (!inputRef.current.trim()) {
-        setLastAction('Nothing to save yet', 'info')
-        return
-      }
-      void handleSave()
-    }
+    if (action.type === 'save-file') void handleSave()
   })
 
   useKeyboardShortcut(
@@ -577,7 +264,9 @@ export default function JsonTools() {
           ? `Invalid JSON — line ${parsed.location.line}, column ${parsed.location.column}`
           : 'Invalid JSON'
         : stats
-          ? `Valid JSON · ${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
+          ? // A truncated walk means the counts are lower bounds — say so rather than
+            // presenting a partial traversal as the document's real shape.
+            `Valid JSON · ${stats.truncated ? 'over ' : ''}${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth}${stats.truncated ? '+' : ''} · ${stats.size}`
           : 'Valid JSON'
 
   // Lifted out of the JSX below because the source pane appears in two shapes — alone when the
@@ -860,631 +549,5 @@ export default function JsonTools() {
         </SplitPane>
       )}
     </ToolLayout>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Inspector (tree / table)
-// ---------------------------------------------------------------------------
-
-function InspectorPane({
-  view,
-  parsed,
-  keyCount,
-  data,
-  onCopy,
-  highlightedPath,
-}: {
-  view: Exclude<JsonView, 'source'>
-  parsed: ParseResult
-  keyCount: number
-  data: unknown
-  onCopy: CopyToClipboard
-  highlightedPath?: string
-}) {
-  // A 5000-key document rendered fully expanded janks the pane on open, so the
-  // default follows the document size until the user overrides it.
-  const [expandAll, setExpandAll] = useState<boolean | null>(null)
-  const [treeKey, setTreeKey] = useState(0)
-  const autoExpanded = keyCount <= LARGE_DOCUMENT_KEYS
-  const expanded = expandAll ?? autoExpanded
-
-  // Deliberately not reset when the document changes: the key count moves on every
-  // keystroke, so re-asking on each edit would put the prompt back in the way of
-  // someone who has already said they want to see this document.
-  const [tableConfirmed, setTableConfirmed] = useState(false)
-  const tableTooLarge = keyCount > LARGE_TABLE_KEYS && !tableConfirmed
-
-  const setExpansion = (next: boolean) => {
-    setExpandAll(next)
-    setTreeKey((k) => k + 1)
-  }
-
-  const tabular = isTabularJsonArray(data)
-
-  return (
-    <section
-      aria-label={view === 'tree' ? 'Tree view' : 'Table view'}
-      /* SplitPane owns the divider and the stacked border, so the pane itself carries neither. */
-      className="flex min-h-0 min-w-0 flex-1 flex-col"
-    >
-      <PaneHeader
-        title={view === 'tree' ? 'Tree' : 'Table'}
-        actions={
-          <>
-            {view === 'tree' && parsed.status === 'valid' && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => setExpansion(true)}
-                  className="gap-1"
-                  title="Expand every node"
-                >
-                  <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
-                  Expand all
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => setExpansion(false)}
-                  className="gap-1"
-                  title="Collapse every node"
-                >
-                  <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
-                  Collapse all
-                </Button>
-                {expandAll === null && !autoExpanded && (
-                  <span className="text-2xs text-[var(--color-text-muted)]">
-                    Collapsed — {keyCount} keys
-                  </span>
-                )}
-              </>
-            )}
-            {view === 'table' && parsed.status === 'valid' && tableSummary(data) && (
-              <span className="text-2xs text-[var(--color-text-muted)]">{tableSummary(data)}</span>
-            )}
-          </>
-        }
-      />
-
-      <div className="min-h-0 flex-1 overflow-auto">
-        {parsed.status === 'empty' && (
-          <EmptyState
-            size="sm"
-            title="Nothing to inspect"
-            description="Type or open JSON in the source pane."
-          />
-        )}
-        {parsed.status === 'invalid' && (
-          <EmptyState
-            size="sm"
-            icon={WarningCircleIcon}
-            title="Invalid JSON"
-            description={parsed.message}
-          />
-        )}
-        {parsed.status === 'valid' &&
-          (view === 'tree' ? (
-            <InspectorTree
-              key={treeKey}
-              data={data}
-              defaultExpanded={expanded}
-              filterable
-              {...(highlightedPath === undefined ? {} : { highlightedPath })}
-            />
-          ) : tableTooLarge ? (
-            // The tree can open collapsed; a table cannot, so this is the equivalent
-            // brake — every key would become a DOM node the moment the view opens.
-            <EmptyState
-              size="sm"
-              icon={WarningCircleIcon}
-              title="Large document"
-              description={`${keyCount} keys will all render at once. Tree view opens this instantly.`}
-              action={
-                <Button variant="secondary" size="sm" onClick={() => setTableConfirmed(true)}>
-                  Render anyway
-                </Button>
-              }
-            />
-          ) : tabular ? (
-            <JsonTable data={data} onCopy={onCopy} />
-          ) : (
-            // Anything that is not a list of records still has a table shape:
-            // objects become key/value rows and arrays become indexed rows,
-            // nested the whole way down.
-            <div className="p-3">
-              <NestedJsonValue value={data} />
-            </div>
-          ))}
-      </div>
-    </section>
-  )
-}
-
-function TreeValueButton({
-  children,
-  className,
-  onClick,
-  label,
-}: {
-  children: ReactNode
-  className: string
-  onClick: () => void
-  label: string
-}) {
-  return (
-    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title="Copy value"
-      className={`cursor-pointer rounded hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${className}`}
-    >
-      {children}
-    </button>
-  )
-}
-
-export function JsonTree({
-  data,
-  path,
-  defaultExpanded = true,
-}: {
-  data: unknown
-  path: string
-  defaultExpanded?: boolean
-}) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-  const copy = useCopyToClipboard()
-
-  const copyPath = useCallback(
-    () => void copy(path, { success: `Copied path ${path}` }),
-    [copy, path]
-  )
-  const copyValue = useCallback(
-    (val: unknown) => void copy(toText(val), { success: 'Copied value' }),
-    [copy]
-  )
-
-  if (data === null)
-    return (
-      <TreeValueButton
-        className="text-[var(--color-text-muted)]"
-        onClick={() => copyValue(null)}
-        label="Copy value null"
-      >
-        null
-      </TreeValueButton>
-    )
-  if (typeof data === 'boolean')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-warning)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${String(data)}`}
-      >
-        {String(data)}
-      </TreeValueButton>
-    )
-  if (typeof data === 'number')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-accent)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${data}`}
-      >
-        {data}
-      </TreeValueButton>
-    )
-  if (typeof data === 'string')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-success)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${data}`}
-      >
-        &quot;{data}&quot;
-      </TreeValueButton>
-    )
-
-  if (typeof data !== 'object') return <span>{String(data)}</span>
-
-  const isArray = Array.isArray(data)
-  const entries = isArray
-    ? (data as unknown[]).map((value, i) => [String(i), value] as const)
-    : Object.entries(data as Record<string, unknown>)
-  const hasChildren = entries.length > 0
-
-  return (
-    <div className="ml-4">
-      <div className="flex items-center gap-1">
-        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
-            ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
-        <button
-          type="button"
-          onClick={() => hasChildren && setExpanded(!expanded)}
-          aria-expanded={hasChildren ? expanded : undefined}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${path}`}
-          disabled={!hasChildren}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-        >
-          {hasChildren ? (expanded ? '▼' : '▶') : '•'}
-        </button>
-        {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
-            rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
-        <button
-          type="button"
-          className="text-xs text-[var(--color-text-muted)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-          onClick={copyPath}
-          aria-label={`Copy path ${path}`}
-          title="Copy path"
-        >
-          {isArray ? `[${entries.length}]` : `{${entries.length}}`}
-        </button>
-      </div>
-      {expanded &&
-        entries.map(([key, value]) => (
-          <div key={key} className="ml-4">
-            {isArray ? (
-              <span className="text-[var(--color-text-muted)]">{key}: </span>
-            ) : (
-              <>
-                <span className="text-[var(--color-accent)]">&quot;{key}&quot;</span>
-                <span className="text-[var(--color-text-muted)]">: </span>
-              </>
-            )}
-            <JsonTree
-              data={value}
-              path={isArray ? `${path}[${key}]` : `${path}.${key}`}
-              defaultExpanded={defaultExpanded}
-            />
-          </div>
-        ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Table View
-// ---------------------------------------------------------------------------
-
-type SortState = { column: string; direction: 'asc' | 'desc' } | null
-
-function compareValues(a: unknown, b: unknown): number {
-  if (a === b) return 0
-  if (a === undefined || a === null) return 1
-  if (b === undefined || b === null) return -1
-  if (typeof a === 'number' && typeof b === 'number') return a - b
-  return toText(a).localeCompare(toText(b), undefined, { numeric: true })
-}
-
-function SortIndicator({ direction }: { direction: 'asc' | 'desc' | null }) {
-  const Icon =
-    direction === 'asc' ? CaretUpIcon : direction === 'desc' ? CaretDownIcon : ArrowsDownUpIcon
-  return <Icon size={12} aria-hidden="true" className="text-[var(--color-text-muted)]" />
-}
-
-export function JsonTable({
-  data,
-  onCopy,
-}: {
-  data: Record<string, unknown>[]
-  onCopy: CopyToClipboard
-}) {
-  const [sort, setSort] = useState<SortState>(null)
-  // Roving cell cursor: the old table copied on click only, which left the
-  // whole grid unreachable from the keyboard.
-  const [cursor, setCursor] = useState({ row: 0, column: 0 })
-  const cellRefs = useRef(new Map<string, HTMLTableCellElement>())
-  const focusPending = useRef(false)
-
-  const columns = useMemo(() => unionKeys(data), [data])
-
-  const rows = useMemo(() => {
-    if (!sort) return data
-    const sorted = [...data].sort((a, b) => compareValues(a[sort.column], b[sort.column]))
-    return sort.direction === 'asc' ? sorted : sorted.reverse()
-  }, [data, sort])
-
-  // Sorting or a shrinking document can strand the cursor past the last row;
-  // without clamping, the grid would have no cell in the tab order at all.
-  const safeCursor = {
-    row: Math.min(cursor.row, Math.max(rows.length - 1, 0)),
-    column: Math.min(cursor.column, Math.max(columns.length - 1, 0)),
-  }
-
-  useEffect(() => {
-    if (!focusPending.current) return
-    focusPending.current = false
-    cellRefs.current.get(`${cursor.row}:${cursor.column}`)?.focus()
-  }, [cursor])
-
-  const move = (rowDelta: number, columnDelta: number) => {
-    focusPending.current = true
-    setCursor(() => ({
-      row: Math.min(Math.max(safeCursor.row + rowDelta, 0), rows.length - 1),
-      column: Math.min(Math.max(safeCursor.column + columnDelta, 0), columns.length - 1),
-    }))
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTableSectionElement>) => {
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault()
-        move(1, 0)
-        break
-      case 'ArrowUp':
-        event.preventDefault()
-        move(-1, 0)
-        break
-      case 'ArrowRight':
-        event.preventDefault()
-        move(0, 1)
-        break
-      case 'ArrowLeft':
-        event.preventDefault()
-        move(0, -1)
-        break
-      case 'Home':
-        event.preventDefault()
-        focusPending.current = true
-        setCursor((c) => ({ ...c, column: 0 }))
-        break
-      case 'End':
-        event.preventDefault()
-        focusPending.current = true
-        setCursor((c) => ({ ...c, column: columns.length - 1 }))
-        break
-      case 'Enter':
-      case ' ': {
-        event.preventDefault()
-        const column = columns[safeCursor.column]
-        const row = rows[safeCursor.row]
-        if (column && row) void onCopy(toText(row[column]), { success: `Copied ${column}` })
-        break
-      }
-      default:
-        break
-    }
-  }
-
-  if (data.length === 0)
-    return <EmptyState size="sm" title="Empty array" description="No rows to show." />
-
-  if (columns.length === 0)
-    return (
-      <EmptyState size="sm" title="No columns" description="Every object in this array is empty." />
-    )
-
-  return (
-    <table className="w-full border-collapse text-xs">
-      <caption className="sr-only">
-        {rows.length} rows by {columns.length} columns. Use the arrow keys to move between cells and
-        Enter to copy the focused cell.
-      </caption>
-      <thead className="sticky top-0 z-10">
-        <tr>
-          {columns.map((col) => {
-            const active = sort?.column === col
-            return (
-              <th
-                key={col}
-                scope="col"
-                aria-sort={
-                  active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
-                }
-                className="border border-[var(--color-border)] bg-[var(--color-surface)] p-0 text-left"
-              >
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="w-full justify-start gap-1 rounded-none font-mono font-bold text-[var(--color-accent)]"
-                  onClick={() =>
-                    setSort((current) =>
-                      current?.column === col && current.direction === 'asc'
-                        ? { column: col, direction: 'desc' }
-                        : { column: col, direction: 'asc' }
-                    )
-                  }
-                  title={`Sort by ${col}`}
-                >
-                  {col}
-                  <SortIndicator direction={active ? sort.direction : null} />
-                </Button>
-              </th>
-            )
-          })}
-        </tr>
-      </thead>
-      <tbody onKeyDown={handleKeyDown}>
-        {rows.map((row, rowIndex) => (
-          <tr key={rowIndex} className="hover:bg-[var(--color-surface-hover)]">
-            {columns.map((col, columnIndex) => {
-              const value = row[col]
-              const isCursor = safeCursor.row === rowIndex && safeCursor.column === columnIndex
-              return (
-                <td
-                  key={col}
-                  ref={(el) => {
-                    const id = `${rowIndex}:${columnIndex}`
-                    if (el) cellRefs.current.set(id, el)
-                    else cellRefs.current.delete(id)
-                  }}
-                  tabIndex={isCursor ? 0 : -1}
-                  onFocus={() => setCursor({ row: rowIndex, column: columnIndex })}
-                  onClick={() => void onCopy(toText(value), { success: `Copied ${col}` })}
-                  title="Copy cell"
-                  className="cursor-pointer border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)] hover:bg-[var(--color-surface)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-                >
-                  {typeof value === 'object' && value !== null
-                    ? JSON.stringify(value)
-                    : String(value ?? '')}
-                </td>
-              )
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Nested Table View
-//
-// A document that is not a list of records is still tabular: an object is a
-// key/value table and an array is an indexed one, with every value recursing.
-// The flat grid above stays in charge of record arrays because it owns the
-// sorting and the roving cell cursor, neither of which nests.
-// ---------------------------------------------------------------------------
-
-const NESTED_TABLE_CLASS = 'w-full border-collapse text-xs font-mono'
-const NESTED_CELL_CLASS = 'border border-[var(--color-border)] px-2 py-1 align-top'
-const NESTED_HEADER_CLASS = `${NESTED_CELL_CLASS} bg-[var(--color-surface)] text-left font-bold whitespace-nowrap text-[var(--color-accent)]`
-
-function tableSummary(data: unknown): string | null {
-  if (Array.isArray(data)) return `${data.length} row${data.length === 1 ? '' : 's'}`
-  if (isJsonRecord(data)) {
-    const count = Object.keys(data).length
-    return `${count} field${count === 1 ? '' : 's'}`
-  }
-  return null
-}
-
-function JsonLeaf({ value }: { value: unknown }) {
-  const copy = useCopyToClipboard()
-  const text = toText(value)
-  const className =
-    value === null
-      ? 'text-[var(--color-text-muted)]'
-      : typeof value === 'boolean'
-        ? 'text-[var(--color-warning)]'
-        : typeof value === 'number'
-          ? 'text-[var(--color-accent)]'
-          : 'text-[var(--color-success)]'
-
-  return (
-    <TreeValueButton
-      className={className}
-      onClick={() => void copy(text, { success: 'Copied value' })}
-      label={`Copy value ${text}`}
-    >
-      {/* An empty string would otherwise render as a cell with no target to click. */}
-      {text === '' ? '""' : text}
-    </TreeValueButton>
-  )
-}
-
-function EmptyContainer({ children }: { children: string }) {
-  return <span className="text-[var(--color-text-muted)]">{children}</span>
-}
-
-/** The tail of a subtree too deep to keep tabulating, still copyable in full. */
-function DeepValue({ value }: { value: unknown }) {
-  const copy = useCopyToClipboard()
-  const text = JSON.stringify(value)
-
-  return (
-    <TreeValueButton
-      className="text-[var(--color-text-muted)]"
-      onClick={() => void copy(text, { success: 'Copied value' })}
-      label={`Copy value ${text}`}
-    >
-      {text}
-    </TreeValueButton>
-  )
-}
-
-function NestedJsonValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
-  if (value === null || typeof value !== 'object') return <JsonLeaf value={value} />
-  if (depth >= MAX_NESTED_TABLE_DEPTH) return <DeepValue value={value} />
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return <EmptyContainer>[]</EmptyContainer>
-    return isTabularJsonArray(value) && unionKeys(value).length > 0 ? (
-      <RecordArrayTable rows={value} depth={depth} />
-    ) : (
-      <IndexedArrayTable items={value} depth={depth} />
-    )
-  }
-
-  const entries = Object.entries(value)
-  if (entries.length === 0) return <EmptyContainer>{'{}'}</EmptyContainer>
-
-  return (
-    <table className={NESTED_TABLE_CLASS}>
-      <tbody>
-        {entries.map(([key, child]) => (
-          <tr key={key}>
-            <th scope="row" className={NESTED_HEADER_CLASS}>
-              {key}
-            </th>
-            <td className={NESTED_CELL_CLASS}>
-              <NestedJsonValue value={child} depth={depth + 1} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-function RecordArrayTable({ rows, depth }: { rows: Record<string, unknown>[]; depth: number }) {
-  const columns = unionKeys(rows)
-  return (
-    <table className={NESTED_TABLE_CLASS}>
-      <thead>
-        <tr>
-          <th scope="col" className={NESTED_HEADER_CLASS}>
-            #
-          </th>
-          {columns.map((col) => (
-            <th key={col} scope="col" className={NESTED_HEADER_CLASS}>
-              {col}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, index) => (
-          <tr key={index}>
-            <th scope="row" className={NESTED_HEADER_CLASS}>
-              {index}
-            </th>
-            {columns.map((col) => (
-              <td key={col} className={NESTED_CELL_CLASS}>
-                {/* A key absent from this record is not the same as one holding null. */}
-                {col in row ? (
-                  <NestedJsonValue value={row[col]} depth={depth + 1} />
-                ) : (
-                  <EmptyContainer>—</EmptyContainer>
-                )}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-function IndexedArrayTable({ items, depth }: { items: unknown[]; depth: number }) {
-  return (
-    <table className={NESTED_TABLE_CLASS}>
-      <tbody>
-        {items.map((item, index) => (
-          <tr key={index}>
-            <th scope="row" className={NESTED_HEADER_CLASS}>
-              {index}
-            </th>
-            <td className={NESTED_CELL_CLASS}>
-              <NestedJsonValue value={item} depth={depth + 1} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }

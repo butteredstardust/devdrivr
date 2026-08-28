@@ -169,18 +169,30 @@ export async function verifyJwtSignature({
     }
   }
 
-  if (!secret && !publicKey) {
-    return isHmacAlg(alg)
-      ? { status: 'unchecked', detail: 'Enter the shared secret to verify this signature.' }
-      : {
-          status: 'unchecked',
-          detail: `Signature not verified${alg ? ` — ${alg} needs a public key, not a shared secret` : ''}.`,
-        }
-  }
-
   const hash = typeof alg === 'string' ? HMAC_HASHES[alg] : undefined
   const asymmetric = typeof alg === 'string' ? ASYMMETRIC_ALGORITHMS[alg] : undefined
+
+  // Prerequisites are per algorithm family. Both fields survive a change of token, so credentials
+  // left behind by the other family must not be mistaken for something worth verifying against:
+  // an HS token with only a stale public key present would otherwise be checked with an empty
+  // HMAC key and reported Invalid.
+  if (hash && !secret) {
+    return { status: 'unchecked', detail: 'Enter the shared secret to verify this signature.' }
+  }
+  if (asymmetric && !publicKey) {
+    return {
+      status: 'unchecked',
+      detail: `Signature not verified — ${alg} needs a public key, not a shared secret.`,
+    }
+  }
+
   if (!hash && !asymmetric) {
+    if (!secret && !publicKey) {
+      return {
+        status: 'unchecked',
+        detail: `Signature not verified${alg ? ` — ${alg} needs a public key, not a shared secret` : ''}.`,
+      }
+    }
     return {
       status: 'unsupported',
       detail: `Cannot verify ${alg ?? 'a token with no alg'} here — supply a supported public key or HMAC secret.`,

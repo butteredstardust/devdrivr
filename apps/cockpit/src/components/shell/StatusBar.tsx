@@ -45,7 +45,6 @@ export function StatusBar() {
   const theme = useSettingsStore((s) => s.theme)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)
   const updateSetting = useSettingsStore((s) => s.update)
-  const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const historyCount = useHistoryStore((s) => s.entries.length)
 
   function openHistoryDrawer() {
@@ -100,11 +99,6 @@ export function StatusBar() {
           >
             {historyCount} runs
           </button>
-        )}
-        {editorKeybindingMode !== 'standard' && (
-          <span className="uppercase" title="Editor keybinding mode">
-            {editorKeybindingMode}
-          </span>
         )}
         <button
           type="button"

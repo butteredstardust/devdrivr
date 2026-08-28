@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -21,7 +22,6 @@ import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useApiStore } from '@/stores/api.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { EnvironmentModal } from './components/EnvironmentModal'
@@ -42,16 +42,9 @@ import {
   parseFormBody,
   serializeFormBody,
   toCurl,
-  URLENCODED_MODE,
   type FormField,
 } from '@/tools/api-client/form-body'
-import type {
-  ApiImportResult,
-  ApiRequest,
-  ApiRequestAuth,
-  ApiHeader,
-  HistoryEntry,
-} from '@/types/models'
+import type { ApiImportResult, ApiRequest, ApiHeader, HistoryEntry } from '@/types/models'
 import {
   BracketsCurlyIcon,
   CodeIcon,
@@ -72,243 +65,40 @@ import {
   StopIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import {
+  METHODS,
+  BODY_METHODS,
+  DEFAULT_REQUEST_NAME,
+  DEFAULT_TIMEOUT_MS,
+  MAX_DISPLAY_BYTES,
+  MAX_RESPONSE_BYTES,
+  MAX_HISTORY_RESPONSE_CHARS,
+  removeIndexedFile,
+  RESPONSE_TABS,
+  BODY_MODES,
+  parseQueryParams,
+  buildUrlWithParams,
+  detectResponseLanguage,
+  interpolate,
+  unresolvedVariableNames,
+  responseMime,
+  isTextResponse,
+  base64EncodeUtf8,
+  createDefaultDraft,
+  isDraftDirty,
+  applyMethodDefaults,
+  type Param,
+  type RequestDraft,
+  type ApiClientState,
+  type ResponseData,
+  type CollectionRun,
+  type EditorInstance,
+  type PendingNavigation,
+} from '@/tools/api-client/request-model'
 import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
-
-const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
-const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
-const DEFAULT_REQUEST_NAME = 'Untitled Request'
-const DEFAULT_TIMEOUT_MS = 30_000
-const MAX_DISPLAY_BYTES = 1_000_000
-const MAX_HISTORY_RESPONSE_CHARS = 100_000
-
-type Param = { key: string; value: string }
-
-function removeIndexedFile(
-  files: Record<number, File>,
-  removedIndex: number
-): Record<number, File> {
-  const next: Record<number, File> = {}
-  for (const [rawIndex, file] of Object.entries(files)) {
-    const current = Number(rawIndex)
-    if (current < removedIndex) next[current] = file
-    if (current > removedIndex) next[current - 1] = file
-  }
-  return next
-}
-
-type RequestDraft = {
-  name: string
-  method: string
-  url: string
-  headers: ApiHeader[]
-  body: string
-  bodyMode: string
-  auth: ApiRequestAuth
-}
-
-type ApiClientState = {
-  activeRequestId: string | null
-  /** Library sidebar visibility — persisted so narrow windows stay where the user left them. */
-  libraryOpen: boolean
-  timeoutMs: number
-  // We keep a working draft independent of the saved request
-  draft: RequestDraft
-}
-
-type ResponseData = {
-  status: number
-  statusText: string
-  headers: Record<string, string>
-  body: string
-  blob: Blob
-  mimeType: string
-  isBinary: boolean
-  displayTruncated: boolean
-  time: number
-  size: number
-}
-
-type CollectionRun = {
-  collectionId: string
-  running: boolean
-  results: Record<string, { status: 'running' | 'passed' | 'failed'; detail: string }>
-}
-
-type EditorInstance = Parameters<OnMount>[0]
-
-/** A navigation that would discard unsaved edits, held until the user confirms. */
-type PendingNavigation = { description: string; perform: () => void }
-
-const RESPONSE_TABS = [
-  { id: 'body', label: 'Body' },
-  { id: 'headers', label: 'Headers' },
-]
-
-const BODY_MODES = [
-  { id: 'json', label: 'JSON' },
-  { id: 'text', label: 'Text' },
-  { id: URLENCODED_MODE, label: 'Form URL-encoded' },
-  { id: FORMDATA_MODE, label: 'Multipart' },
-  { id: 'none', label: 'None' },
-]
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function splitUrlParts(url: string): { base: string; query: string; hash: string } {
-  const hashIndex = url.indexOf('#')
-  const withoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url
-  const hash = hashIndex >= 0 ? url.slice(hashIndex) : ''
-  const queryIndex = withoutHash.indexOf('?')
-
-  return {
-    base: queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash,
-    query: queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : '',
-    hash,
-  }
-}
-
-export function parseQueryParams(url: string): Param[] {
-  const { query } = splitUrlParts(url)
-  const params: Param[] = []
-  new URLSearchParams(query).forEach((value, key) => {
-    params.push({ key, value })
-  })
-  return params
-}
-
-export function buildUrlWithParams(url: string, params: Param[]): string {
-  const { base, hash } = splitUrlParts(url)
-  const search = new URLSearchParams()
-  params
-    .filter((p) => p.key.trim())
-    .forEach((p) => {
-      search.append(p.key, p.value)
-    })
-
-  const query = search.toString()
-  return `${base}${query ? `?${query}` : ''}${hash}`
-}
-
-function detectResponseLanguage(headers: Record<string, string>): string {
-  const ct = (headers['content-type'] ?? '').toLowerCase()
-  if (ct.includes('json')) return 'json'
-  if (ct.includes('html')) return 'html'
-  if (ct.includes('xml')) return 'xml'
-  if (ct.includes('css')) return 'css'
-  if (ct.includes('javascript')) return 'javascript'
-  return 'plaintext'
-}
-
-function interpolate(text: string, vars: Record<string, string>): string {
-  if (!text) return text
-  return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-    return vars[key.trim()] ?? match
-  })
-}
-
-export function unresolvedVariableNames(values: string[], vars: Record<string, string>): string[] {
-  const names = new Set<string>()
-  for (const value of values) {
-    for (const match of value.matchAll(/\{\{([^}]+)\}\}/g)) {
-      const name = match[1]?.trim()
-      if (name && vars[name] === undefined) names.add(name)
-    }
-  }
-  return [...names].sort()
-}
-
-function responseMime(headers: Record<string, string>): string {
-  const contentType = Object.entries(headers).find(
-    ([key]) => key.toLowerCase() === 'content-type'
-  )?.[1]
-  return contentType?.split(';')[0]?.trim() || 'application/octet-stream'
-}
-
-function isTextResponse(mimeType: string): boolean {
-  return mimeType.startsWith('text/') || /(?:json|xml|javascript|yaml|graphql|svg)/i.test(mimeType)
-}
-
-function base64EncodeUtf8(text: string): string {
-  const bytes = new TextEncoder().encode(text)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-}
-
-function createDefaultDraft(method = 'GET', patch: Partial<RequestDraft> = {}): RequestDraft {
-  return {
-    name: DEFAULT_REQUEST_NAME,
-    method,
-    url: '',
-    headers: BODY_METHODS.has(method)
-      ? [{ key: 'Content-Type', value: 'application/json', enabled: true }]
-      : [],
-    body: '',
-    bodyMode: BODY_METHODS.has(method) ? 'json' : 'none',
-    auth: { type: 'none' },
-    ...patch,
-  }
-}
-
-/**
- * Structural comparison of the seven fields that make up a request. Used for
- * both "does this draft still match what's saved" and "is this a pristine new
- * draft" — the two questions that decide whether navigating away destroys work.
- */
-export function draftsMatch(a: RequestDraft, b: RequestDraft): boolean {
-  return (
-    a.name === b.name &&
-    a.method === b.method &&
-    a.url === b.url &&
-    a.body === b.body &&
-    a.bodyMode === b.bodyMode &&
-    JSON.stringify(a.auth) === JSON.stringify(b.auth) &&
-    JSON.stringify(a.headers) === JSON.stringify(b.headers)
-  )
-}
-
-export function isDraftDirty(draft: RequestDraft, saved: ApiRequest | undefined): boolean {
-  if (saved) {
-    return !draftsMatch(draft, {
-      name: saved.name,
-      method: saved.method,
-      url: saved.url,
-      headers: saved.headers,
-      body: saved.body,
-      bodyMode: saved.bodyMode,
-      auth: saved.auth,
-    })
-  }
-  // Unsaved draft: only "dirty" once it differs from a pristine draft for its
-  // own method, so simply switching GET → POST never triggers a discard prompt.
-  return !draftsMatch(draft, createDefaultDraft(draft.method))
-}
-
-function applyMethodDefaults(draft: RequestDraft, nextMethod: string): RequestDraft {
-  const nextSupportsBody = BODY_METHODS.has(nextMethod)
-  const currentSupportsBody = BODY_METHODS.has(draft.method)
-
-  if (!nextSupportsBody) {
-    return { ...draft, method: nextMethod, bodyMode: 'none' }
-  }
-
-  if (currentSupportsBody) return { ...draft, method: nextMethod }
-
-  const hasContentType = draft.headers.some((h) => h.key.toLowerCase() === 'content-type')
-  return {
-    ...draft,
-    method: nextMethod,
-    bodyMode: draft.bodyMode === 'none' ? 'json' : draft.bodyMode,
-    headers: hasContentType
-      ? draft.headers
-      : [{ key: 'Content-Type', value: 'application/json', enabled: true }, ...draft.headers],
-  }
-}
 
 /**
  * Request beside response when both are up, request alone when the response pane is hidden.
@@ -738,8 +528,22 @@ export default function ApiClient() {
 
         const res = await tauriFetch(interpolatedUrl, opts)
         const time = Math.round(performance.now() - start)
-        const responseBytes = new Uint8Array(await res.arrayBuffer())
-        const size = responseBytes.byteLength
+
+        // Refuse before reading when the server declares an oversized body — reading first and
+        // capping afterwards is exactly the allocation this limit exists to avoid.
+        const declaredLength = Number(res.headers.get('content-length') ?? Number.NaN)
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+          throw new Error(
+            `Response is ${formatBytes(declaredLength)}, above the ${formatBytes(MAX_RESPONSE_BYTES)} limit. Use a direct download instead.`
+          )
+        }
+
+        const fullBytes = new Uint8Array(await res.arrayBuffer())
+        const size = fullBytes.byteLength
+        const overLimit = size > MAX_RESPONSE_BYTES
+        // A server that under-declared or omitted Content-Length still lands here; keep only the
+        // retained prefix so one bad response cannot pin gigabytes for the rest of the session.
+        const responseBytes = overLimit ? fullBytes.slice(0, MAX_RESPONSE_BYTES) : fullBytes
 
         const resHeaders: Record<string, string> = {}
         res.headers.forEach((value, key) => {
@@ -747,12 +551,12 @@ export default function ApiClient() {
         })
         const mimeType = responseMime(resHeaders)
         const isBinary = !isTextResponse(mimeType)
-        const displayTruncated = !isBinary && size > MAX_DISPLAY_BYTES
+        const displayTruncated = overLimit || (!isBinary && size > MAX_DISPLAY_BYTES)
         const displayBytes = displayTruncated
           ? responseBytes.slice(0, MAX_DISPLAY_BYTES)
           : responseBytes
         const resBody = isBinary ? '' : new TextDecoder().decode(displayBytes)
-        const blob = new Blob([Uint8Array.from(responseBytes)], { type: mimeType })
+        const blob = new Blob([responseBytes], { type: mimeType })
 
         setResponse({
           status: res.status,
@@ -781,7 +585,11 @@ export default function ApiClient() {
           responseStatus: res.status,
           responseStatusText: res.statusText,
         }
-        void addRequestHistory(historyEntry)
+        // Persistence is independent of request success: a locked or full database must not
+        // become an unhandled rejection, and the user should know the request was not recorded.
+        void addRequestHistory(historyEntry).catch(() => {
+          setLastAction('Request sent, but history could not be saved', 'error')
+        })
       } catch (e) {
         if (requestControllerRef.current !== controller) return
         const msg = controller.signal.aborted
@@ -1270,13 +1078,6 @@ export default function ApiClient() {
     }
   })
 
-  useKeyboardShortcut(
-    { key: 'Enter', mod: true },
-    useCallback(() => {
-      void handleSend()
-    }, [handleSend])
-  )
-
   const handleExport = useCallback(async () => {
     const exportCollectionById = new Map(
       collections.map((collection, index) => [
@@ -1363,15 +1164,36 @@ export default function ApiClient() {
       ? `Saved in ${activeCollectionName ?? 'Unassigned'}`
       : 'New request — not saved yet'
 
+  // The layout closes the library itself when there is no room for it beside the request — at the
+  // 800px minimum window with the notes drawer open, keeping both left this toolbar 230px wide and
+  // pushed Send off the edge. Tracking it here keeps the toggle from offering to "hide" a pane
+  // that is already gone.
+  const [libraryCramped, setLibraryCramped] = useState(false)
+  const [showCrampedLibrary, setShowCrampedLibrary] = useState(false)
+  const libraryVisible = state.libraryOpen && (!libraryCramped || showCrampedLibrary)
+
+  const handleLibraryCrampedChange = useCallback((next: boolean) => {
+    setLibraryCramped(next)
+    if (!next) setShowCrampedLibrary(false)
+  }, [])
+
   const toggleLibrary = useCallback(() => {
+    if (libraryCramped) {
+      if (!libraryVisible) updateState({ libraryOpen: true })
+      setShowCrampedLibrary(!libraryVisible)
+      return
+    }
     updateState({ libraryOpen: !state.libraryOpen })
-  }, [state.libraryOpen, updateState])
+  }, [libraryCramped, libraryVisible, state.libraryOpen, updateState])
 
   return (
     <>
       <CollectionsSidebar
         activeRequestId={state.activeRequestId}
         open={state.libraryOpen}
+        onCrampedChange={handleLibraryCrampedChange}
+        showWhenCramped={showCrampedLibrary}
+        onCloseCramped={toggleLibrary}
         onSelect={handleSelectLoadedRequest}
         onLoadFromHistory={handleLoadFromHistory}
         onRunCollection={(collection) => void runCollection(collection)}
@@ -1391,13 +1213,11 @@ export default function ApiClient() {
                   variant="icon"
                   size="sm"
                   onClick={toggleLibrary}
-                  aria-expanded={state.libraryOpen}
-                  aria-label={state.libraryOpen ? 'Hide request library' : 'Show request library'}
-                  title={state.libraryOpen ? 'Hide request library' : 'Show request library'}
+                  aria-expanded={libraryVisible}
+                  aria-label={libraryVisible ? 'Hide request library' : 'Show request library'}
+                  title={libraryVisible ? 'Hide request library' : 'Show request library'}
                   className={
-                    state.libraryOpen
-                      ? 'text-[var(--color-accent)]'
-                      : 'text-[var(--color-text-muted)]'
+                    libraryVisible ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'
                   }
                 >
                   <SidebarIcon size={16} aria-hidden="true" />
@@ -1523,8 +1343,8 @@ export default function ApiClient() {
                     if (e.key === 'Enter') void handleSend()
                   }}
                 />
-                {/* The only optional control on this row — method, URL and Send all have to
-                    stay reachable, so the timeout is what the row sheds when it narrows. */}
+                {/* Method, URL and Send have to stay reachable at any width, so the timeout is
+                    among what the row sheds as it narrows — after the trailing actions below. */}
                 <ToolbarGroup label="Timeout">
                   <Select
                     aria-label="Request timeout"
@@ -1562,26 +1382,33 @@ export default function ApiClient() {
                     Send
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={handleCopyAsCurl}
-                  aria-label="Copy request as cURL"
-                  title="Copy request as cURL"
-                >
-                  <TerminalIcon size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleResponsePane}
-                  aria-expanded={responseVisible}
-                  aria-controls={responsePaneId}
-                >
-                  {responseVisible ? 'Hide Response' : 'Show Response'}
-                </Button>
+                {/* Grouped so the row can shed them. As bare children they were unshrinkable and
+                    uncollapsible: below roughly 900px of workspace they simply ran off the right
+                    edge of the toolbar, since `planCollapse` can only fold whole groups. Last in
+                    the row means first into the overflow menu, which is the right order — method,
+                    URL and Send are the row, these two are conveniences. */}
+                <ToolbarGroup label="Request actions">
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={handleCopyAsCurl}
+                    aria-label="Copy request as cURL"
+                    title="Copy request as cURL"
+                  >
+                    <TerminalIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleResponsePane}
+                    aria-expanded={responseVisible}
+                    aria-controls={responsePaneId}
+                  >
+                    {responseVisible ? 'Hide Response' : 'Show Response'}
+                  </Button>
+                </ToolbarGroup>
               </Toolbar>
             </>
           }

@@ -30,7 +30,13 @@ import type { Note as NoteType, NoteColor } from '@/types/models'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { useShellWidth } from '@/hooks/useShellWidth'
-import { clampNotesDrawerWidth as clampWidth, fitShellPanels } from '@/lib/shell-layout'
+import {
+  clampNotesDrawerWidth as clampWidth,
+  fitShellPanels,
+  MAX_NOTES_DRAWER_WIDTH,
+  MIN_NOTES_DRAWER_WIDTH,
+} from '@/lib/shell-layout'
+import { useEdgeResize } from '@/hooks/useEdgeResize'
 
 const AUTOSAVE_DELAY_MS = 450
 const DRAWER_TABS = [
@@ -388,7 +394,6 @@ export function NotesDrawer() {
   const setPendingSendTo = useUiStore((state) => state.setPendingSendTo)
 
   const [width, setWidth] = useState(() => clampWidth(savedWidth))
-  const [resizing, setResizing] = useState(false)
 
   // `width` is what the user asked for; `renderedWidth` is what the row can spare once the
   // workspace has taken its floor. The drawer is the last panel asked to give ground — the
@@ -412,13 +417,16 @@ export function NotesDrawer() {
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null)
   const [dragOverNote, setDragOverNote] = useState<DragOverNote | null>(null)
   const [fuseVersion, setFuseVersion] = useState(0)
-  const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const fuseRef = useRef<Fuse<NoteType> | null>(null)
   const draggedNoteIdRef = useRef<string | null>(null)
   const noteListRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => setWidth(clampWidth(savedWidth)), [savedWidth])
+
+  // Read at pointer-down only; keeps the gesture from re-subscribing on every pixel of a drag.
+  const widthRef = useRef(width)
+  widthRef.current = width
 
   useEffect(() => {
     if (!drawerOpen) return
@@ -465,38 +473,44 @@ export function NotesDrawer() {
   const editingNote = notes.find((note) => note.id === editingId)
   const canReorderNotes = !search.trim()
 
-  const handleDragStart = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault()
-      dragState.current = { startX: event.clientX, startWidth: width }
-      setResizing(true)
-      const onMove = (moveEvent: MouseEvent) => {
-        if (!dragState.current) return
-        setWidth(
-          clampWidth(dragState.current.startWidth + dragState.current.startX - moveEvent.clientX)
-        )
-      }
-      const onUp = (upEvent: MouseEvent) => {
-        if (!dragState.current) return
-        const final = clampWidth(
-          dragState.current.startWidth + dragState.current.startX - upEvent.clientX
-        )
-        dragState.current = null
-        setResizing(false)
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-        clearTimeout(saveTimer.current)
-        saveTimer.current = setTimeout(() => void updateSetting('notesDrawerWidth', final), 500)
-      }
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
+  const persistWidth = useCallback(
+    (final: number) => {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => void updateSetting('notesDrawerWidth', final), 500)
     },
-    [updateSetting, width]
+    [updateSetting]
   )
+
+  // Keyboard resizing, so the drawer edge isn't pointer-only. The handle is on the drawer's left
+  // edge, so ArrowLeft widens it — the width grows in the direction the key points.
+  const handleResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      const step =
+        event.key === 'ArrowLeft'
+          ? 16
+          : event.key === 'ArrowRight'
+            ? -16
+            : event.key === 'Home'
+              ? MAX_NOTES_DRAWER_WIDTH
+              : event.key === 'End'
+                ? -MAX_NOTES_DRAWER_WIDTH
+                : null
+      if (step === null) return
+      event.preventDefault()
+      const next = clampWidth(widthRef.current + step)
+      setWidth(next)
+      persistWidth(next)
+    },
+    [persistWidth]
+  )
+
+  const { resizing, onPointerDown: handleDragStart } = useEdgeResize({
+    direction: -1,
+    getWidth: () => widthRef.current,
+    clamp: clampWidth,
+    onResize: setWidth,
+    onCommit: persistWidth,
+  })
 
   const handleAddNote = useCallback(async () => {
     try {
@@ -702,12 +716,17 @@ export function NotesDrawer() {
       style={drawerOpen ? { width: renderedWidth } : undefined}
     >
       <div
-        onMouseDown={handleDragStart}
+        onPointerDown={handleDragStart}
+        onKeyDown={handleResizeKeyDown}
         role="separator"
+        tabIndex={0}
         aria-label="Resize notes drawer"
         aria-orientation="vertical"
-        className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60"
-        title="Drag to resize"
+        aria-valuenow={width}
+        aria-valuemin={MIN_NOTES_DRAWER_WIDTH}
+        aria-valuemax={MAX_NOTES_DRAWER_WIDTH}
+        className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 focus-visible:outline-none focus-visible:bg-[var(--color-accent)]/60"
+        title="Drag to resize — arrow keys also work"
       />
 
       {!editingNote && (

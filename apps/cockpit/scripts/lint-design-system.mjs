@@ -88,7 +88,7 @@ export const RULES = [
     // alternative first would report `ease-in` as the match text for `ease-in-out`.
     pattern: /\bduration-\d+\b|(?<!-)\bease-(?:linear|in-out|in|out)\b/g,
     message:
-      'Off-scale duration or easing. Use duration-[var(--duration-fast|panel)] and ease-[var(--ease-out|in-out)] (see DESIGN_SYSTEM.md § Motion).',
+      'Off-scale duration or easing. Use the fast or panel duration token and the out or in-out easing token (see DESIGN_SYSTEM.md § Motion).',
   },
 ]
 

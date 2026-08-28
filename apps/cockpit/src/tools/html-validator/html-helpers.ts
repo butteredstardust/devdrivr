@@ -4,6 +4,8 @@
  * without rendering Monaco.
  */
 
+import { parse } from 'parse5'
+
 // ---------------------------------------------------------------------------
 // Rules
 // ---------------------------------------------------------------------------
@@ -351,64 +353,61 @@ export type HtmlStats = {
   headings: Heading[]
 }
 
-const WRAPPER_TAGS = ['html', 'head', 'body'] as const
+type Parse5Node = {
+  nodeName: string
+  tagName?: string
+  value?: string
+  attrs?: Array<{ name: string; value: string }>
+  childNodes?: Parse5Node[]
+  sourceCodeLocation?: { startLine: number; startCol: number } | null
+}
 
 /**
  * Statistics read off the parsed document rather than off regexes.
  *
- * The old version counted `<tag` matches and tracked depth with a hand-rolled
- * stack, so `<li>` and `<p>` — which close themselves — pushed the reported
- * depth up with every sibling, and headings kept their raw entities (`&amp;`).
- *
- * `DOMParser` supplies `<html>`, `<head>` and `<body>` even for a fragment;
- * those are discounted so pasting a `<div>` does not report three elements
- * nobody wrote.
+ * Two things this must get right. Self-closing tags such as `<li>` and `<p>` need real parse
+ * tree depth, not a hand-rolled stack. And a parser supplies `<html>`, `<head>` and `<body>`
+ * even for a fragment, so those have to be discounted — but only when the *parser* inserted
+ * them. Deciding that with a regex over the source counts tag-like text: a fragment containing
+ * `<script>const x = "<html>";</script>` looks authored and reports phantom elements at the
+ * wrong depth. parse5 omits `sourceCodeLocation` for the nodes it inserted, which is the
+ * question actually being asked.
  */
 export function computeStats(html: string): HtmlStats {
-  // `window.DOMParser` rather than the bare global: the test environment builds
-  // its DOM with jsdom and only exposes the constructor on `window`.
-  const doc = new window.DOMParser().parseFromString(html, 'text/html')
-  const implied = new Set(
-    WRAPPER_TAGS.filter((tag) => !new RegExp(`<${tag}[\\s>]`, 'i').test(html))
-  )
-
-  const all = Array.from(doc.querySelectorAll('*'))
+  const document = parse(html, { sourceCodeLocationInfo: true }) as unknown as Parse5Node
+  let elements = 0
   let depth = 0
   let styleAttributes = 0
-  for (const element of all) {
-    if (element.hasAttribute('style')) styleAttributes += 1
-    let level = 0
-    let node: Element | null = element
-    while (node) {
-      if (!implied.has(node.tagName.toLowerCase() as (typeof WRAPPER_TAGS)[number])) level += 1
-      node = node.parentElement
+  let scripts = 0
+  const headings: Heading[] = []
+
+  const textOf = (node: Parse5Node): string =>
+    node.nodeName === '#text' ? (node.value ?? '') : (node.childNodes ?? []).map(textOf).join('')
+
+  const walk = (node: Parse5Node, parentDepth: number) => {
+    const tag = node.tagName?.toLowerCase()
+    // An element the parser inserted has no source location; it is not part of the document
+    // the user wrote, so it contributes neither to the count nor to the depth.
+    const authored = tag !== undefined && node.sourceCodeLocation != null
+    const currentDepth = authored ? parentDepth + 1 : parentDepth
+    if (authored && tag !== undefined) {
+      elements += 1
+      depth = Math.max(depth, currentDepth)
+      if (node.attrs?.some((attribute) => attribute.name === 'style')) styleAttributes += 1
+      if (tag === 'script') scripts += 1
+      if (/^h[1-6]$/.test(tag)) {
+        headings.push({
+          level: Number(tag.slice(1)),
+          text: textOf(node).replace(/\s+/g, ' ').trim(),
+          line: node.sourceCodeLocation?.startLine ?? 1,
+          column: node.sourceCodeLocation?.startCol ?? 1,
+        })
+      }
     }
-    depth = Math.max(depth, level)
+    for (const child of node.childNodes ?? []) walk(child, currentDepth)
   }
-
-  const headingLocations = Array.from(html.matchAll(/<h[1-6](?:\s[^>]*)?>/gi)).map((match) => {
-    const offset = match.index ?? 0
-    const before = html.slice(0, offset)
-    const line = before.split('\n').length
-    const lastBreak = before.lastIndexOf('\n')
-    return { line, column: offset - lastBreak }
-  })
-  const headings = Array.from(doc.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(
-    (heading, index) => ({
-      level: Number(heading.tagName.slice(1)),
-      text: heading.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-      line: headingLocations[index]?.line ?? 1,
-      column: headingLocations[index]?.column ?? 1,
-    })
-  )
-
-  return {
-    elements: all.length - implied.size,
-    depth,
-    styleAttributes,
-    scripts: doc.querySelectorAll('script').length,
-    headings,
-  }
+  walk(document, 0)
+  return { elements, depth, styleAttributes, scripts, headings }
 }
 
 /**

@@ -29,7 +29,27 @@ export function applyTransforms(
     if (!identifier.test(custom.identifierFrom) || !identifier.test(custom.identifierTo)) {
       throw new Error('Custom codemod names must be valid JavaScript identifiers')
     }
-    // Preserve public/object property names while renaming bindings and
+    if (custom.identifierFrom === custom.identifierTo) {
+      return root.toSource(hasTrailingCommas ? { trailingComma: true } : {})
+    }
+    const replacementExists =
+      root
+        .find(j.Identifier, { name: custom.identifierTo })
+        .filter((path) => {
+          const parent = path.parent.node as { type?: string; computed?: boolean }
+          const position = String(path.name)
+          const isStaticProperty =
+            (position === 'key' || position === 'property') && parent.computed !== true
+          const isExternalName = position === 'imported' || position === 'exported'
+          const isLabel = position === 'label'
+          return !isStaticProperty && !isExternalName && !isLabel
+        })
+        .size() > 0
+    if (replacementExists) {
+      throw new Error(`Cannot rename to "${custom.identifierTo}" because that identifier exists`)
+    }
+    // This is an intentionally global identifier rewrite. Preserve public/object property names
+    // while renaming bindings and
     // references. Shorthand properties must first become `{ old: renamed }`;
     // mutating their shared key/value identifier would silently change data
     // shape as well as the variable.

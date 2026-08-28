@@ -49,6 +49,10 @@ type Props = {
   } | null
   /** Collapsed state. ApiClient's own toolbar owns the toggle, so no toggle is rendered here. */
   open?: boolean
+  /** Forwarded from the layout: the pane has been overridden shut for want of room. */
+  onCrampedChange?: (cramped: boolean) => void
+  showWhenCramped?: boolean
+  onCloseCramped?: () => void
   /** The request/response side. This component renders the shared master–detail shell because
    *  the sidebar heading's one action (new collection) needs sidebar-local state to work. */
   children: ReactNode
@@ -89,6 +93,9 @@ export function CollectionsSidebar({
   onCancelCollection,
   collectionRun,
   open = true,
+  onCrampedChange,
+  showWhenCramped,
+  onCloseCramped,
   children,
 }: Props) {
   const requestRowsId = useId()
@@ -296,6 +303,9 @@ export function CollectionsSidebar({
         title="Requests"
         subtitle={`${requests.length} saved · ${collections.length} collections`}
         sidebarOpen={open}
+        onCrampedChange={onCrampedChange}
+        showSidebarWhenCramped={showWhenCramped}
+        onCloseCrampedSidebar={onCloseCramped}
         sidebarActions={
           <Button
             type="button"

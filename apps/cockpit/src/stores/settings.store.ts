@@ -82,7 +82,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       initPromise = (async () => {
         const saved = await getSetting<Partial<AppSettings>>('appSettings', {})
         const merged = { ...DEFAULT_SETTINGS, ...saved }
-        if (merged.editorKeybindingMode !== 'standard') merged.editorKeybindingMode = 'standard'
+        // Stored-value migration: `vim`/`emacs` were selectable in an earlier build but never
+        // implemented, so anything other than `standard` is a value the app cannot honour.
+        if (merged.editorKeybindingMode !== 'standard') {
+          merged.editorKeybindingMode = 'standard'
+        }
         set({ ...merged, initialized: true })
         applyTheme(merged.theme)
       })().catch((err: unknown) => {

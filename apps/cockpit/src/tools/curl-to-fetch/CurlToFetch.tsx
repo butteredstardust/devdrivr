@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import Editor from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'
@@ -195,6 +195,21 @@ function esc(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
+/**
+ * Emit a body as JavaScript source. Valid JSON objects and arrays become object/array
+ * literals; anything else — including malformed text that merely starts with `{` — is
+ * emitted as a string so the generated program stays syntactically valid.
+ */
+function bodyAsJsonSource(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body)
+    if (parsed !== null && typeof parsed === 'object') return body
+  } catch {
+    // not JSON — fall through to string form
+  }
+  return JSON.stringify(body)
+}
+
 function toFetch(p: ParsedCurl): string {
   const opts: string[] = []
   if (p.method !== 'GET') opts.push(`  method: '${p.method}',`)
@@ -218,7 +233,7 @@ function toAxios(p: ParsedCurl): string {
     for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
-  if (p.body) opts.push(`  data: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
+  if (p.body) opts.push(`  data: ${bodyAsJsonSource(p.body)},`)
   const m = p.method.toLowerCase()
   if (opts.length === 0) return `const { data } = await axios.${m}('${esc(p.url)}')`
   return `const { data } = await axios.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n})`
@@ -232,7 +247,7 @@ function toKy(p: ParsedCurl): string {
     for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
-  if (p.body) opts.push(`  json: ${p.body.startsWith('{') ? p.body : JSON.stringify(p.body)},`)
+  if (p.body) opts.push(`  json: ${bodyAsJsonSource(p.body)},`)
   const m = p.method.toLowerCase()
   if (opts.length === 0) return `const data = await ky.${m}('${esc(p.url)}').json()`
   return `const data = await ky.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n}).json()`
@@ -262,20 +277,20 @@ function toNodeHttp(p: ParsedCurl): string {
     }
   })()
   const mod = urlObj?.protocol === 'https:' ? 'https' : 'http'
-  const lines = [
-    `const ${mod} = require('${mod}')`,
-    ``,
+  const lines = [`const ${mod} = require('${mod}')`, ``]
+  if (p.body) lines.push(`const body = ${JSON.stringify(p.body)}`, ``)
+  lines.push(
     `const options = {`,
     `  hostname: '${esc(urlObj?.hostname ?? 'example.com')}',`,
     `  port: ${urlObj?.port ? urlObj.port : urlObj?.protocol === 'https:' ? 443 : 80},`,
     `  path: '${esc((urlObj?.pathname ?? '/') + (urlObj?.search ?? ''))}',`,
-    `  method: '${p.method}',`,
-  ]
+    `  method: '${p.method}',`
+  )
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0 || p.body) {
     lines.push(`  headers: {`)
     for (const [k, v] of hdr) lines.push(`    '${esc(k)}': '${esc(v)}',`)
-    if (p.body) lines.push(`    'Content-Length': ${p.body.length},`)
+    if (p.body) lines.push(`    'Content-Length': Buffer.byteLength(body, 'utf8'),`)
     lines.push(`  },`)
   }
   lines.push(`}`)
@@ -285,7 +300,7 @@ function toNodeHttp(p: ParsedCurl): string {
   lines.push(`  res.on('data', (chunk) => { data += chunk })`)
   lines.push(`  res.on('end', () => console.log(JSON.parse(data)))`)
   lines.push(`})`)
-  if (p.body) lines.push(`req.write(${JSON.stringify(p.body)})`)
+  if (p.body) lines.push(`req.write(body)`)
   lines.push(`req.end()`)
   return lines.join('\n')
 }

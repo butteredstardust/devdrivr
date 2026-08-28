@@ -94,6 +94,34 @@ describe('SplitPane', () => {
     expect(window.localStorage.getItem('cockpit.split.demo')).toBe('sentinel')
   })
 
+  it('clamps a corrupt persisted ratio before the first render', () => {
+    window.localStorage.setItem('cockpit.split.demo', '2')
+    renderSplit({ defaultRatio: 0.5, minRatio: 0.2, storageKey: 'demo' })
+
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '80')
+  })
+
+  it('falls back to an even split when the persisted ratio is not a number', () => {
+    window.localStorage.setItem('cockpit.split.demo', 'not-a-ratio')
+    renderSplit({ defaultRatio: 0.5, storageKey: 'demo' })
+
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '50')
+  })
+
+  it('clamps an out-of-range defaultRatio', () => {
+    renderSplit({ defaultRatio: -3, minRatio: 0.25 })
+
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '25')
+  })
+
+  it('ignores a minRatio that would invert the clamp', () => {
+    renderSplit({ defaultRatio: 0.5, minRatio: 5 })
+
+    // 0.49 is the largest minimum that still leaves the other pane something.
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuemin', '49')
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '50')
+  })
+
   it('does not persist without a storage key', () => {
     renderSplit({ defaultRatio: 0.5 })
     fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowRight' })
@@ -179,6 +207,37 @@ describe('SplitPane', () => {
 
     expect(mounts).toEqual(['first', 'second'])
     window.matchMedia = original
+  })
+
+  it('keeps both panes mounted while switching single-pane visibility', () => {
+    const mounts: string[] = []
+    function Probe({ name }: { name: string }) {
+      useEffect(() => {
+        mounts.push(name)
+      }, [name])
+      return <div>{name}</div>
+    }
+
+    const { rerender } = render(
+      <SplitPane firstVisible secondVisible={false}>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+
+    rerender(
+      <SplitPane firstVisible={false} secondVisible>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+    rerender(
+      <SplitPane firstVisible secondVisible>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+    expect(mounts).toEqual(['editor', 'preview'])
   })
 
   it('uses row orientation when vertical', () => {

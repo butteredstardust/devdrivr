@@ -29,9 +29,14 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Monaco is deliberately *not* named here. A manual chunk claims the shared modules of
+        // everything it contains, so listing it pulled modules the shell also uses (React's JSX
+        // runtime among them) into the editor's chunk — which made the entry import that chunk
+        // statically, and every cold start fetch and parse 4MB of editor whether or not the user
+        // opened one. Left to Rollup, Monaco lands in a chunk shared by the lazy tool chunks that
+        // import it and costs nothing until one of them is opened.
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          monaco: ['@monaco-editor/react', 'monaco-editor'],
           zod: ['zod'],
           fuse: ['fuse.js'],
         },

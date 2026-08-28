@@ -8,7 +8,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
 import * as cssTree from 'css-tree'
-import { specificityOf } from '@/tools/css-validator/css-helpers'
+import { specificityDetailOf } from '@/tools/css-validator/css-helpers'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -28,6 +28,8 @@ type SpecResult = {
   c: number // Elements, pseudo-elements
   sourceIndex: number
   parts: SpecPart[]
+  /** False when the selector does not parse; such a row is shown as invalid, not as (0,0,0). */
+  valid: boolean
   hasImportant: boolean
 }
 
@@ -43,30 +45,18 @@ function computeSpecificity(selector: string): {
   b: number
   c: number
   parts: SpecPart[]
+  valid: boolean
 } {
-  const parts: SpecPart[] = []
   try {
-    const ast = cssTree.parse(selector, { context: 'selector' })
-    const [a, b, c] = specificityOf(ast)
-    cssTree.walk(ast, (node) => {
-      if (node.type === 'IdSelector') parts.push({ text: `#${node.name}`, type: 'id' })
-      if (node.type === 'ClassSelector') parts.push({ text: `.${node.name}`, type: 'class' })
-      if (node.type === 'AttributeSelector') {
-        parts.push({ text: cssTree.generate(node), type: 'class' })
-      }
-      if (node.type === 'PseudoClassSelector') {
-        parts.push({ text: `:${node.name}`, type: 'class' })
-      }
-      if (node.type === 'PseudoElementSelector') {
-        parts.push({ text: `::${node.name}`, type: 'element' })
-      }
-      if (node.type === 'TypeSelector' && node.name !== '*') {
-        parts.push({ text: node.name, type: 'element' })
-      }
-    })
-    return { a, b, c, parts }
+    const ast = cssTree.parse(selector, { context: 'selector', positions: false })
+    // Score and breakdown come from one recursion, so the tokens shown are exactly the tokens
+    // that were counted — `:where(#id)` shows no ID, and `:is(#a,.b)` shows only the winner.
+    const { specificity, parts } = specificityDetailOf(ast)
+    const [a, b, c] = specificity
+    return { a, b, c, parts, valid: true }
   } catch {
-    return { a: 0, b: 0, c: 0, parts }
+    // A parse failure is not a zero-specificity selector; saying so would let `.foo[` win ties.
+    return { a: 0, b: 0, c: 0, parts: [], valid: false }
   }
 }
 
@@ -107,8 +97,12 @@ export default function CssSpecificity() {
       .map((l) => l.trim())
       .filter(Boolean)
     const res: SpecResult[] = lines.map((selector, sourceIndex) => {
-      const hasImportant = selector.includes('!important')
-      const cleanSelector = selector.replace(/!important/g, '').trim()
+      // `!important` is a declaration flag, not selector grammar. Only a trailing annotation is
+      // honoured, and it is trimmed rather than replaced globally — a global replace rewrites
+      // valid selectors such as `[data-note="!important"]` into something else entirely.
+      const trailing = /\s*!important\s*$/.exec(selector)
+      const hasImportant = trailing !== null
+      const cleanSelector = hasImportant ? selector.slice(0, trailing.index).trim() : selector
       const spec = computeSpecificity(cleanSelector)
       return {
         selector,
@@ -129,35 +123,40 @@ export default function CssSpecificity() {
     [results]
   )
 
+  // Invalid selectors have no specificity to compare, so they take no part in winner/tie maths.
+  const comparable = useMemo(() => results.filter((result) => result.valid), [results])
+
   const winner = useMemo(() => {
-    if (results.length < 2) return -1
-    let best = results[0]
-    for (const result of results.slice(1)) {
+    if (comparable.length < 2) return -1
+    let best = comparable[0]
+    for (const result of comparable.slice(1)) {
       const comparison = best ? compareSpecificity(result, best) : 1
       if (comparison > 0 || (comparison === 0 && result.sourceIndex > (best?.sourceIndex ?? -1))) {
         best = result
       }
     }
     return best?.sourceIndex ?? -1
-  }, [results])
+  }, [comparable])
 
-  const winningResult = results.find((result) => result.sourceIndex === winner)
+  const winningResult = comparable.find((result) => result.sourceIndex === winner)
   const tiedSources = useMemo(
     () =>
       new Set(
         winningResult
-          ? results
+          ? comparable
               .filter((result) => compareSpecificity(result, winningResult) === 0)
               .map((result) => result.sourceIndex)
           : []
       ),
-    [results, winningResult]
+    [comparable, winningResult]
   )
 
   const exportText = useMemo(() => {
     if (results.length === 0) return ''
-    const lines = results.map(
-      (r) => `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})${r.hasImportant ? ' !important' : ''}`
+    const lines = results.map((r) =>
+      r.valid
+        ? `${r.selector.padEnd(40)} (${r.a},${r.b},${r.c})${r.hasImportant ? ' !important' : ''}`
+        : `${r.selector.padEnd(40)} invalid selector`
     )
     return lines.join('\n')
   }, [results])
@@ -243,7 +242,7 @@ export default function CssSpecificity() {
           {results.length > 0 ? (
             <div className="flex flex-col gap-3">
               {results.map((r, i) => {
-                const isWinner = r.sourceIndex === winner && results.length > 1
+                const isWinner = r.sourceIndex === winner && comparable.length > 1
                 const isTied = tiedSources.size > 1 && tiedSources.has(r.sourceIndex)
                 return (
                   <div
@@ -267,6 +266,11 @@ export default function CssSpecificity() {
                           </span>
                         )}
                         <code className="text-xs text-[var(--color-text)]">{r.selector}</code>
+                        {!r.valid && (
+                          <span className="rounded bg-[var(--color-error)] px-1.5 py-0.5 text-2xs font-bold text-white">
+                            invalid selector
+                          </span>
+                        )}
                         {r.hasImportant && (
                           <span className="rounded bg-[var(--color-error)] px-1.5 py-0.5 text-2xs font-bold text-white">
                             !important
@@ -274,7 +278,7 @@ export default function CssSpecificity() {
                         )}
                       </div>
                       <span className="shrink-0 font-mono text-xs font-bold text-[var(--color-accent)]">
-                        ({r.a}, {r.b}, {r.c})
+                        {r.valid ? `(${r.a}, ${r.b}, ${r.c})` : '—'}
                       </span>
                     </div>
 

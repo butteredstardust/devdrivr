@@ -47,7 +47,18 @@ type PopoverProps = {
   children: ReactNode
   /** Which edge of the trigger the surface lines up with. `end` (right) suits toolbar tails. */
   align?: PopoverAlign
+  /**
+   * `below` hangs the surface under the trigger; `side` puts it beside the trigger's right edge,
+   * level with its top. `side` is for a narrow vertical rail, where "below" is another trigger.
+   */
+  placement?: 'below' | 'side'
   className?: string
+  /**
+   * Keys the surface's content wants that only reach it when focus is on the surface itself —
+   * which is where focus starts, since the panel takes it on open. Runs before the popover's own
+   * Tab handling; call `preventDefault()` to claim the key.
+   */
+  onSurfaceKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
 }
 
 type PopoverLayer = {
@@ -80,7 +91,9 @@ export function Popover({
   trigger,
   children,
   align = 'end',
+  placement = 'below',
   className = '',
+  onSurfaceKeyDown,
 }: PopoverProps) {
   const surfaceId = useId()
   const isInstanceActive = useIsInstanceActive()
@@ -145,6 +158,25 @@ export function Popover({
       if (!anchor) return
 
       const rect = anchor.getBoundingClientRect()
+
+      if (placement === 'side') {
+        const sideMaxHeight = Math.max(MIN_HEIGHT, window.innerHeight - EDGE * 2)
+        const sideNext: CSSProperties = {
+          left: rect.right + GAP,
+          top: Math.max(EDGE, Math.min(rect.top, window.innerHeight - EDGE - MIN_HEIGHT)),
+          maxHeight: sideMaxHeight,
+        }
+        setPosition((prev) =>
+          prev &&
+          prev.top === sideNext.top &&
+          prev.left === sideNext.left &&
+          prev.maxHeight === sideNext.maxHeight
+            ? prev
+            : sideNext
+        )
+        return
+      }
+
       let top = rect.bottom + GAP
       let maxHeight = window.innerHeight - top - EDGE
 
@@ -188,7 +220,7 @@ export function Popover({
       window.removeEventListener('resize', reposition)
       window.removeEventListener('scroll', reposition, true)
     }
-  }, [open, align])
+  }, [open, align, placement])
 
   useEffect(() => {
     if (!open) return
@@ -236,7 +268,8 @@ export function Popover({
   }, [open])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab') return
+    onSurfaceKeyDown?.(e)
+    if (e.key !== 'Tab' || e.defaultPrevented) return
     const surface = surfaceRef.current
     if (!surface) return
     if (cycleFocus(surface, { shiftKey: e.shiftKey }) === 'wrapped') {

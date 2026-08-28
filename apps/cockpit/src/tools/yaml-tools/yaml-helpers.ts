@@ -1,5 +1,5 @@
 import * as yaml from 'js-yaml'
-import { formatBytes } from '@/lib/format'
+import { documentStats, sortKeysDeepBounded } from '@/lib/traversal'
 
 /** Where js-yaml says the problem is, 1-based so it can go straight to Monaco. */
 export type YamlErrorLocation = { line: number; column: number }
@@ -84,44 +84,9 @@ export function jsonToYaml(jsonInput: string): string {
 }
 
 export function sortKeysDeep(data: unknown): unknown {
-  if (Array.isArray(data)) return data.map(sortKeysDeep)
-  if (data !== null && typeof data === 'object') {
-    const sorted: Record<string, unknown> = {}
-    for (const key of Object.keys(data as Record<string, unknown>).sort()) {
-      sorted[key] = sortKeysDeep((data as Record<string, unknown>)[key])
-    }
-    return sorted
-  }
-  return data
+  return sortKeysDeepBounded(data)
 }
 
 export function yamlStats(documents: unknown[]): { keys: number; depth: number; size: string } {
-  let keyCount = 0
-  let maxDepth = 0
-  const MAX_DEPTH = 1000
-  // js-yaml resolves aliases to *shared references*, so a billion-laughs
-  // document is a small tree with an exponential traversal. Depth alone does
-  // not bound it; a visit budget does.
-  const MAX_VISITS = 200_000
-  let visits = 0
-
-  function walk(val: unknown, depth: number) {
-    if (depth > MAX_DEPTH || ++visits > MAX_VISITS) return
-    if (depth > maxDepth) maxDepth = depth
-    if (Array.isArray(val)) {
-      for (const item of val) walk(item, depth + 1)
-    } else if (val !== null && typeof val === 'object') {
-      const entries = Object.entries(val as Record<string, unknown>)
-      keyCount += entries.length
-      for (const [, v] of entries) walk(v, depth + 1)
-    }
-  }
-
-  try {
-    for (const document of documents) walk(document, 0)
-    const bytes = new Blob([JSON.stringify(documents)]).size
-    return { keys: keyCount, depth: maxDepth, size: formatBytes(bytes) }
-  } catch {
-    return { keys: keyCount, depth: maxDepth, size: '0 B' }
-  }
+  return documentStats(documents)
 }

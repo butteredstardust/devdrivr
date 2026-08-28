@@ -2,7 +2,11 @@
 // hooks-based error boundary API, so a class component is required here.
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-type Props = { children: ReactNode; fallbackMessage?: string }
+type Props = {
+  children: ReactNode
+  /** Headline shown in place of the crashed subtree. Callers use it to name what broke. */
+  fallbackMessage?: string
+}
 type State = { hasError: boolean; error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -24,7 +28,9 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
-          <div className="text-lg text-[var(--color-error)]">Something broke</div>
+          <div className="text-lg text-[var(--color-error)]">
+            {this.props.fallbackMessage ?? 'Something broke'}
+          </div>
           <pre className="max-w-lg overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-text-muted)]">
             {this.state.error?.message}
           </pre>

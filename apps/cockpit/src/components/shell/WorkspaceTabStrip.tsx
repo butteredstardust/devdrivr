@@ -10,6 +10,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useFlipReorder } from '@/hooks/useFlipReorder'
+import { Dialog } from '@/components/shared/Dialog'
+import { Button } from '@/components/shared/Button'
 
 type ContextMenu = {
   tabId: string
@@ -26,6 +28,7 @@ export function WorkspaceTabStrip() {
   const tabs = useUiStore((s) => s.tabs)
   const activeTabId = useUiStore((s) => s.activeTabId)
   const dirtyTabIds = useUiStore((s) => s.dirtyTabIds)
+  const pendingTabClose = useUiStore((s) => s.pendingTabClose)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const closeTab = useUiStore((s) => s.closeTab)
   const openTabInstance = useUiStore((s) => s.openTabInstance)
@@ -33,6 +36,8 @@ export function WorkspaceTabStrip() {
   const closeTabsToRight = useUiStore((s) => s.closeTabsToRight)
   const toggleTabPinned = useUiStore((s) => s.toggleTabPinned)
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
+  const confirmPendingTabClose = useUiStore((s) => s.confirmPendingTabClose)
+  const cancelPendingTabClose = useUiStore((s) => s.cancelPendingTabClose)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftFade, setShowLeftFade] = useState(false)
@@ -43,6 +48,11 @@ export function WorkspaceTabStrip() {
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const overflowRef = useRef<HTMLDivElement>(null)
+  const cancelCloseRef = useRef<HTMLButtonElement>(null)
+
+  const pendingDirtyCount = pendingTabClose
+    ? pendingTabClose.tabIds.filter((id) => dirtyTabIds.includes(id)).length
+    : 0
 
   const registerTabNode = useFlipReorder(tabs.map((tab) => tab.id).join('|'))
 
@@ -134,11 +144,21 @@ export function WorkspaceTabStrip() {
   // A vertical wheel over a horizontal strip should scroll it — trackpads emit
   // deltaY for the gesture that visually reads as "along the tabs". Ignored
   // when the gesture is already horizontal, which the browser handles itself.
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    const el = e.currentTarget
-    if (el.scrollWidth <= el.clientWidth) return
-    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-    el.scrollLeft += e.deltaY
+  //
+  // Attached imperatively because React's `onWheel` is passive: `preventDefault()` there is a
+  // no-op, so one gesture moved the strip *and* scrolled whatever sits under it vertically. A
+  // non-passive listener can consume the gesture it acts on, and only that one.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+      event.preventDefault()
+      el.scrollLeft += event.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
   // Tab reordering, on pointer events rather than HTML5 drag-and-drop.
@@ -349,7 +369,6 @@ export function WorkspaceTabStrip() {
         aria-label="Open tools"
         style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
         className="no-scrollbar flex flex-1 items-stretch overflow-x-auto"
-        onWheel={handleWheel}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
           const idx = tabs.findIndex((t) => t.id === activeTabId)
@@ -390,15 +409,8 @@ export function WorkspaceTabStrip() {
           return (
             <div
               key={tab.id}
-              id={`tab-${tab.id}`}
               ref={(node) => registerTabNode(tab.id, node)}
-              role="tab"
-              aria-selected={isActive}
-              aria-label={isPinned ? `${title} (pinned)` : undefined}
               title={isPinned ? `${title} — pinned` : undefined}
-              aria-controls={`tabpanel-${tab.id}`}
-              tabIndex={isActive ? 0 : -1}
-              data-tab-id={tab.id}
               onPointerDown={(e) => handleDragPointerDown(e, tab.id)}
               // A click is also the tail of every drag, and reordering is the whole
               // of what that gesture asked for — the drag handler above stops that
@@ -417,12 +429,6 @@ export function WorkspaceTabStrip() {
                 closeTab(tab.id)
               }}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setActiveTab(tab.id)
-                }
-              }}
               // The active tab used to carry three simultaneous cues — its own
               // fill, accent-coloured text, and the pill. The fill is what
               // joins the tab to the panel below it and the pill is the
@@ -444,7 +450,7 @@ export function WorkspaceTabStrip() {
               //
               // Pinned tabs opt out entirely: fixed and icon-only, which is
               // what buys back the room the shrinking is competing for.
-              className={`group relative flex cursor-pointer select-none items-center text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
+              className={`group relative flex cursor-pointer select-none items-center text-xs transition-colors ${
                 isPinned
                   ? 'w-9 shrink-0 justify-center px-0'
                   : 'min-w-[112px] max-w-[180px] shrink grow-0 basis-[160px] gap-1.5 px-3'
@@ -454,10 +460,21 @@ export function WorkspaceTabStrip() {
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
               } ${draggingTabId === tab.id ? 'opacity-50' : ''}`}
             >
+              <button
+                id={`tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-label={isPinned ? `${title} (pinned)` : title}
+                aria-controls={`tabpanel-${tab.id}`}
+                tabIndex={isActive ? 0 : -1}
+                data-tab-id={tab.id}
+                className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]"
+              />
               {tool && (
                 <span
                   aria-hidden="true"
-                  className="flex shrink-0 items-center [&_svg]:h-3.5 [&_svg]:w-3.5"
+                  className="pointer-events-none relative z-[1] flex shrink-0 items-center [&_svg]:h-3.5 [&_svg]:w-3.5"
                 >
                   {tool.icon}
                 </span>
@@ -465,7 +482,14 @@ export function WorkspaceTabStrip() {
               {/* A pinned tab drops its label, so the icon has to carry the
                   identity on screen and the accessible name has to carry it
                   everywhere else — without this the tab announces as blank. */}
-              {!isPinned && <span className="flex-1 truncate">{title}</span>}
+              {!isPinned && (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none relative z-[1] flex-1 truncate"
+                >
+                  {title}
+                </span>
+              )}
               {/* Unsaved work shows a dot in the close button's slot, which
                   swaps back to the × on hover or focus. Same 16px box either
                   way, so nothing reflows. */}
@@ -491,6 +515,7 @@ export function WorkspaceTabStrip() {
                   Unpin (context menu or double-click) is the way out. */}
               {!isPinned && (
                 <button
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
                     closeTab(tab.id)
@@ -500,7 +525,7 @@ export function WorkspaceTabStrip() {
                   // to be closed, and hiding its only close affordance behind a
                   // hover is a poor trade for a few pixels of quiet. A dirty tab
                   // yields the slot to the dot until hover.
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                  className={`relative z-[2] flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
                     isDirty
                       ? 'opacity-0 group-hover:opacity-60 group-focus-within:opacity-60'
                       : isActive
@@ -702,6 +727,36 @@ export function WorkspaceTabStrip() {
             Close to Right
           </button>
         </div>
+      )}
+      {pendingTabClose && (
+        <Dialog
+          title={pendingTabClose.tabIds.length === 1 ? 'Close tab?' : 'Close tabs?'}
+          onClose={cancelPendingTabClose}
+          closeLabel="Cancel closing tabs"
+          initialFocusRef={cancelCloseRef}
+          footer={
+            <>
+              <Button
+                ref={cancelCloseRef}
+                variant="secondary"
+                size="sm"
+                onClick={cancelPendingTabClose}
+              >
+                Cancel
+              </Button>
+              <Button variant="danger" size="sm" onClick={confirmPendingTabClose}>
+                {pendingTabClose.tabIds.length === 1 ? 'Close tab' : 'Close tabs'}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed text-[var(--color-text)]">
+            {pendingDirtyCount === 1
+              ? 'This tab has unsaved changes.'
+              : `${pendingDirtyCount} tabs have unsaved changes.`}{' '}
+            Closing will permanently discard unsaved state from duplicate tool tabs.
+          </p>
+        </Dialog>
       )}
     </div>
   )

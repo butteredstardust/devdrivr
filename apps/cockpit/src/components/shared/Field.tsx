@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, useId, type ReactNode } from 'react'
 
 type FieldProps = {
   label: string
@@ -41,6 +41,26 @@ export function Field({
   className = '',
 }: FieldProps) {
   const Wrapper = htmlFor ? 'div' : 'label'
+  const hintId = useId()
+  const errorId = useId()
+  const hasHint = hint !== undefined && hint !== null && hint !== false
+  const describedBy = [error ? errorId : null, hasHint ? hintId : null].filter(Boolean).join(' ')
+
+  // The hint and the error are the corrective guidance; a label alone tells a focused user the
+  // control's name and nothing about what is wrong with it. Wiring happens here rather than at
+  // every call site, so a caller cannot forget it — and caller-provided relationships win, since
+  // a control that already describes itself knows more about its own context than this does.
+  const single = Children.count(children) === 1 ? Children.only(children) : null
+  const element = isValidElement<Record<string, unknown>>(single) ? single : null
+  const control = element
+    ? cloneElement(element, {
+        ...(describedBy && !element.props['aria-describedby']
+          ? { 'aria-describedby': describedBy }
+          : {}),
+        ...(error && element.props['aria-invalid'] === undefined ? { 'aria-invalid': true } : {}),
+        ...(error && !element.props['aria-errormessage'] ? { 'aria-errormessage': errorId } : {}),
+      })
+    : children
 
   return (
     <Wrapper className={`flex flex-col gap-1 ${className}`}>
@@ -56,13 +76,17 @@ export function Field({
           {required && <span className="text-[var(--color-error)]"> *</span>}
         </span>
       )}
-      {children}
+      {control}
       {error ? (
-        <span role="alert" className="text-2xs text-[var(--color-error)]">
+        <span id={errorId} role="alert" className="text-2xs text-[var(--color-error)]">
           {error}
         </span>
       ) : (
-        hint && <span className="text-2xs text-[var(--color-text-muted)]">{hint}</span>
+        hasHint && (
+          <span id={hintId} className="text-2xs text-[var(--color-text-muted)]">
+            {hint}
+          </span>
+        )
       )}
     </Wrapper>
   )

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import Editor, { DiffEditor } from '@monaco-editor/react'
+import { DiffEditor } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import {
   ArrowCounterClockwiseIcon,
   ArrowsClockwiseIcon,
@@ -11,11 +12,11 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
@@ -27,7 +28,6 @@ import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/sh
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { REFACTORING_SAMPLE } from '@/lib/tool-samples'
 import type { RefactoringWorker } from '@/workers/refactoring.worker'
 import RefactoringWorkerFactory from '@/workers/refactoring.worker?worker'
@@ -64,7 +64,7 @@ type RefactoringState = {
    */
   lastApply: { before: string; after: string } | null
   applyHistory: Array<{ before: string; after: string }>
-  /** Bounded custom codemod: AST-aware identifier rename, executed in the worker. */
+  /** Bounded global identifier rewrite, executed in the worker. */
   customFind: string
   customReplace: string
 }
@@ -312,42 +312,13 @@ export default function RefactoringToolkit() {
     [visibleTransforms, state.selectedTransforms, updateState]
   )
 
-  const handleSaveAs = useCallback(async () => {
-    const defaultName = state.fileName ?? `refactored.${EXTENSION[language] ?? 'js'}`
-    try {
-      const path = await saveFileDialog(input, defaultName)
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path) })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.fileName, language, input, setLastAction, updateState])
-
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, input)
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.fileName, input, handleSaveAs, setLastAction])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
+  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
+    getContent: () => input,
+    filePath: state.filePath ?? null,
+    fileName: state.fileName ?? null,
+    defaultFileName: () => `refactored.${EXTENSION[language] ?? 'js'}`,
+    onSaved: updateState,
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
@@ -611,7 +582,7 @@ export default function RefactoringToolkit() {
                   />
                 </div>
                 <p className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
-                  Renames matching identifiers through the parsed AST; invalid names are ignored.
+                  Renames matching identifiers globally; existing replacement names are rejected.
                 </p>
               </fieldset>
               {visibleTransforms.length === 0 ? (

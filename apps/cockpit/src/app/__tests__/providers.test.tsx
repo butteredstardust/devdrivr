@@ -123,6 +123,10 @@ describe('Providers bootstrap', () => {
     mocks.historyInit.mockResolvedValue(undefined)
     mocks.mcpInit.mockResolvedValue(undefined)
     mocks.checkForUpdate.mockResolvedValue(undefined)
+    // The real window listeners always resolve to an unlisten fn; tests that care about the
+    // timing override these with a gate.
+    mocks.onMoved.mockResolvedValue(vi.fn())
+    mocks.onResized.mockResolvedValue(vi.fn())
     mocks.settingsInit.mockImplementation(async () => {
       mocks.settingsState.initialized = true
     })

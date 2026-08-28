@@ -81,6 +81,10 @@ const FORMAT_TABS = [
   { id: 'webp', label: 'WebP' },
 ]
 
+const MAX_IMAGE_FILE_BYTES = 50 * 1024 * 1024
+const MAX_IMAGE_DIMENSION = 16_384
+const MAX_IMAGE_PIXELS = 64_000_000
+
 // The resize/crop dimension fields. `Input` owns the border, background, radius
 // and focus ring; only the monospace digits and the full-width fill are local.
 const NUMBER_FIELD_CLASS = 'w-full py-1 font-mono'
@@ -164,6 +168,10 @@ export default function ImageTool() {
         setLastAction('File is not an image', 'error')
         return
       }
+      if (file.size > MAX_IMAGE_FILE_BYTES) {
+        setLastAction(`Image exceeds the ${formatBytes(MAX_IMAGE_FILE_BYTES)} file limit`, 'error')
+        return
+      }
       const reader = new FileReader()
       reader.onerror = () => setLastAction('Failed to read image file', 'error')
       reader.onabort = () => setLastAction('Image open cancelled', 'info')
@@ -171,6 +179,18 @@ export default function ImageTool() {
         const src = e.target?.result as string
         const img = new Image()
         img.onload = () => {
+          const decodedPixels = img.naturalWidth * img.naturalHeight
+          if (
+            img.naturalWidth > MAX_IMAGE_DIMENSION ||
+            img.naturalHeight > MAX_IMAGE_DIMENSION ||
+            decodedPixels > MAX_IMAGE_PIXELS
+          ) {
+            setLastAction(
+              `Image dimensions exceed the ${MAX_IMAGE_DIMENSION.toLocaleString()}px / ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`,
+              'error'
+            )
+            return
+          }
           // Reset display metrics before setting the new image so one stale render
           // of the crop overlay with the previous image's metrics doesn't occur.
           setDisplayMetrics(null)
@@ -283,11 +303,31 @@ export default function ImageTool() {
       ? (state.cropH ?? originalImg.naturalHeight)
       : originalImg.naturalHeight
 
-    const sourceOutW = Math.max(1, state.resizeW ?? srcW)
-    const sourceOutH = Math.max(1, state.resizeH ?? srcH)
+    const sourceOutW = Math.round(state.resizeW ?? srcW)
+    const sourceOutH = Math.round(state.resizeH ?? srcH)
     const quarterTurn = state.rotation === 90 || state.rotation === 270
     const outW = quarterTurn ? sourceOutH : sourceOutW
     const outH = quarterTurn ? sourceOutW : sourceOutH
+
+    if (
+      !Number.isFinite(outW) ||
+      !Number.isFinite(outH) ||
+      outW < 1 ||
+      outH < 1 ||
+      outW > MAX_IMAGE_DIMENSION ||
+      outH > MAX_IMAGE_DIMENSION ||
+      outW * outH > MAX_IMAGE_PIXELS
+    ) {
+      canvas.width = 1
+      canvas.height = 1
+      setOutputSize(null)
+      setOutputBlobSize(0)
+      setLastAction(
+        `Output exceeds the ${MAX_IMAGE_DIMENSION.toLocaleString()}px / ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`,
+        'error'
+      )
+      return
+    }
 
     canvas.width = outW
     canvas.height = outH
@@ -327,7 +367,7 @@ export default function ImageTool() {
       live = false
       clearTimeout(encodeTimer)
     }
-  }, [originalImg, state])
+  }, [originalImg, state, setLastAction])
 
   // ── Resize helpers ─────────────────────────────────────────────
 

@@ -65,7 +65,13 @@ export type AppSettings = {
   editorFont: 'JetBrains Mono' | 'Fira Code' | 'Cascadia Code' | 'Source Code Pro'
   editorFontSize: number
   editorTheme: 'cockpit-dark' | 'cockpit-light' | 'match-app'
-  editorKeybindingMode: 'standard' | 'vim' | 'emacs'
+  /**
+   * Only `standard` exists. The union used to include `vim` and `emacs`, neither of which was ever
+   * implemented: initialization reset any stored value back to `standard`, the Settings select
+   * offered one option, and StatusBar carried a branch that could not render. Keeping the key —
+   * rather than deleting it — means older exported settings files still round-trip.
+   */
+  editorKeybindingMode: 'standard'
   /**
    * Wrap long lines instead of scrolling them horizontally.
    *

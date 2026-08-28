@@ -146,10 +146,12 @@ describe('NotesDrawer', () => {
     const drawer = screen.getByRole('complementary', { name: 'Notes and history' })
     expect(drawer.className).toContain('transition-[width,opacity]')
 
-    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize notes drawer' }))
+    fireEvent.pointerDown(screen.getByRole('separator', { name: 'Resize notes drawer' }), {
+      pointerId: 1,
+    })
     expect(drawer.className).not.toContain('transition-[width,opacity]')
 
-    fireEvent.mouseUp(document)
+    fireEvent.pointerUp(document, { pointerId: 1 })
     expect(drawer.className).toContain('transition-[width,opacity]')
   })
 

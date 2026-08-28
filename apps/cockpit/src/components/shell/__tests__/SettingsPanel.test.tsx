@@ -93,7 +93,7 @@ describe('SettingsPanel', () => {
 
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear Notes (1)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm clear?' }))
 
@@ -107,7 +107,7 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'MCP' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
     const portInput = screen.getByRole('spinbutton')
     fireEvent.change(portInput, { target: { value: 'abc' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
@@ -132,7 +132,7 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'MCP' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
 
     await waitFor(() => expect(start).toHaveBeenCalledOnce())
@@ -152,7 +152,7 @@ describe('SettingsPanel', () => {
     })
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('button', { name: 'MCP' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
 
     expect(screen.getByText('MCP server stopped unexpectedly')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled()
@@ -178,7 +178,7 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Editor' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Editor' }))
 
     // A role="switch" is a <button>, which is not labelable — the row's <label>
     // would name nothing, so the row publishes its label id via context instead.
@@ -188,6 +188,22 @@ describe('SettingsPanel', () => {
 
     // Same problem, same fix, for the bare <select> beside a row label.
     expect(screen.getByRole('combobox', { name: 'Render Whitespace' })).toBeInTheDocument()
+  })
+
+  // The permission grid is a div grid, not a table: the resource row and the action column name
+  // each cell on screen but associate with nothing, so every switch in it announced as unnamed.
+  it('names every switch in the MCP permission grid', () => {
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
+
+    expect(screen.getByRole('switch', { name: 'Notes: read' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Notes: delete' })).toBeInTheDocument()
+    expect(
+      screen
+        .queryAllByRole('switch')
+        .every((s) => s.getAttribute('aria-label') || s.getAttribute('aria-labelledby'))
+    ).toBe(true)
   })
 
   it('imports settings that use newer registered themes', async () => {
@@ -202,7 +218,7 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
     fireEvent.click(screen.getByRole('button', { name: 'Import from Clipboard' }))
 
     await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))

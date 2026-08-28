@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
 import { useUiStore } from '@/stores/ui.store'
 import { SectionLabel } from '@/components/shared/SectionLabel'
+import { Popover } from '@/components/shared/Popover'
 
 type Props = {
   group: ToolGroupMeta
@@ -14,9 +15,8 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
   const [flyoutOpen, setFlyoutOpen] = useState(false)
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
-  const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({})
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const flyoutRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
   const activeTool = useUiStore((s) => s.activeTool)
 
@@ -27,22 +27,6 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
     },
     [setActiveTool]
   )
-
-  // Position the flyout next to the trigger, flipping if near bottom of viewport
-  useEffect(() => {
-    if (!flyoutOpen || !triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const flyoutHeight = tools.length * 30 + 28 // estimated: 30px per item + 28px header
-    const spaceBelow = window.innerHeight - rect.top
-    const flipUp = spaceBelow < flyoutHeight && rect.top > flyoutHeight
-
-    setFlyoutStyle({
-      position: 'fixed',
-      left: rect.right + 4,
-      ...(flipUp ? { bottom: window.innerHeight - rect.bottom } : { top: rect.top }),
-      zIndex: 'var(--z-popover)',
-    })
-  }, [flyoutOpen, tools.length])
 
   // Tooltip positioning — shown on hover when flyout is closed.
   // The unmount cleanup effect below ensures the tooltip is always hidden
@@ -71,59 +55,86 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
     return () => setTooltipVisible(false)
   }, [])
 
-  // Close flyout on outside click
-  useEffect(() => {
-    if (!flyoutOpen) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(target) &&
-        flyoutRef.current &&
-        !flyoutRef.current.contains(target)
-      ) {
-        setFlyoutOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [flyoutOpen])
-
-  // Close flyout on Escape
-  useEffect(() => {
-    if (!flyoutOpen) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFlyoutOpen(false)
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [flyoutOpen])
+  // Arrow keys move between the tools, so the list can be operated the way a menu is expected to
+  // be. Tab cycling, Escape and focus restoration come from Popover.
+  const handleListKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const buttons = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+    if (buttons.length === 0) return
+    event.preventDefault()
+    const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const next =
+      event.key === 'ArrowDown'
+        ? (current + 1) % buttons.length
+        : (current - 1 + buttons.length) % buttons.length
+    buttons[current === -1 && event.key === 'ArrowUp' ? buttons.length - 1 : next]?.focus()
+  }, [])
 
   return (
     <>
-      {/* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px).
-          The accent left border mirrors the expanded tree's active row, so
-          collapsing the sidebar changes the density but not the visual
-          language — the active thing is marked the same way in both. */}
-      <button
-        ref={triggerRef}
-        onClick={() => setFlyoutOpen(!flyoutOpen)}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
-          isActiveGroup
-            ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-            : flyoutOpen
-              ? 'border-transparent bg-[var(--color-surface-hover)] text-[var(--color-text)]'
-              : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
-        }`}
-        aria-label={group.label}
-        aria-expanded={flyoutOpen}
-        aria-haspopup="true"
-        data-sidebar-collapsed-group={group.id}
+      <Popover
+        open={flyoutOpen}
+        onOpenChange={setFlyoutOpen}
+        label={`${group.label} tools`}
+        placement="side"
+        align="start"
+        className="min-w-[160px] py-1"
+        onSurfaceKeyDown={handleListKeyDown}
+        trigger={({ ref, onClick, ...triggerProps }) => (
+          /* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px).
+             The accent left border mirrors the expanded tree's active row, so
+             collapsing the sidebar changes the density but not the visual
+             language — the active thing is marked the same way in both. */
+          <button
+            ref={(node) => {
+              ref(node)
+              triggerRef.current = node
+            }}
+            onClick={onClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+              isActiveGroup
+                ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                : flyoutOpen
+                  ? 'border-transparent bg-[var(--color-surface-hover)] text-[var(--color-text)]'
+                  : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+            }`}
+            aria-label={group.label}
+            data-sidebar-collapsed-group={group.id}
+            {...triggerProps}
+          >
+            <span className="flex w-5 shrink-0 items-center justify-center">{group.icon}</span>
+          </button>
+        )}
       >
-        <span className="flex w-5 shrink-0 items-center justify-center">{group.icon}</span>
-      </button>
+        {/* No `onKeyDown` here: this div is a descendant of the popover surface, so a key pressed
+            on a tool button would run the handler twice on its way up — once here and once via
+            `onSurfaceKeyDown` — and advance the selection by two. The surface wiring is the one
+            that works from both places, since focus starts on the surface itself. */}
+        <div ref={listRef} className="overflow-y-auto">
+          <SectionLabel as="div" className="px-2.5 pb-1 pt-1">
+            {group.label}
+          </SectionLabel>
+          {tools.map((tool) => {
+            const isActive = tool.id === activeTool
+            return (
+              <button
+                key={tool.id}
+                onClick={() => handleSelect(tool.id)}
+                className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                  isActive
+                    ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                    : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+                }`}
+              >
+                <span className="flex w-4 shrink-0 items-center justify-center">{tool.icon}</span>
+                <span className="truncate">{tool.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      </Popover>
 
       {/* Hover tooltip — rendered via portal so it overflows the 40px sidebar */}
       {tooltipVisible &&
@@ -134,38 +145,6 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
             className="font-ui animate-pop-in pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md"
           >
             {group.label}
-          </div>,
-          document.body
-        )}
-
-      {/* Flyout tool list */}
-      {flyoutOpen &&
-        createPortal(
-          <div
-            ref={flyoutRef}
-            style={flyoutStyle}
-            className="font-ui animate-pop-in min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
-          >
-            <SectionLabel as="div" className="px-2.5 pb-1 pt-1">
-              {group.label}
-            </SectionLabel>
-            {tools.map((tool) => {
-              const isActive = tool.id === activeTool
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => handleSelect(tool.id)}
-                  className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
-                    isActive
-                      ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                      : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
-                  }`}
-                >
-                  <span className="flex w-4 shrink-0 items-center justify-center">{tool.icon}</span>
-                  <span className="truncate">{tool.name}</span>
-                </button>
-              )
-            })}
           </div>,
           document.body
         )}

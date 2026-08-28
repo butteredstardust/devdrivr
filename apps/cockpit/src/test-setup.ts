@@ -13,6 +13,47 @@ const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
 globalThis.window = dom.window as unknown as Window & typeof globalThis
 globalThis.document = dom.window.document
 
+// The DOM constructors are globals in every browser, but this harness runs in Vitest's `node`
+// environment and only `window`/`document` were copied across. Product code doing the ordinary
+// `x instanceof HTMLElement` narrowing therefore threw ReferenceError in tests and nowhere else.
+for (const name of [
+  'Node',
+  'Element',
+  'HTMLElement',
+  'HTMLInputElement',
+  'HTMLTextAreaElement',
+  'HTMLSelectElement',
+  'HTMLButtonElement',
+  'HTMLAnchorElement',
+  'HTMLImageElement',
+  'HTMLCanvasElement',
+  'HTMLIFrameElement',
+  'SVGElement',
+  'Event',
+  'CustomEvent',
+  'KeyboardEvent',
+  'MouseEvent',
+  'PointerEvent',
+  'DragEvent',
+  'ClipboardEvent',
+  'FocusEvent',
+  'InputEvent',
+  'DOMParser',
+  'XMLSerializer',
+  'NodeFilter',
+  'Range',
+  'Selection',
+  'DataTransfer',
+] as const) {
+  if (name in dom.window && !(name in globalThis)) {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value: (dom.window as unknown as Record<string, unknown>)[name],
+    })
+  }
+}
+
 // Only set navigator if it doesn't already exist or isn't read-only
 if (!globalThis.navigator) {
   Object.defineProperty(globalThis, 'navigator', {
