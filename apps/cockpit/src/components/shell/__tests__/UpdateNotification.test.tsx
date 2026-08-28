@@ -71,8 +71,9 @@ describe('UpdateNotification', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  // Auto-download is on by default, so with notifications off a staged update would otherwise have
-  // no install affordance anywhere in the shell.
+  // With `downloadUpdatesAutomatically` on (it defaults off, but this is the whole point of the
+  // setting) and notifications off, a staged update would otherwise have no install affordance
+  // anywhere in the shell.
   it('still offers the restart when notifications are off but an update is staged', () => {
     useSettingsStore.setState({ notifyWhenUpdateAvailable: false })
     useUpdaterStore.setState({ isReady: true, progress: 1 })
