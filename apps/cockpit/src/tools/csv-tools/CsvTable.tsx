@@ -37,9 +37,10 @@ export default function CsvTable({ columns, rows }: CsvTableProps) {
   const [scrollTop, setScrollTop] = useState(0)
 
   // A sort key or filter from a previous file would silently reorder — or
-  // hide — the new one's rows, so a changed column set resets both. The
-  // separator matters: `['ab','c']` must not key the same as `['a','bc']`.
-  const columnKey = columns.join(' ')
+  // hide — the new one's rows, so a changed column set resets both. Serialize
+  // rather than join: any separator can appear inside a header, so `['a b','c']`
+  // and `['a','b c']` would otherwise share a key and skip the reset.
+  const columnKey = JSON.stringify(columns)
   useEffect(() => {
     setSorting([])
     setFilter('')

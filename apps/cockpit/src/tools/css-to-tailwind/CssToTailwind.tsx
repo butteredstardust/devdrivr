@@ -286,8 +286,12 @@ function convertSizeProperty(prop: string, value: string): string | null {
   if (!p) return null
 
   if (value === '100%') return `${p}-full`
-  if (value === '100vw') return `${p}-screen`
-  if (value === '100vh') return `${p}-screen`
+  // `w-screen` is 100vw and `h-screen` is 100vh, so the shortcut only applies when the property
+  // axis matches the viewport unit. `height: 100vw` is a real, different thing.
+  const horizontal = ['width', 'min-width', 'max-width', 'left', 'right'].includes(prop)
+  const vertical = ['height', 'min-height', 'max-height', 'top', 'bottom'].includes(prop)
+  if (value === '100vw' && horizontal) return `${p}-screen`
+  if (value === '100vh' && vertical) return `${p}-screen`
   if (value === 'auto') return `${p}-auto`
   if (value === '0' || value === '0px') return `${p}-0`
   if (value === 'fit-content') return `${p}-fit`

@@ -67,7 +67,26 @@ type JsonToolsState = {
   allowComments: boolean
 }
 
-/** Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable. */
+/**
+ * An unterminated JSONC construct. Carries the original source offset so the editor can jump
+ * to it exactly like a `JSON.parse` failure.
+ */
+export class JsoncSyntaxError extends Error {
+  constructor(
+    message: string,
+    readonly index: number
+  ) {
+    super(message)
+    this.name = 'JsoncSyntaxError'
+  }
+}
+
+/**
+ * Replaces JSONC comments/trailing commas with whitespace so source offsets stay stable.
+ *
+ * Throws on an unterminated block comment rather than blanking the rest of the file: treating
+ * `{"ok":true} /* never closes` as valid would let Format or Minify silently discard it.
+ */
 export function normalizeJsonc(source: string): string {
   const chars = [...source]
   let inString = false
@@ -97,6 +116,7 @@ export function normalizeJsonc(source: string): string {
       continue
     }
     if (char === '/' && next === '*') {
+      const openedAt = index
       chars[index] = ' '
       chars[index + 1] = ' '
       index += 2
@@ -104,11 +124,12 @@ export function normalizeJsonc(source: string): string {
         if (chars[index] !== '\n' && chars[index] !== '\r') chars[index] = ' '
         index += 1
       }
-      if (index < chars.length) {
-        chars[index] = ' '
-        chars[index + 1] = ' '
-        index += 1
+      if (index >= chars.length) {
+        throw new JsoncSyntaxError('Unterminated block comment', openedAt)
       }
+      chars[index] = ' '
+      chars[index + 1] = ' '
+      index += 1
     }
   }
   return chars.join('').replace(/,(\s*[}\]])/g, ' $1')
@@ -291,6 +312,13 @@ function scanJsonErrorIndex(source: string): number | null {
  * 2000-line document. Translate whatever the engine gives us — or a scan of the
  * source when it gives us nothing — into the line/column the editor can jump to.
  */
+/** Source offset → 1-based line/column, for errors that already know their offset. */
+function offsetToLineColumn(source: string, index: number): { line: number; column: number } {
+  const clamped = Math.min(Math.max(index, 0), source.length)
+  const before = source.slice(0, clamped)
+  return { line: before.split('\n').length, column: clamped - before.lastIndexOf('\n') }
+}
+
 export function locateJsonError(
   message: string,
   source: string
@@ -380,6 +408,9 @@ export default function JsonTools() {
       }
     } catch (e) {
       const message = (e as Error).message
+      if (e instanceof JsoncSyntaxError) {
+        return { status: 'invalid', message, location: offsetToLineColumn(input, e.index) }
+      }
       return { status: 'invalid', message, location: locateJsonError(message, input) }
     }
   }, [input, state.allowComments])

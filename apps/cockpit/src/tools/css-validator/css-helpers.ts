@@ -254,14 +254,6 @@ function addSpecificity(a: Specificity, b: Specificity): Specificity {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
 
-function maxSpecificity(a: Specificity, b: Specificity): Specificity {
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (a[index] ?? 0) - (b[index] ?? 0)
-    if (difference !== 0) return difference > 0 ? a : b
-  }
-  return a
-}
-
 /**
  * `:is()`, `:not()` and `:has()` take the specificity of their *most* specific
  * argument, and `:where()` contributes nothing at all. A plain walk that added
@@ -270,47 +262,87 @@ function maxSpecificity(a: Specificity, b: Specificity): Specificity {
  */
 const MATCHES_PSEUDOS = new Set(['is', 'not', 'has', 'matches', '-webkit-any', '-moz-any'])
 
-/** a-b-c per the selectors specification. */
-export function specificityOf(node: cssTree.CssNode): Specificity {
+/** One selector token as it contributes to the displayed breakdown. */
+export type SpecificityPart = { text: string; type: 'id' | 'class' | 'element' }
+
+/** Score plus the tokens that produced it, so a breakdown can never contradict its own number. */
+export type SpecificityDetail = { specificity: Specificity; parts: SpecificityPart[] }
+
+function compareSpec(a: Specificity, b: Specificity): number {
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
+/**
+ * a-b-c per the selectors specification, together with the contributing tokens.
+ *
+ * Display parts come from this same recursion rather than a generic AST walk. A walk shows the
+ * `#id` inside `:where(#id)` as an ID contribution and both branches of `:is(#a,.b)` even though
+ * only the winning branch counts — a breakdown that disagrees with the score beside it.
+ */
+export function specificityDetailOf(node: cssTree.CssNode): SpecificityDetail {
   switch (node.type) {
     case 'SelectorList': {
       // A list is only ever scored as an argument, where the maximum wins.
-      let best = ZERO_SPECIFICITY
+      let best: SpecificityDetail = { specificity: ZERO_SPECIFICITY, parts: [] }
+      let seen = false
       node.children.forEach((child: cssTree.CssNode) => {
-        best = maxSpecificity(best, specificityOf(child))
+        const detail = specificityDetailOf(child)
+        if (!seen || compareSpec(detail.specificity, best.specificity) > 0) {
+          best = detail
+          seen = true
+        }
       })
       return best
     }
     case 'Selector': {
       let total = ZERO_SPECIFICITY
+      const parts: SpecificityPart[] = []
       node.children.forEach((child: cssTree.CssNode) => {
-        total = addSpecificity(total, specificityOf(child))
+        const detail = specificityDetailOf(child)
+        total = addSpecificity(total, detail.specificity)
+        parts.push(...detail.parts)
       })
-      return total
+      return { specificity: total, parts }
     }
     case 'IdSelector':
-      return [1, 0, 0]
+      return { specificity: [1, 0, 0], parts: [{ text: `#${node.name}`, type: 'id' }] }
     case 'ClassSelector':
+      return { specificity: [0, 1, 0], parts: [{ text: `.${node.name}`, type: 'class' }] }
     case 'AttributeSelector':
-      return [0, 1, 0]
+      return { specificity: [0, 1, 0], parts: [{ text: cssTree.generate(node), type: 'class' }] }
     case 'PseudoElementSelector':
-      return [0, 0, 1]
+      return { specificity: [0, 0, 1], parts: [{ text: `::${node.name}`, type: 'element' }] }
     case 'TypeSelector':
       // The universal selector matches everything and so decides nothing.
-      return node.name === '*' || node.name.endsWith('|*') ? ZERO_SPECIFICITY : [0, 0, 1]
+      return node.name === '*' || node.name.endsWith('|*')
+        ? { specificity: ZERO_SPECIFICITY, parts: [] }
+        : { specificity: [0, 0, 1], parts: [{ text: node.name, type: 'element' }] }
     case 'PseudoClassSelector': {
-      if (node.name === 'where') return ZERO_SPECIFICITY
-      let inner = ZERO_SPECIFICITY
+      if (node.name === 'where') return { specificity: ZERO_SPECIFICITY, parts: [] }
+      let inner: SpecificityDetail = { specificity: ZERO_SPECIFICITY, parts: [] }
       node.children?.forEach((child: cssTree.CssNode) => {
         // `:nth-child(2 of .a)` keeps its selector inside the Nth node.
-        if (child.type === 'Nth' && child.selector) inner = specificityOf(child.selector)
-        else if (child.type === 'SelectorList') inner = specificityOf(child)
+        if (child.type === 'Nth' && child.selector) inner = specificityDetailOf(child.selector)
+        else if (child.type === 'SelectorList') inner = specificityDetailOf(child)
       })
-      return MATCHES_PSEUDOS.has(node.name) ? inner : addSpecificity([0, 1, 0], inner)
+      if (MATCHES_PSEUDOS.has(node.name)) return inner
+      return {
+        specificity: addSpecificity([0, 1, 0], inner.specificity),
+        parts: [{ text: `:${node.name}`, type: 'class' }, ...inner.parts],
+      }
     }
     default:
-      return ZERO_SPECIFICITY
+      return { specificity: ZERO_SPECIFICITY, parts: [] }
   }
+}
+
+/** a-b-c per the selectors specification. */
+export function specificityOf(node: cssTree.CssNode): Specificity {
+  return specificityDetailOf(node).specificity
 }
 
 /**
