@@ -290,7 +290,11 @@ export function McpTab() {
               </span>
               {MCP_ACTIONS.map((action) => (
                 <div key={action} className="flex justify-center">
+                  {/* The row label and the column header name this cell on screen, but this is a
+                      div grid, not a table — nothing associates either with the switch. Without
+                      the explicit name all twenty announce as an unnamed switch. */}
                   <Toggle
+                    aria-label={`${MCP_RESOURCE_LABELS[resource]}: ${action}`}
                     checked={settings.permissions[resource][action]}
                     onChange={(v) =>
                       void runAction(

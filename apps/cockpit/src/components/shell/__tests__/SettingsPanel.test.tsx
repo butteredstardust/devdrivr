@@ -190,6 +190,22 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('combobox', { name: 'Render Whitespace' })).toBeInTheDocument()
   })
 
+  // The permission grid is a div grid, not a table: the resource row and the action column name
+  // each cell on screen but associate with nothing, so every switch in it announced as unnamed.
+  it('names every switch in the MCP permission grid', () => {
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
+
+    expect(screen.getByRole('switch', { name: 'Notes: read' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Notes: delete' })).toBeInTheDocument()
+    expect(
+      screen
+        .queryAllByRole('switch')
+        .every((s) => s.getAttribute('aria-label') || s.getAttribute('aria-labelledby'))
+    ).toBe(true)
+  })
+
   it('imports settings that use newer registered themes', async () => {
     const addToast = useUiStore.getState().addToast
     Object.defineProperty(navigator, 'clipboard', {
