@@ -26,7 +26,7 @@ Think of it as a developer's Swiss Army knife: 30 registered tools covering form
 | Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
 | Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
 | Workspace tabs          | ✅ Stable     | Keep-alive (4 most recent), duplicate tabs, MRU tracking |
-| Unit tests              | ✅ 1279 tests | Stores, tools, shell components, theme, keybindings      |
+| Unit tests              | ✅ 1893 tests | Stores, tools, shell components, theme, keybindings      |
 
 ---
 

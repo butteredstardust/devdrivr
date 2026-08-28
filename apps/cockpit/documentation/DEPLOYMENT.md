@@ -25,7 +25,7 @@ The project follows Semantic Versioning (SemVer) for version numbering:
    - Code follows style guidelines
 
 2. **Documentation**
-   - Update CHANGELOG.md with changes
+   - Draft the GitHub release notes (there is no CHANGELOG.md; the release body is the changelog)
    - Update version number in `package.json`
    - Ensure all new features are documented
 
@@ -119,7 +119,7 @@ for the in-app updater.
 
 1. **Dependency Conflicts**
    - Run `bun install --force` to clear cache
-   - Check for version conflicts in `bun.lockb`
+   - Check for version conflicts in `bun.lock`
 
 2. **Build Failures**
    - Verify Node.js and Bun versions
@@ -149,33 +149,14 @@ All production releases are signed:
 
 ## Rollback Procedures
 
-### Automated Rollbacks
+Rollback is entirely manual. Cockpit reports no telemetry and ships no in-app updater, so a bad
+build is neither detected nor replaced automatically — it surfaces as a user report, and users move
+versions by downloading an installer themselves.
 
-- GitHub Actions monitors crash rates
-- Auto-rollback on critical errors (>5% crash rate)
-- Manual rollback available for all releases
-
-### Manual Rollback
-
-1. Identify failing release
-2. Revert to previous tag
-3. Update release notes
-4. Publish rollback build
-
-## Monitoring and Maintenance
-
-### Health Checks
-
-- Application startup time
-- Memory usage
-- Disk space
-- Network connectivity
-
-### Maintenance Windows
-
-- Scheduled weekly: Tuesday 2-4 AM UTC
-- Emergency patches: 24/7 response
-- Database migrations: Off-peak hours only
+1. Mark the bad GitHub release as a pre-release or draft so it stops being the one people land on.
+2. Fix forward on `main` and cut a new patch version; the previous release stays downloadable for
+   anyone who needs it in the meantime.
+3. Note the known-bad version in the new release notes.
 
 ## Additional Resources
 

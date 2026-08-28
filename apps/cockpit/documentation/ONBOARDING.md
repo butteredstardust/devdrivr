@@ -140,7 +140,7 @@ devdrivr/                     ← monorepo root
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── CLAUDE.md             ← AI dev guidance
-├── bun.lockb                 ← monorepo lockfile
+├── bun.lock                  ← monorepo lockfile
 └── package.json              ← root scripts
 ```
 

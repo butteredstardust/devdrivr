@@ -80,7 +80,7 @@ packages/
 
 ```bash
 bun run dev          # Start web + API dev servers
-bun run desktop      # Start cockpit (Tauri)
+bun run cockpit      # Start cockpit (Tauri 2)
 bun run check-types  # Type-check all packages
 bun run build:web    # Production web build
 ```

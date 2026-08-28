@@ -104,7 +104,7 @@ Use conventional commit messages:
 1. **Setup**: Follow the development setup in [ONBOARDING.md](documentation/ONBOARDING.md)
 2. **Coding**: Follow the patterns in [CODING_PATTERNS.md](documentation/infrastructure/CODING_PATTERNS.md)
 3. **Testing**: Follow the guidelines in [TESTING.md](documentation/TESTING.md)
-4. **Documentation**: Follow the style in [STYLE_GUIDE.md](documentation/STYLE_GUIDE.md)
+4. **Documentation**: Keep [documentation/](documentation/) in step with the change — see the index in [documentation/README.md](documentation/README.md)
 
 ## Code Review Process
 
