@@ -100,7 +100,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          # Vite's transform stage peaked at 4048 MB against this cap on 0.1.83 and OOM-killed the
+          # Linux and Windows builds; 0.1.82 had squeaked under it. The runners have 16 GB, so give
+          # node room rather than tuning the ceiling one release at a time.
+          NODE_OPTIONS: '--max-old-space-size=8192'
         with:
           tagName: cockpit-v__VERSION__
           releaseName: 'devdrivr Cockpit v__VERSION__'
