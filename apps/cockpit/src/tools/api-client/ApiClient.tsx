@@ -21,7 +21,6 @@ import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useApiStore } from '@/stores/api.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { EnvironmentModal } from './components/EnvironmentModal'
@@ -1269,13 +1268,6 @@ export default function ApiClient() {
       void handleImportContent(action.content, action.filename)
     }
   })
-
-  useKeyboardShortcut(
-    { key: 'Enter', mod: true },
-    useCallback(() => {
-      void handleSend()
-    }, [handleSend])
-  )
 
   const handleExport = useCallback(async () => {
     const exportCollectionById = new Map(

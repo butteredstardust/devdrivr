@@ -20,7 +20,7 @@ import { Spinner } from '@/components/shared/Spinner'
 
 export function Providers({ children }: { children: ReactNode }) {
   const init = useSettingsStore((s) => s.init)
-  const initialized = useSettingsStore((s) => s.initialized)
+  const [bootstrapReady, setBootstrapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const geometryRestored = useRef(false)
@@ -31,6 +31,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
     async function bootstrap() {
       const win = getCurrentWindow()
+      setBootstrapReady(false)
 
       // Restore window geometry FIRST (before store loads) to minimise visible resize jump.
       // Ref guard runs this once even under StrictMode double-mount.
@@ -66,6 +67,44 @@ export function Providers({ children }: { children: ReactNode }) {
       }
 
       if (cancelled) return
+
+      // Geometry persistence is a core window concern and must not wait for optional data/MCP
+      // bootstrap. Otherwise an already-visible window can move while no listeners are attached.
+      let saveTimer: ReturnType<typeof setTimeout> | undefined
+      function persistBounds() {
+        clearTimeout(saveTimer)
+        saveTimer = setTimeout(async () => {
+          try {
+            const factor = await win.scaleFactor()
+            const pos = await win.outerPosition()
+            const sz = await win.outerSize()
+            const logicalPos = pos.toLogical(factor)
+            const logicalSz = sz.toLogical(factor)
+            await setSetting('windowBounds', {
+              x: logicalPos.x,
+              y: logicalPos.y,
+              width: logicalSz.width,
+              height: logicalSz.height,
+            })
+          } catch {
+            // Window may have been destroyed
+          }
+        }, 2000)
+      }
+      const unlistenMoved = await win.onMoved(persistBounds)
+      if (cancelled) {
+        unlistenMoved()
+        clearTimeout(saveTimer)
+        return
+      }
+      const unlistenResized = await win.onResized(persistBounds)
+      if (cancelled) {
+        unlistenMoved()
+        unlistenResized()
+        clearTimeout(saveTimer)
+        return
+      }
+      cleanups.push(unlistenMoved, unlistenResized, () => clearTimeout(saveTimer))
 
       // Initialize stores
       await init()
@@ -125,6 +164,9 @@ export function Providers({ children }: { children: ReactNode }) {
         await win.setAlwaysOnTop(true)
       }
 
+      if (cancelled) return
+      setBootstrapReady(true)
+
       // Auto-check for updates (non-blocking). checkForUpdate() self-guards with a 1h cooldown
       // persisted to SQLite, so it's safe to call on every launch.
       if (settings.checkForUpdatesAutomatically) {
@@ -139,43 +181,6 @@ export function Providers({ children }: { children: ReactNode }) {
           })
           .catch(() => {})
       }
-
-      // Save bounds on move/resize (debounced 2s) — convert to logical to match restore
-      let saveTimer: ReturnType<typeof setTimeout> | undefined
-      function persistBounds() {
-        clearTimeout(saveTimer)
-        saveTimer = setTimeout(async () => {
-          try {
-            const factor = await win.scaleFactor()
-            const pos = await win.outerPosition()
-            const sz = await win.outerSize()
-            const logicalPos = pos.toLogical(factor)
-            const logicalSz = sz.toLogical(factor)
-            await setSetting('windowBounds', {
-              x: logicalPos.x,
-              y: logicalPos.y,
-              width: logicalSz.width,
-              height: logicalSz.height,
-            })
-          } catch {
-            // Window may have been destroyed
-          }
-        }, 2000)
-      }
-      const unlistenMoved = await win.onMoved(persistBounds)
-      if (cancelled) {
-        unlistenMoved()
-        clearTimeout(saveTimer)
-        return
-      }
-      const unlistenResized = await win.onResized(persistBounds)
-      if (cancelled) {
-        unlistenMoved()
-        unlistenResized()
-        clearTimeout(saveTimer)
-        return
-      }
-      cleanups.push(unlistenMoved, unlistenResized, () => clearTimeout(saveTimer))
     }
 
     bootstrap()
@@ -193,13 +198,14 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const handleRetry = () => {
     setError(null)
+    setBootstrapReady(false)
     setRetryCount((count) => count + 1)
   }
 
   // Warm up heavy modules during browser idle time after app init.
   // Fallback to setTimeout if requestIdleCallback is not available (e.g., Tauri WebView).
   useEffect(() => {
-    if (!initialized) return
+    if (!bootstrapReady) return
     const preload = () => {
       void import('fuse.js')
       void import('@/tools/json-tools/JsonTools')
@@ -214,7 +220,7 @@ export function Providers({ children }: { children: ReactNode }) {
       const id = setTimeout(preload, 2000)
       return () => clearTimeout(id)
     }
-  }, [initialized])
+  }, [bootstrapReady])
 
   if (error) {
     return (
@@ -229,7 +235,7 @@ export function Providers({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!initialized) {
+  if (!bootstrapReady) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-[var(--color-accent)]">
         <Spinner size="sm" label="Starting cockpit" />

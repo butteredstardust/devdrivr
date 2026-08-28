@@ -18,6 +18,11 @@ type ToastItem = {
   type: 'success' | 'error' | 'info'
 }
 
+type PendingTabClose = {
+  tabIds: string[]
+  nextActiveTabId: string | null
+}
+
 type UiStore = {
   // --- Tab state ---
   tabs: WorkspaceTab[]
@@ -41,6 +46,8 @@ type UiStore = {
    * derived from tool state that is itself restored on launch.
    */
   dirtyTabIds: string[]
+  /** Destructive tab closure waiting for confirmation because at least one tab is dirty. */
+  pendingTabClose: PendingTabClose | null
 
   // --- Tab actions ---
   /** Open tool in a new tab, or focus the existing tab if already open. */
@@ -61,6 +68,8 @@ type UiStore = {
   closeOtherTabs: (tabId: string) => void
   /** Close all tabs to the right of the given tab id. */
   closeTabsToRight: (tabId: string) => void
+  confirmPendingTabClose: () => void
+  cancelPendingTabClose: () => void
   /** Switch the active tab without opening a new one. */
   setActiveTab: (tabId: string) => void
   /** Report whether a tab holds unsaved work. Called by tools via `useTabDirty`. */
@@ -189,6 +198,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   activeTool: '',
   tabMru: [],
   dirtyTabIds: [],
+  pendingTabClose: null,
 
   openTab: (toolId) => {
     const { tabs: currentTabs, tabMru } = get()
@@ -264,7 +274,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   },
 
   closeTab: (tabId) => {
-    const { tabs, activeTabId } = get()
+    const { tabs, activeTabId, dirtyTabIds } = get()
     const idx = tabs.findIndex((t) => t.id === tabId)
     if (idx === -1) return
     const next = tabs.filter((t) => t.id !== tabId)
@@ -274,8 +284,13 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       const candidate = next[idx - 1] ?? next[idx] ?? null
       nextActiveId = candidate?.id ?? null
     }
+    const doomed = tabs.filter((t) => t.id === tabId)
+    if (dirtyTabIds.includes(tabId)) {
+      set({ pendingTabClose: { tabIds: [tabId], nextActiveTabId: nextActiveId } })
+      return
+    }
     const nextActiveTool = derivedActiveTool(next, nextActiveId)
-    discardClosedState(tabs.filter((t) => t.id === tabId))
+    discardClosedState(doomed)
     // Surviving tabs keep their state keys. The bare key the closed tab held
     // is only up for grabs by a tab opened later, which is what makes closing
     // a tool and reopening it give you your work back.
@@ -290,15 +305,22 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   },
 
   closeOtherTabs: (tabId) => {
-    const { tabs } = get()
+    const { tabs, dirtyTabIds } = get()
     if (!tabs.some((t) => t.id === tabId)) return // unknown id — bail
     // Pinning is a statement that a tab should stay put; "Close Others"
     // sweeping it away would make the pin worthless exactly when it matters.
     const survives = (t: WorkspaceTab) => t.id === tabId || !!t.pinned
     const next = tabs.filter(survives)
     if (next.length === tabs.length) return // nothing to close
-    discardClosedState(tabs.filter((t) => !survives(t)))
+    const doomed = tabs.filter((t) => !survives(t))
     const nextActiveId = tabId
+    if (doomed.some((tab) => dirtyTabIds.includes(tab.id))) {
+      set({
+        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId },
+      })
+      return
+    }
+    discardClosedState(doomed)
     set({
       tabs: next,
       activeTabId: nextActiveId,
@@ -310,7 +332,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   },
 
   closeTabsToRight: (tabId) => {
-    const { tabs, activeTabId } = get()
+    const { tabs, activeTabId, dirtyTabIds } = get()
     const idx = tabs.findIndex((t) => t.id === tabId)
     if (idx === -1 || idx === tabs.length - 1) return // nothing to close
     // Pinned tabs to the right survive, for the same reason they survive
@@ -319,11 +341,17 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     if (doomed.length === 0) return
     const doomedIds = new Set(doomed.map((t) => t.id))
     const next = tabs.filter((t) => !doomedIds.has(t.id))
-    discardClosedState(doomed)
     // If active tab was in the closed range, activate the anchor tab
     const nextActiveId = next.some((t) => t.id === activeTabId)
       ? activeTabId
       : (next[next.length - 1]?.id ?? null)
+    if (doomed.some((tab) => dirtyTabIds.includes(tab.id))) {
+      set({
+        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId },
+      })
+      return
+    }
+    discardClosedState(doomed)
     set({
       tabs: next,
       activeTabId: nextActiveId,
@@ -333,6 +361,41 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     })
     persistTabs(next, nextActiveId)
   },
+
+  confirmPendingTabClose: () => {
+    const { pendingTabClose, tabs, activeTabId } = get()
+    if (!pendingTabClose) return
+    const doomedIds = new Set(pendingTabClose.tabIds)
+    const doomed = tabs.filter((tab) => doomedIds.has(tab.id))
+    const next = tabs.filter((tab) => !doomedIds.has(tab.id))
+    let nextActiveId = pendingTabClose.nextActiveTabId
+    if (nextActiveId !== null && !next.some((tab) => tab.id === nextActiveId)) {
+      nextActiveId = null
+    }
+    if (
+      nextActiveId === null &&
+      activeTabId !== null &&
+      next.some((tab) => tab.id === activeTabId)
+    ) {
+      nextActiveId = activeTabId
+    }
+    if (nextActiveId === null) {
+      const firstDoomedIndex = tabs.findIndex((tab) => doomedIds.has(tab.id))
+      nextActiveId = next[Math.max(0, firstDoomedIndex - 1)]?.id ?? next[0]?.id ?? null
+    }
+    discardClosedState(doomed)
+    set({
+      tabs: next,
+      activeTabId: nextActiveId,
+      activeTool: derivedActiveTool(next, nextActiveId),
+      tabMru: touchMru(get().tabMru, nextActiveId, next),
+      dirtyTabIds: pruneDirty(get().dirtyTabIds, next),
+      pendingTabClose: null,
+    })
+    persistTabs(next, nextActiveId)
+  },
+
+  cancelPendingTabClose: () => set({ pendingTabClose: null }),
 
   setActiveTab: (tabId) => {
     const { tabs } = get()
