@@ -19,12 +19,7 @@
         "minHeight": 500,
         "decorations": false,
         "center": true,
-        "backgroundColor": [
-          10,
-          10,
-          10,
-          255
-        ]
+        "backgroundColor": [10, 10, 10, 255]
       }
     ],
     "security": {
@@ -33,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "nsis", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -71,10 +66,7 @@
     },
     "linux": {
       "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libgtk-3-0"
-        ]
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
       }
     }
   }

@@ -74,12 +74,29 @@ function sanitizeFilename(raw: string): string {
   return raw.replace(/[/\\]/g, '_').replace(/^\.+/, '_')
 }
 
+/**
+ * An AppImage written by the fs plugin lands at 0644, which makes it unopenable — the Linux update
+ * looks like it succeeded and then nothing runs. Failing to fix the bit is not worth failing the
+ * whole download over, so say what to do instead.
+ */
+async function markExecutableIfAppImage(destPath: string): Promise<void> {
+  if (!destPath.endsWith('.AppImage')) return
+  try {
+    await invoke('mark_appimage_executable', { path: destPath })
+  } catch {
+    useUiStore
+      .getState()
+      .addToast(`Saved, but could not make it executable — run: chmod +x ${destPath}`, 'info')
+  }
+}
+
 /** Shared download helper: fetches URL and writes to destPath. */
 async function downloadToPath(url: string, destPath: string): Promise<void> {
   const response = await fetch(url, { method: 'GET' })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const buffer = await response.arrayBuffer()
   await writeFile(destPath, new Uint8Array(buffer))
+  await markExecutableIfAppImage(destPath)
 }
 
 export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({

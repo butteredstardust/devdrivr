@@ -15,19 +15,40 @@ function bump(version) {
   return parts.join('.');
 }
 
+/**
+ * Rewrite the `version` field in place, editing the text rather than re-serialising the parsed
+ * object. `JSON.stringify(conf, null, 2)` expands every inline array, which prettier (via
+ * lint-staged) then collapses again on the next human commit — so each release used to leave
+ * unrelated formatting churn in tauri.conf.json and the two tools took turns undoing each other.
+ */
+function writeVersion(filePath, oldVersion, newVersion) {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const needle = `"version": "${oldVersion}"`;
+  const occurrences = raw.split(needle).length - 1;
+  if (occurrences !== 1) {
+    throw new Error(
+      `Expected exactly one \`${needle}\` in ${path.basename(filePath)}, found ${occurrences}`
+    );
+  }
+  fs.writeFileSync(filePath, raw.replace(needle, `"version": "${newVersion}"`));
+}
+
 try {
   // 1. Bump package.json
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   const oldVersion = pkg.version;
   const newVersion = bump(oldVersion);
-  pkg.version = newVersion;
-  fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + '\n');
+  writeVersion(packageJsonPath, oldVersion, newVersion);
   console.log(`Bumping package.json: ${oldVersion} -> ${newVersion}`);
 
   // 2. Bump tauri.conf.json
   const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
-  tauriConf.version = newVersion;
-  fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
+  if (tauriConf.version !== oldVersion) {
+    throw new Error(
+      `tauri.conf.json is at ${tauriConf.version} but package.json is at ${oldVersion}`
+    );
+  }
+  writeVersion(tauriConfPath, oldVersion, newVersion);
   console.log(`Bumping tauri.conf.json: ${oldVersion} -> ${newVersion}`);
 
   // Output for CI

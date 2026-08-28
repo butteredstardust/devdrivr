@@ -25,6 +25,34 @@ fn get_platform_info() -> (String, String) {
     )
 }
 
+/// Restore the executable bit on an AppImage the updater has just downloaded.
+///
+/// `tauri-plugin-fs`'s `writeFile` creates files 0644, so on Linux the installer lands unrunnable
+/// and the update dead-ends until the user thinks to `chmod +x` it — the other two platforms hand
+/// back a dmg or an exe that simply opens. The `.AppImage` suffix check keeps this from being a
+/// general-purpose "make any file executable" command reachable over IPC.
+#[tauri::command]
+fn mark_appimage_executable(path: String) -> Result<(), String> {
+    if !path.ends_with(".AppImage") {
+        return Err("refusing to mark a non-AppImage file executable".to_string());
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        if !metadata.is_file() {
+            return Err("not a regular file".to_string());
+        }
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(permissions.mode() | 0o111);
+        std::fs::set_permissions(&path, permissions).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let migrations = vec![
@@ -134,6 +162,7 @@ pub fn run() {
         .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
+            mark_appimage_executable,
             window_commands::window_close,
             window_commands::window_focus,
             window_commands::window_is_maximized,
