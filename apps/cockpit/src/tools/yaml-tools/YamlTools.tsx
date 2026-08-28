@@ -14,12 +14,12 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
@@ -33,7 +33,6 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
@@ -298,41 +297,13 @@ export default function YamlTools() {
     setLastAction('Reverted', 'info')
   }, [undoBuffer, updateState, setLastAction])
 
-  const handleSaveAs = useCallback(async () => {
-    try {
-      const path = await saveFileDialog(inputRef.current, state.fileName ?? 'document.yaml')
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path) })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.fileName, setLastAction, updateState])
-
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, inputRef.current)
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
+  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
+    getContent: () => inputRef.current,
+    filePath: state.filePath ?? null,
+    fileName: state.fileName ?? null,
+    defaultFileName: 'document.yaml',
+    onSaved: updateState,
+  })
 
   // The parse error knows where it is; without this the user reads the line
   // number and then scrolls to find it by hand.
@@ -358,13 +329,7 @@ export default function YamlTools() {
       setJsonDraft(null)
       setLastAction(`Opened ${action.filename}`, 'success')
     }
-    if (action.type === 'save-file') {
-      if (!inputRef.current.trim()) {
-        setLastAction('Nothing to save yet', 'info')
-        return
-      }
-      void handleSave()
-    }
+    if (action.type === 'save-file') void handleSave()
     if (action.type === 'copy-output') {
       void copy(inputRef.current, { success: 'Copied YAML' })
     }

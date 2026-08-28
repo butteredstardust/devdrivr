@@ -72,10 +72,6 @@ const FONT_FAMILY_OPTIONS: AppSettings['editorFont'][] = [
   'Source Code Pro',
 ]
 
-const KEYBINDING_OPTIONS: { value: AppSettings['editorKeybindingMode']; label: string }[] = [
-  { value: 'standard', label: 'Standard' },
-]
-
 const EDITOR_THEME_OPTIONS: { value: AppSettings['editorTheme']; label: string }[] = [
   { value: 'cockpit-dark', label: 'Dark (default)' },
   { value: 'cockpit-light', label: 'Light' },
@@ -428,7 +424,6 @@ function EditorTab() {
   const editorFontSize = useSettingsStore((s) => s.editorFontSize)
   const defaultIndentSize = useSettingsStore((s) => s.defaultIndentSize)
   const editorTheme = useSettingsStore((s) => s.editorTheme)
-  const editorKeybindingMode = useSettingsStore((s) => s.editorKeybindingMode)
   const formatOnPaste = useSettingsStore((s) => s.formatOnPaste)
   const editorWordWrap = useSettingsStore((s) => s.editorWordWrap)
   const editorMinimap = useSettingsStore((s) => s.editorMinimap)
@@ -473,17 +468,6 @@ function EditorTab() {
               void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
             }
             options={EDITOR_THEME_OPTIONS}
-          />
-        </SettingRow>
-        <SettingRow label="Keybinding Mode" hint="Monaco standard shortcuts">
-          <SelectInput
-            value={editorKeybindingMode}
-            onChange={(v) =>
-              void update('editorKeybindingMode', v as AppSettings['editorKeybindingMode']).catch(
-                () => {}
-              )
-            }
-            options={KEYBINDING_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
           />
         </SettingRow>
         <SettingRow label="Format on Paste" hint="Auto-format code when pasting">

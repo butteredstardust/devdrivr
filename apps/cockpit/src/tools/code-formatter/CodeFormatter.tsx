@@ -12,6 +12,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
+import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { CopyButton } from '@/components/shared/CopyButton'
@@ -19,8 +20,6 @@ import { Kbd } from '@/components/shared/Kbd'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
@@ -275,46 +274,13 @@ export default function CodeFormatter() {
     }
   }, [formatter, updateState, setLastAction])
 
-  const handleSaveAs = useCallback(async () => {
-    if (!inputRef.current.trim()) {
-      setLastAction('Nothing to save yet', 'info')
-      return
-    }
-    const defaultName = state.fileName ?? `formatted.${extensionForLanguage(state.language)}`
-    try {
-      const path = await saveFileDialog(inputRef.current, defaultName)
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path) })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.fileName, state.language, setLastAction, updateState])
-
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, inputRef.current)
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.fileName, handleSaveAs, setLastAction])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
+  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
+    getContent: () => inputRef.current,
+    filePath: state.filePath ?? null,
+    fileName: state.fileName ?? null,
+    defaultFileName: () => `formatted.${extensionForLanguage(optionsRef.current.language)}`,
+    onSaved: updateState,
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {
