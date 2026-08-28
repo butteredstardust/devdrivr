@@ -145,49 +145,55 @@ jobs:
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Fetch actual asset names from the release and verify expected files exist
-          ASSETS=$(gh release view "${TAG}" --json assets --jq '[.assets[].name]')
-          echo "Release assets: ${ASSETS}"
+          ASSETS=$(gh release view "${TAG}" --json assets --jq '.assets[].name')
+          echo "Release assets:"
+          echo "${ASSETS}"
 
-          # The updater installs from these, not from the dmg/exe a human downloads: macOS swaps the
-          # .app bundle, Windows runs the NSIS installer out of the zip, Linux rewrites the AppImage
-          # in place. Each needs its detached minisign .sig, so a half-uploaded release aborts here
-          # rather than publishing a manifest pointing at an artifact with no signature to check.
-          EXPECTED_ASSETS=(
-            "devdrivr_${VERSION}_aarch64.dmg"
-            "devdrivr_${VERSION}_amd64.AppImage"
-            "devdrivr_${VERSION}_x64-setup.exe"
-            "devdrivr_aarch64.app.tar.gz"
-            "devdrivr_aarch64.app.tar.gz.sig"
-            "devdrivr_${VERSION}_amd64.AppImage.sig"
-            "devdrivr_${VERSION}_x64-setup.nsis.zip"
-            "devdrivr_${VERSION}_x64-setup.nsis.zip.sig"
-          )
-
-          MISSING=0
-          for ASSET in "${EXPECTED_ASSETS[@]}"; do
-            if ! echo "${ASSETS}" | grep -q "\"${ASSET}\""; then
-              echo "WARNING: Expected asset not found in release: ${ASSET}"
-              MISSING=$((MISSING + 1))
+          # Asset names are resolved by pattern rather than hard-coded, because tauri-action is
+          # pinned to the moving `@v0` tag and it — not the Tauri CLI — decides the final upload
+          # name. Its `getAssetName` rewrites .app.tar.gz to add the architecture, and whether it
+          # also adds the version has changed between releases of the action. Matching a pattern and
+          # demanding exactly one hit turns a rename into a loud failure here, instead of a manifest
+          # pointing at a URL that 404s for every user.
+          V=${VERSION//./\\.}
+          resolve() {
+            local pattern="$1" desc="$2" match count
+            match=$(echo "${ASSETS}" | grep -E "${pattern}" || true)
+            count=$(echo "${match}" | grep -c . || true)
+            if [ "${count}" -ne 1 ]; then
+              echo "ERROR: expected exactly one ${desc} asset matching /${pattern}/, found ${count}" >&2
+              [ -n "${match}" ] && echo "${match}" >&2
+              return 1
             fi
-          done
+            echo "${match}"
+          }
 
-          if [ "${MISSING}" -gt 0 ]; then
-            echo "ERROR: ${MISSING} expected asset(s) missing from release ${TAG}. Aborting manifest generation."
-            exit 1
-          fi
+          # Human downloads: what the release page offers and what pre-plugin clients fetch.
+          DMG=$(resolve "^devdrivr_${V}_aarch64\.dmg$" "macOS dmg")
+          APPIMAGE=$(resolve "^devdrivr_${V}_amd64\.AppImage$" "Linux AppImage")
+          EXE=$(resolve "^devdrivr_${V}_x64-setup\.exe$" "Windows installer")
+
+          # Updater payloads. macOS swaps the .app bundle out of a tarball; Linux rewrites the
+          # running AppImage in place; Windows re-runs the NSIS installer — so on Linux and Windows
+          # the updater payload is the very same file a human downloads. Only macOS differs.
+          MAC_UPDATER=$(resolve "\.app\.tar\.gz$" "macOS updater bundle")
+          SIG_DARWIN_ASSET=$(resolve "\.app\.tar\.gz\.sig$" "macOS updater signature")
+          SIG_LINUX_ASSET=$(resolve "^devdrivr_${V}_amd64\.AppImage\.sig$" "Linux updater signature")
+          SIG_WINDOWS_ASSET=$(resolve "^devdrivr_${V}_x64-setup\.exe\.sig$" "Windows updater signature")
+
+          echo "Resolved updater artifacts: ${MAC_UPDATER}, ${APPIMAGE}, ${EXE}"
 
           # Signatures are one-line base64 blobs the plugin checks against the pubkey baked into the
           # app. Read them from the release rather than rebuilding, so the manifest can only ever
           # describe the artifacts that actually shipped.
           gh release download "${TAG}" \
-            --pattern "devdrivr_aarch64.app.tar.gz.sig" \
-            --pattern "devdrivr_${VERSION}_amd64.AppImage.sig" \
-            --pattern "devdrivr_${VERSION}_x64-setup.nsis.zip.sig" \
+            --pattern "${SIG_DARWIN_ASSET}" \
+            --pattern "${SIG_LINUX_ASSET}" \
+            --pattern "${SIG_WINDOWS_ASSET}" \
             --dir sigs
-          SIG_DARWIN=$(cat "sigs/devdrivr_aarch64.app.tar.gz.sig")
-          SIG_LINUX=$(cat "sigs/devdrivr_${VERSION}_amd64.AppImage.sig")
-          SIG_WINDOWS=$(cat "sigs/devdrivr_${VERSION}_x64-setup.nsis.zip.sig")
+          SIG_DARWIN=$(cat "sigs/${SIG_DARWIN_ASSET}")
+          SIG_LINUX=$(cat "sigs/${SIG_LINUX_ASSET}")
+          SIG_WINDOWS=$(cat "sigs/${SIG_WINDOWS_ASSET}")
 
           # Two manifests on purpose.
           #
@@ -208,15 +214,15 @@ jobs:
             "pub_date": "${PUB_DATE}",
             "platforms": {
               "darwin-aarch64": {
-                "url": "${BASE_URL}/devdrivr_aarch64.app.tar.gz",
+                "url": "${BASE_URL}/${MAC_UPDATER}",
                 "signature": "${SIG_DARWIN}"
               },
               "linux-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage",
+                "url": "${BASE_URL}/${APPIMAGE}",
                 "signature": "${SIG_LINUX}"
               },
               "windows-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_x64-setup.nsis.zip",
+                "url": "${BASE_URL}/${EXE}",
                 "signature": "${SIG_WINDOWS}"
               }
             }
@@ -230,13 +236,13 @@ jobs:
             "pub_date": "${PUB_DATE}",
             "platforms": {
               "darwin-aarch64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_aarch64.dmg"
+                "url": "${BASE_URL}/${DMG}"
               },
               "linux-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage"
+                "url": "${BASE_URL}/${APPIMAGE}"
               },
               "windows-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_x64-setup.exe"
+                "url": "${BASE_URL}/${EXE}"
               }
             }
           }
