@@ -19,6 +19,7 @@ import {
   UploadSimpleIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { useModalFocus } from '@/hooks/useModalFocus'
 import { Button } from '@/components/shared/Button'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Field } from '@/components/shared/Field'
@@ -245,67 +246,34 @@ function QuickFillModal({
   const isInstanceActive = useIsInstanceActive()
   const titleId = useId()
   const fieldRootRef = useRef<HTMLDivElement>(null)
-  const modalRef = useRef<HTMLDivElement>(null)
-  const onCloseRef = useRef(onClose)
   const onCopyRef = useRef(onCopy)
-
-  onCloseRef.current = onClose
   onCopyRef.current = onCopy
 
-  useEffect(() => {
-    if (!open) return
-    const previousActive =
-      document.activeElement && 'focus' in document.activeElement
-        ? (document.activeElement as { focus: () => void })
-        : null
-    const focusTimer = setTimeout(() => {
-      fieldRootRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus()
-    }, 0)
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!isInstanceActive) return
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onCloseRef.current()
-      }
-      if (event.key === 'Tab') {
-        const focusable = Array.from(
-          modalRef.current?.querySelectorAll<HTMLElement>(
-            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          ) ?? []
-        ).filter((element) => !element.hasAttribute('disabled'))
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (!first || !last) {
-          event.preventDefault()
-          return
-        }
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault()
-          first.focus()
-        } else if (!modalRef.current?.contains(document.activeElement)) {
-          event.preventDefault()
-          first.focus()
-        }
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+  // Escape, Tab trapping and focus restore come from the shared modal lifecycle; only the two
+  // shortcuts that are particular to quick fill live here.
+  const { panelRef, onKeyDown: onModalKeyDown } = useModalFocus<HTMLDivElement>({
+    onClose,
+    initialFocusSelector: 'input, textarea, select',
+    enabled: isInstanceActive && open,
+  })
+
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const shortcut = event.metaKey || event.ctrlKey
+      if (shortcut && event.key.toLowerCase() === 'f') {
         event.preventDefault()
         fieldRootRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus()
+        return
       }
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      if (shortcut && event.key === 'Enter') {
         event.preventDefault()
         onCopyRef.current()
+        return
       }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      clearTimeout(focusTimer)
-      window.removeEventListener('keydown', onKeyDown)
-      previousActive?.focus()
-    }
-  }, [isInstanceActive, open])
+      onModalKeyDown(event)
+    },
+    [onModalKeyDown]
+  )
 
   if (!open) return null
 
@@ -318,10 +286,12 @@ function QuickFillModal({
       role="presentation"
     >
       <div
-        ref={modalRef}
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         className="grid max-h-[88vh] w-full max-w-5xl grid-cols-[minmax(20rem,0.85fr)_minmax(24rem,1fr)] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[minmax(0,1fr)_minmax(10rem,0.75fr)]"
       >
         <div className="flex min-h-0 flex-col border-r border-[var(--color-border)] max-[900px]:border-b max-[900px]:border-r-0">
@@ -412,13 +382,10 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
   const [draft, setDraft] = useState<PromptTemplateDraft>(() => templateToDraft(sourceTemplate))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const modalRef = useRef<HTMLDivElement>(null)
   const firstInputRef = useRef<HTMLInputElement>(null)
-  const onCloseRef = useRef(onClose)
   const onSaveRef = useRef(onSave)
   const submitRef = useRef<(() => Promise<void>) | null>(null)
 
-  onCloseRef.current = onClose
   onSaveRef.current = onSave
 
   const submit = useCallback(async () => {
@@ -446,53 +413,24 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
   }, [draft])
   submitRef.current = submit
 
-  useEffect(() => {
-    const previousActive =
-      document.activeElement && 'focus' in document.activeElement
-        ? (document.activeElement as { focus: () => void })
-        : null
-    const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 0)
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!isInstanceActive) return
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onCloseRef.current()
-      }
+  // Same shared lifecycle as quick fill; Cmd+Enter to save is the one key this modal adds.
+  const { panelRef, onKeyDown: onModalKeyDown } = useModalFocus<HTMLDivElement>({
+    onClose,
+    ...(firstInputRef ? { initialFocusRef: firstInputRef } : {}),
+    enabled: isInstanceActive,
+  })
+
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault()
         void submitRef.current?.()
+        return
       }
-      if (event.key === 'Tab') {
-        const focusable = Array.from(
-          modalRef.current?.querySelectorAll<HTMLElement>(
-            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          ) ?? []
-        ).filter((element) => !element.hasAttribute('disabled'))
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (!first || !last) {
-          event.preventDefault()
-          return
-        }
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault()
-          first.focus()
-        } else if (!modalRef.current?.contains(document.activeElement)) {
-          event.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      clearTimeout(focusTimer)
-      window.removeEventListener('keydown', onKeyDown)
-      previousActive?.focus()
-    }
-  }, [isInstanceActive])
+      onModalKeyDown(event)
+    },
+    [onModalKeyDown]
+  )
 
   const title =
     mode === 'edit'
@@ -508,10 +446,12 @@ function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: Template
       role="presentation"
     >
       <div
-        ref={modalRef}
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)]"
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">

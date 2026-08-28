@@ -463,6 +463,9 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   addToast: (message, type = 'info') => {
     const id = crypto.randomUUID()
     set((s) => ({ toasts: [...s.toasts, { id, message, type }] }))
+    // Errors stay until dismissed. Three seconds is enough for "Copied" and nowhere near enough
+    // to read, understand and act on a failure — the one kind of message that is worth keeping.
+    if (type === 'error') return
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
     }, 3000)

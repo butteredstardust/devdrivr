@@ -320,6 +320,48 @@ describe('SidebarCollapsedGroup — flyout icons', () => {
     expect(screen.getByRole('button', { name: 'Tool A' })).toBeInTheDocument()
     expect(screen.getByTestId('icon-a')).toBeInTheDocument()
   })
+
+  it('advertises the flyout as a dialog the trigger controls, and only while it is open', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    const trigger = screen.getByRole('button', { name: 'TestGroup' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).not.toHaveAttribute('aria-controls')
+
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'TestGroup tools' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('aria-controls', dialog.id)
+  })
+
+  it('moves focus into the flyout on open and back to the trigger on Escape', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    const trigger = screen.getByRole('button', { name: 'TestGroup' })
+    fireEvent.click(trigger)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: 'TestGroup tools' }))
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('walks the tools with the arrow keys and wraps at both ends', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'TestGroup' }))
+    const dialog = screen.getByRole('dialog', { name: 'TestGroup tools' })
+
+    // Focus starts on the surface itself, so the first ArrowDown lands on the first tool.
+    fireEvent.keyDown(dialog, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tool A' }))
+
+    fireEvent.keyDown(dialog, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: TOOLS[TOOLS.length - 1]!.name })
+    )
+  })
 })
 
 // ── Keyboard nav ArrowUp when focus is outside item list ───────────

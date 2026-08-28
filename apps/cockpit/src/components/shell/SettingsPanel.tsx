@@ -37,6 +37,7 @@ import {
 } from '@phosphor-icons/react'
 import { AboutTab } from '@/components/shell/AboutTab'
 import { AcknowledgmentsTab } from '@/components/shell/AcknowledgmentsTab'
+import { TabBar, TabPanel } from '@/components/shared/TabBar'
 import { Dialog } from '@/components/shared/Dialog'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
@@ -1271,34 +1272,30 @@ export function SettingsPanel() {
     >
       {/* Tab bar — pinned; only the panel below it scrolls. It scrolls horizontally rather than
           squashing, so a narrow window loses the trailing tabs to a swipe instead of crushing six
-          labels into unreadable slivers. */}
-      <div className="no-scrollbar flex shrink-0 overflow-x-auto border-b border-[var(--color-border)]">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`-mb-px flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
-              activeTab === tab.id
-                ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)]'
-                : 'border-b-2 border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+          labels into unreadable slivers. The shared primitive owns the roles, the roving tabindex
+          and the arrow/Home/End keys, and links each tab to its panel. */}
+      <TabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabId)}
+        baseId="settings"
+        aria-label="Settings sections"
+        className="no-scrollbar shrink-0"
+      />
 
       {/* Tab content */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <TabPanel
+        baseId="settings"
+        tabId={activeTab}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+      >
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && <DataTab />}
         {activeTab === 'mcp' && <McpTab />}
         {activeTab === 'about' && <AboutTab />}
         {activeTab === 'acknowledgments' && <AcknowledgmentsTab />}
-      </div>
+      </TabPanel>
     </Dialog>
   )
 }
