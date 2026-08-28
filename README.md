@@ -2,6 +2,7 @@
 
 # devdrivr
 
+**A local-first, keyboard-driven developer workspace.**
 **30 developer tools. One desktop app. No browser, no cloud, no latency.**
 
 [![Release](https://img.shields.io/github/v/release/butteredstardust/devdrivr?style=for-the-badge&logo=github&color=181717)](https://github.com/butteredstardust/devdrivr/releases/latest)
@@ -17,73 +18,51 @@
 
 ---
 
-## What's inside
+## Install
 
-The **cockpit** app is the heart of devdrivr — a local-first, keyboard-driven developer workspace built with Tauri 2 + React 19. Everything runs on your machine. No accounts, no telemetry, no internet required.
+Grab the installer for your platform from the [latest release](https://github.com/butteredstardust/devdrivr/releases/latest):
 
-| Group       | Tools                                                                                                           |
-|-------------|----------------------------------------------------------------------------------------------------------------|
-| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                     |
-| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator · CSV Tools                                        |
-| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                              |
-| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
-| **Test**    | Regex Tester · JWT Decoder                                                                                     |
-| **Network** | API Client · Docs Browser                                                                                      |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets · Prompt Templates                                                 |
+| Platform              | Asset                               |
+| --------------------- | ----------------------------------- |
+| macOS (Apple Silicon) | `devdrivr_<version>_aarch64.dmg`    |
+| Windows 10+           | `devdrivr_<version>_x64-setup.exe`  |
+| Linux x64             | `devdrivr_<version>_amd64.AppImage` |
 
----
-
-## Quick start
+The builds are **unsigned**, so macOS Gatekeeper and Windows SmartScreen will both object the first
+time you open one. [Getting past that](#unsigned-builds) takes about ten seconds and is documented at
+the end of this file.
 
 > [!NOTE]
-> Prerequisites: [Bun](https://bun.sh) ≥ 1.0, [Rust](https://rustup.rs) stable, and [Tauri system dependencies](https://tauri.app/start/prerequisites/).
-
-```bash
-git clone https://github.com/butteredstardust/devdrivr
-cd devdrivr/apps/cockpit
-bun install
-bun run tauri dev
-```
-
-See [`apps/cockpit/README.md`](apps/cockpit/README.md) for the full developer guide.
+> Intel macOS is not supported as of 0.1.83. `0.1.82` is the last release with an `x64.dmg`.
 
 ---
 
-## Monorepo structure
+## Tools
 
-This repo started from the [T4 Stack](https://github.com/timothymiller/t4-app) Turborepo template.
-`apps/cockpit` is the only actively developed app; everything else is inherited scaffolding kept at
-most dependency-patched. See [`AGENTS.md`](AGENTS.md) for the full per-app status breakdown.
+Everything you reach for during a coding session — in one keyboard-driven app. Everything runs on
+your machine: no accounts, no telemetry, no internet required.
 
-```
-apps/
-  cockpit/    # Desktop — Tauri 2 + React 19 (active — this is devdrivr)
-  next/       # Web — Next.js (legacy scaffold)
-  tauri/      # Desktop — Tauri 1.4, wraps apps/next (legacy scaffold)
-  expo/       # Mobile — Expo / React Native (legacy scaffold)
-  docs/       # Documentation — Nextra (legacy scaffold)
-  cli/        # create-t4-app scaffolder CLI (legacy scaffold)
-  vscode/     # T4 App Tools VS Code extension (legacy scaffold)
-packages/
-  api/        # Backend — Hono + Drizzle + Cloudflare D1 (legacy scaffold)
-  ui/         # Shared — Tamagui component library (legacy scaffold)
-  app/        # Shared — cross-platform screens (legacy scaffold)
-```
+| Group       | Tools                                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                              |
+| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator · CSV Tools                                                                 |
+| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                                       |
+| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
+| **Test**    | Regex Tester · JWT Decoder                                                                                                              |
+| **Network** | API Client · Docs Browser                                                                                                               |
+| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                                  |
 
-| App | Description |
-|-----|-------------|
-| [`apps/cockpit`](apps/cockpit) | **Active.** Desktop app — Tauri 2 + React 19. This is devdrivr. |
-| [`apps/next`](apps/next) | Legacy — Web app, Next.js |
-| [`apps/tauri`](apps/tauri) | Legacy — Tauri 1.4 shell wrapping `apps/next` |
-| [`apps/expo`](apps/expo) | Legacy — Mobile app, Expo / React Native |
-| [`packages/api`](packages/api) | Legacy — Backend, Hono on Cloudflare Workers + D1 |
+### Shell features
 
-```bash
-bun run dev          # Start web + API dev servers
-bun run cockpit      # Start cockpit (Tauri 2)
-bun run check-types  # Type-check all packages
-bun run build:web    # Production web build
-```
+- **Command palette** — fuzzy search every tool (`Cmd+K`)
+- **Notes drawer** — persistent notes with color tags and full-text search
+- **Per-tool history** — inputs and outputs are saved automatically
+- **Snippets library** — tagged code snippets accessible from any tool
+- **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
+- **Themes** — system mode plus 31 built-in themes
+- **Always-on-top** — pin the window over your editor or browser
+- **Window state persistence** — remembers size and position across launches
+- **Auto-updater** — checks GitHub releases and prompts you when a new version is available
 
 ---
 
@@ -117,6 +96,225 @@ authentication a panel away.
 
 ---
 
+## Keyboard shortcuts
+
+| Shortcut      | Action                       |
+| ------------- | ---------------------------- |
+| `Cmd+K`       | Command palette              |
+| `Cmd+B`       | Toggle sidebar               |
+| `Cmd+]` / `[` | Next / previous tool         |
+| `Cmd+Shift+N` | Toggle notes drawer          |
+| `Cmd+Enter`   | Execute / run                |
+| `Cmd+Shift+C` | Copy output                  |
+| `Cmd+1/2/3`   | Switch sub-tab               |
+| `Cmd+O`       | Open file                    |
+| `Cmd+S`       | Save file                    |
+| `Cmd+,`       | Settings                     |
+| `Cmd+Shift+T` | Toggle theme                 |
+| `Cmd+Shift+P` | Toggle always-on-top         |
+| `Cmd+/`       | Keyboard shortcuts reference |
+
+`Cmd` is `Ctrl` on Windows and Linux.
+
+---
+
+## Themes
+
+| Theme family          | Options                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| System                | `system`                                                                                                                 |
+| Cockpit originals     | `midnight`, `warm-terminal`, `neon-brutalist`, `earth-code`, `cyber-luxe`, `soft-focus`                                  |
+| Popular editor themes | `tokyo-night`, `tokyo-night-light`, `dracula`, `monokai`, `nord`, `night-owl`, `oceanic-next`, `tomorrow-night`          |
+| Catppuccin            | `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`                                      |
+| GitHub and Solarized  | `github-dark`, `github-light`, `solarized-dark`, `solarized-light`                                                       |
+| Extras                | `inked`, `urban-nocturne`, `amethyst-haze`, `lapis-velvet`, `amethyst-mint`, `fireside`, `marina`, `pearl`, `yacht-club` |
+
+Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
+
+---
+
+## MCP server
+
+devdrivr includes a local MCP server for CLI agents such as Codex CLI and Claude Code. It is
+disabled by default. When enabled in Settings, it starts with the app and exposes authenticated
+tools for notes, snippets, prompt templates, saved API client requests, search, schema
+introspection, and topic-based help.
+
+Key details:
+
+- Binds to `127.0.0.1` only.
+- Default URL: `http://127.0.0.1:17347/mcp`.
+- Uses a bearer token copied from Settings → MCP.
+- Defaults to read-only permissions.
+- Redacts saved API request auth secrets unless explicitly allowed.
+
+See [`apps/cockpit/documentation/MCP_SERVER.md`](apps/cockpit/documentation/MCP_SERVER.md) for setup
+commands, permissions, tools, limits, and troubleshooting.
+
+---
+
+## App updater
+
+devdrivr checks [GitHub releases](https://github.com/butteredstardust/devdrivr/releases) for new
+versions against a `latest.json` manifest published on every release. No account or signing key
+required — pure HTTP, fully local. It downloads the installer for you; installing it is still a
+manual step (and one where Gatekeeper or SmartScreen will speak up again).
+
+**Update settings** (in Settings → General):
+
+| Setting                         | Default | Description                                        |
+| ------------------------------- | ------- | -------------------------------------------------- |
+| Check for updates automatically | On      | Checks once per hour in the background             |
+| Download update automatically   | Off     | Saves installer to Downloads folder silently       |
+| Notify when update available    | On      | Shows a dismissible banner when an update is found |
+
+You can always trigger a manual check with the **Check Now** button in Settings.
+
+---
+
+## Tech stack
+
+| Layer         | Technology                             |
+| ------------- | -------------------------------------- |
+| Desktop shell | Tauri 2 (Rust + WebKit)                |
+| UI            | React 19, TypeScript 5.9               |
+| Styling       | Tailwind CSS 4, CSS custom properties  |
+| State         | Zustand 5                              |
+| Persistence   | SQLite via tauri-plugin-sql (WAL mode) |
+| Build         | Vite 7                                 |
+| Tests         | Vitest                                 |
+
+---
+
+## Build from source
+
+> [!NOTE]
+> Prerequisites: [Bun](https://bun.sh) ≥ 1.0, [Rust](https://rustup.rs) stable, and
+> [Tauri system dependencies](https://tauri.app/start/prerequisites/).
+
+```bash
+git clone https://github.com/butteredstardust/devdrivr
+cd devdrivr/apps/cockpit
+bun install
+bun run tauri dev     # dev server with hot reload
+bun run tauri build   # production bundle
+```
+
+Run cockpit commands from `apps/cockpit/`, not the monorepo root. See
+[`apps/cockpit/README.md`](apps/cockpit/README.md) for the full developer guide.
+
+---
+
+## Monorepo structure
+
+This repo started from the [T4 Stack](https://github.com/timothymiller/t4-app) Turborepo template.
+`apps/cockpit` is the only actively developed app; everything else is inherited scaffolding kept at
+most dependency-patched. See [`AGENTS.md`](AGENTS.md) for the full per-app status breakdown.
+
+```
+apps/
+  cockpit/    # Desktop — Tauri 2 + React 19 (active — this is devdrivr)
+  next/       # Web — Next.js (legacy scaffold)
+  tauri/      # Desktop — Tauri 1.4, wraps apps/next (legacy scaffold)
+  expo/       # Mobile — Expo / React Native (legacy scaffold)
+  docs/       # Documentation — Nextra (legacy scaffold)
+  cli/        # create-t4-app scaffolder CLI (legacy scaffold)
+  vscode/     # T4 App Tools VS Code extension (legacy scaffold)
+packages/
+  api/        # Backend — Hono + Drizzle + Cloudflare D1 (legacy scaffold)
+  ui/         # Shared — Tamagui component library (legacy scaffold)
+  app/        # Shared — cross-platform screens (legacy scaffold)
+```
+
+```bash
+bun run cockpit      # Start cockpit (Tauri 2)
+bun run dev          # Start the legacy web + API dev servers
+bun run check-types  # Type-check all packages
+```
+
+---
+
+## Documentation
+
+| Doc                                                                                                                             | Description                                     |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [`documentation/PRODUCT_MAP.md`](apps/cockpit/documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
+| [`documentation/TODO.md`](apps/cockpit/documentation/TODO.md)                                                                   | Quality, bug-fix, and reliability backlog       |
+| [`documentation/MCP_SERVER.md`](apps/cockpit/documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
+| [`documentation/ONBOARDING.md`](apps/cockpit/documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
+| [`documentation/TESTING.md`](apps/cockpit/documentation/TESTING.md)                                                             | Test strategy and coverage map                  |
+| [`documentation/DESIGN_SYSTEM.md`](apps/cockpit/documentation/DESIGN_SYSTEM.md)                                                 | Color tokens, typography, component patterns    |
+| [`documentation/infrastructure/CODING_PATTERNS.md`](apps/cockpit/documentation/infrastructure/CODING_PATTERNS.md)               | Patterns to follow before writing any code      |
+| [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](apps/cockpit/documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | ADRs — why things are the way they are          |
+| [`documentation/infrastructure/TROUBLESHOOTING.md`](apps/cockpit/documentation/infrastructure/TROUBLESHOOTING.md)               | When something breaks                           |
+
+The full index lives in
+[`apps/cockpit/documentation/README.md`](apps/cockpit/documentation/README.md).
+
+---
+
+## Unsigned builds
+
+devdrivr ships without an Apple Developer ID and without a Windows code-signing certificate. Both
+cost money per year to tell your OS something you can verify yourself: the binaries are built in
+public by [`.github/workflows/tauri.yml`](.github/workflows/tauri.yml) from the commit tagged in the
+release, and you can build your own from source with the steps above.
+
+The practical consequence is that the first launch takes one extra click.
+
+### macOS — Gatekeeper
+
+Opening the app normally gets you _"devdrivr" can't be opened because Apple cannot check it for
+malicious software_. Pick whichever you prefer:
+
+**Through the UI**
+
+1. Drag `devdrivr.app` to Applications and double-click it. Let the warning appear, then dismiss it.
+2. Open **System Settings → Privacy & Security** and scroll to the Security section.
+3. Next to _"devdrivr" was blocked from use because it is not from an identified developer_, click
+   **Open Anyway**, then confirm.
+
+On macOS 14 and earlier you can skip that by right-clicking the app and choosing **Open** from the
+context menu. macOS 15 (Sequoia) removed that shortcut — use System Settings.
+
+**Through the terminal**
+
+```bash
+xattr -dr com.apple.quarantine /Applications/devdrivr.app
+```
+
+This strips the quarantine flag Safari/Chrome attached to the download, which is what Gatekeeper is
+reacting to. Only run it on a file you actually meant to download.
+
+### Windows — SmartScreen
+
+The installer triggers _Windows protected your PC_, with the **Run** button hidden.
+
+1. Click **More info** in the dialog.
+2. Click **Run anyway**.
+
+If the installer refuses to start at all, Windows may have marked the file itself: right-click
+`devdrivr_<version>_x64-setup.exe` → **Properties** → tick **Unblock** at the bottom of the General
+tab → **OK**. The PowerShell equivalent is
+`Unblock-File .\devdrivr_<version>_x64-setup.exe`.
+
+SmartScreen's warning is reputation-based, so it may keep appearing for new versions even after you
+have allowed an earlier one.
+
+### Linux — AppImage
+
+No signature check to fight, just the executable bit:
+
+```bash
+chmod +x devdrivr_<version>_amd64.AppImage
+./devdrivr_<version>_amd64.AppImage
+```
+
+Every update ships the same way, so expect the same prompt each time you install a new version.
+
+---
+
 ## License
 
 MIT
+</content>

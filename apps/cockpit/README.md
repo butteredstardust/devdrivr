@@ -18,31 +18,9 @@
 
 ---
 
-## Tools
-
-Everything you reach for during a coding session — in one keyboard-driven app.
-
-| Group       | Tools                                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Code**    | Code Formatter · TypeScript Playground · Diff Viewer · Refactoring Toolkit                                                              |
-| **Data**    | JSON Tools · XML Tools · YAML Tools · JSON Schema Validator · CSV Tools                                                                 |
-| **Web**     | CSS Validator · HTML Validator · CSS Specificity · CSS → Tailwind                                                                       |
-| **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
-| **Test**    | Regex Tester · JWT Decoder                                                                                                              |
-| **Network** | API Client · Docs Browser                                                                                                               |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                                  |
-
-### Shell features
-
-- **Command palette** — fuzzy search every tool (`Cmd+K`)
-- **Notes drawer** — persistent notes with color tags and full-text search
-- **Per-tool history** — inputs and outputs are saved automatically
-- **Snippets library** — tagged code snippets accessible from any tool
-- **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
-- **Themes** — system mode plus 31 built-in themes
-- **Always-on-top** — pin the window over your editor or browser
-- **Window state persistence** — remembers size and position across launches
-- **Auto-updater** — checks GitHub releases and prompts you when a new version is available
+This is the developer guide for the cockpit app. The [root README](../../README.md) is the product
+one: tool list, screenshots, install instructions, keyboard shortcuts, themes, the MCP server, the
+updater, and how to get past Gatekeeper and SmartScreen on the unsigned builds.
 
 ---
 
@@ -92,59 +70,9 @@ bun run tauri build
 > [!NOTE]
 > Run all commands from `apps/cockpit/`, not the monorepo root.
 
----
-
-## Keyboard shortcuts
-
-| Shortcut      | Action                       |
-| ------------- | ---------------------------- |
-| `Cmd+K`       | Command palette              |
-| `Cmd+B`       | Toggle sidebar               |
-| `Cmd+]` / `[` | Next / previous tool         |
-| `Cmd+Shift+N` | Toggle notes drawer          |
-| `Cmd+Enter`   | Execute / run                |
-| `Cmd+Shift+C` | Copy output                  |
-| `Cmd+1/2/3`   | Switch sub-tab               |
-| `Cmd+O`       | Open file                    |
-| `Cmd+S`       | Save file                    |
-| `Cmd+,`       | Settings                     |
-| `Cmd+Shift+T` | Toggle theme                 |
-| `Cmd+Shift+P` | Toggle always-on-top         |
-| `Cmd+/`       | Keyboard shortcuts reference |
-
----
-
-## Themes
-
-| Theme family          | Options                                                                                                         |
-| --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| System                | `system`                                                                                                        |
-| Cockpit originals     | `midnight`, `warm-terminal`, `neon-brutalist`, `earth-code`, `cyber-luxe`, `soft-focus`                         |
-| Popular editor themes | `tokyo-night`, `tokyo-night-light`, `dracula`, `monokai`, `nord`, `night-owl`, `oceanic-next`, `tomorrow-night` |
-| Catppuccin            | `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`                             |
-| GitHub and Solarized  | `github-dark`, `github-light`, `solarized-dark`, `solarized-light`                                              |
-
-Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
-
----
-
-## MCP server
-
-cockpit includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
-It is disabled by default. When enabled in Settings, it starts with the app and exposes authenticated tools for
-notes, snippets, prompt templates, saved API client requests, search, schema
-introspection, and topic-based help.
-
-Key details:
-
-- Binds to `127.0.0.1` only.
-- Default URL: `http://127.0.0.1:17347/mcp`.
-- Uses a bearer token copied from Settings → MCP.
-- Defaults to read-only permissions.
-- Redacts saved API request auth secrets unless explicitly allowed.
-
-See [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md) for setup commands,
-permissions, tools, limits, and troubleshooting.
+Local `tauri build` output is unsigned like the released builds, so your own bundle will get the
+same Gatekeeper or SmartScreen prompt — see
+[Unsigned builds](../../README.md#unsigned-builds) in the root README.
 
 ---
 
@@ -198,19 +126,13 @@ Tool components receive no props. Use `dispatchToolAction` / `useToolActionListe
 
 ---
 
-## App updater
+## MCP server
 
-cockpit checks [GitHub releases](https://github.com/butteredstardust/devdrivr/releases) for new versions against a `latest.json` manifest published on every release. No account or signing key required — pure HTTP, fully local.
-
-**Update settings** (in Settings → General):
-
-| Setting                         | Default | Description                                        |
-| ------------------------------- | ------- | -------------------------------------------------- |
-| Check for updates automatically | On      | Checks once per hour in the background             |
-| Download update automatically   | Off     | Saves installer to Downloads folder silently       |
-| Notify when update available    | On      | Shows a dismissible banner when an update is found |
-
-You can always trigger a manual check with the **Check Now** button in Settings.
+cockpit ships a local MCP server for CLI agents such as Codex CLI and Claude Code. It is disabled by
+default, binds to `127.0.0.1:17347` only, defaults to read-only permissions, and authenticates with
+a bearer token from Settings → MCP. See
+[`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md) for setup commands, permissions, tools,
+limits, and troubleshooting.
 
 ---
 
@@ -218,6 +140,7 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 
 | Doc                                                                                                                | Description                                     |
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| [`documentation/README.md`](documentation/README.md)                                                               | Index of everything below                       |
 | [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
 | [`documentation/TODO.md`](documentation/TODO.md)                                                                   | Quality, bug-fix, and reliability backlog       |
 | [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
@@ -225,12 +148,17 @@ You can always trigger a manual check with the **Check Now** button in Settings.
 | [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
 | [`documentation/TESTING.md`](documentation/TESTING.md)                                                             | Test strategy and coverage map                  |
 | [`documentation/DESIGN_SYSTEM.md`](documentation/DESIGN_SYSTEM.md)                                                 | Color tokens, typography, component patterns    |
+| [`documentation/HARNESSES.md`](documentation/HARNESSES.md)                                                         | Which debugging harness to reach for            |
 | [`documentation/infrastructure/CODING_PATTERNS.md`](documentation/infrastructure/CODING_PATTERNS.md)               | Patterns to follow before writing any code      |
 | [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | ADRs — why things are the way they are          |
 | [`documentation/infrastructure/TROUBLESHOOTING.md`](documentation/infrastructure/TROUBLESHOOTING.md)               | When something breaks                           |
+
+[`AGENTS.md`](AGENTS.md) is the canonical ruleset for coding in this app;
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers the contribution workflow.
 
 ---
 
 ## License
 
 MIT
+</content>
