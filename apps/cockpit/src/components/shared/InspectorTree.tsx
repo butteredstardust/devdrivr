@@ -132,7 +132,7 @@ function TreeNode({
   ancestors?: ReadonlySet<object>
 }) {
   // A value that is already on its own path would expand forever; stop and say so.
-  const circular = typeof value === 'object' && value !== null && !!ancestors?.has(value as object)
+  const circular = typeof value === 'object' && value !== null && !!ancestors?.has(value)
   const tooDeep = depth >= MAX_INSPECTOR_DEPTH
   const entries = circular || tooDeep ? [] : entriesOf(value)
   const hasChildren = entries.length > 0
@@ -188,7 +188,7 @@ function TreeNode({
   }
 
   const childAncestors = new Set(ancestors ?? [])
-  if (typeof value === 'object' && value !== null) childAncestors.add(value as object)
+  if (typeof value === 'object' && value !== null) childAncestors.add(value)
 
   return (
     <div className="ml-4">

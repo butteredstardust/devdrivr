@@ -144,11 +144,21 @@ export function WorkspaceTabStrip() {
   // A vertical wheel over a horizontal strip should scroll it — trackpads emit
   // deltaY for the gesture that visually reads as "along the tabs". Ignored
   // when the gesture is already horizontal, which the browser handles itself.
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    const el = e.currentTarget
-    if (el.scrollWidth <= el.clientWidth) return
-    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-    el.scrollLeft += e.deltaY
+  //
+  // Attached imperatively because React's `onWheel` is passive: `preventDefault()` there is a
+  // no-op, so one gesture moved the strip *and* scrolled whatever sits under it vertically. A
+  // non-passive listener can consume the gesture it acts on, and only that one.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+      event.preventDefault()
+      el.scrollLeft += event.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
   // Tab reordering, on pointer events rather than HTML5 drag-and-drop.
@@ -359,7 +369,6 @@ export function WorkspaceTabStrip() {
         aria-label="Open tools"
         style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
         className="no-scrollbar flex flex-1 items-stretch overflow-x-auto"
-        onWheel={handleWheel}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
           const idx = tabs.findIndex((t) => t.id === activeTabId)

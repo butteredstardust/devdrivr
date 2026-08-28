@@ -53,6 +53,17 @@ function useMediaQuery(query: string | null): boolean {
   return matches
 }
 
+/** Keeps a pane from vanishing, and keeps a nonsense `minRatio` from inverting the clamp. */
+function normalizeMinRatio(minRatio: number): number {
+  if (!Number.isFinite(minRatio)) return 0.15
+  return Math.min(0.49, Math.max(0, minRatio))
+}
+
+function clampRatio(value: number, minRatio: number): number {
+  if (!Number.isFinite(value)) return 0.5
+  return Math.min(1 - minRatio, Math.max(minRatio, value))
+}
+
 function readStoredRatio(storageKey: string | undefined, fallback: number): number {
   if (!storageKey) return fallback
   try {
@@ -87,16 +98,19 @@ export function SplitPane({
   className = '',
 }: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [ratio, setRatio] = useState(() => readStoredRatio(storageKey, defaultRatio))
+  const minimum = normalizeMinRatio(minRatio)
+  // Clamped before the first render, not after the first drag: a storage value of `2` left over
+  // from a bug or a hand-edited file would otherwise render the first pane at 200% and leave the
+  // second one unreachable until someone found the divider.
+  const [ratio, setRatio] = useState(() =>
+    clampRatio(readStoredRatio(storageKey, clampRatio(defaultRatio, minimum)), minimum)
+  )
   const [dragging, setDragging] = useState(false)
   const stacked = useMediaQuery(stackBelow ? `(max-width: ${stackBelow - 1}px)` : null)
   const isHorizontal = direction === 'horizontal' && !stacked
   const labelId = useId()
 
-  const clamp = useCallback(
-    (value: number) => Math.min(1 - minRatio, Math.max(minRatio, value)),
-    [minRatio]
-  )
+  const clamp = useCallback((value: number) => clampRatio(value, minimum), [minimum])
 
   const persist = useCallback(
     (value: number) => {
@@ -154,7 +168,7 @@ export function SplitPane({
   useEffect(() => {
     if (!dragging) return
 
-    const handleMove = (event: MouseEvent) => {
+    const handleMove = (event: PointerEvent) => {
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
@@ -165,16 +179,21 @@ export function SplitPane({
     }
     const handleUp = () => setDragging(false)
 
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+    window.addEventListener('pointercancel', handleUp)
+    // A drag interrupted by the window losing focus never gets its pointer-up.
+    window.addEventListener('blur', handleUp)
     // Text selection across both panes while dragging looks broken and blocks the cursor change.
     const previousSelect = document.body.style.userSelect
     document.body.style.userSelect = 'none'
     document.body.style.cursor = isHorizontal ? 'col-resize' : 'row-resize'
 
     return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+      window.removeEventListener('pointercancel', handleUp)
+      window.removeEventListener('blur', handleUp)
       document.body.style.userSelect = previousSelect
       document.body.style.cursor = ''
     }
@@ -192,17 +211,17 @@ export function SplitPane({
         commit(ratio + KEYBOARD_STEP)
       } else if (event.key === 'Home') {
         event.preventDefault()
-        commit(minRatio)
+        commit(minimum)
       } else if (event.key === 'End') {
         event.preventDefault()
-        commit(1 - minRatio)
+        commit(1 - minimum)
       } else if (event.key === 'Enter') {
         // Reset — the cheapest way back from a split dragged somewhere useless.
         event.preventDefault()
-        commit(defaultRatio)
+        commit(clampRatio(defaultRatio, minimum))
       }
     },
-    [commit, defaultRatio, isHorizontal, minRatio, ratio]
+    [commit, defaultRatio, isHorizontal, minimum, ratio]
   )
 
   const [first, second] = children
@@ -237,14 +256,17 @@ export function SplitPane({
           aria-label={ariaLabel ?? 'Resize panes'}
           aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
           aria-valuenow={Math.round(ratio * 100)}
-          aria-valuemin={Math.round(minRatio * 100)}
-          aria-valuemax={Math.round((1 - minRatio) * 100)}
+          aria-valuemin={Math.round(minimum * 100)}
+          aria-valuemax={Math.round((1 - minimum) * 100)}
           aria-controls={labelId}
-          onMouseDown={(event) => {
+          // Pointer events rather than mouse events, so touch and pen can drag the divider too.
+          onPointerDown={(event) => {
+            if (event.button !== 0) return
             event.preventDefault()
+            event.currentTarget.setPointerCapture?.(event.pointerId)
             setDragging(true)
           }}
-          onDoubleClick={() => commit(defaultRatio)}
+          onDoubleClick={() => commit(clampRatio(defaultRatio, minimum))}
           onKeyDown={handleKeyDown}
           title="Drag to resize — double-click or Enter to reset"
           className={`group relative shrink-0 border-[var(--color-border)] bg-[var(--color-border)] transition-colors focus-visible:outline-none focus-visible:bg-[var(--color-accent)] ${

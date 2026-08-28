@@ -30,7 +30,12 @@ import type { Note as NoteType, NoteColor } from '@/types/models'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { useShellWidth } from '@/hooks/useShellWidth'
-import { clampNotesDrawerWidth as clampWidth, fitShellPanels } from '@/lib/shell-layout'
+import {
+  clampNotesDrawerWidth as clampWidth,
+  fitShellPanels,
+  MAX_NOTES_DRAWER_WIDTH,
+  MIN_NOTES_DRAWER_WIDTH,
+} from '@/lib/shell-layout'
 import { useEdgeResize } from '@/hooks/useEdgeResize'
 
 const AUTOSAVE_DELAY_MS = 450
@@ -468,15 +473,43 @@ export function NotesDrawer() {
   const editingNote = notes.find((note) => note.id === editingId)
   const canReorderNotes = !search.trim()
 
+  const persistWidth = useCallback(
+    (final: number) => {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => void updateSetting('notesDrawerWidth', final), 500)
+    },
+    [updateSetting]
+  )
+
+  // Keyboard resizing, so the drawer edge isn't pointer-only. The handle is on the drawer's left
+  // edge, so ArrowLeft widens it — the width grows in the direction the key points.
+  const handleResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      const step =
+        event.key === 'ArrowLeft'
+          ? 16
+          : event.key === 'ArrowRight'
+            ? -16
+            : event.key === 'Home'
+              ? MAX_NOTES_DRAWER_WIDTH
+              : event.key === 'End'
+                ? -MAX_NOTES_DRAWER_WIDTH
+                : null
+      if (step === null) return
+      event.preventDefault()
+      const next = clampWidth(widthRef.current + step)
+      setWidth(next)
+      persistWidth(next)
+    },
+    [persistWidth]
+  )
+
   const { resizing, onPointerDown: handleDragStart } = useEdgeResize({
     direction: -1,
     getWidth: () => widthRef.current,
     clamp: clampWidth,
     onResize: setWidth,
-    onCommit: (final) => {
-      clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => void updateSetting('notesDrawerWidth', final), 500)
-    },
+    onCommit: persistWidth,
   })
 
   const handleAddNote = useCallback(async () => {
@@ -684,11 +717,16 @@ export function NotesDrawer() {
     >
       <div
         onPointerDown={handleDragStart}
+        onKeyDown={handleResizeKeyDown}
         role="separator"
+        tabIndex={0}
         aria-label="Resize notes drawer"
         aria-orientation="vertical"
-        className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60"
-        title="Drag to resize"
+        aria-valuenow={width}
+        aria-valuemin={MIN_NOTES_DRAWER_WIDTH}
+        aria-valuemax={MAX_NOTES_DRAWER_WIDTH}
+        className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 focus-visible:outline-none focus-visible:bg-[var(--color-accent)]/60"
+        title="Drag to resize — arrow keys also work"
       />
 
       {!editingNote && (

@@ -367,7 +367,7 @@ export default function ImageTool() {
       live = false
       clearTimeout(encodeTimer)
     }
-  }, [originalImg, state])
+  }, [originalImg, state, setLastAction])
 
   // ── Resize helpers ─────────────────────────────────────────────
 
