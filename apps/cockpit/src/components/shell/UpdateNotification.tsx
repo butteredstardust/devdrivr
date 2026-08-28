@@ -19,7 +19,13 @@ export function UpdateNotification() {
   const restartToUpdate = useUpdaterStore((s) => s.restartToUpdate)
   const notifyWhenUpdateAvailable = useSettingsStore((s) => s.notifyWhenUpdateAvailable)
 
-  if (!updateInfo || dismissed || !notifyWhenUpdateAvailable) return null
+  if (!updateInfo || dismissed) return null
+  // "Notify when update is available" governs the announcement, not the install. Once a download
+  // has been staged there is a pending action the user has to be able to reach, so a downloaded or
+  // downloading update stays visible even with notifications off — otherwise auto-download (on by
+  // default) can stage an update that nothing in the app offers to install. Dismiss still hides it;
+  // Settings → Updates keeps a restart action for that case.
+  if (!isReady && !isDownloading && !notifyWhenUpdateAvailable) return null
 
   const handleDownload = () => {
     void downloadUpdate()

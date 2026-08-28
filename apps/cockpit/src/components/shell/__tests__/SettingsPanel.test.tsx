@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { DEFAULT_MCP_PERMISSIONS, useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useUpdaterStore } from '@/stores/updater.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -36,6 +37,15 @@ const realSettingsUpdate = useSettingsStore.getState().update
 beforeEach(() => {
   vi.clearAllMocks()
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true, update: realSettingsUpdate })
+  // Also a module singleton: without this the staged-update test below leaks into the others.
+  useUpdaterStore.setState({
+    updateInfo: null,
+    dismissed: false,
+    isChecking: false,
+    isDownloading: false,
+    isReady: false,
+    progress: null,
+  })
   useNotesStore.setState({
     notes: [
       {
@@ -223,5 +233,24 @@ describe('SettingsPanel', () => {
 
     await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))
     expect(addToast).toHaveBeenCalledWith('Settings imported', 'success')
+  })
+
+  // The banner is dismissible and can be switched off, so Settings has to keep a way to install a
+  // staged update. Otherwise auto-download strands one with no route to install it.
+  it('offers a restart for a staged update even when the banner is dismissed', () => {
+    const restartToUpdate = vi.fn().mockResolvedValue(undefined)
+    useSettingsStore.setState({ notifyWhenUpdateAvailable: false })
+    useUpdaterStore.setState({
+      updateInfo: { version: '0.2.0', notes: '', pub_date: '2026-04-15' },
+      dismissed: true,
+      isDownloading: false,
+      isReady: true,
+      restartToUpdate,
+    })
+
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart to update to v0.2.0' }))
+    expect(restartToUpdate).toHaveBeenCalledTimes(1)
   })
 })

@@ -62,4 +62,31 @@ describe('UpdateNotification', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Downloading… 42%')
   })
+
+  it('hides a merely-available update when notifications are off', () => {
+    useSettingsStore.setState({ notifyWhenUpdateAvailable: false })
+
+    render(<UpdateNotification />)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  // Auto-download is on by default, so with notifications off a staged update would otherwise have
+  // no install affordance anywhere in the shell.
+  it('still offers the restart when notifications are off but an update is staged', () => {
+    useSettingsStore.setState({ notifyWhenUpdateAvailable: false })
+    useUpdaterStore.setState({ isReady: true, progress: 1 })
+
+    render(<UpdateNotification />)
+
+    expect(screen.getByRole('button', { name: 'Restart to update' })).toBeInTheDocument()
+  })
+
+  it('stays hidden once dismissed, even when staged', () => {
+    useUpdaterStore.setState({ isReady: true, dismissed: true })
+
+    render(<UpdateNotification />)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
 })

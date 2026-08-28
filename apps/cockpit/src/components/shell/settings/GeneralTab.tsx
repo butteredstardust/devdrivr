@@ -4,7 +4,12 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { ArrowCircleUpIcon, SpinnerIcon } from '@phosphor-icons/react'
+import {
+  ArrowCircleUpIcon,
+  ArrowClockwiseIcon,
+  DownloadSimpleIcon,
+  SpinnerIcon,
+} from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -27,6 +32,11 @@ export function GeneralTab() {
   const lastCheckedAt = useUpdaterStore((s) => s.lastCheckedAt)
   const updateInfo = useUpdaterStore((s) => s.updateInfo)
   const checkForUpdate = useUpdaterStore((s) => s.checkForUpdate)
+  const isDownloading = useUpdaterStore((s) => s.isDownloading)
+  const isReady = useUpdaterStore((s) => s.isReady)
+  const progress = useUpdaterStore((s) => s.progress)
+  const downloadUpdate = useUpdaterStore((s) => s.downloadUpdate)
+  const restartToUpdate = useUpdaterStore((s) => s.restartToUpdate)
 
   const [appVersion, setAppVersion] = useState<string | null>(null)
   useEffect(() => {
@@ -137,10 +147,38 @@ export function GeneralTab() {
             )}
             {isChecking ? 'Checking…' : 'Check Now'}
           </button>
-          {updateInfo && (
-            <span className="text-xs text-[var(--color-accent)]">
-              v{updateInfo.version} available
+          {/* The banner can be dismissed and notifications can be off, so this is the one place an
+              update is always reachable. Without it an auto-downloaded update could sit staged with
+              nothing in the app offering to install it. */}
+          {updateInfo && isDownloading && (
+            <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+              <SpinnerIcon size={12} className="animate-spin text-[var(--color-accent)]" />
+              {progress === null ? 'Downloading…' : `Downloading… ${Math.round(progress * 100)}%`}
             </span>
+          )}
+          {updateInfo && !isDownloading && isReady && (
+            <button
+              type="button"
+              onClick={() => {
+                void restartToUpdate()
+              }}
+              className="flex items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+            >
+              <ArrowClockwiseIcon size={12} aria-hidden="true" />
+              Restart to update to v{updateInfo.version}
+            </button>
+          )}
+          {updateInfo && !isDownloading && !isReady && (
+            <button
+              type="button"
+              onClick={() => {
+                void downloadUpdate()
+              }}
+              className="flex items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+            >
+              <DownloadSimpleIcon size={12} aria-hidden="true" />
+              Download v{updateInfo.version}
+            </button>
           )}
           {!updateInfo && lastCheckedLabel && (
             <span className="text-2xs text-[var(--color-text-muted)]">{lastCheckedLabel}</span>
