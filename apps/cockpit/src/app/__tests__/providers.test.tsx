@@ -80,8 +80,13 @@ vi.mock('@/stores/ui.store', () => ({
 }))
 
 vi.mock('@/stores/updater.store', () => ({
-  useUpdaterStore: { getState: () => ({ checkForUpdate: mocks.checkForUpdate, updateInfo: null }) },
-  autoDownloadUpdate: vi.fn(),
+  useUpdaterStore: {
+    getState: () => ({
+      checkForUpdate: mocks.checkForUpdate,
+      downloadUpdate: vi.fn(),
+      updateInfo: null,
+    }),
+  },
 }))
 
 vi.mock('@tauri-apps/api/window', () => ({

@@ -1,114 +1,69 @@
 import { create } from 'zustand'
-import { fetch } from '@tauri-apps/plugin-http'
-import { writeFile, mkdir } from '@tauri-apps/plugin-fs'
-import { save as saveDialog } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
-import { getVersion } from '@tauri-apps/api/app'
-import { downloadDir, join } from '@tauri-apps/api/path'
+import { check, type Update } from '@tauri-apps/plugin-updater'
+import { relaunch } from '@tauri-apps/plugin-process'
 import { getSetting, setSetting } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
-const MANIFEST_URL =
-  'https://github.com/butteredstardust/devdrivr/releases/latest/download/latest.json'
-
 const CHECK_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
-
-type PlatformKey = 'darwin-aarch64' | 'darwin-x86_64' | 'linux-x86_64' | 'windows-x86_64'
-
-type PlatformEntry = {
-  url: string
-}
-
-type UpdateManifest = {
-  version: string
-  notes: string
-  pub_date: string
-  platforms: Partial<Record<PlatformKey, PlatformEntry>>
-}
 
 export type UpdateInfo = {
   version: string
   notes: string
   pub_date: string
-  url: string
-  platformKey: PlatformKey
 }
 
 type UpdaterStore = {
   updateInfo: UpdateInfo | null
   isChecking: boolean
   isDownloading: boolean
+  /** Downloaded and staged; the new version takes effect on the next launch. */
+  isReady: boolean
+  /** Install has been handed to the plugin; the app is on its way down. */
+  isInstalling: boolean
+  /** 0–1 while downloading, or null when the server sends no content length. */
+  progress: number | null
   dismissed: boolean
   lastCheckedAt: number | null
   /** force=true bypasses the 1h cooldown (used by the manual "Check Now" button) */
   checkForUpdate: (force?: boolean) => Promise<void>
-  downloadUpdate: (savePath?: string) => Promise<void>
+  downloadUpdate: () => Promise<void>
+  restartToUpdate: () => Promise<void>
   dismiss: () => void
 }
 
-// `darwin-x86_64` stays here on purpose even though releases stopped shipping an Intel dmg after
-// 0.1.82. Resolving the key means an Intel Mac reaches the "no installer for your platform" branch
-// below; dropping it would instead claim updates are unsupported on the machine, which is vaguer
-// and wrong the moment Intel builds ever come back.
-function resolvePlatformKey(os: string, arch: string): PlatformKey | null {
-  if (os === 'macos' && arch === 'aarch64') return 'darwin-aarch64'
-  if (os === 'macos' && arch === 'x86_64') return 'darwin-x86_64'
-  if (os === 'linux' && arch === 'x86_64') return 'linux-x86_64'
-  if (os === 'windows' && arch === 'x86_64') return 'windows-x86_64'
-  return null
-}
-
-function compareVersions(a: string, b: string): number {
-  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number)
-  const pa = parse(a)
-  const pb = parse(b)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) return diff
-  }
-  return 0
-}
-
-/** Strip any path separators from a URL-derived filename to prevent traversal. */
-function sanitizeFilename(raw: string): string {
-  return raw.replace(/[/\\]/g, '_').replace(/^\.+/, '_')
-}
-
 /**
- * An AppImage written by the fs plugin lands at 0644, which makes it unopenable — the Linux update
- * looks like it succeeded and then nothing runs. Failing to fix the bit is not worth failing the
- * whole download over, so say what to do instead.
+ * The plugin's `Update` is a live handle to a Rust-side resource, not data — putting it in the
+ * store would mean React state holding something it can neither compare nor serialise. The store
+ * keeps the plain facts the UI renders; this keeps the handle they refer to.
  */
-async function markExecutableIfAppImage(destPath: string): Promise<void> {
-  if (!destPath.endsWith('.AppImage')) return
-  try {
-    await invoke('mark_appimage_executable', { path: destPath })
-  } catch {
-    useUiStore
-      .getState()
-      .addToast(`Saved, but could not make it executable — run: chmod +x ${destPath}`, 'info')
-  }
-}
-
-/** Shared download helper: fetches URL and writes to destPath. */
-async function downloadToPath(url: string, destPath: string): Promise<void> {
-  const response = await fetch(url, { method: 'GET' })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const buffer = await response.arrayBuffer()
-  await writeFile(destPath, new Uint8Array(buffer))
-  await markExecutableIfAppImage(destPath)
-}
+let pendingUpdate: Update | null = null
 
 export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   updateInfo: null,
   isChecking: false,
   isDownloading: false,
+  isReady: false,
+  isInstalling: false,
+  progress: null,
   dismissed: false,
   lastCheckedAt: null,
 
   checkForUpdate: async (force = false) => {
     // Set isChecking immediately to close the race window before any async work
-    if (get().isChecking) return
+    const { isChecking, isDownloading, isReady, isInstalling } = get()
+    if (isChecking) return
+
+    // A check reassigns `pendingUpdate`, so it must not run while an earlier handle is mid-flight.
+    // Otherwise a download in progress finishes and flips isReady on a handle that has since been
+    // replaced, and the restart installs an Update that was never downloaded.
+    if (isDownloading || isInstalling) return
+    if (isReady) {
+      if (force) {
+        useUiStore.getState().addToast('Update already downloaded — restart to install', 'info')
+      }
+      return
+    }
+
     set({ isChecking: true })
 
     try {
@@ -124,61 +79,30 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
         }
       }
 
-      const [os, arch] = await invoke<[string, string]>('get_platform_info')
-      const platformKey = resolvePlatformKey(os, arch)
+      const update = await check()
       const now = Date.now()
-
-      if (!platformKey) {
-        await setSetting('updaterLastCheckedAt', now)
-        set({ isChecking: false, lastCheckedAt: now })
-        useUiStore
-          .getState()
-          .addToast('Automatic updates are not supported on your platform', 'info')
-        return
-      }
-
-      const response = await fetch(MANIFEST_URL, { method: 'GET' })
-      if (!response.ok) {
-        await setSetting('updaterLastCheckedAt', now)
-        set({ isChecking: false, lastCheckedAt: now })
-        if (force) {
-          useUiStore.getState().addToast('Could not reach update server', 'error')
-        }
-        return
-      }
-
-      const manifest = (await response.json()) as UpdateManifest
-      const currentVersion = await getVersion()
-
       await setSetting('updaterLastCheckedAt', now)
-      set({ lastCheckedAt: now })
 
-      if (compareVersions(manifest.version, currentVersion) <= 0) {
-        set({ isChecking: false })
+      if (!update) {
+        pendingUpdate = null
+        set({ isChecking: false, lastCheckedAt: now, updateInfo: null })
         if (force) {
           useUiStore.getState().addToast('devdrivr is up to date', 'success')
         }
         return
       }
 
-      const platformEntry = manifest.platforms[platformKey]
-      if (!platformEntry) {
-        set({ isChecking: false })
-        useUiStore
-          .getState()
-          .addToast('Update available but no installer for your platform', 'info')
-        return
-      }
-
+      pendingUpdate = update
       set({
         updateInfo: {
-          version: manifest.version,
-          notes: manifest.notes,
-          pub_date: manifest.pub_date,
-          url: platformEntry.url,
-          platformKey,
+          version: update.version,
+          notes: update.body ?? '',
+          pub_date: update.date ?? '',
         },
         isChecking: false,
+        lastCheckedAt: now,
+        isReady: false,
+        progress: null,
         dismissed: false,
       })
     } catch {
@@ -190,61 +114,71 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
     }
   },
 
-  downloadUpdate: async (savePath?: string) => {
-    const { updateInfo, isDownloading } = get()
-    if (!updateInfo || isDownloading) return
+  downloadUpdate: async () => {
+    const { isDownloading, isReady, isInstalling } = get()
+    if (!pendingUpdate || isDownloading || isReady || isInstalling) return
 
-    set({ isDownloading: true })
+    // Pin the handle for the duration. The guards above should stop `pendingUpdate` being
+    // reassigned mid-download, but this keeps the invariant local to the function that depends on
+    // it: we only ever report ready for the handle we actually downloaded.
+    const handle = pendingUpdate
+
+    set({ isDownloading: true, progress: null })
     const addToast = useUiStore.getState().addToast
 
     try {
-      let destPath = savePath
-      if (!destPath) {
-        const rawFilename = updateInfo.url.split('/').pop() ?? 'devdrivr-installer'
-        const filename = sanitizeFilename(rawFilename)
-        const chosen = await saveDialog({
-          defaultPath: filename,
-          title: 'Save installer',
-        })
-        if (!chosen) {
-          set({ isDownloading: false })
-          return
+      let downloaded = 0
+      let total = 0
+
+      await handle.download((event) => {
+        switch (event.event) {
+          case 'Started':
+            total = event.data.contentLength ?? 0
+            set({ progress: total > 0 ? 0 : null })
+            break
+          case 'Progress':
+            downloaded += event.data.chunkLength
+            if (total > 0) set({ progress: Math.min(downloaded / total, 1) })
+            break
+          case 'Finished':
+            set({ progress: 1 })
+            break
         }
-        destPath = chosen
+      })
+
+      if (pendingUpdate !== handle) {
+        // Something replaced the handle while we were downloading. Staying silent is wrong (the
+        // user asked for a download) but claiming ready would be worse, because restarting would
+        // install a handle with no downloaded payload.
+        set({ isDownloading: false, progress: null })
+        addToast('Update changed while downloading — check again', 'error')
+        return
       }
 
-      await downloadToPath(updateInfo.url, destPath)
-      set({ isDownloading: false })
-      addToast(`Installer saved to ${destPath}`, 'success')
+      set({ isDownloading: false, isReady: true })
+      addToast('Update ready — restart to finish installing', 'success')
     } catch (err) {
-      set({ isDownloading: false })
+      set({ isDownloading: false, progress: null })
       const msg = err instanceof Error ? err.message : String(err)
       addToast(`Download failed: ${msg}`, 'error')
     }
   },
 
+  restartToUpdate: async () => {
+    // isInstalling latches: install() hands off to the plugin and relaunch() never returns, so
+    // without it a second click starts a concurrent install of the same payload.
+    if (!pendingUpdate || !get().isReady || get().isInstalling) return
+    set({ isInstalling: true })
+
+    try {
+      await pendingUpdate.install()
+      await relaunch()
+    } catch (err) {
+      set({ isInstalling: false })
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast(`Install failed: ${msg}`, 'error')
+    }
+  },
+
   dismiss: () => set({ dismissed: true }),
 }))
-
-/**
- * Download update automatically to the user's Downloads folder.
- * Called from providers.tsx when downloadUpdatesAutomatically is enabled.
- */
-export async function autoDownloadUpdate(updateInfo: UpdateInfo): Promise<void> {
-  const addToast = useUiStore.getState().addToast
-  try {
-    const dlDir = await downloadDir()
-    const rawFilename = updateInfo.url.split('/').pop() ?? 'devdrivr-installer'
-    const filename = sanitizeFilename(rawFilename)
-    const destPath = await join(dlDir, filename)
-
-    await mkdir(dlDir, { recursive: true })
-    await downloadToPath(updateInfo.url, destPath)
-
-    addToast(`Update downloaded to ${destPath}`, 'success')
-    useUpdaterStore.getState().dismiss()
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    addToast(`Auto-download failed: ${msg}`, 'error')
-  }
-}

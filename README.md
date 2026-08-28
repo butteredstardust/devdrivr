@@ -62,7 +62,7 @@ your machine: no accounts, no telemetry, no internet required.
 - **Themes** — system mode plus 31 built-in themes
 - **Always-on-top** — pin the window over your editor or browser
 - **Window state persistence** — remembers size and position across launches
-- **Auto-updater** — checks GitHub releases and prompts you when a new version is available
+- **Auto-updater** — checks GitHub releases, then installs and restarts on your say-so
 
 ---
 
@@ -156,17 +156,22 @@ commands, permissions, tools, limits, and troubleshooting.
 ## App updater
 
 devdrivr checks [GitHub releases](https://github.com/butteredstardust/devdrivr/releases) for new
-versions against a `latest.json` manifest published on every release. No account or signing key
-required — pure HTTP, fully local. It downloads the installer for you; installing it is still a
-manual step (and one where Gatekeeper or SmartScreen will speak up again).
+versions against a `latest.json` manifest published on every release, then installs the update in
+place and restarts — no reinstalling by hand, and **no Gatekeeper or SmartScreen prompt on updates**,
+because the app fetched the payload rather than your browser. Only the very first install has to get
+past those.
+
+Each update is verified against a signing key built into the app before anything is installed. That
+key is unrelated to Apple or Microsoft code signing (see [Unsigned builds](#unsigned-builds) below);
+it exists so the app will only install a payload that came from this repository.
 
 **Update settings** (in Settings → General):
 
-| Setting                         | Default | Description                                        |
-| ------------------------------- | ------- | -------------------------------------------------- |
-| Check for updates automatically | On      | Checks once per hour in the background             |
-| Download update automatically   | Off     | Saves installer to Downloads folder silently       |
-| Notify when update available    | On      | Shows a dismissible banner when an update is found |
+| Setting                         | Default | Description                                          |
+| ------------------------------- | ------- | ---------------------------------------------------- |
+| Check for updates automatically | On      | Checks once per hour in the background               |
+| Download update automatically   | Off     | Downloads in the background, then offers the restart  |
+| Notify when update available    | On      | Shows a dismissible banner when an update is found   |
 
 You can always trigger a manual check with the **Check Now** button in Settings.
 
@@ -339,7 +344,8 @@ chmod +x devdrivr_<version>_amd64.AppImage
 ./devdrivr_<version>_amd64.AppImage
 ```
 
-Every update ships the same way, so expect the same prompt each time you install a new version.
+These prompts apply to installers you download yourself. Updates applied by the app's own updater
+skip them entirely, so in practice you should only have to do this once.
 
 ---
 

@@ -104,6 +104,11 @@ jobs:
           # Linux and Windows builds; 0.1.82 had squeaked under it. The runners have 16 GB, so give
           # node room rather than tuning the ceiling one release at a time.
           NODE_OPTIONS: '--max-old-space-size=8192'
+          # Minisign key for the updater plugin — unrelated to Apple/Microsoft code signing. It only
+          # proves an update payload came from this repo; without it the build fails, because
+          # tauri.conf.json declares a pubkey and `createUpdaterArtifacts`.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: cockpit-v__VERSION__
           releaseName: 'devdrivr Cockpit v__VERSION__'
@@ -113,6 +118,14 @@ jobs:
           projectPath: ./apps/cockpit/
           tauriScript: bunx tauri
           args: ${{ matrix.args }}
+          # The action defaults this to true, which makes each of the three matrix jobs read
+          # latest.json off the release, merge its own platform in, and upload it back — a
+          # read-modify-write with no locking, so the last writer wins and platforms go missing.
+          # It also writes latest.json in the *plugin* format, and until publish-update-manifest
+          # clobbers it, `releases/latest/download/latest.json` would serve that to pre-0.1.85
+          # clients, which would hand the user a .app.tar.gz as if it were an installer.
+          # publish-update-manifest builds both manifests from the finished release instead.
+          uploadUpdaterJson: false
 
   publish-update-manifest:
     name: 'Publish Update Manifest'
@@ -131,7 +144,7 @@ jobs:
           VERSION=$(node -p "require('./apps/cockpit/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release assets and generate latest.json
+      - name: Verify release assets and generate update manifests
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -140,32 +153,90 @@ jobs:
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Fetch actual asset names from the release and verify expected files exist
-          ASSETS=$(gh release view "${TAG}" --json assets --jq '[.assets[].name]')
-          echo "Release assets: ${ASSETS}"
+          ASSETS=$(gh release view "${TAG}" --json assets --jq '.assets[].name')
+          echo "Release assets:"
+          echo "${ASSETS}"
 
-          EXPECTED_ASSETS=(
-            "devdrivr_${VERSION}_aarch64.dmg"
-            "devdrivr_${VERSION}_amd64.AppImage"
-            "devdrivr_${VERSION}_x64-setup.exe"
-          )
-
-          MISSING=0
-          for ASSET in "${EXPECTED_ASSETS[@]}"; do
-            if ! echo "${ASSETS}" | grep -q "\"${ASSET}\""; then
-              echo "WARNING: Expected asset not found in release: ${ASSET}"
-              MISSING=$((MISSING + 1))
+          # Asset names are resolved by pattern rather than hard-coded, because tauri-action is
+          # pinned to the moving `@v0` tag and it — not the Tauri CLI — decides the final upload
+          # name. Its `getAssetName` rewrites .app.tar.gz to add the architecture, and whether it
+          # also adds the version has changed between releases of the action. Matching a pattern and
+          # demanding exactly one hit turns a rename into a loud failure here, instead of a manifest
+          # pointing at a URL that 404s for every user.
+          V=${VERSION//./\\.}
+          resolve() {
+            local pattern="$1" desc="$2" match count
+            match=$(echo "${ASSETS}" | grep -E "${pattern}" || true)
+            count=$(echo "${match}" | grep -c . || true)
+            if [ "${count}" -ne 1 ]; then
+              echo "ERROR: expected exactly one ${desc} asset matching /${pattern}/, found ${count}" >&2
+              [ -n "${match}" ] && echo "${match}" >&2
+              return 1
             fi
-          done
+            echo "${match}"
+          }
 
-          if [ "${MISSING}" -gt 0 ]; then
-            echo "ERROR: ${MISSING} expected asset(s) missing from release ${TAG}. Aborting manifest generation."
-            exit 1
-          fi
+          # Human downloads: what the release page offers and what pre-plugin clients fetch.
+          DMG=$(resolve "^devdrivr_${V}_aarch64\.dmg$" "macOS dmg")
+          APPIMAGE=$(resolve "^devdrivr_${V}_amd64\.AppImage$" "Linux AppImage")
+          EXE=$(resolve "^devdrivr_${V}_x64-setup\.exe$" "Windows installer")
 
-          # No "darwin-x86_64" key: Intel macOS is unsupported as of 0.1.83. Omitting it makes the
-          # in-app updater report "no installer for your platform" instead of handing an Intel Mac
-          # an arm64 dmg.
+          # Updater payloads. macOS swaps the .app bundle out of a tarball; Linux rewrites the
+          # running AppImage in place; Windows re-runs the NSIS installer — so on Linux and Windows
+          # the updater payload is the very same file a human downloads. Only macOS differs.
+          MAC_UPDATER=$(resolve "\.app\.tar\.gz$" "macOS updater bundle")
+          SIG_DARWIN_ASSET=$(resolve "\.app\.tar\.gz\.sig$" "macOS updater signature")
+          SIG_LINUX_ASSET=$(resolve "^devdrivr_${V}_amd64\.AppImage\.sig$" "Linux updater signature")
+          SIG_WINDOWS_ASSET=$(resolve "^devdrivr_${V}_x64-setup\.exe\.sig$" "Windows updater signature")
+
+          echo "Resolved updater artifacts: ${MAC_UPDATER}, ${APPIMAGE}, ${EXE}"
+
+          # Signatures are one-line base64 blobs the plugin checks against the pubkey baked into the
+          # app. Read them from the release rather than rebuilding, so the manifest can only ever
+          # describe the artifacts that actually shipped.
+          gh release download "${TAG}" \
+            --pattern "${SIG_DARWIN_ASSET}" \
+            --pattern "${SIG_LINUX_ASSET}" \
+            --pattern "${SIG_WINDOWS_ASSET}" \
+            --dir sigs
+          SIG_DARWIN=$(cat "sigs/${SIG_DARWIN_ASSET}")
+          SIG_LINUX=$(cat "sigs/${SIG_LINUX_ASSET}")
+          SIG_WINDOWS=$(cat "sigs/${SIG_WINDOWS_ASSET}")
+
+          # Two manifests on purpose.
+          #
+          # updater.json is what tauri-plugin-updater reads from 0.1.85 onward: updater artifacts,
+          # each with its signature.
+          #
+          # latest.json is the old hand-rolled format, and every user still on 0.1.84 or earlier
+          # polls it. Those builds download whatever `url` says and hand the file to the user, so it
+          # has to keep pointing at the dmg/exe a human can actually open. Delete it once nobody is
+          # left on a pre-plugin version.
+          #
+          # No "darwin-x86_64" key in either: Intel macOS is unsupported as of 0.1.83. Omitting it
+          # makes the updater report no update rather than handing an Intel Mac an arm64 bundle.
+          cat > updater.json <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See the release page for details.",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "url": "${BASE_URL}/${MAC_UPDATER}",
+                "signature": "${SIG_DARWIN}"
+              },
+              "linux-x86_64": {
+                "url": "${BASE_URL}/${APPIMAGE}",
+                "signature": "${SIG_LINUX}"
+              },
+              "windows-x86_64": {
+                "url": "${BASE_URL}/${EXE}",
+                "signature": "${SIG_WINDOWS}"
+              }
+            }
+          }
+          EOF
+
           cat > latest.json <<EOF
           {
             "version": "${VERSION}",
@@ -173,23 +244,24 @@ jobs:
             "pub_date": "${PUB_DATE}",
             "platforms": {
               "darwin-aarch64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_aarch64.dmg"
+                "url": "${BASE_URL}/${DMG}"
               },
               "linux-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage"
+                "url": "${BASE_URL}/${APPIMAGE}"
               },
               "windows-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_x64-setup.exe"
+                "url": "${BASE_URL}/${EXE}"
               }
             }
           }
           EOF
 
-      - name: Upload latest.json to release
+          node -e 'for (const f of ["updater.json", "latest.json"]) JSON.parse(require("fs").readFileSync(f, "utf8"))'
+
+      - name: Upload update manifests to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           TAG="cockpit-v${VERSION}"
-          gh release upload "${TAG}" latest.json --clobber
-
+          gh release upload "${TAG}" updater.json latest.json --clobber

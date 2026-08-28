@@ -7,7 +7,7 @@ import { useHistoryStore } from '@/stores/history.store'
 import { useApiStore } from '@/stores/api.store'
 import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
-import { useUpdaterStore, autoDownloadUpdate } from '@/stores/updater.store'
+import { useUpdaterStore } from '@/stores/updater.store'
 import { availableMonitors, getCurrentWindow, primaryMonitor } from '@tauri-apps/api/window'
 import { logicalWorkAreas, resolveRestorePosition } from '@/lib/window-bounds'
 import { listen } from '@tauri-apps/api/event'
@@ -189,10 +189,12 @@ export function Providers({ children }: { children: ReactNode }) {
         const { checkForUpdate } = useUpdaterStore.getState()
         checkForUpdate()
           .then(() => {
-            const updateInfo = useUpdaterStore.getState().updateInfo
+            const { updateInfo, downloadUpdate } = useUpdaterStore.getState()
             const { downloadUpdatesAutomatically } = useSettingsStore.getState()
             if (updateInfo && downloadUpdatesAutomatically) {
-              autoDownloadUpdate(updateInfo).catch(() => {})
+              // Staged in the background; the banner then offers a restart rather than
+              // installing under the user mid-session.
+              downloadUpdate().catch(() => {})
             }
           })
           .catch(() => {})

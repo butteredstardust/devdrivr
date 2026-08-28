@@ -26,8 +26,20 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVDODY3RjY4QzI0Rjk4RDkKUldUWm1FL0NhSCtHWEJBRE93MUFKaHF4bS9iZXRjMk1qdTQraWxTeUNZNXV2VCtOeE9aOUJQNkQK",
+      "endpoints": [
+        "https://github.com/butteredstardust/devdrivr/releases/latest/download/updater.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["app", "dmg", "nsis", "appimage"],
     "icon": [
       "icons/32x32.png",
