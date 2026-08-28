@@ -125,7 +125,12 @@ jobs:
           # clobbers it, `releases/latest/download/latest.json` would serve that to pre-0.1.85
           # clients, which would hand the user a .app.tar.gz as if it were an installer.
           # publish-update-manifest builds both manifests from the finished release instead.
-          uploadUpdaterJson: false
+          #
+          # The input is `includeUpdaterJson` on the @v0 tag pinned above. The action's `dev` branch
+          # renamed it to `uploadUpdaterJson`, and an unknown input is only a *warning* in Actions,
+          # never an error — so reading the wrong ref's action.yml gives you a silent no-op. Check
+          # the pinned ref's input list, not the default branch's, before changing this.
+          includeUpdaterJson: false
 
   publish-update-manifest:
     name: 'Publish Update Manifest'
