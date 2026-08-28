@@ -756,11 +756,11 @@ describe('Sidebar — resize handle', () => {
       render(<Sidebar />)
       const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
 
-      fireEvent.mouseDown(handle, { clientX: 240 })
-      fireEvent.mouseMove(document, { clientX: 300 })
+      fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+      fireEvent.pointerMove(document, { clientX: 300, pointerId: 1 })
       expect(handle).toHaveAttribute('aria-valuenow', '300')
 
-      fireEvent.mouseUp(document, { clientX: 300 })
+      fireEvent.pointerUp(document, { clientX: 300, pointerId: 1 })
       // The save is debounced, so nothing is written mid-drag.
       expect(update).not.toHaveBeenCalledWith('sidebarWidth', 300)
       act(() => void vi.advanceTimersByTime(500))
@@ -774,12 +774,45 @@ describe('Sidebar — resize handle', () => {
     render(<Sidebar />)
     const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
 
-    fireEvent.mouseDown(handle, { clientX: 240 })
+    fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
     expect(document.body.style.cursor).toBe('col-resize')
 
-    fireEvent.mouseUp(document, { clientX: 260 })
+    fireEvent.pointerUp(document, { clientX: 260, pointerId: 1 })
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+  })
+
+  // Releasing the button over another window delivers no pointer-up here, so the gesture has to
+  // end on its own or the sidebar stays stuck to the cursor when the user comes back.
+  it('ends the drag when the window loses focus mid-gesture', () => {
+    render(<Sidebar />)
+    const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+    fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+    fireEvent.pointerMove(document, { clientX: 300, pointerId: 1 })
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    // And the handle no longer tracks the pointer.
+    fireEvent.pointerMove(document, { clientX: 400, pointerId: 1 })
+    expect(handle).toHaveAttribute('aria-valuenow', '300')
+  })
+
+  it('restores the previous body cursor instead of clearing it', () => {
+    document.body.style.cursor = 'progress'
+    try {
+      render(<Sidebar />)
+      const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
+
+      fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
+      fireEvent.pointerUp(document, { clientX: 260, pointerId: 1 })
+
+      expect(document.body.style.cursor).toBe('progress')
+    } finally {
+      document.body.style.cursor = ''
+    }
   })
 
   it('has no handle to drag while collapsed', () => {

@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useFuseSearchWithMatches, type MatchRange } from '@/hooks/useFuseSearch'
 import { useShellWidth } from '@/hooks/useShellWidth'
+import { useEdgeResize } from '@/hooks/useEdgeResize'
 import { TOOL_FUSE_OPTIONS, toolSearchable } from '@/lib/tool-search'
 import {
   MAX_SIDEBAR_WIDTH,
@@ -48,7 +49,6 @@ export function Sidebar() {
 
   const [filterQuery, setFilterQuery] = useState('')
   const [width, setWidth] = useState(() => clampSidebarWidth(savedWidth))
-  const [resizing, setResizing] = useState(false)
 
   // The stored `sidebarCollapsed` is the user's preference; `collapsed` is what the row can
   // actually afford. When the workspace would otherwise drop below its floor the sidebar renders
@@ -97,42 +97,33 @@ export function Sidebar() {
 
   useEffect(() => setWidth(clampSidebarWidth(savedWidth)), [savedWidth])
 
+  // The gesture reads the width at pointer-down without re-subscribing on every pixel of a drag.
+  const widthRef = useRef(width)
+  widthRef.current = width
+
   useEffect(() => () => clearTimeout(resizeSaveTimer.current), [])
 
-  // Drag the right edge to resize. Mirrors the notes drawer's handle (same
-  // debounce, same body cursor/selection lock) so the two edges of the shell
-  // behave identically, just measured from the opposite side.
-  const handleResizeStart = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault()
-      const startX = event.clientX
-      const startWidth = width
-      setResizing(true)
-
-      const onMove = (moveEvent: MouseEvent) => {
-        setWidth(clampSidebarWidth(startWidth + moveEvent.clientX - startX))
-      }
-      const onUp = (upEvent: MouseEvent) => {
-        const final = clampSidebarWidth(startWidth + upEvent.clientX - startX)
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-        setResizing(false)
-        clearTimeout(resizeSaveTimer.current)
-        resizeSaveTimer.current = setTimeout(
-          () => void update('sidebarWidth', final).catch(() => {}),
-          500
-        )
-      }
-
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
+  const persistWidth = useCallback(
+    (next: number) => {
+      clearTimeout(resizeSaveTimer.current)
+      resizeSaveTimer.current = setTimeout(
+        () => void update('sidebarWidth', next).catch(() => {}),
+        500
+      )
     },
-    [update, width]
+    [update]
   )
+
+  // Drag the right edge to resize. Mirrors the notes drawer's handle (same gesture, same
+  // debounce) so the two edges of the shell behave identically, just measured from the
+  // opposite side.
+  const { resizing, onPointerDown: handleResizeStart } = useEdgeResize({
+    direction: 1,
+    getWidth: () => widthRef.current,
+    clamp: clampSidebarWidth,
+    onResize: setWidth,
+    onCommit: persistWidth,
+  })
 
   // Keyboard resizing, so the width isn't mouse-only. 16px a step, matching
   // roughly one indent level of the tree it is sizing.
@@ -142,13 +133,9 @@ export function Sidebar() {
       event.preventDefault()
       const next = clampSidebarWidth(width + (event.key === 'ArrowRight' ? 16 : -16))
       setWidth(next)
-      clearTimeout(resizeSaveTimer.current)
-      resizeSaveTimer.current = setTimeout(
-        () => void update('sidebarWidth', next).catch(() => {}),
-        500
-      )
+      persistWidth(next)
     },
-    [update, width]
+    [persistWidth, width]
   )
 
   useKeyboardShortcut(
@@ -455,7 +442,7 @@ export function Sidebar() {
           aria-valuemax={MAX_SIDEBAR_WIDTH}
           aria-valuenow={width}
           aria-orientation="vertical"
-          onMouseDown={handleResizeStart}
+          onPointerDown={handleResizeStart}
           onKeyDown={handleResizeKeyDown}
           title="Drag to resize"
           className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 focus-visible:outline-none focus-visible:bg-[var(--color-accent)]/60"

@@ -35,8 +35,8 @@ impl From<WindowResizeDirection> for ResizeDirection {
 
 #[tauri::command]
 pub fn window_focus(window: WebviewWindow) -> Result<(), String> {
-    window.set_focus().map_err(command_error)?;
-    window.as_ref().set_focus().map_err(command_error)
+    // One call is enough: `WebviewWindow::set_focus` already forwards to the underlying window.
+    window.set_focus().map_err(command_error)
 }
 
 #[tauri::command]

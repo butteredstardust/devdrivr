@@ -8,7 +8,8 @@ import { useApiStore } from '@/stores/api.store'
 import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore, autoDownloadUpdate } from '@/stores/updater.store'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { availableMonitors, getCurrentWindow, primaryMonitor } from '@tauri-apps/api/window'
+import { logicalWorkAreas, resolveRestorePosition } from '@/lib/window-bounds'
 import { listen } from '@tauri-apps/api/event'
 import { getSetting, setSetting } from '@/lib/db'
 import type { McpDataChangedEvent } from '@/types/models'
@@ -50,13 +51,28 @@ export function Providers({ children }: { children: ReactNode }) {
             bounds.width <= 4000 &&
             bounds.height >= 500 &&
             bounds.height <= 3000
-          // Clamp position so the window isn't restored entirely off-screen
-          // (e.g. after disconnecting an external monitor)
-          const posValid =
-            bounds && bounds.x > -200 && bounds.y > -200 && bounds.x < 4000 && bounds.y < 3000
           if (sizeValid) {
             const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
-            if (posValid) {
+            // Which coordinates are reachable depends on the displays attached right now, so the
+            // saved position is checked against live work areas rather than fixed limits. The
+            // primary monitor goes first because it is where a stranded window is recentred.
+            const [primary, monitors] = await Promise.all([
+              primaryMonitor().catch(() => null),
+              availableMonitors().catch(() => []),
+            ])
+            const areas = logicalWorkAreas([...(primary ? [primary] : []), ...monitors])
+            const saved = {
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+            }
+            const position = resolveRestorePosition(saved, areas)
+            if (position) {
+              await win.setPosition(new LogicalPosition(position.x, position.y))
+            } else if (areas.length > 0 || (bounds.x > -200 && bounds.y > -200)) {
+              // No monitors reported (nothing to validate against) — fall back to the coarse
+              // sanity check rather than restoring a position that is obviously nonsense.
               await win.setPosition(new LogicalPosition(bounds.x, bounds.y))
             }
             await win.setSize(new LogicalSize(bounds.width, bounds.height))
