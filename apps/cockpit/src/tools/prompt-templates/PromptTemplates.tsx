@@ -994,7 +994,7 @@ export default function PromptTemplates() {
     try {
       const file = await openFileDialog()
       if (!file) return
-      const drafts = parsePromptTemplateImport(file.content)
+      const drafts = parsePromptTemplateImport(file.content, 'file')
       const imported = await importTemplates(drafts)
       if (imported[0]) {
         updateState({ selectedId: imported[0].id })

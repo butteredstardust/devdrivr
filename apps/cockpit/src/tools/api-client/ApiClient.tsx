@@ -81,6 +81,13 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 const DEFAULT_REQUEST_NAME = 'Untitled Request'
 const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_DISPLAY_BYTES = 1_000_000
+
+/**
+ * Hard ceiling on how much of a response we will hold in renderer memory. The display cap above
+ * only bounds what is *shown*; without this a multi-gigabyte download would still be read whole
+ * and then copied again into the response Blob, freezing or exhausting the WebView.
+ */
+const MAX_RESPONSE_BYTES = 50 * 1024 * 1024
 const MAX_HISTORY_RESPONSE_CHARS = 100_000
 
 type Param = { key: string; value: string }
@@ -737,8 +744,22 @@ export default function ApiClient() {
 
         const res = await tauriFetch(interpolatedUrl, opts)
         const time = Math.round(performance.now() - start)
-        const responseBytes = new Uint8Array(await res.arrayBuffer())
-        const size = responseBytes.byteLength
+
+        // Refuse before reading when the server declares an oversized body — reading first and
+        // capping afterwards is exactly the allocation this limit exists to avoid.
+        const declaredLength = Number(res.headers.get('content-length') ?? Number.NaN)
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+          throw new Error(
+            `Response is ${formatBytes(declaredLength)}, above the ${formatBytes(MAX_RESPONSE_BYTES)} limit. Use a direct download instead.`
+          )
+        }
+
+        const fullBytes = new Uint8Array(await res.arrayBuffer())
+        const size = fullBytes.byteLength
+        const overLimit = size > MAX_RESPONSE_BYTES
+        // A server that under-declared or omitted Content-Length still lands here; keep only the
+        // retained prefix so one bad response cannot pin gigabytes for the rest of the session.
+        const responseBytes = overLimit ? fullBytes.slice(0, MAX_RESPONSE_BYTES) : fullBytes
 
         const resHeaders: Record<string, string> = {}
         res.headers.forEach((value, key) => {
@@ -746,12 +767,12 @@ export default function ApiClient() {
         })
         const mimeType = responseMime(resHeaders)
         const isBinary = !isTextResponse(mimeType)
-        const displayTruncated = !isBinary && size > MAX_DISPLAY_BYTES
+        const displayTruncated = overLimit || (!isBinary && size > MAX_DISPLAY_BYTES)
         const displayBytes = displayTruncated
           ? responseBytes.slice(0, MAX_DISPLAY_BYTES)
           : responseBytes
         const resBody = isBinary ? '' : new TextDecoder().decode(displayBytes)
-        const blob = new Blob([Uint8Array.from(responseBytes)], { type: mimeType })
+        const blob = new Blob([responseBytes], { type: mimeType })
 
         setResponse({
           status: res.status,
@@ -780,7 +801,11 @@ export default function ApiClient() {
           responseStatus: res.status,
           responseStatusText: res.statusText,
         }
-        void addRequestHistory(historyEntry)
+        // Persistence is independent of request success: a locked or full database must not
+        // become an unhandled rejection, and the user should know the request was not recorded.
+        void addRequestHistory(historyEntry).catch(() => {
+          setLastAction('Request sent, but history could not be saved', 'error')
+        })
       } catch (e) {
         if (requestControllerRef.current !== controller) return
         const msg = controller.signal.aborted

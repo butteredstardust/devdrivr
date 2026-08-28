@@ -12,6 +12,8 @@ import {
   deleteApiRequest,
   loadHistory,
   addHistoryEntry,
+  getSetting,
+  setSetting,
 } from '@/lib/db'
 import type { ApiCollection, ApiEnvironment, ApiRequest, HistoryEntry } from '@/types/models'
 import type { ApiImportResult } from '@/types/models'
@@ -50,6 +52,8 @@ type ApiStore = {
 
 let initPromise: Promise<void> | null = null
 
+const ACTIVE_ENVIRONMENT_SETTING = 'apiActiveEnvironmentId'
+
 export const useApiStore = create<ApiStore>((set) => ({
   initialized: false,
   environments: [],
@@ -61,11 +65,12 @@ export const useApiStore = create<ApiStore>((set) => ({
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const [envs, cols, reqs, hist] = await Promise.all([
+        const [envs, cols, reqs, hist, savedEnvId] = await Promise.all([
           loadApiEnvironments(),
           loadApiCollections(),
           loadApiRequests(),
           loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
+          getSetting<string | null>(ACTIVE_ENVIRONMENT_SETTING, null),
         ])
         set({
           initialized: true,
@@ -73,8 +78,12 @@ export const useApiStore = create<ApiStore>((set) => ({
           collections: cols,
           requests: reqs,
           requestHistory: hist,
-          // Could restore this from settings later
-          activeEnvironmentId: envs[0]?.id ?? null,
+          // Restore the chosen environment, falling back to the first only when the saved one
+          // no longer exists — silently reverting to environment A changes resolved endpoints
+          // and credentials without the user noticing.
+          activeEnvironmentId:
+            (savedEnvId && envs.some((e) => e.id === savedEnvId) ? savedEnvId : envs[0]?.id) ??
+            null,
         })
       })().catch((err: unknown) => {
         // Clear the cached promise on failure so a later call retries
@@ -134,7 +143,12 @@ export const useApiStore = create<ApiStore>((set) => ({
     }))
   },
 
-  setActiveEnvironmentId: (id) => set({ activeEnvironmentId: id }),
+  setActiveEnvironmentId: (id) => {
+    set({ activeEnvironmentId: id })
+    void setSetting(ACTIVE_ENVIRONMENT_SETTING, id).catch(() => {
+      // A failed write only costs the selection on the next launch; nothing to recover here.
+    })
+  },
 
   createCollection: async (name) => {
     const col: ApiCollection = {

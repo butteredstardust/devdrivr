@@ -44,6 +44,7 @@ import { sendToTool } from '@/lib/tool-handoff'
 import { useToolState } from '@/hooks/useToolState'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { formatBytes } from '@/lib/format'
 
 const FAVORITE_TAG = '⭐'
 
@@ -211,6 +212,17 @@ function highlightMatches(
   return <>{parts}</>
 }
 
+/**
+ * Import budgets. A backup is arbitrary local JSON parsed whole into renderer memory, so both
+ * the byte size and the item count are checked before any work happens.
+ */
+const MAX_IMPORT_BYTES = 20 * 1024 * 1024
+const MAX_IMPORT_SNIPPETS = 5000
+/** Per-field caps, applied while mapping so one huge string cannot dominate the import. */
+const MAX_SNIPPET_TITLE_CHARS = 2_000
+const MAX_SNIPPET_CONTENT_CHARS = 500_000
+const MAX_SNIPPET_TAGS = 50
+
 function importedSnippet(item: unknown): {
   title: string
   content: string
@@ -226,11 +238,13 @@ function importedSnippet(item: unknown): {
   }
 
   return {
-    title: candidate['title'],
-    content: candidate['content'],
+    title: candidate['title'].slice(0, MAX_SNIPPET_TITLE_CHARS),
+    content: candidate['content'].slice(0, MAX_SNIPPET_CONTENT_CHARS),
     language: typeof candidate['language'] === 'string' ? candidate['language'] : 'text',
     tags: Array.isArray(candidate['tags'])
-      ? candidate['tags'].filter((tag): tag is string => typeof tag === 'string')
+      ? candidate['tags']
+          .filter((tag): tag is string => typeof tag === 'string')
+          .slice(0, MAX_SNIPPET_TAGS)
       : [],
     folder: typeof candidate['folder'] === 'string' ? candidate['folder'] : '',
     favorite:
@@ -457,7 +471,9 @@ export default function SnippetsManager() {
         selected.content,
         selected.language,
         visibleTags(selected.tags),
-        selected.folder
+        selected.folder,
+        // Without this the copy defaults to unfavorited and vanishes under the Favorites filter.
+        !!selected.favorite
       )
       setSelectedId(duplicate.id)
       setTitleFocusRequest((request) => request + 1)
@@ -560,8 +576,27 @@ export default function SnippetsManager() {
     try {
       const file = await openFileDialog()
       if (!file) return
+
+      // Budgets come first: the whole backup is parsed and mapped in renderer memory before a
+      // single row is written, so an unbounded file fails after the expensive part.
+      const bytes = new TextEncoder().encode(file.content).length
+      if (bytes > MAX_IMPORT_BYTES) {
+        setLastAction(
+          `Import failed — file is ${formatBytes(bytes)}, above the ${formatBytes(MAX_IMPORT_BYTES)} limit`,
+          'error'
+        )
+        return
+      }
+
       const parsed: unknown = JSON.parse(file.content)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
+      if (parsed.length > MAX_IMPORT_SNIPPETS) {
+        setLastAction(
+          `Import failed — ${parsed.length} snippets exceeds the ${MAX_IMPORT_SNIPPETS} snippet limit`,
+          'error'
+        )
+        return
+      }
 
       const validSnippets = parsed
         .map((item) => importedSnippet(item))
@@ -582,22 +617,41 @@ export default function SnippetsManager() {
         return
       }
 
+      // Writes are not atomic, so a failure part-way leaves earlier snippets committed.
+      // Report what actually landed instead of a bare "failed".
       let firstImported: Snippet | null = null
+      let imported = 0
+      let writeError: unknown = null
       for (const item of uniqueSnippets) {
-        const created = await addSnippet(
-          item.title,
-          item.content,
-          item.language,
-          item.tags,
-          item.folder,
-          item.favorite
-        )
-        firstImported ??= created
+        try {
+          const created = await addSnippet(
+            item.title,
+            item.content,
+            item.language,
+            item.tags,
+            item.folder,
+            item.favorite
+          )
+          firstImported ??= created
+          imported += 1
+        } catch (err) {
+          writeError = err
+          break
+        }
       }
       setSelectedId(firstImported?.id ?? null)
+
+      if (writeError) {
+        setLastAction(
+          `Import stopped after ${imported} of ${uniqueSnippets.length} snippet${uniqueSnippets.length === 1 ? '' : 's'} — the rest were not saved`,
+          'error'
+        )
+        return
+      }
+
       const skipped = validSnippets.length - uniqueSnippets.length
       setLastAction(
-        `Imported ${uniqueSnippets.length} snippet${uniqueSnippets.length === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
+        `Imported ${imported} snippet${imported === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
         'success'
       )
     } catch {

@@ -5,6 +5,35 @@ import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 type Entry = readonly [string, unknown]
 
+/**
+ * Inspector input is arbitrary parsed data — API responses, decoded tokens, worker output — so it
+ * can be cyclic or nested far past anything readable. Rendering and filtering both stop here and
+ * show a sentinel instead of recursing until the stack gives out.
+ */
+const MAX_INSPECTOR_DEPTH = 100
+
+/** `JSON.stringify` that survives cycles, used for the value preview and the copy payload. */
+function safeStringify(value: unknown): string {
+  const seen = new WeakSet<object>()
+  try {
+    return (
+      JSON.stringify(
+        value,
+        (_key, item: unknown) => {
+          if (typeof item === 'object' && item !== null) {
+            if (seen.has(item)) return '[Circular]'
+            seen.add(item)
+          }
+          return item
+        },
+        2
+      ) ?? String(value)
+    )
+  } catch {
+    return String(value)
+  }
+}
+
 export function InspectorDisclosure({
   expanded,
   hasChildren,
@@ -52,20 +81,33 @@ function valueText(value: unknown): string {
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'string') return `"${value}"`
   if (value === undefined) return 'undefined'
-  if (typeof value === 'object') return JSON.stringify(value, null, 2) ?? String(value)
+  if (typeof value === 'object') return safeStringify(value)
   return String(value)
 }
 
 function copyValueText(value: unknown): string {
   if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'object') return JSON.stringify(value, null, 2) ?? String(value)
+  if (typeof value === 'object') return safeStringify(value)
   return String(value)
 }
 
-function containsFilter(key: string, value: unknown, filter: string): boolean {
+function containsFilter(
+  key: string,
+  value: unknown,
+  filter: string,
+  depth = 0,
+  seen: WeakSet<object> = new WeakSet()
+): boolean {
   if (!filter) return true
   if (key.toLocaleLowerCase().includes(filter)) return true
-  return entriesOf(value).some(([childKey, child]) => containsFilter(childKey, child, filter))
+  if (depth >= MAX_INSPECTOR_DEPTH) return false
+  if (typeof value === 'object' && value !== null) {
+    if (seen.has(value)) return false
+    seen.add(value)
+  }
+  return entriesOf(value).some(([childKey, child]) =>
+    containsFilter(childKey, child, filter, depth + 1, seen)
+  )
 }
 
 function TreeNode({
@@ -76,6 +118,8 @@ function TreeNode({
   filter,
   highlightedPath,
   pathForChild,
+  depth = 0,
+  ancestors,
 }: {
   value: unknown
   path: string
@@ -84,8 +128,13 @@ function TreeNode({
   filter: string
   highlightedPath?: string
   pathForChild: (parent: string, key: string, array: boolean) => string
+  depth?: number
+  ancestors?: ReadonlySet<object>
 }) {
-  const entries = entriesOf(value)
+  // A value that is already on its own path would expand forever; stop and say so.
+  const circular = typeof value === 'object' && value !== null && !!ancestors?.has(value as object)
+  const tooDeep = depth >= MAX_INSPECTOR_DEPTH
+  const entries = circular || tooDeep ? [] : entriesOf(value)
   const hasChildren = entries.length > 0
   const shouldReveal = !!filter || (!!highlightedPath && highlightedPath.startsWith(path))
   const [expanded, setExpanded] = useState(defaultExpanded || shouldReveal)
@@ -110,7 +159,7 @@ function TreeNode({
   }, [copy, path])
 
   if (!hasChildren) {
-    const text = valueText(value)
+    const text = circular ? '[Circular]' : tooDeep ? '[Too deeply nested]' : valueText(value)
     const color =
       typeof value === 'string' || value instanceof Date
         ? 'text-[var(--color-success)]'
@@ -137,6 +186,9 @@ function TreeNode({
       </div>
     )
   }
+
+  const childAncestors = new Set(ancestors ?? [])
+  if (typeof value === 'object' && value !== null) childAncestors.add(value as object)
 
   return (
     <div className="ml-4">
@@ -173,6 +225,8 @@ function TreeNode({
               filter={filter}
               {...(highlightedPath === undefined ? {} : { highlightedPath })}
               pathForChild={pathForChild}
+              depth={depth + 1}
+              ancestors={childAncestors}
             />
           ) : null
         )}

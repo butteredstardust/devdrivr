@@ -90,7 +90,7 @@ describe('prompt template utilities', () => {
           variables: [{ name: 'language', type: 'select' }],
         })
       )
-    ).toThrow(/prompt template format/)
+    ).toThrow(/Select variables require at least one option/)
   })
 
   it('rejects select variables with only blank options on import', () => {
@@ -102,7 +102,7 @@ describe('prompt template utilities', () => {
           variables: [{ name: 'language', type: 'select', options: ['  '] }],
         })
       )
-    ).toThrow(/prompt template format/)
+    ).toThrow(/Select variables require at least one option/)
   })
 })
 

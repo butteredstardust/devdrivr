@@ -40,7 +40,7 @@ import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import { formatBytes } from '@/lib/format'
+import { documentStats, sortKeysDeepBounded } from '@/lib/traversal'
 import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { InspectorTree } from '@/components/shared/InspectorTree'
@@ -143,37 +143,10 @@ const VIEW_OPTIONS = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function sortKeysDeep(data: unknown): unknown {
-  if (Array.isArray(data)) return data.map(sortKeysDeep)
-  if (data !== null && typeof data === 'object') {
-    const sorted: Record<string, unknown> = {}
-    const keys = Object.keys(data as Record<string, unknown>).sort()
-    for (const key of keys) {
-      sorted[key] = sortKeysDeep((data as Record<string, unknown>)[key])
-    }
-    return sorted
-  }
-  return data
-}
-
-function jsonStats(data: unknown): { keys: number; depth: number; size: string } {
-  let keyCount = 0
-  let maxDepth = 0
-
-  function walk(val: unknown, depth: number) {
-    if (depth > maxDepth) maxDepth = depth
-    if (Array.isArray(val)) {
-      for (const item of val) walk(item, depth + 1)
-    } else if (val !== null && typeof val === 'object') {
-      const entries = Object.entries(val as Record<string, unknown>)
-      keyCount += entries.length
-      for (const [, v] of entries) walk(v, depth + 1)
-    }
-  }
-
-  walk(data, 0)
-  const bytes = new Blob([JSON.stringify(data)]).size
-  return { keys: keyCount, depth: maxDepth, size: formatBytes(bytes) }
+// Statistics and Sort Keys both run over freshly parsed, arbitrary user input, so they share
+// the bounded walkers rather than recursing without limits.
+function jsonStats(data: unknown) {
+  return documentStats([data])
 }
 
 class JsonScanError {
@@ -479,7 +452,7 @@ export default function JsonTools() {
   const handleSortKeys = useCallback(() => {
     if (!isValid) return
     setUndoBuffer({ input, label: 'Sort keys' })
-    const output = JSON.stringify(sortKeysDeep(data), null, indent)
+    const output = JSON.stringify(sortKeysDeepBounded(data), null, indent)
     updateState({ input: output })
     setError(null)
     setLastAction('Keys sorted', 'success')
@@ -577,7 +550,9 @@ export default function JsonTools() {
           ? `Invalid JSON — line ${parsed.location.line}, column ${parsed.location.column}`
           : 'Invalid JSON'
         : stats
-          ? `Valid JSON · ${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
+          ? // A truncated walk means the counts are lower bounds — say so rather than
+            // presenting a partial traversal as the document's real shape.
+            `Valid JSON · ${stats.truncated ? 'over ' : ''}${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth}${stats.truncated ? '+' : ''} · ${stats.size}`
           : 'Valid JSON'
 
   // Lifted out of the JSX below because the source pane appears in two shapes — alone when the
