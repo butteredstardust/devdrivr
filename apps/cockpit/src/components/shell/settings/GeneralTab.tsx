@@ -103,7 +103,7 @@ export function GeneralTab() {
           </SettingRow>
           <SettingRow
             label="Download update automatically"
-            hint="Save installer to Downloads folder"
+            hint="Download in the background, then offer a restart"
           >
             <Toggle
               checked={downloadUpdatesAutomatically}

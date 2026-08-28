@@ -42,7 +42,7 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
   { name: '@tanstack/react-table', version: '8.21.3', license: 'MIT', copyright: 'Tanner Linsley' },
   {
     name: '@tauri-apps/api',
-    version: '2.10.1',
+    version: '2.11.1',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
@@ -71,8 +71,20 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
+    name: '@tauri-apps/plugin-process',
+    version: '2.3.1',
+    license: 'MIT OR Apache-2.0',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
     name: '@tauri-apps/plugin-sql',
     version: '2.4.0',
+    license: 'MIT OR Apache-2.0',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
+    name: '@tauri-apps/plugin-updater',
+    version: '2.10.1',
     license: 'MIT OR Apache-2.0',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
@@ -204,8 +216,20 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
+    name: 'tauri-plugin-process',
+    version: '2.3.1',
+    license: 'Apache-2.0 OR MIT',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
     name: 'tauri-plugin-sql',
     version: '2.3.2',
+    license: 'Apache-2.0 OR MIT',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
+    name: 'tauri-plugin-updater',
+    version: '2.10.1',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },

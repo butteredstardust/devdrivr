@@ -104,6 +104,11 @@ jobs:
           # Linux and Windows builds; 0.1.82 had squeaked under it. The runners have 16 GB, so give
           # node room rather than tuning the ceiling one release at a time.
           NODE_OPTIONS: '--max-old-space-size=8192'
+          # Minisign key for the updater plugin — unrelated to Apple/Microsoft code signing. It only
+          # proves an update payload came from this repo; without it the build fails, because
+          # tauri.conf.json declares a pubkey and `createUpdaterArtifacts`.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: cockpit-v__VERSION__
           releaseName: 'devdrivr Cockpit v__VERSION__'
@@ -131,7 +136,7 @@ jobs:
           VERSION=$(node -p "require('./apps/cockpit/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release assets and generate latest.json
+      - name: Verify release assets and generate update manifests
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -144,10 +149,19 @@ jobs:
           ASSETS=$(gh release view "${TAG}" --json assets --jq '[.assets[].name]')
           echo "Release assets: ${ASSETS}"
 
+          # The updater installs from these, not from the dmg/exe a human downloads: macOS swaps the
+          # .app bundle, Windows runs the NSIS installer out of the zip, Linux rewrites the AppImage
+          # in place. Each needs its detached minisign .sig, so a half-uploaded release aborts here
+          # rather than publishing a manifest pointing at an artifact with no signature to check.
           EXPECTED_ASSETS=(
             "devdrivr_${VERSION}_aarch64.dmg"
             "devdrivr_${VERSION}_amd64.AppImage"
             "devdrivr_${VERSION}_x64-setup.exe"
+            "devdrivr_aarch64.app.tar.gz"
+            "devdrivr_aarch64.app.tar.gz.sig"
+            "devdrivr_${VERSION}_amd64.AppImage.sig"
+            "devdrivr_${VERSION}_x64-setup.nsis.zip"
+            "devdrivr_${VERSION}_x64-setup.nsis.zip.sig"
           )
 
           MISSING=0
@@ -163,9 +177,52 @@ jobs:
             exit 1
           fi
 
-          # No "darwin-x86_64" key: Intel macOS is unsupported as of 0.1.83. Omitting it makes the
-          # in-app updater report "no installer for your platform" instead of handing an Intel Mac
-          # an arm64 dmg.
+          # Signatures are one-line base64 blobs the plugin checks against the pubkey baked into the
+          # app. Read them from the release rather than rebuilding, so the manifest can only ever
+          # describe the artifacts that actually shipped.
+          gh release download "${TAG}" \
+            --pattern "devdrivr_aarch64.app.tar.gz.sig" \
+            --pattern "devdrivr_${VERSION}_amd64.AppImage.sig" \
+            --pattern "devdrivr_${VERSION}_x64-setup.nsis.zip.sig" \
+            --dir sigs
+          SIG_DARWIN=$(cat "sigs/devdrivr_aarch64.app.tar.gz.sig")
+          SIG_LINUX=$(cat "sigs/devdrivr_${VERSION}_amd64.AppImage.sig")
+          SIG_WINDOWS=$(cat "sigs/devdrivr_${VERSION}_x64-setup.nsis.zip.sig")
+
+          # Two manifests on purpose.
+          #
+          # updater.json is what tauri-plugin-updater reads from 0.1.85 onward: updater artifacts,
+          # each with its signature.
+          #
+          # latest.json is the old hand-rolled format, and every user still on 0.1.84 or earlier
+          # polls it. Those builds download whatever `url` says and hand the file to the user, so it
+          # has to keep pointing at the dmg/exe a human can actually open. Delete it once nobody is
+          # left on a pre-plugin version.
+          #
+          # No "darwin-x86_64" key in either: Intel macOS is unsupported as of 0.1.83. Omitting it
+          # makes the updater report no update rather than handing an Intel Mac an arm64 bundle.
+          cat > updater.json <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See the release page for details.",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "url": "${BASE_URL}/devdrivr_aarch64.app.tar.gz",
+                "signature": "${SIG_DARWIN}"
+              },
+              "linux-x86_64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage",
+                "signature": "${SIG_LINUX}"
+              },
+              "windows-x86_64": {
+                "url": "${BASE_URL}/devdrivr_${VERSION}_x64-setup.nsis.zip",
+                "signature": "${SIG_WINDOWS}"
+              }
+            }
+          }
+          EOF
+
           cat > latest.json <<EOF
           {
             "version": "${VERSION}",
@@ -185,11 +242,12 @@ jobs:
           }
           EOF
 
-      - name: Upload latest.json to release
+          node -e 'for (const f of ["updater.json", "latest.json"]) JSON.parse(require("fs").readFileSync(f, "utf8"))'
+
+      - name: Upload update manifests to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           TAG="cockpit-v${VERSION}"
-          gh release upload "${TAG}" latest.json --clobber
-
+          gh release upload "${TAG}" updater.json latest.json --clobber
