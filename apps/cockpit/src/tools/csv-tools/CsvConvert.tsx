@@ -1,4 +1,4 @@
-import Editor from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { useMonaco } from '@/hooks/useMonaco'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Select } from '@/components/shared/Select'

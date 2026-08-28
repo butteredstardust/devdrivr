@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import Editor from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import Fuse from 'fuse.js'
 import {
   ArrowRightIcon,

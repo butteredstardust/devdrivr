@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react'
+import { DiffEditor, type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import {
   ArrowCounterClockwiseIcon,
   BroomIcon,
@@ -108,6 +109,7 @@ export default function CodeFormatter() {
   const [error, setError] = useState<string | null>(null)
   const [isFormatting, setIsFormatting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewMounted, setPreviewMounted] = useState(false)
   const [pendingFormat, setPendingFormat] = useState<{ before: string; after: string } | null>(null)
   const formattingRef = useRef(false)
   // A request that arrives mid-run is remembered rather than dropped: with auto-format on, the
@@ -199,6 +201,7 @@ export default function CodeFormatter() {
         if (inputRef.current !== source) return
         if (showPreview && result !== source) {
           setPendingFormat({ before: source, after: result })
+          setPreviewMounted(true)
           setPreviewOpen(true)
           setError(null)
           setLastAction('Format preview ready', 'success')
@@ -252,6 +255,11 @@ export default function CodeFormatter() {
     setPreviewOpen(false)
     setLastAction('Formatted', 'success')
   }, [pendingFormat, updateState, setLastAction])
+
+  const togglePreview = useCallback(() => {
+    setPreviewMounted(true)
+    setPreviewOpen((open) => !open)
+  }, [])
 
   useEffect(() => {
     if (!state.autoFormat || !hasCode || pendingFormat || input === lastFormat?.after) return
@@ -530,7 +538,7 @@ export default function CodeFormatter() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setPreviewOpen((open) => !open)}
+              onClick={togglePreview}
               disabled={!pendingFormat && (!lastFormat || lastFormat.before === lastFormat.after)}
               aria-pressed={previewOpen}
               title="Compare the source before and after formatting"
@@ -568,15 +576,7 @@ export default function CodeFormatter() {
         </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {previewOpen && (pendingFormat || lastFormat) ? (
-          <DiffEditor
-            theme={monacoTheme}
-            language={state.language}
-            original={(pendingFormat ?? lastFormat)?.before ?? ''}
-            modified={(pendingFormat ?? lastFormat)?.after ?? ''}
-            options={{ ...monacoOptions, readOnly: true, renderSideBySide: true }}
-          />
-        ) : (
+        <div className={`absolute inset-0 ${previewOpen ? 'hidden' : ''}`}>
           <Editor
             theme={monacoTheme}
             language={state.language}
@@ -587,6 +587,17 @@ export default function CodeFormatter() {
               editorRef.current = editor
             }}
           />
+        </div>
+        {previewMounted && (
+          <div className={`absolute inset-0 ${previewOpen ? '' : 'hidden'}`}>
+            <DiffEditor
+              theme={monacoTheme}
+              language={state.language}
+              original={(pendingFormat ?? lastFormat)?.before ?? ''}
+              modified={(pendingFormat ?? lastFormat)?.after ?? ''}
+              options={{ ...monacoOptions, readOnly: true, renderSideBySide: true }}
+            />
+          </div>
         )}
         {!hasCode && (
           // Non-interactive so clicks fall through to the editor underneath —

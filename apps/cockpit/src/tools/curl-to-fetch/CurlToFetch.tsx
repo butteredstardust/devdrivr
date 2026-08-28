@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import Editor from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { TabBar } from '@/components/shared/TabBar'

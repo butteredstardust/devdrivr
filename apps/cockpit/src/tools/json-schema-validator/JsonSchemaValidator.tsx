@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import {
   ArrowUUpLeftIcon,

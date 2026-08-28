@@ -39,6 +39,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 function handleSharedKeyDown(event: KeyboardEvent): void {
   const isEditable = isEditableTarget(event.target)
+  const isMonaco =
+    !!event.target &&
+    typeof (event.target as Partial<Element>).closest === 'function' &&
+    (event.target as Element).closest('.monaco-editor') !== null
+  let handled = false
 
   // Set preserves insertion order, matching the dispatch order the browser used to
   // give independent per-hook listeners registered in mount order.
@@ -52,6 +57,7 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
     if (!matchesCombo(event, combo)) continue
 
     event.preventDefault()
+    handled = true
     try {
       const result = registration.handlerRef.current()
       if (result) {
@@ -63,17 +69,23 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
       console.error('[useKeyboardShortcut] Shortcut handler failed:', error)
     }
   }
+
+  // Monaco stops many modifier shortcuts before they bubble to window and assigns some of the
+  // same combinations to editor commands (⌘K begins a chord; ⌘Enter inserts a line). Listening in
+  // capture phase lets Cockpit see its own shortcuts first; stopping only a matched Monaco event
+  // keeps ordinary editor input and every unmatched Monaco command untouched.
+  if (handled && isMonaco) event.stopPropagation()
 }
 
 function attachSharedListener(): void {
   if (sharedListenerAttached) return
-  window.addEventListener('keydown', handleSharedKeyDown)
+  window.addEventListener('keydown', handleSharedKeyDown, true)
   sharedListenerAttached = true
 }
 
 function detachSharedListenerIfIdle(): void {
   if (!sharedListenerAttached || registrations.size > 0) return
-  window.removeEventListener('keydown', handleSharedKeyDown)
+  window.removeEventListener('keydown', handleSharedKeyDown, true)
   sharedListenerAttached = false
 }
 

@@ -23,6 +23,10 @@ type SplitPaneProps = {
    * there's no useful ratio to drag anyway: the panes want the full width and share the height.
    */
   stackBelow?: number
+  /** Keep both panes mounted while showing only the first. Useful for stateful editors. */
+  firstVisible?: boolean
+  /** Keep both panes mounted while showing only the second. Useful for stateful editors. */
+  secondVisible?: boolean
   'aria-label'?: string
   className?: string
 }
@@ -94,6 +98,8 @@ export function SplitPane({
   storageKey,
   minRatio = 0.15,
   stackBelow,
+  firstVisible = true,
+  secondVisible = true,
   'aria-label': ariaLabel,
   className = '',
 }: SplitPaneProps) {
@@ -108,6 +114,7 @@ export function SplitPane({
   const [dragging, setDragging] = useState(false)
   const stacked = useMediaQuery(stackBelow ? `(max-width: ${stackBelow - 1}px)` : null)
   const isHorizontal = direction === 'horizontal' && !stacked
+  const singlePane = !firstVisible || !secondVisible
   const labelId = useId()
 
   const clamp = useCallback((value: number) => clampRatio(value, minimum), [minimum])
@@ -239,15 +246,25 @@ export function SplitPane({
       className={`flex min-h-0 min-w-0 flex-1 ${isHorizontal ? 'flex-row' : 'flex-col'} ${className}`}
     >
       <div
-        className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${stacked ? 'flex-1' : ''}`}
+        className={`min-h-0 min-w-0 flex-col overflow-hidden ${
+          firstVisible ? `flex ${stacked || singlePane ? 'flex-1' : ''}` : 'hidden'
+        }`}
         // No inline size when stacked: the panes share the height evenly and there's no ratio to
         // apply. An inline width here is also what makes `max-[900px]:flex-col` unusable.
-        style={stacked ? undefined : isHorizontal ? { width: percent } : { height: percent }}
+        style={
+          stacked || singlePane
+            ? undefined
+            : isHorizontal
+              ? { width: percent }
+              : { height: percent }
+        }
       >
         {first}
       </div>
 
-      {stacked ? (
+      {singlePane ? (
+        <div aria-hidden="true" className="hidden" />
+      ) : stacked ? (
         <div aria-hidden="true" className="h-px shrink-0 bg-[var(--color-border)]" />
       ) : (
         <div
@@ -285,7 +302,10 @@ export function SplitPane({
         </div>
       )}
 
-      <div id={labelId} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        id={labelId}
+        className={`${secondVisible ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col overflow-hidden`}
+      >
         {second}
       </div>
     </div>

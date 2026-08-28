@@ -209,6 +209,37 @@ describe('SplitPane', () => {
     window.matchMedia = original
   })
 
+  it('keeps both panes mounted while switching single-pane visibility', () => {
+    const mounts: string[] = []
+    function Probe({ name }: { name: string }) {
+      useEffect(() => {
+        mounts.push(name)
+      }, [name])
+      return <div>{name}</div>
+    }
+
+    const { rerender } = render(
+      <SplitPane firstVisible secondVisible={false}>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+
+    rerender(
+      <SplitPane firstVisible={false} secondVisible>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+    rerender(
+      <SplitPane firstVisible secondVisible>
+        {[<Probe key="a" name="editor" />, <Probe key="b" name="preview" />]}
+      </SplitPane>
+    )
+
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+    expect(mounts).toEqual(['editor', 'preview'])
+  })
+
   it('uses row orientation when vertical', () => {
     renderSplit({ direction: 'vertical' })
     expect(screen.getByRole('separator')).toHaveAttribute('aria-orientation', 'horizontal')

@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import { type OnMount } from '@monaco-editor/react'
+import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -165,6 +166,14 @@ export default function MarkdownEditor() {
     [revealEditorLocation]
   )
 
+  const handleModeChange = useCallback(
+    (mode: EditorMode) => {
+      if (mode !== 'preview') setPreviewEditing(false)
+      updateState({ mode })
+    },
+    [updateState]
+  )
+
   useEffect(() => {
     if (!mountedEditor || !showEditor) return
     const updateLine = () => setActiveSourceLine(mountedEditor.getPosition()?.lineNumber ?? null)
@@ -172,12 +181,6 @@ export default function MarkdownEditor() {
     const disposable = mountedEditor.onDidChangeCursorPosition(updateLine)
     return () => disposable.dispose()
   }, [mountedEditor, showEditor])
-
-  useEffect(() => {
-    return () => {
-      editorRef.current?.getModel()?.dispose()
-    }
-  }, [])
 
   // ─── Markdown → HTML (debounced 300ms) ───────────────────────────
 
@@ -724,10 +727,7 @@ export default function MarkdownEditor() {
               aria-label="Editor view mode"
               options={MODE_OPTIONS}
               value={state.mode as EditorMode}
-              onChange={(mode) => {
-                if (mode !== 'preview') setPreviewEditing(false)
-                updateState({ mode })
-              }}
+              onChange={handleModeChange}
             />
 
             {state.mode === 'split' && (
@@ -1006,23 +1006,18 @@ export default function MarkdownEditor() {
       )}
 
       {/* ─── Body ───────────────────────────────────────────────── */}
-      {/* Split mode goes through SplitPane; the single-pane modes are a plain full-width box.
-          Below ~1000px SplitPane stacks them — markdown needs more line length than most panes
-          before a 50/50 split stops being readable. */}
-      {showEditor && showPreview ? (
-        <SplitPane
-          storageKey="markdown-editor"
-          stackBelow={1000}
-          aria-label="Resize editor and preview"
-        >
-          {editorPane}
-          {previewPane}
-        </SplitPane>
-      ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {showEditor ? editorPane : previewPane}
-        </div>
-      )}
+      {/* Keep both panes mounted across mode changes so Monaco retains its model, cursor, scroll,
+          selection and undo history. SplitPane hides the inactive pane and expands the other. */}
+      <SplitPane
+        storageKey="markdown-editor"
+        stackBelow={1000}
+        firstVisible={showEditor}
+        secondVisible={showPreview}
+        aria-label="Resize editor and preview"
+      >
+        {editorPane}
+        {previewPane}
+      </SplitPane>
 
       <footer className="flex min-h-7 shrink-0 items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
         <span>{isDirty ? 'Unsaved changes' : 'All changes saved'}</span>
