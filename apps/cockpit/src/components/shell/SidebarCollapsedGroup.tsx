@@ -79,6 +79,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
         placement="side"
         align="start"
         className="min-w-[160px] py-1"
+        onSurfaceKeyDown={handleListKeyDown}
         trigger={({ ref, onClick, ...triggerProps }) => (
           /* Larger click target: h-8 w-8 (32px) vs previous h-7 w-7 (28px).
              The accent left border mirrors the expanded tree's active row, so

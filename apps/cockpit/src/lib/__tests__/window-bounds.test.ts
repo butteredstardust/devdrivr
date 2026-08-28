@@ -62,7 +62,8 @@ describe('resolveRestorePosition', () => {
   it('recentres a window stranded on a detached display', () => {
     expect(resolveRestorePosition({ x: 3500, y: 300, width: 1200, height: 800 }, LAPTOP)).toEqual({
       x: 360,
-      y: 152,
+      // 25 + (1055 - 800) / 2 = 152.5, rounded up.
+      y: 153,
     })
   })
 

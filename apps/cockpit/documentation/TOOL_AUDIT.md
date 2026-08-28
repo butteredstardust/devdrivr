@@ -42,18 +42,27 @@ Severity is assigned as follows:
 
 Branch: `fix/cockpit-audit-remediation`
 
-The following first-batch remediations are implemented in the working tree. Per the implementation
-workflow for this branch, verification is deferred until the implementation batches are complete.
+All 69 findings are implemented on this branch, in batches grouped by shared root cause rather than
+one commit per finding. Per the implementation workflow for this branch, `tsc` and `lint` ran as
+guardrails throughout and the full test suite was run once at the end.
 
-| Findings                   | Implementation status             |
-| -------------------------- | --------------------------------- |
-| C-01 through C-05          | Implemented; verification pending |
-| D-01                       | Implemented; verification pending |
-| TST-01                     | Implemented; verification pending |
-| CON-01                     | Implemented; verification pending |
-| SH-01, SH-02, SH-05, SH-06 | Implemented; verification pending |
-| CMP-01, CMP-02             | Implemented; verification pending |
-| ARC-01                     | Implemented; verification pending |
+| Batch | Findings                                   | Commit                                                         |
+| ----: | ------------------------------------------ | -------------------------------------------------------------- |
+|     1 | C-01…C-05                                  | make refactoring transforms semantics-safe                     |
+|     2 | D-01, TST-01                               | preserve XML mixed content and bound zero-width regex scans    |
+|     3 | CON-01                                     | enforce image decode and output pixel budgets                  |
+|     4 | SH-01, SH-02, SH-05, SH-06                 | gate bootstrap, confirm dirty tab closes, dedupe execute       |
+|     5 | CMP-01, CMP-02, ARC-01                     | contain palette focus, fix tab semantics, import parity        |
+|     6 | CON-02…CON-08                              | correct conversion and generated-code semantics                |
+|     7 | D-02, CMP-06, NET-01…NET-03, WRT-01…WRT-05 | add shared resource budgets and bounded traversal              |
+|     8 | D-03, D-04, WEB-01…WEB-05                  | fix data and CSS/HTML analysis correctness                     |
+|     9 | C-06…C-08, TST-02…TST-04                   | keep async output fresh and stop leaking JWT material          |
+|    10 | SH-03, SH-04, SH-07                        | make window restore display-aware, resize gestures recoverable |
+|    11 | CMP-03…CMP-05, CMP-07…CMP-13               | repair shared interaction primitives                           |
+|    12 | UI-01…UI-05, ARC-03                        | give the shell's shared surfaces real widget semantics         |
+|    13 | ARC-02, ARC-05                             | share the text-document file lifecycle, drop dead modes        |
+| 14–16 | ARC-04                                     | split Settings, JSON Tools / API Client, and Markdown          |
+|    17 | NET-04, NET-05                             | report what the Docs Browser probe saw; narrow the sandbox     |
 
 ## Coverage
 

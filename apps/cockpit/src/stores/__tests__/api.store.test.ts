@@ -22,6 +22,9 @@ vi.mock('@/lib/db', () => ({
   deleteApiCollection: vi.fn(),
   deleteApiEnvironment: vi.fn(),
   deleteApiRequest: vi.fn(),
+  // NET-03: the active environment id is now persisted like any other setting.
+  getSetting: vi.fn().mockResolvedValue(null),
+  setSetting: vi.fn().mockResolvedValue(undefined),
   loadApiCollections: vi.fn(),
   loadApiEnvironments: vi.fn(),
   loadApiRequests: vi.fn(),

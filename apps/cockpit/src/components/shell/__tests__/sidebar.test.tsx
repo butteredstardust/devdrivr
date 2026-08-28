@@ -830,8 +830,14 @@ describe('Sidebar — resize handle', () => {
     render(<Sidebar />)
     const handle = screen.getByRole('slider', { name: 'Resize sidebar' })
 
+    // Measured from wherever the sidebar starts, since the settings store carries state in from
+    // whatever ran before this.
+    const start = Number(handle.getAttribute('aria-valuenow'))
     fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 })
     fireEvent.pointerMove(document, { clientX: 300, pointerId: 1 })
+    const dragged = String(start + 60)
+    expect(handle).toHaveAttribute('aria-valuenow', dragged)
+
     fireEvent.blur(window)
 
     expect(document.body.style.cursor).toBe('')
@@ -839,7 +845,7 @@ describe('Sidebar — resize handle', () => {
 
     // And the handle no longer tracks the pointer.
     fireEvent.pointerMove(document, { clientX: 400, pointerId: 1 })
-    expect(handle).toHaveAttribute('aria-valuenow', '300')
+    expect(handle).toHaveAttribute('aria-valuenow', dragged)
   })
 
   it('restores the previous body cursor instead of clearing it', () => {

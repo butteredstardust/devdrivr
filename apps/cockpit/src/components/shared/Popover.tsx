@@ -53,6 +53,12 @@ type PopoverProps = {
    */
   placement?: 'below' | 'side'
   className?: string
+  /**
+   * Keys the surface's content wants that only reach it when focus is on the surface itself —
+   * which is where focus starts, since the panel takes it on open. Runs before the popover's own
+   * Tab handling; call `preventDefault()` to claim the key.
+   */
+  onSurfaceKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
 }
 
 type PopoverLayer = {
@@ -87,6 +93,7 @@ export function Popover({
   align = 'end',
   placement = 'below',
   className = '',
+  onSurfaceKeyDown,
 }: PopoverProps) {
   const surfaceId = useId()
   const isInstanceActive = useIsInstanceActive()
@@ -261,7 +268,8 @@ export function Popover({
   }, [open])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab') return
+    onSurfaceKeyDown?.(e)
+    if (e.key !== 'Tab' || e.defaultPrevented) return
     const surface = surfaceRef.current
     if (!surface) return
     if (cycleFocus(surface, { shiftKey: e.shiftKey }) === 'wrapped') {

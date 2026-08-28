@@ -291,7 +291,8 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     const pill = document
       .querySelector(`[data-tab-id="${activeTab!.id}"]`)
-      ?.querySelector('[data-testid="tab-pill"]')
+      // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+      ?.parentElement?.querySelector('[data-testid="tab-pill"]')
 
     // Top edge, not bottom: the strip sits above the panel, so the active tab
     // should read as continuous with the content below it. A bottom pill drew
@@ -311,7 +312,8 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     const pill = document
       .querySelector(`[data-tab-id="${inactiveTab!.id}"]`)
-      ?.querySelector('[data-testid="tab-pill"]')
+      // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+      ?.parentElement?.querySelector('[data-testid="tab-pill"]')
 
     expect(pill).toBeNull()
   })
@@ -325,10 +327,12 @@ describe('WorkspaceTabStrip — active tab pill indicator', () => {
 
     const pillOnFirst = document
       .querySelector(`[data-tab-id="${firstTab!.id}"]`)
-      ?.querySelector('[data-testid="tab-pill"]')
+      // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+      ?.parentElement?.querySelector('[data-testid="tab-pill"]')
     const pillOnSecond = document
       .querySelector(`[data-tab-id="${secondTab!.id}"]`)
-      ?.querySelector('[data-testid="tab-pill"]')
+      // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+      ?.parentElement?.querySelector('[data-testid="tab-pill"]')
 
     expect(pillOnFirst).toBeNull()
     expect(pillOnSecond).not.toBeNull()
@@ -341,7 +345,8 @@ describe('WorkspaceTabStrip — separators', () => {
   const separatorIn = (tabId: string) =>
     document
       .querySelector(`[data-tab-id="${tabId}"]`)
-      ?.querySelector('[data-testid="tab-separator"]')
+      // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+      ?.parentElement?.querySelector('[data-testid="tab-separator"]')
 
   it('separates adjacent inactive tabs', () => {
     // Active is first, so second/third are adjacent inactives.
@@ -378,7 +383,8 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
     const dotIn = (tabId: string) =>
       document
         .querySelector(`[data-tab-id="${tabId}"]`)
-        ?.querySelector('[data-testid="tab-dirty-dot"]')
+        // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+        ?.parentElement?.querySelector('[data-testid="tab-dirty-dot"]')
 
     expect(dotIn(first!.id)).not.toBeNull()
     expect(dotIn(second!.id)).toBeNull()
@@ -405,7 +411,8 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
     expect(
       document
         .querySelector(`[data-tab-id="${first!.id}"]`)
-        ?.querySelector('[data-testid="tab-dirty-dot"]')
+        // `data-tab-id` now marks the overlay tab button; the decorations are its siblings.
+        ?.parentElement?.querySelector('[data-testid="tab-dirty-dot"]')
     ).toBeNull()
   })
 })
