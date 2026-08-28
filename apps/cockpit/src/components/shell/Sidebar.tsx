@@ -28,6 +28,19 @@ import { SearchInput } from '@/components/shared/SearchInput'
 // hijacks "/" while the user is typing in an editor or input elsewhere.
 const FILTER_COMBO = { key: '/' } as const
 
+/**
+ * Did this key actually happen inside the element holding the handler?
+ *
+ * React events bubble through the component tree, not the DOM tree, so a key pressed inside a
+ * popover the sidebar renders through a portal still reaches the sidebar's container handlers even
+ * though the popover lives under `document.body`. Those handlers drive focus from
+ * `container.querySelectorAll(...)`, which cannot see the portalled node — so without this guard
+ * the key is handled twice and the sidebar's run yanks focus back into the rail.
+ */
+function isInsideContainer(e: React.KeyboardEvent<HTMLDivElement>): boolean {
+  return e.target instanceof Node && e.currentTarget.contains(e.target)
+}
+
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
@@ -213,6 +226,7 @@ export function Sidebar() {
   // then moves focus up or down on ArrowUp/ArrowDown.
   const handleNavKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    if (!isInsideContainer(e)) return
 
     const container = e.currentTarget
     // Include group headers (data-sidebar-group) and visible tool items
@@ -244,6 +258,8 @@ export function Sidebar() {
   // Arrow-key navigation for the collapsed group icon column
   const handleCollapsedNavKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    // The group flyouts are portalled; their own arrow handling owns these keys (see above).
+    if (!isInsideContainer(e)) return
     const container = e.currentTarget
     // Pinned tools sit in the same rail and above the groups, so they are part of
     // the same arrow-key run — a selector matching only groups would let Down

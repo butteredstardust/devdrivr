@@ -307,6 +307,26 @@ describe('Sidebar — pinned tools in the collapsed rail', () => {
     // existence entirely and jump somewhere unrelated.
     expect(document.activeElement).toHaveAttribute('data-sidebar-collapsed-group')
   })
+
+  // Found in the browser harness, invisible to the isolated flyout tests: the flyout is portalled
+  // to document.body, but React events bubble through the component tree, so an arrow key pressed
+  // in the flyout also reached the rail's own arrow handler — which saw focus outside its item
+  // list and dragged it back onto a group trigger, out of the open flyout.
+  it('leaves the arrow keys to the flyout while one is open', () => {
+    useSettingsStore.setState({ sidebarCollapsed: true, pinnedToolIds: [] })
+
+    render(<Sidebar />)
+
+    const firstGroup = document.querySelectorAll<HTMLElement>('[data-sidebar-collapsed-group]')
+    fireEvent.click(firstGroup[1]!)
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.keyDown(dialog, { key: 'ArrowDown' })
+
+    const focused = document.activeElement as HTMLElement
+    expect(dialog.contains(focused)).toBe(true)
+    expect(focused).not.toHaveAttribute('data-sidebar-collapsed-group')
+  })
 })
 
 // ── Collapsed flyout icon rendering ────────────────────────────────
