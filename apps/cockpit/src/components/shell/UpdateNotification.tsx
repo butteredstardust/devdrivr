@@ -13,6 +13,7 @@ export function UpdateNotification() {
   const dismissed = useUpdaterStore((s) => s.dismissed)
   const isDownloading = useUpdaterStore((s) => s.isDownloading)
   const isReady = useUpdaterStore((s) => s.isReady)
+  const isInstalling = useUpdaterStore((s) => s.isInstalling)
   const progress = useUpdaterStore((s) => s.progress)
   const dismiss = useUpdaterStore((s) => s.dismiss)
   const downloadUpdate = useUpdaterStore((s) => s.downloadUpdate)
@@ -59,10 +60,11 @@ export function UpdateNotification() {
         <button
           type="button"
           onClick={handleRestart}
-          className="flex min-h-8 items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+          disabled={isInstalling}
+          className="flex min-h-8 items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
         >
           <ArrowClockwiseIcon size={12} aria-hidden="true" />
-          Restart to update
+          {isInstalling ? 'Installing…' : 'Restart to update'}
         </button>
       ) : (
         <button

@@ -18,6 +18,8 @@ type UpdaterStore = {
   isDownloading: boolean
   /** Downloaded and staged; the new version takes effect on the next launch. */
   isReady: boolean
+  /** Install has been handed to the plugin; the app is on its way down. */
+  isInstalling: boolean
   /** 0–1 while downloading, or null when the server sends no content length. */
   progress: number | null
   dismissed: boolean
@@ -41,13 +43,27 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   isChecking: false,
   isDownloading: false,
   isReady: false,
+  isInstalling: false,
   progress: null,
   dismissed: false,
   lastCheckedAt: null,
 
   checkForUpdate: async (force = false) => {
     // Set isChecking immediately to close the race window before any async work
-    if (get().isChecking) return
+    const { isChecking, isDownloading, isReady, isInstalling } = get()
+    if (isChecking) return
+
+    // A check reassigns `pendingUpdate`, so it must not run while an earlier handle is mid-flight.
+    // Otherwise a download in progress finishes and flips isReady on a handle that has since been
+    // replaced, and the restart installs an Update that was never downloaded.
+    if (isDownloading || isInstalling) return
+    if (isReady) {
+      if (force) {
+        useUiStore.getState().addToast('Update already downloaded — restart to install', 'info')
+      }
+      return
+    }
+
     set({ isChecking: true })
 
     try {
@@ -99,8 +115,13 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   },
 
   downloadUpdate: async () => {
-    const { isDownloading, isReady } = get()
-    if (!pendingUpdate || isDownloading || isReady) return
+    const { isDownloading, isReady, isInstalling } = get()
+    if (!pendingUpdate || isDownloading || isReady || isInstalling) return
+
+    // Pin the handle for the duration. The guards above should stop `pendingUpdate` being
+    // reassigned mid-download, but this keeps the invariant local to the function that depends on
+    // it: we only ever report ready for the handle we actually downloaded.
+    const handle = pendingUpdate
 
     set({ isDownloading: true, progress: null })
     const addToast = useUiStore.getState().addToast
@@ -109,7 +130,7 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
       let downloaded = 0
       let total = 0
 
-      await pendingUpdate.download((event) => {
+      await handle.download((event) => {
         switch (event.event) {
           case 'Started':
             total = event.data.contentLength ?? 0
@@ -125,6 +146,15 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
         }
       })
 
+      if (pendingUpdate !== handle) {
+        // Something replaced the handle while we were downloading. Staying silent is wrong (the
+        // user asked for a download) but claiming ready would be worse, because restarting would
+        // install a handle with no downloaded payload.
+        set({ isDownloading: false, progress: null })
+        addToast('Update changed while downloading — check again', 'error')
+        return
+      }
+
       set({ isDownloading: false, isReady: true })
       addToast('Update ready — restart to finish installing', 'success')
     } catch (err) {
@@ -135,12 +165,16 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
   },
 
   restartToUpdate: async () => {
-    if (!pendingUpdate || !get().isReady) return
+    // isInstalling latches: install() hands off to the plugin and relaunch() never returns, so
+    // without it a second click starts a concurrent install of the same payload.
+    if (!pendingUpdate || !get().isReady || get().isInstalling) return
+    set({ isInstalling: true })
 
     try {
       await pendingUpdate.install()
       await relaunch()
     } catch (err) {
+      set({ isInstalling: false })
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast(`Install failed: ${msg}`, 'error')
     }

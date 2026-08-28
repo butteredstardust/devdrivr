@@ -34,6 +34,7 @@ export function GeneralTab() {
   const checkForUpdate = useUpdaterStore((s) => s.checkForUpdate)
   const isDownloading = useUpdaterStore((s) => s.isDownloading)
   const isReady = useUpdaterStore((s) => s.isReady)
+  const isInstalling = useUpdaterStore((s) => s.isInstalling)
   const progress = useUpdaterStore((s) => s.progress)
   const downloadUpdate = useUpdaterStore((s) => s.downloadUpdate)
   const restartToUpdate = useUpdaterStore((s) => s.restartToUpdate)
@@ -137,7 +138,9 @@ export function GeneralTab() {
             onClick={() => {
               void checkForUpdate(true)
             }}
-            disabled={isChecking}
+            // A check swaps the handle the download is running against, so it stays disabled until
+            // the staged update is dealt with.
+            disabled={isChecking || isDownloading || isReady || isInstalling}
             className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
           >
             {isChecking ? (
@@ -162,10 +165,11 @@ export function GeneralTab() {
               onClick={() => {
                 void restartToUpdate()
               }}
-              className="flex items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+              disabled={isInstalling}
+              className="flex items-center gap-1.5 rounded border border-[var(--color-accent)] px-2.5 py-1.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50"
             >
               <ArrowClockwiseIcon size={12} aria-hidden="true" />
-              Restart to update to v{updateInfo.version}
+              {isInstalling ? 'Installing…' : `Restart to update to v${updateInfo.version}`}
             </button>
           )}
           {updateInfo && !isDownloading && !isReady && (
