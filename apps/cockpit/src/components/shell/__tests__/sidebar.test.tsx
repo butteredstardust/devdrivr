@@ -362,6 +362,22 @@ describe('SidebarCollapsedGroup — flyout icons', () => {
       screen.getByRole('button', { name: TOOLS[TOOLS.length - 1]!.name })
     )
   })
+
+  // The list div sits inside the popover surface, so a handler on both would fire twice as the
+  // key bubbles and step past every second tool.
+  it('advances one tool per key press when the key is pressed on a tool', () => {
+    render(<SidebarCollapsedGroup group={GROUP} tools={TOOLS} isActiveGroup={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'TestGroup' }))
+    const first = screen.getByRole('button', { name: 'Tool A' })
+    first.focus()
+
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tool B' }))
+
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(first)
+  })
 })
 
 // ── Keyboard nav ArrowUp when focus is outside item list ───────────

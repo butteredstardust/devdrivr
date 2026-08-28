@@ -108,7 +108,11 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
           </button>
         )}
       >
-        <div ref={listRef} onKeyDown={handleListKeyDown} className="overflow-y-auto">
+        {/* No `onKeyDown` here: this div is a descendant of the popover surface, so a key pressed
+            on a tool button would run the handler twice on its way up — once here and once via
+            `onSurfaceKeyDown` — and advance the selection by two. The surface wiring is the one
+            that works from both places, since focus starts on the surface itself. */}
+        <div ref={listRef} className="overflow-y-auto">
           <SectionLabel as="div" className="px-2.5 pb-1 pt-1">
             {group.label}
           </SectionLabel>
