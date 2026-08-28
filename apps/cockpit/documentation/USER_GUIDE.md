@@ -37,10 +37,10 @@ Download the installer for your platform from the
 `devdrivr_<version>_aarch64.dmg`, `devdrivr_<version>_x64-setup.exe`, or
 `devdrivr_<version>_amd64.AppImage`.
 
-The builds are unsigned, so the first launch is blocked — on macOS with either _"devdrivr" is
-damaged and can't be opened_ or _Apple cannot check it for malicious software_, on Windows by
-SmartScreen. The [Unsigned builds](../../../README.md#unsigned-builds) section of the root README
-has the fix for each.
+The builds carry no paid developer signature, so the first launch is blocked — on macOS with
+_Apple could not verify "devdrivr.app" is free of malware_, on Windows by SmartScreen. The
+[Unsigned builds](../../../README.md#unsigned-builds) section of the root README walks through both,
+plus the _"devdrivr" is damaged_ message that releases up to 0.1.82 produced.
 
 ### Running from source
 

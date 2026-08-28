@@ -258,52 +258,62 @@ The full index lives in
 devdrivr ships without an Apple Developer ID and without a Windows code-signing certificate. Both
 cost money per year to tell your OS something you can verify yourself: the binaries are built in
 public by [`.github/workflows/tauri.yml`](.github/workflows/tauri.yml) from the commit tagged in the
-release, and you can build your own from source with the steps above.
+release, and you can build your own from source with the steps above. The macOS app is ad-hoc
+signed, which proves the bundle has not been tampered with since it was built but says nothing about
+who built it.
 
 The practical consequence is that the first launch takes one extra click.
 
 ### macOS — Gatekeeper
 
-Gatekeeper shows one of two messages, and they need different handling. Both have the same cause:
-your browser flagged the download with a `com.apple.quarantine` attribute, and the app carries no
-Developer ID signature for macOS to check that flag against.
+The app is ad-hoc signed, so macOS can verify the bundle is intact — it just cannot tie it to a
+paid developer identity. Your browser also flags the download with a `com.apple.quarantine`
+attribute, and the two together produce a one-time prompt on first launch.
 
-#### _"devdrivr" is damaged and can't be opened. You should move it to the Trash._
+#### _"devdrivr.app" Not Opened — Apple could not verify "devdrivr.app" is free of malware_
 
-Nothing is damaged — this is what Gatekeeper says about a quarantined app it cannot validate at all,
-which is what you get on Apple Silicon. Note that this message offers **no Open Anyway button**;
-looking for one in System Settings is a dead end. Clear the quarantine attribute instead:
+The dialog offers only **Move to Trash** and **Done**. Click **Done** — the escape hatch is
+elsewhere:
 
-1. Drag `devdrivr.app` into **Applications** first, so you clear the flag on the copy you will
-   actually launch.
-2. Run:
-
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/devdrivr.app
-   ```
-
-   If that returns `Operation not permitted`, repeat it with `sudo`.
-
-3. Open the app normally. It should not ask again.
-
-Still says damaged afterwards? Then the download really is broken — usually a truncated `.dmg`.
-Delete it, empty the Trash, and download the release asset again.
-
-#### _"devdrivr" can't be opened because Apple cannot check it for malicious software_
-
-This one can be cleared without the terminal:
-
-1. Drag `devdrivr.app` to Applications and double-click it. Let the warning appear, then dismiss it.
+1. Drag `devdrivr.app` to Applications and double-click it. Let the prompt appear, then click
+   **Done**.
 2. Open **System Settings → Privacy & Security** and scroll to the Security section.
-3. Next to _"devdrivr" was blocked from use because it is not from an identified developer_, click
-   **Open Anyway**, then confirm.
+3. Next to _"devdrivr.app" was blocked to protect your Mac_, click **Open Anyway**, confirm with
+   Touch ID or your password, then launch the app again and click **Open**.
 
-On macOS 14 and earlier you can skip that by right-clicking the app and choosing **Open** from the
-context menu. macOS 15 (Sequoia) removed that shortcut — use System Settings.
+macOS remembers the decision, so this is a first-launch-only detour.
 
-The `xattr` command above works for this message too, if you would rather not click through Settings.
-Only run it on a file you actually meant to download: it is the check being removed, not a check
-being passed.
+On macOS 14 and earlier you can skip all of that by right-clicking the app and choosing **Open**
+from the context menu. macOS 15 (Sequoia) removed that shortcut — use System Settings.
+
+If you would rather not click through Settings, clearing the quarantine attribute does the same job:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/devdrivr.app
+```
+
+Add `sudo` if it returns `Operation not permitted`. Only run it on a file you actually meant to
+download — it removes the check rather than passing it.
+
+#### _"devdrivr" is damaged and can't be opened. You should move it to the Trash._ (0.1.82 and earlier)
+
+Nothing was damaged. Releases up to 0.1.82 were bundled without an explicit signing identity, which
+left the `.app` carrying only a linker-applied signature that macOS could not validate — and for a
+quarantined app that fails validation, Gatekeeper picks this message. It offers **no Open Anyway
+button**, so looking for one in System Settings is a dead end.
+
+Releases from 0.1.83 on are ad-hoc signed and show the recoverable prompt above instead. On an older
+build, clear the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/devdrivr.app
+```
+
+Drag the app to Applications first, so you clear the flag on the copy you will actually launch, and
+add `sudo` if the command reports `Operation not permitted`.
+
+Still says damaged after that, on any version? Then the download really is broken — usually a
+truncated `.dmg`. Delete it, empty the Trash, and download the release asset again.
 
 ### Windows — SmartScreen
 

@@ -135,17 +135,19 @@ for the in-app updater.
 
 ### Code Signing
 
-- macOS: Apple Developer ID required
-- Windows: Code signing certificate for production builds
-- Linux: AppImage/AppImage functions as unsigned
+Releases are **not** signed with a paid identity on any platform. What each one does have:
 
-### Release Signing
+- **macOS** — ad-hoc signed, via `bundle.macOS.signingIdentity: "-"` in `tauri.conf.json`. This
+  seals the bundle so `codesign --verify` passes; it does not identify a developer and is not
+  notarized. Without it the bundle carries only a linker-applied signature that fails validation,
+  and Gatekeeper reports a quarantined copy as _damaged_ with no way to open it short of the
+  terminal. Do not remove it without reading `README.md` § Unsigned builds.
+- **Windows** — unsigned. SmartScreen warns on first run.
+- **Linux** — the AppImage is unsigned; nothing checks it.
 
-All production releases are signed:
-
-- macOS: Apple Notarization
-- Windows: SHA256 checksums
-- Linux: GPG signatures (optional)
+Adding a Developer ID would mean an Apple Developer account plus `APPLE_ID` / `APPLE_PASSWORD` /
+`APPLE_TEAM_ID` (or the API-key trio) in the release workflow, which currently logs
+`skipping app notarization` on every macOS build.
 
 ## Rollback Procedures
 
