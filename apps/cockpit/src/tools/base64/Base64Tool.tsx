@@ -89,6 +89,21 @@ function detectImageMime(b64: string): string | null {
   return null
 }
 
+/**
+ * Same transform the worker applies to text (`src/workers/base64.api.ts`), so file mode honours
+ * the URL-safe option instead of silently copying standard Base64.
+ */
+function toUrlSafeBase64(b64: string): string {
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * A file is read entirely into a data URI held in React state, and Base64 adds ~33% before
+ * JavaScript string overhead. Reject oversized files before reading rather than freezing the
+ * renderer partway through.
+ */
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -212,6 +227,13 @@ export default function Base64Tool() {
 
   const processFile = useCallback(
     async (file: File) => {
+      if (file.size > MAX_FILE_BYTES) {
+        setLastAction(
+          `"${file.name}" is ${formatBytes(file.size)} — the limit is ${formatBytes(MAX_FILE_BYTES)}`,
+          'error'
+        )
+        return
+      }
       try {
         const dataUri = await readFileAsDataUrl(file)
         setDroppedFile({ name: file.name, dataUri, mimeType: file.type ?? '', size: file.size })
@@ -350,6 +372,13 @@ export default function Base64Tool() {
 
   // Unified image source: file encode takes priority
   const activeImage = droppedFile?.dataUri ?? imagePreview
+
+  // The Base64 payload alone, honouring the URL-safe option. The data URI keeps standard
+  // alphabet + padding because that is what `data:` consumers require.
+  const fileBase64 = useMemo(() => {
+    const payload = droppedFile?.dataUri.split(',')[1] ?? ''
+    return state.urlSafe ? toUrlSafeBase64(payload) : payload
+  }, [droppedFile, state.urlSafe])
 
   const handleSwap = useCallback(() => {
     if (output.text && pipelineInput === state.input) {
@@ -570,7 +599,7 @@ export default function Base64Tool() {
             actions={
               droppedFile ? (
                 <>
-                  <CopyButton text={droppedFile.dataUri.split(',')[1] ?? ''} label="Copy Base64" />
+                  <CopyButton text={fileBase64} label="Copy Base64" />
                   <CopyButton text={droppedFile.dataUri} label="Copy data URI" />
                 </>
               ) : (
@@ -600,7 +629,7 @@ export default function Base64Tool() {
             <div className="flex flex-1 flex-col overflow-hidden">
               {/* Compact base64 preview */}
               <pre className="max-h-20 overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-bg)] p-3 font-mono text-2xs text-[var(--color-text-muted)]">
-                {droppedFile.dataUri.split(',')[1]?.slice(0, 200) ?? ''}
+                {fileBase64.slice(0, 200)}
                 <span>…</span>
               </pre>
               {/* Zoomable image or file placeholder */}

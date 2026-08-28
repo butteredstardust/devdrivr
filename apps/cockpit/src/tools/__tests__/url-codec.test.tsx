@@ -11,7 +11,7 @@ describe('transformUrlInput', () => {
         encodeMode: 'component',
         bulk: false,
         recursive: true,
-      })
+      }).text
     ).toBe('hello world')
   })
 
@@ -22,19 +22,19 @@ describe('transformUrlInput', () => {
         encodeMode: 'component',
         bulk: true,
         recursive: false,
-      })
+      }).text
     ).toBe('hello%20world\na%2Fb')
   })
 
-  it('keeps decoding valid bulk lines when another line is malformed', () => {
-    expect(
-      transformUrlInput('hello%20world\nbad%ZZ\na%2Fb', {
-        mode: 'decode',
-        encodeMode: 'component',
-        bulk: true,
-        recursive: false,
-      })
-    ).toBe('hello world\n[decode error: malformed percent encoding] bad%ZZ\na/b')
+  it('leaves malformed bulk lines unchanged and reports them separately', () => {
+    const result = transformUrlInput('hello%20world\nbad%ZZ\na%2Fb', {
+      mode: 'decode',
+      encodeMode: 'component',
+      bulk: true,
+      recursive: false,
+    })
+    expect(result.text).toBe('hello world\nbad%ZZ\na/b')
+    expect(result.lineErrors).toEqual([{ line: 2, message: 'malformed percent encoding' }])
   })
 })
 

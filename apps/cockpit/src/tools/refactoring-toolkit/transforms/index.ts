@@ -92,7 +92,10 @@ export const TRANSFORMS: Transform[] = [
           if (!declarationScope || declarationLine === undefined) return true
           let found = false
           root.find(j.Identifier, { name }).forEach((identifierPath) => {
-            if (found || identifierPath.node === path.node.declarations[0]?.id) return
+            const firstDeclarator = path.node.declarations[0] as unknown as
+              | { id?: unknown }
+              | undefined
+            if (found || identifierPath.node === firstDeclarator?.id) return
             const line = identifierPath.node.loc?.start.line
             if (line === undefined || line >= declarationLine) return
             if (identifierPath.scope.lookup(name) === declarationScope) found = true
@@ -543,14 +546,12 @@ export const TRANSFORMS: Transform[] = [
             arguments: unknown[]
           }
           const originalExpr = (thenCall.callee as { object: unknown }).object
-          const thenFn = thenCall.arguments[0]
-          const catchFn = path.node.arguments[0]
+          const thenFn = thenCall.arguments[0] as { type?: string } | undefined
+          const catchFn = path.node.arguments[0] as unknown as { type?: string } | undefined
 
           if (
-            !thenFn ||
-            !catchFn ||
-            !('type' in thenFn) ||
-            !('type' in catchFn) ||
+            !thenFn?.type ||
+            !catchFn?.type ||
             !callableTypes.has(thenFn.type) ||
             !callableTypes.has(catchFn.type)
           )

@@ -204,7 +204,7 @@ function parseColor(input: string): RGB | null {
   const trimmed = input.trim().toLowerCase()
 
   // Hex: #rgb, #rgba, #rrggbb, #rrggbbaa
-  const hexMatch = trimmed.match(/^#([0-9a-f]{3,8})$/)
+  const hexMatch = trimmed.match(/^#((?:[0-9a-f]{3,4})|(?:[0-9a-f]{6})|(?:[0-9a-f]{8}))$/)
   if (hexMatch?.[1]) {
     const hex = hexMatch[1]
     if (hex.length === 3 || hex.length === 4) {
@@ -218,7 +218,7 @@ function parseColor(input: string): RGB | null {
       }
       /* eslint-enable @typescript-eslint/no-non-null-assertion */
     }
-    if (hex.length >= 6) {
+    if (hex.length === 6 || hex.length === 8) {
       return {
         r: parseInt(hex.slice(0, 2), 16),
         g: parseInt(hex.slice(2, 4), 16),

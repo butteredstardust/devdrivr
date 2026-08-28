@@ -316,7 +316,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     const nextActiveId = tabId
     if (doomed.some((tab) => dirtyTabIds.includes(tab.id))) {
       set({
-        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId },
+        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId: nextActiveId },
       })
       return
     }
@@ -347,7 +347,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
       : (next[next.length - 1]?.id ?? null)
     if (doomed.some((tab) => dirtyTabIds.includes(tab.id))) {
       set({
-        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId },
+        pendingTabClose: { tabIds: doomed.map((tab) => tab.id), nextActiveTabId: nextActiveId },
       })
       return
     }
