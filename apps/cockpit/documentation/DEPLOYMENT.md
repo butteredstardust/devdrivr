@@ -71,8 +71,8 @@ The deployment process is automated through GitHub Actions:
 | `.github/workflows/cockpit-ci.yml` | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy |
 | `.github/workflows/tauri.yml`      | Release build matrix for macOS Apple Silicon, Windows x64, and Linux x64             |
 
-The release workflow also verifies expected release assets before publishing `latest.json`
-for the in-app updater.
+The release workflow also verifies expected release assets before publishing the update manifests:
+`updater.json` for the plugin, and `latest.json` for versions predating it.
 
 ## Environment Setup
 
@@ -165,9 +165,9 @@ Adding a Developer ID would mean an Apple Developer account plus `APPLE_ID` / `A
 Rollback is entirely manual. Cockpit reports no telemetry, so a bad build is never detected
 automatically — it surfaces as a user report. The in-app updater (`src/stores/updater.store.ts`,
 on top of `tauri-plugin-updater`) only ever moves forward: it compares against the version in
-`latest.json` and will not install an older one, so there is no "push a rollback" lever.
+`updater.json` and will not install an older one, so there is no "push a rollback" lever.
 
-1. Mark the bad GitHub release as a pre-release or draft. The updater reads `latest.json` from
+1. Mark the bad GitHub release as a pre-release or draft. The updater reads `updater.json` from
    `releases/latest/download/`, so this is what stops it being offered.
 2. Fix forward on `main` and cut a new patch version; the previous release stays downloadable for
    anyone who needs it in the meantime.
