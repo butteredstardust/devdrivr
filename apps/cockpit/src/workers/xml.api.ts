@@ -151,6 +151,13 @@ export function toJson(xml: string): JsonResult {
   try {
     const root = doc.documentElement
     if (!root) return { valid: false, error: 'XML document has no root element' }
+    if (containsMixedContent(root)) {
+      return {
+        valid: false,
+        error:
+          'Cannot convert mixed-content XML to JSON without losing text order. Remove interleaved text or keep this document as XML.',
+      }
+    }
     return {
       valid: true,
       json: JSON.stringify(nodeToJson(root), null, 2),
@@ -351,6 +358,23 @@ function nodeToJson(node: Element | Node | null): unknown {
   }
 
   return Object.keys(obj).length === 0 ? '' : obj
+}
+
+/** JSON object keys cannot preserve the ordering of text interleaved with child elements. */
+function containsMixedContent(node: Element): boolean {
+  let hasMeaningfulText = false
+  let hasElement = false
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes.item(i)
+    if (!child) continue
+    if (child.nodeType === 3 || child.nodeType === 4) {
+      if ((child.textContent ?? '').trim().length > 0) hasMeaningfulText = true
+    } else if (child.nodeType === 1) {
+      hasElement = true
+      if (containsMixedContent(child as Element)) return true
+    }
+  }
+  return hasMeaningfulText && hasElement
 }
 
 function collectStats(
