@@ -1,16 +1,18 @@
 # Release Smoke Tests
 
 Use this checklist before promoting a Cockpit release beyond internal validation.
-The GitHub release workflow builds macOS Apple Silicon, macOS Intel, Windows, and
-Linux artifacts and verifies `latest.json` asset coverage. This checklist covers
+The GitHub release workflow builds macOS Apple Silicon, Windows, and Linux
+artifacts and verifies `latest.json` asset coverage. This checklist covers
 the runtime behavior that CI cannot prove from builds alone.
+
+Intel macOS is not a supported platform as of 0.1.83; 0.1.82 is the last release
+with an `x64.dmg`.
 
 ## Platforms
 
 | Platform            | Release artifact                    | Runner/build source           | Required validation                                  |
 | ------------------- | ----------------------------------- | ----------------------------- | ---------------------------------------------------- |
 | macOS Apple Silicon | `devdrivr_<version>_aarch64.dmg`    | `.github/workflows/tauri.yml` | Install and smoke on Apple Silicon hardware          |
-| macOS Intel         | `devdrivr_<version>_x64.dmg`        | `.github/workflows/tauri.yml` | Install and smoke on Intel macOS or equivalent VM    |
 | Windows x64         | `devdrivr_<version>_x64-setup.exe`  | `.github/workflows/tauri.yml` | Install and smoke on Windows 10+ with WebView2       |
 | Linux x64           | `devdrivr_<version>_amd64.AppImage` | `.github/workflows/tauri.yml` | Launch and smoke on a supported desktop Linux distro |
 
@@ -18,9 +20,9 @@ the runtime behavior that CI cannot prove from builds alone.
 
 1. Confirm `Cockpit CI` is green for the release commit.
 2. Confirm `Build & Release Cockpit` completed all matrix jobs.
-3. Confirm the release contains the expected four platform artifacts.
+3. Confirm the release contains the expected three platform artifacts.
 4. Confirm `latest.json` exists on the release and maps all supported platform keys:
-   `darwin-aarch64`, `darwin-x86_64`, `windows-x86_64`, `linux-x86_64`.
+   `darwin-aarch64`, `windows-x86_64`, `linux-x86_64`.
 5. Download artifacts from GitHub Releases, not local build output.
 6. Use a disposable OS account or VM with clean Cockpit app data. Do not delete or overwrite a
    validator's personal Cockpit profile.
@@ -38,8 +40,8 @@ bun run smoke:report -- \
   --environment "Native Apple Silicon hardware"
 ```
 
-Supported platform keys are `darwin-aarch64`, `darwin-x86_64`, `windows-x86_64`, and
-`linux-x86_64`. The command:
+Supported platform keys are `darwin-aarch64`, `windows-x86_64`, and `linux-x86_64`.
+The command:
 
 - requires the exact release artifact name for the selected version and platform;
 - requires the report runtime OS and process architecture to match the selected platform key;

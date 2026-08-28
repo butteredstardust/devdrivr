@@ -10,10 +10,6 @@ const PLATFORMS = {
     artifact: (version) => `devdrivr_${version}_aarch64.dmg`,
     host: { platform: 'darwin', arch: 'arm64' },
   },
-  'darwin-x86_64': {
-    artifact: (version) => `devdrivr_${version}_x64.dmg`,
-    host: { platform: 'darwin', arch: 'x64' },
-  },
   'windows-x86_64': {
     artifact: (version) => `devdrivr_${version}_x64-setup.exe`,
     host: { platform: 'win32', arch: 'x64' },

@@ -46,6 +46,10 @@ type UpdaterStore = {
   dismiss: () => void
 }
 
+// `darwin-x86_64` stays here on purpose even though releases stopped shipping an Intel dmg after
+// 0.1.82. Resolving the key means an Intel Mac reaches the "no installer for your platform" branch
+// below; dropping it would instead claim updates are unsupported on the machine, which is vaguer
+// and wrong the moment Intel builds ever come back.
 function resolvePlatformKey(os: string, arch: string): PlatformKey | null {
   if (os === 'macos' && arch === 'aarch64') return 'darwin-aarch64'
   if (os === 'macos' && arch === 'x86_64') return 'darwin-x86_64'
@@ -94,7 +98,10 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
       // Respect 1h cooldown unless manually triggered
       if (!force) {
         const persistedLastChecked = await getSetting<number | null>('updaterLastCheckedAt', null)
-        if (persistedLastChecked !== null && Date.now() - persistedLastChecked < CHECK_COOLDOWN_MS) {
+        if (
+          persistedLastChecked !== null &&
+          Date.now() - persistedLastChecked < CHECK_COOLDOWN_MS
+        ) {
           set({ lastCheckedAt: persistedLastChecked, isChecking: false })
           return
         }
@@ -107,7 +114,9 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
       if (!platformKey) {
         await setSetting('updaterLastCheckedAt', now)
         set({ isChecking: false, lastCheckedAt: now })
-        useUiStore.getState().addToast('Automatic updates are not supported on your platform', 'info')
+        useUiStore
+          .getState()
+          .addToast('Automatic updates are not supported on your platform', 'info')
         return
       }
 
@@ -138,7 +147,9 @@ export const useUpdaterStore = create<UpdaterStore>()((set, get) => ({
       const platformEntry = manifest.platforms[platformKey]
       if (!platformEntry) {
         set({ isChecking: false })
-        useUiStore.getState().addToast('Update available but no installer for your platform', 'info')
+        useUiStore
+          .getState()
+          .addToast('Update available but no installer for your platform', 'info')
         return
       }
 

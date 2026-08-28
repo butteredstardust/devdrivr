@@ -66,10 +66,10 @@ The project follows Semantic Versioning (SemVer) for version numbering:
 
 The deployment process is automated through GitHub Actions:
 
-| Workflow                           | Purpose                                                                               |
-| ---------------------------------- | ------------------------------------------------------------------------------------- |
-| `.github/workflows/cockpit-ci.yml` | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy  |
-| `.github/workflows/tauri.yml`      | Release build matrix for macOS Apple Silicon, macOS Intel, Windows x64, and Linux x64 |
+| Workflow                           | Purpose                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `.github/workflows/cockpit-ci.yml` | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy |
+| `.github/workflows/tauri.yml`      | Release build matrix for macOS Apple Silicon, Windows x64, and Linux x64             |
 
 The release workflow also verifies expected release assets before publishing `latest.json`
 for the in-app updater.
@@ -149,11 +149,13 @@ All production releases are signed:
 
 ## Rollback Procedures
 
-Rollback is entirely manual. Cockpit reports no telemetry and ships no in-app updater, so a bad
-build is neither detected nor replaced automatically — it surfaces as a user report, and users move
-versions by downloading an installer themselves.
+Rollback is entirely manual. Cockpit reports no telemetry, so a bad build is never detected
+automatically — it surfaces as a user report. The in-app updater (`src/stores/updater.store.ts`)
+only downloads an installer to disk; it never installs or downgrades anything, so there is no
+"push a rollback" lever.
 
-1. Mark the bad GitHub release as a pre-release or draft so it stops being the one people land on.
+1. Mark the bad GitHub release as a pre-release or draft. The updater reads `latest.json` from
+   `releases/latest/download/`, so this is what stops it being offered.
 2. Fix forward on `main` and cut a new patch version; the previous release stays downloadable for
    anyone who needs it in the meantime.
 3. Note the known-bad version in the new release notes.

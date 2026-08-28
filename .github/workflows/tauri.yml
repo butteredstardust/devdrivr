@@ -51,12 +51,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Intel macOS (macos-26-intel / x86_64-apple-darwin) was dropped after v0.1.82: the
+          # frontend build OOMs the Intel runner's node, and the platform is on its way out
+          # anyway. Intel users stay on 0.1.82 — the updater tells them there is no installer
+          # for their platform rather than offering one that will not run.
           - platform: macos-26
             args: --target aarch64-apple-darwin
             description: 'macOS Apple Silicon'
-          - platform: macos-26-intel
-            args: --target x86_64-apple-darwin
-            description: 'macOS Intel'
           - platform: windows-latest
             args: ''
             description: 'Windows'
@@ -74,7 +75,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -142,7 +143,6 @@ jobs:
 
           EXPECTED_ASSETS=(
             "devdrivr_${VERSION}_aarch64.dmg"
-            "devdrivr_${VERSION}_x64.dmg"
             "devdrivr_${VERSION}_amd64.AppImage"
             "devdrivr_${VERSION}_x64-setup.exe"
           )
@@ -160,6 +160,9 @@ jobs:
             exit 1
           fi
 
+          # No "darwin-x86_64" key: Intel macOS is unsupported as of 0.1.83. Omitting it makes the
+          # in-app updater report "no installer for your platform" instead of handing an Intel Mac
+          # an arm64 dmg.
           cat > latest.json <<EOF
           {
             "version": "${VERSION}",
@@ -168,9 +171,6 @@ jobs:
             "platforms": {
               "darwin-aarch64": {
                 "url": "${BASE_URL}/devdrivr_${VERSION}_aarch64.dmg"
-              },
-              "darwin-x86_64": {
-                "url": "${BASE_URL}/devdrivr_${VERSION}_x64.dmg"
               },
               "linux-x86_64": {
                 "url": "${BASE_URL}/devdrivr_${VERSION}_amd64.AppImage"
