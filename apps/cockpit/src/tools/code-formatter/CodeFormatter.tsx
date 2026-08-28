@@ -111,6 +111,10 @@ export default function CodeFormatter() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [pendingFormat, setPendingFormat] = useState<{ before: string; after: string } | null>(null)
   const formattingRef = useRef(false)
+  // A request that arrives mid-run is remembered rather than dropped: with auto-format on, the
+  // newest input would otherwise stay unformatted until the user happened to type again.
+  const queuedFormatRef = useRef<{ showPreview: boolean } | null>(null)
+  const handleFormatRef = useRef<((showPreview?: boolean) => Promise<void>) | null>(null)
   // Session state, deliberately not persisted: a floating surface that reopened itself on
   // launch would cover the document before the user had asked for anything.
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -182,7 +186,12 @@ export default function CodeFormatter() {
   const handleFormat = useCallback(
     async (showPreview = true) => {
       const source = inputRef.current
-      if (!formatter || !source.trim() || formattingRef.current) return
+      if (!formatter || !source.trim()) return
+      if (formattingRef.current) {
+        // Repeated requests collapse into one re-run against whatever the newest input is by then.
+        queuedFormatRef.current = { showPreview }
+        return
+      }
       formattingRef.current = true
       setIsFormatting(true)
       try {
@@ -214,10 +223,16 @@ export default function CodeFormatter() {
       } finally {
         formattingRef.current = false
         setIsFormatting(false)
+        const queued = queuedFormatRef.current
+        if (queued) {
+          queuedFormatRef.current = null
+          void handleFormatRef.current?.(queued.showPreview)
+        }
       }
     },
     [formatter, updateState, setLastAction]
   )
+  handleFormatRef.current = handleFormat
 
   const handleRevert = useCallback(() => {
     if (!lastFormat) return

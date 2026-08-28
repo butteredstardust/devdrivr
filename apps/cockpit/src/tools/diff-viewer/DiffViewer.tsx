@@ -275,6 +275,12 @@ export default function DiffViewer() {
   const diffContainerRef = useRef<HTMLDivElement>(null)
   const comparingRef = useRef(false)
   const pendingCompareRef = useRef(false)
+  /**
+   * Bumped whenever an input or option changes. A comparison captures it before awaiting and
+   * commits only if it is still current — otherwise a slow diff of the old text would land
+   * under the new text, leaving a stale patch and stale export actions on screen.
+   */
+  const generationRef = useRef(0)
   const announceRef = useRef(false)
   const stateRef = useRef(state)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -355,12 +361,15 @@ export default function DiffViewer() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       comparingRef.current = true
       setIsComparing(true)
+      const generation = generationRef.current
       try {
         const patch = await worker.computeDiff(current.left, current.right, {
           ignoreWhitespace: current.ignoreWhitespace,
           ignoreCase: current.ignoreCase,
           jsonMode: current.jsonMode,
         })
+        // A newer edit arrived while this ran; the effect it triggered owns the next result.
+        if (generation !== generationRef.current) return
         setRawPatch(patch)
         setDiffHtml(
           diff2htmlRender(patch, {
@@ -374,7 +383,7 @@ export default function DiffViewer() {
       } catch (err) {
         // Switching tools terminates the worker and rejects everything still in
         // flight; that is a teardown, not a failure the user should see.
-        if (mountedRef.current) {
+        if (mountedRef.current && generation === generationRef.current) {
           setLastAction('Diff computation failed', 'error')
           setDiffHtml('')
           setRawPatch('')
@@ -395,6 +404,8 @@ export default function DiffViewer() {
 
   // Auto-compare with debounce when both sides have content
   useEffect(() => {
+    // Invalidate synchronously, not when the next compare eventually starts.
+    generationRef.current += 1
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
       setDiffHtml('')

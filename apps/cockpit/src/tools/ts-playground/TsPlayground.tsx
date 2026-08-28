@@ -102,6 +102,11 @@ export default function TsPlayground() {
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const [output, setOutput] = useState('')
+  /**
+   * True between an edit/option change and the compile that answers it. The output on screen
+   * belongs to the previous source, so exporting or handing it off would ship the wrong code.
+   */
+  const [outputStale, setOutputStale] = useState(false)
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [typesChecked, setTypesChecked] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -141,7 +146,9 @@ export default function TsPlayground() {
 
   const runTranspile = useCallback(async () => {
     const source = inputRef.current
-    const requestId = ++requestRef.current
+    // The effect below owns invalidation, and does it synchronously on change; claiming a new
+    // id here would let an older compile publish after the inputs had already moved on.
+    const requestId = requestRef.current
     // Claimed up front: a debounced auto-compile landing after ⌘↵ would
     // otherwise clear the flag in its own `finally` and swallow the
     // announcement the user explicitly asked for.
@@ -156,6 +163,7 @@ export default function TsPlayground() {
       setDiagnostics(result.diagnostics)
       setTypesChecked(result.typesChecked)
       setError(null)
+      setOutputStale(false)
       if (announce) {
         const problems = result.diagnostics.length
         setLastAction(
@@ -182,10 +190,13 @@ export default function TsPlayground() {
 
   // Auto-transpile on input/option change (debounced 500ms).
   useEffect(() => {
+    // Invalidate as soon as the inputs change rather than when the next compile starts.
+    requestRef.current += 1
+    setOutputStale(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!worker) return
     if (!input.trim()) {
-      requestRef.current += 1
+      setOutputStale(false)
       setOutput('')
       setDiagnostics([])
       setError(null)
@@ -275,6 +286,10 @@ export default function TsPlayground() {
     if (action.type === 'save-file') {
       if (!output) {
         setLastAction('Nothing to save yet', 'info')
+        return
+      }
+      if (outputStale) {
+        setLastAction('Still compiling — output is out of date', 'info')
         return
       }
       handleSave()
@@ -414,7 +429,8 @@ export default function TsPlayground() {
             <Button
               variant="secondary"
               size="sm"
-              disabled={!output}
+              // Stale output belongs to source the user has already changed.
+              disabled={!output || outputStale}
               onClick={() =>
                 sendToTool('code-formatter', { input: output, language: 'javascript' })
               }
@@ -427,7 +443,7 @@ export default function TsPlayground() {
               variant="secondary"
               size="sm"
               onClick={handleSave}
-              disabled={!output}
+              disabled={!output || outputStale}
               title={`Export the JavaScript output (${formatShortcut('mod+s')})`}
               aria-label="Export JavaScript output"
               className="gap-1"
