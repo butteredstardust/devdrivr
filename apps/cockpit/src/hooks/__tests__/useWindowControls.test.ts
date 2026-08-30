@@ -4,24 +4,27 @@ import { useWindowControls } from '@/hooks/useWindowControls'
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn(),
-  isMaximized: vi.fn(),
+  getState: vi.fn(),
   minimize: vi.fn(),
   toggleMaximize: vi.fn(),
+  toggleFullscreen: vi.fn(),
 }))
 
 vi.mock('@/lib/native-window', () => ({
   closeNativeWindow: mocks.close,
-  isNativeWindowMaximized: mocks.isMaximized,
+  getNativeWindowState: mocks.getState,
   minimizeNativeWindow: mocks.minimize,
   toggleNativeWindowMaximize: mocks.toggleMaximize,
+  toggleNativeWindowFullscreen: mocks.toggleFullscreen,
 }))
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.close.mockResolvedValue(undefined)
-  mocks.isMaximized.mockResolvedValue(false)
+  mocks.getState.mockResolvedValue({ isMaximized: false, isFullscreen: false })
   mocks.minimize.mockResolvedValue(undefined)
-  mocks.toggleMaximize.mockResolvedValue(true)
+  mocks.toggleMaximize.mockResolvedValue({ isMaximized: true, isFullscreen: false })
+  mocks.toggleFullscreen.mockResolvedValue({ isMaximized: false, isFullscreen: true })
 })
 
 afterEach(() => {
@@ -30,7 +33,7 @@ afterEach(() => {
 
 describe('useWindowControls', () => {
   it('reads initial maximized state through the native command bridge', async () => {
-    mocks.isMaximized.mockResolvedValue(true)
+    mocks.getState.mockResolvedValue({ isMaximized: true, isFullscreen: false })
 
     const { result } = renderHook(() => useWindowControls())
 
@@ -52,12 +55,14 @@ describe('useWindowControls', () => {
 
     act(() => result.current.minimize())
     act(() => result.current.toggleMaximize())
+    act(() => result.current.toggleFullscreen())
     act(() => result.current.close())
 
     expect(mocks.minimize).toHaveBeenCalledTimes(1)
     expect(mocks.toggleMaximize).toHaveBeenCalledTimes(1)
+    expect(mocks.toggleFullscreen).toHaveBeenCalledTimes(1)
     expect(mocks.close).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(result.current.isMaximized).toBe(true))
+    await waitFor(() => expect(result.current.isFullscreen).toBe(true))
   })
 
   it('contains native command failures', async () => {
@@ -80,17 +85,17 @@ describe('useWindowControls', () => {
     try {
       renderHook(() => useWindowControls())
       await act(async () => Promise.resolve())
-      const readsAfterMount = mocks.isMaximized.mock.calls.length
+      const readsAfterMount = mocks.getState.mock.calls.length
 
       act(() => {
         for (let index = 0; index < 50; index += 1) {
           window.dispatchEvent(new window.Event('resize'))
         }
       })
-      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterMount)
+      expect(mocks.getState).toHaveBeenCalledTimes(readsAfterMount)
 
       await act(async () => vi.advanceTimersByTimeAsync(200))
-      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterMount + 1)
+      expect(mocks.getState).toHaveBeenCalledTimes(readsAfterMount + 1)
     } finally {
       vi.useRealTimers()
     }
@@ -99,28 +104,32 @@ describe('useWindowControls', () => {
   it('queues a final resize read while the previous read is in flight', async () => {
     vi.useFakeTimers()
     try {
-      let resolveFirstResize!: (value: boolean) => void
-      const firstResize = new Promise<boolean>((resolve) => {
-        resolveFirstResize = resolve
-      })
+      let resolveFirstResize!: (value: { isMaximized: boolean; isFullscreen: boolean }) => void
+      const firstResize = new Promise<{ isMaximized: boolean; isFullscreen: boolean }>(
+        (resolve) => {
+          resolveFirstResize = resolve
+        }
+      )
       const { result } = renderHook(() => useWindowControls())
       await act(async () => Promise.resolve())
-      const readsAfterMount = mocks.isMaximized.mock.calls.length
-      mocks.isMaximized.mockReturnValueOnce(firstResize).mockResolvedValueOnce(true)
+      const readsAfterMount = mocks.getState.mock.calls.length
+      mocks.getState
+        .mockReturnValueOnce(firstResize)
+        .mockResolvedValueOnce({ isMaximized: true, isFullscreen: false })
 
       act(() => window.dispatchEvent(new window.Event('resize')))
       await act(async () => vi.advanceTimersByTimeAsync(200))
       act(() => window.dispatchEvent(new window.Event('resize')))
       await act(async () => vi.advanceTimersByTimeAsync(200))
-      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterMount + 1)
+      expect(mocks.getState).toHaveBeenCalledTimes(readsAfterMount + 1)
 
       await act(async () => {
-        resolveFirstResize(false)
+        resolveFirstResize({ isMaximized: false, isFullscreen: false })
         await Promise.resolve()
         await Promise.resolve()
       })
 
-      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterMount + 2)
+      expect(mocks.getState).toHaveBeenCalledTimes(readsAfterMount + 2)
       expect(result.current.isMaximized).toBe(true)
     } finally {
       vi.useRealTimers()
@@ -132,13 +141,13 @@ describe('useWindowControls', () => {
     try {
       const { unmount } = renderHook(() => useWindowControls())
       await act(async () => Promise.resolve())
-      const readsAfterMount = mocks.isMaximized.mock.calls.length
+      const readsAfterMount = mocks.getState.mock.calls.length
 
       act(() => window.dispatchEvent(new window.Event('resize')))
       unmount()
       await act(async () => vi.advanceTimersByTimeAsync(200))
 
-      expect(mocks.isMaximized).toHaveBeenCalledTimes(readsAfterMount)
+      expect(mocks.getState).toHaveBeenCalledTimes(readsAfterMount)
     } finally {
       vi.useRealTimers()
     }

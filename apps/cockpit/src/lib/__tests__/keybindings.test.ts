@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { matchesCombo, formatCombo } from '../keybindings'
 
-// Mock platform as mac for consistent tests
+const platform = vi.hoisted(() => ({ current: 'mac' as 'mac' | 'windows' }))
+
 vi.mock('../platform', () => ({
-  detectPlatform: () => 'mac' as const,
+  detectPlatform: () => platform.current,
 }))
+
+beforeEach(() => {
+  platform.current = 'mac'
+})
 
 describe('matchesCombo', () => {
   function makeEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
@@ -47,6 +52,23 @@ describe('matchesCombo', () => {
     const event = makeEvent({ key: 'k', metaKey: true, altKey: true })
     expect(matchesCombo(event, { key: 'k', mod: true, alt: true })).toBe(true)
   })
+
+  it('requires Control independently from the macOS modifier', () => {
+    const combo = { key: 'f', mod: true, ctrl: true }
+    expect(matchesCombo(makeEvent({ key: 'f', metaKey: true, ctrlKey: true }), combo)).toBe(true)
+    expect(matchesCombo(makeEvent({ key: 'f', metaKey: true }), combo)).toBe(false)
+  })
+
+  it('rejects an unexpected Control modifier on macOS', () => {
+    const event = makeEvent({ key: 'k', metaKey: true, ctrlKey: true })
+    expect(matchesCombo(event, { key: 'k', mod: true })).toBe(false)
+  })
+
+  it('matches an explicit Control-only combo on Windows', () => {
+    platform.current = 'windows'
+    const event = makeEvent({ key: 'Tab', ctrlKey: true })
+    expect(matchesCombo(event, { key: 'Tab', ctrl: true })).toBe(true)
+  })
 })
 
 describe('formatCombo', () => {
@@ -56,5 +78,9 @@ describe('formatCombo', () => {
 
   it('formats mod+shift+key', () => {
     expect(formatCombo({ key: 'n', mod: true, shift: true }, '⌘')).toBe('⌘+Shift+N')
+  })
+
+  it('formats Control separately from the platform modifier', () => {
+    expect(formatCombo({ key: 'f', mod: true, ctrl: true }, '⌘')).toBe('Ctrl+⌘+F')
   })
 })

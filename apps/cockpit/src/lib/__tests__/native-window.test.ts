@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   closeNativeWindow,
   focusNativeWindow,
-  isNativeWindowMaximized,
+  getNativeWindowState,
   minimizeNativeWindow,
   startNativeWindowResize,
+  toggleNativeWindowFullscreen,
   toggleNativeWindowMaximize,
 } from '@/lib/native-window'
 
@@ -20,16 +21,18 @@ beforeEach(() => {
 describe('native window command bridge', () => {
   it('uses dedicated commands instead of the Tauri window plugin', async () => {
     await focusNativeWindow()
-    await isNativeWindowMaximized()
+    await getNativeWindowState()
     await minimizeNativeWindow()
     await toggleNativeWindowMaximize()
+    await toggleNativeWindowFullscreen()
     await closeNativeWindow()
 
     expect(invoke.mock.calls.map(([command]) => command)).toEqual([
       'window_focus',
-      'window_is_maximized',
+      'window_get_state',
       'window_minimize',
       'window_toggle_maximize',
+      'window_toggle_fullscreen',
       'window_close',
     ])
   })

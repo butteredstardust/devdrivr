@@ -53,7 +53,7 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
     // Tools in backgrounded tabs are mounted and still registered; only the
     // visible one should answer. Shell shortcuts have no tab and stay live.
     if (!registration.activeRef.current) continue
-    if (isEditable && !combo.mod) continue
+    if (isEditable && !combo.mod && !combo.allowInEditable) continue
     if (!matchesCombo(event, combo)) continue
 
     event.preventDefault()

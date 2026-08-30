@@ -18,6 +18,7 @@ import { getToolById } from '@/app/tool-registry'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
 import { Spinner } from '@/components/shared/Spinner'
+import { getNativeWindowState } from '@/lib/native-window'
 
 export function Providers({ children }: { children: ReactNode }) {
   const init = useSettingsStore((s) => s.init)
@@ -91,6 +92,9 @@ export function Providers({ children }: { children: ReactNode }) {
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
           try {
+            // Fullscreen display bounds are transient. Persisting them would replace the user's
+            // windowed restore geometry and reopen the next launch at the size of the monitor.
+            if ((await getNativeWindowState()).isFullscreen) return
             const factor = await win.scaleFactor()
             const pos = await win.outerPosition()
             const sz = await win.outerSize()
