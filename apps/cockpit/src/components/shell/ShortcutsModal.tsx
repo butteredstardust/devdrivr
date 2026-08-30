@@ -22,7 +22,9 @@ type ShortcutCategory = {
 // Written as combos rather than pre-rendered symbols: `Kbd` resolves `mod` per platform, so this
 // table can't say ⌘ to a Windows user the way the old `getCategories(modSymbol)` shape invited.
 function getCategories(): ShortcutCategory[] {
-  const fullscreenKeys = detectPlatform() === 'mac' ? 'ctrl+mod+f' : 'f11'
+  // `F11` is capitalised because `formatShortcut` only upper-cases single characters; a
+  // multi-character token it does not recognise is echoed verbatim, so `f11` would render lowercase.
+  const fullscreenKeys = detectPlatform() === 'mac' ? 'ctrl+mod+f' : 'F11'
   return [
     {
       label: 'Navigation',

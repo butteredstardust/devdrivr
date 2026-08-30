@@ -226,10 +226,15 @@ describe('Providers bootstrap', () => {
 
   it('does not persist transient fullscreen display bounds', async () => {
     vi.useFakeTimers()
+    vi.stubGlobal(
+      'requestIdleCallback',
+      vi.fn(() => 1)
+    )
+    vi.stubGlobal('cancelIdleCallback', vi.fn())
     try {
       mocks.listen.mockResolvedValue(vi.fn())
       mocks.getNativeWindowState.mockResolvedValue({ isMaximized: false, isFullscreen: true })
-      render(<Providers>content</Providers>)
+      const { unmount } = render(<Providers>content</Providers>)
 
       await act(async () => {
         await flushMicrotasks()
@@ -242,7 +247,9 @@ describe('Providers bootstrap', () => {
 
       expect(mocks.getNativeWindowState).toHaveBeenCalledOnce()
       expect(mocks.setSetting).not.toHaveBeenCalledWith('windowBounds', expect.anything())
+      unmount()
     } finally {
+      vi.unstubAllGlobals()
       vi.useRealTimers()
     }
   })

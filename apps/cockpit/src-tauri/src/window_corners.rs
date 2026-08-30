@@ -35,8 +35,11 @@ fn corner_radius(is_fullscreen: bool) -> f64 {
 /// Resolve the window's content layer, or log why it could not be reached.
 ///
 /// # Safety
-/// Must be called on the main thread; AppKit requires it of every call in here. Both call sites
-/// are main-thread by construction — Tauri's `setup` hook and its window event handler.
+/// Must be called on the main thread; AppKit requires it of every call in here. Every call site is
+/// main-thread by construction: Tauri's `setup` hook, its window event handler, and the
+/// `window_toggle_fullscreen` command — a synchronous `#[tauri::command]`, which Tauri runs on the
+/// main thread. Adding `async` (or `#[tauri::command(async)]`) to that command would move it onto
+/// the async runtime's thread pool and invalidate this guarantee.
 #[cfg(target_os = "macos")]
 unsafe fn content_layer(
     window: &tauri::Window,
@@ -124,7 +127,8 @@ pub fn set_fullscreen(window: &tauri::Window, is_fullscreen: bool) {
 
 #[cfg(target_os = "macos")]
 fn set_radius(window: &tauri::Window, radius: f64) {
-    // SAFETY: called from Tauri's window event handler, which runs on the main thread.
+    // SAFETY: called from Tauri's window event handler and from the synchronous
+    // `window_toggle_fullscreen` command, both of which run on the main thread.
     unsafe {
         if let Some((_, layer)) = content_layer(window) {
             // The guard exists to keep an ordinary resize — radius unchanged — from touching the
