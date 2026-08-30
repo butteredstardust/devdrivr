@@ -115,7 +115,11 @@ pub fn run() {
         // fullscreen hook because Tauri does not emit one.
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Resized(_)) {
-                window_corners::refresh(window);
+                let fullscreen = window
+                    .app_handle()
+                    .state::<window_commands::WindowFullscreenState>()
+                    .is_fullscreen();
+                window_corners::refresh(window, fullscreen);
             }
         })
         .plugin(
@@ -132,15 +136,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(window_commands::WindowFullscreenState::default())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
             window_commands::window_close,
             window_commands::window_focus,
-            window_commands::window_is_maximized,
+            window_commands::window_get_state,
             window_commands::window_minimize,
             window_commands::window_start_resize,
+            window_commands::window_toggle_fullscreen,
             window_commands::window_toggle_maximize,
             batch::db_execute_batch,
             mcp::mcp_apply_settings,

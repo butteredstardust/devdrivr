@@ -10,14 +10,18 @@ import type { Note } from '@/types/models'
 const mocks = vi.hoisted(() => ({
   platform: { current: 'mac' as 'mac' | 'windows' },
   focusNativeWindow: vi.fn(),
-  isNativeWindowMaximized: vi.fn(),
+  getNativeWindowState: vi.fn(),
 }))
 
 vi.mock('@/lib/native-window', () => ({
   focusNativeWindow: mocks.focusNativeWindow,
-  isNativeWindowMaximized: mocks.isNativeWindowMaximized,
+  getNativeWindowState: mocks.getNativeWindowState,
   minimizeNativeWindow: vi.fn().mockResolvedValue(undefined),
   toggleNativeWindowMaximize: vi.fn().mockResolvedValue(true),
+  toggleNativeWindowFullscreen: vi.fn().mockResolvedValue({
+    isMaximized: false,
+    isFullscreen: true,
+  }),
   closeNativeWindow: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -63,7 +67,7 @@ function makeNote(id: string): Note {
 beforeEach(() => {
   mocks.platform.current = 'mac'
   mocks.focusNativeWindow.mockResolvedValue(undefined)
-  mocks.isNativeWindowMaximized.mockResolvedValue(false)
+  mocks.getNativeWindowState.mockResolvedValue({ isMaximized: false, isFullscreen: false })
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
   useUiStore.setState({
     activeTabId: null,

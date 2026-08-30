@@ -6,6 +6,7 @@ import { Kbd } from '@/components/shared/Kbd'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useUiStore } from '@/stores/ui.store'
+import { detectPlatform } from '@/lib/platform'
 
 type ShortcutEntry = {
   /** Combo notation, as `useKeyboardShortcut` and `Kbd` both read it. */
@@ -20,50 +21,54 @@ type ShortcutCategory = {
 
 // Written as combos rather than pre-rendered symbols: `Kbd` resolves `mod` per platform, so this
 // table can't say ⌘ to a Windows user the way the old `getCategories(modSymbol)` shape invited.
-const CATEGORIES: ShortcutCategory[] = [
-  {
-    label: 'Navigation',
-    shortcuts: [
-      { keys: 'mod+k', action: 'Command palette' },
-      { keys: 'mod+b', action: 'Toggle sidebar' },
-      { keys: 'mod+]', action: 'Next tool' },
-      { keys: 'mod+[', action: 'Previous tool' },
-    ],
-  },
-  // Tab shortcuts used to sit under "Editor", which is where you'd look for
-  // them last — they act on the workspace, not on the tool inside it.
-  {
-    label: 'Tabs',
-    shortcuts: [
-      { keys: 'mod+1 / 2 / 3', action: 'Switch to tab by position' },
-      { keys: 'ctrl+tab', action: 'Switch to recently used tab' },
-      { keys: 'ctrl+shift+tab', action: 'Switch back through recent tabs' },
-      { keys: 'mod+w', action: 'Close tab' },
-    ],
-  },
-  {
-    label: 'Notes',
-    shortcuts: [{ keys: 'mod+shift+n', action: 'Toggle notes drawer' }],
-  },
-  {
-    label: 'Editor',
-    shortcuts: [
-      { keys: 'mod+enter', action: 'Execute / Run' },
-      { keys: 'mod+shift+c', action: 'Copy output' },
-      { keys: 'mod+o', action: 'Open file' },
-      { keys: 'mod+s', action: 'Save file' },
-    ],
-  },
-  {
-    label: 'Window',
-    shortcuts: [
-      { keys: 'mod+,', action: 'Settings' },
-      { keys: 'mod+shift+t', action: 'Toggle theme' },
-      { keys: 'mod+shift+p', action: 'Toggle always-on-top' },
-      { keys: 'mod+/', action: 'Keyboard shortcuts' },
-    ],
-  },
-]
+function getCategories(): ShortcutCategory[] {
+  const fullscreenKeys = detectPlatform() === 'mac' ? 'ctrl+mod+f' : 'f11'
+  return [
+    {
+      label: 'Navigation',
+      shortcuts: [
+        { keys: 'mod+k', action: 'Command palette' },
+        { keys: 'mod+b', action: 'Toggle sidebar' },
+        { keys: 'mod+]', action: 'Next tool' },
+        { keys: 'mod+[', action: 'Previous tool' },
+      ],
+    },
+    // Tab shortcuts used to sit under "Editor", which is where you'd look for
+    // them last — they act on the workspace, not on the tool inside it.
+    {
+      label: 'Tabs',
+      shortcuts: [
+        { keys: 'mod+1 / 2 / 3', action: 'Switch to tab by position' },
+        { keys: 'ctrl+tab', action: 'Switch to recently used tab' },
+        { keys: 'ctrl+shift+tab', action: 'Switch back through recent tabs' },
+        { keys: 'mod+w', action: 'Close tab' },
+      ],
+    },
+    {
+      label: 'Notes',
+      shortcuts: [{ keys: 'mod+shift+n', action: 'Toggle notes drawer' }],
+    },
+    {
+      label: 'Editor',
+      shortcuts: [
+        { keys: 'mod+enter', action: 'Execute / Run' },
+        { keys: 'mod+shift+c', action: 'Copy output' },
+        { keys: 'mod+o', action: 'Open file' },
+        { keys: 'mod+s', action: 'Save file' },
+      ],
+    },
+    {
+      label: 'Window',
+      shortcuts: [
+        { keys: 'mod+,', action: 'Settings' },
+        { keys: 'mod+shift+t', action: 'Toggle theme' },
+        { keys: 'mod+shift+p', action: 'Toggle always-on-top' },
+        { keys: fullscreenKeys, action: 'Toggle full screen' },
+        { keys: 'mod+/', action: 'Keyboard shortcuts' },
+      ],
+    },
+  ]
+}
 
 export function ShortcutsModal() {
   const open = useUiStore((s) => s.shortcutsModalOpen)
@@ -75,14 +80,17 @@ export function ShortcutsModal() {
   // — on a reference table, a wrong row is worse than no row. Matching the
   // rendered shortcut too means "⌘K" and "cmd" both find the palette.
   const categories = useMemo(() => {
+    const allCategories = getCategories()
     const q = query.trim().toLowerCase()
-    if (!q) return CATEGORIES
-    return CATEGORIES.map((cat) => ({
-      ...cat,
-      shortcuts: cat.shortcuts.filter((s) =>
-        `${s.action} ${s.keys} ${formatShortcut(s.keys)}`.toLowerCase().includes(q)
-      ),
-    })).filter((cat) => cat.shortcuts.length > 0)
+    if (!q) return allCategories
+    return allCategories
+      .map((cat) => ({
+        ...cat,
+        shortcuts: cat.shortcuts.filter((s) =>
+          `${s.action} ${s.keys} ${formatShortcut(s.keys)}`.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((cat) => cat.shortcuts.length > 0)
   }, [query])
 
   if (!open) return null

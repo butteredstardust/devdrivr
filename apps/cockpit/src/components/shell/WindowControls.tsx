@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { CornersInIcon, MinusIcon, SquareIcon, XIcon } from '@phosphor-icons/react'
+import type { MouseEvent, ReactNode } from 'react'
+import { CornersInIcon, CornersOutIcon, MinusIcon, SquareIcon, XIcon } from '@phosphor-icons/react'
 import { useWindowControls } from '@/hooks/useWindowControls'
 import { isMacOS } from '@/lib/platform'
 
@@ -26,14 +26,28 @@ export function WindowControls() {
 
 interface ControlsProps {
   isMaximized: boolean
+  isFullscreen: boolean
   isFocused: boolean
   minimize: () => void
+  toggleFullscreen: () => void
   toggleMaximize: () => void
   close: () => void
 }
 
-function MacTrafficLights({ isFocused, minimize, toggleMaximize, close }: ControlsProps) {
+function MacTrafficLights({
+  isFocused,
+  isFullscreen,
+  minimize,
+  toggleFullscreen,
+  toggleMaximize,
+  close,
+}: ControlsProps) {
   const dimmed = !isFocused
+  const handleGreenClick = (event: MouseEvent<HTMLButtonElement>) => {
+    // Native macOS traffic lights enter fullscreen on click and zoom on Option-click.
+    if (event.altKey && !isFullscreen) toggleMaximize()
+    else toggleFullscreen()
+  }
   return (
     <div className="group flex items-center gap-2" role="group" aria-label="Window controls">
       <TrafficLight
@@ -51,11 +65,17 @@ function MacTrafficLights({ isFocused, minimize, toggleMaximize, close }: Contro
         glyph={<MinusIcon size={8} weight="bold" />}
       />
       <TrafficLight
-        label="Maximize"
+        label={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
         color={TRAFFIC_LIGHT_COLORS.maximize}
         dimmed={dimmed}
-        onClick={toggleMaximize}
-        glyph={<CornersInIcon size={8} weight="bold" />}
+        onClick={handleGreenClick}
+        glyph={
+          isFullscreen ? (
+            <CornersInIcon size={8} weight="bold" />
+          ) : (
+            <CornersOutIcon size={8} weight="bold" />
+          )
+        }
       />
     </div>
   )
@@ -71,7 +91,7 @@ function TrafficLight({
   label: string
   color: string
   dimmed: boolean
-  onClick: () => void
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
   glyph: ReactNode
 }) {
   return (

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   supportsToolFileAction: vi.fn(),
   openFileDialog: vi.fn(),
   setAlwaysOnTop: vi.fn(),
+  toggleFullscreen: vi.fn(),
   uiState: {
     activeTool: 'tool-b',
     tabs: [
@@ -87,6 +88,10 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }))
 
+vi.mock('@/lib/native-window', () => ({
+  toggleNativeWindowFullscreen: mocks.toggleFullscreen,
+}))
+
 function findShortcut(key: string, shift = false): Registration {
   const registration = mocks.registrations.find(
     ({ combo }) => combo.key === key && Boolean(combo.shift) === shift
@@ -112,6 +117,7 @@ describe('useGlobalShortcuts', () => {
     mocks.update.mockResolvedValue(true)
     mocks.toggleTheme.mockResolvedValue(undefined)
     mocks.setAlwaysOnTop.mockResolvedValue(undefined)
+    mocks.toggleFullscreen.mockResolvedValue({ isMaximized: false, isFullscreen: true })
     mocks.openFileDialog.mockResolvedValue(null)
     mocks.supportsToolFileAction.mockReturnValue(true)
   })
@@ -141,6 +147,16 @@ describe('useGlobalShortcuts', () => {
     expect(mocks.toggleShortcutsModal).toHaveBeenCalledOnce()
     expect(mocks.setAlwaysOnTop).toHaveBeenCalledWith(true)
     expect(mocks.update).toHaveBeenCalledWith('alwaysOnTop', true)
+  })
+
+  it('toggles full screen through the native command bridge', async () => {
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('F11').handler()
+    })
+
+    expect(mocks.toggleFullscreen).toHaveBeenCalledOnce()
   })
 
   it('does not persist window pin state when the native update fails', async () => {

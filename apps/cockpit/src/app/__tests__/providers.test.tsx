@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
   onResized: vi.fn(),
   setAlwaysOnTop: vi.fn(),
   checkForUpdate: vi.fn(),
+  getNativeWindowState: vi.fn(),
 }))
 
 vi.mock('@/stores/settings.store', () => ({
@@ -111,6 +112,10 @@ vi.mock('@/lib/db', () => ({
   setSetting: (...args: unknown[]) => mocks.setSetting(...args),
 }))
 
+vi.mock('@/lib/native-window', () => ({
+  getNativeWindowState: mocks.getNativeWindowState,
+}))
+
 vi.mock('@/app/tool-registry', () => ({
   getToolById: (...args: unknown[]) => mocks.getToolById(...args),
 }))
@@ -128,6 +133,7 @@ describe('Providers bootstrap', () => {
     mocks.historyInit.mockResolvedValue(undefined)
     mocks.mcpInit.mockResolvedValue(undefined)
     mocks.checkForUpdate.mockResolvedValue(undefined)
+    mocks.getNativeWindowState.mockResolvedValue({ isMaximized: false, isFullscreen: false })
     // The real window listeners always resolve to an unlisten fn; tests that care about the
     // timing override these with a gate.
     mocks.onMoved.mockResolvedValue(vi.fn())
@@ -216,5 +222,28 @@ describe('Providers bootstrap', () => {
     })
 
     await waitFor(() => expect(mocks.settingsInit).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not persist transient fullscreen display bounds', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.listen.mockResolvedValue(vi.fn())
+      mocks.getNativeWindowState.mockResolvedValue({ isMaximized: false, isFullscreen: true })
+      render(<Providers>content</Providers>)
+
+      await act(async () => {
+        await flushMicrotasks()
+      })
+      const persistBounds = mocks.onResized.mock.calls[0]?.[0] as (() => void) | undefined
+      expect(persistBounds).toBeTypeOf('function')
+
+      act(() => persistBounds?.())
+      await act(async () => vi.advanceTimersByTimeAsync(2000))
+
+      expect(mocks.getNativeWindowState).toHaveBeenCalledOnce()
+      expect(mocks.setSetting).not.toHaveBeenCalledWith('windowBounds', expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

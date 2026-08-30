@@ -8,6 +8,8 @@ import { TOOLS } from '@/app/tool-registry'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { detectPlatform } from '@/lib/platform'
+import { toggleNativeWindowFullscreen } from '@/lib/native-window'
 
 export function useGlobalShortcuts(): void {
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
@@ -45,6 +47,13 @@ export function useGlobalShortcuts(): void {
   const comboS = useMemo(() => ({ key: 's', mod: true }) as const, [])
   const comboSlash = useMemo(() => ({ key: '/', mod: true }) as const, [])
   const comboW = useMemo(() => ({ key: 'w', mod: true }) as const, [])
+  const comboFullscreen = useMemo<KeyCombo>(
+    () =>
+      detectPlatform() === 'mac'
+        ? { key: 'f', mod: true, ctrl: true }
+        : { key: 'F11', allowInEditable: true },
+    []
+  )
 
   const toggleSidebar = useCallback(async () => {
     await update('sidebarCollapsed', !sidebarCollapsed)
@@ -82,6 +91,10 @@ export function useGlobalShortcuts(): void {
   const closeCurrentTab = useCallback(() => {
     if (activeTabId) closeTab(activeTabId)
   }, [activeTabId, closeTab])
+
+  const toggleFullscreen = useCallback(async () => {
+    await toggleNativeWindowFullscreen()
+  }, [])
 
   const openFile = useCallback(async () => {
     if (!supportsToolFileAction(activeTool, 'open-file')) {
@@ -153,5 +166,6 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboO, openFile)
   useKeyboardShortcut(comboS, saveFile)
   useKeyboardShortcut(comboSlash, toggleShortcutsModal)
+  useKeyboardShortcut(comboFullscreen, toggleFullscreen)
   useMruTabSwitcher()
 }

@@ -134,6 +134,17 @@ describe('useKeyboardShortcut', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('allows an explicitly global non-modifier shortcut in an editable target', () => {
+    const handler = vi.fn()
+    renderHook(() => useKeyboardShortcut({ key: 'F11', allowInEditable: true }, handler))
+    const target = document.createElement('input')
+    document.body.append(target)
+
+    dispatchKey(target, { key: 'F11' })
+
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
   it('does not throw and still fires when the event target is not an Element', () => {
     const handler = vi.fn()
     renderHook(() => useKeyboardShortcut({ key: 'k', mod: true }, handler))

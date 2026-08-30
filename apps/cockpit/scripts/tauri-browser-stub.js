@@ -32,6 +32,9 @@ export function installTauriStub() {
   // so this is a no-op there and the dev server can inject it unconditionally.
   if (window.__TAURI_INTERNALS__) return
 
+  let isFullscreen = false
+  let isMaximized = false
+
   const invoke = async (cmd, args) => {
     if (cmd === 'plugin:sql|load') return 'sqlite:cockpit.db'
     if (cmd === 'plugin:sql|select') return []
@@ -61,7 +64,15 @@ export function installTauriStub() {
       window.__tauriStubOpenedUrls.push(args?.url ?? null)
       return null
     }
-    if (cmd === 'window_is_maximized' || cmd === 'window_toggle_maximize') return false
+    if (cmd === 'window_get_state') return { isFullscreen, isMaximized }
+    if (cmd === 'window_toggle_maximize') {
+      isMaximized = !isMaximized
+      return { isFullscreen, isMaximized }
+    }
+    if (cmd === 'window_toggle_fullscreen') {
+      isFullscreen = !isFullscreen
+      return { isFullscreen, isMaximized }
+    }
     if (
       cmd === 'window_focus' ||
       cmd === 'window_minimize' ||

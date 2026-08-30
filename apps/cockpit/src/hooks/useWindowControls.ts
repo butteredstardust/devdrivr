@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   closeNativeWindow,
-  isNativeWindowMaximized,
+  getNativeWindowState,
   minimizeNativeWindow,
+  toggleNativeWindowFullscreen,
   toggleNativeWindowMaximize,
 } from '@/lib/native-window'
 
 export interface UseWindowControlsResult {
   isMaximized: boolean
+  isFullscreen: boolean
   isFocused: boolean
   minimize: () => void
+  toggleFullscreen: () => void
   toggleMaximize: () => void
   close: () => void
 }
@@ -25,6 +28,7 @@ const RESIZE_RECONCILE_MS = 200
  */
 export function useWindowControls(): UseWindowControlsResult {
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [isFocused, setIsFocused] = useState(() => document.hasFocus())
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function useWindowControls(): UseWindowControlsResult {
     let reconcileInFlight = false
     let reconcilePending = false
 
-    const reconcileMaximized = () => {
+    const reconcileWindowState = () => {
       if (cancelled) return
       if (reconcileInFlight) {
         reconcilePending = true
@@ -41,14 +45,17 @@ export function useWindowControls(): UseWindowControlsResult {
       }
       reconcileInFlight = true
       reconcilePending = false
-      void isNativeWindowMaximized()
-        .then((maximized) => {
-          if (!cancelled) setIsMaximized(maximized)
+      void getNativeWindowState()
+        .then((state) => {
+          if (!cancelled) {
+            setIsMaximized(state.isMaximized)
+            setIsFullscreen(state.isFullscreen)
+          }
         })
-        .catch((err) => console.error('[useWindowControls] isMaximized failed:', err))
+        .catch((err) => console.error('[useWindowControls] getState failed:', err))
         .finally(() => {
           reconcileInFlight = false
-          if (reconcilePending && !cancelled) reconcileMaximized()
+          if (reconcilePending && !cancelled) reconcileWindowState()
         })
     }
 
@@ -56,7 +63,7 @@ export function useWindowControls(): UseWindowControlsResult {
       if (reconcileTimer) clearTimeout(reconcileTimer)
       reconcileTimer = setTimeout(() => {
         reconcileTimer = undefined
-        reconcileMaximized()
+        reconcileWindowState()
       }, RESIZE_RECONCILE_MS)
     }
 
@@ -66,7 +73,7 @@ export function useWindowControls(): UseWindowControlsResult {
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
     window.addEventListener('resize', scheduleReconcile)
-    reconcileMaximized()
+    reconcileWindowState()
 
     return () => {
       cancelled = true
@@ -85,13 +92,33 @@ export function useWindowControls(): UseWindowControlsResult {
 
   const toggleMaximize = useCallback(() => {
     void toggleNativeWindowMaximize()
-      .then(setIsMaximized)
+      .then((state) => {
+        setIsMaximized(state.isMaximized)
+        setIsFullscreen(state.isFullscreen)
+      })
       .catch((err) => console.error('[useWindowControls] toggleMaximize failed:', err))
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    void toggleNativeWindowFullscreen()
+      .then((state) => {
+        setIsMaximized(state.isMaximized)
+        setIsFullscreen(state.isFullscreen)
+      })
+      .catch((err) => console.error('[useWindowControls] toggleFullscreen failed:', err))
   }, [])
 
   const close = useCallback(() => {
     void closeNativeWindow().catch((err) => console.error('[useWindowControls] close failed:', err))
   }, [])
 
-  return { isMaximized, isFocused, minimize, toggleMaximize, close }
+  return {
+    isMaximized,
+    isFullscreen,
+    isFocused,
+    minimize,
+    toggleFullscreen,
+    toggleMaximize,
+    close,
+  }
 }

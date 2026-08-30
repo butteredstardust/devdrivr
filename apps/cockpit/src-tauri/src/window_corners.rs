@@ -20,11 +20,9 @@ const CORNER_RADIUS: f64 = 10.0;
 /// A fullscreen window owns the whole display and is square-cornered natively. Keeping the radius
 /// would clip four notches out of the app and show the desktop through them.
 ///
-/// Defensive rather than exercised: an untitled window cannot enter AppKit fullscreen, and Ctrl-Cmd-F
-/// against the running app is a no-op, so today this only ever returns `CORNER_RADIUS`. It is here
-/// so that restoring any part of the native frame — or adding a fullscreen command — does not
-/// silently ship four holes in the corners. Zoom/maximize is a different state and stays rounded,
-/// matching every other zoomed macOS window.
+/// Cockpit's untitled window cannot enter AppKit Spaces fullscreen, so its explicit fullscreen
+/// command uses Tauri's borderless simple-fullscreen mode. Zoom/maximize is a different state and
+/// stays rounded, matching every other zoomed macOS window.
 #[cfg(target_os = "macos")]
 fn corner_radius(is_fullscreen: bool) -> f64 {
     if is_fullscreen {
@@ -107,16 +105,25 @@ pub fn apply(window: &tauri::Window) {
     }
 }
 
-/// Re-resolve the radius after a resize, which is the only signal Tauri gives that the window may
-/// have entered or left fullscreen.
+/// Re-resolve the radius after a resize from the app-owned fullscreen state.
 ///
 /// Separate from [`apply`] because this runs on every frame of a live resize drag: it writes one
 /// layer property and skips the opacity, background and shadow work, which only needs doing once
 /// and whose `invalidateShadow` would otherwise force a shadow recomputation 60 times a second.
 #[cfg(target_os = "macos")]
-pub fn refresh(window: &tauri::Window) {
-    let radius = corner_radius(window.is_fullscreen().unwrap_or(false));
+pub fn refresh(window: &tauri::Window, is_fullscreen: bool) {
+    set_radius(window, corner_radius(is_fullscreen));
+}
 
+/// Update the radius for the app-controlled fullscreen mode. On macOS the undecorated window uses
+/// Tauri's simple fullscreen, which intentionally is not reported by `Window::is_fullscreen()`.
+#[cfg(target_os = "macos")]
+pub fn set_fullscreen(window: &tauri::Window, is_fullscreen: bool) {
+    set_radius(window, corner_radius(is_fullscreen));
+}
+
+#[cfg(target_os = "macos")]
+fn set_radius(window: &tauri::Window, radius: f64) {
     // SAFETY: called from Tauri's window event handler, which runs on the main thread.
     unsafe {
         if let Some((_, layer)) = content_layer(window) {
@@ -136,7 +143,10 @@ pub fn refresh(window: &tauri::Window) {
 pub fn apply(_window: &tauri::Window) {}
 
 #[cfg(not(target_os = "macos"))]
-pub fn refresh(_window: &tauri::Window) {}
+pub fn refresh(_window: &tauri::Window, _is_fullscreen: bool) {}
+
+#[cfg(not(target_os = "macos"))]
+pub fn set_fullscreen(_window: &tauri::Window, _is_fullscreen: bool) {}
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
