@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "devdrivr"
-version = "0.1.87"
+version = "0.1.88"
 dependencies = [
  "axum",
  "objc2",
