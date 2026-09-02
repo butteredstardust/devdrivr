@@ -9,17 +9,13 @@ echo ""
 echo "  devdrivr pre-push checks (warn only)"
 echo "  ────────────────────────────────────────"
 
-# Resolve root node_modules/.bin as an absolute path *before* any cd.
-# Husky adds it as a relative path, which breaks after `cd apps/cockpit`.
-ROOT_BIN="$(pwd)/node_modules/.bin"
-
 # TypeScript check
 echo ""
-INFO "Running TypeScript check (apps/cockpit)..."
+INFO "Running TypeScript check..."
 TSC_OUT=""
-TSC_OUT=$(cd apps/cockpit && PATH="$ROOT_BIN:$PATH" npx tsc --noEmit 2>&1) || TSC_RC=$?
+TSC_OUT=$(npx tsc --noEmit 2>&1) || TSC_RC=$?
 if [ "${TSC_RC:-0}" -ne 0 ]; then
-  WARN "TypeScript errors in apps/cockpit"
+  WARN "TypeScript errors"
   echo "$TSC_OUT" | head -20 | sed 's/^/       /'
   INFO "Fix type errors before merging to main."
 else
@@ -28,11 +24,11 @@ fi
 
 # Tests
 echo ""
-INFO "Running tests (apps/cockpit)..."
+INFO "Running tests..."
 TEST_OUT=""
-TEST_OUT=$(cd apps/cockpit && npx vitest run 2>&1) || TEST_RC=$?
+TEST_OUT=$(npx vitest run 2>&1) || TEST_RC=$?
 if [ "${TEST_RC:-0}" -ne 0 ]; then
-  WARN "Tests failed in apps/cockpit"
+  WARN "Tests failed"
   echo "$TEST_OUT" | tail -20 | sed 's/^/       /'
   INFO "Fix failing tests before merging to main."
 else

@@ -1,136 +1,26 @@
-# CLAUDE.md
+# CLAUDE.md — devdrivr
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code working in this repository.
 
-## Project Overview
+**Canonical ruleset:** [`AGENTS.md`](./AGENTS.md) in this directory has the full development
+workflow, git/commit conventions, non-negotiable coding rules, file map, established patterns, and
+submission checklist. Read that first — this file only covers what's specific to Claude Code.
 
-**devdrivr** is a Turborepo monorepo. Active development is focused on `apps/cockpit` — a local-first, keyboard-driven developer utility workspace built with Tauri 2 + React 19.
+---
 
-> For cockpit-specific guidance see [`apps/cockpit/CLAUDE.md`](apps/cockpit/CLAUDE.md) (Claude) and [`apps/cockpit/AGENTS.md`](apps/cockpit/AGENTS.md) (other agents).
+## Commit PATH note
 
-The rest of the monorepo (`apps/next`, `apps/tauri`, `apps/expo`, `apps/docs`, `apps/cli`, `apps/vscode`,
-`packages/api`, `packages/app`, `packages/ui`) is inherited [T4 Stack](https://github.com/timothymiller/t4-app)
-template scaffolding for building universal TypeScript apps (iOS, Android, Web, Desktop) targeting
-Cloudflare's edge platform. It receives at most dependency security patches — see the status table
-below and [`AGENTS.md`](AGENTS.md) for details. Do not treat it as representative of current practice.
+The pre-commit hook calls `bunx`, and Claude Code runs git through a non-interactive shell. If a
+commit fails with `command not found: bunx`, that shell's PATH is missing Bun's install directory —
+see [`AGENTS.md` § Commits run a `bunx` pre-commit hook](./AGENTS.md#commits-run-a-bunx-pre-commit-hook)
+for the prefix form. You will see that prefix on commands throughout this repo's git history; it is
+an environment workaround, not something to reproduce by default.
 
-## Package Manager & Build System
+---
 
-- **Package manager:** Bun (`bun.lock` is the lockfile — never use npm/yarn). Note: the `clean`
-  script still runs `rm bun.lockb`, a leftover from before the lockfile format changed; harmless
-  since that file no longer exists, but worth knowing if `bun run clean` looks like it's the wrong
-  filename.
-- **Build orchestration:** Turborepo (`turbo.json`)
+## Documentation index
 
-## Common Commands
-
-```bash
-# Cockpit — the active app (see apps/cockpit/CLAUDE.md for the full command set)
-bun run cockpit       # turbo run dev --filter=cockpit
-bun run cockpit:build # turbo run build --filter=cockpit
-
-# Start legacy dev servers (Next.js + API in parallel)
-bun run dev
-
-# Individual legacy apps
-bun run web          # Next.js web app
-bun run api          # Hono API (Cloudflare Workers)
-bun run native       # Expo dev
-bun run desktop      # apps/tauri (legacy Tauri 1.4 shell — NOT cockpit)
-bun run notes        # Nextra docs site
-
-# Type checking
-bun run check-types  # tsc --noEmit across all packages
-cd apps/cockpit && npx tsc --noEmit  # type-check cockpit specifically
-
-# Database
-bun run generate     # drizzle-kit generate migrations
-bun run migrate:local  # Apply D1 migrations locally
-bun run seed:local     # Seed local database
-bun run studio         # Drizzle Studio GUI
-
-# Building
-bun run build:web    # Next.js production build
-bun run build:ios    # EAS iOS build
-bun run build:android # EAS Android build
-
-# Monorepo maintenance
-bun run fix          # manypkg fix (dependency version alignment)
-bun run clean        # Remove node_modules & lockfile
-```
-
-## Monorepo Structure
-
-```
-apps/
-  cockpit/    # Desktop — Tauri 2 + React 19 (ACTIVE — see apps/cockpit/CLAUDE.md / AGENTS.md)
-  next/       # Web — Next.js 13.5 (Pages Router, not App Router) — legacy, unmaintained beyond dep patches
-  expo/       # Mobile — Expo 49 / React Native 0.72 — legacy, untouched since initial import
-  tauri/      # Desktop — Tauri 1.4, wraps the apps/next pages — legacy, unmaintained beyond dep patches
-  docs/       # Documentation — Nextra — legacy, unmaintained beyond dep patches
-  cli/        # create-t4-app CLI scaffolder — legacy, untouched since initial import
-  vscode/     # T4 App Tools VSCode extension — legacy, untouched since initial import
-packages/
-  api/        # Backend — Hono on Cloudflare Workers, Drizzle ORM, D1 SQLite — legacy, unmaintained beyond dep patches
-  app/        # Shared cross-platform screens and logic — legacy, untouched since initial import
-  ui/         # Shared Tamagui component library — legacy, untouched since initial import
-```
-
-"Legacy" here means: part of the original T4 Stack template import, receiving at most dependency
-security patches, with no ongoing feature development in this repo's history. `apps/cockpit` is
-the only actively developed app — see [`AGENTS.md`](AGENTS.md) for the full status breakdown and
-rationale.
-
-## Architecture
-
-### Cross-Platform Strategy
-
-- **Solito** provides shared navigation across Next.js and Expo
-- **Tamagui** components in `packages/ui` render on all platforms
-- Platform-specific files use `.web.ts` / `.native.ts` extensions
-- `packages/app` holds shared screens; each app shell imports them
-
-### Data Flow
-
-- All frontends call the backend via **tRPC** (type-safe end-to-end)
-- Backend runs as **Cloudflare Workers** (Hono framework)
-- Database: **Cloudflare D1** (edge SQLite), schema in `packages/api/src/db/schema.ts`
-- ORM: **Drizzle** with migrations in `packages/api/migrations/`
-- Auth: **Supabase Auth** (JWT), verified in Workers via `@tsndr/cloudflare-worker-jwt`
-- Client state: **Jotai** atoms; server state: **TanStack Query**
-
-### TypeScript Path Aliases
-
-```
-app/*       → packages/app/*
-@t4/api/*   → packages/api/*
-@t4/ui/*    → packages/ui/*
-```
-
-## Code Style
-
-Prettier config (`.prettierrc`):
-
-- `semi: false`
-- `singleQuote: true`
-- `trailingComma: 'es5'`
-- `printWidth: 100`
-- `arrowParens: 'always'`
-
-## Environment Variables
-
-Required (see `.env.example`):
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:8787
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_SUPABASE_URL=
-```
-
-## Key Turbo Pipeline Notes
-
-- `next-app#build` depends on `@t4/ui#build` — build UI package before web app
-- `@t4/ui#build` outputs to `dist/` (must complete before app builds)
-- `expo-app#postinstall` generates `.tamagui` (run after install)
-- `dev` tasks have caching disabled and run persistently
+Full canonical docs live in [`documentation/`](./documentation/). Start with
+[`documentation/README.md`](./documentation/README.md) for the index, or
+[`documentation/PRODUCT_MAP.md`](./documentation/PRODUCT_MAP.md) for product status and the full
+30-tool list.
