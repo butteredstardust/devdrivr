@@ -1,125 +1,680 @@
-# AGENTS.md — devdrivr monorepo
+# AGENTS.md — devdrivr
 
-Instructions for AI coding agents (OpenAI Codex, GitHub Copilot Workspace, Jules, etc.)
-working in this repository.
+Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working in this repository.
+
+## Development Workflow
+
+When given a feature or update request, execute this pipeline end-to-end without pausing for permission at each step:
+
+1. **Evaluate & refine** — read the relevant code before writing any; surface tradeoffs or ambiguities; propose adjustments if the request has edge cases worth flagging
+2. **Plan** — agree on approach before touching code; for anything non-trivial, write out the steps
+3. **Implement** — write the code; do not add features, abstractions, or cleanup beyond what was asked
+4. **Verify** — `npx tsc --noEmit` (zero errors) + `bunx vitest run` (all passing); fix anything broken before moving on
+5. **Code review** — self-review against the rules in this file; catch bugs, anti-patterns, and regressions
+6. **Fix** — address every issue found in review before committing
+7. **Commit & push** — conventional commit message on a feature branch
+8. **Open PR** — description targeted at a human reviewer; user-facing language, not a dev log
+
+Operate autonomously through all 8 steps. Make decisions informed by best practice and the non-negotiable rules below. Only pause if something is genuinely ambiguous about the intent of the request — not for routine implementation choices.
 
 ---
 
-## Active Development
+## Git Workflow
 
-All active work is in **`apps/cockpit`** — a Tauri 2 + React 19 desktop app. It is the only part
-of this repo under continuous development (hundreds of commits over the past several months, vs.
-a handful of dependency-bump commits everywhere else — see the table below).
+### Never commit directly to main
 
-> **Read this first**: [`apps/cockpit/AGENTS.md`](apps/cockpit/AGENTS.md)
-> contains the full coding rules, file map, non-negotiables, and submission checklist
-> for cockpit. Start there before touching anything in that directory. This file is a
-> navigational hub for the monorepo as a whole — it does not restate cockpit's rules.
-
----
-
-## Monorepo Basics
-
-- **Package manager**: Bun only (`bun.lock` is the lockfile). Never use npm or yarn.
-- **Build system**: Turborepo (`turbo.json` at root).
-- **Run commands from the repo root** unless the task is app-specific, in which case most
-  per-app scripts also work via `cd apps/<app> && bun run <script>`. Cockpit in particular
-  must be run from `apps/cockpit/` — see its own AGENTS.md for why.
-
-### Root command set (from the root `package.json`)
+All work goes on a feature branch. If commits accidentally land on `main` before a branch is created, rescue them before pushing:
 
 ```bash
-bun install              # install all workspace dependencies
-
-# Per-app dev servers (each `cd`s into the app and runs its own dev script)
-bun run dev               # turbo dev --parallel --filter={next-app,@t4/api} — Next.js + API
-bun run web                # apps/next dev server
-bun run api                 # packages/api dev server (Hono on Miniflare)
-bun run native              # apps/expo dev server
-bun run desktop              # apps/tauri dev server (NOT cockpit — see note below)
-bun run notes                 # apps/docs (Nextra) dev server
-bun run cockpit                # turbo run dev --filter=cockpit — the cockpit app
-
-# Building
-bun run build              # builds packages/ui
-bun run build:web           # apps/next production build
-bun run build:ios / build:android / build:ios:preview / build:android:preview
-bun run build:desktop        # apps/tauri production build
-bun run cockpit:build         # turbo run build --filter=cockpit
-
-# Type checking
-bun run check-types         # tsc --noEmit across all workspaces
-
-# Database (packages/api — Drizzle + Cloudflare D1)
-bun run generate            # drizzle-kit generate migrations
-bun run migrate:local / bun run seed:local
-bun run migrate / bun run seed
-bun run studio               # Drizzle Studio GUI
-
-# Monorepo maintenance
-bun run fix                 # manypkg fix — dependency version alignment
-bun run check-deps          # check-dependency-version-consistency
-bun run clean                # git clean -xdf node_modules && rm bun.lockb
-bun run clean:workspaces      # turbo clean
+git checkout -b feat/my-feature   # branch at current HEAD — captures the commits
+git checkout main
+git reset --hard origin/main      # strip the commits off main
+git push -u origin feat/my-feature
 ```
 
-> **`bun run desktop` is `apps/tauri`, not cockpit.** The two are unrelated Tauri apps — `apps/tauri`
-> is a legacy shell wrapping the `apps/next` pages (see status table below); `apps/cockpit` is the
-> real, actively developed desktop app. Use `bun run cockpit` (or `cd apps/cockpit && bun run tauri dev`)
-> to run the actual product.
+### Branch naming
+
+```
+feat/short-description       # new feature or enhancement
+fix/short-description        # bug fix
+docs/short-description       # documentation only
+chore/short-description      # tooling, deps, config
+refactor/short-description   # no behaviour change
+```
+
+### Commit messages — conventional commits
+
+Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `devdrivr`.
+
+```
+feat(devdrivr): add cron expression parser
+fix(devdrivr): resolve tag filter losing focus on blur
+docs(devdrivr): update AGENTS.md with git workflow
+```
+
+### Commits run a `bunx` pre-commit hook
+
+The pre-commit hook calls `bunx`, so `bun` must be resolvable from the environment your git client
+runs hooks in. Normally `git commit -m "..."` just works.
+
+If a commit fails with `command not found: bunx`, your hook shell has a minimal PATH that doesn't
+include Bun's install directory. Add it for that invocation — on macOS with a Homebrew-installed
+Bun that is `/opt/homebrew/bin`:
+
+```bash
+HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
+```
+
+Substitute the output of `dirname "$(which bun)"` if your install lives elsewhere. This prefix is a
+workaround for a local environment gap, not a project requirement — if you never hit the error, you
+never need it.
+
+### PRs
+
+- Title: matches the commit message format, under 70 chars
+- Body: **Summary** bullets in user-facing language + **Test plan** checklist
+- Target: always `main`
+- Push new branches with `-u`: `git push -u origin feat/my-feature`
+- Never force-push to `main`
+
+When asked to "open a PR" or "commit and push", the full sequence is implied — branch (if not already on one) → commit → push → `gh pr create`. Do not ask for confirmation between steps.
 
 ---
 
-## Apps & Packages — Status
+## What This Project Is
 
-Status below is derived from actual commit history in this repository (`git log -- <path>`), not
-assumption. This repo's history begins 2026-03-21 with a monorepo-wide scaffold import.
+**devdrivr** is a local-first, keyboard-driven developer utility desktop app.
 
-| Path            | Stack                                          | Status                                                                                        |
-| ---------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `apps/cockpit`   | Tauri 2 + React 19 + Vite                       | ✅ **Active** — the product. All ongoing feature work happens here. See `apps/cockpit/AGENTS.md`. |
-| `apps/next`      | Next.js 13.5 (Pages Router)                     | Legacy scaffold — untouched since import except one dependency security bump (Apr 2026). No feature work. |
-| `apps/tauri`     | Tauri 1.4, wraps `apps/next` via Next.js pages  | Legacy scaffold — same security bump only, otherwise untouched since import.                  |
-| `apps/docs`      | Nextra (Next.js-based docs site)                | Legacy scaffold — same security bump only, otherwise untouched since import.                  |
-| `apps/expo`      | Expo 49 / React Native 0.72                     | Legacy scaffold — no commits since the initial import.                                        |
-| `apps/cli`       | `create-t4-app` scaffolder CLI                  | Legacy scaffold — no commits since the initial import.                                        |
-| `apps/vscode`    | "T4 App Tools" VS Code extension                | Legacy scaffold — no commits since the initial import.                                        |
-| `packages/api`   | Hono + Cloudflare Workers + Drizzle + D1        | Legacy scaffold — same security bump only (miniflare SSRF fix), otherwise untouched since import. |
-| `packages/app`   | Shared cross-platform screens (Solito)          | Legacy scaffold — no commits since the initial import.                                        |
-| `packages/ui`    | Tamagui shared component library                | Legacy scaffold — no commits since the initial import.                                        |
-
-In short: treat everything except `apps/cockpit` as inherited [T4 Stack](https://github.com/timothymiller/t4-app)
-template scaffolding, kept only enough to stay dependency-patched. Do not assume feature parity,
-active maintenance, or that patterns there reflect current best practice for this repo — cockpit's
-own conventions (in `apps/cockpit/AGENTS.md`) are the ones actively enforced and reviewed.
+- **Runtime**: Tauri 2 (Rust backend + WKWebView frontend)
+- **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
+- **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
+- **Build**: Vite 7 + Bun (package manager)
+- **30 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **No cloud, no accounts** — everything runs locally
 
 ---
 
-## Navigating the Repo
+## Commands
+
+**All commands must be run from the repository root.**
+
+```bash
+# Typecheck — zero errors required before every commit
+bunx tsc --noEmit
+
+# Tests — invoke vitest through bunx
+bunx vitest run        # run once
+bunx vitest            # watch mode
+
+# Lint
+bun run lint
+
+# Dev server (Vite + Tauri hot-reload) — this is what opens the desktop app
+bun run tauri dev
+
+# Vite-only web preview (no Tauri shell, native APIs are stubbed with canned data)
+bun run dev
+
+# Dev + a browser-drivable copy of the running app at http://127.0.0.1:9090, with real IPC —
+# real database, real filesystem, real MCP server. Use this when a bug needs a browser you can
+# automate, since macOS WKWebView exposes no CDP endpoint.
+# See documentation/REMOTE_UI_HARNESS.md, and documentation/HARNESSES.md for which harness to pick.
+bun run dev:remote
+
+# Production build
+bun run tauri build
+
+# Install / restore dependencies
+bun install
+
+# Clean build artifacts and node_modules
+bun run clean
+```
+
+If any of these fail with `command not found`, see the PATH note under
+[Commits run a `bunx` pre-commit hook](#commits-run-a-bunx-pre-commit-hook).
+
+### Common mistakes
+
+| Wrong                                      | Right                                      | Why                                                 |
+| ------------------------------------------ | ------------------------------------------ | --------------------------------------------------- |
+| `bun run test`                             | `bunx vitest run`                          | bun can't resolve the vitest binary directly        |
+| `npm run ...` / `yarn ...`                 | `bun run ...`                              | npm/yarn are not the package manager                |
+| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH — see § Commits |
+
+---
+
+## File Map — Know Before You Touch
+
+The `@/` path alias maps to `src/`. Use it for all imports — never write relative paths like `../../lib/db`.
 
 ```
-apps/
-  cockpit/    # ACTIVE — Tauri 2 + React 19 desktop app; see apps/cockpit/AGENTS.md
-  next/       # legacy — Next.js 13.5 web app (Pages Router)
-  tauri/      # legacy — Tauri 1.4 shell wrapping apps/next
-  docs/       # legacy — Nextra documentation site
-  expo/       # legacy — Expo / React Native mobile app
-  cli/        # legacy — create-t4-app scaffolder
-  vscode/     # legacy — VS Code extension
-packages/
-  api/        # legacy — Hono backend on Cloudflare Workers, Drizzle ORM, D1
-  app/        # legacy — shared cross-platform screens (Solito navigation)
-  ui/         # legacy — shared Tamagui component library
+src/app/tool-registry.ts          ← SINGLE SOURCE OF TRUTH for all tools
+src/app/tool-groups.tsx           ← sidebar group metadata (Phosphor icons)
+src/app/providers.tsx             ← app bootstrap — window geometry, store init, listeners
+src/app/App.tsx                   ← root layout: Sidebar + Workspace + NotesDrawer
+src/lib/db.ts                     ← ALL SQLite access — use getDb() only
+src/lib/theme.ts                  ← applyTheme() — only call inside async init()
+src/lib/tool-actions.ts           ← pub/sub: dispatchToolAction / useToolActionListener
+src/stores/settings.store.ts      ← theme, sidebar, editor prefs → persisted
+src/stores/notes.store.ts         ← notes CRUD → persisted
+src/stores/snippets.store.ts      ← snippets CRUD → persisted
+src/stores/history.store.ts       ← tool execution history → persisted
+src/stores/ui.store.ts            ← active tool, modals, toasts → transient
+src/hooks/useToolState.ts         ← per-tool state persistence (cache + SQLite)
+src/hooks/useWorker.ts            ← Web Worker RPC wrapper (no Comlink)
+src/hooks/useGlobalShortcuts.ts   ← all keyboard shortcuts
+src/workers/rpc.ts                ← worker-side RPC handler (replaces Comlink)
+src/tools/<id>/<Name>.tsx         ← one component per tool
+src/types/models.ts               ← AppSettings, Note, Snippet, HistoryEntry types
+src-tauri/capabilities/default.json ← IPC permissions — add here for new Tauri APIs
+src-tauri/migrations/001_initial.sql ← full DB schema
+src-tauri/tauri.conf.json         ← window size, bundle config, app identifier
 ```
 
-For anything inside `apps/cockpit/`, do not rely on this file or the legacy apps for patterns —
-go straight to [`apps/cockpit/AGENTS.md`](apps/cockpit/AGENTS.md) and
-[`apps/cockpit/documentation/`](apps/cockpit/documentation/README.md).
+---
 
-## Code Style (legacy apps/packages)
+## Non-Negotiable Rules
 
-Prettier config (`.prettierrc`) applies repo-wide:
-`semi: false`, `singleQuote: true`, `trailingComma: 'es5'`, `printWidth: 100`, `arrowParens: 'always'`.
+### 1. Package manager: Bun only
 
-Cockpit follows the same Prettier config but has its own additional non-negotiable rules — see
-`apps/cockpit/AGENTS.md`.
+```bash
+# ✅
+bun install
+bun add <package>
+bun run <script>
+
+# ❌ Never
+npm install
+yarn add
+```
+
+### 2. DB access: always `getDb()`, never `Database.load()`
+
+```typescript
+// ✅
+import { getDb } from '@/lib/db'
+const conn = await getDb()
+const rows = await conn.select<Row[]>('SELECT * FROM notes')
+
+// ❌ Instant bug — breaks the connection singleton
+import Database from '@tauri-apps/plugin-sql'
+const db = await Database.load('sqlite:devdrivr.db')
+```
+
+### 3. Colors: CSS variables only, never hardcode
+
+```typescript
+// ✅
+className="bg-[var(--color-surface)] text-[var(--color-text)] border-[var(--color-border)]"
+
+// ❌ Breaks dark/light theme switching
+className="bg-zinc-900 text-white border-gray-700"
+style={{ color: '#39ff14' }}
+```
+
+Available tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--color-border`,
+`--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`,
+`--color-warning`, `--color-success`, `--color-info`, `--color-shadow`
+
+### 4. Web Workers: `?worker` imports only
+
+```typescript
+// ✅ Vite bundles as blob URL — works in Tauri's WKWebView
+import MyWorkerFactory from '@/workers/my.worker?worker'
+const worker = useWorker<MyWorker>(() => new MyWorkerFactory(), ['method1'])
+
+// ❌ Module workers are unreliable in WKWebView — Proxy returns undefined
+new Worker(new URL('./my.worker.ts', import.meta.url), { type: 'module' })
+```
+
+### 5. Workers: use `handleRpc`, not Comlink's `expose`
+
+```typescript
+// ✅ Workers must end with this
+import { handleRpc } from './rpc'
+handleRpc(api)
+
+// ❌ Comlink was removed — Proxy-based wrap() returns undefined in WKWebView
+import { expose } from 'comlink'
+expose(api)
+```
+
+### 6. Zustand: selector functions always
+
+```typescript
+// ✅ Only re-renders when 'theme' changes
+const theme = useSettingsStore((s) => s.theme)
+
+// ❌ Re-renders on any store change
+const { theme } = useSettingsStore()
+const store = useSettingsStore()
+```
+
+### 7. Store init: idempotent promise guard required
+
+```typescript
+// Every new store init() MUST have this pattern
+let initPromise: Promise<void> | null = null
+
+init: async () => {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const conn = await getDb()
+      const rows = await conn.select<Row[]>('SELECT * FROM my_table')
+      set({ items: rows.map(toModel) })
+    })()
+  }
+  return initPromise
+}
+```
+
+### 8. Never add `React.StrictMode`
+
+Intentionally removed. Causes double-mount flash in Tauri's WebView. Don't add it back.
+
+### 9. Never create new Tauri windows
+
+`new WebviewWindow(...)` was removed. IPC capability scoping + listener leak issues.
+Use drawers, panels, or modals within the existing window instead.
+
+### 10. DPI conversion for window APIs
+
+```typescript
+// ✅ Always convert physical → logical before saving
+const factor = await win.scaleFactor()
+const pos = (await win.outerPosition()).toLogical(factor)
+const sz = (await win.outerSize()).toLogical(factor)
+
+// ❌ Raw physical pixels — doubled on Retina displays
+const pos = await win.outerPosition()
+await win.setPosition(pos)
+```
+
+### 11. `applyTheme()` only inside async init functions
+
+```typescript
+// ✅
+init: async () => {
+  const settings = await loadSettings()
+  applyTheme(settings.theme)
+}
+
+// ❌ Causes flash before DB theme is loaded
+applyTheme('system') // at module level
+```
+
+### 12. Icons: Phosphor only
+
+```typescript
+// ✅
+import { ArrowRight, Clipboard } from '@phosphor-icons/react'
+<ArrowRight size={16} weight="bold" />
+
+// ❌ No emoji, no inline SVG, no other icon libraries
+<span>→</span>
+```
+
+### 13. Never use the Preview MCP tool
+
+This is a Tauri desktop app. The browser-based preview cannot render it.
+Do not call `preview_start` or any preview tool unless the user explicitly asks.
+
+### 14. Use `TextEncoder`/`TextDecoder` for UTF-8, not `unescape`/`escape`
+
+```typescript
+// ✅ Encode text → base64 (handles full Unicode)
+const bytes = new TextEncoder().encode(text)
+let binary = ''
+for (const byte of bytes) binary += String.fromCharCode(byte)
+const encoded = btoa(binary)
+
+// ✅ Decode base64 → text
+const decoded = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+const text = new TextDecoder().decode(decoded)
+
+// ❌ Deprecated — breaks on multi-byte characters
+btoa(unescape(encodeURIComponent(text)))
+decodeURIComponent(escape(atob(b64)))
+```
+
+### 15. React 19 — Wheel events are passive by default
+
+`onWheel` in JSX cannot call `e.preventDefault()` (browser ignores it). Attach the
+listener imperatively for any zoom / scroll-hijack:
+
+```typescript
+useEffect(() => {
+  const el = ref.current
+  if (!el) return
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault() /* zoom */
+  }
+  el.addEventListener('wheel', onWheel, { passive: false })
+  return () => el.removeEventListener('wheel', onWheel)
+}, [])
+```
+
+### 16. Refs on conditional JSX branches — use callback refs, not `useRef` + `useEffect`
+
+If a `ref` is attached to an element inside a conditional branch, a plain `useRef`
+will be `null` when the `useEffect` runs on mount (the branch may not be active).
+Use a `useCallback` callback ref so the listener attaches/detaches as the node
+mounts and unmounts:
+
+```typescript
+const wheelCleanupRef = useRef<(() => void) | null>(null)
+
+const callbackRef = useCallback((el: HTMLDivElement | null) => {
+  wheelCleanupRef.current?.()
+  wheelCleanupRef.current = null
+  if (!el) return
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault() /* ... */
+  }
+  el.addEventListener('wheel', onWheel, { passive: false })
+  wheelCleanupRef.current = () => el.removeEventListener('wheel', onWheel)
+}, []) // deps: only stable values
+
+// <div ref={callbackRef}>
+```
+
+### 17. ResizeObserver: guard for jsdom
+
+`ResizeObserver` is `undefined` in the Vitest/jsdom environment. Always guard:
+
+```typescript
+if (typeof ResizeObserver === 'undefined') return
+const observer = new ResizeObserver(update)
+observer.observe(el)
+return () => observer.disconnect()
+```
+
+### 18. Cross-tool navigation — hand off with `sendToTool`
+
+To pre-populate a destination tool and bring it forward, use `sendToTool`:
+
+```typescript
+import { sendToTool } from '@/lib/tool-handoff'
+
+sendToTool('target-tool', {
+  draft: {
+    /* ... */
+  },
+})
+```
+
+Do **not** write to `useToolStateCache.set` and call `openTab` by hand. Two things make that wrong
+now: the destination may be open in more than one tab, so the patch has to be addressed to the
+receiving tab's state key rather than the bare tool id; and the destination is usually already
+mounted (tabs are kept alive), so it will never re-read the cache. `sendToTool` resolves the key and
+goes through `seed()`, which is the signal a mounted `useToolState` watches for.
+
+### 19. Canvas 2D is sufficient for image processing
+
+No npm image library is needed for resize, crop, format conversion, or quality control.
+Canvas handles all of it:
+
+```typescript
+canvas.width = outW
+canvas.height = outH
+ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+canvas.toBlob(
+  (blob) => {
+    /* download */
+  },
+  'image/jpeg',
+  quality / 100
+)
+```
+
+For large images, debounce any input that triggers `toDataURL`/`toBlob` on every keystroke.
+
+### 20. Crop / geometry math — clamp dimensions before position
+
+When clamping a crop/selection rectangle to image bounds, always clamp `w`/`h` first
+so the subsequent `x`/`y` clamp expressions (`origW - w`, `origH - h`) use valid values:
+
+```typescript
+w = Math.max(1, Math.min(w, origW))
+h = Math.max(1, Math.min(h, origH))
+x = Math.max(0, Math.min(x, origW - w))
+y = Math.max(0, Math.min(y, origH - h))
+```
+
+Also lower-bound any new `x`/`y` computed from a drag delta before using it to derive
+a new `w`/`h` (e.g., NW/SW handle drag: `nx = Math.max(0, startX + dx)`).
+
+### 21. Fuse.js search highlighting — use composite React keys
+
+When using `includeMatches: true`, define a local interface instead of importing Fuse types:
+
+```typescript
+interface FuseMatchEntry {
+  key?: string
+  indices: ReadonlyArray<[number, number]>
+}
+```
+
+Keep two memos: `fuseResults` (drives both filtered list AND match data) and `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`.
+
+**Always use composite keys** on `<mark>` elements — `key={\`${start}-${end}\`}`, not `key={start}`. Fuse can return overlapping index ranges with the same `start` value, causing duplicate key warnings.
+
+### 22. CSS grid collapse animation
+
+```tsx
+<div
+  className={`grid transition-[grid-template-rows] duration-200 ${
+    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+  }`}
+>
+  <div className="overflow-hidden">{children}</div>
+</div>
+```
+
+No pixel height needed. Outer div transitions row size; inner `overflow-hidden` clips content. Toggle button must have `aria-expanded={!collapsed}`.
+
+### 23. ARIA combobox — wiring and focus management
+
+```tsx
+<input
+  role="combobox"
+  aria-autocomplete="list"
+  aria-expanded={suggestions.length > 0}
+  aria-controls="suggestions-id"
+  aria-activedescendant={index >= 0 ? `suggestion-${suggestions[index]}` : undefined}
+/>
+<div role="listbox" id="suggestions-id">
+  {suggestions.map((s) => (
+    <button key={s} role="option" id={`suggestion-${s}`}
+      onMouseDown={(e) => { e.preventDefault(); void handleSelect(s) }}
+    />
+  ))}
+</div>
+```
+
+`e.preventDefault()` on `onMouseDown` keeps input focus when clicking a suggestion. Always prefix async `onMouseDown` handlers with `void` — omitting it leaves an unhandled promise rejection.
+
+### 24. `void` prefix for async fire-and-forget event handlers
+
+### 25. DB migrations — always backfill existing rows
+
+`ALTER TABLE` gives existing rows `NULL` for the new column. Always include an explicit `UPDATE` in the same migration — never rely on `DEFAULT` alone for existing data:
+
+```sql
+-- ✅ Column added AND existing rows backfilled in same migration
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+UPDATE snippets SET folder = '' WHERE folder IS NULL;
+
+-- ❌ Existing rows are NULL even with DEFAULT — causes runtime errors on existing installs
+ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
+```
+
+### 26. Tailwind v4 — no config file
+
+This project uses Tailwind CSS 4 (CSS-first). There is **no `tailwind.config.js`** — do not create one. All configuration lives in `src/index.css`. Do not use `@apply` with v3 plugin syntax. Standard arbitrary value syntax still applies: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
+
+### 27. Prefer platform APIs over npm packages
+
+Reach for browser/web platform APIs before adding a dependency:
+
+| Task                       | Use this                    | Not this                 |
+| -------------------------- | --------------------------- | ------------------------ |
+| Image resize/crop/compress | Canvas 2D API               | `sharp`, `jimp`          |
+| Hashing                    | `crypto.subtle`             | `crypto-js`              |
+| UTF-8 encode/decode        | `TextEncoder`/`TextDecoder` | `buffer` polyfill        |
+| HTML/XML parsing           | `DOMParser`                 | `cheerio`, `htmlparser2` |
+
+If a browser API handles the task, use it. Adding a package requires a clear reason why the platform API is insufficient.
+
+### 28. Test file location
+
+Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx` — not co-located with the component. Creating `src/tools/my-tool/MyTool.test.tsx` works but breaks the established pattern.
+
+```
+src/tools/__tests__/
+  snippets.test.tsx
+  api-client.test.tsx
+  markdown-editor.test.tsx
+```
+
+Calling an async function from a synchronous event handler without handling the returned Promise causes an unhandled rejection warning. Use `void`:
+
+```typescript
+// ✅
+onMouseDown={() => { void handleAsyncAction() }}
+onChange={() => { void saveToDb(value) }}
+
+// ❌ Returns a Promise that is silently dropped — triggers lint/runtime warning
+onMouseDown={() => handleAsyncAction()}
+```
+
+---
+
+## How to Add a New Tool
+
+```typescript
+// Step 1: Create src/tools/<id>/<Name>.tsx
+export default function MyTool() {
+  const [state, updateState] = useToolState<State>('my-tool', { input: '', output: '' })
+  const setLastAction = useUiStore((s) => s.setLastAction)
+
+  useToolAction(async (action) => {
+    if (action.type === 'execute') await run()
+    if (action.type === 'copy-output') navigator.clipboard.writeText(state.output)
+    if (action.type === 'open-file') updateState({ input: action.content })
+  })
+
+  return <div className="flex h-full flex-col">...</div>
+}
+
+// Step 2: Register in src/app/tool-registry.ts
+{
+  id: 'my-tool',
+  name: 'My Tool',
+  group: 'convert',   // code | data | web | convert | test | network | write
+  component: React.lazy(() => import('@/tools/my-tool/MyTool')),
+  keywords: ['keyword'],
+}
+```
+
+## How to Add a New Setting
+
+```typescript
+// 1. src/types/models.ts — add to AppSettings type + DEFAULT_SETTINGS
+export type AppSettings = {
+  ...
+  myNewSetting: boolean
+}
+export const DEFAULT_SETTINGS: AppSettings = {
+  ...
+  myNewSetting: false
+}
+
+// 2. src/stores/settings.store.ts — add to the persisted object in update()
+const settings: AppSettings = {
+  ...
+  myNewSetting: state.myNewSetting,
+}
+```
+
+## How to Add a New Worker
+
+```typescript
+// src/workers/my.worker.ts
+import { handleRpc } from './rpc'
+
+const api = {
+  async process(input: string): Promise<string> {
+    return input.toUpperCase()
+  },
+}
+
+export type MyWorker = typeof api
+handleRpc(api)
+
+// In the tool component:
+import MyWorkerFactory from '@/workers/my.worker?worker'
+import type { MyWorker } from '@/workers/my.worker'
+
+const worker = useWorker<MyWorker>(() => new MyWorkerFactory(), ['process'])
+const result = worker ? await worker.process(input) : null
+```
+
+---
+
+## TypeScript Strict Mode — Common Traps
+
+```typescript
+// noUncheckedIndexedAccess — array access returns T | undefined
+const items = getItems()
+const first = items[0]          // type: Item | undefined — must check
+const name = items[0]?.name     // ✅
+
+// exactOptionalPropertyTypes — optional props are exact
+type T = { label?: string }
+const t: T = { label: undefined }  // may error in some contexts — use {} instead
+
+// No any — use unknown or proper generics
+const data: unknown = JSON.parse(str)
+if (typeof data === 'object' && data !== null) { ... }
+```
+
+---
+
+## SQLite Schema Quick Reference
+
+```sql
+settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
+tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
+notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags)
+snippets         (id, title, content, language, tags TEXT, folder TEXT, created_at, updated_at)  -- tags = JSON array; folder added migration 005
+history          (id, tool, sub_tab, input, output, timestamp)
+api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002
+api_collections  (id, name, description, created_at, updated_at)        -- API Client — migration 002
+api_requests     (id, collection_id, name, method, url, headers, body, created_at, updated_at)  -- API Client — migration 002
+```
+
+WAL mode is set at connection time in `getDb()` — not in migrations.
+
+---
+
+## Submission Checklist
+
+Before opening a PR, verify every item:
+
+- [ ] `npx tsc --noEmit` — zero errors
+- [ ] `bunx vitest run` — all passing (zero failures)
+- [ ] `bun run lint` — zero errors (warnings tolerated up to threshold)
+- [ ] No `Database.load()` outside `src/lib/db.ts`
+- [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
+- [ ] No `React.StrictMode`
+- [ ] No `new WebviewWindow()`
+- [ ] No `expose()` from Comlink
+- [ ] No `new Worker(..., { type: 'module' })` — use `?worker` imports
+- [ ] No `npm`/`yarn` commands
+- [ ] New store `init()` has idempotent promise guard
+- [ ] New Tauri APIs have permissions in `src-tauri/capabilities/default.json`
+- [ ] `applyTheme()` only called inside async init functions
+- [ ] Physical pixel APIs (`outerPosition`, `outerSize`) converted via `scaleFactor()`
+- [ ] All icons from `@phosphor-icons/react`
