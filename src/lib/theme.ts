@@ -34,6 +34,7 @@ export const ALL_THEMES: EffectiveTheme[] = [
   'marina',
   'pearl',
   'yacht-club',
+  'dodecastar',
 ]
 
 const LIGHT_EFFECTIVE_THEMES = new Set<EffectiveTheme>([
@@ -84,6 +85,7 @@ export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel:
   marina: { shortLabel: 'Marina', fullLabel: 'Marina' },
   pearl: { shortLabel: 'Pearl', fullLabel: 'Pearl' },
   'yacht-club': { shortLabel: 'Yacht', fullLabel: 'Yacht Club' },
+  dodecastar: { shortLabel: 'Dodec', fullLabel: 'Dodecastar' },
 }
 
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {

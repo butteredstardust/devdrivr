@@ -385,8 +385,8 @@ export function Sidebar() {
                   the sidebar and the least useful — it competed with the
                   active tool for the eye every time the sidebar was open. The
                   Mascot beside it still carries the brand colour. */}
-              <h1 className="font-pixel text-sm font-bold tracking-tight text-[var(--color-text)]">
-                [devdrivr]
+              <h1 className="font-brand text-sm font-bold tracking-tight text-[var(--color-text)]">
+                devdrivr
               </h1>
             </div>
             {/* Collapse button — h-7 w-7 for a larger click target */}

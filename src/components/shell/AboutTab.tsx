@@ -55,7 +55,7 @@ export function AboutTab() {
     <div className="space-y-4">
       <div className="flex flex-col items-center gap-1 pt-1">
         <Mascot size={112} />
-        <h3 className="font-pixel text-sm text-[var(--color-accent)]">devdrivr</h3>
+        <h3 className="font-brand text-sm text-[var(--color-accent)]">devdrivr</h3>
       </div>
 
       <div className="space-y-2">

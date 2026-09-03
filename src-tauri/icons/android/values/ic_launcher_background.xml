@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <color name="ic_launcher_background">#fff</color>
+  <!-- The dodecastar backplate. Adaptive icons composite the foreground over
+       this, so a white default would frame a warm-dark mark in a bright square. -->
+  <color name="ic_launcher_background">#1E1710</color>
 </resources>

@@ -997,3 +997,40 @@
   --note-red: #b91c1c;
   --note-gray: #cbc9c8;
 }
+
+/* ─── Brand theme ──────────────────────────────────────────────────────────
+   Dodecastar takes its five hues straight off the app icon: the #1E1710
+   backplate, the #933E00 / #BC6200 / #E38A00 facets and the #FEEDAC highlight.
+   The icon carries no cool colours at all, so info/success and the cool notes
+   are desaturated inventions tuned for contrast rather than sampled — the same
+   compromise the palette-derived block above documents. --color-error is
+   pulled off the orange ramp toward red so it can't be mistaken for the
+   accent, which the icon's own darkest facet (#933E00) would have been.
+   ────────────────────────────────────────────────────────────────────── */
+
+.dodecastar {
+  --color-bg: #1a140e;
+  --color-surface: #241c13;
+  --color-surface-raised: #30251a;
+  --color-surface-sunken: #120d09;
+  --color-surface-hover: #3d301f;
+  --color-border: #4c3b25;
+  --color-text: #f3e7ce;
+  --color-text-muted: rgba(243, 231, 206, 0.7);
+  --color-accent: #f6bc30;
+  --color-accent-dim: rgba(246, 188, 48, 0.2);
+  --color-info: #8fb4c4;
+  --color-warning: #e38a00;
+  --color-error: #ef5b45;
+  --color-success: #a8c46b;
+  --color-shadow: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+  --note-yellow: #f6bc30;
+  --note-green: #a8c46b;
+  --note-blue: #8fb4c4;
+  --note-pink: #dd8f8f;
+  --note-purple: #b494c6;
+  --note-orange: #e38a00;
+  --note-red: #ef5b45;
+  --note-gray: #4c3b25;
+}

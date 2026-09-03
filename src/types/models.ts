@@ -34,6 +34,7 @@ export type Theme =
   | 'marina'
   | 'pearl'
   | 'yacht-club'
+  | 'dodecastar'
 
 /**
  * `flush` packs the shell panels edge to edge, separated by 1px borders. `floating`

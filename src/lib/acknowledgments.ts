@@ -32,7 +32,6 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
   { name: '@fontsource/cascadia-code', version: '5.2.3', license: 'OFL-1.1' },
   { name: '@fontsource/fira-code', version: '5.2.7', license: 'OFL-1.1' },
   { name: '@fontsource/jetbrains-mono', version: '5.2.8', license: 'OFL-1.1' },
-  { name: '@fontsource/silkscreen', version: '5.2.8', license: 'OFL-1.1' },
   { name: '@fontsource/source-code-pro', version: '5.2.7', license: 'OFL-1.1' },
   { name: '@monaco-editor/react', version: '4.7.0', license: 'MIT', copyright: 'Suren Atoyan' },
   { name: '@noble/hashes', version: '2.0.1', license: 'MIT', copyright: 'Paul Miller' },
@@ -272,12 +271,6 @@ export const FONTS: readonly Attribution[] = [
     version: '5.2.7',
     license: 'OFL-1.1',
     copyright: 'Adobe Systems Incorporated',
-  },
-  {
-    name: 'Silkscreen',
-    version: '5.2.8',
-    license: 'OFL-1.1',
-    copyright: 'The Silkscreen Project Authors',
   },
 ]
 

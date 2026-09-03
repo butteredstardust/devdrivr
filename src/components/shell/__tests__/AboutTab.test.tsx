@@ -69,7 +69,7 @@ describe('AboutTab', () => {
 
   it('renders the mascot with an accessible name', () => {
     render(<AboutTab />)
-    expect(screen.getByRole('img', { name: /geometric mascot/i })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /dodecastar mascot/i })).toBeInTheDocument()
   })
 })
 

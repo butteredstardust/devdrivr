@@ -496,6 +496,19 @@ describe('Sidebar — only one tree is live at a time', () => {
 
 // ── Sidebar filter box ────────────────────────────────────────────
 
+/**
+ * Puts a global back exactly as it was, including having been absent — jsdom
+ * defines neither rAF nor cancelAnimationFrame here, so `delete` is the correct
+ * restore and assigning `undefined` would not be.
+ */
+function restoreGlobal(name: string, descriptor: PropertyDescriptor | undefined): void {
+  if (descriptor) {
+    Object.defineProperty(globalThis, name, descriptor)
+  } else {
+    delete (globalThis as Record<string, unknown>)[name]
+  }
+}
+
 describe('Sidebar — filter box', () => {
   it('narrows results to matching tools and hides groups with no matches', () => {
     render(<Sidebar />)
@@ -574,6 +587,13 @@ describe('Sidebar — filter box', () => {
   })
 
   it('expands the sidebar and focuses the filter when "/" is pressed while collapsed', async () => {
+    // A synchronous rAF, so the focus that the expand schedules lands within
+    // this test. It has to be torn down again: left installed it leaks into
+    // every test below, and anything that reschedules itself from its own
+    // callback — the Mascot's animation loop does — then recurses until the
+    // stack gives out, in a test that has nothing to do with either.
+    const previousSchedule = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
+    const previousCancel = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
     Object.defineProperty(globalThis, 'requestAnimationFrame', {
       configurable: true,
       value: (callback: FrameRequestCallback) => {
@@ -585,14 +605,25 @@ describe('Sidebar — filter box', () => {
       configurable: true,
       value: () => {},
     })
-    useSettingsStore.setState({ sidebarCollapsed: true })
-    render(<Sidebar />)
 
-    fireEvent.keyDown(window, { key: '/' })
+    try {
+      useSettingsStore.setState({ sidebarCollapsed: true })
+      render(<Sidebar />)
 
-    await waitFor(() => {
-      expect(useSettingsStore.getState().sidebarCollapsed).toBe(false)
-    })
+      fireEvent.keyDown(window, { key: '/' })
+
+      await waitFor(() => {
+        expect(useSettingsStore.getState().sidebarCollapsed).toBe(false)
+      })
+    } finally {
+      // Unmount before restoring, not after. Effect cleanups that cancel a
+      // pending frame run at unmount and reach for the global then, so the
+      // automatic cleanup that would otherwise fire once this test returns
+      // would find the stub already deleted.
+      cleanup()
+      restoreGlobal('requestAnimationFrame', previousSchedule)
+      restoreGlobal('cancelAnimationFrame', previousCancel)
+    }
   })
 })
 

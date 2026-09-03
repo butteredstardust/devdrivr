@@ -14,8 +14,6 @@
 @import '@fontsource/cascadia-code/500.css';
 @import '@fontsource/cascadia-code/600.css';
 @import '@fontsource/cascadia-code/700.css';
-@import '@fontsource/silkscreen/400.css';
-@import '@fontsource/silkscreen/700.css';
 
 @import 'tailwindcss';
 @import './styles/tokens.css';
@@ -23,7 +21,9 @@
 @import './styles/shell.css';
 
 @theme {
-  --font-pixel: 'Silkscreen', monospace;
+  /* The wordmark, and nothing else. JetBrains Mono is already loaded for the
+     editor, so branding costs no extra font payload. */
+  --font-brand: 'JetBrains Mono', monospace;
   --font-mono: 'Source Code Pro', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --text-2xs: 0.625rem;

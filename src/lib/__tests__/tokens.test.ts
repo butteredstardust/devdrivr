@@ -75,8 +75,8 @@ function getDeclaredValue(block: string, token: string): string | null {
 }
 
 describe('design tokens (src/styles/tokens.css)', () => {
-  it('covers all 31 registered themes', () => {
-    expect(ALL_THEMES).toHaveLength(31)
+  it('covers all 32 registered themes', () => {
+    expect(ALL_THEMES).toHaveLength(32)
   })
 
   it('defines every global (theme-agnostic) token exactly once in :root', () => {
