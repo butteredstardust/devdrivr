@@ -59,7 +59,7 @@ your machine: no accounts, no telemetry, no internet required.
 - **Per-tool history** — inputs and outputs are saved automatically
 - **Snippets library** — tagged code snippets accessible from any tool
 - **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
-- **Themes** — system mode plus 31 built-in themes
+- **Themes** — system mode plus 32 built-in themes
 - **Always-on-top** — pin the window over your editor or browser
 - **Window state persistence** — remembers size and position across launches
 - **Auto-updater** — checks GitHub releases, then installs and restarts on your say-so

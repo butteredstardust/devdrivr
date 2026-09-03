@@ -13,8 +13,8 @@ authoritative and this document is a bug — fix it in the same commit.
 **All visual values come from CSS custom properties.** Never hardcode a hex value, an `rgb()`, or a
 Tailwind palette utility like `bg-zinc-900`.
 
-This is not a style preference. The app ships **31 themes**. A hardcoded colour is correct under
-exactly one of them and silently wrong under the other 30 — and it will look fine to whoever wrote
+This is not a style preference. The app ships **32 themes**. A hardcoded colour is correct under
+exactly one of them and silently wrong under the other 31 — and it will look fine to whoever wrote
 it, because they only ran the theme they were using.
 
 `bun run lint:ds` fails the build on hardcoded colours, off-scale type, off-scale icons, and
@@ -26,7 +26,7 @@ non-standard focus rings. See § Enforcement.
 
 | File                              | Contains                                                             |
 | --------------------------------- | -------------------------------------------------------------------- |
-| `src/styles/tokens.css`           | All tokens: 31 theme palettes, z-index, spacing, radius, type, focus |
+| `src/styles/tokens.css`           | All tokens: 32 theme palettes, z-index, spacing, radius, type, focus |
 | `src/index.css`                   | Font imports, `@theme` font families, keyframes, reduced-motion      |
 | `src/styles/highlight-themes.css` | Syntax-highlighting palettes                                         |
 
@@ -36,8 +36,8 @@ non-standard focus rings. See § Enforcement.
 
 ## Colour tokens
 
-Values are **per-theme** and there are 31 themes, so this table documents each token's _role_
-rather than a value that would be wrong for 30 of them. Read the actual values from
+Values are **per-theme** and there are 32 themes, so this table documents each token's _role_
+rather than a value that would be wrong for 31 of them. Read the actual values from
 `src/styles/tokens.css`.
 
 ### Surfaces

@@ -229,13 +229,11 @@ export function Mascot({
   const slotsRef = useRef<(SVGPolygonElement | null)[]>([])
 
   useEffect(() => {
-    // Either opt-out leaves INITIAL_POSE on screen, which is a complete,
-    // correctly shaded solid rather than an empty box. The rAF guard is not
-    // hypothetical: this renders inside the sidebar, so a throw here would
-    // take the whole shell down in any environment that lacks the API.
+    // Either opt-out leaves the last painted pose on screen, which is a
+    // complete, correctly shaded solid rather than an empty box. The rAF guard
+    // is not hypothetical: this renders inside the sidebar, so a throw here
+    // would take the whole shell down in any environment that lacks the API.
     if (typeof requestAnimationFrame !== 'function') return
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    if (reduced?.matches) return
 
     // Captured, not looked up again at teardown: cleanup runs at unmount, and
     // reaching for the global then would fail in any harness that swaps these
@@ -244,8 +242,13 @@ export function Mascot({
     const cancel = cancelAnimationFrame
 
     let frame = 0
+    let running = false
     let painting = false
-    const start = performance.now()
+    // Wall-clock instant that the current run treats as t=0, and the animation
+    // time banked by previous runs. Tracked separately so pausing and resuming
+    // continues the tumble rather than snapping back to the mount pose.
+    let origin = performance.now()
+    let banked = 0
 
     const draw = (now: number) => {
       // A conforming requestAnimationFrame always defers, so this is never true
@@ -257,7 +260,7 @@ export function Mascot({
       if (painting) return
       painting = true
 
-      const pose = poseAt((now - start) / 1000)
+      const pose = poseAt(banked + (now - origin) / 1000)
       for (let i = 0; i < SLOTS; i++) {
         const node = slotsRef.current[i]
         if (!node) continue
@@ -271,8 +274,34 @@ export function Mascot({
       painting = false
     }
 
-    frame = schedule(draw)
-    return () => cancel(frame)
+    // `running` rather than a truthy frame id: a scheduler is free to hand back
+    // 0, and a test harness that does would make `stop` a no-op and let `start`
+    // run two loops at once.
+    const start = () => {
+      if (running) return
+      running = true
+      origin = performance.now()
+      frame = schedule(draw)
+    }
+
+    const stop = () => {
+      if (!running) return
+      running = false
+      banked += (performance.now() - origin) / 1000
+      cancel(frame)
+    }
+
+    // Read live rather than once at mount: toggling Reduce Motion in System
+    // Settings has to take effect on a running window, in both directions.
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    const sync = () => (reduced?.matches ? stop() : start())
+
+    sync()
+    reduced?.addEventListener('change', sync)
+    return () => {
+      reduced?.removeEventListener('change', sync)
+      stop()
+    }
   }, [])
 
   return (

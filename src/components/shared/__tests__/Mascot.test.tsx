@@ -135,6 +135,41 @@ describe('Mascot', () => {
     expect(first.getAttribute('points')).not.toBe(before)
   })
 
+  it('stops and restarts when the reduced-motion preference changes mid-session', () => {
+    // Reading the preference once at mount looks correct in every test that
+    // renders and unmounts, and is wrong for the only case that matters: a
+    // window that was already open when the user reached for the OS setting.
+    const rAF = vi.fn(() => 1)
+    const cancel = vi.fn()
+    vi.stubGlobal('requestAnimationFrame', rAF)
+    vi.stubGlobal('cancelAnimationFrame', cancel)
+
+    let matches = false
+    const listeners = new Set<() => void>()
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          get matches() {
+            return matches
+          },
+          media: query,
+          addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+          removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+        }) as unknown as MediaQueryList
+    )
+
+    render(<Mascot />)
+    expect(rAF).toHaveBeenCalledTimes(1)
+
+    matches = true
+    for (const fn of listeners) fn()
+    expect(cancel).toHaveBeenCalledTimes(1)
+
+    matches = false
+    for (const fn of listeners) fn()
+    expect(rAF).toHaveBeenCalledTimes(2)
+  })
+
   it('holds a static pose when the user asked for reduced motion', () => {
     const rAF = vi.fn()
     vi.stubGlobal('requestAnimationFrame', rAF)
