@@ -9,7 +9,8 @@
  * Scope: enough to *render* the UI for DOM-level debugging (selection, layout,
  * re-render behaviour). Persistence is faked — every SQL read returns empty, so
  * stores start blank and nothing survives a reload. Not a substitute for
- * running the real app when testing anything that touches disk or the DB.
+ * running the real app when testing anything that touches disk or the DB. HTTP is the exception: it
+ * is forwarded to the page's own `fetch`, so the API Client works against CORS-enabled endpoints.
  *
  * `bun run dev` installs this automatically (see scripts/vite-plugin-tauri-stub.js), so
  * opening http://localhost:1420 in any browser just works. Scripted harnesses that
@@ -34,6 +35,13 @@ export function installTauriStub() {
 
   let isFullscreen = false
   let isMaximized = false
+
+  // `plugin:http|fetch` is a four-call protocol — open, send, then read the body in chunks — and the
+  // JS plugin assembles a real `Response` from the pieces. These hold the in-flight halves between
+  // calls, keyed by the resource id the plugin passes back to us.
+  const httpRequests = new Map()
+  const httpBodies = new Map()
+  let httpRid = 0
 
   const invoke = async (cmd, args) => {
     if (cmd === 'plugin:sql|load') return 'sqlite:cockpit.db'
@@ -99,7 +107,51 @@ export function installTauriStub() {
     ) {
       return null
     }
-    // Everything else — file dialogs, fs, http — has no browser equivalent here.
+    // HTTP is the one plugin a browser can genuinely provide, by handing the request to the page's
+    // own `fetch`. The catch is CORS: the real app goes through Rust and is not subject to it, so a
+    // request that works in the app can fail here with an opaque `TypeError`. Fine for endpoints
+    // that send `Access-Control-Allow-Origin`, not a way to test arbitrary APIs — for that, use the
+    // remote-UI harness, which runs the real Rust stack (documentation/HARNESSES.md).
+    if (cmd === 'plugin:http|fetch') {
+      const { method, url, headers, data } = args?.clientConfig ?? {}
+      const rid = ++httpRid
+      httpRequests.set(
+        rid,
+        fetch(url, {
+          method,
+          headers,
+          body: data ? new Uint8Array(data) : undefined,
+        })
+      )
+      return rid
+    }
+    if (cmd === 'plugin:http|fetch_send') {
+      const response = await httpRequests.get(args.rid)
+      httpRequests.delete(args.rid)
+      httpBodies.set(args.rid, new Uint8Array(await response.arrayBuffer()))
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        headers: Array.from(response.headers.entries()),
+        rid: args.rid,
+      }
+    }
+    if (cmd === 'plugin:http|fetch_read_body') {
+      // The transport appends a trailing flag byte to every chunk: 0 means "more to come", 1 means
+      // end of stream. The whole body goes out in one chunk here — there is nothing to stream from,
+      // since `arrayBuffer()` has already buffered it.
+      const body = httpBodies.get(args.rid)
+      if (!body) return [1]
+      httpBodies.delete(args.rid)
+      return [...body, 0]
+    }
+    if (cmd === 'plugin:http|fetch_cancel' || cmd === 'plugin:http|fetch_cancel_body') {
+      httpRequests.delete(args?.rid)
+      httpBodies.delete(args?.rid)
+      return null
+    }
+    // Everything else — file dialogs and fs — has no browser equivalent here.
     // Resolving silently makes those look like they worked, so say so instead.
     console.warn(`[tauri-stub] unhandled command "${cmd}" — resolved as null. Use the real app.`)
     return null

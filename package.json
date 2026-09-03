@@ -18,7 +18,8 @@
     "smoke:report": "bun scripts/create-smoke-report.mjs",
     "clean": "rm -rf node_modules dist src-tauri/target",
     "clean-js": "bun scripts/clean-js.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "screenshots": "bun scripts/capture-screenshots.mjs"
   },
   "lint-staged": {
     "**/*.{ts,tsx,js,jsx,json,css,md}": [
@@ -101,6 +102,7 @@
     "husky": "^9.1.7",
     "jsdom": "^29.0.2",
     "lint-staged": "^15.0.0",
+    "playwright-core": "^1.62.1",
     "tauri-remote-ui": "^1.1.1",
     "typescript": "^5.9",
     "vite": "^7.0.4",

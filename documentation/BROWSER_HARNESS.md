@@ -16,6 +16,8 @@ served by `bun run dev`, driven from Chromium.
 - Scroll/resize/layout bugs, measured rather than reasoned about
 - "It re-renders but I can't see why" — DOM mutation forensics
 - Anything you were about to explain with a theory instead of evidence
+- Regenerating the README screenshots: `bun run dev`, then `bun run screenshots` (see
+  `scripts/capture-screenshots.mjs`, which is also the best worked example of driving this harness)
 
 Not for: window or menu behaviour — that is [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md).
 
@@ -53,11 +55,15 @@ await page.goto('http://localhost:1420')
 Every SQL read returns empty, so stores start blank and nothing persists across a reload. Seed
 state through the UI.
 
-Commands with no browser equivalent — file dialogs, `fs`, `http` — resolve to `null` and log a
-`[tauri-stub] unhandled command` warning. Two of those on boot (`plugin:http|fetch*`, the update
-check) are expected. A warning naming a command your feature depends on means you are testing a
-stub, not the app — switch to [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md), which answers those
-commands for real without giving up the browser.
+`plugin:http|fetch` is forwarded to the page's own `fetch`, so the API Client really does issue
+requests here — subject to CORS, which the real app is not, since it goes through Rust. An endpoint
+that sends `Access-Control-Allow-Origin` works; anything else fails with an opaque `TypeError` that
+looks like the app's bug and isn't.
+
+Commands with no browser equivalent — file dialogs, `fs` — resolve to `null` and log a
+`[tauri-stub] unhandled command` warning. A warning naming a command your feature depends on means
+you are testing a stub, not the app — switch to [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md), which
+answers those commands for real without giving up the browser.
 
 ## Gotchas found the hard way
 
