@@ -241,6 +241,7 @@ describe('settings store updates', () => {
       'marina',
       'pearl',
       'yacht-club',
+      'dodecastar',
       'system', // wraps back
     ]
 

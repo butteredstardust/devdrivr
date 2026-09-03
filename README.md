@@ -128,6 +128,7 @@ authentication a panel away.
 | Catppuccin            | `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`, `catppuccin-mocha`                                      |
 | GitHub and Solarized  | `github-dark`, `github-light`, `solarized-dark`, `solarized-light`                                                       |
 | Extras                | `inked`, `urban-nocturne`, `amethyst-haze`, `lapis-velvet`, `amethyst-mint`, `fireside`, `marina`, `pearl`, `yacht-club` |
+| Brand                 | `dodecastar` — drawn from the app icon's palette                                                                         |
 
 Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
 
