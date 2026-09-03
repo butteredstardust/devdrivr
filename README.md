@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="src-tauri/icons/source/dodecastar-1024.png" alt="" width="128" height="128">
+
 # devdrivr
 
 **A local-first, keyboard-driven developer workspace.**
