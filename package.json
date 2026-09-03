@@ -29,7 +29,6 @@
     "@fontsource/cascadia-code": "^5.2.3",
     "@fontsource/fira-code": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
-    "@fontsource/silkscreen": "^5.2.8",
     "@fontsource/source-code-pro": "^5.2.7",
     "@monaco-editor/react": "^4.7.0",
     "@noble/hashes": "^2.0.1",

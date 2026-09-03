@@ -122,9 +122,9 @@ One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
 | -------------- | ------------------------------ | ---------------------------------------------- |
 | `--font-ui`    | `system-ui, -apple-system, …`  | UI chrome: buttons, labels, toolbars, headings |
 | `--font-mono`  | `'Source Code Pro', monospace` | Code, editors, values, IDs, output             |
-| `--font-pixel` | `'Silkscreen', monospace`      | App logo / branding only                       |
+| `--font-brand` | `'JetBrains Mono', monospace`  | App logo / branding only                       |
 
-Use `font-ui`, `font-mono`, `font-pixel` (Tailwind `@theme` families — not
+Use `font-ui`, `font-mono`, `font-brand` (Tailwind `@theme` families — not
 `font-[family-name:var(--font-mono)]`).
 
 **The split is semantic, not decorative:** chrome is `font-ui`, content the user typed or the tool
