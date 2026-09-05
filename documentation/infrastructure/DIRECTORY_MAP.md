@@ -37,7 +37,7 @@ This directory starts the app and registers tools.
 | ------------------ | ----------------------------------------------------------------------------- |
 | `App.tsx`          | Root component: `<Sidebar> + <Workspace> + <NotesDrawer>` in a flex row       |
 | `providers.tsx`    | **Boot sequence**: window geometry → stores → active tool → listeners         |
-| `tool-registry.ts` | **Single source of truth** for all 30 tools (React.lazy, IDs, labels, groups) |
+| `tool-registry.ts` | **Single source of truth** for all 31 tools (React.lazy, IDs, labels, groups) |
 | `tool-groups.tsx`  | Sidebar group metadata: id, label, Phosphor icon per group                    |
 
 ### `src/components/shell/` — App Chrome
@@ -163,6 +163,7 @@ src/tools/
 ├── jwt-decoder/          JwtDecoder.tsx
 ├── markdown-editor/      MarkdownEditor.tsx, MarkdownPreview.tsx
 ├── mermaid-editor/       MermaidEditor.tsx
+├── notes/                NotesWorkspace.tsx
 ├── prompt-templates/     PromptTemplates.tsx
 ├── refactoring-toolkit/  RefactoringToolkit.tsx    ← uses refactoring.worker
 ├── regex-tester/         RegexTester.tsx           ← uses regex.worker

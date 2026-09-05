@@ -49,7 +49,7 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 | **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
 | **Test**    | Regex Tester · JWT Decoder                                                                                                              |
 | **Network** | API Client · Docs Browser                                                                                                               |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                                  |
+| **Write**   | Notes · Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                          |
 
 ### Shell features
 

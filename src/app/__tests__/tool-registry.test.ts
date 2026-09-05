@@ -83,7 +83,7 @@ describe('tool capability flags', () => {
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 15', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 16', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -97,6 +97,7 @@ describe('tool capability flags', () => {
         'json-tools',
         'markdown-editor',
         'mermaid-editor',
+        'notes',
         'refactoring-toolkit',
         'ts-playground',
         'xml-tools',
@@ -105,7 +106,7 @@ describe('tool capability flags', () => {
     )
   })
 
-  it('MONACO_TOOL_IDS matches the audited set of 17', () => {
+  it('MONACO_TOOL_IDS matches the audited set of 18', () => {
     expect(MONACO_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -120,6 +121,7 @@ describe('tool capability flags', () => {
         'json-tools',
         'markdown-editor',
         'mermaid-editor',
+        'notes',
         'refactoring-toolkit',
         'snippets',
         'ts-playground',

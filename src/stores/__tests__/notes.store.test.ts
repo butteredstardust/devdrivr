@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
 import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
+import type { Note } from '@/types/models'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
@@ -13,7 +14,13 @@ vi.mock('@/lib/db', () => ({
 
 // Reset store state between tests
 beforeEach(() => {
-  useNotesStore.setState({ notes: [], initialized: false })
+  vi.clearAllMocks()
+  useNotesStore.setState({
+    notes: [],
+    initialized: false,
+    pendingSaveIds: [],
+    saveErrorIds: [],
+  })
   // Reset the module-level initPromise by re-importing
   // Instead, we test the store actions directly (add, update, remove)
   ;(loadNotes as any).mockResolvedValue([])
@@ -94,6 +101,115 @@ describe('notes store', () => {
 
     pending.resolve()
     await updatePromise
+  })
+
+  it('coalesces text edits in the canonical store and flushes the latest note', async () => {
+    const note = await useNotesStore.getState().add('Original', 'First body')
+    ;(saveNote as any).mockClear()
+
+    useNotesStore.getState().edit(note.id, { title: 'Draft title' })
+    useNotesStore.getState().edit(note.id, { content: 'Latest body' })
+
+    expect(useNotesStore.getState().notes[0]).toMatchObject({
+      title: 'Draft title',
+      content: 'Latest body',
+    })
+    expect(useNotesStore.getState().pendingSaveIds).toEqual([note.id])
+    expect(saveNote).not.toHaveBeenCalled()
+
+    await useNotesStore.getState().flushPending(note.id)
+
+    expect(saveNote).toHaveBeenCalledOnce()
+    expect(saveNote).toHaveBeenCalledWith(
+      expect.objectContaining({ id: note.id, title: 'Draft title', content: 'Latest body' })
+    )
+    expect(useNotesStore.getState().pendingSaveIds).toEqual([])
+  })
+
+  it('serializes a newer edit behind an in-flight note save', async () => {
+    const note = await useNotesStore.getState().add('Original', 'First body')
+    ;(saveNote as any).mockClear()
+    const firstSave = deferred<void>()
+    ;(saveNote as any).mockReturnValueOnce(firstSave.promise)
+
+    useNotesStore.getState().edit(note.id, { title: 'First draft' })
+    const flush = useNotesStore.getState().flushPending(note.id)
+    useNotesStore.getState().edit(note.id, { content: 'Edit during save' })
+    firstSave.resolve()
+    await flush
+
+    expect(saveNote).toHaveBeenCalledTimes(2)
+    expect(saveNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'First draft', content: 'Edit during save' })
+    )
+    expect(useNotesStore.getState().pendingSaveIds).toEqual([])
+  })
+
+  it('keeps an edit made while refresh is reading stale rows', async () => {
+    const note = await useNotesStore.getState().add('Original', 'First body')
+    const staleLoad = deferred<Note[]>()
+    ;(loadNotes as any).mockReturnValueOnce(staleLoad.promise)
+
+    const refresh = useNotesStore.getState().refresh()
+    await vi.waitFor(() => expect(loadNotes).toHaveBeenCalled())
+    useNotesStore.getState().edit(note.id, { content: 'Draft during refresh' })
+    staleLoad.resolve([{ ...note, content: 'First body' }])
+    await refresh
+
+    expect(useNotesStore.getState().notes[0]!.content).toBe('Draft during refresh')
+    await useNotesStore.getState().flushPending(note.id)
+  })
+
+  it('does not let a stale refresh discard a note being added', async () => {
+    const staleLoad = deferred<Note[]>()
+    ;(loadNotes as any).mockReturnValueOnce(staleLoad.promise)
+
+    const refresh = useNotesStore.getState().refresh()
+    await vi.waitFor(() => expect(loadNotes).toHaveBeenCalled())
+    const added = await useNotesStore.getState().add('Added during refresh')
+    staleLoad.resolve([])
+    await refresh
+
+    expect(useNotesStore.getState().notes.map((note) => note.id)).toEqual([added.id])
+  })
+
+  it('ignores edits while a note deletion is in flight', async () => {
+    const note = await useNotesStore.getState().add('Doomed', 'Original body')
+    const deletion = deferred<void>()
+    ;(deleteNote as any).mockReturnValueOnce(deletion.promise)
+    ;(saveNote as any).mockClear()
+
+    const remove = useNotesStore.getState().remove(note.id)
+    useNotesStore.getState().edit(note.id, { content: 'Late edit' })
+    await useNotesStore.getState().update(note.id, { pinned: true })
+    expect(useNotesStore.getState().notes[0]!.content).toBe('Original body')
+    expect(useNotesStore.getState().notes[0]!.pinned).toBe(false)
+    expect(saveNote).not.toHaveBeenCalled()
+
+    deletion.resolve()
+    await remove
+    expect(useNotesStore.getState().notes).toEqual([])
+  })
+
+  it('ignores edits and metadata updates while clearing notes', async () => {
+    const note = await useNotesStore.getState().add('Doomed', 'Original body')
+    const clearingNotes = deferred<void>()
+    ;(clearAllNotes as any).mockReturnValueOnce(clearingNotes.promise)
+    ;(saveNote as any).mockClear()
+
+    const clear = useNotesStore.getState().clearAll()
+    useNotesStore.getState().edit(note.id, { content: 'Late edit' })
+    await useNotesStore.getState().update(note.id, { pinned: true })
+
+    expect(useNotesStore.getState().notes[0]).toMatchObject({
+      content: 'Original body',
+      pinned: false,
+    })
+    expect(saveNote).not.toHaveBeenCalled()
+
+    clearingNotes.resolve()
+    await clear
+    expect(useNotesStore.getState().notes).toEqual([])
   })
 
   it('update with unknown ID is a no-op', async () => {

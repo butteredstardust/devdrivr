@@ -84,7 +84,7 @@ For “open a PR” or “commit and push,” create a branch if needed. Commit,
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
 - **Build**: Vite 7 + Bun (package manager)
-- **30 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **31 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
 - **No cloud, no accounts** — everything runs locally
 
 ---

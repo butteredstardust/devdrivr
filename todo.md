@@ -7,11 +7,11 @@ delivery cost.
 
 ## Current-state assessment
 
-| Area       | devdrivr strengths today                                                                                                                                                                                                                                                                      | Highest-value gaps versus massCode                                                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Snippets   | Monaco editing, language selection, fuzzy full-content search, flat folders, tags, favorites, sorting, duplicate/copy/download, JSON backup/restore, and cross-tool handoff                                                                                                                   | Multi-file fragments, descriptions, nested folders, durable trash, formatting, and HTML/CSS or JSON previews                                         |
-| API Client | Saved requests and collections, search/history, query params, toggleable headers, JSON/text/urlencoded/multipart bodies, bearer/basic auth, environment interpolation, cURL copy, response inspection/download, collection runner, and broad Postman/OpenAPI/AsyncAPI/protobuf/GraphQL import | Keychain-backed secrets, request descriptions, raw outgoing-request preview, hierarchical collections, and richer environment import/export          |
-| Notes      | Always-available resizable drawer, autosave, Markdown rendering, fuzzy search, tags, colors, pinning, manual ordering, word count, copy, and cross-tool handoff                                                                                                                               | A full writing workspace, editor/preview modes, folders/favorites/trash, task metadata and smart views, internal links/backlinks, and managed images |
+| Area       | devdrivr strengths today                                                                                                                                                                                                                                                                      | Highest-value gaps versus massCode                                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snippets   | Monaco editing, language selection, fuzzy full-content search, flat folders, tags, favorites, sorting, duplicate/copy/download, JSON backup/restore, and cross-tool handoff                                                                                                                   | Multi-file fragments, descriptions, nested folders, durable trash, formatting, and HTML/CSS or JSON previews                                |
+| API Client | Saved requests and collections, search/history, query params, toggleable headers, JSON/text/urlencoded/multipart bodies, bearer/basic auth, environment interpolation, cURL copy, response inspection/download, collection runner, and broad Postman/OpenAPI/AsyncAPI/protobuf/GraphQL import | Keychain-backed secrets, request descriptions, raw outgoing-request preview, hierarchical collections, and richer environment import/export |
+| Notes      | Always-available resizable drawer, first-class Markdown workspace, Editor/Split/Preview modes, canonical cross-surface autosave, fuzzy search, tags, colors, pinning, manual ordering, word count, copy, and cross-tool handoff                                                               | Folders/favorites/trash, task metadata and smart views, internal links/backlinks, and managed images                                        |
 
 The comparison is based on massCode's documented [Code](https://masscode.io/documentation/code/),
 [Notes](https://masscode.io/documentation/notes/), and
@@ -51,18 +51,20 @@ cannot find the test secret, and requests still resolve it correctly.
 
 ### 2. First-class Notes workspace with editor modes
 
+**Status:** Complete (2026-09-05)
+
 **Outcome:** Notes support sustained Markdown writing without losing the current
 drawer's fast capture workflow.
 
-- [ ] Register a lazy-loaded `notes` tool with a responsive library/list/editor
+- [x] Register a lazy-loaded `notes` tool with a responsive library/list/editor
       layout; keep the drawer as a compact view over the same store and records.
-- [ ] Reuse the shared Monaco and sanitized Markdown pipeline for Editor, split
+- [x] Reuse the shared Monaco and sanitized Markdown pipeline for Editor, split
       Live Preview, and read-only Preview modes.
-- [ ] Support fenced-code highlighting, GFM tables/task lists, copyable code
+- [x] Support fenced-code highlighting, GFM tables/task lists, copyable code
       blocks, editor preferences, dirty-state handling, and keyboard shortcuts.
-- [ ] Make selection and draft state tab-instance-safe; flush pending drawer and
+- [x] Make selection and draft state tab-instance-safe; flush pending drawer and
       workspace saves when switching surfaces.
-- [ ] Add component, persistence, keyboard, accessibility, and narrow-layout tests.
+- [x] Add component, persistence, keyboard, accessibility, and narrow-layout tests.
 
 **Depends on:** none. **Unlocks:** items 5, 6, and 8. **Done when:** the same note
 can be edited in either surface without stale overwrites, and all three modes
