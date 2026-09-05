@@ -1,6 +1,6 @@
 # User Guide
 
-This comprehensive user guide covers all aspects of using the devdrivr application, from basic navigation to advanced features.
+Use this guide to open tools, manage workspace data, and use the local MCP server.
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ This comprehensive user guide covers all aspects of using the devdrivr applicati
 
 ## Introduction
 
-devdrivr is a powerful, local-first developer utility workspace that provides a collection of essential tools for developers. It's designed to be fast, efficient, and fully offline-capable with a focus on keyboard-driven workflows.
+devdrivr is a local-first, keyboard-driven developer utility workspace. See [PRODUCT_MAP.md](PRODUCT_MAP.md) for the authoritative tool inventory.
 
 ## Getting Started
 
@@ -42,63 +42,59 @@ _Apple could not verify "devdrivr.app" is free of malware_, on Windows by SmartS
 [Unsigned builds](../README.md#unsigned-builds) section of the root README walks through both,
 plus the _"devdrivr" is damaged_ message that releases up to 0.1.82 produced.
 
-### Running from source
+### Developer setup
 
-1. Ensure you have Rust and cargo-cp-artifact installed
-2. Install Bun v1.0+ from [bun.sh](https://bun.sh)
-3. Clone the repository: `git clone https://github.com/butteredstardust/devdrivr.git`
-4. Install dependencies: `bun install`
-5. Start the application: `bun run tauri dev`
+Use [ONBOARDING.md](ONBOARDING.md) to set up a development environment.
 
 ## Interface Overview
 
-The devdrivr interface is designed for efficiency and keyboard navigation:
+The workspace keeps tools in the sidebar and their content in workspace tabs.
 
 ### Main Components
 
-1. **Sidebar**: Contains all tools organized by category
-2. **Main Content Area**: Where the active tool is displayed
-3. **Status Bar**: Shows current application status and connection information
-4. **Command Palette**: Accessible via `Cmd/Ctrl + K`
+1. **Sidebar**: Open a tool by group.
+2. **Workspace**: Use the active tool in a tab.
+3. **Notes drawer**: Create and update notes.
+4. **Command palette**: Search and open a tool with `Cmd/Ctrl + K`.
 
 ### Sidebar Navigation
 
-The sidebar is organized into tool groups:
+The sidebar groups tools by their purpose:
 
-- **Core Tools**: Essential utilities like Code Formatter, JSON Tools, YAML Tools
-- **Data Tools**: JSON/YAML processors, API client, database utilities
-- **Text Processing**: Regex tester, text utilities, string processors
-- **Development Tools**: Code comparison, minifier, formatter
-- **Utilities**: Base64 encoder/decoder, color picker, password generator
+- **Code**: Formatting, TypeScript, diff, and refactoring.
+- **Data**: JSON, XML, YAML, schema, and CSV tools.
+- **Web**: CSS and HTML tools.
+- **Convert**: Value, text, and image conversion tools.
+- **Test**, **Network**, and **Write**: Testing, HTTP, documentation, and reusable content tools.
 
 ## Core Features
 
 ### Tool System
 
-The application provides registered tools organized by function. Each tool is designed to be self-contained and focused on a specific developer task.
+Each tool has one focused task. Use the command palette or sidebar to open it.
 
 ### State Persistence
 
-All tool states are automatically saved and restored between sessions:
+The workspace saves local state between sessions:
 
-- Notes and snippets are saved to local SQLite database
-- Tool states are preserved with automatic debouncing
-- Window position and size are remembered between sessions
+- Notes and snippets persist in SQLite.
+- Tool state persists after a short delay.
+- Window position and size persist locally.
 
 ### Keyboard-Driven Navigation
 
-The application is optimized for keyboard use:
+Use global shortcuts for common workspace actions:
 
 - `Cmd/Ctrl + K` for quick tool switching
 - `Cmd/Ctrl + ,` for settings
-- `Cmd/Ctrl + /` for the command palette
+- `Cmd/Ctrl + /` for the shortcut reference
 - Tool-specific shortcuts for each utility
 
 ## Tools Reference
 
 ### Code Formatter
 
-Format code in multiple languages with consistent styling:
+Paste source, select a language, then format it.
 
 - JavaScript, TypeScript, JSON, CSS, HTML, and more
 - Configurable formatting options
@@ -107,7 +103,7 @@ Format code in multiple languages with consistent styling:
 
 ### JSON Tools
 
-Work with JSON data:
+Use this tool to validate and transform JSON.
 
 - Format with proper indentation
 - Minify by removing whitespace
@@ -116,7 +112,7 @@ Work with JSON data:
 
 ### YAML Tools
 
-Comprehensive YAML utility:
+Use this tool to validate, view, and transform YAML.
 
 - Lint and format YAML content
 - Interactive tree view browser
@@ -125,7 +121,7 @@ Comprehensive YAML utility:
 
 ### API Client
 
-Test and debug API endpoints:
+Use this tool to send HTTP requests and inspect responses.
 
 - Create collections for organizing requests
 - Set up environment variables
@@ -134,7 +130,7 @@ Test and debug API endpoints:
 
 ### Notes
 
-Create and manage notes:
+Use the notes drawer to create and update local notes.
 
 - Color-coded note system
 - Automatic saving and syncing
@@ -143,7 +139,7 @@ Create and manage notes:
 
 ### Snippets
 
-Store and organize code snippets:
+Use Snippets to save and find reusable code.
 
 - Categorize by language or purpose
 - Quick insert with keyboard shortcuts
@@ -152,7 +148,7 @@ Store and organize code snippets:
 
 ## Settings and Customization
 
-Access settings through the gear icon in the top right or with `Cmd/Ctrl + ,`.
+Open Settings with `Cmd/Ctrl + ,`.
 
 ### Appearance
 
@@ -190,15 +186,14 @@ panes are often half a window wide, where both cost more room than they earn.
 
 ### Keyboard Shortcuts
 
-All keyboard shortcuts can be customized:
+Use the shortcut reference to check the global bindings.
 
-- Global navigation shortcuts
-- Tool-specific shortcuts
-- Custom user-defined shortcuts
+- Global shortcuts are defined by the app.
+- Tools can provide their own actions.
 
 ### Data Management
 
-Control your data:
+Use the data controls to manage local workspace data:
 
 - Clear history
 - Export/import notes and snippets
@@ -237,7 +232,7 @@ Each tool may have its own keyboard shortcuts for common operations like formatt
 
 ### Local Storage
 
-All data is stored locally in SQLite:
+The app stores workspace data locally in SQLite:
 
 - Settings are stored in the `settings` table
 - Tool states are stored in the `tool_state` table
@@ -248,14 +243,14 @@ All data is stored locally in SQLite:
 
 ### Data Persistence
 
-Data is automatically saved with a two-tier system:
+The app updates memory first and writes persistent state after a delay:
 
 1. In-memory cache for instant response
 2. Debounced SQLite writes for persistence
 
 ### Backup and Restore
 
-The application automatically preserves your data between sessions. In case of issues:
+Check the data controls before you reset local data:
 
 1. Settings can be reset in the Settings panel
 2. Individual tool states can be cleared
@@ -291,10 +286,9 @@ If you encounter persistent issues:
 
 ## Advanced Usage
 
-### Local development commands
+### Developer commands
 
-devdrivr doesn't ship a separate CLI — these are the same `bun run` scripts used for local
-development:
+Use [ONBOARDING.md](ONBOARDING.md) for development commands and checks.
 
 ```bash
 # Run tests
@@ -310,9 +304,9 @@ npx tsc --noEmit
 bun run lint
 ```
 
-### Custom Shortcuts
+### Tool actions
 
-Create custom keyboard shortcuts:
+Use the tool action controls shown by the active tool.
 
 1. Open Settings (`Cmd/Ctrl + ,`)
 2. Navigate to Keyboard Shortcuts
@@ -336,9 +330,9 @@ client.get('/api/data').then((response) => {
 })
 ```
 
-### Performance Optimization
+### Workspace performance
 
-The application uses several techniques to maintain performance:
+The workspace uses local state and workers for supported operations:
 
 - Web Workers handle heavy computational tasks
 - Virtualized lists for large data sets
@@ -346,9 +340,9 @@ The application uses several techniques to maintain performance:
 - Memoized components
 - Database connection pooling
 
-### Customizing the Interface
+### Interface settings
 
-Adjust the interface to your preferences:
+Update the theme and editor settings in Settings:
 
 - Change themes in Settings
 - Customize editor settings
@@ -363,7 +357,7 @@ Adjust the interface to your preferences:
 
 ## Feedback and Support
 
-For issues, suggestions, or questions:
+For help or a problem report:
 
 1. Check the documentation
 2. Search [existing issues](https://github.com/butteredstardust/devdrivr/issues)
@@ -380,9 +374,7 @@ For issues, suggestions, or questions:
 
 ## MCP Server
 
-devdrivr includes a local MCP server for CLI agents such as Codex CLI and Claude Code.
-It lets agents search, inspect, and manage local notes, snippets, prompt templates,
-and saved API client requests with explicit permissions.
+devdrivr includes a local MCP server for CLI agents. It manages local notes, snippets, prompt templates, and saved API requests with configured permissions.
 
 Default endpoint:
 

@@ -1,8 +1,6 @@
 # devdrivr Release Smoke Report
 
-This report is release evidence. Run every check against the downloaded GitHub Release artifact
-identified below. Replace each `Not run` result with `Pass`, `Fail`, or `Blocked` and attach concise
-evidence.
+Use this report as release evidence. Run each check against the downloaded GitHub Release artifact identified below. Replace every `Not run` result with `Pass`, `Fail`, or `Blocked`. Add concise evidence.
 
 ## Validation Metadata
 
@@ -69,8 +67,7 @@ Decision owner: _Not recorded_
 
 ## Release-Blocking Rules
 
-Promotion is blocked when any blocking row is `Fail`, `Blocked`, or `Not run`, or when validation
-finds:
+Do not promote when a blocking row is `Fail`, `Blocked`, or `Not run`. Do not promote when validation finds:
 
 - installer or launch failure;
 - a blank/stuck window or missing required assets;
@@ -80,4 +77,4 @@ finds:
 - missing platform artifacts or incomplete `latest.json`;
 - an updater failure that blocks startup or normal app use.
 
-Screenshots, logs, release URLs, and issue links may be attached in the Evidence and Defects tables.
+Add screenshots, logs, release URLs, and issue links to the Evidence and Defects tables when available.

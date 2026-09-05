@@ -1,155 +1,116 @@
 # PRODUCT MAP — devdrivr
 
-> **Check this file first.** It tells you what exists, what works, and what the product is.
+devdrivr is a local-first, keyboard-driven developer utility workspace. It runs as a Tauri 2 desktop app with a React 19 interface. The app stores its data in local SQLite storage.
 
----
+Use this file as the product inventory. The tool registry defines the available tools.
 
-## What Is devdrivr?
+## Tool Inventory
 
-A **local-first, keyboard-driven developer utility workspace** built as a native desktop app (Tauri 2 + React 19). It runs entirely on your machine — no cloud, no accounts, no network required (except the API Client tool). All state is persisted to a local SQLite database.
+### Code
 
-Think of it as a developer's Swiss Army knife: 30 registered tools covering formatting, conversion, testing, network, and writing — all accessible instantly via `Cmd+K`.
+| Tool                  | ID                    | Description                                                                          |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| Code Formatter        | `code-formatter`      | Format and beautify JS, TS, JSON, CSS, HTML, YAML, SQL, and GraphQL.                 |
+| TypeScript Playground | `ts-playground`       | Compile TypeScript to JavaScript with live type checking.                            |
+| Diff Viewer           | `diff-viewer`         | Compare text with syntax highlighting, automatic diff, statistics, and patch export. |
+| Refactoring Toolkit   | `refactoring-toolkit` | Run AST codemods for JS and TS with a diff preview.                                  |
 
----
+### Data
 
-## Current Status
+| Tool                  | ID                      | Description                                                                                   |
+| --------------------- | ----------------------- | --------------------------------------------------------------------------------------------- |
+| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, query paths, and view JSON.                              |
+| XML Tools             | `xml-tools`             | Validate XML and use tree, JSON, XPath, format, minify, and copy views.                       |
+| YAML Tools            | `yaml-tools`            | Validate YAML and use tree, JSON, format, sort, and compact views.                            |
+| JSON Schema Validator | `json-schema-validator` | Validate JSON against a schema. Use templates, inference, sample generation, and strict mode. |
+| CSV Tools             | `csv-tools`             | View, filter, convert, inspect, and generate schemas from CSV data.                           |
 
-| Area                    | Status        | Notes                                                    |
-| ----------------------- | ------------- | -------------------------------------------------------- |
-| Core shell              | ✅ Stable     | Sidebar, notes drawer, command palette, status bar       |
-| Registered tools        | ✅ Functional | 30 tools across 7 groups; see inventory below            |
-| Worker-based tools      | ✅ Fixed      | Custom RPC replaces Comlink (WebKit Proxy bug)           |
-| Notes drawer resize     | ✅ Done       | Drag handle, persisted width                             |
-| Settings panel          | ✅ Stable     | Theme, font size, keybindings, history retention         |
-| Keyboard shortcuts      | ✅ Stable     | Full shortcut set, tool-local dispatch                   |
-| SQLite persistence      | ✅ Stable     | Tool state, notes, snippets, history, settings           |
-| Window geometry restore | ✅ Stable     | Position + size persisted, DPI-aware, off-screen clamped |
-| Cross-platform builds   | ✅ Configured | Release workflow builds macOS, Windows, and Linux        |
-| Workspace tabs          | ✅ Stable     | Keep-alive (4 most recent), duplicate tabs, MRU tracking |
-| Unit tests              | ✅ 1893 tests | Stores, tools, shell components, theme, keybindings      |
+### Web
 
----
+| Tool            | ID                | Description                                                                                    |
+| --------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| CSS Validator   | `css-validator`   | Check CSS, view problems and specificity, and format input.                                    |
+| HTML Validator  | `html-validator`  | Validate HTML and use preview, problems, accessibility rules, heading outline, and formatting. |
+| CSS Specificity | `css-specificity` | Calculate selector specificity and compare results.                                            |
+| CSS → Tailwind  | `css-to-tailwind` | Convert CSS rules to Tailwind classes.                                                         |
 
-## Tool Inventory (30 Tools)
+### Convert
 
-### Code Group
+| Tool                | ID                    | Description                                                                           |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| Case Converter      | `case-converter`      | Convert between 12 cases with detection, word splitting, and chaining.                |
+| Color Converter     | `color-converter`     | Convert color values and use named colors, scales, harmony, and history.              |
+| Timestamp Converter | `timestamp-converter` | Work with timestamps, presets, dates, timezones, and day or week information.         |
+| Base64              | `base64`              | Encode and decode Base64. Use URL-safe mode, line wrap, image preview, and data URIs. |
+| URL Encode/Decode   | `url-codec`           | Encode and decode URLs. Use recursive, line-by-line, swap, and parsed-parts modes.    |
+| cURL → Fetch        | `curl-to-fetch`       | Convert cURL to fetch, axios, ky, XHR, or Node.js.                                    |
+| UUID Generator      | `uuid-generator`      | Generate, validate, parse, and export v1, v4, v5, and v7 UUIDs.                       |
+| Hash Generator      | `hash-generator`      | Hash text or streamed files with MD5, SHA, SHA-3, BLAKE2b, and HMAC.                  |
+| Image Tool          | `image-tool`          | Resize, crop, rotate, flip, compress, and convert JPEG, PNG, and WebP images.         |
 
-| Tool                  | ID                    | What It Does                                                                          |
-| --------------------- | --------------------- | ------------------------------------------------------------------------------------- |
-| Code Formatter        | `code-formatter`      | Format JS/TS/JSON/CSS/HTML/SQL/YAML/XML/Markdown/GraphQL via Prettier + sql-formatter |
-| TypeScript Playground | `ts-playground`       | Compile TypeScript → JavaScript with real stdlib type checking (worker-based)         |
-| Diff Viewer           | `diff-viewer`         | Side-by-side & inline diff with syntax highlighting (diff2html)                       |
-| Refactoring Toolkit   | `refactoring-toolkit` | 12 jscodeshift codemods with filterable picker, diff preview, apply + undo            |
+### Test
 
-### Data Group
+| Tool         | ID             | Description                                                                  |
+| ------------ | -------------- | ---------------------------------------------------------------------------- |
+| Regex Tester | `regex-tester` | Test and replace text with match highlighting, groups, and export.           |
+| JWT Decoder  | `jwt-decoder`  | Decode JWTs and use HMAC verification, claim windows, and color-coded parts. |
 
-| Tool                  | ID                      | What It Does                                                                                                                          |
-| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| JSON Tools            | `json-tools`            | Validate, format, minify, sort keys, path query, tree + table beside the editor                                                       |
-| XML Tools             | `xml-tools`             | Live validation with line/column; tree, JSON and XPath panes beside the editor                                                        |
-| YAML Tools            | `yaml-tools`            | Live validation with line/column; multi-document streams; tree and JSON panes beside the editor                                       |
-| JSON Schema Validator | `json-schema-validator` | Live Ajv validation with a clickable problems list, templates, schema inference, and strict mode                                      |
-| CSV Tools             | `csv-tools`             | Sortable/filterable table beside the source, JSON/TSV/Markdown/SQL conversion, column statistics, generated TypeScript or SQL schemas |
+### Network
 
-### Web Group
+| Tool         | ID             | Description                                                                         |
+| ------------ | -------------- | ----------------------------------------------------------------------------------- |
+| API Client   | `api-client`   | Send HTTP requests with form or file bodies, cURL export, and a response inspector. |
+| Docs Browser | `docs-browser` | Browse devdocs.io documentation.                                                    |
 
-| Tool            | ID                | What It Does                                                                                                                     |
-| --------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| CSS Validator   | `css-validator`   | Specification-backed checking with a clickable problems list, a specificity ranking, and formatting                              |
-| HTML Validator  | `html-validator`  | Live HTMLHint validation with a clickable problems list, accessibility rules, heading outline, sandboxed preview, and formatting |
-| CSS Specificity | `css-specificity` | Calculate & compare CSS selector specificity scores                                                                              |
-| CSS → Tailwind  | `css-to-tailwind` | Convert raw CSS properties to Tailwind utility classes                                                                           |
+### Write
 
-### Convert Group
+| Tool             | ID                 | Description                                                                                  |
+| ---------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| Markdown Editor  | `markdown-editor`  | Edit Markdown with find and replace, templates, table of contents, reading time, and export. |
+| Mermaid Editor   | `mermaid-editor`   | Edit and preview Mermaid diagrams. Export SVG or PNG.                                        |
+| Snippets         | `snippets`         | Organize, search, edit, and back up reusable code snippets.                                  |
+| Prompt Templates | `prompt-templates` | Fill AI prompt templates with variables, preview tokens, and copy the result.                |
 
-| Tool                | ID                    | What It Does                                                                                 |
-| ------------------- | --------------------- | -------------------------------------------------------------------------------------------- |
-| Case Converter      | `case-converter`      | All case formats: camelCase, snake_case, kebab-case, PascalCase, SCREAMING_SNAKE, Title Case |
-| Color Converter     | `color-converter`     | hex ↔ rgb ↔ hsl ↔ oklch; WCAG contrast ratio; named colors                                   |
-| Timestamp Converter | `timestamp-converter` | Unix timestamp ↔ human date; timezone-aware; relative time                                   |
-| Base64              | `base64`              | Encode/decode Base64, UTF-8 safe, file support                                               |
-| URL Encode/Decode   | `url-codec`           | URL encode/decode; query parameter extraction                                                |
-| cURL → Fetch        | `curl-to-fetch`       | Convert cURL commands to fetch / axios / ky                                                  |
-| UUID Generator      | `uuid-generator`      | Generate & validate UUIDs v4 (crypto.randomUUID)                                             |
-| Hash Generator      | `hash-generator`      | MD5 (js-md5), SHA-1/256/512 (crypto.subtle)                                                  |
-| Image Tool          | `image-tool`          | Resize, crop, compress, and convert images (JPEG, PNG, WebP)                                 |
+## Workspace Data
 
-### Test Group
+The app opens the SQLite database named `cockpit.db`. The Tauri application identifier is `com.devdrivr.cockpit`.
 
-| Tool         | ID             | What It Does                                                   |
-| ------------ | -------------- | -------------------------------------------------------------- |
-| Regex Tester | `regex-tester` | Live regex matching with group extraction, infinite-loop guard |
-| JWT Decoder  | `jwt-decoder`  | Decode header/payload/signature; expiry detection              |
+| Table                   | Contents                            |
+| ----------------------- | ----------------------------------- |
+| `settings`              | App preferences.                    |
+| `tool_state`            | State for a tool tab.               |
+| `notes`                 | Notes and their properties.         |
+| `snippets`              | Saved code snippets.                |
+| `history`               | Tool execution history.             |
+| `api_environments`      | API Client environments.            |
+| `api_collections`       | API Client collections.             |
+| `api_requests`          | Saved API Client requests.          |
+| `user_prompt_templates` | Built-in and user prompt templates. |
 
-### Network Group
+The first tab for a tool uses its tool ID as the state key. Duplicate tabs use `<toolId>#<tabId>`. Closing a duplicate tab removes its saved state.
 
-| Tool         | ID             | What It Does                                                  |
-| ------------ | -------------- | ------------------------------------------------------------- |
-| API Client   | `api-client`   | Full HTTP client via Tauri's HTTP plugin; headers, body, auth |
-| Docs Browser | `docs-browser` | Embedded devdocs.io iframe for offline-ish docs browsing      |
+## Global Shortcuts
 
-### Write Group
+| Shortcut                                | Action                                        |
+| --------------------------------------- | --------------------------------------------- |
+| `Cmd+K`                                 | Open the command palette.                     |
+| `Cmd+B`                                 | Toggle the sidebar.                           |
+| `Cmd+Shift+N`                           | Toggle the notes drawer.                      |
+| `Cmd+Shift+T`                           | Cycle the theme.                              |
+| `Cmd+]` / `Cmd+[`                       | Open the next or previous tool.               |
+| `Cmd+Enter`                             | Execute the active tool action.               |
+| `Cmd+Shift+C`                           | Copy active tool output.                      |
+| `Cmd+O`                                 | Open a file when the active tool supports it. |
+| `Cmd+S`                                 | Save output when the active tool supports it. |
+| `Cmd+,`                                 | Toggle the settings panel.                    |
+| `Cmd+Shift+P`                           | Toggle always-on-top.                         |
+| `Cmd+/`                                 | Toggle the shortcut reference.                |
+| `Cmd+1` through `Cmd+9`                 | Switch to a workspace tab by position.        |
+| `Cmd+W`                                 | Close the current workspace tab.              |
+| `Cmd+Ctrl+F` on macOS / `F11` elsewhere | Toggle native fullscreen.                     |
 
-| Tool             | ID                 | What It Does                                                        |
-| ---------------- | ------------------ | ------------------------------------------------------------------- |
-| Markdown Editor  | `markdown-editor`  | Split-pane edit + preview; GFM; Mermaid diagrams; HTML export       |
-| Mermaid Editor   | `mermaid-editor`   | Edit & preview Mermaid diagrams; pan/zoom; ⌘O/⌘S; SVG/PNG export    |
-| Snippets         | `snippets`         | CRUD code snippets with tags, fuzzy search, import/export           |
-| Prompt Templates | `prompt-templates` | Fill curated AI prompt templates with variables and token estimates |
+On Windows and Linux, use `Ctrl` where this table shows `Cmd`.
 
----
+## Product Boundaries
 
-## Persistent Data
-
-Everything lives in `~/Library/Application Support/com.devdrivr.devdrivr/devdrivr.db`:
-
-| Table                   | Contains                                                                  |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `settings`              | All app preferences (theme, window bounds, active tool, etc.)             |
-| `tool_state`            | Per-tab UI state (restores between sessions); see note below              |
-| `notes`                 | Sticky notes with colors, pin state, size, and tags (added migration 003) |
-| `snippets`              | Code snippets with tags                                                   |
-| `history`               | Tool execution history (input/output pairs)                               |
-| `api_environments`      | API Client saved environments (base URL, headers)                         |
-| `api_collections`       | API Client request collections                                            |
-| `api_requests`          | Saved API requests with method, URL, headers, body                        |
-| `user_prompt_templates` | Built-in and user-created prompt templates                                |
-
-`tool_state.tool_id` holds a tab's **state key**, not always a bare tool id. The first tab of a tool
-keeps the bare id (`json-tools`), so state written before tabs could be duplicated is still read;
-every additional tab of the same tool gets `<toolId>#<tabId>`. Keys are assigned left-to-right when
-tabs are restored, and a surviving tab keeps its key when a sibling closes. Closing a duplicate tab
-deletes its row — the tab id never comes round again — while bare-keyed rows are always kept.
-
----
-
-## Keyboard Shortcuts (Global)
-
-| Shortcut          | Action                                   |
-| ----------------- | ---------------------------------------- |
-| `Cmd+K`           | Command palette (fuzzy search all tools) |
-| `Cmd+B`           | Toggle sidebar                           |
-| `Cmd+Shift+N`     | Toggle notes drawer                      |
-| `Cmd+Shift+T`     | Cycle theme (dark → light → system)      |
-| `Cmd+]` / `Cmd+[` | Next / previous tool                     |
-| `Cmd+Enter`       | Execute active tool (format, run, etc.)  |
-| `Cmd+Shift+C`     | Copy tool output                         |
-| `Cmd+O`           | Open file                                |
-| `Cmd+S`           | Save output to file                      |
-| `Cmd+,`           | Settings panel                           |
-| `Cmd+Shift+P`     | Toggle always-on-top                     |
-| `Cmd+/`           | Keyboard shortcuts reference             |
-| `Cmd+1/2/3`       | Switch to workspace tab 1 / 2 / 3        |
-| `Cmd+W`           | Close current workspace tab              |
-
-> On Windows/Linux, replace `Cmd` with `Ctrl`.
-
----
-
-## Platform Support
-
-| Platform        | Status                                                         |
-| --------------- | -------------------------------------------------------------- |
-| macOS (primary) | ✅ Primary development and release target                      |
-| Windows         | ✅ Release build configured; manual smoke required per release |
-| Linux           | ✅ Release build configured; manual smoke required per release |
+devdrivr does not require an account. The API Client sends network requests when you use it. Other tool behavior depends on the local app and its saved data.

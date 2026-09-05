@@ -1,79 +1,69 @@
 # Remote UI Harness
 
-How to drive the **running** devdrivr app from a plain Chromium page — real database, real
-filesystem, real MCP server — using the `tauri-remote-ui` bridge.
+Use this harness to drive the running app from Chromium with real IPC. It accesses the real database, filesystem, and MCP server through tauri-remote-ui.
 
-> Not sure this is the one you want? See [HARNESSES.md](HARNESSES.md). Short version: use
-> [BROWSER_HARNESS.md](BROWSER_HARNESS.md) for layout and interaction, this for anything where the
-> stub's canned data is in the way.
+> Use [HARNESSES.md](HARNESSES.md) to select a harness. Use [BROWSER_HARNESS.md](BROWSER_HARNESS.md) for fast layout and interaction checks with stubbed IPC.
 
-## When to reach for it
+## When to use it
 
-- A bug that only appears with real rows, or only after a reload
-- SQLite reads/writes, migrations, the notes / history / snippets / API-history stores
-- Anything the browser stub logs `[tauri-stub] unhandled command "…"` for
-- The MCP server, file dialogs, `fs`, `http`
-- Any time you want Playwright to click through the app and have the clicks _mean_ something
+- Data is wrong with real rows or after reload.
+- You need SQLite reads, writes, migrations, or store persistence.
+- The Browser harness logs [tauri-stub] unhandled command "…".
+- You need the MCP server, file dialogs, fs, or http.
+- You need browser automation with real IPC.
 
-Not for: window chrome, dragging, resizing, global shortcuts — those are Native only. Not for tight
-layout iteration either; there is no HMR here, so use the browser harness for that.
+Use [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) for window chrome, dragging, resizing, and global shortcuts. Use Browser for tight layout work. Remote UI has no HMR.
 
-## Setup
+## Prerequisites and setup
+
+Run the remote development command before you open Chromium. It runs the app and the static build watcher.
 
 ```bash
 cd .
 bun run dev:remote
 ```
 
-Wait for `remote-ui: http://127.0.0.1:9090 -> window main` in the output, then open
-<http://127.0.0.1:9090> in any browser, or point Playwright at it. No init script and no stub —
-unlike the browser harness, the page boots on its own.
+Wait for remote-ui: http://127.0.0.1:9090 -> window main. Then open <http://127.0.0.1:9090> or point Playwright to it.
 
-Two things start, and both are needed:
+Do not add an init script. Do not install the Browser harness stub. The page supplies the required globals.
 
-- `tauri dev --features remote-ui` — the app. Its native window still loads the Vite dev server on
-  :1420 with full HMR, exactly as usual.
-- `vite build --watch` — writes `dist/` in development mode with sourcemaps. **This** is what the
-  browser at :9090 loads, because the bridge serves static files off disk and cannot proxy a dev
-  server (and the WebSocket must be same-origin, so the browser cannot just load :1420 instead).
+The command runs both required processes:
 
-So there are two copies of the frontend against one app process. The native window is live; the
-browser copy trails it by one rebuild, roughly 40 seconds. Both talk to the same database.
+- tauri dev --features remote-ui runs the app. Its native window loads the Vite server on :1420 with HMR.
+- vite build --watch writes development output and sourcemaps to dist/. Chromium at :9090 loads this output.
 
-Ctrl-C stops both — [`scripts/dev-remote.sh`](../scripts/dev-remote.sh) traps the signal, because an
-orphaned watcher quietly rewriting `dist/` under the next run is a genuinely confusing failure.
+The native window and Chromium use one app process and one database. Chromium reflects the last completed build. A save takes roughly 40 seconds to rebuild.
 
-## Licensing — read this before touching the wiring
+Ctrl-C stops both processes. scripts/dev-remote.sh handles the signal and prevents an orphaned watcher from updating dist/.
 
-`tauri-remote-ui` is **AGPL-3.0-only**. devdrivr is MIT. Linking an AGPL crate into a distributed
-binary would put the whole app under that copyleft, so the bridge is gated twice:
+## Licensing and network limits
 
-- **Rust:** an `optional` dependency behind the `remote-ui` Cargo feature, plus a `compile_error!`
-  in `src-tauri/src/lib.rs` under `cfg(all(feature = "remote-ui", not(debug_assertions)))`. A
-  release build with the feature set fails to compile rather than silently shipping.
-- **Frontend:** [`scripts/vite-plugin-remote-ui.js`](../scripts/vite-plugin-remote-ui.js) is gated
-  on the `DEVDRIVR_REMOTE_UI` environment variable, not on build mode — `bun run build` produces the
+WARNING: tauri-remote-ui is AGPL-3.0-only. Do not include it in a distributed release. It has no authentication, authorization, or TLS.
+
+Two gates keep the harness out of a release build:
+
+- **Rust.** The dependency is optional, behind the `remote-ui` Cargo feature. A `compile_error!` in
+  `src-tauri/src/lib.rs` fires under `cfg(all(feature = "remote-ui", not(debug_assertions)))`. A
+  release build with the feature set fails to compile rather than shipping silently.
+- **Frontend.** [`scripts/vite-plugin-remote-ui.js`](../scripts/vite-plugin-remote-ui.js) is gated on
+  the `DEVDRIVR_REMOTE_UI` environment variable, not on build mode. `bun run build` produces the
   shipped bundle in the same `build` mode `dev:remote` uses, so mode alone cannot tell them apart.
 
-Consequences, all of them deliberate:
+Do not add the feature to `tauri build`. Do not add the crate to `[dependencies]`. Do not add it to
+`src/lib/acknowledgments.ts`.
 
-- Never move the crate into `[dependencies]` proper or add the feature to `tauri build`.
-- It is **not** in `src/lib/acknowledgments.ts`. That tab lists what ships; this does not ship.
-- If you change either gate, the licensing question comes back — verify with:
+Validate both release gates when you change this wiring:
 
-  ```bash
-  cd src-tauri && cargo check --release --features remote-ui   # must FAIL
-  cd .. && bun run build && grep -r "remote_ui_ws" dist/        # must find nothing
-  ```
+```bash
+cd src-tauri && cargo check --release --features remote-ui   # must FAIL
+cd .. && bun run build && grep -r "remote_ui_ws" dist/        # must find nothing
+```
 
-There is also **no authentication, authorization or TLS** in the plugin. It binds to `127.0.0.1`
-(`OriginType::Localhost`, the default) and that is deliberately not configurable here — a wider
-scope would hand anyone on the network the ability to invoke every command the app exposes.
+The plugin binds to 127.0.0.1 through OriginType::Localhost. Do not widen that scope without reviewing the command access it enables.
 
-## How it works
+## How the harness works
 
-The remote page does not stream the native UI. It loads its own copy of the bundle, and only the
-IPC is forwarded:
+Chromium loads a separate frontend bundle. The harness forwards IPC only.
 
 ```
 Chromium (:9090) ──invoke()──▶ WebSocket ──▶ Rust plugin
@@ -86,60 +76,36 @@ Chromium (:9090) ──invoke()──▶ WebSocket ──▶ Rust plugin
                         ◀── result emitted back over the socket ───
 ```
 
-Because the round-trip goes _through_ the native webview, the app must be running and its `main`
-window must exist. `enable_application_ui()` keeps that window usable while a browser is connected;
-without it the plugin replaces it with a blocking screen.
+The app must run and its main window must exist. enable_application_ui() keeps that window usable while Chromium is connected.
 
-### The frontend swap
+## Frontend IPC replacement
 
-The npm half of `tauri-remote-ui` exports replacement `invoke` and `listen` functions and expects
-you to import them by hand. devdrivr cannot: `@tauri-apps/plugin-sql`, `plugin-fs`, `plugin-http` and
-`plugin-dialog` each reach for `invoke` themselves, deep in `node_modules`, and those are exactly
-the calls worth exercising. So the swap happens at module-resolution time for every importer at
-once. Two things about that are non-obvious, and both cost an hour to find:
+The harness replaces invoke and listen at module resolution. It must replace every importer. Tauri plugins call invoke inside their dependencies.
 
-- **It cannot be a Vite `alias`.** The shim exports _only_ `invoke`, while `plugin-sql` imports
-  `{ Resource, Channel, invoke }` — aliasing the whole module turns those into build errors. And the
-  shim itself imports `@tauri-apps/api/core` for its in-Tauri fallback, so a blanket alias resolves
-  to itself. Instead the plugin generates a facade that re-exports the genuine module and shadows
-  the single binding (an explicit re-export wins over `export *` of the same name; two `export *`
-  would make it _ambiguous_, which is not a build error — the name just silently stops existing).
-- **Matching is on the resolved file, not the specifier.** `@tauri-apps/api/window.js` imports
-  `invoke` from `'./core.js'` relatively. Spelled that way it slips past a bare-specifier match, so
-  `getCurrentWindow()` keeps the untouched `invoke` and dies on `__TAURI_INTERNALS__.invoke is not
-a function`.
+Do not use a Vite alias. The shim exports only invoke. Plugin imports also require Resource and Channel. The shim imports @tauri-apps/api/core for its in-Tauri fallback.
 
-### Why the page defines `metadata` but not `invoke`
+Match the resolved file, not only the import specifier. @tauri-apps/api/window.js imports invoke from './core.js'. A bare-specifier match leaves that call unchanged.
 
-[`scripts/tauri-remote-globals.js`](../scripts/tauri-remote-globals.js) installs a partial
-`window.__TAURI_INTERNALS__` — `metadata`, `transformCallback`, `unregisterCallback`,
-`convertFileSrc` — because `getCurrentWindow()` reads `metadata.currentWindow.label` at module scope
-and the page otherwise dies on `Cannot read properties of undefined (reading 'metadata')` before the
-shell mounts.
+## Required remote globals
 
-It pointedly does **not** define `invoke`. The shim decides which transport to use by testing
-`__TAURI_INTERNALS__.invoke`, so defining it — even as a stub — routes every call into a dead end
-instead of over the socket, and the entire point of this harness is that the calls are real. This is
-also why [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js) cannot be reused here:
-that file exists to fake IPC, this one exists to get out of its way.
+scripts/tauri-remote-globals.js installs metadata, transformCallback, unregisterCallback, and convertFileSrc on window.**TAURI_INTERNALS**. getCurrentWindow() needs metadata.currentWindow.label before the shell mounts.
 
-## Gotchas
+Do not define invoke in these globals. The shim checks **TAURI_INTERNALS**.invoke to select its transport. A stub routes calls away from the socket.
 
-- **You are looking at the last build, not the last save.** If a change isn't showing up, check the
-  `vite build --watch` output before doubting the code. This is the single most likely confusion.
-- **A probe writes to your real database.** Seeding fifty rows to test a list is fifty rows you now
-  own. Use the browser harness when you want a clean slate every reload.
-- **`Channel` does not work.** It goes through `__TAURI_INTERNALS__.transformCallback`, which has no
-  WebSocket equivalent. Request/response commands are fine; streaming ones are not. Nothing in
-  devdrivr uses one today — if that changes, this harness stops covering it.
-- **Only the `main` window is bridged.** Multi-window support is on the plugin's roadmap, not in it.
-- **Sourcemaps are on and the build is in development mode**, so stack traces and React component
-  names are readable. That is the point; don't "optimise" `dev-remote.sh` into a production build.
+Do not reuse scripts/tauri-browser-stub.js. That file stubs IPC. This harness must forward IPC.
 
-## Verifying it works
+## Operating rules
 
-A quick end-to-end check that exercises the whole chain — static serve, socket, `window.eval`, a
-real command, and a real database read:
+- Check the vite build --watch output when a change is missing. Chromium shows the last build, not the last save.
+- WARNING: Test actions write to your real database. Use Browser when you need empty state after reload.
+- Do not use Channel. It uses **TAURI_INTERNALS**.transformCallback, which has no WebSocket equivalent.
+- Use request/response commands only. Streaming commands are not covered by this harness.
+- Use the main window only. The bridge does not support additional windows.
+- Keep sourcemaps and the development build. They keep stack traces and component names readable.
+
+## Validate the connection
+
+Run this check after the remote page is available. It validates static output, the socket, window.eval, a real command, and a database read.
 
 ```js
 await page.goto('http://127.0.0.1:9090')
@@ -150,5 +116,4 @@ await page.locator('button:has-text("About")').click()
 await expect(page.getByText(/^v\d+\.\d+\.\d+$/).first()).toBeVisible()
 ```
 
-If the shell renders with your actual notes, history count and theme rather than an empty app, the
-bridge is working. If it renders empty, you are somehow on the stub.
+Check for the actual notes, history count, and theme. An empty app indicates the Browser stub, not Remote UI.

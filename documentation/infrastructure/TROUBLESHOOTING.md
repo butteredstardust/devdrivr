@@ -1,10 +1,12 @@
 # TROUBLESHOOTING — devdrivr
 
-> Self-healing guide. Start here when something breaks.
+> Use this guide when the app does not work as expected. Read the symptom, cause, and fix in order.
 
 ---
 
 ## Quick Diagnostics
+
+Run these checks to identify the failing area.
 
 ```bash
 # 1. Type errors?
@@ -29,9 +31,9 @@ SELECT * FROM settings;
 
 ### Blank white screen / "Loading..." forever
 
-**Cause:** Store init failed, likely a DB schema mismatch after a migration change.
+**Cause:** Store initialization fails. A database schema mismatch can cause this.
 
-**Fix:**
+**Fix:** WARNING: Resetting the database removes all app data.
 
 ```bash
 # Option A: Reset the DB (loses all data)
@@ -45,12 +47,12 @@ sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db
 
 ### "Failed to initialize: ..." error shown in app
 
-**Cause:** One of the store `init()` calls threw. Common causes:
+**Cause:** A store `init()` call throws. Common causes include:
 
 - DB file corrupted (WAL journal out of sync)
 - SQL syntax error in a query after code change
 
-**Fix:**
+**Fix:** WARNING: Removing the database removes all app data.
 
 ```bash
 # Force WAL checkpoint and try again
@@ -61,7 +63,7 @@ rm ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db*
 
 ### Rust compile error on `bun run tauri dev`
 
-**Cause:** Tauri Rust code changed, or `src-tauri/target` is stale.
+**Cause:** Rust code changes or a stale `src-tauri/target` directory prevent compilation.
 
 **Fix:**
 
@@ -76,7 +78,7 @@ bun run tauri dev
 
 ## Window Opens Too Wide / Wrong Position
 
-**Cause:** Window geometry was saved to SQLite when it was in a bad state (e.g., during a layout bug, or after disconnecting a monitor).
+**Cause:** SQLite stores invalid window geometry.
 
 **Fix:**
 
@@ -85,19 +87,20 @@ sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
   "UPDATE settings SET value = '{\"x\":100,\"y\":100,\"width\":1200,\"height\":800}' WHERE key = 'windowBounds';"
 ```
 
-Then restart the app. The bounds validator requires `width >= 800`, `height >= 500`, and position within `x > -200, y > -200`.
+Restart the app. The validator requires `width >= 800` and `height >= 500`.
+It requires `x > -200` and `y > -200`.
 
 ---
 
 ## Worker Tools Not Working
 
-**Symptoms:** Code Formatter / Diff Viewer / TypeScript Playground / XML Tools silently fail or throw method-not-found errors.
+**Symptoms:** Code Formatter, Diff Viewer, TypeScript Playground, or XML Tools fail silently. They can also report missing methods.
 
-**Root Cause History:** Comlink's `Proxy`-based `wrap()` returns `undefined` for property access in Tauri's WKWebView. This was replaced with a custom `postMessage`/`onmessage` RPC.
+**Cause:** Comlink `Proxy` property access returns `undefined` in Tauri's WKWebView. Workers use custom `postMessage` and `onmessage` RPC.
 
 ### "worker.method is not a function" / method is undefined
 
-**Cause A:** Method name missing from the `useWorker` call.
+**Cause A:** The `useWorker` call omits the method name.
 
 **Fix:** Add the missing method to the methods array:
 
@@ -108,11 +111,11 @@ const worker = useWorker<MyWorker>(
 )
 ```
 
-**Cause B:** Worker file throws during import (bad dependency).
+**Cause B:** A dependency causes the worker file to throw during import.
 
-**How to check:** Open browser DevTools in Tauri (`Cmd+Option+I` in dev mode) → Console tab → look for Worker errors.
+**Check:** Open Tauri DevTools with `Cmd+Option+I` in dev mode. Check the Console tab for worker errors.
 
-**Fix:** The worker dependency imports something CJS/UMD that crashes ESM workers. Replace with an ESM-native alternative:
+**Fix:** Replace the CJS or UMD dependency with an ESM-native alternative.
 
 ```typescript
 // ❌ node-sql-parser (CJS/UMD — crashes)
@@ -124,9 +127,9 @@ import { format } from 'sql-formatter'
 
 ### Worker spawns but never responds (Promise hangs forever)
 
-**Cause:** `handleRpc(api)` was not called in the worker, or the method name doesn't match.
+**Cause:** The worker does not call `handleRpc(api)`. The method name can also differ.
 
-**Check:** Worker file must end with:
+**Check:** End the worker file with:
 
 ```typescript
 handleRpc(api) // not expose(api) — Comlink is removed
@@ -138,7 +141,7 @@ handleRpc(api) // not expose(api) — Comlink is removed
 
 **Symptom:** Tool resets to default state every time you switch to it.
 
-**Cause A:** `toolId` in `useToolState` doesn't match the registered `id` in `tool-registry.ts`.
+**Cause A:** The `toolId` in `useToolState` differs from the registered `id` in `tool-registry.ts`.
 
 **Fix:** Ensure they match exactly:
 
@@ -152,9 +155,9 @@ const [state, updateState] = useToolState<State>('json-tools', defaultState)
 //     ^^^^^^^^^^
 ```
 
-**Cause B:** SQLite write failed silently (check console for `[useToolState]` errors).
+**Cause B:** The SQLite write fails silently.
 
-**Check:** Open DevTools → Console → filter for "toolState".
+**Check:** Open DevTools. Filter the Console for `toolState`.
 
 ---
 
@@ -162,11 +165,11 @@ const [state, updateState] = useToolState<State>('json-tools', defaultState)
 
 ### Flash of wrong theme on startup
 
-**Cause:** `applyTheme()` was called at module level (before the DB-loaded theme is ready).
+**Cause:** Module-level `applyTheme()` runs before the database theme is ready.
 
-**Rule:** Only call `applyTheme()` inside `async init()` functions.
+**Fix:** Call `applyTheme()` only inside `async init()` functions.
 
-**Check:** Search for module-level `applyTheme(` calls:
+**Check:** Search for module-level `applyTheme(` calls.
 
 ```bash
 grep -rn "^applyTheme(" src/
@@ -174,7 +177,7 @@ grep -rn "^applyTheme(" src/
 
 ### CSS variable not applied
 
-**Cause:** A color was hardcoded instead of using a CSS variable.
+**Cause:** A hardcoded color bypasses the CSS variables.
 
 **Fix:** Replace with a CSS token:
 
@@ -188,7 +191,7 @@ className="bg-[var(--color-bg)]"
 style={{ color: 'var(--color-accent)' }}
 ```
 
-Available tokens: see `src/index.css` → `:root` block.
+Check available tokens in the `:root` block of `src/index.css`.
 
 ---
 
@@ -196,7 +199,7 @@ Available tokens: see `src/index.css` → `:root` block.
 
 ### Editor doesn't match app theme
 
-**Cause:** `useMonacoTheme()` not called in the tool component.
+**Cause:** The tool component does not call `useMonacoTheme()`.
 
 **Fix:**
 
@@ -209,7 +212,9 @@ export default function MyTool() {
 
 ### Editor options look different from other tools
 
-**Fix:** Use the shared options constant:
+**Cause:** The tool does not use the shared editor options.
+
+**Fix:** Use the shared options constant.
 
 ```typescript
 import { EDITOR_OPTIONS } from '@/hooks/useMonaco'
@@ -223,12 +228,20 @@ import { EDITOR_OPTIONS } from '@/hooks/useMonaco'
 
 ### WAL files accumulating / DB locked
 
+**Cause:** WAL files need a checkpoint, or another process holds the database lock.
+
+**Fix:** Run this checkpoint command.
+
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
   "PRAGMA wal_checkpoint(TRUNCATE);"
 ```
 
 ### Reset a specific setting
+
+**Symptom:** One persisted setting is invalid.
+
+**Fix:** Remove the setting row.
 
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
@@ -237,12 +250,22 @@ sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
 
 ### Inspect tool state
 
+**Symptom:** A tool does not restore persisted state.
+
+**Fix:** Inspect the stored state.
+
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
   "SELECT tool_id, substr(state, 1, 200) FROM tool_state;"
 ```
 
 ### Reset everything (nuclear option)
+
+**Symptom:** The database remains unusable.
+
+**Cause:** The database cannot recover with a checkpoint.
+
+**Fix:** WARNING: This removes all app data.
 
 ```bash
 rm ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db*
@@ -255,7 +278,9 @@ rm ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db*
 
 ### `Object is possibly undefined` on array access
 
-This is `noUncheckedIndexedAccess` — array access always returns `T | undefined`.
+**Cause:** `noUncheckedIndexedAccess` makes array access return `T | undefined`.
+
+**Fix:** Check the value before you use it.
 
 ```typescript
 const items = getItems()
@@ -266,6 +291,10 @@ const first = items[0]?.name ?? 'default'
 ```
 
 ### `exactOptionalPropertyTypes` errors
+
+**Cause:** Optional properties require an absent key in some contexts.
+
+**Fix:** Omit the key or use the stated cast.
 
 ```typescript
 type Config = { label?: string }
@@ -280,7 +309,9 @@ const c = { label: undefined } as Config
 
 ### `noUnusedLocals` / `noUnusedParameters`
 
-Remove unused variables/parameters, or prefix with `_` to intentionally ignore:
+**Cause:** A local variable or parameter is unused.
+
+**Fix:** Remove it. Prefix it with `_` only when you intentionally ignore it.
 
 ```typescript
 function handler(_event: MouseEvent, value: string) {
@@ -292,17 +323,17 @@ function handler(_event: MouseEvent, value: string) {
 
 ## Keyboard Shortcuts Not Firing
 
-**Cause A:** Focus is in an editable element (input, textarea, Monaco).
+**Cause A:** Focus is in an editable element such as an input, textarea, or Monaco.
 
-**Behavior:** Shortcuts without modifier keys are suppressed in editable fields. This is intentional.
+**Behavior:** Editable fields suppress shortcuts without modifier keys.
 
-**Fix:** Add the `mod: true` flag to the shortcut combo — modifier shortcuts work everywhere:
+**Fix:** Add `mod: true` to the shortcut combination.
 
 ```typescript
 useKeyboardShortcut({ key: 'Enter', mod: true }, handleSubmit) // works in inputs too
 ```
 
-**Cause B:** Two components registering the same shortcut — first one wins.
+**Cause B:** Two components register the same shortcut. The first registration wins.
 
 **Fix:** Move the shortcut to `useGlobalShortcuts.ts` and dispatch via `dispatchToolAction`.
 
@@ -312,13 +343,17 @@ useKeyboardShortcut({ key: 'Enter', mod: true }, handleSubmit) // works in input
 
 ### `bun run build` fails — TypeScript errors
 
+**Cause:** TypeScript validation fails.
+
+**Fix:** Run the type check first.
+
 ```bash
 npx tsc --noEmit   # find all errors first
 ```
 
 ### Worker chunk not found in production build
 
-**Cause:** Worker was imported with `new URL()` instead of `?worker`.
+**Cause:** The worker import uses `new URL()` instead of `?worker`.
 
 **Fix:**
 
@@ -333,21 +368,16 @@ new MyWorkerFactory()
 
 ### `cargo` / `bunx tauri build` — "command not found: cargo" or "failed to run `cargo metadata`"
 
-**Cause:** `cargo` is not a real binary here. Rust is installed via Homebrew's `rustup`, whose shims
-live in `/opt/homebrew/opt/rustup/bin` — _not_ in `~/.cargo/bin`, which does not exist on this
-machine. `rustup which cargo` resolves to the toolchain directory, but nothing puts a `cargo` on
-`PATH` by itself.
+**Cause:** Homebrew `rustup` provides Cargo shims in `/opt/homebrew/opt/rustup/bin`.
+The shim directory is not on `PATH`.
 
-**Fix:** the shim directory is on `PATH` for both Claude Code shells (`~/.claude/settings.json`
-`env.PATH` for zsh, `~/.claude/bash_env.sh` for bash). If it regresses, add it back rather than
-prefixing individual commands:
+**Fix:** Add the shim directory to `PATH`. Do not prefix individual commands.
 
 ```bash
 export PATH="/opt/homebrew/opt/rustup/bin:$PATH"
 ```
 
-Note that `bunx tauri build` shells out to `cargo metadata` as its _first_ step, so a missing
-`cargo` surfaces as a confusing config error rather than a plain "not found".
+`bunx tauri build` runs `cargo metadata` first. A missing `cargo` can show as a config error.
 
 ### `cargo clippy` fails reading permissions from a path that no longer exists
 
@@ -356,10 +386,7 @@ failed to read plugin permissions: failed to read file
 '.../apps/cockpit/src-tauri/target/debug/build/.../app_hide.toml': No such file or directory
 ```
 
-**Cause:** `src-tauri/target/` is gitignored, so it does not move when the source tree does — but
-its build cache stores **absolute** paths. After the repo was flattened from `apps/cockpit/` to the
-root, a carried-over target directory still pointed at the old location. Anyone who had built the
-app before pulling the flattening commit hits this once.
+**Cause:** The build cache stores absolute paths. `src-tauri/target/` can retain a path that no longer exists.
 
 **Fix:**
 
@@ -367,17 +394,19 @@ app before pulling the flattening commit hits this once.
 rm -rf src-tauri/target   # or: cargo clean --manifest-path src-tauri/Cargo.toml
 ```
 
-CI is unaffected — it always starts from a cold cache keyed on the current paths.
+CI uses a cold cache with current paths.
 
 ### Pre-commit hook failing
 
-The hook **will block the commit** if any check exits non-zero. Fix the reported violation and try again. If a check fails spuriously (e.g. a shell script bug unrelated to your code), you may bypass with:
+**Cause:** A pre-commit check exits non-zero.
+
+**Fix:** Correct the reported violation. If a shell-script error is unrelated to your code, use this bypass.
 
 ```bash
 git commit --no-verify -m "your message"
 ```
 
-The checks it runs are: `Database.load()` outside db.ts, `StrictMode`, `new WebviewWindow`, `applyTheme` at module level, missing `scaleFactor()`, TypeScript `any`, hardcoded colors, npm/yarn usage, missing init promise guard, `console.log`.
+The hook checks `Database.load()` outside db.ts, `StrictMode`, `new WebviewWindow`, module-level `applyTheme`, missing `scaleFactor()`, TypeScript `any`, hardcoded colors, npm/yarn usage, missing init guards, and `console.log`.
 
 ---
 
@@ -385,7 +414,7 @@ The checks it runs are: `Database.load()` outside db.ts, `StrictMode`, `new Webv
 
 ### "Not allowed" / permission denied in console
 
-**Cause:** A new Tauri API is being used but the capability isn't declared.
+**Cause:** The new Tauri API has no declared capability.
 
 **Fix:** Add the permission to `src-tauri/capabilities/default.json`:
 
@@ -395,13 +424,13 @@ The checks it runs are: `Database.load()` outside db.ts, `StrictMode`, `new Webv
 }
 ```
 
-Find the correct permission name in [Tauri 2 docs](https://tauri.app/reference/acl/capability/).
+Check the permission name in [Tauri 2 docs](https://tauri.app/reference/acl/capability/).
 
 ### IPC call never resolves
 
-**Cause:** Tauri command panicked on the Rust side.
+**Cause:** The Tauri command panics on the Rust side.
 
-**Check:** Run `bun run tauri dev` and watch for `[ERROR]` lines in the terminal output (not the browser console).
+**Check:** Run `bun run tauri dev`. Check terminal output for `[ERROR]` lines.
 
 ---
 
@@ -409,15 +438,20 @@ Find the correct permission name in [Tauri 2 docs](https://tauri.app/reference/a
 
 ### App feels slow when switching tools
 
-**Check:** Is `useToolState` loading from SQLite (cache miss) or memory (cache hit)?
+**Cause:** `useToolState` loads from SQLite instead of memory.
 
-Add a temporary `console.log` to `useToolState.ts` to see which path is taken on switch. If it's always loading from SQLite, the in-memory cache isn't being populated — check that `toolId` matches exactly.
+**Check:** Check whether the state is a cache miss or cache hit.
+
+Add temporary `console.log` output to `useToolState.ts`. Check the path during a tool switch.
+If it always loads SQLite, check that `toolId` matches exactly.
 
 ### Large history causing slow startup
 
-Default retention is 500 entries per tool. Reduce it in Settings → History Retention.
+**Cause:** History retention stores 500 entries per tool.
 
-Or purge directly:
+**Fix:** Reduce History Retention in Settings.
+
+**Fix:** Or remove old entries directly.
 
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \

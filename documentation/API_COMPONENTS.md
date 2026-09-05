@@ -1,6 +1,6 @@
-# API Documentation - Core Components
+# API Documentation — Core Components
 
-This document provides comprehensive API documentation for the core components of the devdrivr application.
+This document lists shared frontend APIs in devdrivr.
 
 ## Table of Contents
 
@@ -49,7 +49,7 @@ This document provides comprehensive API documentation for the core components o
 
 ## Application Structure
 
-The devdrivr application follows a modular architecture with the following key components:
+The frontend separates app code, components, hooks, libraries, stores, tools, workers, and types.
 
 ```
 ./
@@ -70,29 +70,29 @@ The devdrivr application follows a modular architecture with the following key c
 
 ### App Component
 
-The main application component that orchestrates the entire devdrivr interface.
+The root component renders the workspace.
 
 **Location:** `src/app/App.tsx`
 
 **Props:** None
 
-**Description:** The root component that renders the main application layout including the sidebar, workspace, and notes drawer.
+**Export:** `App()`.
 
 ### Providers Component
 
-The application bootstrap component that initializes the application state.
+The bootstrap component initializes application state around its children.
 
 **Location:** `src/app/providers.tsx`
 
 **Props:** None
 
-**Description:** Initializes the application state including window geometry, settings, notes, snippets, and history stores. It also sets up the window move/resize listeners.
+**Export:** `Providers({ children }: { children: ReactNode })`.
 
 ## Shared Components
 
 ### Button
 
-A customizable button component with different visual variants.
+A shared button that forwards its ref to an HTML button.
 
 **Location:** `src/components/shared/Button.tsx`
 
@@ -115,7 +115,7 @@ import { Button } from '@/components/shared/Button'
 
 ### Toast
 
-Auto-dismissing notification component.
+The toast container renders the application toast queue.
 
 **Location:** `src/components/shared/Toast.tsx`
 
@@ -135,7 +135,7 @@ import { Toast } from '@/components/shared/Toast'
 
 ### TabBar
 
-Horizontal tab navigation component.
+Use this component for accessible horizontal tabs.
 
 **Location:** `src/components/shared/TabBar.tsx`
 
@@ -165,7 +165,7 @@ const TABS = [
 
 ### Toggle
 
-Animated toggle switch component.
+Use this component for a boolean setting.
 
 **Location:** `src/components/shared/Toggle.tsx`
 
@@ -189,7 +189,7 @@ import { Toggle } from '@/components/shared/Toggle'
 
 ### CopyButton
 
-Copy-to-clipboard button with success feedback.
+Use this component to copy text to the clipboard.
 
 **Location:** `src/components/shared/CopyButton.tsx`
 
@@ -272,7 +272,7 @@ import { SendToMenu } from '@/components/shared/SendToMenu'
 
 ### useWorker
 
-Lightweight RPC wrapper for Web Workers.
+This hook creates a typed RPC wrapper for a worker.
 
 **Location:** `src/hooks/useWorker.ts`
 
@@ -295,7 +295,7 @@ const api = useWorker<FormatterWorker>(
 
 ### useToolState
 
-Persists tool-specific state to SQLite with debounced writes.
+This hook loads and persists state for one tool tab.
 
 **Location:** `src/hooks/useToolState.ts`
 
@@ -314,7 +314,7 @@ const [state, updateState] = useToolState<JsonToolsState>('json-tools', { input:
 
 ### useToolAction
 
-Subscribe to shell→tool actions.
+This hook receives shell actions for the active tool instance.
 
 **Location:** `src/hooks/useToolAction.ts`
 
@@ -333,7 +333,7 @@ useToolAction('execute', () => {
 
 ### useGlobalShortcuts
 
-Registers all global keyboard shortcuts.
+This hook registers the application keyboard shortcuts.
 
 **Location:** `src/hooks/useGlobalShortcuts.ts`
 
@@ -343,7 +343,7 @@ Registers all global keyboard shortcuts.
 
 ### useFileDropZone
 
-Tauri file drop to content handler.
+This hook registers file-drop callbacks for the Tauri window.
 
 **Location:** `src/hooks/useFileDropZone.ts`
 
@@ -353,7 +353,7 @@ Tauri file drop to content handler.
 
 ### useMonaco
 
-Syncs Monaco editor theme with app theme.
+This module builds Monaco preferences, theme data, and editor options.
 
 **Location:** `src/hooks/useMonaco.ts`
 
@@ -365,7 +365,7 @@ Syncs Monaco editor theme with app theme.
 
 ### Database (db.ts)
 
-All SQLite database access and operations.
+This module owns the SQLite connection and persistence operations.
 
 **Location:** `src/lib/db.ts`
 
@@ -383,7 +383,7 @@ All SQLite database access and operations.
 
 ### Tool Actions (tool-actions.ts)
 
-Pub/sub system for shell↔tool communication.
+This module dispatches shell actions to subscribed tool instances.
 
 **Location:** `src/lib/tool-actions.ts`
 
@@ -394,7 +394,7 @@ Pub/sub system for shell↔tool communication.
 
 ### Theme (theme.ts)
 
-Apply CSS theme and manage persistence.
+This module resolves and applies the current theme.
 
 **Location:** `src/lib/theme.ts`
 
@@ -405,7 +405,7 @@ Apply CSS theme and manage persistence.
 
 ### Platform (platform.ts)
 
-OS detection utilities.
+This module detects the current platform and formats its modifier key.
 
 **Location:** `src/lib/platform.ts`
 
@@ -416,7 +416,7 @@ OS detection utilities.
 
 ### Keybindings (keybindings.ts)
 
-Keyboard shortcut matching and formatting.
+This module matches and formats keyboard shortcuts.
 
 **Location:** `src/lib/keybindings.ts`
 
@@ -427,7 +427,7 @@ Keyboard shortcut matching and formatting.
 
 ### File I/O (file-io.ts)
 
-Tauri file dialog wrappers.
+This module opens, saves, and exports files through Tauri dialogs.
 
 **Location:** `src/lib/file-io.ts`
 
@@ -440,7 +440,7 @@ Tauri file dialog wrappers.
 
 ### Settings Store
 
-Application settings management.
+This Zustand store persists application settings.
 
 **Location:** `src/stores/settings.store.ts`
 
@@ -454,7 +454,7 @@ Application settings management.
 
 ### UI Store
 
-UI state management.
+This Zustand store holds transient workspace state.
 
 **Location:** `src/stores/ui.store.ts`
 
@@ -468,7 +468,7 @@ UI state management.
 
 ### Notes Store
 
-Sticky notes management.
+This Zustand store loads and updates notes.
 
 **Location:** `src/stores/notes.store.ts`
 
@@ -479,7 +479,7 @@ Sticky notes management.
 
 ### Snippets Store
 
-Code snippets management.
+This Zustand store loads and updates snippets.
 
 **Location:** `src/stores/snippets.store.ts`
 
@@ -490,7 +490,7 @@ Code snippets management.
 
 ### History Store
 
-Tool execution history management.
+This Zustand store loads and updates execution history.
 
 **Location:** `src/stores/history.store.ts`
 
@@ -501,7 +501,7 @@ Tool execution history management.
 
 ### API Store
 
-API client state management.
+This Zustand store loads and updates API Client data.
 
 **Location:** `src/stores/api.store.ts`
 
@@ -515,7 +515,7 @@ API client state management.
 
 ### RPC Worker
 
-Custom RPC protocol for Web Workers.
+This module handles worker RPC messages.
 
 **Location:** `src/workers/rpc.ts`
 
@@ -525,7 +525,7 @@ Custom RPC protocol for Web Workers.
 
 ### Formatter Worker
 
-Prettier + sql-formatter for all language formatting.
+This worker exposes formatter methods through the RPC protocol.
 
 **Location:** `src/workers/formatter.worker.ts`
 
@@ -537,7 +537,7 @@ Prettier + sql-formatter for all language formatting.
 
 ### Diff Worker
 
-Text comparison and diff computation.
+This worker exposes text-diff computation through the RPC protocol.
 
 **Location:** `src/workers/diff.worker.ts`
 
@@ -547,7 +547,7 @@ Text comparison and diff computation.
 
 ### TypeScript Worker
 
-TypeScript transpilation.
+This worker exposes TypeScript transpilation through the RPC protocol.
 
 **Location:** `src/workers/typescript.worker.ts`
 
@@ -559,7 +559,7 @@ TypeScript transpilation.
 
 ### Models
 
-Type definitions for data models.
+This module exports application model types and default settings.
 
 **Location:** `src/types/models.ts`
 
@@ -574,7 +574,7 @@ Type definitions for data models.
 
 ### Tools
 
-Tool definition types.
+This module exports tool and workspace tab types.
 
 **Location:** `src/types/tools.ts`
 

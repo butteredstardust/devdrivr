@@ -1,49 +1,33 @@
 # Browser Harness
 
-How to run the devdrivr UI in a plain Chromium page for DOM-level debugging, and the diagnostic
-recipes that come with it.
+Use this harness to validate DOM behavior in Chromium. It runs the web bundle with stubbed Tauri IPC.
 
-> One of four harnesses — see [HARNESSES.md](HARNESSES.md) for which to use when.
+> Use [HARNESSES.md](HARNESSES.md) to select a harness.
 
-Vitest runs against jsdom/node and cannot reproduce anything involving real layout, real text
-selection, or the browser's own commit behaviour. The Tauri app can, but it is a black box —
-no DevTools protocol, no scripted input. This harness closes that gap: the same web bundle,
-served by `bun run dev`, driven from Chromium.
+## When to use it
 
-## When to reach for it
+- Text selection, caret, or clipboard behavior
+- Scroll, resize, measured layout, overflow, or focus order
+- DOM mutations and render behavior
+- README screenshots (see [Regenerate the README screenshots](#regenerate-the-readme-screenshots))
 
-- Text selection, caret, or clipboard behaviour
-- Scroll/resize/layout bugs, measured rather than reasoned about
-- "It re-renders but I can't see why" — DOM mutation forensics
-- Anything you were about to explain with a theory instead of evidence
-- Regenerating the README screenshots: `bun run dev`, then `bun run screenshots` (see
-  `scripts/capture-screenshots.mjs`, which is also the best worked example of driving this harness)
+Use [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) for windows, menus, drag regions, and edge resize.
 
-Not for: window or menu behaviour — that is [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md).
+Use [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) for file I/O, SQLite persistence, or real IPC. Remote UI uses Chromium with real data, but rebuilds take ~40 seconds.
 
-Not for file I/O or SQLite persistence either, but that no longer means "go run the real app and
-squint". [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) (`bun run dev:remote`) keeps everything below
-— Chromium, Playwright, devtools — and swaps the stub for a socket into the live app process, so the
-same session reads the real database. Trade-off is a ~40s rebuild instead of HMR, so stay here while
-the canned data isn't what's in your way.
+## Prerequisites and setup
 
-## Setup
-
-The web bundle refuses to boot outside Tauri — the Tauri JS API reads `window.__TAURI_INTERNALS__`
-eagerly and throws `undefined is not an object (evaluating 'window.__TAURI_INTERNALS__.metadata')`
-before the shell mounts. [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js)
-provides the minimum stub to get past that.
+Run the Vite dev server before you open Chromium. The server installs the Tauri stub.
 
 ```bash
 bun run dev   # from . — serves on http://localhost:1420
 ```
 
-The dev server installs the stub for you — [`scripts/vite-plugin-tauri-stub.js`](../scripts/vite-plugin-tauri-stub.js)
-inlines it at the top of `index.html` on `serve` only, so opening the URL in any browser boots.
-Under `tauri dev` the real IPC bridge is already there and the stub no-ops, and production builds
-never see it.
+Open `http://localhost:1420` in Chromium. The bundle needs `window.__TAURI_INTERNALS__` before the shell mounts. The dev server injects [`scripts/tauri-browser-stub.js`](../scripts/tauri-browser-stub.js) through [`scripts/vite-plugin-tauri-stub.js`](../scripts/vite-plugin-tauri-stub.js).
 
-A harness that navigates to a bundle the dev server did not serve still installs it itself:
+`tauri dev` supplies real IPC, so the stub does nothing. Production builds do not include the stub.
+
+Install the stub yourself when a harness does not use the dev server. Add the init script before page code runs.
 
 ```js
 import { installTauriStub } from './scripts/tauri-browser-stub.js'
@@ -52,101 +36,47 @@ await page.addInitScript(installTauriStub) // must precede any page script
 await page.goto('http://localhost:1420')
 ```
 
-Every SQL read returns empty, so stores start blank and nothing persists across a reload. Seed
-state through the UI.
+WARNING: SQL reads return empty data. Stores are empty. A reload removes test state. Seed state through the UI.
 
-`plugin:http|fetch` is forwarded to the page's own `fetch`, so the API Client really does issue
-requests here — subject to CORS, which the real app is not, since it goes through Rust. An endpoint
-that sends `Access-Control-Allow-Origin` works; anything else fails with an opaque `TypeError` that
-looks like the app's bug and isn't.
+`plugin:http|fetch` uses the page's `fetch`. CORS applies in this harness. Endpoints without `Access-Control-Allow-Origin` fail with an opaque `TypeError`.
 
-Commands with no browser equivalent — file dialogs, `fs` — resolve to `null` and log a
-`[tauri-stub] unhandled command` warning. A warning naming a command your feature depends on means
-you are testing a stub, not the app — switch to [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md), which
-answers those commands for real without giving up the browser.
+File dialogs and `fs` resolve to `null`. The stub logs `[tauri-stub] unhandled command` for unsupported commands. Use Remote UI when that command is required.
 
-## Gotchas found the hard way
+## Operating rules
 
-- **Monaco needs time to settle.** Switching a tool into Split mode reflows the pane for a while
-  after the DOM looks ready. Measuring immediately produced a false "still broken" reading;
-  ~1800ms of settle time made Split, Preview, and back-to-Split all behave identically.
-- **Aim drags near the top of a paragraph's box, not its vertical centre.** `prose` line-height and
-  margins make a one-line `<p>` report a box roughly twice the height of its text, so `y + height/2`
-  lands in empty space below the line and selects nothing — which reads exactly like "the selection
-  bug is back". `y + 12` works. Cross-check with `page.mouse.dblclick`, which is less sensitive to
-  this (though a double-click on container padding selects `"\n"` and looks like its own failure).
-- **Confirm the DOM can hold a selection at all** before believing a negative result: set a `Range`
-  programmatically and re-read it after a delay. If that holds but your synthetic input doesn't, the
-  bug is in your coordinates, not in the app.
-- **Toolbar buttons collide by name.** `getByRole('button', { name: 'Templates' })` matched three
-  elements; pass `{ exact: true }`.
-- **Tools you have visited stay mounted.** Switching tools does not unmount the previous one; it
-  collapses to zero height. So `document.querySelector('.monaco-editor')` can return a hidden
-  editor from two tools ago and report `height: 0`, and a locator can fail strict mode against a
-  toolbar the user cannot see. Filter to what is on screen:
-  `[...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0)`.
-- **Monaco has no editable `<textarea>` to type into.** This build uses an edit context; the only
-  `textarea` in the page is a read-only IME shim, so `fill()` times out with "element is not
-  editable". Drive the content through the API instead — `window.monaco.editor.getModels()` and
-  `.getEditors()` are both reachable from `page.evaluate`, and `setValue` fires the same change
-  event the tool listens to. Pick the editor by visibility, not by index.
-- **An editor's index is not its role.** `getEditors()` returns them in creation order, which is
-  neither left-to-right nor the order the labels suggest. JSON Schema Validator puts the _data_ on
-  the left and the _schema_ on the right; an agent that assumed the opposite wrote each into the
-  other and reported a validator that "fails to detect type violations" — a schema of
-  `{"age":"not_a_number"}` has no recognised keywords, so it accepts everything, and the tool was
-  right. Read the pane heading (`JSON DATA` / `JSON SCHEMA`) or sort by
-  `getDomNode().getBoundingClientRect().x` and confirm the existing content matches what you expect
-  before you overwrite it.
-- **Results are debounced.** Lint, compile and format land ~1–2s after the model changes. Reading
-  the output straight after `setValue` reports the previous run, which reads exactly like "the
-  setting had no effect".
-- **The first minutes on a cold dep cache are not the app.** Tools import their heavy dependencies
-  lazily, so the first visit to one sends Vite off to pre-bundle — and when it finishes it reloads
-  the page under you. Anything in flight across that reload dies loudly and misleadingly: a worker
-  module 504s (`[useWorker] Worker error: Event`), a half-loaded CommonJS dep throws
-  `X is not a function`, and the tool renders its error state. An agent reported exactly that as a
-  critical CSV Tools bug; it was Vite. The tell is in the dev server log, not the page:
+- Wait ~1800ms after a Monaco Split-mode change. The pane can still reflow after the DOM is ready.
+- Start a paragraph drag near its top. `y + 12` works better than `y + height/2` for a one-line `<p>`.
+- Set and re-read a `Range` before you report a selection failure. A retained range indicates a coordinate problem.
+- Use `{ exact: true }` for repeated toolbar button names.
+- Filter selectors to visible tools. Inactive tools remain mounted at zero height.
+- Use the Monaco API through `page.evaluate`. The visible `textarea` is a read-only IME shim.
+- Select Monaco editors by visible pane heading or x-coordinate. Do not select them by index.
+- Wait 1–2s after Monaco changes. Lint, compile, and format results are debounced.
 
-  ```
-  [vite] ✨ new dependencies optimized: prettier/standalone, …
-  [vite] ✨ optimized dependencies changed. reloading
-  ```
+Visit each tool once before you measure it. A cold dependency cache can reload the page during Vite optimization.
 
-  Warm the cache before you measure anything — visit the tools you plan to test once, let the
-  reload happen, then start. If a failure will not reproduce after that, it was never real.
+```
+[vite] ✨ new dependencies optimized: prettier/standalone, …
+[vite] ✨ optimized dependencies changed. reloading
+```
 
-## Driving the app as an agent
+Wait for that reload to finish. Then run the test again. A failure that does not repeat after cache warmup is not an app failure.
 
-The harness rewards evidence and punishes assumption, so the failure mode to guard against is
-reporting something you inferred rather than saw.
+## Report observed results
 
-- **Reproduce before reporting.** Do the interaction twice. An HMR reload can drop the app back to
-  the launcher, and a selector that "does not match any elements" then means the page moved on, not
-  that the control is missing.
-- **Ask whether the user can reach it.** The window is created with `minWidth: 800` /
-  `minHeight: 500` ([`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)); a defect that only
-  appears at 250px tall is real for the browser and remote-ui paths but unreachable in the desktop
-  app, and the report should say which.
-- **A green Vitest run is not evidence about layout, focus or fonts.** jsdom implements none of
-  them. It will happily report a `visibility: hidden` element as focused — that exact gap hid a
-  dead keyboard path in `Popover` behind a passing assertion.
-- **Prefer one `page.evaluate` that returns a fact over a screenshot you interpret.** "Right edges
-  align to within 1.5px" is checkable; "looks aligned" is not.
-- **Read the console before calling anything a crash.** The page's error state tells you a promise
-  rejected, not why. An agent that reports "Something broke" without the console line behind it has
-  found a symptom that may not even belong to the app (see the cold-cache gotcha above).
-- **Quote, don't paraphrase.** A report is actionable when it carries the verbatim error string and
-  the exact code that produced it — selector, input, waits. "The parser failed" is a rumour.
-- **"It opens correctly" is not a finding, and its absence is not a clean bill of health.** A tool
-  mounting proves the router works. Exercising it means changing a setting and asserting the output
-  changed: toggle ignore-whitespace and diff the diff.
-- Artifacts land in the gitignored `.playwright-mcp/`, so nothing you capture reaches a commit.
+Repeat the interaction before you report it. HMR can return the app to the launcher.
 
-## Recipe: who is rewriting my DOM?
+Check whether the desktop window can reach the tested size. The minimum window size is `minWidth: 800` and `minHeight: 500` ([`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)). State the harness when a condition is unreachable in the app.
 
-This pair is what identified the React 19 `dangerouslySetInnerHTML` bug (see below). Run both in the
-page, then reproduce the interaction.
+Vitest does not validate layout, focus, or fonts. Use `page.evaluate` for measurable facts. For example, report an edge difference of 1.5px instead of visual alignment.
+
+Read the console before you report a crash. Record the exact error, selector, input, and waits. A mounted tool only validates routing. Change a setting and check that the output changes.
+
+Artifacts are stored in the gitignored `.playwright-mcp/` directory.
+
+## Recipe: identify DOM writes
+
+Install both probes in the page. Then repeat the interaction.
 
 Trap `innerHTML` writes and capture the stack:
 
@@ -167,7 +97,7 @@ Object.defineProperty(Element.prototype, 'innerHTML', {
 })
 ```
 
-Watch the subtree and correlate with selection loss:
+Watch the subtree and selection:
 
 ```js
 new MutationObserver((records) => {
@@ -182,28 +112,22 @@ document.addEventListener('selectionchange', () => {
 })
 ```
 
-A `same: true` write immediately followed by `COLLAPSED` means something is re-setting identical
-markup and taking the selection with it.
+A `same: true` write followed by `COLLAPSED` indicates a repeated markup write that removes the selection.
 
-## The React 19 identity rule
+## React 19 identity rule
 
-React 19's `updateProperties` compares `dangerouslySetInnerHTML` by **object identity**, not by the
-`__html` string inside it — React 18 compared the string. An inline `{ __html: html }` literal is a
-fresh object every render, so React re-sets `innerHTML` every render, rebuilding the whole subtree
-even when the markup is byte-identical. That destroys any text selection inside it.
+React 19 compares `dangerouslySetInnerHTML` by object identity. An inline `{ __html: html }` value creates an object on every render. React then resets `innerHTML`, even when the markup is unchanged.
 
-Always memoise the payload:
+Memoize the payload:
 
 ```tsx
 const htmlProp = useMemo(() => ({ __html: html }), [html])
 return <div dangerouslySetInnerHTML={htmlProp} />
 ```
 
-All five call sites in the app follow this pattern: `MarkdownPreview`, `NotesDrawer`,
-`MermaidEditor`, `RegexTester`, `DiffViewer`. Keep it that way when adding a sixth.
+Use this pattern for `MarkdownPreview`, `NotesDrawer`, `MermaidEditor`, `RegexTester`, and `DiffViewer`. Use it for each new call site.
 
-The identity rule can be asserted in Vitest even though the selection bug itself cannot — re-render
-with the same `html` and check the DOM node is the same object:
+Validate node identity in Vitest. The selection behavior itself needs Chromium.
 
 ```tsx
 const paragraph = container.querySelector('p')
@@ -211,13 +135,9 @@ rerender(<MarkdownPreview html={html} /* ...changed sibling prop... */ />)
 expect(container.querySelector('p')).toBe(paragraph)
 ```
 
-## Measuring token contrast across every theme
+## Measure theme contrast
 
-The themes are CSS classes on `<html>`, so all 22 can be measured in one pass without reloading:
-apply each class, read the computed value of the tokens off a probe element, then flatten the
-foreground's alpha against the backdrop before computing the WCAG ratio. Skipping that flatten step
-is the easy mistake — most `--color-text-muted` tokens carry `α0.6`, and comparing the raw `rgba`
-against the surface reports a contrast the user never sees.
+Use the CSS classes on `<html>` to measure themes without reload. Apply each class. Read the token colors. Flatten foreground alpha against the surface before you calculate the WCAG ratio.
 
 ```js
 await page.evaluate(() => {
@@ -257,6 +177,16 @@ await page.evaluate(() => {
 })
 ```
 
-Take the theme list from `ALL_THEMES` in `src/lib/theme.ts` rather than typing it out — a name that
-doesn't match a real class silently falls back to `:root`, and the run reports the default theme's
-numbers under 20 different labels instead of failing.
+Use `ALL_THEMES` from `src/lib/theme.ts`. A missing class silently uses `:root` and gives invalid results.
+
+## Regenerate the README screenshots
+
+Start the dev server first. The capture script drives this harness and needs the server running.
+
+```bash
+bun run dev          # leave running
+bun run screenshots  # writes to screenshots/
+```
+
+[`scripts/capture-screenshots.mjs`](../scripts/capture-screenshots.mjs) is the fullest worked
+example of driving this harness. Read it before you write a new automation against Chromium.

@@ -1,8 +1,6 @@
 # Which Harness?
 
-devdrivr has four ways to exercise the UI. They are not ranked — each one can see things the others
-are blind to, and each one will happily give you a confident wrong answer about the things it
-cannot see. This page is the routing table; the linked documents are the how-to.
+Use this page to select a harness. Use the linked harness guide for setup and procedures.
 
 | Harness                                                      | Command              | Real IPC? | Real layout & input?   | Real window? | HMR | Speed        |
 | ------------------------------------------------------------ | -------------------- | --------- | ---------------------- | ------------ | --- | ------------ |
@@ -11,61 +9,44 @@ cannot see. This page is the routing table; the linked documents are the how-to.
 | **Remote UI** ([REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md)) | `bun run dev:remote` | **yes**   | yes (Chromium)         | no           | no  | ~40s/rebuild |
 | **Native** ([NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md))    | `bun run tauri dev`  | yes       | yes, but hard to drive | **yes**      | yes | slow, manual |
 
-## Start from the symptom
+## Select by symptom
 
-| The bug is about…                                                  | Use           |
+| Symptom                                                            | Harness       |
 | ------------------------------------------------------------------ | ------------- |
-| Pure logic, formatting, parsing, a reducer, a store transition     | Vitest        |
-| Text selection, caret, clipboard                                   | Browser       |
-| Scroll, resize, measured layout, overflow, focus order             | Browser       |
-| "It re-renders and I can't see why"                                | Browser       |
-| Contrast/theming across all 32 themes                              | Browser       |
-| Data that is wrong _after_ a reload, or only wrong with real rows  | **Remote UI** |
-| SQLite reads/writes, migrations, the notes/history/snippets stores | **Remote UI** |
-| Anything the stub logs `[tauri-stub] unhandled command` for        | **Remote UI** |
-| The MCP server, file dialogs, `fs`, `http`                         | **Remote UI** |
-| Title-bar controls, drag region, edge resize, rounded corners      | Native        |
-| Global shortcuts, menus, fullscreen, multi-monitor, DPI            | Native        |
-| "Works in Chromium, broken in the app"                             | Native        |
+| Pure logic, formatting, parsing, a reducer, or a store transition  | Vitest        |
+| Text selection, caret, or clipboard                                | Browser       |
+| Scroll, resize, measured layout, overflow, or focus order          | Browser       |
+| A render that needs DOM inspection                                 | Browser       |
+| Contrast or theming across all 32 themes                           | Browser       |
+| Data is wrong after a reload or with real rows                     | **Remote UI** |
+| SQLite reads, writes, migrations, or notes/history/snippets stores | **Remote UI** |
+| The stub logs `[tauri-stub] unhandled command`                     | **Remote UI** |
+| MCP server, file dialogs, `fs`, or `http`                          | **Remote UI** |
+| Title-bar controls, drag region, edge resize, or rounded corners   | Native        |
+| Global shortcuts, menus, fullscreen, multi-monitor, or DPI         | Native        |
+| It works in Chromium but not in the app                            | Native        |
 
-## The one-paragraph version
+## Harness limits
 
-**Vitest** is the default and should stay that way — but it has no layout engine and no real event
-dispatch, so it will certify code that cannot run in any browser. It has done exactly that twice
-(see [BROWSER_HARNESS.md](BROWSER_HARNESS.md)).
+**Vitest** validates logic. It has no layout engine or browser event dispatch. Use Chromium to validate layout, focus, or input.
 
-**Browser** is Vitest's opposite: real Chromium, real pixels, real pointer and keyboard events,
-against the same React code — but `window.__TAURI_INTERNALS__` is a stub, so every SQL read returns
-empty and nothing survives a reload. Perfect for how the UI _behaves_, useless for what it _holds_.
+**Browser** uses Chromium with stubbed IPC. It validates UI behavior with real pixels and browser input. SQL reads return empty data. State does not persist after reload.
 
-**Remote UI** is the browser harness with the stub removed: the page still runs in Chromium and is
-still fully automatable, but `invoke` and `listen` are forwarded over a WebSocket into the live app
-process, so you are looking at the real database, the real filesystem and the real MCP server. The
-price is a build step instead of HMR. Reach for it the moment the canned data is what's in your way.
+**Remote UI** uses Chromium with real IPC. It reads the real database, filesystem, and MCP server. It uses a build step instead of HMR.
 
-**Native** is the only one that is actually the product. Everything about the window itself —
-chrome, dragging, resizing, the OS — exists only here, and driving it needs platform-specific
-synthetic input with an Accessibility grant on macOS.
+**Native** runs the delivered window. Use it to validate window behavior and platform input. macOS requires Accessibility permission for synthetic input.
 
-## Why there are three and not one
+## Choose Browser or Remote UI
 
-The obvious question is why the remote bridge doesn't just replace the stub. Two reasons:
+Use Browser for fast, repeatable layout and interaction checks. The stub provides empty tables and canned command results. It does not change your database.
 
-1. **No HMR.** `tauri-remote-ui` serves static files off disk and cannot proxy the Vite dev server,
-   so `dev:remote` runs `vite build --watch` alongside. A save costs ~40 seconds instead of nothing.
-   For iterating on a layout fix that is the difference between pleasant and unbearable.
-2. **The stub is deterministic.** Empty tables and canned command results are a _feature_ when you
-   are debugging rendering: the same page every time, no state carried over from the last run, and
-   no risk of a probe writing to the database you actually use.
+Use Remote UI when stubbed data or commands block the test. It serves static build output. A save takes ~40 seconds to rebuild.
 
-And neither replaces Native, because neither has a window.
+Neither Chromium harness has a native window. Use Native for window behavior.
 
-## Rules that apply to all of them
+## Rules for every harness
 
-- **A green Vitest run is not evidence about layout, focus, or input.** Confirm in Chromium first.
-- **A working browser session is not evidence about persistence.** The stub returns `[]` and means
-  it.
-- **Neither is evidence about window behaviour.** `WindowControls` even renders a different
-  component per platform.
-- **Get geometry from `getBoundingClientRect()`, never from a guess** — a probe clicking the wrong
-  `y` looks exactly like the bug you are hunting.
+- A passing Vitest run does not validate layout, focus, or input. Check these in Chromium.
+- A working Browser session does not validate persistence. The stub returns `[]`.
+- A Chromium harness does not validate window behavior. `WindowControls` renders a platform-specific component.
+- Use `getBoundingClientRect()` to get geometry. Do not estimate coordinates.

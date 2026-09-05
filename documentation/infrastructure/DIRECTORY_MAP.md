@@ -1,10 +1,12 @@
 # DIRECTORY MAP — devdrivr
 
-> Everything you need to find any file in under 10 seconds.
+> Use this map to locate app files and directories.
 
 ---
 
 ## Top-Level Layout
+
+The repository root contains documentation, application code, backend code, assets, and build files.
 
 ```
 ./
@@ -25,7 +27,11 @@
 
 ## `src/` — Application Source
 
+`src/` contains the frontend application.
+
 ### `src/app/` — Bootstrap & Registry
+
+This directory starts the app and registers tools.
 
 | File               | Purpose                                                                       |
 | ------------------ | ----------------------------------------------------------------------------- |
@@ -35,6 +41,8 @@
 | `tool-groups.tsx`  | Sidebar group metadata: id, label, Phosphor icon per group                    |
 
 ### `src/components/shell/` — App Chrome
+
+These components render the workspace shell.
 
 | File                        | Purpose                                                                  |
 | --------------------------- | ------------------------------------------------------------------------ |
@@ -54,7 +62,11 @@
 | `StatusBar.tsx`             | Bottom bar: last action feedback + active tool name                      |
 | `UpdateNotification.tsx`    | Update-available banner, wired to `updater.store.ts`                     |
 
+WARNING: `src/components/shell/SidebarFooter.tsx` does not exist. Keep this row visible until the map or path is updated.
+
 ### `src/components/shared/` — Reusable UI
+
+Use these components for shared interface patterns.
 
 | File                          | Purpose                                                        |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -73,6 +85,8 @@
 
 ### `src/hooks/` — Custom Hooks
 
+These hooks provide shared UI and platform behavior.
+
 | File                           | Returns / Purpose                                                  |
 | ------------------------------ | ------------------------------------------------------------------ |
 | `useWorker.ts`                 | `WorkerRpc<T> \| null` — RPC wrapper for Web Workers (no Comlink)  |
@@ -90,6 +104,8 @@
 
 ### `src/lib/` — Core Libraries
 
+These modules provide shared application services.
+
 | File              | Purpose                                                                              |
 | ----------------- | ------------------------------------------------------------------------------------ |
 | `db.ts`           | **All SQLite access.** Promise singleton `getDb()`. CRUD for all tables.             |
@@ -106,6 +122,8 @@
 
 ### `src/stores/` — Zustand Stores
 
+These stores hold application state. The table identifies its persistence.
+
 | File                        | What It Holds                                                  | Persistence                                                  |
 | --------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
 | `settings.store.ts`         | Theme, sidebar, drawer, editor prefs                           | SQLite `settings` → `appSettings` key                        |
@@ -121,8 +139,7 @@
 
 ### `src/tools/` — The 30 Tools
 
-Each tool lives in `src/tools/<id>/` with one or more component files (multi-tab tools like
-CSV Tools split into several components):
+Each tool lives in `src/tools/<id>/`. A multi-tab tool can contain more than one component.
 
 ```
 src/tools/
@@ -159,10 +176,11 @@ src/tools/
 └── placeholder/            Placeholder.tsx          ← fallback/empty-state component, not a registered tool
 ```
 
-Tool-level tests live separately in `src/tools/__tests__/<tool-id>.test.tsx` (see AGENTS.md § Test
-file location) — not co-located with the components above.
+Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx`. Do not locate them with tool components.
 
 ### `src/workers/` — Web Workers
+
+Workers run expensive tool work outside the interface thread.
 
 | File                    | Purpose                                                             | Used By                    |
 | ----------------------- | ------------------------------------------------------------------- | -------------------------- |
@@ -174,10 +192,11 @@ file location) — not co-located with the components above.
 | `refactoring.worker.ts` | AST transforms (var→let/const, Promise→async/await, require→import) | refactoring-toolkit        |
 | `regex.worker.ts`       | Regex evaluation with infinite-loop guard                           | regex-tester               |
 
-Each worker pairs with a `*.api.ts` file (e.g. `formatter.api.ts`) defining the typed RPC surface
-consumed via `useWorker`.
+Each worker has a `*.api.ts` file, such as `formatter.api.ts`. It defines the typed RPC surface for `useWorker`.
 
 ### `src/types/` — TypeScript Types
+
+This directory defines shared TypeScript types.
 
 | File        | Contains                                                               |
 | ----------- | ---------------------------------------------------------------------- |
@@ -187,6 +206,8 @@ consumed via `useWorker`.
 ---
 
 ## `src-tauri/` — Rust / Tauri Backend
+
+`src-tauri/` contains the desktop backend, migrations, capabilities, and app configuration.
 
 ```
 src-tauri/
@@ -214,8 +235,8 @@ src-tauri/
 └── tauri.conf.json            ← Window size/min, bundle config, app identifier
 ```
 
-Every migration file must also be registered as a `Migration { version: N, ... }` entry in
-`lib.rs` — the SQL file alone does nothing (see AGENTS.md § SQLite Migrations).
+Register every migration file as `Migration { version: N, ... }` in `lib.rs`.
+The SQL file alone does nothing. See AGENTS.md § SQLite Migrations.
 
 **Key config values** (`tauri.conf.json`):
 
@@ -224,16 +245,18 @@ Every migration file must also be registered as a `Migration { version: N, ... }
 - SQLite DB: `cockpit.db` (in `~/Library/Application Support/com.devdrivr.cockpit/` on macOS)
 - CSP: `null` (no content security policy restrictions)
 
-**IPC Permissions** (`capabilities/default.json`) — add here when using a new Tauri API. Current
-grants include `core:window:*` (size/position/focus/always-on-top), `sql:default` +
-`sql:allow-execute`, `fs:default` plus explicit `fs:allow-read-text-file` /
-`fs:allow-write-text-file` / `fs:allow-read-file` / scoped `fs:allow-write-file` and
-`fs:allow-mkdir` (limited to `$DOWNLOAD/**` and `$HOME/**`), scoped `http:default` (allow-listed to
-`github.com` and `objects.githubusercontent.com` for the updater), and `dialog:default`.
+**IPC Permissions** (`capabilities/default.json`) — Add new Tauri API permissions here.
+Current grants include `core:window:*` for window actions and `sql:default` plus `sql:allow-execute`.
+They include `fs:default` and explicit read and write permissions.
+`fs:allow-write-file` and `fs:allow-mkdir` are limited to `$DOWNLOAD/**` and `$HOME/**`.
+`http:default` is allow-listed to `github.com` and `objects.githubusercontent.com` for the updater.
+The file also grants `dialog:default`.
 
 ---
 
 ## Key File Quick Reference
+
+Use this table to identify the file for a common change.
 
 | Task                       | File                                                                                            |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |

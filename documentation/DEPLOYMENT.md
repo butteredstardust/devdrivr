@@ -1,16 +1,16 @@
 # Deployment and Release Process
 
-This document outlines the deployment and release processes for the devdrivr application.
+Use this document to prepare and validate a devdrivr release.
 
 ## Overview
 
-The devdrivr application uses a continuous deployment approach with automated builds and releases managed through GitHub Actions. This document describes the process for building, testing, and releasing new versions of the application.
+GitHub Actions builds and publishes devdrivr releases. Use CI to validate changes before release work.
 
 ## Release Process
 
 ### Versioning
 
-The project follows Semantic Versioning (SemVer) for version numbering:
+Use Semantic Versioning (SemVer) for release numbers:
 
 - MAJOR version for incompatible API changes
 - MINOR version for backward-compatible feature additions
@@ -18,61 +18,62 @@ The project follows Semantic Versioning (SemVer) for version numbering:
 
 ### Pre-release Checklist
 
+Complete these checks before the release workflow runs.
+
 1. **Code Quality**
    - All tests must pass (`bun run test`)
    - Type checking must pass (`npx tsc --noEmit`)
-   - No console errors in development mode
-   - Code follows style guidelines
+   - Check development mode for console errors
+   - Follow the project style guidelines
 
 2. **Documentation**
-   - Draft the GitHub release notes (there is no CHANGELOG.md; the release body is the changelog)
-   - Update version number in `package.json`
-   - Ensure all new features are documented
+   - Draft GitHub release notes. The release body is the changelog.
+   - Check the version number in `package.json`
+   - Document each new feature
 
 3. **Testing**
-   - Run full test suite locally
-   - Manual testing of critical user flows
+   - Run the full test suite locally
+   - Validate critical user flows manually
    - Run the cross-platform [release smoke tests](RELEASE_SMOKE_TESTS.md)
 
 ### Deployment Steps
 
-1. **Build Process**
+#### Build Process
 
-   ```bash
-   # Install dependencies
-   bun install
+Complete the pre-release checklist before you run these commands.
 
-   # Run type checking
-   npx tsc --noEmit
+```bash
+# Install dependencies
+bun install
 
-   # Run tests
-   bun run test
+# Run type checking
+npx tsc --noEmit
 
-   # Create production build
-   bun run build
-   ```
+# Run tests
+bun run test
 
-2. **Release Creation**
-   - Create a git tag with the version number
-   - Push tag to GitHub
-   - GitHub Actions will automatically create a release
+# Create production build
+bun run build
+```
 
-3. **Post-Deployment**
-   - Monitor for issues
-   - Update documentation if needed
-   - Announce release in appropriate channels
+#### Release Creation
+
+Push the release change to `main`. The `Build & Release devdrivr` workflow creates the version bump and release.
+
+#### Post-Deployment
+
+Check the release for reported issues. Update documentation when needed. Announce the release through the required channels.
 
 ## GitHub Actions Workflows
 
-The deployment process is automated through GitHub Actions:
+Use these workflows in the release process:
 
-| Workflow                      | Purpose                                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------------ |
-| `.github/workflows/ci.yml`    | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy |
-| `.github/workflows/tauri.yml` | Release build matrix for macOS Apple Silicon, Windows x64, and Linux x64             |
+| Workflow                        | Purpose                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| `.github/workflows/ci.yml`      | Pull request and main-branch checks: lint, typecheck, Vitest, Rust check, and clippy |
+| `.github/workflows/release.yml` | Release build matrix for macOS Apple Silicon, Windows x64, and Linux x64             |
 
-The release workflow also verifies expected release assets before publishing the update manifests:
-`updater.json` for the plugin, and `latest.json` for versions predating it.
+The release workflow checks the required release assets. It then publishes `updater.json` for the plugin and `latest.json` for earlier versions.
 
 ## Environment Setup
 
@@ -84,29 +85,23 @@ The release workflow also verifies expected release assets before publishing the
 
 ### Production Environment
 
-- GitHub Actions runner
-- macOS 12.0+ (for universal binary builds)
-- Windows 10+ (for Windows builds)
-- Ubuntu 20.04+ (for Linux builds)
+GitHub Actions provides the release environment. The build matrix uses macOS Apple Silicon, Windows, and Ubuntu runners.
 
 ## Build Configuration
 
 ### Development
 
-- Uses Vite with HMR
-- Source maps enabled
-- Development tools included
+The development build uses Vite with HMR. It includes source maps and development tools.
 
 ### Production
 
-- Minified bundles
-- Tree-shaken dependencies
-- Optimized assets
-- Code splitting enabled
+The production build creates minified, tree-shaken bundles. It optimizes assets and uses code splitting.
 
 ## Automated Testing
 
 ### Test Matrix
+
+Run these checks before release:
 
 - Unit tests: `bun run test`
 - Type checking: `npx tsc --noEmit`
@@ -119,59 +114,47 @@ The release workflow also verifies expected release assets before publishing the
 
 1. **Dependency Conflicts**
    - Run `bun install --force` to clear cache
-   - Check for version conflicts in `bun.lock`
+   - Check `bun.lock` for version conflicts
 
 2. **Build Failures**
-   - Verify Node.js and Bun versions
+   - Check the Node.js and Bun versions
    - Check for missing native dependencies
-   - Ensure sufficient disk space
+   - Check available disk space
 
 3. **Release Issues**
-   - Verify tag format matches SemVer
+   - Check the release version format
    - Check GitHub Actions permissions
-   - Ensure proper artifact permissions
+   - Check artifact permissions
 
 ## Security Considerations
 
 ### Code Signing
 
-Two unrelated things are called signing here, and conflating them is what kept the updater plugin
-off the table for a year:
+WARNING: Keep the update-signing private key secure. Installed users cannot receive updates if the key is lost.
 
-- **Update signing (minisign)** — a keypair generated by `bunx tauri signer generate`, free and
-  self-issued. The public half lives in `plugins.updater.pubkey`; the private half is the
-  `TAURI_SIGNING_PRIVATE_KEY` repository secret, and CI needs it because `createUpdaterArtifacts`
-  is on. **Lose it and installed users can never be updated again** — there is no recovery path,
-  they would have to reinstall by hand. It says nothing to the operating system.
-- **Code signing (Developer ID / Authenticode)** — what Gatekeeper and SmartScreen care about,
-  costs money, and is what the app does _not_ have. Covered below.
+Update signing and code signing have different purposes:
 
-Releases are **not** code signed with a paid identity on any platform. What each one does have:
+- **Update signing (minisign)** — Run `bunx tauri signer generate` to create the keypair. The public key is in `plugins.updater.pubkey`. The `TAURI_SIGNING_PRIVATE_KEY` repository secret provides the private key. CI requires it because `createUpdaterArtifacts` is enabled. Update signing proves that an update payload comes from this repository. It does not identify a developer to an operating system.
+- **Code signing (Developer ID / Authenticode)** — Gatekeeper and SmartScreen use this signing. devdrivr does not use a paid signing identity.
 
-- **macOS** — ad-hoc signed, via `bundle.macOS.signingIdentity: "-"` in `tauri.conf.json`. This
-  seals the bundle so `codesign --verify` passes; it does not identify a developer and is not
-  notarized. Without it the bundle carries only a linker-applied signature that fails validation,
-  and Gatekeeper reports a quarantined copy as _damaged_ with no way to open it short of the
-  terminal. Do not remove it without reading `README.md` § Unsigned builds.
+Releases use these platform signing settings:
+
+- **macOS** — The build uses ad-hoc signing through `bundle.macOS.signingIdentity: "-"` in `tauri.conf.json`. This validates the bundle with `codesign --verify`. It does not identify a developer or notarize the app. Do not remove this setting without reading `README.md` § Unsigned builds.
 - **Windows** — unsigned. SmartScreen warns on first run.
-- **Linux** — the AppImage is unsigned; nothing checks it.
+- **Linux** — The AppImage is unsigned.
 
-Adding a Developer ID would mean an Apple Developer account plus `APPLE_ID` / `APPLE_PASSWORD` /
-`APPLE_TEAM_ID` (or the API-key trio) in the release workflow, which currently logs
-`skipping app notarization` on every macOS build.
+To add a Developer ID, provide an Apple Developer account and `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`. You can instead provide the API-key trio. The release workflow logs `skipping app notarization` for each macOS build.
 
 ## Rollback Procedures
 
-Rollback is entirely manual. devdrivr reports no telemetry, so a bad build is never detected
-automatically — it surfaces as a user report. The in-app updater (`src/stores/updater.store.ts`,
-on top of `tauri-plugin-updater`) only ever moves forward: it compares against the version in
-`updater.json` and will not install an older one, so there is no "push a rollback" lever.
+WARNING: The updater only moves to newer versions. Do not use it to install an older release.
 
-1. Mark the bad GitHub release as a pre-release or draft. The updater reads `updater.json` from
-   `releases/latest/download/`, so this is what stops it being offered.
-2. Fix forward on `main` and cut a new patch version; the previous release stays downloadable for
-   anyone who needs it in the meantime.
-3. Note the known-bad version in the new release notes.
+devdrivr has no telemetry. A user report identifies a bad build. The updater in `src/stores/updater.store.ts` uses `tauri-plugin-updater`. It compares versions in `updater.json` and does not install an older version.
+
+1. Mark the bad GitHub release as a pre-release or draft. The updater reads `updater.json` from `releases/latest/download/`.
+2. Fix the issue on `main`. Create a new patch release.
+3. Keep the previous release available for users who need it.
+4. Identify the bad version in the new release notes.
 
 ## Additional Resources
 

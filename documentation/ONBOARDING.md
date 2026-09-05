@@ -1,6 +1,6 @@
 # ONBOARDING — devdrivr
 
-> First-time setup guide. Follow this top to bottom and you'll have the app running in under 15 minutes.
+> Developer environment setup. Use [QUICK_START.md](QUICK_START.md) after you install the app.
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### 1. Rust toolchain
 
-Tauri 2 requires Rust. Install via `rustup`:
+Tauri 2 requires Rust. Install it with `rustup`:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -19,7 +19,7 @@ cargo --version
 
 ### 2. Bun
 
-This project uses Bun as the package manager and runtime. **Never use npm or yarn.**
+This project uses Bun as its package manager and runtime. **Never use npm or yarn.**
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
@@ -31,17 +31,17 @@ bun --version   # should print 1.x or later
 
 #### macOS
 
-Install Xcode Command Line Tools:
+Install the Xcode Command Line Tools:
 
 ```bash
 xcode-select --install
 ```
 
-That's it — WebKit is bundled with macOS.
+WebKit is included with macOS.
 
 #### Windows
 
-Install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (usually pre-installed on Windows 11). Also install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload.
+Install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). Install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload.
 
 #### Linux (Ubuntu/Debian)
 
@@ -59,7 +59,7 @@ sudo apt install -y \
   librsvg2-dev
 ```
 
-For other distros, see the [Tauri 2 Linux prerequisites](https://tauri.app/start/prerequisites/#linux).
+For other distributions, see the [Tauri 2 Linux prerequisites](https://tauri.app/start/prerequisites/#linux).
 
 ---
 
@@ -67,7 +67,7 @@ For other distros, see the [Tauri 2 Linux prerequisites](https://tauri.app/start
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/devdrivr.git
+git clone https://github.com/butteredstardust/devdrivr.git
 cd devdrivr
 
 # Install dependencies
@@ -82,13 +82,13 @@ bun install
 bun run tauri dev
 ```
 
-This command:
+This command does the following:
 
-1. Starts Vite dev server on `localhost:1420`
-2. Compiles the Rust Tauri binary (first run takes 2–5 minutes; subsequent runs are fast)
-3. Opens the app window
+1. Starts the Vite development server on `localhost:1420`.
+2. Compiles the Rust Tauri binary.
+3. Opens the app window.
 
-Hot-reload is active — TypeScript/React changes apply instantly without restarting Tauri.
+Vite updates TypeScript and React changes while the development app runs.
 
 ---
 
@@ -104,7 +104,7 @@ bunx vitest run    # all tests should pass
 
 ## Database Location
 
-The SQLite database is created automatically on first launch:
+The app creates its SQLite database on first launch:
 
 | Platform | Path                                                            |
 | -------- | --------------------------------------------------------------- |
@@ -112,7 +112,7 @@ The SQLite database is created automatically on first launch:
 | Windows  | `%APPDATA%\com.devdrivr.cockpit\cockpit.db`                     |
 | Linux    | `~/.local/share/com.devdrivr.cockpit/cockpit.db`                |
 
-To inspect or reset:
+WARNING: A full reset removes all local workspace data. Inspect or reset the database only when required:
 
 ```bash
 # macOS — inspect
@@ -141,7 +141,7 @@ devdrivr/
 └── CLAUDE.md                 ← AI development guidance
 ```
 
-Run development commands from the repository root unless noted.
+Run each development command from the repository root unless a command says otherwise.
 
 ---
 
@@ -165,18 +165,18 @@ bun run test:watch       # Watch mode during development
 
 ### VS Code (recommended)
 
-Install these extensions:
+Install these extensions if you use VS Code:
 
 - **rust-analyzer** — Rust language server
 - **Tauri** (tauri-apps.tauri-vscode) — Tauri-specific commands and snippets
 - **ESLint** — JavaScript/TypeScript linting
 - **Prettier** — Code formatting (`semi: false`, `singleQuote: true`)
 
-The workspace already has a `.prettierrc` — VS Code will pick it up automatically.
+The workspace includes `.prettierrc`. VS Code uses it automatically.
 
 ### TypeScript strict mode
 
-The project runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Your editor will show more "possibly undefined" errors than a typical TypeScript project — this is intentional. See `documentation/infrastructure/CODING_PATTERNS.md` for how to handle them.
+The project uses `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Check `documentation/infrastructure/CODING_PATTERNS.md` for required patterns.
 
 ---
 
@@ -184,7 +184,7 @@ The project runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes
 
 ### Rust compile takes forever
 
-Normal on first run. The Tauri Rust binary takes 2–5 minutes to compile cold. It's cached after that.
+The first Rust build can take several minutes. Later builds use the local build cache.
 
 ### "error: linker `cc` not found" (Linux)
 
@@ -192,7 +192,7 @@ Install build-essential: `sudo apt install build-essential`
 
 ### App opens but stays blank / "Loading..."
 
-The DB init failed. Check the terminal (not the browser console) for Rust errors. Most common cause: stale lockfile after a dependency change.
+Check the terminal for Rust errors. A stale lockfile after a dependency update can cause this issue.
 
 ```bash
 bun run clean && bun install && bun run tauri dev
@@ -200,7 +200,7 @@ bun run clean && bun install && bun run tauri dev
 
 ### Window opens at wrong size or position
 
-SQLite has a stale `windowBounds` value. Reset it:
+Reset the saved `windowBounds` value:
 
 ```bash
 sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
@@ -211,10 +211,10 @@ sqlite3 ~/Library/Application\ Support/com.devdrivr.cockpit/cockpit.db \
 
 ## Making Your First Change
 
-1. Open `src/tools/` — pick any tool
-2. Edit its `.tsx` file — the Vite dev server hot-reloads instantly
-3. Run `npx tsc --noEmit` — fix any type errors
-4. Run `bunx vitest run` — ensure all tests pass
-5. Commit with a conventional commit message: `fix(devdrivr): description`
+1. Open a tool in `src/tools/`.
+2. Update its `.tsx` file.
+3. Run `npx tsc --noEmit`.
+4. Run `bunx vitest run`.
+5. Follow the repository contribution workflow.
 
-See `documentation/infrastructure/CODING_PATTERNS.md` for all patterns you must follow before submitting a PR.
+See `documentation/infrastructure/CODING_PATTERNS.md` before you submit a PR.

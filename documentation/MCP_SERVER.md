@@ -1,9 +1,8 @@
 # MCP Server
 
-devdrivr includes a local Model Context Protocol (MCP) server so CLI agents
-such as Codex CLI and Claude Code can use devdrivr data and workflows directly.
+Use the local Model Context Protocol (MCP) server to let CLI agents use devdrivr data and workflows.
 
-The MCP server is local-first:
+The MCP server uses these local-first settings:
 
 - It binds to `127.0.0.1` only.
 - It uses bearer-token authentication.
@@ -23,7 +22,7 @@ The MCP server exposes devdrivr resources as tools:
 | Prompt templates | Built-in and user prompt templates               | List, get, create, update, delete user-owned |
 | API requests     | Saved API client requests and collections        | List, get, create, update, delete requests   |
 
-The server also exposes discovery tools:
+Use the discovery tools to inspect and search available resources:
 
 | Tool         | Purpose                                                      |
 | ------------ | ------------------------------------------------------------ |
@@ -35,7 +34,7 @@ The server also exposes discovery tools:
 
 ## Settings
 
-Open **Settings > MCP** in devdrivr.
+Open **Settings > MCP** before you connect an MCP client.
 
 | Setting                    | Description                                                      |
 | -------------------------- | ---------------------------------------------------------------- |
@@ -46,12 +45,11 @@ Open **Settings > MCP** in devdrivr.
 | Permissions                | Per-resource read/create/update/delete access                    |
 | Expose API request secrets | Controls whether saved API request auth secrets are returned     |
 
-The settings panel also supports server status, start, stop, restart, key copy, and
-key rotation.
+Use the settings panel to check status, start, stop, restart, copy keys, and rotate keys.
 
 ## Connect a CLI Agent
 
-Copy the MCP key from **Settings > MCP**, then store it in an environment variable:
+Start the server and copy the MCP key from **Settings > MCP**. Then store the key in an environment variable:
 
 ```bash
 export DEVDRIVR_MCP_KEY="copy-from-devdrivr-settings"
@@ -69,7 +67,7 @@ Claude Code:
 claude mcp add --transport http devdrivr http://127.0.0.1:17347/mcp --header "Authorization: Bearer $DEVDRIVR_MCP_KEY"
 ```
 
-After connecting, ask the agent:
+After you connect, send this request to the agent:
 
 ```text
 Use devdrivr MCP to search for notes about Rust.
@@ -77,27 +75,29 @@ Use devdrivr MCP to search for notes about Rust.
 
 ## Permissions
 
-devdrivr MCP defaults to read-only access:
+MCP uses read-only access by default:
 
 - `notes.read`
 - `snippets.read`
 - `promptTemplates.read`
 - `apiRequests.read`
 
-Write access is opt-in. To allow an agent to create, update, or delete a resource:
+WARNING: Write permissions let an agent change local data. Enable only the action required for the task.
+
+To allow an agent to create, update, or remove a resource:
 
 1. Open **Settings > MCP > Permissions**.
-2. Enable the exact create, update, or delete action needed.
+2. Enable the exact create, update, or remove action needed.
 3. Apply settings or restart MCP.
 4. Restart the MCP client if it caches tool metadata.
 
-Use the smallest permission set needed for the task.
+Use the smallest permission set for the task.
 
 ## Secret Handling
 
-The MCP API key is never returned by `help` or `introspect`.
+The server never returns the MCP API key through `help` or `introspect`.
 
-Saved API request auth secrets are redacted by default. Redacted auth fields use:
+Saved API request authentication secrets are redacted by default. Redacted fields use:
 
 ```json
 {
@@ -106,25 +106,23 @@ Saved API request auth secrets are redacted by default. Redacted auth fields use
 }
 ```
 
-If **Expose API request secrets** is disabled, agents can still list and update API
-requests without receiving bearer tokens or basic auth passwords. Updating a redacted
-auth value preserves the existing secret unless the agent provides a new value.
+When **Expose API request secrets** is disabled, agents can list and update API requests without bearer tokens or basic-auth passwords. Updating a redacted value keeps the existing secret unless the agent supplies a new value.
 
 ## Useful Agent Workflows
 
-Find related context:
+Use this command to find related context:
 
 ```text
 search({ "query": "react auth", "limit": 10 })
 ```
 
-Search only snippets tagged with both `react` and `hooks`:
+Use this command to search snippets with both `react` and `hooks` tags:
 
 ```text
 search({ "types": ["snippets"], "tags": ["react", "hooks"] })
 ```
 
-Fetch selected resources after search:
+Use this command to read selected resources after a search:
 
 ```text
 multi_get({
@@ -135,13 +133,13 @@ multi_get({
 })
 ```
 
-Ask the server for topic-specific guidance:
+Use this command to request topic guidance:
 
 ```text
 help({ "topic": "workflows" })
 ```
 
-Ask for schemas and permissions:
+Use this command to request schemas and permissions:
 
 ```text
 introspect()
@@ -167,7 +165,7 @@ introspect()
 | Missing data in results      | Check resource permissions and search filters                     |
 | API auth fields are redacted | Enable secret exposure only if the task requires it               |
 
-For agent-side discovery, call:
+For agent discovery, call:
 
 ```text
 help({ "topic": "overview" })

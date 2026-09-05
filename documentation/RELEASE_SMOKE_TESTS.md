@@ -1,35 +1,33 @@
 # Release Smoke Tests
 
-Use this checklist before promoting a devdrivr release beyond internal validation.
-The GitHub release workflow builds macOS Apple Silicon, Windows, and Linux
-artifacts and verifies `latest.json` asset coverage. This checklist covers
-the runtime behavior that CI cannot prove from builds alone.
+Use this checklist before you promote a devdrivr release beyond internal validation.
+The release workflow builds macOS Apple Silicon, Windows, and Linux artifacts. It checks `latest.json` asset coverage. Use this checklist to validate runtime behavior that CI cannot validate from builds alone.
 
-Intel macOS is not a supported platform as of 0.1.83; 0.1.82 is the last release
-with an `x64.dmg`.
+Intel macOS is unsupported. The last release with an `x64.dmg` is 0.1.82.
 
 ## Platforms
 
-| Platform            | Release artifact                    | Runner/build source           | Required validation                                  |
-| ------------------- | ----------------------------------- | ----------------------------- | ---------------------------------------------------- |
-| macOS Apple Silicon | `devdrivr_<version>_aarch64.dmg`    | `.github/workflows/tauri.yml` | Install and smoke on Apple Silicon hardware          |
-| Windows x64         | `devdrivr_<version>_x64-setup.exe`  | `.github/workflows/tauri.yml` | Install and smoke on Windows 10+ with WebView2       |
-| Linux x64           | `devdrivr_<version>_amd64.AppImage` | `.github/workflows/tauri.yml` | Launch and smoke on a supported desktop Linux distro |
+| Platform            | Release artifact                    | Runner/build source             | Required validation                                  |
+| ------------------- | ----------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| macOS Apple Silicon | `devdrivr_<version>_aarch64.dmg`    | `.github/workflows/release.yml` | Install and smoke on Apple Silicon hardware          |
+| Windows x64         | `devdrivr_<version>_x64-setup.exe`  | `.github/workflows/release.yml` | Install and smoke on Windows 10+ with WebView2       |
+| Linux x64           | `devdrivr_<version>_amd64.AppImage` | `.github/workflows/release.yml` | Launch and smoke on a supported desktop Linux distro |
 
 ## Preflight
 
-1. Confirm `devdrivr CI` is green for the release commit.
-2. Confirm `Build & Release devdrivr` completed all matrix jobs.
-3. Confirm the release contains the expected three platform artifacts.
-4. Confirm `latest.json` exists on the release and maps all supported platform keys:
+Complete these checks before you download an artifact:
+
+1. Confirm `devdrivr CI` passes for the release commit.
+2. Confirm `Build & Release devdrivr` completes all matrix jobs.
+3. Confirm the release contains the three expected platform artifacts.
+4. Confirm the release includes `latest.json`. Confirm it maps these supported platform keys:
    `darwin-aarch64`, `windows-x86_64`, `linux-x86_64`.
-5. Download artifacts from GitHub Releases, not local build output.
-6. Use a disposable OS account or VM with clean devdrivr app data. Do not delete or overwrite a
-   validator's personal devdrivr profile.
+5. Download artifacts from GitHub Releases. Do not use local build output.
+6. Use a disposable OS account or VM with clean devdrivr app data. Do not remove or overwrite a validator's personal devdrivr profile.
 
 ## Create the Evidence Report
 
-Create one report on the machine that will validate each platform artifact:
+Create one report on the machine that will validate the platform artifact.
 
 ```bash
 bun run smoke:report -- \
@@ -41,34 +39,29 @@ bun run smoke:report -- \
 ```
 
 Supported platform keys are `darwin-aarch64`, `windows-x86_64`, and `linux-x86_64`.
-The command:
+The command does these checks:
 
-- requires the exact release artifact name for the selected version and platform;
-- requires the report runtime OS and process architecture to match the selected platform key;
-- rejects artifacts under local Rust build-output directories;
-- records artifact size and SHA-256 plus the runtime OS/architecture, native/VM/emulation details,
-  tester, and timestamp;
-- refuses to overwrite an existing report unless `--force` is passed and the target is an existing
-  devdrivr smoke report;
-- writes to `documentation/release-smoke-results/<version>-<platform>.md` by default.
+- Requires the exact release artifact name for the selected version and platform.
+- Requires the runtime OS and process architecture to match the platform key.
+- Rejects artifacts in local Rust build-output directories.
+- Records artifact size, SHA-256, runtime details, tester, and timestamp.
+- Refuses to overwrite an existing report. Use `--force` only for an existing devdrivr smoke report.
+- Writes to `documentation/release-smoke-results/<version>-<platform>.md` by default.
 
-Use `--output <path>` when evidence is stored outside the repository. Complete every result and
-evidence cell in the generated report while following the runtime path below.
+Use `--output <path>` when you store evidence outside the repository. Complete each result and evidence cell during runtime validation.
 
-Compatibility environments such as Rosetta, Windows-on-ARM x64 emulation, or virtual machines are
-allowed when they represent the artifact's supported runtime. Record them explicitly with
-`--environment`; the generated OS/process architecture alone does not prove native hardware.
+Use Rosetta, Windows-on-ARM x64 emulation, or virtual machines only when they represent the supported runtime. Record them with `--environment`. The generated OS and process architecture do not prove native hardware.
 
 ## Runtime Smoke
 
-Run this checklist independently on each platform:
+Run these checks independently on each platform:
 
 1. Install or launch the release artifact.
 2. Confirm the app opens to the main window without a blank/loading state.
 3. Confirm the window can be resized, moved, closed, reopened, and restores within visible bounds.
 4. Open Settings and confirm the current version is displayed.
 5. Change theme, editor font size, and sidebar collapsed state; restart and confirm persistence.
-6. Open at least three tools from the sidebar or command palette and confirm workspace tabs persist after restart.
+6. Open at least three tools from the sidebar or command palette. Confirm workspace tabs persist after restart.
 7. Use file open/drop on a text-backed tool and save output to disk.
 8. Create, edit, search, pin, reorder, and delete a note.
 9. Create, edit, tag, duplicate, and delete a snippet.
@@ -82,25 +75,23 @@ Run this checklist independently on each platform:
 12. Enable MCP and start the server. Confirm the displayed URL uses `127.0.0.1` (not `0.0.0.0`,
     a LAN address, or an IPv6 wildcard) and that the status changes to running.
 13. Exercise MCP authentication and settings:
-    - A request without a bearer key and a request with the wrong key both return unauthorized.
-    - The copied current key authenticates successfully.
-    - Rotate the key; confirm the old key is rejected and the new key succeeds.
-    - Keep one resource read-only and confirm a write is denied; enable that exact permission and
-      confirm the setting applies without exposing other write actions.
-    - With API request secret exposure disabled, confirm bearer tokens/basic passwords are redacted.
-    - Change the port or restart the server and confirm the new status/URL is usable.
-14. Stop MCP and confirm status updates. Trigger one safe failure, such as attempting to start on an
-    occupied port, and confirm the error is visible without closing Settings or blocking the app.
+    - Confirm requests without a bearer key return unauthorized.
+    - Confirm requests with the wrong key return unauthorized.
+    - Confirm the copied current key authenticates.
+    - Rotate the key. Confirm the old key is rejected. Confirm the new key succeeds.
+    - Keep one resource read-only. Confirm a write is denied. Enable that exact permission. Confirm other write actions remain unavailable.
+    - Disable API request secret exposure. Confirm bearer tokens and basic passwords are redacted.
+    - Change the port or restart the server. Confirm the new status and URL are usable.
+14. Stop MCP and confirm status updates. Trigger one safe failure, such as an occupied port. Confirm the error remains visible without closing Settings or blocking the app.
 15. Trigger a manual update check and confirm success/error feedback is non-blocking.
 16. Restart the app once more and confirm local data is still available and MCP remains stopped
     unless auto-start was explicitly enabled.
 
 ## Failure Handling
 
-- Release promotion requires one completed, passing report for every supported platform artifact.
-- Any `Fail`, `Not run`, or `Blocked` status on a blocking report row blocks promotion.
-- Block promotion for launch failures, data loss, installer failures, missing release assets,
-  blank windows, broken persistence, or MCP starting unexpectedly on a fresh profile.
-- Log platform-specific defects with artifact name, OS version, reproduction steps, and screenshots.
-- If a defect only affects one platform, keep the release internal until the platform status is
-  explicitly documented in release notes.
+Promotion requires one completed passing report for each supported platform artifact.
+
+- Do not promote when a blocking row is `Fail`, `Not run`, or `Blocked`.
+- Do not promote for launch failures, data loss, installer failures, missing assets, blank windows, broken persistence, or unexpected MCP start on a fresh profile.
+- Log platform defects with the artifact name, OS version, reproduction steps, and screenshots.
+- Keep the release internal when a defect affects one platform. Document the platform status in the release notes.

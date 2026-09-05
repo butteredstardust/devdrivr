@@ -4,8 +4,8 @@
 
 # devdrivr
 
-**A local-first, keyboard-driven developer workspace.**
-**30 developer tools. One desktop app. No browser, no cloud, no latency.**
+**A local-first, keyboard-driven workspace for developer tools.**
+**30 developer tools in one desktop app. No browser, cloud, or network delay.**
 
 [![Release](https://img.shields.io/github/v/release/butteredstardust/devdrivr?style=for-the-badge&logo=github&color=181717)](https://github.com/butteredstardust/devdrivr/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/butteredstardust/devdrivr/ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/butteredstardust/devdrivr/actions/workflows/ci.yml)
@@ -22,7 +22,7 @@
 
 ## Install
 
-Grab the installer for your platform from the [latest release](https://github.com/butteredstardust/devdrivr/releases/latest):
+Open the [latest release](https://github.com/butteredstardust/devdrivr/releases/latest) and select the installer for your platform:
 
 | Platform              | Asset                               |
 | --------------------- | ----------------------------------- |
@@ -30,19 +30,16 @@ Grab the installer for your platform from the [latest release](https://github.co
 | Windows 10+           | `devdrivr_<version>_x64-setup.exe`  |
 | Linux x64             | `devdrivr_<version>_amd64.AppImage` |
 
-The builds are **unsigned**, so macOS Gatekeeper and Windows SmartScreen will both object the first
-time you open one. [Getting past that](#unsigned-builds) takes about ten seconds and is documented at
-the end of this file.
+WARNING: The builds are **unsigned**. macOS Gatekeeper and Windows SmartScreen warn on first open. See [Unsigned builds](#unsigned-builds) for the required action.
 
 > [!NOTE]
-> Intel macOS is not supported as of 0.1.83. `0.1.82` is the last release with an `x64.dmg`.
+> Intel macOS is not supported. `0.1.82` is the last release with an `x64.dmg`.
 
 ---
 
 ## Tools
 
-Everything you reach for during a coding session — in one keyboard-driven app. Everything runs on
-your machine: no accounts, no telemetry, no internet required.
+Use one keyboard-driven app during a coding session. All tools run on your machine. No account, telemetry, or internet connection is required.
 
 | Group       | Tools                                                                                                                                   |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,51 +69,49 @@ your machine: no accounts, no telemetry, no internet required.
 
 ![Code Formatter with the Style popover open over formatted JavaScript](screenshots/devdrivr-code-formatter.png)
 
-**Format** — Prettier-backed formatting, with indent, quote, semicolon, and trailing-comma controls
-in a popover that floats over your code instead of pushing it around.
+**Format** — Use Prettier-backed formatting. Set indent, quote, semicolon, and trailing-comma controls in a popover.
 
 ![Diff Viewer comparing two files side by side above a unified patch](screenshots/devdrivr-code-tools.png)
 
-**Compare** — Side-by-side and unified diffs, whitespace and case folding, patches you can copy or save.
+**Compare** — View side-by-side or unified diffs. Fold whitespace and case. Copy or save patches.
 
 ![YAML Tools showing source and an expandable tree inspector](screenshots/devdrivr-data-tools.png)
 
-**Data** — Inspect, validate, format, and convert structured data side by side.
+**Data** — Inspect, validate, format, and convert structured data in split view.
 
 ![CSV Tools showing raw CSV beside a sortable, filterable table](screenshots/devdrivr-csv-tools.png)
 
-**Tabular** — Read CSV as a sortable table, convert it to JSON, or validate it against a schema.
+**Tabular** — Read CSV in a sortable table. Convert it to JSON. Validate it against a schema.
 
 ![API Client showing a GET request and its 200 OK JSON response](screenshots/devdrivr-api-client.png)
 
-**Network** — Send requests and read responses, with a saved request library, environments, and
-authentication a panel away.
+**Network** — Send requests and inspect responses. Use saved requests, environments, and authentication.
 
 ![Markdown Editor showing source and rendered preview](screenshots/devdrivr-writing-tools.png)
 
-**Write** — Work with Markdown, Mermaid diagrams, snippets, notes, and reusable prompts.
+**Write** — Use Markdown, Mermaid diagrams, snippets, notes, and reusable prompts.
 
 ---
 
 ## Keyboard shortcuts
 
-| Shortcut      | Action                       |
-| ------------- | ---------------------------- |
-| `Cmd+K`       | Command palette              |
-| `Cmd+B`       | Toggle sidebar               |
-| `Cmd+]` / `[` | Next / previous tool         |
-| `Cmd+Shift+N` | Toggle notes drawer          |
-| `Cmd+Enter`   | Execute / run                |
-| `Cmd+Shift+C` | Copy output                  |
-| `Cmd+1/2/3`   | Switch sub-tab               |
-| `Cmd+O`       | Open file                    |
-| `Cmd+S`       | Save file                    |
-| `Cmd+,`       | Settings                     |
-| `Cmd+Shift+T` | Toggle theme                 |
-| `Cmd+Shift+P` | Toggle always-on-top         |
-| `Cmd+/`       | Keyboard shortcuts reference |
+| Shortcut        | Action                                |
+| --------------- | ------------------------------------- |
+| `Cmd+K`         | Command palette                       |
+| `Cmd+B`         | Toggle sidebar                        |
+| `Cmd+]` / `[`   | Next / previous tool                  |
+| `Cmd+Shift+N`   | Toggle notes drawer                   |
+| `Cmd+Enter`     | Execute / run                         |
+| `Cmd+Shift+C`   | Copy output                           |
+| `Cmd+1`–`Cmd+9` | Switch to a workspace tab by position |
+| `Cmd+O`         | Open file                             |
+| `Cmd+S`         | Save file                             |
+| `Cmd+,`         | Settings                              |
+| `Cmd+Shift+T`   | Toggle theme                          |
+| `Cmd+Shift+P`   | Toggle always-on-top                  |
+| `Cmd+/`         | Keyboard shortcuts reference          |
 
-`Cmd` is `Ctrl` on Windows and Linux.
+Use `Ctrl` in place of `Cmd` on Windows and Linux.
 
 ---
 
@@ -132,16 +127,13 @@ authentication a panel away.
 | Extras                | `inked`, `urban-nocturne`, `amethyst-haze`, `lapis-velvet`, `amethyst-mint`, `fireside`, `marina`, `pearl`, `yacht-club` |
 | Brand                 | `dodecastar` — drawn from the app icon's palette                                                                         |
 
-Cycle themes with `Cmd+Shift+T` or set one in Settings (`Cmd+,`).
+Use `Cmd+Shift+T` to cycle themes. Set a theme in Settings (`Cmd+,`).
 
 ---
 
 ## MCP server
 
-devdrivr includes a local MCP server for CLI agents such as Codex CLI and Claude Code. It is
-disabled by default. When enabled in Settings, it starts with the app and exposes authenticated
-tools for notes, snippets, prompt templates, saved API client requests, search, schema
-introspection, and topic-based help.
+devdrivr includes a local MCP server for CLI agents such as Codex CLI and Claude Code. It is disabled by default. Enable it in Settings to run it with the app. It provides authenticated tools for notes, snippets, prompt templates, saved API requests, search, schema introspection, and topic help.
 
 Key details:
 
@@ -151,22 +143,15 @@ Key details:
 - Defaults to read-only permissions.
 - Redacts saved API request auth secrets unless explicitly allowed.
 
-See [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md) for setup commands, permissions,
-tools, limits, and troubleshooting.
+Open [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md) for setup commands, permissions, tools, limits, and troubleshooting.
 
 ---
 
 ## App updater
 
-devdrivr checks [GitHub releases](https://github.com/butteredstardust/devdrivr/releases) for new
-versions against an `updater.json` manifest published on every release, then installs the update in
-place and restarts — no reinstalling by hand, and **no Gatekeeper or SmartScreen prompt on updates**,
-because the app fetched the payload rather than your browser. Only the very first install has to get
-past those.
+devdrivr checks [GitHub releases](https://github.com/butteredstardust/devdrivr/releases) against an `updater.json` manifest for each release. It installs the update in place and restarts. Updates do not show a Gatekeeper or SmartScreen prompt because the app downloads the payload.
 
-Each update is verified against a signing key built into the app before anything is installed. That
-key is unrelated to Apple or Microsoft code signing (see [Unsigned builds](#unsigned-builds) below);
-it exists so the app will only install a payload that came from this repository.
+The app validates each update against a built-in signing key before installation. This key is not Apple or Microsoft code signing. It limits updates to payloads from this repository. See [Unsigned builds](#unsigned-builds).
 
 **Update settings** (in Settings → General):
 
@@ -176,7 +161,7 @@ it exists so the app will only install a payload that came from this repository.
 | Download update automatically   | Off     | Downloads in the background, then offers the restart |
 | Notify when update available    | On      | Shows a dismissible banner when an update is found   |
 
-You can always trigger a manual check with the **Check Now** button in Settings.
+Use **Check Now** in Settings to check manually.
 
 ---
 
@@ -224,8 +209,7 @@ bun run test
 bun run tauri build
 ```
 
-Local `tauri build` output is unsigned like the released builds, so your own bundle will get the
-same Gatekeeper or SmartScreen prompt as unsigned release artifacts.
+Local `tauri build` output is unsigned. Your bundle shows the same Gatekeeper or SmartScreen prompt as an unsigned release artifact.
 
 ---
 
@@ -275,9 +259,7 @@ devdrivr/
 2. Add a lazy import in `src/app/tool-registry.ts`
 3. Add an entry to `TOOLS` with `id`, `name`, `group`, `description`, `component`
 
-Tool components receive no props. Use `dispatchToolAction` / `useToolActionListener` (from
-`src/lib/tool-actions.ts`) to communicate with the shell — for file open, execute, copy output, and
-tab switching.
+Tool components receive no props. Use `dispatchToolAction` / `useToolActionListener` from `src/lib/tool-actions.ts` for file open, execute, copy output, and tab switching.
 
 ---
 
@@ -287,7 +269,7 @@ tab switching.
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | [`documentation/README.md`](documentation/README.md)                                                               | Index of everything below                       |
 | [`documentation/PRODUCT_MAP.md`](documentation/PRODUCT_MAP.md)                                                     | Full tool list, product status, shortcuts       |
-| [`documentation/TODO.md`](documentation/TODO.md)                                                                   | Quality, bug-fix, and reliability backlog       |
+| [`documentation/BACKLOG.md`](documentation/BACKLOG.md)                                                             | Open work items                                 |
 | [`documentation/MCP_SERVER.md`](documentation/MCP_SERVER.md)                                                       | Local MCP server setup and agent tool reference |
 | [`documentation/RELEASE_SMOKE_TESTS.md`](documentation/RELEASE_SMOKE_TESTS.md)                                     | Release-blocking smoke reports and validation   |
 | [`documentation/ONBOARDING.md`](documentation/ONBOARDING.md)                                                       | First-time setup for new contributors           |
@@ -298,98 +280,78 @@ tab switching.
 | [`documentation/infrastructure/ARCHITECTURE_DECISIONS.md`](documentation/infrastructure/ARCHITECTURE_DECISIONS.md) | ADRs — why things are the way they are          |
 | [`documentation/infrastructure/TROUBLESHOOTING.md`](documentation/infrastructure/TROUBLESHOOTING.md)               | When something breaks                           |
 
-[`AGENTS.md`](AGENTS.md) is the canonical ruleset for coding in this app;
-[`CONTRIBUTING.md`](CONTRIBUTING.md) covers the contribution workflow.
+Use [`AGENTS.md`](AGENTS.md) as the coding contract. Use [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution workflow.
 
 ---
 
 ## Unsigned builds
 
-devdrivr ships without an Apple Developer ID and without a Windows code-signing certificate. Both
-cost money per year to tell your OS something you can verify yourself: the binaries are built in
-public by [`.github/workflows/release.yml`](.github/workflows/release.yml) from the commit tagged in
-the release, and you can build your own from source with the steps above. The macOS app is ad-hoc
-signed, which proves the bundle has not been tampered with since it was built but says nothing about
-who built it.
+devdrivr has no Apple Developer ID or Windows code-signing certificate. [`.github/workflows/release.yml`](.github/workflows/release.yml) builds release binaries from the tagged commit. You can build the app from source with the steps above. macOS bundles use ad-hoc signing. This validates bundle integrity but not the builder identity.
 
-The practical consequence is that the first launch takes one extra click.
+The first open requires one extra action.
 
 ### macOS — Gatekeeper
 
-The app is ad-hoc signed, so macOS can verify the bundle is intact — it just cannot tie it to a
-paid developer identity. Your browser also flags the download with a `com.apple.quarantine`
-attribute, and the two together produce a one-time prompt on first launch.
+macOS validates the ad-hoc-signed bundle but cannot identify a paid developer. The browser adds a `com.apple.quarantine` attribute. These conditions cause a one-time first-open prompt.
 
 #### _"devdrivr.app" Not Opened — Apple could not verify "devdrivr.app" is free of malware_
 
-The dialog offers only **Move to Trash** and **Done**. Click **Done** — the escape hatch is
-elsewhere:
+The dialog shows **Move to Trash** and **Done** only. Click **Done**, then complete these steps:
 
 1. Drag `devdrivr.app` to Applications and double-click it. Let the prompt appear, then click
    **Done**.
 2. Open **System Settings → Privacy & Security** and scroll to the Security section.
-3. Next to _"devdrivr.app" was blocked to protect your Mac_, click **Open Anyway**, confirm with
-   Touch ID or your password, then launch the app again and click **Open**.
+3. Next to _"devdrivr.app" was blocked to protect your Mac_, click **Open Anyway**.
+4. Confirm with Touch ID or your password.
+5. Open the app again. Click **Open**.
 
-macOS remembers the decision, so this is a first-launch-only detour.
+macOS saves this decision after the first open.
 
-On macOS 14 and earlier you can skip all of that by right-clicking the app and choosing **Open**
-from the context menu. macOS 15 (Sequoia) removed that shortcut — use System Settings.
+On macOS 14 and earlier, right-click the app and select **Open**. On macOS 15 (Sequoia), use System Settings.
 
-If you would rather not click through Settings, clearing the quarantine attribute does the same job:
+WARNING: Clearing the quarantine attribute removes the check. Use this command only for a file you intended to download:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/devdrivr.app
 ```
 
-Add `sudo` if it returns `Operation not permitted`. Only run it on a file you actually meant to
-download — it removes the check rather than passing it.
+Add `sudo` if it reports `Operation not permitted`.
 
 #### _"devdrivr" is damaged and can't be opened. You should move it to the Trash._ (0.1.82 and earlier)
 
-Nothing was damaged. Releases up to 0.1.82 were bundled without an explicit signing identity, which
-left the `.app` carrying only a linker-applied signature that macOS could not validate — and for a
-quarantined app that fails validation, Gatekeeper picks this message. It offers **no Open Anyway
-button**, so looking for one in System Settings is a dead end.
+The app is not damaged. Builds through 0.1.82 have no explicit signing identity. macOS cannot validate their linker-applied signature. Gatekeeper shows this message for quarantined apps. The dialog has no **Open Anyway** button.
 
-Releases from 0.1.83 on are ad-hoc signed and show the recoverable prompt above instead. On an older
-build, clear the quarantine attribute:
+For builds through 0.1.82, clear the quarantine attribute:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/devdrivr.app
 ```
 
-Drag the app to Applications first, so you clear the flag on the copy you will actually launch, and
-add `sudo` if the command reports `Operation not permitted`.
+Move the app to Applications first. This clears the flag on the app you open. Add `sudo` if the command reports `Operation not permitted`.
 
-Still says damaged after that, on any version? Then the download really is broken — usually a
-truncated `.dmg`. Delete it, empty the Trash, and download the release asset again.
+If the message remains, the download may be incomplete. Remove it. Empty the Trash. Download the release asset again.
 
 ### Windows — SmartScreen
 
-The installer triggers _Windows protected your PC_, with the **Run** button hidden.
+The installer can show _Windows protected your PC_ and hide the **Run** button.
 
 1. Click **More info** in the dialog.
 2. Click **Run anyway**.
 
-If the installer refuses to start at all, Windows may have marked the file itself: right-click
-`devdrivr_<version>_x64-setup.exe` → **Properties** → tick **Unblock** at the bottom of the General
-tab → **OK**. The PowerShell equivalent is `Unblock-File .\devdrivr_<version>_x64-setup.exe`.
+If the installer does not run, Windows may mark the file. Right-click `devdrivr_<version>_x64-setup.exe`. Select **Properties**. Select **Unblock** at the General tab bottom. Select **OK**. The PowerShell equivalent is `Unblock-File .\devdrivr_<version>_x64-setup.exe`.
 
-SmartScreen's warning is reputation-based, so it may keep appearing for new versions even after you
-have allowed an earlier one.
+SmartScreen uses reputation. It can warn for a new version after you allow an earlier version.
 
 ### Linux — AppImage
 
-No signature check to fight, just the executable bit:
+Set the executable bit:
 
 ```bash
 chmod +x devdrivr_<version>_amd64.AppImage
 ./devdrivr_<version>_amd64.AppImage
 ```
 
-These prompts apply to installers you download yourself. Updates applied by the app's own updater
-skip them entirely, so in practice you should only have to do this once.
+These prompts apply to installers you download. Updates from the app updater do not show them.
 
 ---
 

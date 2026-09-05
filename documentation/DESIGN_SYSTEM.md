@@ -1,10 +1,8 @@
 # DESIGN SYSTEM — devdrivr
 
-> Visual language reference. Before touching any UI — colours, spacing, typography, components —
-> read this first.
+> Use this reference before you update UI colours, spacing, type, or components.
 
-Verified against source on 2026-08-19. Where this document and the code disagree, the code is
-authoritative and this document is a bug — fix it in the same commit.
+Keep this document aligned with the code. Update both when a rule changes.
 
 ---
 
@@ -13,9 +11,8 @@ authoritative and this document is a bug — fix it in the same commit.
 **All visual values come from CSS custom properties.** Never hardcode a hex value, an `rgb()`, or a
 Tailwind palette utility like `bg-zinc-900`.
 
-This is not a style preference. The app ships **32 themes**. A hardcoded colour is correct under
-exactly one of them and silently wrong under the other 31 — and it will look fine to whoever wrote
-it, because they only ran the theme they were using.
+This rule preserves all 32 themes. A hardcoded colour can match one theme and conflict with the
+other 31.
 
 `bun run lint:ds` fails the build on hardcoded colours, off-scale type, off-scale icons, and
 non-standard focus rings. See § Enforcement.
@@ -36,9 +33,8 @@ non-standard focus rings. See § Enforcement.
 
 ## Colour tokens
 
-Values are **per-theme** and there are 32 themes, so this table documents each token's _role_
-rather than a value that would be wrong for 31 of them. Read the actual values from
-`src/styles/tokens.css`.
+Values differ by theme. This table defines each token's role. Read `src/styles/tokens.css` for
+the values.
 
 ### Surfaces
 
@@ -50,7 +46,7 @@ rather than a value that would be wrong for 31 of them. Read the actual values f
 | `--color-surface-sunken` | Wells and inset areas — below `surface`              |
 | `--color-surface-hover`  | Hover fill on buttons and list rows                  |
 
-**Rule of thumb:** nest by elevation — `sunken → bg → surface → raised`.
+Nest surfaces by elevation: `sunken → bg → surface → raised`.
 
 ### Text and borders
 
@@ -60,21 +56,20 @@ rather than a value that would be wrong for 31 of them. Read the actual values f
 | `--color-text-muted` | Placeholders, secondary labels, hints |
 | `--color-border`     | Every border in the app — one token   |
 
-Never use a hex for text. There are exactly two text colours.
+Never use a hex value for text. Use the two text tokens only.
 
-**Never stack an opacity utility on `--color-text-muted`.** In most themes the token is already
-partly transparent (0.6–0.75 alpha), so `opacity-60` composites against the background twice.
-Measured across all 23 themes, muted text on its own lands at 5.21–7.37:1 — comfortably past
-WCAG AA — while the same text under `opacity-60` lands at 2.42–3.55:1, which fails on every
-theme. There is no third, dimmer text token, and adding one would recreate the failure by design.
+WARNING: Never combine an opacity utility with `--color-text-muted`. The token already uses
+0.6–0.75 alpha in most themes. `opacity-60` composites it twice against the background.
 
-Where you need a third level of hierarchy, take it from the level _above_: make the primary line
-`--color-text` and leave the secondary line muted. That is what `EmptyState` does.
+Across all 23 themes, muted text alone measures 5.21–7.37:1. With `opacity-60`, it measures
+2.42–3.55:1 and fails every theme. Do not create a third dimmer text token.
 
-Variant-prefixed opacity is fine and deliberately not linted: `disabled:opacity-50` dims a
-control that WCAG exempts from contrast, and `opacity-0 group-hover:opacity-100` hides an element
-rather than dimming it. The `dimmed-muted-text` rule in `scripts/lint-design-system.mjs` matches
-only unprefixed `opacity-1..99` in the same class string as the muted token.
+For a third hierarchy level, use `--color-text` for the primary line. Keep the secondary line
+muted. `EmptyState` uses this pattern.
+
+Variant-prefixed opacity is allowed. `disabled:opacity-50` dims a disabled control. `opacity-0
+group-hover:opacity-100` hides an element. `dimmed-muted-text` in
+`scripts/lint-design-system.mjs` matches only unprefixed `opacity-1..99` with the muted token.
 
 ### Accent and semantics
 
@@ -89,16 +84,14 @@ only unprefixed `opacity-1..99` in the same class string as the muted token.
 | `--color-shadow`     | Every `box-shadow` colour                                           |
 | `--color-scrim`      | Modal backdrop dim                                                  |
 
-Accent is the single point of visual focus — use it sparingly. Prefer the semantic variants on
-`Alert` / `StatusBadge` over colouring text at the call site.
+Use accent as the single visual focus. Prefer `Alert` and `StatusBadge` semantic variants over
+call-site text colours.
 
-**`--color-shadow` and `--color-scrim` must stay neutral in every theme** (a black `rgba()`; a
-theme may only vary the alpha). They are the two tokens that paint across everything at once —
-the scrim covers the whole window behind any dialog or the command palette, and the shadow feeds
-all three `--elevation-*` steps. A hue in either is not an accent, it is a filter over the entire
-app: `neon-brutalist` set both to its magenta, and opening Settings in it turned the app hot pink.
-Theme personality belongs in `--color-accent` and the `--note-*` hues. `tokens.test.ts` enforces
-this.
+`--color-shadow` and `--color-scrim` must stay neutral in every theme. Use black `rgba()` and
+vary only its alpha. These tokens paint across the window and all `--elevation-*` levels.
+
+Use `--color-accent` and `--note-*` hues for theme personality. `tokens.test.ts` enforces this
+rule.
 
 ### Stacking
 
@@ -124,17 +117,16 @@ One documented z-index scale; same across all themes. Use `z-[var(--z-modal)]`.
 | `--font-mono`  | `'Source Code Pro', monospace` | Code, editors, values, IDs, output             |
 | `--font-brand` | `'JetBrains Mono', monospace`  | App logo / branding only                       |
 
-Use `font-ui`, `font-mono`, `font-brand` (Tailwind `@theme` families — not
-`font-[family-name:var(--font-mono)]`).
+Use `font-ui`, `font-mono`, and `font-brand`. These are Tailwind `@theme` families. Do not use
+`font-[family-name:var(--font-mono)]`.
 
-**The split is semantic, not decorative:** chrome is `font-ui`, content the user typed or the tool
-produced is `font-mono`. A _label naming_ a monospace region is chrome and takes `font-ui`.
+Use `font-ui` for chrome. Use `font-mono` for user input and tool output. A label for a monospace
+region is chrome and uses `font-ui`.
 
 #### `--font-ui` is the inherited default; monospace is opted into
 
-`html, body, #root` set `font-family: var(--font-ui)`, so **chrome needs no font class at all** —
-a `<span>` with no font utility is already correct. Only content opts out, and it does so in one
-of four ways, in order of preference:
+`html, body, #root` set `font-family: var(--font-ui)`. Chrome needs no font class. A `<span>`
+without a font utility is correct. Content opts into monospace in this order:
 
 1. **The right tag.** `pre`, `code`, `kbd` and `samp` are monospace by a base rule in `index.css`.
    Tool output rendered in `<code>` or `<pre>` needs nothing else.
@@ -145,26 +137,17 @@ of four ways, in order of preference:
    row inherits it rather than repeating the class.
 4. **`font-mono` on the element**, last resort.
 
-This was inverted until the typography pass. With mono inherited, every label, badge, status line
-and empty state had to _remember_ `font-ui` or silently render monospace — three of forty-six tool
-files did, so a tool title in system-ui routinely sat beside its own status text in Source Code
-Pro, in the same toolbar row. Do not flip it back: the default must be the case that needs the
-fewest exceptions, and chrome outnumbers content by an order of magnitude.
+Keep `font-ui` as the inherited default. This gives the more common chrome elements the correct
+font without exceptions.
 
-Two consequences worth knowing:
+Two constraints apply:
 
-- **A theme must never declare a font family.** `--font-ui` and `--font-mono` are declared once in
-  `:root` and nowhere else; `tokens.test.ts` fails any theme block that redeclares either. Themes
-  change colour. Twelve of them used to break this — eleven restated `'Source Code Pro'` verbatim,
-  two swapped `--font-mono` for a generic `ui-monospace` stack, and `neon-brutalist` aliased
-  `--font-ui` to `--font-mono` for an all-mono look, so picking a colour scheme silently reflowed
-  every label, button and menu in the app into a different typeface. That reads as a bug, not a
-  style, and it made the same word render differently depending on an unrelated preference.
-- Chrome must never be given `font-mono` "to look right". Chrome inherits `--font-ui`; naming a
-  family at the element takes it outside the token system, where nothing can change it later.
+- **A theme must not declare a font family.** Declare `--font-ui` and `--font-mono` once in
+  `:root`. `tokens.test.ts` checks this. Themes change colour only.
+- Do not apply `font-mono` to chrome. Chrome inherits `--font-ui`. An element-level family does
+  not follow the token system.
 
-The user does control the editor typeface — `editorFont` in Settings → Editor — but that feeds
-Monaco, not the chrome.
+`editorFont` in Settings → Editor controls Monaco only. It does not control chrome.
 
 ### Size scale
 
@@ -178,7 +161,7 @@ Five sizes. Nothing else. `text-[13px]` and friends are a lint error.
 | `text-base` | 1     | 16  | Rare — large empty-state headings                         |
 | `text-lg`   | 1.125 | 18  | Rare — onboarding                                         |
 
-The app is dense by design; `text-xs` is the default body size, not a small variant.
+The app uses a dense layout. Treat `text-xs` as the default body size.
 
 Monaco's font size follows `settings.editorFontSize` (default 14, range 10–20) and is independent
 of this scale.
@@ -187,8 +170,8 @@ of this scale.
 
 ## Spacing, radius, elevation
 
-Tailwind's default spacing scale, on a 4px rhythm. `--space-1..8` exist in `tokens.css` for use in
-inline `style`, but in `className` prefer the Tailwind utilities.
+Use Tailwind's default 4px spacing scale. `tokens.css` provides `--space-1..8` for inline `style`.
+Prefer Tailwind utilities in `className`.
 
 | Token           | Value    | Use                             |
 | --------------- | -------- | ------------------------------- |
@@ -201,8 +184,8 @@ inline `style`, but in `className` prefer the Tailwind utilities.
 
 ### Chrome padding scale
 
-Chrome rows use two paddings and no others. This is what `Toolbar` and `PaneHeader` encode; if you
-are writing either by hand, you are writing a bug.
+Chrome rows use these two paddings only. `Toolbar` and `PaneHeader` provide them. Do not recreate
+these components by hand.
 
 | Padding       | Use                                       |
 | ------------- | ----------------------------------------- |
@@ -213,9 +196,10 @@ are writing either by hand, you are writing a bug.
 
 ## Icons
 
-**Phosphor Icons** (`@phosphor-icons/react`) only. No inline SVG, no emoji, no second icon library.
+Use **Phosphor Icons** (`@phosphor-icons/react`) only. Do not use inline SVG, emoji, or another
+icon library.
 
-Three sizes. 10/11/13/15 are lint errors — they existed, they meant nothing, they are gone.
+Use three icon sizes. Sizes 10, 11, 13, and 15 are lint errors.
 
 | `size` | Use                                                        |
 | ------ | ---------------------------------------------------------- |
@@ -233,8 +217,8 @@ Weights: `regular` default; `bold` for emphasis and active states; `fill` for st
 
 ## Layout contract
 
-Every tool renders through `ToolLayout`, or — if it's a library tool with a list beside a detail
-pane — `MasterDetailLayout`. No exceptions.
+Render every tool through `ToolLayout`. Use `MasterDetailLayout` for a library tool with a list and
+detail pane.
 
 ```
 ToolLayout
@@ -251,21 +235,20 @@ MasterDetailLayout                       ← snippets, prompt-templates, api-cli
   children: the detail pane (may itself be a ToolLayout)
 ```
 
-**The `toolbar` slot is for chrome.** Not a form, not a `TextArea`, not an editor. If the thing you
-want to put there accepts typed input longer than a filename, it belongs in the body.
+Use the `toolbar` slot for chrome only. Do not put a form, `TextArea`, or editor there. Put input
+longer than a filename in the body.
 
-**No tool renders its own title.** The tab strip already names it. `ToolLayout` has no title slot
-for this reason — one existed and reached zero consumers. The only heading a tool shows is
-`MasterDetailLayout`'s, which names the collection inside the tool.
+Do not render a tool title. The tab strip already names the tool. `ToolLayout` has no title slot.
+`MasterDetailLayout` can name the collection inside the tool.
 
-**Tools must be `flex h-full flex-col` at the root** — `ToolLayout` handles this; hand-rolled roots
-without `h-full` silently collapse.
+Use `flex h-full flex-col` at the tool root. `ToolLayout` provides this. A hand-built root without
+`h-full` collapses.
 
 ### Shell layout modes
 
-The shell itself has two modes, set by `settings.shellStyle` and applied as `data-shell` on the app
-root. `floating` is the default; `flush` is the original edge-to-edge layout and costs nothing at
-runtime, since with `data-shell="flush"` not one rule in `styles/shell.css` matches.
+`settings.shellStyle` sets two shell modes through `data-shell` on the app root. `floating` is the
+default. `flush` uses the edge-to-edge layout. With `data-shell="flush"`, no `styles/shell.css`
+rule matches.
 
 | Hook            | On                                    |
 | --------------- | ------------------------------------- |
@@ -274,38 +257,35 @@ runtime, since with `data-shell="flush"` not one rule in `styles/shell.css` matc
 | `.shell-panel`  | each of the three panels              |
 | `.shell-chrome` | title bar and status bar              |
 
-All the geometry lives in `styles/shell.css`, not in the five shell components, and its selectors
-are attribute + class (specificity 0,2,0) so they beat Tailwind utilities without `!important`.
-Sidebar and notes-drawer tests assert the hook classes, because jsdom applies no stylesheet and a
-rename is otherwise silent.
+Keep shell geometry in `styles/shell.css`, not the five shell components. Attribute-plus-class
+selectors have specificity 0,2,0. They override Tailwind utilities without `!important`.
 
-Two constraints worth knowing before changing it:
+Sidebar and notes-drawer tests check the hook classes. jsdom does not apply the stylesheet.
 
-- **Panels keep a 1px border in floating mode, not just a shadow.** Several light themes put
-  `--color-surface-sunken` within a couple of percent of `--color-bg` (github-light: `#fbfcfd`
-  against `#ffffff`), where a shadow-only card is invisible. The border carries those themes; the
-  shadow carries the dark ones.
-- **Gutters are margins, not flex `gap`.** The closed notes drawer is `width: 0` rather than
-  unmounted, so that opening it can animate — and flex `gap` would hold a gutter open beside
-  nothing. When `inert`, the panel also drops its border and shadow, both of which a zero-width box
-  still paints.
+Apply these constraints before you update shell layout:
+
+- **Panels keep a 1px border in floating mode.** A shadow-only panel can be invisible in light
+  themes. `github-light` uses `#fbfcfd` for `--color-surface-sunken` and `#ffffff` for `--color-bg`.
+  The border supports light themes. The shadow supports dark themes.
+- **Use margins for gutters, not flex `gap`.** The closed notes drawer remains mounted at
+  `width: 0` to animate opening. Flex `gap` would keep an empty gutter. When `inert`, remove the
+  panel border and shadow because a zero-width box still paints them.
 
 ---
 
 ## Breakpoints
 
-Two viewport widths, each with one job. Adding a third needs a reason written down here.
+Use these two viewport widths. Document the reason before you add a third.
 
 | Width      | Means                                              | Written as                                     |
 | ---------- | -------------------------------------------------- | ---------------------------------------------- |
 | **900px**  | A side-by-side split becomes a column              | `stackBelow={900}` — or `max-[900px]:flex-col` |
 | **1000px** | Density: rows wrap, panes narrow, padding tightens | `max-[1000px]:…`                               |
 
-**Prefer `SplitPane`'s `stackBelow` over a raw `max-[900px]:flex-col`** where a split already
-exists: the media query lives in one place, and the drag handle is disabled with it rather than
-left behind as a dead 6px strip.
+For an existing split, prefer `SplitPane`'s `stackBelow` to raw `max-[900px]:flex-col`. It keeps
+the media query and disabled drag handle together.
 
-Two documented departures, both deliberate:
+Use these deliberate exceptions:
 
 - `MarkdownEditor` and `ApiClient` stack at **1000px**, not 900. Prose needs more line length than
   most panes before a 50/50 split stops being readable, and a request/response pair is two forms
@@ -314,9 +294,8 @@ Two documented departures, both deliberate:
   their rule grids. That's a column _count_ for a list of checkboxes, not a layout mode change, so
   it doesn't belong on the scale above.
 
-`MasterDetailLayout` narrowed its sidebar at 1100px until 2026-08 while its own comment claimed it
-matched SnippetsManager, which has always used 1000px. Unifying on 1000px cost nothing — keeping a
-pane wide for an extra 100px band is never a regression, whereas wrapping rows _earlier_ could be.
+`MasterDetailLayout` narrows its sidebar at 1000px. This matches `SnippetsManager` and avoids
+earlier row wrapping.
 
 ---
 
@@ -351,7 +330,8 @@ Import from `@/components/shared/<Name>`.
 | `TabBar`                        | ARIA tabs for multi-mode tools; arrow/Home/End nav                           |
 | `Kbd`                           | Keyboard hint. `<Kbd keys="mod+enter" />` — resolves `mod` per platform      |
 
-`SegmentedControl` switches a _view_ of the same thing; `TabBar` switches _what you're working on_.
+Use `SegmentedControl` to change a view of the same item. Use `TabBar` to change the item you work
+on.
 
 ### Feedback
 
@@ -372,24 +352,18 @@ Import from `@/components/shared/<Name>`.
 | `Popover`         | Anchored dismissible surface — menus, flyouts, anything above chrome  |
 | `SettingsPopover` | The toolbar options surface: gear-style trigger plus rows of settings |
 
-**Never hand-roll `absolute right-0 top-full` plus a `mousedown` effect.** Five surfaces were
-written that way before `Popover` existed and between them managed: no Escape handling at all, a
-raw `z-20` that put a menu underneath every other popover, clamping in one direction only, three
-duplicated dismiss effects in one file, and not one that returned focus to its trigger.
+Do not hand-build `absolute right-0 top-full` with a `mousedown` effect. Use `Popover` for Escape
+handling, stacking, position clamping, dismissal, and focus return.
 
-`Popover` takes its trigger as a render prop, because `aria-expanded`, `aria-controls` and the
-anchoring ref all have to land on the same element and every hand-rolled version forgot at least
-one of the three. It anchors by the trigger's trailing edge, so it needs no measurement pass and
-never paints at the wrong coordinates; vertically it takes the room left below as `max-height` and
-scrolls rather than flipping above, since a toolbar popover that flipped would cover the thing it
-configures.
+`Popover` takes a render-prop trigger. Put `aria-expanded`, `aria-controls`, and the anchor ref on
+the same element. It anchors at the trigger's trailing edge. It uses remaining lower space as
+`max-height` and scrolls instead of flipping above the toolbar.
 
 #### Tool options go in a `SettingsPopover`, not a second toolbar row
 
-A collapsible options row costs more than its space: it resizes the editor underneath, so toggling
-an option relayouts the document at the moment the user is reading it, and it makes toolbar height
-a function of which tool is open. Code Formatter, TS Playground, HTML Validator and CSS Validator
-all use the popover.
+Use `SettingsPopover` for tool options. An options row resizes the editor and makes toolbar height
+depend on the open tool. Code Formatter, TS Playground, HTML Validator, and CSS Validator use the
+popover.
 
 What stays in the toolbar:
 
@@ -401,21 +375,19 @@ What stays in the toolbar:
   performs an operation. A settings surface with a confirm button is a dialog in disguise.
 - **Read-outs.** A line count or a byte size is a fact about the document, not a setting.
 
-Pass `badge` wherever "back to defaults" is meaningful state. Hiding settings means the toolbar
-stops showing that any were changed; the badge is what buys that back.
+Pass `badge` when changed settings make “back to defaults” meaningful. The badge shows that hidden
+settings differ from their defaults.
 
-Use semantic variants (`info`/`success`/`warning`/`error`) rather than styling status text at the
-call site. Do not add check marks, warning glyphs, emoji, or custom SVG — the component or a
-Phosphor icon supplies the cue.
+Use `info`, `success`, `warning`, and `error` variants. Do not style status text at the call site.
+Do not add check marks, warning glyphs, emoji, or custom SVG.
 
 #### Toolbar overflow is measured collapse, never wrapping
 
-A toolbar row's height must not depend on how many controls it happens to hold — a row that wraps
-pushes the document down and makes every tool read as a different app. `Toolbar` therefore keeps
-one line at any width: when the controls no longer fit, whole trailing groups fold into a
-"More actions" caret menu at the end of the row, and unfold again when space returns.
+Keep each toolbar on one line. A wrapped row moves the document and changes tool layout. When
+controls do not fit, `Toolbar` moves trailing groups into the “More actions” menu. It restores
+them when space returns.
 
-The rules this encodes:
+Follow these overflow rules:
 
 - **Group order is priority order.** Groups leave from the right, so put what must survive first
   in JSX. Identity (which truncates) and file actions outlast view options; view options outlast
@@ -425,13 +397,12 @@ The rules this encodes:
 - **No opt-out.** The old `wrap` prop is gone; horizontal scrolling of chrome is not an
   alternative the app offers.
 
-The overflow menu reuses the group's own label as its section heading and restacks the same
-controls vertically, so nothing needs duplicating and state stays unique.
+The overflow menu uses the group label as its heading. It stacks the same controls vertically, so
+state stays unique.
 
 ### `SectionLabel`
 
-The one label idiom. Before it existed there were seven, differing on font, weight, and tracking
-with no rule distinguishing them.
+Use `SectionLabel` for every section label.
 
 ```tsx
 <SectionLabel>Output</SectionLabel>                        // <span>, chrome
@@ -439,8 +410,8 @@ with no rule distinguishing them.
 <SectionLabel hint={`${count} matches`}>Results</SectionLabel>
 ```
 
-Renders `font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`.
-Pick `as` for the _document structure_ you need; the visual is identical either way.
+It renders `font-ui text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`.
+Choose `as` for the required document structure. The visual remains the same.
 
 ### `Button` variants
 
@@ -450,25 +421,25 @@ Pick `as` for the _document structure_ you need; the visual is identical either 
   > one visible at a time.**
 
   `case-converter`, `regex-tester`, `hash-generator`, `timestamp-converter`, `color-converter`,
-  `jwt-decoder` and `refactoring-toolkit` correctly have none — there is no button to press, and
-  adding one to fill the slot invents a step the tool doesn't have.
+  `jwt-decoder`, and `refactoring-toolkit` have none. These tools compute live. Do not add an
+  action that creates an unnecessary step.
 
-  Three things are outside the count, because they can't compete with the tool's own action:
+  These items are outside that count:
   - **A modal's confirm button.** It's the primary of its dialog, and the dialog is the only thing
     focusable while it's open.
   - **An `EmptyState` action.** It shows precisely when the chrome has nothing to act on.
   - **A conditional swap** — `variant={originalImg ? 'secondary' : 'primary'}` in `image-tool`,
     where opening a file is the primary until a file is open and Download takes over.
 
-  Two placements are settled: a `MasterDetailLayout` sidebar heading **never** carries the accent
-  (its create action is `secondary`), and neither does a `PaneHeader` action, however transient.
+  Use `secondary` for a `MasterDetailLayout` sidebar create action. Do not use accent for a
+  `PaneHeader` action.
 
 - `secondary` — ordinary actions (Clear, Reset, Swap)
 - `ghost` — tertiary actions and navigation
 - `danger` — destructive only
 - `icon` — icon-only; **always** pass `aria-label` (it also becomes the tooltip)
 
-Use `loading` for async actions: it preserves width, announces busy, and blocks repeat clicks.
+Use `loading` for async actions. It preserves width, announces busy, and blocks repeat clicks.
 
 ### Toasts
 
@@ -481,13 +452,13 @@ setLastAction('Invalid JSON', 'error')
 setLastAction('Copied to clipboard', 'info')
 ```
 
-Auto-dismiss after 3s, dismissable by click, bottom-right.
+Place toasts at bottom-right. Auto-dismiss them after 3s. Allow click dismissal.
 
 ---
 
 ## Focus
 
-Two treatments, both tokens. Anything else is drift and fails `lint:ds`.
+Use these two focus treatments only. Other treatments fail `lint:ds`.
 
 ```tsx
 // Standard — control with room around it
@@ -497,22 +468,19 @@ className = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]
 className = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)]'
 ```
 
-`--focus-ring` draws 4px _outside_ the element, with a background-coloured inner layer so it stays
-visible on any surface. In a dense container that ring gets clipped or lands on the neighbouring
-row, which is what `--focus-ring-inset` is for. Reach for inset only when the standard ring is
-actually clipped.
+`--focus-ring` draws 4px outside the element. Its background-coloured inner layer keeps it visible
+on every surface. Use `--focus-ring-inset` only when a dense container clips the standard ring.
 
-Every interactive element needs a visible focus state. Icon-only buttons need `aria-label`. Use
-semantic HTML (`<button>`, `<input>`, `<label>`) over a `<div>` with `onClick`. The app is
-keyboard-first — every core action must be reachable without a mouse (`useGlobalShortcuts`).
+Give every interactive element a visible focus state. Give icon-only buttons `aria-label`. Use
+semantic HTML instead of a `<div>` with `onClick`. Make every core action reachable with
+`useGlobalShortcuts`.
 
 ---
 
 ## Motion
 
-Three durations and two easings, in `tokens.css`. Interaction feedback stays under 200ms — this is
-a utility app, it should feel instant. The one exception is the theme cross-fade, which repaints
-every surface at once and needs longer to read as a fade rather than a flash.
+Use the durations and easings in `tokens.css`. Keep interaction feedback below 200ms. The theme
+cross-fade uses the longer duration because it repaints every surface.
 
 | Token              | Value                           | Use                                           |
 | ------------------ | ------------------------------- | --------------------------------------------- |
@@ -529,21 +497,20 @@ className = 'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-
 
 ### Theme cross-fade
 
-Changing themes rewrites every `--color-*` token at once. Custom properties do not animate, so
-nothing interpolates on its own and the window repaints in one frame. `setThemeClass()` in
-`src/lib/theme.ts` is the only supported way to swap the theme class: it puts `.theme-transition`
-on `<html>`, swaps the class, and removes it on a timer. The rule in `index.css` gives every
-element a temporary colour transition for that window, so the new palette fades in.
+Changing a theme rewrites every `--color-*` token. Custom properties do not animate. Use
+`setThemeClass()` in `src/lib/theme.ts` to change the theme class. It adds `.theme-transition` to
+`<html>`, changes the class, and removes the transition on a timer. `index.css` then fades the
+palette for that interval.
 
-Two things not to change without reading the comments:
+Keep these theme cross-fade rules:
 
 - It is a temporary class, not a standing `* { transition: colors }`. The latter would slow every
   hover and focus in the app to the theme duration.
 - It uses `--ease-in-out`. `--ease-out` is front-loaded enough that the palette lands in ~60ms and
   reads as the flash it replaces.
 
-Literal `duration-150` / `ease-in-out` are blocked by `lint:ds` — that is how a fourth duration
-gets in, and the same interaction then runs at two speeds depending on which file it lives in.
+`lint:ds` blocks literal `duration-150` and `ease-in-out`. Use the tokens so matching interactions
+use matching timing.
 
 Shared keyframe utilities, all defined in `index.css`:
 
@@ -553,11 +520,10 @@ Shared keyframe utilities, all defined in `index.css`:
 | `animate-pop-in`        | opacity + 0.98→1 scale — tooltips and flyouts          |
 | `animate-fade-in-place` | opacity only                                           |
 
-Use `animate-fade-in-place` on anything positioned with a transform (`-translate-x-1/2`, etc.).
-Keyframes that animate `transform` overwrite the utility's positioning transform outright, so a
-centred toolbar jumps to its untransformed corner for the length of the animation.
+Use `animate-fade-in-place` for an element positioned with a transform such as
+`-translate-x-1/2`. A transform keyframe overwrites that positioning transform.
 
-Two rules that are not stylistic:
+Apply these motion rules:
 
 - **Never transition a property a drag writes on every mousemove.** Setting an inline `width` does
   not opt out of a `transition-[width]` class — each move re-aims a fresh eased animation at a
@@ -567,7 +533,7 @@ Two rules that are not stylistic:
 - **Prefer `transform` and `opacity`.** They composite; `width`, `height` and `top` re-run layout
   on every frame of the animation.
 
-`index.css` disables animation under `prefers-reduced-motion` globally, so don't add per-component
+`index.css` disables animation globally under `prefers-reduced-motion`. Do not add component
 guards.
 
 ---
@@ -582,8 +548,8 @@ useMonacoTheme() // keeps Monaco in sync with the app theme — must be called
 <Editor options={EDITOR_OPTIONS} theme={monacoTheme} language="json" … />
 ```
 
-Always base off `EDITOR_OPTIONS`; override individual keys rather than replacing the object.
-**Always pass `theme` explicitly** — `DiffEditor` defaults to light, and `setTheme` is global.
+Base editor options on `EDITOR_OPTIONS`. Override individual keys instead of replacing the object.
+Always pass `theme` explicitly. `DiffEditor` defaults to light and `setTheme` is global.
 
 ---
 
@@ -592,12 +558,11 @@ Always base off `EDITOR_OPTIONS`; override individual keys rather than replacing
 `bun run lint` runs ESLint and then `bun run lint:ds`
 (`scripts/lint-design-system.mjs`).
 
-ESLint (`eslint.config.js`) blocks raw `<button>`, `<select>`, and text `<input>` in `src/tools`,
-and raw text `<input>` in `src/components/shell`. Per-line
-`// eslint-disable-next-line no-restricted-syntax` with a stated reason is the escape hatch.
+ESLint (`eslint.config.js`) blocks raw `<button>`, `<select>`, and text `<input>` in `src/tools`.
+It also blocks raw text `<input>` in `src/components/shell`. Use a per-line
+`// eslint-disable-next-line no-restricted-syntax` with a reason when required.
 
-`lint:ds` walks raw source — including template literals, where most of the historical drift hid —
-and blocks:
+`lint:ds` checks raw source, including template literals. It blocks:
 
 | Rule                | Blocks                                             |
 | ------------------- | -------------------------------------------------- |
@@ -609,17 +574,17 @@ and blocks:
 | `tailwind-palette`  | `bg-zinc-900` and friends                          |
 | `dimmed-muted-text` | unprefixed `opacity-*` on `--color-text-muted`     |
 
-Escape hatch: `/* design-system-ignore: <reason> */` on the preceding line. The reason is required.
+Use `/* design-system-ignore: <reason> */` on the preceding line as an escape hatch. Include the
+reason.
 
-If you need to change a rule, change this document in the same commit. A gate that disagrees with
-its documentation teaches contributors to ignore both.
+Update this document in the same commit when you update a rule.
 
 ---
 
 ## Adding a new tool
 
-The gates catch tokens and class strings. They cannot catch structure, which is where every
-inconsistency in the 2026-08 audit actually came from. Walk this before opening the PR:
+The gates check tokens and class strings. Use this checklist to validate structure before you open
+a PR:
 
 - [ ] Root is `ToolLayout` (or `MasterDetailLayout` for a library tool). Nothing above it.
 - [ ] No `<h1>`/`<h2>` naming the tool — the tab strip does that.

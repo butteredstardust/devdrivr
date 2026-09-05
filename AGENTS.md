@@ -1,21 +1,21 @@
 # AGENTS.md — devdrivr
 
-Instructions for AI coding agents (OpenAI Codex, GitHub Copilot, etc.) working in this repository.
+Use this contract when you work in this repository.
 
 ## Development Workflow
 
-When given a feature or update request, execute this pipeline end-to-end without pausing for permission at each step:
+For a feature or update, complete this workflow without pausing for routine permission:
 
-1. **Evaluate & refine** — read the relevant code before writing any; surface tradeoffs or ambiguities; propose adjustments if the request has edge cases worth flagging
-2. **Plan** — agree on approach before touching code; for anything non-trivial, write out the steps
-3. **Implement** — write the code; do not add features, abstractions, or cleanup beyond what was asked
-4. **Verify** — `npx tsc --noEmit` (zero errors) + `bunx vitest run` (all passing); fix anything broken before moving on
-5. **Code review** — self-review against the rules in this file; catch bugs, anti-patterns, and regressions
-6. **Fix** — address every issue found in review before committing
-7. **Commit & push** — conventional commit message on a feature branch
-8. **Open PR** — description targeted at a human reviewer; user-facing language, not a dev log
+1. **Evaluate & refine** — Read relevant code first. State tradeoffs, ambiguities, and edge cases that need attention.
+2. **Plan** — Agree the approach before you change code. Write steps for non-trivial work.
+3. **Implement** — Make the requested update. Do not add unrequested features, abstractions, or cleanup.
+4. **Verify** — Run `npx tsc --noEmit` with zero errors. Run `bunx vitest run` with all tests passing. Fix failures first.
+5. **Code review** — Review the update against this file. Check for bugs, anti-patterns, and regressions.
+6. **Fix** — Resolve every review finding before you commit.
+7. **Commit & push** — Use a conventional commit message on a feature branch.
+8. **Open PR** — Write for a human reviewer. Use user-facing language, not a development log.
 
-Operate autonomously through all 8 steps. Make decisions informed by best practice and the non-negotiable rules below. Only pause if something is genuinely ambiguous about the intent of the request — not for routine implementation choices.
+Work independently through all eight steps. Use best practice and the rules below. Pause only for a genuine intent ambiguity.
 
 ---
 
@@ -23,7 +23,7 @@ Operate autonomously through all 8 steps. Make decisions informed by best practi
 
 ### Never commit directly to main
 
-All work goes on a feature branch. If commits accidentally land on `main` before a branch is created, rescue them before pushing:
+Use a feature branch for all work. If commits reach `main` before you create a branch, rescue them before you push:
 
 ```bash
 git checkout -b feat/my-feature   # branch at current HEAD — captures the commits
@@ -44,7 +44,7 @@ refactor/short-description   # no behaviour change
 
 ### Commit messages — conventional commits
 
-Format: `type(scope): short description` — imperative mood, no period, under 72 chars. Scope is almost always `devdrivr`.
+Use `type(scope): short description`. Use imperative mood. Do not add a period. Keep it under 72 chars. The scope is almost always `devdrivr`.
 
 ```
 feat(devdrivr): add cron expression parser
@@ -54,36 +54,31 @@ docs(devdrivr): update AGENTS.md with git workflow
 
 ### Commits run a `bunx` pre-commit hook
 
-The pre-commit hook calls `bunx`, so `bun` must be resolvable from the environment your git client
-runs hooks in. Normally `git commit -m "..."` just works.
+The pre-commit hook calls `bunx`. Make `bun` available to the environment that runs Git hooks. Normally, `git commit -m "..."` works.
 
-If a commit fails with `command not found: bunx`, your hook shell has a minimal PATH that doesn't
-include Bun's install directory. Add it for that invocation — on macOS with a Homebrew-installed
-Bun that is `/opt/homebrew/bin`:
+If a commit reports `command not found: bunx`, the hook PATH does not include Bun. For Homebrew Bun on macOS, use `/opt/homebrew/bin` for that command:
 
 ```bash
 HUSKY_PATH=/opt/homebrew/bin PATH="/opt/homebrew/bin:$PATH" git commit -m "..."
 ```
 
-Substitute the output of `dirname "$(which bun)"` if your install lives elsewhere. This prefix is a
-workaround for a local environment gap, not a project requirement — if you never hit the error, you
-never need it.
+Use the output of `dirname "$(which bun)"` when Bun is elsewhere. This prefix fixes a local environment gap. Do not use it unless the error occurs.
 
 ### PRs
 
-- Title: matches the commit message format, under 70 chars
-- Body: **Summary** bullets in user-facing language + **Test plan** checklist
-- Target: always `main`
-- Push new branches with `-u`: `git push -u origin feat/my-feature`
-- Never force-push to `main`
+- Title: Match the commit message format. Keep it under 70 chars.
+- Body: Use **Summary** bullets in user-facing language. Add a **Test plan** checklist.
+- Target: Use `main`.
+- New branches: Push with `-u`: `git push -u origin feat/my-feature`.
+- Never force-push to `main`.
 
-When asked to "open a PR" or "commit and push", the full sequence is implied — branch (if not already on one) → commit → push → `gh pr create`. Do not ask for confirmation between steps.
+For “open a PR” or “commit and push,” create a branch if needed. Commit, push, then run `gh pr create`. Do not ask between these steps.
 
 ---
 
 ## What This Project Is
 
-**devdrivr** is a local-first, keyboard-driven developer utility desktop app.
+**devdrivr** is a local-first, keyboard-driven desktop workspace for developer tools.
 
 - **Runtime**: Tauri 2 (Rust backend + WKWebView frontend)
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
@@ -96,7 +91,7 @@ When asked to "open a PR" or "commit and push", the full sequence is implied —
 
 ## Commands
 
-**All commands must be run from the repository root.**
+Run every command from the repository root.
 
 ```bash
 # Typecheck — zero errors required before every commit
@@ -131,22 +126,21 @@ bun install
 bun run clean
 ```
 
-If any of these fail with `command not found`, see the PATH note under
-[Commits run a `bunx` pre-commit hook](#commits-run-a-bunx-pre-commit-hook).
+If a command reports `command not found`, check [Commits run a `bunx` pre-commit hook](#commits-run-a-bunx-pre-commit-hook).
 
 ### Common mistakes
 
-| Wrong                                      | Right                                      | Why                                                 |
-| ------------------------------------------ | ------------------------------------------ | --------------------------------------------------- |
-| `bun run test`                             | `bunx vitest run`                          | bun can't resolve the vitest binary directly        |
-| `npm run ...` / `yarn ...`                 | `bun run ...`                              | npm/yarn are not the package manager                |
-| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH — see § Commits |
+| Wrong                                      | Right                                      | Why                                                |
+| ------------------------------------------ | ------------------------------------------ | -------------------------------------------------- |
+| `bun run test`                             | `bunx vitest run`                          | Bun cannot resolve the Vitest binary directly      |
+| `npm run ...` / `yarn ...`                 | `bun run ...`                              | npm and yarn are not the package manager           |
+| Committing when the hook can't find `bunx` | Put Bun's bin dir on PATH for that command | Hook shells can have a minimal PATH. See § Commits |
 
 ---
 
 ## File Map — Know Before You Touch
 
-The `@/` path alias maps to `src/`. Use it for all imports — never write relative paths like `../../lib/db`.
+The `@/` alias maps to `src/`. Use it for every import. Do not use relative paths such as `../../lib/db`.
 
 ```
 src/app/tool-registry.ts          ← SINGLE SOURCE OF TRUTH for all tools
@@ -213,9 +207,9 @@ className="bg-zinc-900 text-white border-gray-700"
 style={{ color: '#39ff14' }}
 ```
 
-Available tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--color-border`,
+Use these tokens: `--color-bg`, `--color-surface`, `--color-surface-hover`, `--color-border`,
 `--color-text`, `--color-text-muted`, `--color-accent`, `--color-accent-dim`, `--color-error`,
-`--color-warning`, `--color-success`, `--color-info`, `--color-shadow`
+`--color-warning`, `--color-success`, `--color-info`, `--color-shadow`.
 
 ### 4. Web Workers: `?worker` imports only
 
@@ -271,12 +265,12 @@ init: async () => {
 
 ### 8. Never add `React.StrictMode`
 
-Intentionally removed. Causes double-mount flash in Tauri's WebView. Don't add it back.
+Do not add it. It causes a double-mount flash in Tauri's WebView.
 
 ### 9. Never create new Tauri windows
 
-`new WebviewWindow(...)` was removed. IPC capability scoping + listener leak issues.
-Use drawers, panels, or modals within the existing window instead.
+Do not use `new WebviewWindow(...)`. It causes IPC capability-scoping and listener-leak issues.
+Use drawers, panels, or modals in the existing window.
 
 ### 10. DPI conversion for window APIs
 
@@ -317,8 +311,8 @@ import { ArrowRight, Clipboard } from '@phosphor-icons/react'
 
 ### 13. Never use the Preview MCP tool
 
-This is a Tauri desktop app. The browser-based preview cannot render it.
-Do not call `preview_start` or any preview tool unless the user explicitly asks.
+This is a Tauri desktop app. Browser preview cannot render it.
+Do not call `preview_start` or a preview tool unless the user explicitly asks.
 
 ### 14. Use `TextEncoder`/`TextDecoder` for UTF-8, not `unescape`/`escape`
 
@@ -340,8 +334,7 @@ decodeURIComponent(escape(atob(b64)))
 
 ### 15. React 19 — Wheel events are passive by default
 
-`onWheel` in JSX cannot call `e.preventDefault()` (browser ignores it). Attach the
-listener imperatively for any zoom / scroll-hijack:
+`onWheel` in JSX cannot call `e.preventDefault()` because the browser ignores it. Attach an imperative listener for zoom or scroll-hijack:
 
 ```typescript
 useEffect(() => {
@@ -357,10 +350,7 @@ useEffect(() => {
 
 ### 16. Refs on conditional JSX branches — use callback refs, not `useRef` + `useEffect`
 
-If a `ref` is attached to an element inside a conditional branch, a plain `useRef`
-will be `null` when the `useEffect` runs on mount (the branch may not be active).
-Use a `useCallback` callback ref so the listener attaches/detaches as the node
-mounts and unmounts:
+In a conditional JSX branch, `useRef` can be `null` when `useEffect` runs on mount. Use a `useCallback` callback ref. It attaches and removes the listener as the node mounts and unmounts:
 
 ```typescript
 const wheelCleanupRef = useRef<(() => void) | null>(null)
@@ -381,7 +371,7 @@ const callbackRef = useCallback((el: HTMLDivElement | null) => {
 
 ### 17. ResizeObserver: guard for jsdom
 
-`ResizeObserver` is `undefined` in the Vitest/jsdom environment. Always guard:
+`ResizeObserver` is `undefined` in Vitest/jsdom. Always add this guard:
 
 ```typescript
 if (typeof ResizeObserver === 'undefined') return
@@ -392,7 +382,7 @@ return () => observer.disconnect()
 
 ### 18. Cross-tool navigation — hand off with `sendToTool`
 
-To pre-populate a destination tool and bring it forward, use `sendToTool`:
+Use `sendToTool` to pre-populate a destination tool and open it:
 
 ```typescript
 import { sendToTool } from '@/lib/tool-handoff'
@@ -404,16 +394,11 @@ sendToTool('target-tool', {
 })
 ```
 
-Do **not** write to `useToolStateCache.set` and call `openTab` by hand. Two things make that wrong
-now: the destination may be open in more than one tab, so the patch has to be addressed to the
-receiving tab's state key rather than the bare tool id; and the destination is usually already
-mounted (tabs are kept alive), so it will never re-read the cache. `sendToTool` resolves the key and
-goes through `seed()`, which is the signal a mounted `useToolState` watches for.
+Do **not** write to `useToolStateCache.set` and call `openTab` by hand. A tool can be open in multiple tabs. Address the receiving tab state key, not the tool id. Mounted tabs do not re-read the cache. `sendToTool` resolves the key and uses `seed()`. A mounted `useToolState` watches this signal.
 
 ### 19. Canvas 2D is sufficient for image processing
 
-No npm image library is needed for resize, crop, format conversion, or quality control.
-Canvas handles all of it:
+Do not add an npm image library for resize, crop, format conversion, or quality control. Canvas handles these operations:
 
 ```typescript
 canvas.width = outW
@@ -428,12 +413,11 @@ canvas.toBlob(
 )
 ```
 
-For large images, debounce any input that triggers `toDataURL`/`toBlob` on every keystroke.
+For large images, debounce input that triggers `toDataURL`/`toBlob` on every keystroke.
 
 ### 20. Crop / geometry math — clamp dimensions before position
 
-When clamping a crop/selection rectangle to image bounds, always clamp `w`/`h` first
-so the subsequent `x`/`y` clamp expressions (`origW - w`, `origH - h`) use valid values:
+Clamp `w` and `h` before `x` and `y` for a crop or selection rectangle. This keeps `origW - w` and `origH - h` valid:
 
 ```typescript
 w = Math.max(1, Math.min(w, origW))
@@ -442,12 +426,11 @@ x = Math.max(0, Math.min(x, origW - w))
 y = Math.max(0, Math.min(y, origH - h))
 ```
 
-Also lower-bound any new `x`/`y` computed from a drag delta before using it to derive
-a new `w`/`h` (e.g., NW/SW handle drag: `nx = Math.max(0, startX + dx)`).
+Lower-bound new `x` and `y` from a drag delta before deriving `w` and `h`. Example: NW/SW handle drag uses `nx = Math.max(0, startX + dx)`.
 
 ### 21. Fuse.js search highlighting — use composite React keys
 
-When using `includeMatches: true`, define a local interface instead of importing Fuse types:
+With `includeMatches: true`, define this local interface. Do not import Fuse types:
 
 ```typescript
 interface FuseMatchEntry {
@@ -456,9 +439,9 @@ interface FuseMatchEntry {
 }
 ```
 
-Keep two memos: `fuseResults` (drives both filtered list AND match data) and `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`.
+Keep two memos. `fuseResults` drives the filtered list and match data. Use `matchMap: Map<id, ReadonlyArray<FuseMatchEntry>>`.
 
-**Always use composite keys** on `<mark>` elements — `key={\`${start}-${end}\`}`, not `key={start}`. Fuse can return overlapping index ranges with the same `start` value, causing duplicate key warnings.
+Use composite keys on `<mark>` elements: `key={\`${start}-${end}\`}`, not `key={start}`. Fuse can return overlapping ranges with one `start` value. This causes duplicate-key warnings.
 
 ### 22. CSS grid collapse animation
 
@@ -472,7 +455,7 @@ Keep two memos: `fuseResults` (drives both filtered list AND match data) and `ma
 </div>
 ```
 
-No pixel height needed. Outer div transitions row size; inner `overflow-hidden` clips content. Toggle button must have `aria-expanded={!collapsed}`.
+Do not set a pixel height. The outer div transitions the row size. Inner `overflow-hidden` clips content. The toggle button must have `aria-expanded={!collapsed}`.
 
 ### 23. ARIA combobox — wiring and focus management
 
@@ -493,13 +476,13 @@ No pixel height needed. Outer div transitions row size; inner `overflow-hidden` 
 </div>
 ```
 
-`e.preventDefault()` on `onMouseDown` keeps input focus when clicking a suggestion. Always prefix async `onMouseDown` handlers with `void` — omitting it leaves an unhandled promise rejection.
+`e.preventDefault()` on `onMouseDown` keeps input focus when a suggestion is clicked. Prefix async `onMouseDown` handlers with `void`. Without it, an unhandled promise rejection occurs.
 
 ### 24. `void` prefix for async fire-and-forget event handlers
 
 ### 25. DB migrations — always backfill existing rows
 
-`ALTER TABLE` gives existing rows `NULL` for the new column. Always include an explicit `UPDATE` in the same migration — never rely on `DEFAULT` alone for existing data:
+`ALTER TABLE` gives existing rows `NULL` for a new column. Include an explicit `UPDATE` in the same migration. Do not rely on `DEFAULT` for existing data:
 
 ```sql
 -- ✅ Column added AND existing rows backfilled in same migration
@@ -512,11 +495,11 @@ ALTER TABLE snippets ADD COLUMN folder TEXT NOT NULL DEFAULT '';
 
 ### 26. Tailwind v4 — no config file
 
-This project uses Tailwind CSS 4 (CSS-first). There is **no `tailwind.config.js`** — do not create one. All configuration lives in `src/index.css`. Do not use `@apply` with v3 plugin syntax. Standard arbitrary value syntax still applies: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
+This project uses CSS-first Tailwind CSS 4. Do not create `tailwind.config.js`. Keep configuration in `src/index.css`. Do not use `@apply` with v3 plugin syntax. Use standard arbitrary values: `bg-[var(--color-surface)]`, `grid-rows-[0fr]`.
 
 ### 27. Prefer platform APIs over npm packages
 
-Reach for browser/web platform APIs before adding a dependency:
+Use browser and web platform APIs before you add a dependency:
 
 | Task                       | Use this                    | Not this                 |
 | -------------------------- | --------------------------- | ------------------------ |
@@ -525,11 +508,11 @@ Reach for browser/web platform APIs before adding a dependency:
 | UTF-8 encode/decode        | `TextEncoder`/`TextDecoder` | `buffer` polyfill        |
 | HTML/XML parsing           | `DOMParser`                 | `cheerio`, `htmlparser2` |
 
-If a browser API handles the task, use it. Adding a package requires a clear reason why the platform API is insufficient.
+Use a browser API when it handles the task. Add a package only when the platform API is insufficient.
 
 ### 28. Test file location
 
-Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx` — not co-located with the component. Creating `src/tools/my-tool/MyTool.test.tsx` works but breaks the established pattern.
+Put tool tests in `src/tools/__tests__/<tool-id>.test.tsx`. Do not colocate them with the component. `src/tools/my-tool/MyTool.test.tsx` works but breaks the project pattern.
 
 ```
 src/tools/__tests__/
@@ -538,7 +521,7 @@ src/tools/__tests__/
   markdown-editor.test.tsx
 ```
 
-Calling an async function from a synchronous event handler without handling the returned Promise causes an unhandled rejection warning. Use `void`:
+Prefix an async function called by a synchronous event handler with `void`. Without it, an unhandled rejection warning occurs:
 
 ```typescript
 // ✅
@@ -655,13 +638,13 @@ api_collections  (id, name, description, created_at, updated_at)        -- API C
 api_requests     (id, collection_id, name, method, url, headers, body, created_at, updated_at)  -- API Client — migration 002
 ```
 
-WAL mode is set at connection time in `getDb()` — not in migrations.
+Set WAL mode at connection time in `getDb()`. Do not set it in migrations.
 
 ---
 
 ## Submission Checklist
 
-Before opening a PR, verify every item:
+Before you open a PR, validate every item:
 
 - [ ] `npx tsc --noEmit` — zero errors
 - [ ] `bunx vitest run` — all passing (zero failures)

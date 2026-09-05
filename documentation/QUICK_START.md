@@ -1,59 +1,22 @@
 # Quick Start Guide
 
-Welcome to devdrivr! This guide will help you get up and running quickly with the application.
+Use this guide after you install devdrivr. It describes the app, not developer environment setup.
 
 ## What is devdrivr?
 
-devdrivr is a local-first, keyboard-driven developer utility workspace that provides a collection of essential tools for developers. It's designed to be fast, efficient, and fully offline-capable.
+devdrivr is a local-first, keyboard-driven developer utility workspace. See [PRODUCT_MAP.md](PRODUCT_MAP.md) for all tools.
 
-## Installation
+## Install the App
 
-### Prerequisites
-
-- [Rust and cargo-cp-artifact](https://www.rust-lang.org/tools/install)
-- [Bun](https://bun.sh) (v1.0+)
-
-### Installing Bun (macOS)
-
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
-### Installing Bun (Windows)
-
-```powershell
-# Install using PowerShell
-powershell -c "irm bun.sh/install.ps1 | iex"
-```
-
-### Installing Bun (Linux)
-
-```bash
-# Install via package manager or official script
-curl -fsSL https://bun.sh/install | bash
-```
-
-### Project Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/butteredstardust/devdrivr.git
-cd devdrivr
-
-# Install dependencies
-bun install
-
-# Start development server
-bun run tauri dev
-```
+Download an installer from the [latest release](https://github.com/butteredstardust/devdrivr/releases/latest). For a development environment, use [ONBOARDING.md](ONBOARDING.md).
 
 ## First Launch
 
-When you first launch devdrivr, you'll see the main interface with the sidebar containing all available tools. The application will:
+On first launch, the sidebar lists the tools. The app then:
 
-1. Restore your previous window position and size
-2. Load your last used tool
-3. Apply your theme preferences
+1. Opens a workspace.
+2. Applies the saved theme.
+3. Saves workspace data locally.
 
 ## Navigation
 
@@ -61,22 +24,22 @@ When you first launch devdrivr, you'll see the main interface with the sidebar c
 
 - `Cmd/Ctrl + ,` - Open Settings
 - `Cmd/Ctrl + K` - Quick search tools
-- `Cmd/Ctrl + Shift + K` - Global command palette
+- `Cmd/Ctrl + Shift + N` - Toggle the notes drawer
 - `Cmd/Ctrl + /` - Show keyboard shortcuts
 - `Cmd/Ctrl + [` - Go to previous tool
 - `Cmd/Ctrl + ]` - Go to next tool
 
 ### Mouse Navigation
 
-- Click on tool names in the sidebar to switch tools
-- Use the search bar to quickly find tools
-- Settings icon in the top right for application settings
+- Click a tool in the sidebar to open it.
+- Use `Cmd/Ctrl + K` to search tools.
+- Open Settings with `Cmd/Ctrl + ,`.
 
 ## Using Tools
 
 ### Code Formatter
 
-The Code Formatter tool helps you format code in multiple languages:
+Use Code Formatter to format supported source text:
 
 1. **Paste Code**: Enter or paste code in the editor
 2. **Select Language**: Choose from JavaScript, TypeScript, JSON, CSS, HTML, and more
@@ -85,7 +48,7 @@ The Code Formatter tool helps you format code in multiple languages:
 
 ### JSON Tools
 
-Work with JSON data easily:
+Use JSON Tools to validate and transform JSON:
 
 1. **Format**: Pretty-print JSON with proper indentation
 2. **Minify**: Compress JSON by removing whitespace
@@ -94,7 +57,7 @@ Work with JSON data easily:
 
 ### YAML Tools
 
-Comprehensive YAML utility with multiple features:
+Use YAML Tools to validate and transform YAML:
 
 1. **Lint & Format**: Real-time YAML syntax validation
 2. **Tree View**: Interactive YAML structure browser
@@ -102,7 +65,7 @@ Comprehensive YAML utility with multiple features:
 
 ### API Client
 
-Test and debug API endpoints:
+Use API Client to send HTTP requests:
 
 1. **Create Collections**: Organize API requests into collections
 2. **Environment Variables**: Set up different environments (dev, staging, prod)
@@ -113,7 +76,7 @@ Test and debug API endpoints:
 
 ### Themes
 
-devdrivr supports both light and dark themes. You can change your theme in Settings:
+Use Settings to select Light, Dark, or System theme:
 
 1. Open Settings (`Cmd/Ctrl + ,`)
 2. Navigate to the Appearance section
@@ -121,7 +84,7 @@ devdrivr supports both light and dark themes. You can change your theme in Setti
 
 ### Editor Settings
 
-Customize your editing experience:
+Use Settings to update shared editor preferences:
 
 1. **Font Size**: Adjust text size in editors
 2. **Tab Size**: Set indentation preferences
@@ -132,7 +95,7 @@ Customize your editing experience:
 
 ### Notes
 
-Create and manage notes with the built-in note-taking system:
+Use the notes drawer to create and update local notes:
 
 1. **Create Notes**: Click the + button in the notes panel
 2. **Color Coding**: Choose from multiple note colors
@@ -141,7 +104,7 @@ Create and manage notes with the built-in note-taking system:
 
 ### Snippets
 
-Store and organize code snippets:
+Use Snippets to save reusable code:
 
 1. **Create Snippets**: Save code snippets for reuse
 2. **Categorization**: Organize snippets by language or purpose
@@ -150,14 +113,12 @@ Store and organize code snippets:
 
 ## Performance Tips
 
-### Optimizing devdrivr
+### Workspace behavior
 
-1. **Web Workers**: Heavy operations run off the main thread
-2. **State Persistence**: Two-tier system (cache + debounced DB writes)
-3. **Memory Management**: Automatic cleanup of unused resources
-4. **Efficient Rendering**: Virtualized lists for large datasets
+1. Workers process supported tool operations.
+2. The workspace writes state to local storage.
 
-### Keyboard Efficiency
+### Keyboard use
 
 - Use `Tab`/`Shift+Tab` to navigate between fields
 - Use `Cmd/Ctrl + Enter` to format in most tools
@@ -168,10 +129,9 @@ Store and organize code snippets:
 
 ### Common Issues
 
-1. **Application won't start**
-   - Check that Rust and cargo-cp-artifact are installed
-   - Verify Bun version is 1.0+
-   - Check system requirements
+1. **Application will not start**
+   - Check the installer and platform requirements.
+   - See the root README for unsigned-build guidance.
 
 2. **Tools not loading**
    - Clear application cache in Settings
@@ -191,83 +151,38 @@ Store and organize code snippets:
 
 ## Advanced Features
 
-### Local development commands
+### Developer setup
 
-devdrivr doesn't ship a separate CLI — these are the same `bun run` scripts used for local
-development:
+Use [ONBOARDING.md](ONBOARDING.md) for development commands.
 
-```bash
-# Run tests
-bun run test
+### More tool actions
 
-# Build for production
-bun run build
-
-# Check types (also runs automatically as part of `bun run build`)
-npx tsc --noEmit
-
-# Lint
-bun run lint
-```
-
-### Custom Shortcuts
-
-Create custom keyboard shortcuts:
+Use tool controls for actions that apply to the active tool.
 
 1. Open Settings (`Cmd/Ctrl + ,`)
 2. Navigate to Keyboard Shortcuts
 3. Click "Add Shortcut"
 4. Define trigger and action
 
-### API Access
+### Local MCP access
 
-Use the built-in API for automation:
-
-```javascript
-// Example API usage
-import { ApiClient } from './api'
-
-const client = new ApiClient()
-client.get('/api/data').then((response) => {
-  console.log(response.data)
-})
-```
+Use the local MCP server for agent access. See [USER_GUIDE.md](USER_GUIDE.md#mcp-server).
 
 ## Contributing
 
-We welcome contributions! See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for details on:
+See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for contribution guidance:
 
 1. **Reporting Issues**: How to file bug reports
 2. **Code Contributions**: Guidelines for submitting code
 3. **Documentation**: Improving these docs
 4. **Testing**: Writing and running tests
 
-### Development Setup
+### Developer environment
 
-```bash
-# Install dependencies
-bun install
-
-# Run the desktop app (Vite + Tauri hot-reload)
-bun run tauri dev
-# `bun run dev` only starts the Vite web preview (no Tauri/native APIs) —
-# useful for quick UI iteration, but `bun run tauri dev` is what shows the
-# actual devdrivr app.
-
-# Run tests
-bun run test
-
-# Check types
-npx tsc --noEmit
-```
+Use [ONBOARDING.md](ONBOARDING.md) to create a development environment.
 
 ## Getting Started Checklist
 
-- [ ] Install Rust and cargo-cp-artifact
-- [ ] Install Bun v1.0+
-- [ ] Clone the repository
-- [ ] Run `bun install`
-- [ ] Start with `bun run tauri dev`
 - [ ] Explore the tools in the sidebar
 - [ ] Customize your settings
 - [ ] Try the keyboard shortcuts
@@ -275,7 +190,7 @@ npx tsc --noEmit
 
 ## Next Steps
 
-1. **Explore Tools**: Try each tool in the sidebar
+1. **Explore Tools**: Open tools from the sidebar.
 2. **Customize Settings**: Adjust the theme and editor settings
 3. **Learn Shortcuts**: Practice the keyboard navigation
 4. **Add Data**: Create your first note or snippet

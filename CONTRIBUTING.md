@@ -1,77 +1,50 @@
 # Contribution Guidelines
 
-Welcome to the devdrivr contribution guidelines! We're excited to have you contribute to our project. This document outlines the process and standards for contributing to the devdrivr application.
+Use this guide to prepare a contribution that reviewers can validate.
 
-## How to Contribute
+## Contribute
 
-There are many ways to contribute to devdrivr:
+You can report bugs, suggest features, update code, update documentation, create tools, improve performance, or improve accessibility.
 
-- Report bugs
-- Suggest features
-- Submit code fixes
-- Improve documentation
-- Create new tools
-- Optimize performance
-- Fix accessibility issues
+## Report an issue
 
-## Reporting Issues
+Check existing issues before you create a report. Create a reduced test case for a bug.
 
-### Before Submitting a Bug Report
+Include a clear title, reproduction steps, expected behavior, actual behavior, screenshots when useful, and your OS, browser, and devdrivr version.
 
-- Check the existing issues to avoid duplicates
-- Create a reduced test case to demonstrate the issue
-- Include steps to reproduce, expected behavior, and actual behavior
+## Contribute code
 
-### Submitting a Bug Report
+Create a fork. Clone it with `git clone https://github.com/your-username/devdrivr.git`.
 
-When submitting a bug report, please include:
+Create a branch with `git checkout -b feature/your-feature-name`. Update the workspace.
 
-- A clear, descriptive title
-- Specific steps to reproduce the issue
-- Expected vs. actual behavior
-- Screenshots if applicable
-- Your environment (OS, browser, devdrivr version)
+Commit the update with a clear message. Push the branch with `git push origin feature/your-feature-name`.
 
-## Code Contributions
+Create a pull request.
 
-### Getting Started
+## Set up development
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/devdrivr.git`
-3. Create a branch for your feature: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Commit your changes with a clear commit message
-6. Push to your fork: `git push origin feature/your-feature-name`
-7. Create a pull request
+Run `bun install` to install dependencies. Run `bun run tauri dev` to open the desktop app with hot reload.
 
-### Development Setup
+`bun run dev` opens the Vite web preview only. It does not provide the Tauri shell or native APIs.
 
-1. Install dependencies: `bun install`
-2. Start the desktop app (Vite + Tauri hot-reload): `bun run tauri dev`
-   - `bun run dev` only starts the Vite web preview (no Tauri/native APIs) — use it for quick UI
-     iteration, but `bun run tauri dev` is what you need to see the actual devdrivr app.
-3. Run tests: `bun run test`
-4. Check types: `npx tsc --noEmit` (also runs automatically as part of `bun run build`)
+Run `bunx vitest run` to validate tests. Run `npx tsc --noEmit` to check types.
 
-### Pull Request Process
+## Prepare a pull request
 
-1. Update the README.md with details of changes if applicable
-2. Add or update tests for your changes
-3. Ensure all tests pass: `bun run test`
-4. Check types: `npx tsc --noEmit`
-5. Update documentation if you've changed APIs
-6. Follow the commit message conventions
+Update `README.md` when the change needs it. Add or update tests for the change.
 
-### Code Style
+Run `bunx vitest run`. Run `npx tsc --noEmit`.
 
-- Follow the existing code style in the project
-- Use TypeScript strict mode features properly
-- Maintain consistent naming conventions
-- Write clear, self-documenting code
-- Use proper error handling
-- Write tests for new functionality
+Update documentation when you change APIs. Follow the commit message conventions in [`AGENTS.md`](AGENTS.md).
 
-### Commit Messages
+## Code style
+
+Follow the existing code style. Use TypeScript strict-mode features correctly.
+
+Use consistent names. Write clear code and handle errors. Add tests for new behavior.
+
+## Commit messages
 
 Use conventional commit messages:
 
@@ -81,42 +54,42 @@ Use conventional commit messages:
 - `test(api): add test for error handling`
 - `chore(deps): update dependency versions`
 
-### Testing
+## Testing
 
-- Add tests for any new functionality
-- Ensure existing tests pass
-- Write unit tests for pure functions
-- Test edge cases and error conditions
-- Use the existing test patterns colocated per area: `src/tools/__tests__/`, `src/hooks/__tests__/`,
-  `src/lib/__tests__/`, `src/stores/__tests__/`, `src/components/<subdir>/__tests__/`,
-  `src/app/__tests__/`, `src/workers/__tests__/` — there is no single flat `src/__tests__/`
+Add tests for new behavior. Check existing tests and edge cases.
 
-### Documentation
+Use these test paths:
 
-- Update README.md if adding new features
-- Document new APIs or components
-- Keep documentation clear and concise
-- Use examples where helpful
-- Update this file if changing contribution process
+- `src/tools/__tests__/`
+- `src/hooks/__tests__/`
+- `src/lib/__tests__/`
+- `src/stores/__tests__/`
+- `src/components/<subdir>/__tests__/`
+- `src/app/__tests__/`
+- `src/workers/__tests__/`
 
-## Development Workflow
+Do not create a flat `src/__tests__/` directory.
 
-1. **Setup**: Follow the development setup in [ONBOARDING.md](documentation/ONBOARDING.md)
-2. **Coding**: Follow the patterns in [CODING_PATTERNS.md](documentation/infrastructure/CODING_PATTERNS.md)
-3. **Testing**: Follow the guidelines in [TESTING.md](documentation/TESTING.md)
-4. **Documentation**: Keep [documentation/](documentation/) in step with the change — see the index in [documentation/README.md](documentation/README.md)
+## Documentation
 
-## Code Review Process
+Update `README.md` for new features. Document APIs or components when needed.
 
-All submissions require code review:
+Keep documentation clear. Use examples when they help. Update this file when the contribution process changes.
 
-1. Automated checks must pass
-2. At least one maintainer must approve
-3. Tests must pass
-4. Type checking must pass
-5. No console errors in development mode
+## Development workflow
 
-## Additional Resources
+1. Open [ONBOARDING.md](documentation/ONBOARDING.md) for setup.
+2. Open [CODING_PATTERNS.md](documentation/infrastructure/CODING_PATTERNS.md) before you write code.
+3. Open [TESTING.md](documentation/TESTING.md) before you validate.
+4. Keep [documentation/](documentation/) current with the update.
+
+## Code review
+
+All submissions require code review. Automated checks, tests, and type checks must pass.
+
+At least one maintainer must approve the pull request. Do not leave console errors in development mode.
+
+## Additional resources
 
 - [Architecture Decisions](documentation/infrastructure/ARCHITECTURE_DECISIONS.md)
 - [Directory Map](documentation/infrastructure/DIRECTORY_MAP.md)

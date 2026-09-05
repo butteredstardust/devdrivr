@@ -1,6 +1,6 @@
 # ARCHITECTURE DECISIONS — devdrivr
 
-> The _why_ behind every non-obvious technical choice. Read this before undoing anything that seems wrong — it was probably deliberate.
+> This document records non-obvious technical choices, their rejected alternatives, and their consequences.
 
 ---
 
@@ -11,27 +11,25 @@
 
 ### Context
 
-All worker-backed tools (Code Formatter, Diff Viewer, TypeScript Playground, XML Tools, JSON Tools) were silently failing. The root cause was traced to Tauri's WKWebView (WebKit on macOS).
-
-Comlink uses JavaScript's `Proxy` API to intercept property access on the wrapped Worker object. In Tauri's WebKit-based WebView, `Proxy` property access returns `undefined` — the `wrap()` call succeeds, but calling any method on the returned object fails with "is not a function".
+Worker-backed tools need RPC that works in Tauri's WKWebView. Comlink `Proxy` property access returns `undefined` there.
 
 ### Decision
 
-Replace Comlink entirely with a plain `postMessage`/`onmessage` RPC protocol:
+The app uses plain `postMessage` and `onmessage` RPC instead of Comlink:
 
 - **Worker-side:** `handleRpc(api)` in `src/workers/rpc.ts` — registers a single `onmessage` handler that dispatches by method name and posts back `{ id, result }` or `{ id, error }`.
 - **Main-thread:** `useWorker<T>(factory, methods)` in `src/hooks/useWorker.ts` — builds a real plain object (no Proxy) with one function per method name.
 
 ### Consequences
 
-- No Proxy, no Comlink anywhere in the codebase.
-- Every worker call must explicitly list method names in `useWorker(factory, ['method1', 'method2'])`.
-- Workers must end with `handleRpc(api)`, not `expose(api)`.
-- The `comlink` package remains in `package.json` but is not used.
+- The app uses no Comlink or Proxy.
+- Every worker call lists methods in `useWorker(factory, ['method1', 'method2'])`.
+- Workers end with `handleRpc(api)`, not `expose(api)`.
+- The `comlink` package remains in `package.json` but the app does not use it.
 
 ### Do not revert
 
-Reverting to Comlink will silently break all worker tools on macOS (and any WebKit-based runtime) without an obvious error.
+Reject Comlink. It breaks worker tools in WebKit-based runtimes without a clear error.
 
 ---
 
@@ -42,30 +40,30 @@ Reverting to Comlink will silently break all worker tools on macOS (and any WebK
 
 ### Context
 
-Workers were originally imported as module workers:
+Module worker imports require support for ES module workers:
 
 ```typescript
 new Worker(new URL('./formatter.worker.ts', import.meta.url), { type: 'module' })
 ```
 
-This pattern relies on the browser supporting ES module workers (`{ type: 'module' }`). Tauri's WKWebView does not reliably support module workers — the worker context fails to initialise or imports resolve incorrectly.
+Tauri's WKWebView does not reliably support them. Worker initialization or imports can fail.
 
 ### Decision
 
-All worker imports use Vite's `?worker` suffix:
+The app uses Vite `?worker` imports:
 
 ```typescript
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 const worker = new FormatterWorkerFactory()
 ```
 
-Vite bundles the worker and all its dependencies into a self-contained blob URL at build time. This produces a classic worker (no `{ type: 'module' }` required) that works in any WebView context.
+Vite bundles the worker and its dependencies as a blob URL at build time. This creates a classic worker that works in WebView contexts.
 
 ### Consequences
 
-- Workers are bundled eagerly at build time (no code-splitting benefit for worker deps, but correctness wins).
-- Every new worker file needs a corresponding `?worker` import in its consumer.
-- The `new URL(..., { type: 'module' })` pattern is banned (pre-commit hook checks for it).
+- Workers bundle eagerly at build time.
+- Each worker file needs a matching `?worker` import in its consumer.
+- Reject `new URL(..., { type: 'module' })`. The pre-commit hook checks for it.
 
 ---
 
@@ -76,11 +74,11 @@ Vite bundles the worker and all its dependencies into a self-contained blob URL 
 
 ### Context
 
-`prettier-plugin-sql` depends on `node-sql-parser`, which is distributed as CJS/UMD. When imported inside an ESM worker, the module loader throws a parse error because the CJS format uses `require()` / `module.exports` which are not valid in ESM scope.
+`prettier-plugin-sql` depends on CJS/UMD `node-sql-parser`. Its `require()` and `module.exports` fail in an ESM worker.
 
 ### Decision
 
-SQL formatting uses `sql-formatter` (ESM-native) directly inside the formatter worker:
+The formatter worker uses ESM-native `sql-formatter` for SQL:
 
 ```typescript
 import { format as formatSql } from 'sql-formatter'
@@ -92,8 +90,8 @@ if (options.language === 'sql') {
 
 ### Consequences
 
-- SQL formatting output may differ slightly from Prettier's style (sql-formatter has its own opinionated output).
-- `prettier-plugin-sql` remains in `package.json` for now but is not imported in the worker.
+- SQL output can differ from Prettier style.
+- `prettier-plugin-sql` remains in `package.json` but is not imported by the worker.
 
 ---
 
@@ -104,19 +102,19 @@ if (options.language === 'sql') {
 
 ### Context
 
-React StrictMode mounts every component twice (in development) to surface side-effect bugs. In Tauri's WebView, this causes a visible flash on startup because:
+React StrictMode mounts components twice in development. In Tauri's WebView, this flashes at startup:
 
 1. `providers.tsx` runs window geometry restore and store init on mount.
-2. The double-mount fires the restore sequence twice, causing a momentary incorrect window geometry before the second mount corrects it.
+2. The second mount repeats restoration and shows incorrect geometry briefly.
 
 ### Decision
 
-`React.StrictMode` was removed from `src/main.tsx` and must not be re-added.
+The app excludes `React.StrictMode` from `src/main.tsx`.
 
 ### Consequences
 
-- Side-effect bugs that StrictMode would catch (non-idempotent effects, stale closures) will not surface in development. Developers must be careful.
-- The `init()` idempotent promise guard (ADR-007) mitigates the most dangerous category of this.
+- Development does not expose some side-effect bugs that StrictMode detects.
+- The `init()` promise guard in ADR-007 limits the highest-risk case.
 
 ---
 
@@ -127,20 +125,20 @@ React StrictMode mounts every component twice (in development) to surface side-e
 
 ### Context
 
-An earlier version of the app created floating note windows using `new WebviewWindow(...)`. This was removed because:
+New `WebviewWindow(...)` instances create these problems:
 
 1. **IPC capability scoping:** Tauri 2 capabilities are scoped per window by name. Adding a new window requires duplicating the entire capability set or accepting a reduced permission set.
-2. **Listener leaks:** Window-scoped event listeners (`appWindow.listen(...)`) were not consistently cleaned up when windows were closed, causing stale callbacks.
-3. **State sync complexity:** Synchronising Zustand store state across multiple windows over IPC adds significant complexity for marginal UX benefit.
+2. **Listener leaks:** Window-scoped `appWindow.listen(...)` listeners can retain stale callbacks.
+3. **State sync complexity:** IPC synchronization across Zustand stores adds complexity.
 
 ### Decision
 
-All UI interactions happen within the single `main` window. Floating content uses drawers (`NotesDrawer`), slide-in panels (`SettingsPanel`), and modals (`ShortcutsModal`, `CommandPalette`).
+The app uses one `main` window. It uses drawers, slide-in panels, and modals for floating content.
 
 ### Consequences
 
-- Notes cannot be "popped out" to independent OS windows (the `popped_out` and `window_*` columns remain in the DB schema as tombstones of the old behaviour).
-- All content must fit within a resizable single window.
+- Notes do not open in independent OS windows. The schema retains `popped_out` and `window_*` columns.
+- All content fits in one resizable window.
 
 ---
 
@@ -151,19 +149,18 @@ All UI interactions happen within the single `main` window. Floating content use
 
 ### Context
 
-SQLite's WAL (Write-Ahead Logging) mode is set via `PRAGMA journal_mode=WAL`. This pragma is persistent for a given database file — but only if set before any transaction that creates the schema.
-
-The Tauri SQL plugin runs migrations inside a transaction. If `PRAGMA journal_mode=WAL` is placed inside a migration file, the journal mode change is deferred until after the transaction commits. In practice this means the very first run (fresh install, schema creation) does not benefit from WAL mode.
+SQLite sets WAL with `PRAGMA journal_mode=WAL`. The database needs it before schema creation transactions.
+The Tauri SQL plugin runs migrations in a transaction. A migration cannot enable WAL before that transaction.
 
 ### Decision
 
-WAL mode is set immediately after the DB connection is established, in `getDb()` in `src/lib/db.ts`, before any migration or query runs.
+The app sets WAL in `getDb()` in `src/lib/db.ts` after connection and before migrations or queries.
 
 ### Consequences
 
-- Migrations cannot control journal mode.
-- Any code that calls `Database.load()` directly (bypassing `getDb()`) will not have WAL mode set, potentially causing write contention.
-- This is one reason `Database.load()` is banned outside `src/lib/db.ts`.
+- Migrations do not control journal mode.
+- Direct `Database.load()` calls bypass WAL and can cause write contention.
+- Reject `Database.load()` outside `src/lib/db.ts`.
 
 ---
 
@@ -174,11 +171,11 @@ WAL mode is set immediately after the DB connection is established, in `getDb()`
 
 ### Context
 
-`providers.tsx` calls `store.init()` sequentially on startup. React's rendering can cause a component to attempt to read from a store before `init()` completes. Without a guard, concurrent `init()` calls would fire multiple DB queries and potentially race to overwrite state.
+`providers.tsx` initializes stores at startup. Concurrent `init()` calls can run duplicate queries and race state writes.
 
 ### Decision
 
-Every store `init()` must use a module-level promise guard:
+Every store `init()` uses this module-level promise guard:
 
 ```typescript
 let initPromise: Promise<void> | null = null
@@ -193,17 +190,17 @@ init: async () => {
 }
 ```
 
-This ensures:
+The guard provides these results:
 
-- The first call fires the async work.
-- All subsequent calls (concurrent or sequential) await the same promise.
-- No double-execution, no races.
+- The first call runs asynchronous work.
+- Later calls await the same promise.
+- Initialization does not run twice or race.
 
 ### Consequences
 
-- Store state is available synchronously after `init()` resolves (guaranteed single write).
-- If `init()` throws, the promise rejects — `providers.tsx` catches this and renders an error state.
-- New stores **must** implement this pattern; the pre-commit hook checks for it.
+- State is available after `init()` resolves.
+- If `init()` throws, the promise rejects. `providers.tsx` renders an error state.
+- New stores use this pattern. The pre-commit hook checks it.
 
 ---
 
@@ -214,19 +211,18 @@ This ensures:
 
 ### Context
 
-The app supports dark and light themes, switchable at runtime by toggling a `.light` class on `<html>`. Tailwind's built-in palette classes (e.g., `bg-zinc-900`, `text-white`) are static — they don't respond to a runtime class switch.
-
-CSS custom properties (`var(--color-*)`) are defined under `:root` (dark, default) and `.light` (overrides), so they update automatically when the class changes.
+The app switches dark and light themes by toggling `.light` on `<html>`. Tailwind palette classes do not change at runtime.
+CSS custom properties under `:root` and `.light` update when the class changes.
 
 ### Decision
 
-All colours are expressed as CSS custom property tokens:
+The app expresses all colors as CSS custom property tokens:
 
 ```typescript
 className = 'bg-[var(--color-surface)] text-[var(--color-text)]'
 ```
 
-Never hardcode hex values, rgb(), or Tailwind palette utilities.
+Reject hardcoded hex values, rgb(), and Tailwind palette utilities.
 
 ### Token inventory
 
@@ -249,8 +245,8 @@ Never hardcode hex values, rgb(), or Tailwind palette utilities.
 
 ### Consequences
 
-- Theme switching is zero-JS (just a class toggle on `<html>`).
-- `applyTheme()` must only be called inside async `init()` functions to avoid a flash before the DB-persisted theme is loaded (the `index.html` inline script handles the synchronous pre-load from `localStorage`).
+- Theme switching needs only a class toggle on `<html>`.
+- Call `applyTheme()` only in async `init()` functions. The `index.html` script pre-loads from `localStorage`.
 
 ---
 
@@ -261,16 +257,16 @@ Never hardcode hex values, rgb(), or Tailwind palette utilities.
 
 ### Context
 
-`@tauri-apps/plugin-sql` creates a new connection pool each time `Database.load()` is called. Multiple concurrent calls from different stores during init would create multiple pools, each running their own WAL pragma and potentially their own migration pass. This caused intermittent migration-already-applied errors in testing.
+`@tauri-apps/plugin-sql` creates a connection pool for each `Database.load()` call. Concurrent store initialization can create multiple pools, WAL calls, and migration passes.
 
 ### Decision
 
-`getDb()` in `src/lib/db.ts` wraps `Database.load()` in a module-level promise singleton. The first call loads the database (and sets WAL mode); subsequent calls return the already-loaded instance.
+`getDb()` in `src/lib/db.ts` wraps `Database.load()` in a module-level promise singleton. The first call loads the database and sets WAL. Later calls return that instance.
 
 ### Consequences
 
-- All DB access must go through `getDb()`. Direct `Database.load()` calls elsewhere are banned.
-- The ban is enforced by the pre-commit hook and documented in AGENTS.md, GEMINI.md, and CLAUDE.md.
+- All database access goes through `getDb()`. Reject direct `Database.load()` calls.
+- The pre-commit hook checks this rule. AGENTS.md, GEMINI.md, and CLAUDE.md document it.
 
 ---
 
@@ -281,11 +277,11 @@ Never hardcode hex values, rgb(), or Tailwind palette utilities.
 
 ### Context
 
-Tauri's `window.outerPosition()` and `window.outerSize()` return _physical_ pixels. On a Retina display with `devicePixelRatio` of 2, physical pixels are twice the logical pixel value. If saved raw and restored, the window appears at double its intended size/position.
+Tauri `window.outerPosition()` and `window.outerSize()` return physical pixels. On a Retina display with `devicePixelRatio` 2, they are twice logical values.
 
 ### Decision
 
-Always call `scaleFactor()` and convert before saving:
+The app calls `scaleFactor()` and converts values before saving:
 
 ```typescript
 const factor = await win.scaleFactor()
@@ -293,12 +289,12 @@ const pos = (await win.outerPosition()).toLogical(factor)
 const sz = (await win.outerSize()).toLogical(factor)
 ```
 
-Save the logical values. On restore, pass them directly to `setPosition`/`setSize` (Tauri accepts logical pixels for these setters).
+The app saves logical values. It passes them directly to `setPosition` and `setSize` during restore.
 
 ### Consequences
 
-- Forgetting this conversion causes incorrect geometry on Retina/HiDPI displays (positions doubled, windows off-screen).
-- The pre-commit hook checks for raw `outerPosition`/`outerSize` calls without a nearby `scaleFactor()` call.
+- Raw values cause incorrect geometry on Retina and HiDPI displays.
+- The pre-commit hook checks for raw calls without a nearby `scaleFactor()` call.
 
 ---
 
@@ -309,11 +305,11 @@ Save the logical values. On restore, pass them directly to `setPosition`/`setSiz
 
 ### Context
 
-Zustand v5 re-renders a component whenever the selected value changes (by reference equality). If the entire store is destructured (`const { theme, sidebar } = useStore()`), the component subscribes to the _entire_ store and re-renders on any state change, regardless of whether the consumed values changed.
+Zustand v5 updates a component when its selected value changes by reference. Destructuring the store subscribes the component to every state change.
 
 ### Decision
 
-Always use selector functions:
+The app uses selector functions:
 
 ```typescript
 // ✅ Re-renders only when 'theme' changes
@@ -325,8 +321,8 @@ const { theme } = useSettingsStore()
 
 ### Consequences
 
-- Components are render-efficient by default.
-- When multiple values from one store are needed, write separate selectors or a combined selector that returns a stable reference.
+- Components update only for selected state.
+- Use separate selectors or a combined selector with a stable reference for multiple values.
 
 ---
 
@@ -337,21 +333,21 @@ const { theme } = useSettingsStore()
 
 ### Context
 
-Tools persist their UI state (input text, selected options, output) so that switching away and returning restores the previous state. Early implementations wrote directly to SQLite on every keystroke, which caused jank (each write round-trips through Tauri IPC → Rust → SQLite).
+Tools persist input, options, and output to restore state after a tool switch. SQLite writes for every keystroke create IPC and database overhead.
 
 ### Decision
 
-`useToolState` implements a two-tier persistence strategy:
+`useToolState` uses two persistence levels:
 
-1. **In-memory cache** (`src/stores/tool-state.store.ts`): writes are synchronous and instant.
-2. **Debounced SQLite write**: batched 2 seconds after the last update.
-3. **Immediate flush on unmount**: the component's cleanup effect writes any pending state before the tool is unmounted, ensuring no data is lost on rapid tool switching.
+1. **In-memory cache** (`src/stores/tool-state.store.ts`): writes are synchronous.
+2. **Debounced SQLite write**: writes run 2 seconds after the last update.
+3. **Immediate flush on unmount**: cleanup writes pending state before a tool unmounts.
 
 ### Consequences
 
-- Tool state is always current in memory (no read-from-DB on switch if cache is populated).
-- A crash within the 2-second debounce window could lose the last keystrokes — acceptable trade-off.
-- The `toolId` passed to `useToolState` **must exactly match** the `id` in `tool-registry.ts`, or state will not be found in the cache on switch-back.
+- Memory holds current tool state when the cache has state.
+- A crash inside the 2-second delay can lose the last keystrokes.
+- `toolId` in `useToolState` exactly matches `id` in `tool-registry.ts`.
 
 ---
 
@@ -362,61 +358,39 @@ Tools persist their UI state (input text, selected options, output) so that swit
 
 ### Context
 
-`runTransaction` in `src/lib/db.ts` used to issue `BEGIN`, the caller's statements, and `COMMIT` as
-separate `conn.execute()` calls and claimed atomicity for `saveNotesOrder`,
-`saveUserPromptTemplates`, `seedBuiltinPromptTemplates`, and `saveApiImport`.
+`runTransaction` sends `BEGIN`, statements, and `COMMIT` through separate `conn.execute()` calls.
+It serves `saveNotesOrder`, `saveUserPromptTemplates`, `seedBuiltinPromptTemplates`, and `saveApiImport`.
 
-That claim was false. `tauri-plugin-sql` 2.3.2 holds a `DbPool::Sqlite(Pool<Sqlite>)` created with
-`Pool::connect(...)` — the sqlx default of **10 max connections** — and runs every statement via
-`pool.execute(query)` (`src/wrapper.rs`), acquiring a connection from the pool per statement. Nothing
-pins `BEGIN`, the writes, and `COMMIT` to one connection. When they land on different connections:
+`tauri-plugin-sql` 2.3.2 uses `DbPool::Sqlite(Pool<Sqlite>)` from `Pool::connect(...)`. The sqlx default is **10 max connections**.
+Each `pool.execute(query)` call can use a different connection. `BEGIN`, writes, and `COMMIT` lack connection affinity:
 
-- the writes auto-commit individually, so a batch can persist partial results;
-- `COMMIT` on a connection with no open transaction errors, and the catch-block `ROLLBACK` silently
-  no-ops on a connection that never began one;
-- worst case an open `BEGIN IMMEDIATE` is stranded on a pooled connection, and every later write
-  routed to it fails with "cannot start a transaction within a transaction" until the app restarts.
+- Writes can auto-commit individually, leaving partial results.
+- `COMMIT` without an open transaction errors. Catch-block `ROLLBACK` can do nothing.
+- An open `BEGIN IMMEDIATE` can remain on a pooled connection. Later writes can fail until restart.
 
-The JS-side `writeQueue` serializes writes, which usually makes the pool hand back the
-most-recently-released connection. That is why the bug was latent rather than observed. The Rust MCP
-service already sidesteps the same problem by opening its own pool with `max_connections(1)`.
+The JS `writeQueue` serializes writes but does not ensure connection affinity. The Rust MCP service uses `max_connections(1)`.
 
 ### Decision
 
-Batch writes move behind a Tauri command, `db_execute_batch` (`src-tauri/src/batch.rs`), which owns a
-dedicated `max_connections(1)` SQLite pool (WAL, 5s busy timeout — the same configuration as the MCP
-service) and runs the whole batch inside one transaction on one connection. Statements are sent as
-`{ sql, params }` pairs; JSON parameters are bound with sqlx using the same scalar mapping the plugin
-uses. An `immediate` flag selects `BEGIN IMMEDIATE` (used by `saveNotesOrder`) over `BEGIN`.
+Batch writes use the Tauri `db_execute_batch` command in `src-tauri/src/batch.rs`. It owns a dedicated `max_connections(1)` SQLite pool with WAL and a 5s busy timeout.
+It runs each batch in one transaction on one connection. Statements use `{ sql, params }` pairs.
+sqlx binds JSON parameters with the plugin scalar mapping. `immediate` selects `BEGIN IMMEDIATE` for `saveNotesOrder`.
 
-On the JS side `runTransaction` is replaced by `runBatch(statements, immediate)`, which still goes
-through `enqueueWrite` so batches stay ordered against single-statement plugin writes, and so that
-`getDb()` has opened the database and applied migrations before the Rust pool touches the file.
+JS uses `runBatch(statements, immediate)` instead of `runTransaction`. It uses `enqueueWrite` to preserve ordering with plugin writes.
+`getDb()` opens the database and applies migrations before the Rust pool uses the file.
 
 Rejected alternatives:
 
-- **Single multi-statement SQL string.** `conn.execute` is parameterised per statement; concatenating
-  batch upserts would mean inlining user content into SQL. Not worth the injection surface.
-- **Drop the wrapper and make batches idempotent.** All four batches already use idempotent upserts,
-  but "partially applied reorder" and "half an imported collection" are still user-visible wrong
-  states, and nothing would re-run the batch.
+- **Single multi-statement SQL string.** `conn.execute` parameterizes each statement. Concatenation would inline user content into SQL and increase injection risk.
+- **Remove the wrapper and make batches idempotent.** The four batches use idempotent upserts. Partial reorder and incomplete imports remain visible wrong states.
 
 ### Consequences
 
-- Batch writes are genuinely all-or-nothing; a failure surfaces as a rejected promise with the Rust
-  error text and leaves no partial rows.
-- JS never emits `BEGIN`/`COMMIT`/`ROLLBACK`. If a future batch writer is added it must use
-  `runBatch`, not hand-rolled transaction statements.
-- Two pools now write to `cockpit.db` (the plugin's and the batch pool), as was already the case with
-  the MCP service. WAL plus the 5s busy timeout covers the contention, and `writeQueue` keeps the
-  app's own writes serialized.
-- Single-record writers (`saveUserPromptTemplate`, `saveApiCollection`, `saveApiRequest`) still go
-  through the plugin pool: one statement is atomic on its own. They now share the SQL builders with
-  the batch path instead of duplicating it.
-- Reads (`getSetting`, `loadNotes`, `loadSnippets`, `loadHistory`, `loadToolState`, the API loaders)
-  remain on the plugin pool. Each is a single `SELECT` and so needs no cross-statement connection
-  affinity. They are not snapshot-consistent with each other, but no caller depends on that — stores
-  load each table independently at boot.
+- Batches are all-or-nothing. A failure rejects with the Rust error and leaves no partial rows.
+- JS does not emit `BEGIN`, `COMMIT`, or `ROLLBACK`. Future batch writers use `runBatch`.
+- The plugin, batch pool, and MCP service write `cockpit.db`. WAL, the 5s timeout, and `writeQueue` manage contention.
+- `saveUserPromptTemplate`, `saveApiCollection`, and `saveApiRequest` use the plugin pool. Single statements are atomic.
+- `getSetting`, `loadNotes`, `loadSnippets`, `loadHistory`, `loadToolState`, and API loaders use the plugin pool. They are individual `SELECT` calls.
 
 ---
 
@@ -427,8 +401,7 @@ Rejected alternatives:
 
 ### Context
 
-The Tauri CLI refuses to build when a `@tauri-apps/*` npm package and its Rust counterpart differ on
-major or minor:
+The Tauri CLI rejects builds when a `@tauri-apps/*` npm package and Rust counterpart differ by major or minor:
 
 ```
 Found version mismatched Tauri packages. Make sure the NPM package and Rust crate versions are on
@@ -436,24 +409,15 @@ the same major/minor releases:
 tauri (v2.10.3) : @tauri-apps/api (v2.11.1)
 ```
 
-Every `@tauri-apps/*` dependency used to be declared as `"^2"`. The two ecosystems do not release in
-lockstep — `@tauri-apps/api` reached 2.11 while the `tauri` crate's newest published version was
-still 2.10.3 — so any `bun install` that re-resolved the lockfile could float the npm side a minor
-ahead of a Rust crate that had nowhere to go, breaking `tauri build` with no source change. It was
-`bun.lock` alone that had been holding the build together.
+The npm and Rust ecosystems can release different minors. A caret range can update npm past a compatible Rust minor and break `tauri build`.
 
 ### Decision
 
-Pin every `@tauri-apps/*` dependency, and `@tauri-apps/cli`, with a tilde range (`~2.10.0`) chosen to
-match the resolved Rust crate. Patch updates still flow; a minor cannot arrive on one side alone.
+The app pins every `@tauri-apps/*` dependency and `@tauri-apps/cli` with a matching tilde range such as `~2.10.0`.
+Patch updates remain available. A minor cannot update on one side alone.
 
 ### Consequences
 
-- Raising a Tauri minor is now a deliberate two-sided edit: `cargo update -p <crate>` in `src-tauri`
-  **and** the matching tilde bump in `package.json`. Doing one without the other fails fast at
-  install/build time instead of at release time.
-- Renovate will open PRs that bump the npm side past the tilde. Do not merge one unless the Rust
-  crate has a matching minor published.
-- `src/lib/acknowledgments.ts` records both sets of versions and
-  `src/lib/__tests__/acknowledgments.test.ts` asserts them against `node_modules` and `Cargo.lock`,
-  so a one-sided bump also shows up as a test failure naming the exact drift.
+- Update a Tauri minor on both sides: run `cargo update -p <crate>` in `src-tauri`, then update the matching `package.json` tilde range.
+- Renovate can propose an npm minor beyond the tilde. Reject it until the Rust crate has the matching published minor.
+- `src/lib/acknowledgments.ts` records both versions. `src/lib/__tests__/acknowledgments.test.ts` checks them against `node_modules` and `Cargo.lock`.

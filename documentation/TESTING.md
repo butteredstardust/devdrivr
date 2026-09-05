@@ -1,21 +1,24 @@
 # Testing Documentation and Best Practices
 
-This document provides comprehensive guidelines for testing in the devdrivr application, including testing strategies, coverage, and how to add new tests.
+Use this document to select, write, and run tests in devdrivr.
 
 ## Overview
 
-The devdrivr application uses Vitest with jsdom for testing. The testing strategy focuses on ensuring code quality and preventing regressions while maintaining a balance between comprehensive coverage and practical test maintenance.
+devdrivr uses Vitest with jsdom. Tests validate behaviour and prevent regressions with maintainable
+coverage.
 
 ## Current Test Coverage
 
-The application currently has 1893 tests across 137 test files, covering core stores, database and
-migration contracts, worker RPC lifecycle behavior, shared utilities, shell components, and
-tool-specific behavior. API Client coverage includes persistence CRUD, atomic imports, export/import
-round trips, relationship preservation, and secret-redacted MCP serialization. MCP coverage includes
-least-privilege defaults, lifecycle/settings rollback, non-blocking failures, loopback enforcement,
-bearer-key rotation, and secret exposure controls.
-Filesystem coverage includes dialog open/save success and cancellation, binary rejection, native
-drop listeners, tool action dispatch, write failures, and image input/export errors.
+The application has 1893 tests in 137 test files. They cover stores, database and migration
+contracts, worker RPC lifecycle behaviour, shared utilities, shell components, and tool behaviour.
+
+API Client tests cover persistence CRUD, atomic imports, export/import round trips, relationship
+preservation, and secret-redacted MCP serialization. MCP tests cover least-privilege defaults,
+lifecycle and settings rollback, non-blocking failures, loopback enforcement, bearer-key rotation,
+and secret exposure controls.
+
+Filesystem tests cover dialog open/save success and cancellation, binary rejection, native drop
+listeners, tool action dispatch, write failures, and image input/export errors.
 
 ## Testing Strategy
 
@@ -39,7 +42,7 @@ drop listeners, tool action dispatch, write failures, and image input/export err
 
 ### `src/lib/__tests__/theme.test.ts` (4 tests)
 
-Tests the `getEffectiveTheme()` utility in `src/lib/theme.ts`.
+This file tests `getEffectiveTheme()` in `src/lib/theme.ts`.
 
 | Test                                                           | What it verifies            |
 | -------------------------------------------------------------- | --------------------------- |
@@ -50,7 +53,7 @@ Tests the `getEffectiveTheme()` utility in `src/lib/theme.ts`.
 
 ### `src/lib/__tests__/keybindings.test.ts` (8 tests)
 
-Tests `matchesCombo()` and `formatCombo()` in `src/lib/keybindings.ts`.
+This file tests `matchesCombo()` and `formatCombo()` in `src/lib/keybindings.ts`.
 
 | Test                                     | What it verifies                        |
 | ---------------------------------------- | --------------------------------------- |
@@ -65,7 +68,7 @@ Tests `matchesCombo()` and `formatCombo()` in `src/lib/keybindings.ts`.
 
 ### `src/lib/__tests__/platform.test.ts` (7 tests)
 
-Tests `detectPlatform()`, `getModKey()`, and `getModKeySymbol()` in `src/lib/platform.ts`.
+This file tests `detectPlatform()`, `getModKey()`, and `getModKeySymbol()` in `src/lib/platform.ts`.
 
 | Test                                    | What it verifies       |
 | --------------------------------------- | ---------------------- |
@@ -79,7 +82,7 @@ Tests `detectPlatform()`, `getModKey()`, and `getModKeySymbol()` in `src/lib/pla
 
 ### `src/lib/__tests__/tool-actions.test.ts` (5 tests)
 
-Tests the pub/sub system in `src/lib/tool-actions.ts`.
+This file tests the pub/sub system in `src/lib/tool-actions.ts`.
 
 | Test                             | What it verifies    |
 | -------------------------------- | ------------------- |
@@ -91,7 +94,7 @@ Tests the pub/sub system in `src/lib/tool-actions.ts`.
 
 ### `src/app/__tests__/tool-registry.test.ts` (7 tests)
 
-Tests the tool registry integrity in `src/app/tool-registry.ts`.
+This file validates tool registry integrity in `src/app/tool-registry.ts`.
 
 | Test                                                    | What it verifies          |
 | ------------------------------------------------------- | ------------------------- |
@@ -105,7 +108,7 @@ Tests the tool registry integrity in `src/app/tool-registry.ts`.
 
 ### `src/tools/__tests__/regex-tester.test.ts` (11 tests)
 
-Tests pure utility functions exported from the RegexTester tool.
+This file tests pure utility functions exported by RegexTester.
 
 | Test                                                     | What it verifies           |
 | -------------------------------------------------------- | -------------------------- |
@@ -122,7 +125,7 @@ Tests pure utility functions exported from the RegexTester tool.
 
 ### `src/tools/__tests__/yaml-tools.test.tsx` (30 tests)
 
-Covers the YAML helpers and the YAML Tools component.
+This file covers YAML helpers and the YAML Tools component.
 
 | Test                                              | What it verifies                 |
 | ------------------------------------------------- | -------------------------------- |
@@ -151,7 +154,7 @@ Covers the YAML helpers and the YAML Tools component.
 
 ### `src/tools/__tests__/json-schema-validator.test.tsx` (52 tests)
 
-Covers the JSON Schema helpers and the JSON Schema Validator component.
+This file covers JSON Schema helpers and the JSON Schema Validator component.
 
 | Test                                               | What it verifies                        |
 | -------------------------------------------------- | --------------------------------------- |
@@ -187,7 +190,7 @@ Covers the JSON Schema helpers and the JSON Schema Validator component.
 
 ### `src/tools/__tests__/csv-tools.test.tsx` (40 tests)
 
-Covers the CSV helpers and the CSV Tools component.
+This file covers CSV helpers and the CSV Tools component.
 
 | Test                                               | What it verifies                      |
 | -------------------------------------------------- | ------------------------------------- |
@@ -229,7 +232,7 @@ Covers the CSV helpers and the CSV Tools component.
 
 ### `src/tools/__tests__/mermaid-editor.test.tsx` (39 tests)
 
-Covers the Mermaid helpers, the editor shell, and the pan/zoom preview.
+This file covers Mermaid helpers, the editor shell, and the pan/zoom preview.
 
 | Test                                                    | What it verifies                           |
 | ------------------------------------------------------- | ------------------------------------------ |
@@ -275,7 +278,7 @@ Covers the Mermaid helpers, the editor shell, and the pan/zoom preview.
 
 ### `src/tools/__tests__/html-validator.test.tsx` (40 tests)
 
-Covers the rule model, the document statistics, the outline and the editor shell.
+This file covers the rule model, document statistics, outline, and editor shell.
 
 | Test                                                | What it verifies                               |
 | --------------------------------------------------- | ---------------------------------------------- |
@@ -317,8 +320,8 @@ Covers the rule model, the document statistics, the outline and the editor shell
 
 ### Workspace tabs (66 tests across 5 files)
 
-Tabs stay mounted after they lose focus, so the tests are mostly about what a backgrounded tool must
-not do and about which state row a tab reads.
+Tabs remain mounted after they lose focus. These tests check background tool behaviour and the
+state row each tab reads.
 
 `src/stores/__tests__/ui.store.tabs.test.ts` (36 tests)
 
@@ -361,13 +364,13 @@ not do and about which state row a tab reads.
 | A handoff reaches a mounted, hidden tab     | Mount-time cache reads miss a kept-alive tool  |
 | A handoff for another tab is ignored        | Seeds are addressed by state key               |
 
-`src/lib/__tests__/tab-state-key.test.ts` (6 tests) covers key assignment in isolation, and
-`src/lib/__tests__/tool-handoff.test.ts` (10 tests) covers `sendToTool` addressing the target tab's
-key rather than the bare tool id.
+`src/lib/__tests__/tab-state-key.test.ts` (6 tests) isolates key assignment.
+`src/lib/__tests__/tool-handoff.test.ts` (10 tests) checks that `sendToTool` addresses the target
+tab key, not the bare tool id.
 
 ### `src/tools/__tests__/css-validator.test.tsx` (51 tests)
 
-Covers the lexer-backed checks, the rule model, specificity and the editor shell.
+This file covers lexer-backed checks, the rule model, specificity, and the editor shell.
 
 | Test                                                  | What it verifies                               |
 | ----------------------------------------------------- | ---------------------------------------------- |
@@ -415,7 +418,7 @@ Covers the lexer-backed checks, the rule model, specificity and the editor shell
 
 ### `src/stores/__tests__/notes.store.test.ts` (9 tests)
 
-Tests the Zustand notes store in isolation (DB calls are mocked).
+This file tests the Zustand notes store in isolation. DB calls are mocked.
 
 | Test                                     | What it verifies        |
 | ---------------------------------------- | ----------------------- |
@@ -437,11 +440,11 @@ Tests the Zustand notes store in isolation (DB calls are mocked).
 | DB helpers    | No native SQLite integration harness for executing migrations end-to-end | Medium   |
 | Release smoke | Artifact-bound runtime reports remain manual on each supported platform  | Medium   |
 
-These gaps are the reason the harnesses exist: vitest runs on jsdom, which has no layout engine, no
-real event dispatch and no SQLite, so it will cheerfully certify code that cannot run anywhere. When
-a green run and a broken app disagree, see [HARNESSES.md](HARNESSES.md) for which harness can
-actually see the problem — `bun run dev:remote` in particular covers the DB-helpers row above by
-running the real migrations against the real database in a page you can script.
+Use a harness for the listed gaps. Vitest runs in jsdom, which has no layout engine, real event
+dispatch, or SQLite. A passing Vitest run can miss a runtime problem.
+
+See [HARNESSES.md](HARNESSES.md) to choose a harness. `bun run dev:remote` runs real migrations
+against the real database in a page you can script.
 
 ## How to Add a Test
 
@@ -533,7 +536,8 @@ vi.mock('@/workers/formatter.worker?worker', () => ({
 }))
 ```
 
-Note: Full worker round-trip tests are complex in jsdom. Prefer testing the pure API functions exported from the worker file directly (without `handleRpc`).
+NOTE: Full worker round-trip tests are complex in jsdom. Prefer pure API functions exported from the
+worker file. Do not include `handleRpc`.
 
 ## Test File Locations
 
@@ -547,7 +551,7 @@ Note: Full worker round-trip tests are complex in jsdom. Prefer testing the pure
 
 ## CI
 
-GitHub Actions runs `.github/workflows/ci.yml` on every PR and on pushes to `main`. It has two jobs:
+GitHub Actions runs `.github/workflows/ci.yml` for every PR and push to `main`. It runs two jobs:
 
 **`lint-and-test`** (ubuntu-latest)
 
@@ -564,4 +568,4 @@ GitHub Actions runs `.github/workflows/ci.yml` on every PR and on pushes to `mai
 2. `cargo check` in `src-tauri`
 3. `cargo clippy -- -D warnings` — any warning fails the build
 
-A PR cannot be merged if either job fails. The full Vitest suite **must pass** before submitting any change.
+Both jobs must pass before a PR can merge. Run the full Vitest suite before you submit a change.

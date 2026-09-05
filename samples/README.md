@@ -1,81 +1,54 @@
 # devdrivr Samples
 
-Pre-built sample collections for importing into devdrivr tools.
+Use these sample collections to import data into devdrivr tools. Each file is independent.
 
-## Available Samples
+## JavaScript snippets
 
-### JavaScript Snippets (`js-snippets.md`)
+[`js-snippets.md`](js-snippets.md) contains **25 JavaScript utility functions** for Snippets Manager.
 
-A curated collection of **25 JavaScript utility functions** ready to import into the Snippets Manager.
+The collection includes deep clone, debounce, throttle, sleep/delay, UUID generation, array utilities, object utilities, string formatting, number formatting, URL utilities, async patterns, browser utilities, and JSON parsing.
 
-**Includes:**
+To import the collection:
 
-- Deep clone, debounce, throttle, sleep/delay
-- UUID generation, array utilities (flatten, unique, group, chunk)
-- Object utilities (pick, omit, get nested values)
-- String formatting (capitalize, truncate, case conversion)
-- Number/currency formatting with Intl API
-- URL/query string utilities
-- Async patterns (retry, memoize)
-- Browser utilities (clipboard copy)
-- JSON parsing with error handling
+1. Open devdrivr → Snippets Manager (or press F10).
+2. Click **[F10: IMP]** or the import button.
+3. Copy the JSON array from the code block.
+4. Paste it into the import dialog.
+5. Check that the snippets appear in your collection.
 
-**How to import:**
+## ThingWorx API collection
 
-1. Open devdrivr → Snippets Manager (or press F10)
-2. Click **[F10: IMP]** or the import button
-3. Copy the entire JSON array from the code block
-4. Paste into the import dialog
-5. Snippets will be added to your collection
+[`thingworx-api-collection.md`](thingworx-api-collection.md) contains a REST API collection with **42 endpoints** for ThingWorx platform operations.
 
-### ThingWorx API Collection (`thingworx-api-collection.md`)
+The collection includes Thing operations, property history queries, ThingTemplates, ThingShapes, DataShapes, streams, ValueStreams, DataTables, users, groups, projects, repositories, alerts, permissions, and organizations.
 
-A comprehensive **REST API collection** with **42 endpoints** for ThingWorx platform operations.
+To import the collection:
 
-**Includes:**
+1. Open devdrivr → API Client (if available).
+2. Click **Import Collection** or the equivalent control.
+3. Copy the JSON array from the code block.
+4. Paste it into the import dialog.
+5. Check that the endpoints are available with template variables.
 
-- Thing operations (GET/PUT/POST/DELETE properties and services)
-- Property history queries with date range filtering
-- ThingTemplates, ThingShapes, DataShapes (CRUD)
-- Stream and ValueStream operations
-- DataTable queries
-- User, Group, Project management
-- Repository file operations (read/write/list)
-- Alert management and permissions
-- Organization queries
+## ThingWorx JavaScript snippets
 
-**How to import:**
+[`thingworx-snippets.md`](thingworx-snippets.md) contains JavaScript snippets for ThingWorx service development.
 
-1. Open devdrivr → API Client (if available)
-2. Click **Import Collection** or similar
-3. Copy the entire JSON array from the code block
-4. Paste into the import dialog
-5. All endpoints will be available with template variables ready for substitution
+The snippets use ES5 syntax. They are compatible with Rhino 1.7.11 and do not use arrow functions or modern JavaScript.
 
-### ThingWorx JavaScript Snippets (`thingworx-snippets.md`)
+The collection includes InfoTable creation, InfoTable updates, row operations, property queries, field queries, and ThingWorx API patterns.
 
-A specialized collection of **JavaScript snippets** for ThingWorx service development.
+To import the collection:
 
-**Uses ES5 syntax** (compatible with Rhino 1.7.11, no arrow functions or modern JS).
+1. Open devdrivr → Snippets Manager (or press F10).
+2. Click **[F10: IMP]** or the import button.
+3. Copy the JSON array from the code block.
+4. Paste it into the import dialog.
+5. Check that the snippets appear in your collection.
 
-**Includes:**
+## Import notes
 
-- InfoTable creation and manipulation
-- Row operations (add, find, iterate)
-- Property and field queries
-- Advanced patterns for ThingWorx-specific APIs
-
-**How to import:**
-
-1. Open devdrivr → Snippets Manager (or press F10)
-2. Click **[F10: IMP]** or the import button
-3. Copy the entire JSON array from the code block
-4. Paste into the import dialog
-5. Snippets will be added to your collection
-
-## Notes
-
-- All JSON arrays are wrapped in markdown code fences for easy viewing
-- Copy only the JSON (not the markdown backticks) when importing
-- Template variables like `{{baseUrl}}`, `{{thingName}}`, etc. should be replaced with actual values
-- Each sample file is self-contained and can be imported independently
+- Each JSON array is inside a Markdown code fence.
+- Copy the JSON only. Do not copy the Markdown backticks.
+- Replace template variables such as `{{baseUrl}}` and `{{thingName}}` with actual values.
+- Import each sample file independently.

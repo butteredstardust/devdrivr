@@ -1,54 +1,51 @@
 # devdrivr Documentation
 
-Welcome to the devdrivr documentation. This directory contains all the documentation for the devdrivr application.
+devdrivr is a local-first, keyboard-driven developer utility workspace. It is built with Tauri 2 and
+React 19.
 
-## Table of Contents
+This directory holds the documentation. Start with the section that matches your task.
 
-1. [PRODUCT_MAP.md](PRODUCT_MAP.md) - Current, authoritative tool inventory, shortcuts, and persisted data
-2. [PRODUCT_SPECIFICATION.md](PRODUCT_SPECIFICATION.md) - Historical product/design spec (data model, performance targets, design rationale)
-3. [API_COMPONENTS.md](API_COMPONENTS.md) - Comprehensive API documentation for all core components, hooks, libraries, and types
-4. [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment and release process documentation
-5. [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md) - Cross-platform release validation checklist
-6. [RELEASE_SMOKE_REPORT_TEMPLATE.md](RELEASE_SMOKE_REPORT_TEMPLATE.md) - Template used by `bun run smoke:report`
-7. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) - Visual design language, theming, and CSS tokens
-8. [TESTING.md](TESTING.md) - Testing documentation and best practices
-9. [HARNESSES.md](HARNESSES.md) - **Start here for debugging:** which of the four harnesses to use for which symptom
-10. [BROWSER_HARNESS.md](BROWSER_HARNESS.md) - Running the UI in Chromium with stubbed IPC, for DOM-level debugging
-11. [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) - Driving the live app from Chromium with real IPC: real database, filesystem, MCP
-12. [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) - Testing the real Tauri window on macOS and Windows: synthetic input, window controls, IPC health
-13. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines for the project (lives at `./CONTRIBUTING.md`)
-14. [QUICK_START.md](QUICK_START.md) - Quick start guide for new users
-15. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive user guide
-16. [MCP_SERVER.md](MCP_SERVER.md) - Local MCP server setup and agent usage
-17. [TODO.md](TODO.md) - Active quality/reliability backlog (current source of truth for in-progress work)
-18. [infrastructure/](infrastructure/) - Core infrastructure documentation
+## Start here
 
-## Overview
+- [QUICK_START.md](QUICK_START.md) — install devdrivr and run your first tool.
+- [USER_GUIDE.md](USER_GUIDE.md) — every tool, in depth.
+- [PRODUCT_MAP.md](PRODUCT_MAP.md) — authoritative tool inventory, shortcuts and persisted data.
+- [MCP_SERVER.md](MCP_SERVER.md) — connect a CLI agent to local devdrivr data.
 
-The devdrivr application is a local-first, keyboard-driven developer utility workspace built with Tauri 2 + React 19. This documentation provides comprehensive guides for developers working with the codebase.
+## Develop
 
-## Getting Started
+Read [`../AGENTS.md`](../AGENTS.md) first. It holds the coding rules, the file map and the
+non-negotiables. [`../CLAUDE.md`](../CLAUDE.md) and [`../GEMINI.md`](../GEMINI.md) are short
+tool-specific pointers to it.
 
-For new developers, we recommend starting with:
+- [ONBOARDING.md](ONBOARDING.md) — set up the development environment.
+- [../CONTRIBUTING.md](../CONTRIBUTING.md) — how to propose a change.
+- [infrastructure/CODING_PATTERNS.md](infrastructure/CODING_PATTERNS.md) — conventions for tools,
+  stores and workers.
+- [infrastructure/DIRECTORY_MAP.md](infrastructure/DIRECTORY_MAP.md) — find any file fast.
+- [infrastructure/ARCHITECTURE_DECISIONS.md](infrastructure/ARCHITECTURE_DECISIONS.md) — why the
+  system is built this way.
+- [API_COMPONENTS.md](API_COMPONENTS.md) — core components, hooks, libraries and types.
+- [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) — visual language, theming and CSS tokens.
+- [TESTING.md](TESTING.md) — test strategy and coverage.
+- [BACKLOG.md](BACKLOG.md) — open work items.
 
-1. [QUICK_START.md](QUICK_START.md) - Get up and running quickly
-2. [USER_GUIDE.md](USER_GUIDE.md) - Comprehensive guide to using the application
-3. [../CONTRIBUTING.md](../CONTRIBUTING.md) - Guidelines for contributing to the project
-4. [MCP_SERVER.md](MCP_SERVER.md) - Connect CLI agents to local devdrivr data
+## Debug
 
-## Development Resources
+- [HARNESSES.md](HARNESSES.md) — **start here.** Picks the harness for your symptom.
+- [BROWSER_HARNESS.md](BROWSER_HARNESS.md) — Chromium with stubbed IPC, for DOM-level debugging.
+- [REMOTE_UI_HARNESS.md](REMOTE_UI_HARNESS.md) — Chromium driving the live app, with real IPC,
+  database, filesystem and MCP.
+- [NATIVE_UI_HARNESS.md](NATIVE_UI_HARNESS.md) — the real Tauri window on macOS and Windows.
+- [infrastructure/TROUBLESHOOTING.md](infrastructure/TROUBLESHOOTING.md) — when something breaks.
 
-- [../AGENTS.md](../AGENTS.md) - Canonical coding rules, file map, and non-negotiables (also see `../CLAUDE.md` / `../GEMINI.md` for short tool-specific pointers)
-- [ONBOARDING.md](ONBOARDING.md) - First-time setup and development environment
-- [infrastructure/ARCHITECTURE_DECISIONS.md](infrastructure/ARCHITECTURE_DECISIONS.md) - Why things are the way they are
-- [infrastructure/DIRECTORY_MAP.md](infrastructure/DIRECTORY_MAP.md) - Finding any file fast
-- [infrastructure/CODING_PATTERNS.md](infrastructure/CODING_PATTERNS.md) - Conventions for adding tools, stores, and workers
-- [infrastructure/TROUBLESHOOTING.md](infrastructure/TROUBLESHOOTING.md) - When something breaks
+## Release
 
-## Contributing
-
-See [../CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on how to contribute to the project.
+- [DEPLOYMENT.md](DEPLOYMENT.md) — build and release process.
+- [RELEASE_SMOKE_TESTS.md](RELEASE_SMOKE_TESTS.md) — cross-platform validation checklist.
+- [RELEASE_SMOKE_REPORT_TEMPLATE.md](RELEASE_SMOKE_REPORT_TEMPLATE.md) — template used by
+  `bun run smoke:report`.
 
 ## License
 
-See the main project repository for licensing information.
+See the project repository.

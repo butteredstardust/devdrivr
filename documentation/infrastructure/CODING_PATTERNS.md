@@ -1,6 +1,6 @@
 # CODING PATTERNS — devdrivr
 
-> Read this before writing any code. These patterns are enforced by the pre-commit hook and TypeScript strict mode.
+> Use these patterns when you change the app. The pre-commit hook and TypeScript strict mode check them.
 
 ---
 
@@ -18,11 +18,15 @@
 
 ### 1. Create the component
 
+Create the tool component at this path.
+
 ```
 src/tools/<your-tool-id>/YourTool.tsx
 ```
 
 ### 2. Register it in the tool registry
+
+Register the tool so the workspace can open it.
 
 ```typescript
 // src/app/tool-registry.ts
@@ -37,12 +41,16 @@ src/tools/<your-tool-id>/YourTool.tsx
 
 ### 3. Add to the correct group (if new group)
 
+Add group metadata only when the group is new.
+
 ```typescript
 // src/app/tool-groups.tsx
 { id: 'convert', label: 'Convert', icon: ArrowsClockwise }
 ```
 
 ### 4. Tool component template
+
+Use this template for state, actions, and feedback.
 
 ```typescript
 import { useToolState } from '@/hooks/useToolState'
@@ -85,6 +93,8 @@ export default function MyTool() {
 
 ### Reading from a store — always use selectors
 
+Use selectors to limit component updates.
+
 ```typescript
 // ✅ Correct — selector prevents unnecessary re-renders
 const theme = useSettingsStore((s) => s.theme)
@@ -96,6 +106,8 @@ const { theme } = useSettingsStore()
 
 ### Writing to a store
 
+Call the store action to update persisted state.
+
 ```typescript
 const updateSetting = useSettingsStore((s) => s.update)
 await updateSetting('theme', 'dark') // persists to SQLite automatically
@@ -103,11 +115,15 @@ await updateSetting('theme', 'dark') // persists to SQLite automatically
 
 ### Adding a new setting
 
+Add every setting in these three locations.
+
 1. Add the type to `AppSettings` in `src/types/models.ts`
 2. Add default value to `DEFAULT_SETTINGS` in the same file
 3. Add to the settings object in `settings.store.ts` → `update()` method
 
 ### Writing a new store
+
+Use the promise guard to run initialization once.
 
 ```typescript
 // Required: idempotent init guard
@@ -133,7 +149,7 @@ export const useMyStore = create<MyStore>()((set) => ({
 
 ## Tool State Persistence
 
-`useToolState` handles everything — in-memory cache + debounced SQLite write:
+`useToolState` stores tool state in memory and writes it to SQLite after a delay.
 
 ```typescript
 const [state, updateState] = useToolState<MyState>('my-tool', defaultState)
@@ -145,18 +161,20 @@ updateState({ input: newInput })
 updateState({ input: '', output: '', tab: 'result' })
 ```
 
-**How it works:**
+**Operation:**
 
-- On mount: check in-memory cache → if miss, load from SQLite
-- On update: write to cache synchronously + queue 2s SQLite write
-- On unmount: write immediately (cache is already up-to-date)
-- This prevents stale state when rapidly switching between tools
+- On mount, check the in-memory cache. Load SQLite when the cache has no state.
+- On update, write the cache immediately. Queue the SQLite write for 2 seconds later.
+- On unmount, write pending state immediately.
+- This keeps state current during fast tool changes.
 
 ---
 
 ## Web Workers
 
 ### Creating a new worker
+
+Create the worker API first. Then create and check the worker in its tool.
 
 **Worker file** (`src/workers/my-task.worker.ts`):
 
@@ -204,6 +222,8 @@ const result = worker ? await worker.doWork(input, options) : null
 
 ### Colors — only use CSS variables
 
+Use CSS variables so themes update correctly.
+
 ```typescript
 // ✅ Correct
 className="bg-[var(--color-surface)] text-[var(--color-text)]"
@@ -234,6 +254,8 @@ style={{ borderColor: '#39ff14' }}
 
 ### Applying theme programmatically
 
+Call `applyTheme()` only during asynchronous initialization.
+
 ```typescript
 import { applyTheme } from '@/lib/theme'
 // Only call inside async init functions — never at module level
@@ -246,6 +268,8 @@ applyTheme('dark') // 'dark' | 'light' | 'system'
 
 ### Always use `getDb()` — never `Database.load()` directly
 
+Use the shared connection to keep database access consistent.
+
 ```typescript
 import { getDb } from '@/lib/db'
 
@@ -255,6 +279,8 @@ await conn.execute('INSERT INTO my_table VALUES ($1, $2)', [id, value])
 ```
 
 ### Existing helper functions in `db.ts`
+
+Use these helpers for common database operations.
 
 ```typescript
 getSetting<T>(key, fallback) // Get a settings value
@@ -273,6 +299,8 @@ loadHistory(tool, limit) // Load recent history for a tool
 
 ### Tool-local shortcut (responds only when tool is active)
 
+Register tool-local shortcuts in the active tool.
+
 ```typescript
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 
@@ -283,9 +311,11 @@ useKeyboardShortcut({ key: 'Enter', mod: true }, handleRun)
 useKeyboardShortcut({ key: 'f', mod: true, shift: true }, handleFormat)
 ```
 
-**Note:** Shortcuts are automatically suppressed when focus is in an editable field (input, textarea, Monaco editor) unless a modifier key is held.
+**Note:** Editable fields suppress shortcuts without modifier keys. This includes inputs, textareas, and the Monaco editor.
 
 ### Global shortcut (add to `useGlobalShortcuts.ts`)
+
+Register workspace shortcuts in `useGlobalShortcuts.ts`.
 
 ```typescript
 // src/hooks/useGlobalShortcuts.ts
@@ -295,6 +325,8 @@ useKeyboardShortcut({ key: 'p', mod: true, shift: true }, () => {
 ```
 
 ### Tool action dispatch (shell → active tool)
+
+Dispatch an action from the shell. Receive it in the active tool.
 
 ```typescript
 import { dispatchToolAction } from '@/lib/tool-actions'
@@ -315,6 +347,8 @@ useToolAction((action) => {
 
 ### Converting physical to logical pixels (required for Retina)
 
+Convert values before you save window geometry.
+
 ```typescript
 const factor = await win.scaleFactor()
 const pos = await win.outerPosition() // physical pixels
@@ -323,23 +357,16 @@ const logicalPos = pos.toLogical(factor) // logical
 const logicalSz = sz.toLogical(factor) // logical
 ```
 
-**Never** pass raw `outerPosition`/`outerSize` values to `setPosition`/`setSize` — they'll be doubled on Retina screens.
+**WARNING:** Do not pass raw `outerPosition` or `outerSize` values to setters. Retina screens double them.
 
 ---
 
 ## Drag to Reorder — use pointer events, never HTML5 drag-and-drop
 
-The window runs with Tauri's `dragDropEnabled` at its default of `true`, which installs a native
-drag-and-drop handler on the webview. That handler is what delivers OS file drops to
-`useFileDropZone`, and it also **swallows in-page `dragover` and `drop`**. An element marked
-`draggable` therefore fires `dragstart` and then nothing at all: the item never moves.
-
-Worse, the swallowed gesture still reaches Tauri as a file drop, so a tool that has file drop
-disabled answers an in-app drag with the toast **"File drop is not supported by the active tool"** —
-a message about a feature the user wasn't using.
-
-The two features cannot share the flag, and file drops are worth more than the browser's drag ghost.
-So reordering runs on pointer events, which sit below that handler entirely:
+`dragDropEnabled` stays `true` to deliver OS file drops to `useFileDropZone`.
+The native handler swallows in-page `dragover` and `drop` events. HTML5 dragging cannot reorder items.
+It can also show **"File drop is not supported by the active tool"** during an in-app drag.
+Use pointer events for reordering. They work with the native file-drop handler.
 
 ```tsx
 // pointerdown on the handle records an origin; it does not start a drag yet
@@ -349,33 +376,26 @@ const dragOrigin = useRef<{ id: string; y: number } | null>(null)
 // the same task as the pointermove before it, ahead of any re-render
 ```
 
-Non-negotiables when you write one:
+Use these requirements:
 
-- **Keep the gesture's state in refs.** The `useState` copies exist only to paint it. A handler
-  reading rendered state drops the item where it was two moves ago — or, when the first move and the
-  release coincide, does nothing at all and looks exactly like the bug above.
-- **Require a small movement threshold** (~4px) before a drag begins, so a plain click still clicks.
-- **Suppress the trailing click, and let the suppressor expire on its own.** A drag ending inside the
-  element it started on still produces a click; one ending elsewhere produces none. A suppressor
-  armed at pointerup and left waiting eats the user's next unrelated click.
-- **Listen for `pointercancel` and window `blur`** — otherwise a gesture interrupted by the OS leaves
-  the component believing a drag is still in flight.
-- **Hit-test the rendered items** against the pointer's midpoint rather than trusting the pointer to
-  be over a target; the list shifts under the cursor as items move out of the way.
-- Add `touch-none` to the handle so the gesture isn't read as a scroll.
+- **Keep gesture state in refs.** Use `useState` only to paint the result.
+- **Require a small movement threshold** (~4px). This keeps clicks working.
+- **Suppress the trailing click.** Let the suppressor expire without a click.
+- **Listen for `pointercancel` and window `blur`.** Clear interrupted gestures.
+- **Hit-test rendered items** against the pointer midpoint. The list can move below the pointer.
+- Add `touch-none` to the handle. This prevents scroll handling.
 
-Worked examples: `WorkspaceTabStrip.tsx` (horizontal, tabs) and `NotesDrawer.tsx` (vertical, and
-grouped — pinned and unpinned notes are separate ordering groups that a drag must not cross).
+See `WorkspaceTabStrip.tsx` for horizontal tabs. See `NotesDrawer.tsx` for grouped vertical notes.
+Do not move a note between pinned and unpinned groups.
 
-In tests, jsdom has no layout, so stub `getBoundingClientRect` on the items to lay them out
-deterministically and then drive `pointerDown`/`pointerMove`/`pointerUp`. See the `layOutNotes` and
-`dragNote` helpers in `NotesDrawer.test.tsx`.
+jsdom has no layout. Stub `getBoundingClientRect` in tests. Then use `pointerDown`, `pointerMove`, and `pointerUp`.
+See `layOutNotes` and `dragNote` in `NotesDrawer.test.tsx`.
 
 ---
 
 ## Icons
 
-Always use Phosphor Icons — never inline SVGs or emoji:
+Use Phosphor Icons. Do not use inline SVGs or emoji.
 
 ```typescript
 import { ArrowRight, Clipboard, Lightning } from '@phosphor-icons/react'
@@ -384,13 +404,13 @@ import { ArrowRight, Clipboard, Lightning } from '@phosphor-icons/react'
 <Clipboard size={14} weight="duotone" />
 ```
 
-Available weights: `thin`, `light`, `regular`, `bold`, `fill`, `duotone`
+Use these weights: `thin`, `light`, `regular`, `bold`, `fill`, `duotone`.
 
 ---
 
 ## TypeScript Strict Mode
 
-This codebase runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
+The project enables `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
 
 ```typescript
 // Array access may be undefined — must check
@@ -406,6 +426,8 @@ const c2: Config = {} // ✅
 ```
 
 ### `any` is forbidden — except in worker files (plugin types)
+
+Use a concrete type. Use `any` only for worker plugin lists.
 
 ```typescript
 // ✅ Worker plugin lists only
@@ -435,6 +457,8 @@ const result: any = doSomething()
 ---
 
 ## Prettier Config (`.prettierrc`)
+
+Use this formatting configuration.
 
 ```json
 {
