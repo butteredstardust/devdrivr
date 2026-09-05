@@ -18,11 +18,14 @@ type SnippetsStore = {
     language: string,
     tags?: string[],
     folder?: string,
-    favorite?: boolean
+    favorite?: boolean,
+    folderId?: string
   ) => Promise<Snippet>
   update: (
     id: string,
-    patch: Partial<Pick<Snippet, 'title' | 'content' | 'language' | 'tags' | 'folder' | 'favorite'>>
+    patch: Partial<
+      Pick<Snippet, 'title' | 'content' | 'language' | 'tags' | 'folder' | 'favorite' | 'folderId'>
+    >
   ) => Promise<void>
   flushPending: (id?: string) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -74,7 +77,15 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     if (generation === libraryGeneration) set({ snippets, initialized: true })
   },
 
-  add: async (title, content, language, tags = [], folder = '', favorite = false) => {
+  add: async (
+    title,
+    content,
+    language,
+    tags = [],
+    folder = '',
+    favorite = false,
+    folderId = 'snippets-inbox'
+  ) => {
     if (clearing) throw new Error('Cannot add a snippet while clearing the library')
     const now = Date.now()
     const snippet: Snippet = {
@@ -85,6 +96,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       tags,
       favorite,
       folder,
+      folderId,
       createdAt: now,
       updatedAt: now,
     }

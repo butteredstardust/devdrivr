@@ -15,13 +15,23 @@ type NotesStore = {
   saveErrorIds: string[]
   init: () => Promise<void>
   refresh: () => Promise<void>
-  add: (title?: string, content?: string, color?: NoteColor) => Promise<Note>
+  add: (title?: string, content?: string, color?: NoteColor, folderId?: string) => Promise<Note>
   edit: (id: string, patch: Partial<Pick<Note, 'title' | 'content'>>) => void
   flushPending: (id?: string) => Promise<void>
   update: (
     id: string,
     patch: Partial<
-      Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'poppedOut' | 'windowBounds' | 'tags'>
+      Pick<
+        Note,
+        | 'title'
+        | 'content'
+        | 'color'
+        | 'pinned'
+        | 'poppedOut'
+        | 'windowBounds'
+        | 'tags'
+        | 'folderId'
+      >
     >
   ) => Promise<void>
   reorder: (sourceId: string, targetId: string, position: DropPosition) => Promise<void>
@@ -75,7 +85,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     if (revision === notesRevision) set({ notes, initialized: true })
   },
 
-  add: async (title = '', content = '', color: NoteColor = 'yellow') => {
+  add: async (title = '', content = '', color: NoteColor = 'yellow', folderId = 'notes-inbox') => {
     if (clearing) throw new Error('Cannot add a note while clearing notes')
     // Invalidate any refresh already reading the database before this write starts.
     notesRevision++
@@ -97,6 +107,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       updatedAt: now,
       tags: [],
       sortOrder: firstUnpinnedOrder - SORT_STEP,
+      folderId,
     }
     try {
       await saveNote(note)

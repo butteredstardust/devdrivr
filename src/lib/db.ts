@@ -8,6 +8,8 @@ import type {
   ApiCollection,
   ApiRequest,
   PromptTemplate,
+  ResourceFolder,
+  ResourceKind,
 } from '@/types/models'
 import {
   noteRowSchema,
@@ -17,6 +19,7 @@ import {
   apiCollectionRowSchema,
   apiRequestRowSchema,
   promptTemplateRowSchema,
+  resourceFolderRowSchema,
 } from '@/lib/schemas'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
@@ -161,6 +164,7 @@ type NoteRow = {
   updated_at: number
   tags: string
   sort_order: number
+  folder_id: string | null
 }
 
 function rowToNote(row: NoteRow): Note | null {
@@ -183,9 +187,9 @@ export async function loadNotes(): Promise<Note[]> {
 export async function saveNote(note: Note): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13, sort_order=$14`,
+      `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order, folder_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13, sort_order=$14, folder_id=$15`,
       [
         note.id,
         note.title,
@@ -201,6 +205,7 @@ export async function saveNote(note: Note): Promise<void> {
         note.updatedAt,
         JSON.stringify(note.tags || []),
         note.sortOrder,
+        note.folderId ?? 'notes-inbox',
       ]
     )
   )
@@ -230,6 +235,7 @@ type SnippetRow = {
   language: string
   tags: string
   folder: string
+  folder_id: string | null
   favorite: number
   created_at: number
   updated_at: number
@@ -253,9 +259,9 @@ export async function loadSnippets(): Promise<Snippet[]> {
 export async function saveSnippet(snippet: Snippet): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO snippets (id, title, content, language, tags, folder, favorite, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, favorite=$7, updated_at=$9`,
+      `INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, favorite, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, folder_id=$7, favorite=$8, updated_at=$10`,
       [
         snippet.id,
         snippet.title,
@@ -263,6 +269,7 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
         snippet.language,
         JSON.stringify(snippet.tags),
         snippet.folder,
+        snippet.folderId ?? 'snippets-inbox',
         snippet.favorite ? 1 : 0,
         snippet.createdAt,
         snippet.updatedAt,
@@ -487,6 +494,124 @@ export async function clearAllHistory(): Promise<void> {
 
 // --- API Client ---
 
+// --- Resource folders ---
+
+export async function loadResourceFolders(): Promise<ResourceFolder[]> {
+  const conn = await getDb()
+  const rows = await conn.select<Array<Record<string, unknown>>>(
+    'SELECT * FROM resource_folders ORDER BY kind ASC, parent_id ASC, sort_order ASC, name ASC'
+  )
+  return rows
+    .map((row) => {
+      const result = resourceFolderRowSchema.safeParse(row)
+      if (!result.success) {
+        console.warn('[db] loadResourceFolders: invalid row', result.error.issues)
+        return null
+      }
+      return result.data
+    })
+    .filter((folder): folder is ResourceFolder => folder !== null)
+}
+
+function buildSaveResourceFolder(folder: ResourceFolder): BatchStatement {
+  return {
+    sql: `INSERT INTO resource_folders (id, name, parent_id, kind, sort_order, default_language, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, kind=$4, sort_order=$5, default_language=$6, updated_at=$8`,
+    params: [
+      folder.id,
+      folder.name,
+      folder.parentId,
+      folder.kind,
+      folder.sortOrder,
+      folder.defaultLanguage ?? null,
+      folder.createdAt,
+      folder.updatedAt,
+    ],
+  }
+}
+
+export async function saveResourceFolder(folder: ResourceFolder): Promise<void> {
+  const statement = buildSaveResourceFolder(folder)
+  if (folder.kind !== 'apiRequests') {
+    await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
+    return
+  }
+  await runBatch([
+    statement,
+    {
+      sql: `INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, NULL, $5, $6)
+        ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, sort_order=$4, updated_at=$6`,
+      params: [
+        folder.id,
+        folder.name,
+        folder.parentId,
+        folder.sortOrder,
+        folder.createdAt,
+        folder.updatedAt,
+      ],
+    },
+  ])
+}
+
+export async function saveResourceFolderMove(
+  folder: ResourceFolder,
+  siblings: Pick<ResourceFolder, 'id' | 'sortOrder'>[]
+): Promise<void> {
+  const statements: BatchStatement[] = [
+    buildSaveResourceFolder(folder),
+    ...siblings.map((sibling) => ({
+      sql: 'UPDATE resource_folders SET sort_order = $1 WHERE id = $2',
+      params: [sibling.sortOrder, sibling.id],
+    })),
+  ]
+  if (folder.kind === 'apiRequests') {
+    statements.push(
+      {
+        sql: `INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, NULL, $5, $6)
+          ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, sort_order=$4, updated_at=$6`,
+        params: [
+          folder.id,
+          folder.name,
+          folder.parentId,
+          folder.sortOrder,
+          folder.createdAt,
+          folder.updatedAt,
+        ],
+      },
+      ...siblings.map((sibling) => ({
+        sql: 'UPDATE api_collections SET sort_order = $1 WHERE id = $2',
+        params: [sibling.sortOrder, sibling.id],
+      }))
+    )
+  }
+  await runBatch(statements, true)
+}
+
+export async function saveResourceFolderOrder(
+  folders: Pick<ResourceFolder, 'id' | 'sortOrder'>[],
+  kind?: ResourceKind
+): Promise<void> {
+  if (folders.length === 0) return
+  await runBatch(
+    [
+      ...folders.map((folder) => ({
+        sql: 'UPDATE resource_folders SET sort_order = $1 WHERE id = $2',
+        params: [folder.sortOrder, folder.id],
+      })),
+      ...(kind === 'apiRequests'
+        ? folders.map((folder) => ({
+            sql: 'UPDATE api_collections SET sort_order = $1 WHERE id = $2',
+            params: [folder.sortOrder, folder.id],
+          }))
+        : []),
+    ],
+    true
+  )
+}
+
 export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
   const conn = await getDb()
   const rows = await conn.select<Array<Record<string, unknown>>>(
@@ -538,16 +663,40 @@ export async function loadApiCollections(): Promise<ApiCollection[]> {
 
 function buildSaveApiCollection(col: ApiCollection): BatchStatement {
   return {
-    sql: `INSERT INTO api_collections (id, name, created_at, updated_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT(id) DO UPDATE SET name=$2, updated_at=$4`,
-    params: [col.id, col.name, col.createdAt, col.updatedAt],
+    sql: `INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, sort_order=$4, default_language=$5, updated_at=$7`,
+    params: [
+      col.id,
+      col.name,
+      col.parentId ?? 'api-requests-inbox',
+      col.sortOrder ?? 0,
+      col.defaultLanguage ?? null,
+      col.createdAt,
+      col.updatedAt,
+    ],
   }
 }
 
+function buildApiCollectionFolder(col: ApiCollection): BatchStatement {
+  const folder: ResourceFolder = {
+    id: col.id,
+    name: col.name,
+    parentId: col.parentId ?? 'api-requests-inbox',
+    kind: 'apiRequests',
+    sortOrder: col.sortOrder ?? 0,
+    createdAt: col.createdAt,
+    updatedAt: col.updatedAt,
+  }
+  if (col.defaultLanguage !== undefined) folder.defaultLanguage = col.defaultLanguage
+  return buildSaveResourceFolder(folder)
+}
+
 export async function saveApiCollection(col: ApiCollection): Promise<void> {
-  const statement = buildSaveApiCollection(col)
-  await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
+  // The matching folder uses the collection's stable ID. Keeping both writes in
+  // one batch lets legacy collection_id foreign keys continue to work while the
+  // shared tree sees new and renamed collections immediately after restart.
+  await runBatch([buildApiCollectionFolder(col), buildSaveApiCollection(col)])
 }
 
 export async function deleteApiCollection(id: string): Promise<void> {
@@ -602,7 +751,11 @@ export async function saveApiImport(
   requests: ApiRequest[]
 ): Promise<void> {
   // Collections first: api_requests.collection_id references them.
-  await runBatch([...collections.map(buildSaveApiCollection), ...requests.map(buildSaveApiRequest)])
+  await runBatch([
+    ...collections.map(buildApiCollectionFolder),
+    ...collections.map(buildSaveApiCollection),
+    ...requests.map(buildSaveApiRequest),
+  ])
 }
 
 export async function deleteApiRequest(id: string): Promise<void> {

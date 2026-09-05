@@ -198,22 +198,28 @@ describe('ApiClient', () => {
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const exported = clipboardWriteText.mock.calls[0]?.[0]
     expect(exported).toBeTypeOf('string')
-    expect(JSON.parse(exported as string)).toEqual([
-      {
-        name: 'Create account',
-        method: 'POST',
-        url: '{{baseUrl}}/accounts',
-        headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
-        body: '{"enabled":true}',
-        bodyMode: 'json',
-        auth: { type: 'bearer', token: '{{apiToken}}' },
-        collectionKey: 'collection-1',
-        collectionName: 'Accounts',
-      },
-    ])
+    expect(JSON.parse(exported as string)).toEqual({
+      version: 2,
+      folders: [{ key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 }],
+      requests: [
+        {
+          name: 'Create account',
+          method: 'POST',
+          url: '{{baseUrl}}/accounts',
+          headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+          body: '{"enabled":true}',
+          bodyMode: 'json',
+          auth: { type: 'bearer', token: '{{apiToken}}' },
+          collectionKey: 'collection-1',
+          collectionName: 'Accounts',
+        },
+      ],
+    })
 
     const imported = importApiSpec({ content: exported as string })
-    expect(imported.collections).toEqual([{ key: 'collection-1', name: 'Accounts' }])
+    expect(imported.collections).toEqual([
+      { key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 },
+    ])
     expect(imported.requests[0]).toMatchObject({
       collectionKey: 'collection-1',
       headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
@@ -265,8 +271,8 @@ describe('ApiClient', () => {
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })
     expect(imported.collections).toEqual([
-      { key: 'collection-1', name: 'Users' },
-      { key: 'collection-2', name: 'users' },
+      { key: 'collection-1', name: 'Users', parentKey: null, sortOrder: 0 },
+      { key: 'collection-2', name: 'users', parentKey: null, sortOrder: 0 },
     ])
     expect(imported.requests.map((request) => request.collectionKey)).toEqual([
       'collection-1',
@@ -625,7 +631,7 @@ describe('ApiClient', () => {
     expect(deleteRequest).toHaveBeenCalledWith('req-saved')
   })
 
-  it('warns that deleting a collection also deletes the requests inside it', () => {
+  it('does not expose folder deletion before durable trash is available', () => {
     const deleteCollection = vi.fn().mockResolvedValue(undefined)
     useApiStore.setState({
       collections: [{ id: 'col-1', name: 'Accounts', createdAt: 1, updatedAt: 1 }],
@@ -638,11 +644,10 @@ describe('ApiClient', () => {
       </CollectionsSidebar>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete collection Accounts' }))
-
-    expect(screen.getByText('1 saved request inside it will also be deleted.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
-    expect(deleteCollection).toHaveBeenCalledWith('col-1')
+    expect(
+      screen.queryByRole('button', { name: 'Delete collection Accounts' })
+    ).not.toBeInTheDocument()
+    expect(deleteCollection).not.toHaveBeenCalled()
   })
 
   it('filters saved requests by name, URL, and method', () => {

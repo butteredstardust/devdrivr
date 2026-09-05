@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   },
   notesInit: vi.fn(),
   snippetsInit: vi.fn(),
+  foldersInit: vi.fn(),
   promptTemplatesInit: vi.fn(),
   historyInit: vi.fn(),
   mcpInit: vi.fn(),
@@ -56,6 +57,12 @@ vi.mock('@/stores/notes.store', () => ({
 
 vi.mock('@/stores/snippets.store', () => ({
   useSnippetsStore: { getState: () => ({ init: mocks.snippetsInit, refresh: vi.fn() }) },
+}))
+
+vi.mock('@/stores/folders.store', () => ({
+  useFoldersStore: {
+    getState: () => ({ init: mocks.foldersInit, refresh: vi.fn() }),
+  },
 }))
 
 vi.mock('@/stores/prompt-templates.store', () => ({
@@ -129,6 +136,7 @@ describe('Providers bootstrap', () => {
     mocks.getToolById.mockReturnValue(undefined)
     mocks.notesInit.mockResolvedValue(undefined)
     mocks.snippetsInit.mockResolvedValue(undefined)
+    mocks.foldersInit.mockResolvedValue(undefined)
     mocks.promptTemplatesInit.mockResolvedValue(undefined)
     mocks.historyInit.mockResolvedValue(undefined)
     mocks.mcpInit.mockResolvedValue(undefined)

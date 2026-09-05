@@ -4,7 +4,8 @@ import { renderTool } from '@/tools/__tests__/test-utils'
 import { exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
-import type { Snippet } from '@/types/models'
+import { useFoldersStore } from '@/stores/folders.store'
+import type { ResourceFolder, Snippet } from '@/types/models'
 import SnippetsManager from '@/tools/snippets/SnippetsManager'
 import { ToolInstanceContext } from '@/app/tool-instance'
 
@@ -30,11 +31,22 @@ function snippet(overrides: Partial<Snippet> & Pick<Snippet, 'id' | 'title'>): S
     tags: [],
     favorite: false,
     folder: '',
+    folderId: overrides.folder ? `folder-${overrides.folder}` : 'snippets-inbox',
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,
     ...overrides,
   }
 }
+
+const snippetFolders: ResourceFolder[] = ['Inbox', 'work', 'personal'].map((name, index) => ({
+  id: index === 0 ? 'snippets-inbox' : `folder-${name}`,
+  name,
+  parentId: null,
+  kind: 'snippets',
+  sortOrder: index,
+  createdAt: 0,
+  updatedAt: 0,
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -53,6 +65,21 @@ beforeEach(() => {
     saving: false,
     activeFolder: '',
     ...realActions,
+  })
+  useFoldersStore.setState({
+    folders: snippetFolders,
+    initialized: true,
+    create: vi.fn().mockImplementation(async ({ name, kind, parentId = null }) => ({
+      id: `folder-${name}`,
+      name,
+      kind,
+      parentId,
+      sortOrder: 100,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    update: vi.fn().mockResolvedValue(undefined),
+    move: vi.fn().mockResolvedValue(undefined),
   })
   useUiStore.setState({ lastAction: null })
 })
@@ -123,7 +150,7 @@ describe('SnippetsManager — library experience', () => {
     })
     renderTool(SnippetsManager)
 
-    fireEvent.change(screen.getByLabelText('Filter by folder'), { target: { value: 'work' } })
+    fireEvent.click(screen.getByRole('button', { name: 'work, 2 items' }))
     fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 'api' } })
     fireEvent.click(screen.getByRole('button', { name: 'Favorites' }))
 
@@ -195,7 +222,9 @@ describe('SnippetsManager — editor and details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show snippet details' }))
 
     const details = screen.getByLabelText('Snippet details')
-    expect(within(details).getByDisplayValue('work')).toBeInTheDocument()
+    expect(within(details).getByRole('combobox', { name: 'Snippet folder' })).toHaveValue(
+      'folder-work'
+    )
     expect(within(details).getByText('2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hide snippet details' })).toHaveAttribute(
       'aria-expanded',
@@ -228,7 +257,7 @@ describe('SnippetsManager — editor and details', () => {
     expect(document.activeElement).toBe(input)
   })
 
-  it('generates distinct folder and tag relationship ids for each mounted instance', async () => {
+  it('generates distinct tag relationship ids for each mounted instance', async () => {
     useSnippetsStore.setState({
       snippets: [
         snippet({ id: 'snippet-1', title: 'API helper', updatedAt: 2 }),
@@ -246,17 +275,14 @@ describe('SnippetsManager — editor and details', () => {
       fireEvent.click(button)
     }
     const snippetOptions = screen.getAllByRole('option', { name: /API helper/ })
-    const folderInputs = screen.getAllByPlaceholderText('No folder')
     const tagInputs = screen.getAllByRole('combobox', { name: 'Add tag' })
     fireEvent.change(tagInputs[0]!, { target: { value: 'a' } })
     fireEvent.change(tagInputs[1]!, { target: { value: 'a' } })
 
-    const folderIds = folderInputs.map((input) => input.getAttribute('list'))
     const suggestionIds = tagInputs.map((input) => input.getAttribute('aria-controls'))
     expect(new Set(snippetOptions.map((option) => option.id)).size).toBe(2)
-    expect(new Set(folderIds).size).toBe(2)
     expect(new Set(suggestionIds).size).toBe(2)
-    for (const id of [...folderIds, ...suggestionIds]) {
+    for (const id of suggestionIds) {
       expect(id).toBeTruthy()
       expect(document.getElementById(id!)).not.toBeNull()
     }
@@ -350,7 +376,7 @@ describe('SnippetsManager — native import and export', () => {
 
     await waitFor(() =>
       expect(exportFile).toHaveBeenCalledWith(
-        JSON.stringify(items, null, 2),
+        JSON.stringify({ version: 2, folders: snippetFolders, snippets: items }, null, 2),
         'snippets-backup.json'
       )
     )
@@ -378,7 +404,15 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith('Imported', 'SELECT 1;', 'sql', ['database'], 'work', false)
+      expect(add).toHaveBeenCalledWith(
+        'Imported',
+        'SELECT 1;',
+        'sql',
+        ['database'],
+        'work',
+        false,
+        'folder-work'
+      )
     )
     expect(useUiStore.getState().lastAction?.message).toBe('Imported 1 snippet')
   })
@@ -435,7 +469,15 @@ describe('SnippetsManager — keyboard workflow', () => {
     fireEvent.keyDown(window, { key: 'n', metaKey: true })
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith('Untitled snippet', '', 'javascript', [], '')
+      expect(add).toHaveBeenCalledWith(
+        'Untitled snippet',
+        '',
+        'javascript',
+        [],
+        '',
+        false,
+        'snippets-inbox'
+      )
     )
     const title = await screen.findByLabelText('Snippet title')
     expect(document.activeElement).toBe(title)

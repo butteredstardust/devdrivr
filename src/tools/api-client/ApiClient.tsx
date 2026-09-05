@@ -1080,12 +1080,12 @@ export default function ApiClient() {
 
   const handleExport = useCallback(async () => {
     const exportCollectionById = new Map(
-      collections.map((collection, index) => [
+      collections.map((collection) => [
         collection.id,
-        { key: `collection-${index + 1}`, name: collection.name },
+        { key: collection.id, name: collection.name },
       ])
     )
-    const exportData = requests.map((r) => {
+    const exportRequests = requests.map((r) => {
       const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
       return {
         name: r.name,
@@ -1099,8 +1099,18 @@ export default function ApiClient() {
         collectionName: collection?.name ?? null,
       }
     })
+    const exportData = {
+      version: 2,
+      folders: collections.map((collection) => ({
+        key: collection.id,
+        name: collection.name,
+        parentKey: collection.parentId ?? null,
+        sortOrder: collection.sortOrder ?? 0,
+      })),
+      requests: exportRequests,
+    }
     await copy(JSON.stringify(exportData, null, 2), {
-      success: `Exported ${exportData.length} requests to clipboard`,
+      success: `Exported ${exportRequests.length} requests to clipboard`,
       failure: 'Export failed — clipboard unavailable',
     })
   }, [collections, requests, copy])

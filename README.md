@@ -54,9 +54,9 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 ### Shell features
 
 - **Command palette** — fuzzy search every tool (`Cmd+K`)
-- **Notes drawer** — persistent notes with color tags and full-text search
+- **Notes drawer and workspace** — persistent Markdown notes with nested folders and full-text search
 - **Per-tool history** — inputs and outputs are saved automatically
-- **Snippets library** — tagged code snippets accessible from any tool
+- **Shared libraries** — nested, keyboard-accessible folders for notes, snippets, and API requests
 - **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
 - **Themes** — system mode plus 32 built-in themes
 - **Always-on-top** — pin the window over your editor or browser

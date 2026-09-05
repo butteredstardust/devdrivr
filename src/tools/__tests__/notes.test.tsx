@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import NotesWorkspace from '@/tools/notes/NotesWorkspace'
 import { useNotesStore } from '@/stores/notes.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useFoldersStore } from '@/stores/folders.store'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import type { Note } from '@/types/models'
 
@@ -18,6 +19,7 @@ const note: Note = {
   createdAt: 1,
   updatedAt: 1,
   sortOrder: 1024,
+  folderId: 'notes-inbox',
 }
 
 const realActions = {
@@ -57,6 +59,23 @@ beforeEach(() => {
   vi.clearAllMocks()
   arrangeNotes()
   useUiStore.setState({ lastAction: null, dirtyTabIds: [] })
+  useFoldersStore.setState({
+    folders: [
+      {
+        id: 'notes-inbox',
+        name: 'Inbox',
+        parentId: null,
+        kind: 'notes',
+        sortOrder: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ],
+    initialized: true,
+    create: vi.fn(),
+    update: vi.fn(),
+    move: vi.fn(),
+  })
 })
 
 describe('Notes workspace', () => {
@@ -137,7 +156,9 @@ describe('Notes workspace', () => {
     render(<NotesWorkspace />)
 
     fireEvent.keyDown(window, { key: 'n', metaKey: true })
-    await waitFor(() => expect(add).toHaveBeenCalledWith('Untitled note'))
+    await waitFor(() =>
+      expect(add).toHaveBeenCalledWith('Untitled note', '', 'yellow', 'notes-inbox')
+    )
 
     dispatchToolAction({ type: 'save-file' })
     await waitFor(() => expect(flushPending).toHaveBeenCalled())

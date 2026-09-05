@@ -17,6 +17,19 @@ type Props = {
 
 const NEW_COLLECTION_SENTINEL = '__new__'
 
+function collectionPath(collections: ApiCollection[], collection: ApiCollection): string {
+  const byId = new Map(collections.map((candidate) => [candidate.id, candidate]))
+  const names = [collection.name]
+  const visited = new Set([collection.id])
+  let parent = collection.parentId ? byId.get(collection.parentId) : undefined
+  while (parent && !visited.has(parent.id)) {
+    visited.add(parent.id)
+    names.unshift(parent.name)
+    parent = parent.parentId ? byId.get(parent.parentId) : undefined
+  }
+  return names.join(' / ')
+}
+
 export function SaveRequestModal({
   mode,
   initialName,
@@ -90,7 +103,7 @@ export function SaveRequestModal({
             <option value="">(Unassigned)</option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {collectionPath(collections, c)}
               </option>
             ))}
             <option value={NEW_COLLECTION_SENTINEL}>+ New Collection…</option>

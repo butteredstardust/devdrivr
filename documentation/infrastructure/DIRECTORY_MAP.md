@@ -130,6 +130,7 @@ These stores hold application state. The table identifies its persistence.
 | `ui.store.ts`               | Active tool, modals open, toasts, pendingSendTo                | None (transient)                                             |
 | `notes.store.ts`            | All sticky notes (color, pinned, bounds, sort order)           | SQLite `notes` table                                         |
 | `snippets.store.ts`         | Code snippets with tags and folders                            | SQLite `snippets` table                                      |
+| `folders.store.ts`          | Shared Notes, Snippets, and API request folder hierarchy       | SQLite `resource_folders` table                              |
 | `history.store.ts`          | Tool execution history (input/output)                          | SQLite `history` table                                       |
 | `tool-state.store.ts`       | In-memory cache of tool UI states                              | Write-through to SQLite `tool_state`                         |
 | `api.store.ts`              | API Client request/response state, environments, collections   | SQLite `api_environments`, `api_collections`, `api_requests` |
@@ -137,7 +138,7 @@ These stores hold application state. The table identifies its persistence.
 | `mcp.store.ts`              | MCP server connection/session state (see `src-tauri/src/mcp/`) | None (transient)                                             |
 | `updater.store.ts`          | App update check/download/install state                        | None (transient)                                             |
 
-### `src/tools/` — The 30 Tools
+### `src/tools/` — The 31 Tools
 
 Each tool lives in `src/tools/<id>/`. A multi-tab tool can contain more than one component.
 
@@ -231,7 +232,10 @@ src-tauri/
 │   ├── 006_prompt_templates.sql          ← user_prompt_templates table
 │   ├── 007_prompt_template_authors.sql    ← author metadata on prompt templates
 │   ├── 008_notes_sort_order.sql            ← adds sort_order column to notes table
-│   └── 009_persistence_backfills.sql        ← backfills for prior migrations' NULL columns
+│   ├── 009_persistence_backfills.sql        ← backfills for prior migrations' NULL columns
+│   ├── 011_api_history_response.sql          ← API history response snapshots
+│   ├── 012_snippets_favorite.sql             ← snippet favorite flag
+│   └── 013_resource_folders.sql              ← typed nested libraries and legacy backfills
 ├── icons/                     ← App icons (all sizes)
 └── tauri.conf.json            ← Window size/min, bundle config, app identifier
 ```

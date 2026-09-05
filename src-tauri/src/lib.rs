@@ -94,6 +94,12 @@ pub fn run() {
             sql: include_str!("../migrations/012_snippets_favorite.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "add shared resource folders",
+            sql: include_str!("../migrations/013_resource_folders.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

@@ -7,7 +7,9 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { InlineInput } from '@/components/shared/InlineInput'
+import { Select } from '@/components/shared/Input'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SplitPane } from '@/components/shared/SplitPane'
@@ -19,6 +21,7 @@ import { useTabDirty } from '@/hooks/useTabDirty'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { useNotesStore } from '@/stores/notes.store'
+import { useFoldersStore } from '@/stores/folders.store'
 import { useUiStore } from '@/stores/ui.store'
 import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
 import {
@@ -30,11 +33,13 @@ import {
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import type { Note } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
 
 type NotesWorkspaceState = {
   selectedId: string | null
   mode: EditorMode
   libraryOpen: boolean
+  selectedFolderId: string | null
 }
 
 function notePreview(content: string): string {
@@ -68,12 +73,17 @@ export default function NotesWorkspace() {
   const updateNote = useNotesStore((state) => state.update)
   const flushPending = useNotesStore((state) => state.flushPending)
   const removeNote = useNotesStore((state) => state.remove)
+  const folders = useFoldersStore((state) => state.folders)
+  const createFolder = useFoldersStore((state) => state.create)
+  const updateFolder = useFoldersStore((state) => state.update)
+  const moveFolder = useFoldersStore((state) => state.move)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
   const [state, updateState] = useToolState<NotesWorkspaceState>('notes', {
     selectedId: null,
     mode: 'split',
     libraryOpen: true,
+    selectedFolderId: null,
   })
   const [search, setSearch] = useState('')
   const [html, setHtml] = useState('')
@@ -97,10 +107,27 @@ export default function NotesWorkspace() {
       }),
     [notes]
   )
-  const filteredNotes = useMemo(
-    () => (search.trim() ? fuse.search(search.trim()).map((result) => result.item) : notes),
-    [fuse, notes, search]
+  const noteFolders = useMemo(() => foldersForKind(folders, 'notes'), [folders])
+  const selectedFolderIds = useMemo(
+    () =>
+      state.selectedFolderId ? descendantFolderIds(noteFolders, state.selectedFolderId) : null,
+    [noteFolders, state.selectedFolderId]
   )
+  const filteredNotes = useMemo(() => {
+    const candidates = search.trim()
+      ? fuse.search(search.trim()).map((result) => result.item)
+      : notes
+    return selectedFolderIds
+      ? candidates.filter((note) => note.folderId && selectedFolderIds.has(note.folderId))
+      : candidates
+  }, [fuse, notes, search, selectedFolderIds])
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const note of notes) {
+      if (note.folderId) counts.set(note.folderId, (counts.get(note.folderId) ?? 0) + 1)
+    }
+    return counts
+  }, [notes])
 
   const editorMount: OnMount = useCallback((editor) => setMountedEditor(editor), [])
   useScrollSync(mountedEditor, previewRef, state.mode === 'split', state.mode === 'split')
@@ -158,13 +185,18 @@ export default function NotesWorkspace() {
 
   const handleNew = useCallback(async () => {
     try {
-      const note = await addNote('Untitled note')
+      const note = await addNote(
+        'Untitled note',
+        '',
+        'yellow',
+        state.selectedFolderId ?? 'notes-inbox'
+      )
       updateState({ selectedId: note.id })
       setLastAction('Note created', 'success')
     } catch {
       setLastAction('Failed to create note', 'error')
     }
-  }, [addNote, setLastAction, updateState])
+  }, [addNote, setLastAction, state.selectedFolderId, updateState])
 
   const handleDelete = useCallback(async () => {
     if (!deleteCandidate) return
@@ -299,6 +331,16 @@ export default function NotesWorkspace() {
                 clearLabel="Clear notes search"
               />
             </div>
+            <ResourceFolderTree
+              folders={noteFolders}
+              selectedFolderId={state.selectedFolderId}
+              onSelect={(selectedFolderId) => updateState({ selectedFolderId })}
+              onCreate={(parentId) => createFolder({ name: 'New folder', kind: 'notes', parentId })}
+              onUpdate={updateFolder}
+              onMove={moveFolder}
+              itemCounts={folderCounts}
+              label="Note folders"
+            />
             <div
               ref={listRef}
               className="min-h-0 flex-1 overflow-y-auto"
@@ -392,6 +434,19 @@ export default function NotesWorkspace() {
                 value={state.mode}
                 onChange={(mode) => updateState({ mode })}
               />
+              <Select
+                value={selected.folderId ?? 'notes-inbox'}
+                onChange={(event) => void updateNote(selected.id, { folderId: event.target.value })}
+                aria-label="Note folder"
+                title="Move note to folder"
+                className="max-w-44"
+              >
+                {noteFolders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folderPath(noteFolders, folder.id).join(' / ')}
+                  </option>
+                ))}
+              </Select>
               <Button
                 variant="icon"
                 size="sm"

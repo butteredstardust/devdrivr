@@ -153,6 +153,7 @@ src/lib/tool-actions.ts           ← pub/sub: dispatchToolAction / useToolActio
 src/stores/settings.store.ts      ← theme, sidebar, editor prefs → persisted
 src/stores/notes.store.ts         ← notes CRUD → persisted
 src/stores/snippets.store.ts      ← snippets CRUD → persisted
+src/stores/folders.store.ts       ← shared resource folder hierarchy → persisted
 src/stores/history.store.ts       ← tool execution history → persisted
 src/stores/ui.store.ts            ← active tool, modals, toasts → transient
 src/hooks/useToolState.ts         ← per-tool state persistence (cache + SQLite)

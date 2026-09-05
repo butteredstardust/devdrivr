@@ -72,18 +72,20 @@ render sanitized Markdown consistently.
 
 ### 3. Shared hierarchical library and folder model
 
+**Status:** Complete (2026-09-05)
+
 **Outcome:** Notes, snippets, and API requests scale beyond flat folder strings
 or one-level collections while retaining simple Inbox and All Items views.
 
-- [ ] Introduce typed resource folders with parent ID, stable ordering, resource
+- [x] Introduce typed resource folders with parent ID, stable ordering, resource
       kind, and optional default language for snippet folders.
-- [ ] Migrate snippet folder strings and API collections without changing visible
+- [x] Migrate snippet folder strings and API collections without changing visible
       names; place current unfiled notes in Inbox.
-- [ ] Build a reusable accessible tree supporting create, inline rename, nesting,
+- [x] Build a reusable accessible tree supporting create, inline rename, nesting,
       keyboard movement, pointer movement, and subtree filtering.
-- [ ] Do not expose folder deletion until item 4 lands; folder creation, rename,
+- [x] Do not expose folder deletion until item 4 lands; folder creation, rename,
       nesting, and movement can ship without committing to destructive behavior.
-- [ ] Update import/export and MCP representations so hierarchy round-trips.
+- [x] Update import/export and MCP representations so hierarchy round-trips.
 
 **Depends on:** none, but land before items 4-6 to avoid repeated schema/UI
 rewrites. **Risk:** medium-high migration scope. **Done when:** nested hierarchy

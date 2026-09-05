@@ -81,6 +81,7 @@ export function detectApiImportFormat(content: string, filename?: string): ApiIm
   if (Array.isArray(parsed)) return 'devdrivr-json'
   const root = asRecord(parsed)
   if (root) {
+    if (root['version'] === 2 && Array.isArray(root['requests'])) return 'devdrivr-json'
     if (isPostmanCollection(root)) return 'postman'
     if (typeof root['openapi'] === 'string' || typeof root['swagger'] === 'string') return 'openapi'
     if (typeof root['asyncapi'] === 'string') return 'asyncapi'
@@ -102,12 +103,29 @@ export function detectApiImportFormat(content: string, filename?: string): ApiIm
 
 function importDevdrivrJson(content: string): ApiImportResult {
   const parsed = JSON.parse(content) as unknown
-  if (!Array.isArray(parsed)) {
-    throw new Error('Import failed - devdrivr JSON must be an array')
+  const builder = createBuilder('devdrivr-json', 'devdrivr Import')
+  const envelope = asRecord(parsed)
+  const items = Array.isArray(parsed) ? parsed : asArray(envelope?.['requests'])
+  if (!Array.isArray(parsed) && (!envelope || envelope['version'] !== 2)) {
+    throw new Error('Import failed - devdrivr JSON must be an array or version 2 library')
   }
 
-  const builder = createBuilder('devdrivr-json', 'devdrivr Import')
-  for (const item of parsed) {
+  if (envelope?.['version'] === 2) {
+    for (const item of asArray(envelope['folders'])) {
+      const folder = asRecord(item)
+      const key = asString(folder?.['key'])
+      const name = asString(folder?.['name'])
+      if (!folder || !key || !name) continue
+      builder.collections.set(key, {
+        key,
+        name,
+        parentKey: asString(folder['parentKey']),
+        sortOrder: typeof folder['sortOrder'] === 'number' ? folder['sortOrder'] : 0,
+      })
+    }
+  }
+
+  for (const item of items) {
     const obj = asRecord(item)
     if (!obj) {
       builder.warnings.push('Skipped a non-object request entry')
