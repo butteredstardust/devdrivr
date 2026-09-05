@@ -20,6 +20,8 @@ const REDACTED_AUTH_VALUE: &str = "***REDACTED***";
 const DEFAULT_SEARCH_LIMIT: i64 = 50;
 const MAX_SEARCH_LIMIT: i64 = 500;
 const MAX_MULTI_GET: usize = 100;
+const FOLDER_SORT_STEP: f64 = 1000.0;
+const SYSTEM_INBOX_IDS: [&str; 3] = ["notes-inbox", "snippets-inbox", "api-requests-inbox"];
 const HELP_TOPICS: [&str; 7] = [
     "overview",
     "tools",
@@ -140,6 +142,7 @@ struct NoteCreateArgs {
     color: Option<String>,
     pinned: Option<bool>,
     tags: Option<Vec<String>>,
+    folder_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -151,6 +154,7 @@ struct NoteUpdateArgs {
     color: Option<String>,
     pinned: Option<bool>,
     tags: Option<Vec<String>>,
+    folder_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -160,6 +164,7 @@ struct SnippetCreateArgs {
     content: String,
     language: Option<String>,
     tags: Option<Vec<String>>,
+    folder_id: Option<String>,
     folder: Option<String>,
 }
 
@@ -171,6 +176,7 @@ struct SnippetUpdateArgs {
     content: Option<String>,
     language: Option<String>,
     tags: Option<Vec<String>>,
+    folder_id: Option<String>,
     folder: Option<String>,
 }
 
@@ -206,6 +212,7 @@ struct PromptTemplateUpdateArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 struct ApiRequestCreateArgs {
+    folder_id: Option<String>,
     collection_id: Option<String>,
     name: String,
     method: String,
@@ -220,6 +227,7 @@ struct ApiRequestCreateArgs {
 #[serde(rename_all = "camelCase")]
 struct ApiRequestUpdateArgs {
     id: String,
+    folder_id: Option<String>,
     collection_id: Option<String>,
     name: Option<String>,
     method: Option<String>,
@@ -228,6 +236,39 @@ struct ApiRequestUpdateArgs {
     body: Option<String>,
     body_mode: Option<String>,
     auth: Option<Value>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct FolderListArgs {
+    kind: Option<String>,
+    query: Option<String>,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct FolderCreateArgs {
+    name: String,
+    kind: String,
+    parent_id: Option<String>,
+    default_language: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct FolderUpdateArgs {
+    id: String,
+    name: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_string")]
+    default_language: Option<Option<String>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct FolderMoveArgs {
+    id: String,
+    parent_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -245,6 +286,7 @@ struct NoteRow {
     created_at: i64,
     updated_at: i64,
     tags: Option<String>,
+    folder_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -255,6 +297,7 @@ struct SnippetRow {
     language: String,
     tags: String,
     folder: String,
+    folder_id: Option<String>,
     created_at: i64,
     updated_at: i64,
 }
@@ -281,6 +324,8 @@ struct PromptTemplateRow {
 struct ApiCollectionRow {
     id: String,
     name: String,
+    parent_id: Option<String>,
+    sort_order: f64,
     created_at: i64,
     updated_at: i64,
 }
@@ -300,11 +345,38 @@ struct ApiRequestRow {
     updated_at: i64,
 }
 
+#[derive(Debug, Clone, FromRow)]
+struct ResourceFolderRow {
+    id: String,
+    name: String,
+    parent_id: Option<String>,
+    kind: String,
+    sort_order: f64,
+    default_language: Option<String>,
+    created_at: i64,
+    updated_at: i64,
+}
+
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis() as i64)
         .unwrap_or(0)
+}
+
+fn deserialize_nullable_string<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Value::deserialize(deserializer)? {
+        Value::Null => Ok(Some(None)),
+        Value::String(value) => Ok(Some(Some(value))),
+        _ => Err(serde::de::Error::custom(
+            "defaultLanguage must be a string or null",
+        )),
+    }
 }
 
 fn parse_json(value: &str, fallback: Value) -> Value {
@@ -473,6 +545,56 @@ fn unsupported_resource_type(resource_type: &str) -> McpError {
     )
 }
 
+fn parse_folder_kind(kind: &str) -> std::result::Result<&'static str, McpError> {
+    match kind.trim() {
+        "notes" => Ok("notes"),
+        "snippets" => Ok("snippets"),
+        "apiRequests" => Ok("apiRequests"),
+        _ => Err(invalid_argument(
+            "kind",
+            format!("Unsupported folder kind: {kind}"),
+            &["Use one of: notes, snippets, apiRequests"],
+        )),
+    }
+}
+
+fn invalid_folder_parent(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "parentId",
+        message,
+        &[
+            "Choose a folder of the same resource kind",
+            "Do not move a folder into itself or one of its descendants",
+        ],
+    )
+}
+
+fn is_system_inbox(id: &str) -> bool {
+    SYSTEM_INBOX_IDS.contains(&id)
+}
+
+fn system_inbox_update_denied(id: &str) -> McpError {
+    invalid_argument(
+        "id",
+        format!("The system Inbox folder {id} cannot be renamed or moved"),
+        &[
+            "Create a child folder under Inbox instead",
+            "Use a non-system folder ID",
+        ],
+    )
+}
+
+fn validate_default_language(kind: &str, supplied: bool) -> std::result::Result<(), McpError> {
+    if kind != "snippets" && supplied {
+        return Err(invalid_argument(
+            "defaultLanguage",
+            "defaultLanguage is supported only for snippet folders",
+            &["Omit defaultLanguage for notes and apiRequests folders"],
+        ));
+    }
+    Ok(())
+}
+
 fn unknown_help_topic(topic: &str) -> McpError {
     invalid_argument(
         "topic",
@@ -496,7 +618,7 @@ fn string_vec_to_db_json(value: Option<Vec<String>>) -> String {
     serde_json::to_string(&value.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string())
 }
 
-fn note_to_json(row: NoteRow) -> Value {
+fn note_to_json(row: NoteRow, folder_path: Vec<String>) -> Value {
     json!({
         "id": row.id,
         "title": row.title,
@@ -511,10 +633,12 @@ fn note_to_json(row: NoteRow) -> Value {
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
         "tags": parse_json(row.tags.as_deref().unwrap_or("[]"), json!([])),
+        "folderId": row.folder_id,
+        "folderPath": folder_path,
     })
 }
 
-fn snippet_to_json(row: SnippetRow) -> Value {
+fn snippet_to_json(row: SnippetRow, folder_path: Vec<String>) -> Value {
     json!({
         "id": row.id,
         "title": row.title,
@@ -522,6 +646,8 @@ fn snippet_to_json(row: SnippetRow) -> Value {
         "language": row.language,
         "tags": parse_json(&row.tags, json!([])),
         "folder": row.folder,
+        "folderId": row.folder_id,
+        "folderPath": folder_path,
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     })
@@ -550,6 +676,8 @@ fn api_collection_to_json(row: ApiCollectionRow) -> Value {
     json!({
         "id": row.id,
         "name": row.name,
+        "parentId": row.parent_id,
+        "sortOrder": row.sort_order,
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     })
@@ -636,10 +764,12 @@ fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
     serde_json::to_string(&Value::Object(incoming_obj)).unwrap_or_else(|_| current_auth.to_string())
 }
 
-fn api_request_to_json(row: ApiRequestRow, expose_auth: bool) -> Value {
+fn api_request_to_json(row: ApiRequestRow, folder_path: Vec<String>, expose_auth: bool) -> Value {
     json!({
         "id": row.id,
         "collectionId": row.collection_id,
+        "folderId": row.collection_id,
+        "folderPath": folder_path,
         "name": row.name,
         "method": row.method,
         "url": row.url,
@@ -647,6 +777,19 @@ fn api_request_to_json(row: ApiRequestRow, expose_auth: bool) -> Value {
         "body": row.body,
         "bodyMode": row.body_mode,
         "auth": redacted_auth(parse_json(&row.auth, json!({ "type": "none" })), expose_auth),
+        "createdAt": row.created_at,
+        "updatedAt": row.updated_at,
+    })
+}
+
+fn resource_folder_to_json(row: ResourceFolderRow) -> Value {
+    json!({
+        "id": row.id,
+        "name": row.name,
+        "parentId": row.parent_id,
+        "kind": row.kind,
+        "sortOrder": row.sort_order,
+        "defaultLanguage": row.default_language,
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     })
@@ -982,8 +1125,8 @@ Server:
 - Authentication: `Authorization: Bearer $DEVDRIVR_MCP_KEY`
 
 Primary resources:
-- `notes`: markdown-compatible notes with tags and pinned state.
-- `snippets`: reusable code or text snippets with language, folder, and tags.
+- `notes`: markdown-compatible notes with tags, pinned state, and typed folders.
+- `snippets`: reusable code or text snippets with language, typed folders, and legacy folder-name compatibility.
 - `promptTemplates`: built-in and user prompt templates with variables and tips.
 - `apiRequests`: saved API client requests. Requests are not executed by MCP.
 
@@ -993,6 +1136,7 @@ Quick start:
 - Inspect schemas: `introspect()`
 - Count resources: `counts()`
 - Fetch selected records: `multi_get({{"ids":[{{"type":"notes","id":"..."}}]}})`
+- Browse folders: `resource_folders_list({{"kind":"notes"}})`
 
 Use `help({{"topic":"tools"}})` for the tool reference and `help({{"topic":"clients"}})` for CLI setup examples.
 "#,
@@ -1002,7 +1146,9 @@ Use `help({{"topic":"tools"}})` for the tool reference and `help({{"topic":"clie
 }
 
 fn permission_for_tool(name: &str) -> &'static str {
-    let resource = if name.starts_with("notes_") {
+    let resource = if name.starts_with("resource_folders_") {
+        return "kind-specific resource permission";
+    } else if name.starts_with("notes_") {
         "notes"
     } else if name.starts_with("snippets_") {
         "snippets"
@@ -1059,6 +1205,8 @@ fn tool_pitfall(name: &str) -> &'static str {
         "api_requests_create" | "api_requests_update" => {
             "This saves the request definition only; it does not execute the HTTP request."
         }
+        "resource_folders_move" => "The parent must have the same kind and cannot be this folder or a descendant.",
+        "resource_folders_update" => "MCP intentionally does not provide resource folder deletion.",
         _ => "Check required permissions and use IDs returned by search or list tools.",
     }
 }
@@ -1143,6 +1291,12 @@ fn help_workflows() -> String {
 3. For prompt templates, updating a built-in creates a user copy.
 4. For API requests, remember MCP saves definitions but does not execute HTTP calls.
 
+## Organize resources with folders
+1. Call `resource_folders_list({"kind":"notes"})` (or `snippets` / `apiRequests`) to get typed folder IDs.
+2. Create folders with `resource_folders_create`, then pass their ID as `folderId` when creating or updating a resource.
+3. Use `resource_folders_move` only with a parent of the same kind; cycles are rejected.
+4. `folderPath` is returned as an ordered array of folder names. Snippet `folder` and API request `collectionId` remain compatibility aliases.
+
 ## Share prompt templates
 1. Call `prompt_templates_list({"query":"<topic>"})`.
 2. Call `prompt_templates_get` for selected IDs.
@@ -1215,10 +1369,10 @@ fn help_schema(settings: &McpSettings) -> String {
 Use `introspect()` for complete resource fields, examples, permissions, and redaction metadata.
 
 Primary resource types:
-- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `tags`, `createdAt`, `updatedAt`.
-- `snippets`: fields include `id`, `title`, `content`, `language`, `folder`, `tags`, `createdAt`, `updatedAt`.
+- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, `createdAt`, `updatedAt`.
+- `snippets`: fields include `id`, `title`, `content`, `language`, `folderId`, `folderPath`, legacy `folder`, `tags`, `createdAt`, `updatedAt`.
 - `promptTemplates`: fields include `id`, `name`, `prompt`, `variables`, `author`, `tags`, `estimatedTokens`, `createdAt`, `updatedAt`.
-- `apiRequests`: fields include `id`, `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
+- `apiRequests`: fields include `id`, `folderId`, `folderPath`, legacy `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
 
 Limits:
 - Search/list limit is capped at `{max_results}`.
@@ -1389,20 +1543,26 @@ impl DevdrivrMcpService {
     ) -> std::result::Result<Option<Value>, McpError> {
         match resource_type {
             ResourceType::Notes => {
-                sqlx::query_as::<_, NoteRow>("SELECT * FROM notes WHERE id = $1")
+                let row = sqlx::query_as::<_, NoteRow>("SELECT * FROM notes WHERE id = $1")
                     .bind(id)
                     .fetch_optional(&self.pool)
                     .await
-                    .map(|row| row.map(note_to_json))
-                    .map_err(db_error)
+                    .map_err(db_error)?;
+                match row {
+                    Some(row) => Ok(Some(self.note_value(row).await?)),
+                    None => Ok(None),
+                }
             }
             ResourceType::Snippets => {
-                sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets WHERE id = $1")
+                let row = sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets WHERE id = $1")
                     .bind(id)
                     .fetch_optional(&self.pool)
                     .await
-                    .map(|row| row.map(snippet_to_json))
-                    .map_err(db_error)
+                    .map_err(db_error)?;
+                match row {
+                    Some(row) => Ok(Some(self.snippet_value(row).await?)),
+                    None => Ok(None),
+                }
             }
             ResourceType::PromptTemplates => sqlx::query_as::<_, PromptTemplateRow>(
                 "SELECT * FROM user_prompt_templates WHERE id = $1",
@@ -1414,12 +1574,16 @@ impl DevdrivrMcpService {
             .map_err(db_error),
             ResourceType::ApiRequests => {
                 let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-                sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await
-                    .map(|row| row.map(|row| api_request_to_json(row, expose_auth)))
-                    .map_err(db_error)
+                let row =
+                    sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests WHERE id = $1")
+                        .bind(id)
+                        .fetch_optional(&self.pool)
+                        .await
+                        .map_err(db_error)?;
+                match row {
+                    Some(row) => Ok(Some(self.api_request_value(row, expose_auth).await?)),
+                    None => Ok(None),
+                }
             }
         }
     }
@@ -1429,19 +1593,31 @@ impl DevdrivrMcpService {
         resource_type: ResourceType,
     ) -> std::result::Result<Vec<Value>, McpError> {
         match resource_type {
-            ResourceType::Notes => sqlx::query_as::<_, NoteRow>(
-                "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC",
-            )
-            .fetch_all(&self.pool)
-            .await
-            .map(|rows| rows.into_iter().map(note_to_json).collect())
-            .map_err(db_error),
+            ResourceType::Notes => {
+                let rows = sqlx::query_as::<_, NoteRow>(
+                    "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.note_value(row).await?);
+                }
+                Ok(values)
+            }
             ResourceType::Snippets => {
-                sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets ORDER BY updated_at DESC")
-                    .fetch_all(&self.pool)
-                    .await
-                    .map(|rows| rows.into_iter().map(snippet_to_json).collect())
-                    .map_err(db_error)
+                let rows = sqlx::query_as::<_, SnippetRow>(
+                    "SELECT * FROM snippets ORDER BY updated_at DESC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.snippet_value(row).await?);
+                }
+                Ok(values)
             }
             ResourceType::PromptTemplates => sqlx::query_as::<_, PromptTemplateRow>(
                 "SELECT * FROM user_prompt_templates ORDER BY author ASC, updated_at DESC",
@@ -1452,17 +1628,210 @@ impl DevdrivrMcpService {
             .map_err(db_error),
             ResourceType::ApiRequests => {
                 let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-                sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests ORDER BY name ASC")
-                    .fetch_all(&self.pool)
-                    .await
-                    .map(|rows| {
-                        rows.into_iter()
-                            .map(|row| api_request_to_json(row, expose_auth))
-                            .collect()
-                    })
-                    .map_err(db_error)
+                let rows = sqlx::query_as::<_, ApiRequestRow>(
+                    "SELECT * FROM api_requests ORDER BY name ASC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.api_request_value(row, expose_auth).await?);
+                }
+                Ok(values)
             }
         }
+    }
+
+    async fn folder_path(
+        &self,
+        folder_id: Option<&str>,
+    ) -> std::result::Result<Vec<String>, McpError> {
+        let Some(folder_id) = folder_id else {
+            return Ok(Vec::new());
+        };
+        sqlx::query_scalar::<_, String>(
+            "WITH RECURSIVE path(id, name, parent_id, depth) AS (\
+             SELECT id, name, parent_id, 0 FROM resource_folders WHERE id = $1 \
+             UNION ALL \
+             SELECT folder.id, folder.name, folder.parent_id, path.depth + 1 \
+             FROM resource_folders folder JOIN path ON path.parent_id = folder.id \
+             WHERE path.depth < 100\
+             ) SELECT name FROM path ORDER BY depth DESC",
+        )
+        .bind(folder_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn note_value(&self, row: NoteRow) -> std::result::Result<Value, McpError> {
+        let folder_path = self.folder_path(row.folder_id.as_deref()).await?;
+        Ok(note_to_json(row, folder_path))
+    }
+
+    async fn snippet_value(&self, row: SnippetRow) -> std::result::Result<Value, McpError> {
+        let folder_path = self.folder_path(row.folder_id.as_deref()).await?;
+        Ok(snippet_to_json(row, folder_path))
+    }
+
+    async fn api_request_value(
+        &self,
+        row: ApiRequestRow,
+        expose_auth: bool,
+    ) -> std::result::Result<Value, McpError> {
+        let folder_path = self.folder_path(row.collection_id.as_deref()).await?;
+        Ok(api_request_to_json(row, folder_path, expose_auth))
+    }
+
+    async fn folder_by_id(
+        &self,
+        id: &str,
+    ) -> std::result::Result<Option<ResourceFolderRow>, McpError> {
+        sqlx::query_as::<_, ResourceFolderRow>("SELECT * FROM resource_folders WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_error)
+    }
+
+    async fn require_folder_kind(
+        &self,
+        id: &str,
+        kind: &str,
+    ) -> std::result::Result<ResourceFolderRow, McpError> {
+        let folder = self
+            .folder_by_id(id)
+            .await?
+            .ok_or_else(|| not_found("folders", id))?;
+        if folder.kind != kind {
+            return Err(invalid_argument(
+                "folderId",
+                format!("Folder {id} does not belong to {kind}"),
+                &["Use a folder ID returned by resource_folders_list for this resource kind"],
+            ));
+        }
+        Ok(folder)
+    }
+
+    async fn save_folder(&self, folder: &ResourceFolderRow) -> std::result::Result<(), McpError> {
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        sqlx::query(
+            "INSERT INTO resource_folders (id, name, parent_id, kind, sort_order, default_language, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, kind=$4, sort_order=$5, default_language=$6, updated_at=$8",
+        )
+        .bind(&folder.id)
+        .bind(&folder.name)
+        .bind(&folder.parent_id)
+        .bind(&folder.kind)
+        .bind(folder.sort_order)
+        .bind(&folder.default_language)
+        .bind(folder.created_at)
+        .bind(folder.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(db_error)?;
+
+        if folder.kind == "apiRequests" {
+            sqlx::query(
+                "INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) \
+                 ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, sort_order=$4, default_language=$5, updated_at=$7",
+            )
+            .bind(&folder.id)
+            .bind(&folder.name)
+            .bind(&folder.parent_id)
+            .bind(folder.sort_order)
+            .bind(&folder.default_language)
+            .bind(folder.created_at)
+            .bind(folder.updated_at)
+            .execute(&mut *transaction)
+            .await
+            .map_err(db_error)?;
+        }
+        transaction.commit().await.map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn validate_folder_parent(
+        &self,
+        kind: &str,
+        id: Option<&str>,
+        parent_id: Option<&str>,
+    ) -> std::result::Result<(), McpError> {
+        let Some(parent_id) = parent_id else {
+            return Ok(());
+        };
+        if id == Some(parent_id) {
+            return Err(invalid_folder_parent("A folder cannot be its own parent"));
+        }
+        let parent = self.require_folder_kind(parent_id, kind).await?;
+        let mut cursor = parent.parent_id;
+        let mut visited = std::collections::HashSet::from([parent_id.to_string()]);
+        while let Some(current_id) = cursor {
+            if id == Some(current_id.as_str()) {
+                return Err(invalid_folder_parent(
+                    "A folder cannot be moved into its own subtree",
+                ));
+            }
+            if !visited.insert(current_id.clone()) {
+                return Err(invalid_folder_parent(
+                    "The requested folder tree contains a cycle",
+                ));
+            }
+            cursor = self
+                .folder_by_id(&current_id)
+                .await?
+                .and_then(|folder| folder.parent_id);
+        }
+        Ok(())
+    }
+
+    async fn resolve_snippet_folder(
+        &self,
+        folder_id: Option<String>,
+        legacy_folder: Option<String>,
+        current: Option<&SnippetRow>,
+    ) -> std::result::Result<(String, String, bool), McpError> {
+        if let Some(folder_id) = folder_id {
+            let folder = self.require_folder_kind(&folder_id, "snippets").await?;
+            return Ok((folder.id, folder.name, false));
+        }
+        if let Some(folder_name) = legacy_folder {
+            if folder_name.is_empty() {
+                return Ok(("snippets-inbox".to_string(), String::new(), false));
+            }
+            if let Some(folder) = sqlx::query_as::<_, ResourceFolderRow>(
+                "SELECT * FROM resource_folders WHERE kind = 'snippets' AND name = $1 AND parent_id IS NULL ORDER BY sort_order ASC LIMIT 1",
+            )
+            .bind(&folder_name)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_error)? {
+                return Ok((folder.id, folder_name, false));
+            }
+            let now = now_ms();
+            let folder = ResourceFolderRow {
+                id: Uuid::new_v4().to_string(),
+                name: folder_name.clone(),
+                parent_id: None,
+                kind: "snippets".to_string(),
+                sort_order: FOLDER_SORT_STEP,
+                default_language: None,
+                created_at: now,
+                updated_at: now,
+            };
+            self.save_folder(&folder).await?;
+            return Ok((folder.id, folder_name, true));
+        }
+        Ok((
+            current
+                .and_then(|row| row.folder_id.clone())
+                .unwrap_or_else(|| "snippets-inbox".to_string()),
+            current.map(|row| row.folder.clone()).unwrap_or_default(),
+            false,
+        ))
     }
 
     async fn count_resource(
@@ -1627,6 +1996,8 @@ impl DevdrivrMcpService {
                         "poppedOut": "boolean",
                         "windowBounds": "object|null",
                         "tags": "string[]",
+                        "folderId": "string (defaults to notes-inbox)",
+                        "folderPath": "string[] (computed from resource folder ancestry)",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
@@ -1649,6 +2020,8 @@ impl DevdrivrMcpService {
                         "content": "string",
                         "language": "string",
                         "folder": "string",
+                        "folderId": "string (defaults to snippets-inbox; legacy folder is accepted)",
+                        "folderPath": "string[] (computed from resource folder ancestry)",
                         "tags": "string[]",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
@@ -1700,6 +2073,8 @@ impl DevdrivrMcpService {
                     "fields": {
                         "id": "string",
                         "collectionId": "string|null",
+                        "folderId": "string (compatibility alias for collectionId; defaults to api-requests-inbox)",
+                        "folderPath": "string[] (computed from resource folder ancestry)",
                         "name": "string",
                         "method": "string",
                         "url": "string",
@@ -1729,22 +2104,38 @@ impl DevdrivrMcpService {
             },
             "supportingResources": {
                 "apiCollections": {
-                    "description": "Read-only API request collections for assigning saved requests.",
+                    "description": "API request collection compatibility records for assigning saved requests.",
                     "fields": {
                         "id": "string",
                         "name": "string",
+                        "parentId": "string|null",
+                        "sortOrder": "number",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
                     "tools": ["api_collections_list"]
+                },
+                "resourceFolders": {
+                    "description": "Typed hierarchical folders for notes, snippets, and API requests. MCP does not expose folder deletion.",
+                    "fields": {
+                        "id": "string",
+                        "name": "string",
+                        "parentId": "string|null",
+                        "kind": "notes|snippets|apiRequests",
+                        "sortOrder": "number",
+                        "defaultLanguage": "string|null",
+                        "createdAt": "number (Unix milliseconds)",
+                        "updatedAt": "number (Unix milliseconds)"
+                    },
+                    "tools": ["resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"]
                 }
             },
             "tools": {
                 "discovery": ["help", "search", "multi_get", "introspect", "counts"],
-                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete"],
-                "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete"],
+                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
+                "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
                 "promptTemplates": ["prompt_templates_list", "prompt_templates_get", "prompt_templates_create", "prompt_templates_update", "prompt_templates_delete"],
-                "apiRequests": ["api_requests_list", "api_requests_get", "api_requests_create", "api_requests_update", "api_requests_delete"],
+                "apiRequests": ["api_requests_list", "api_requests_get", "api_requests_create", "api_requests_update", "api_requests_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
             },
             "permissions": {
                 "notes": settings.permissions.notes,
@@ -1791,15 +2182,10 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr notes. Returns compact JSON note records.")]
     async fn notes_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
-        let rows = sqlx::query_as::<_, NoteRow>(
-            "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_error)?;
         let values = apply_limit(
-            rows.into_iter()
-                .map(note_to_json)
+            self.fetch_resource_values(ResourceType::Notes)
+                .await?
+                .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
@@ -1816,7 +2202,7 @@ impl DevdrivrMcpService {
             .await
             .map_err(db_error)?
             .ok_or_else(|| not_found("notes", &args.id))?;
-        to_json_text(note_to_json(row))
+        to_json_text(self.note_value(row).await?)
     }
 
     #[tool(description = "Create a devdrivr note.")]
@@ -1829,8 +2215,10 @@ impl DevdrivrMcpService {
         let color = args.color.unwrap_or_else(|| "yellow".to_string());
         let pinned = args.pinned.unwrap_or(false);
         let tags = string_vec_to_db_json(args.tags);
+        let folder_id = args.folder_id.unwrap_or_else(|| "notes-inbox".to_string());
+        self.require_folder_kind(&folder_id, "notes").await?;
         sqlx::query(
-            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8)",
+            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9)",
         )
         .bind(&id)
         .bind(title)
@@ -1840,6 +2228,7 @@ impl DevdrivrMcpService {
         .bind(now)
         .bind(now)
         .bind(tags)
+        .bind(folder_id)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
@@ -1860,8 +2249,14 @@ impl DevdrivrMcpService {
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
             .unwrap_or_else(|| current.tags.unwrap_or_else(|| "[]".to_string()));
+        let folder_id = args.folder_id.unwrap_or_else(|| {
+            current
+                .folder_id
+                .unwrap_or_else(|| "notes-inbox".to_string())
+        });
+        self.require_folder_kind(&folder_id, "notes").await?;
         sqlx::query(
-            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, updated_at=$7 WHERE id=$1",
+            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(args.title.unwrap_or(current.title))
@@ -1869,6 +2264,7 @@ impl DevdrivrMcpService {
         .bind(args.color.unwrap_or(current.color))
         .bind(if args.pinned.unwrap_or(current.pinned == 1) { 1 } else { 0 })
         .bind(tags)
+        .bind(folder_id)
         .bind(now_ms())
         .execute(&self.pool)
         .await
@@ -1895,14 +2291,10 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr snippets. Returns JSON snippet records.")]
     async fn snippets_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("snippets", "read").await?;
-        let rows =
-            sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets ORDER BY updated_at DESC")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(db_error)?;
         let values = apply_limit(
-            rows.into_iter()
-                .map(snippet_to_json)
+            self.fetch_resource_values(ResourceType::Snippets)
+                .await?
+                .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
@@ -1919,7 +2311,7 @@ impl DevdrivrMcpService {
             .await
             .map_err(db_error)?
             .ok_or_else(|| not_found("snippets", &args.id))?;
-        to_json_text(snippet_to_json(row))
+        to_json_text(self.snippet_value(row).await?)
     }
 
     #[tool(description = "Create a devdrivr snippet.")]
@@ -1927,20 +2319,27 @@ impl DevdrivrMcpService {
         self.ensure_permission("snippets", "create").await?;
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
+        let (folder_id, folder, created_folder) = self
+            .resolve_snippet_folder(args.folder_id, args.folder, None)
+            .await?;
         sqlx::query(
-            "INSERT INTO snippets (id, title, content, language, tags, folder, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            "INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(&id)
         .bind(args.title)
         .bind(args.content)
         .bind(args.language.unwrap_or_default())
         .bind(string_vec_to_db_json(args.tags))
-        .bind(args.folder.unwrap_or_default())
+        .bind(folder)
+        .bind(folder_id)
         .bind(now)
         .bind(now)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
+        if created_folder {
+            self.emit_changed("folders", "create", None);
+        }
         self.emit_changed("snippets", "create", Some(id.clone()));
         self.snippets_get(Parameters(IdArgs { id })).await
     }
@@ -1957,20 +2356,27 @@ impl DevdrivrMcpService {
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
-            .unwrap_or(current.tags);
+            .unwrap_or_else(|| current.tags.clone());
+        let (folder_id, folder, created_folder) = self
+            .resolve_snippet_folder(args.folder_id, args.folder, Some(&current))
+            .await?;
         sqlx::query(
-            "UPDATE snippets SET title=$2, content=$3, language=$4, tags=$5, folder=$6, updated_at=$7 WHERE id=$1",
+            "UPDATE snippets SET title=$2, content=$3, language=$4, tags=$5, folder=$6, folder_id=$7, updated_at=$8 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(args.title.unwrap_or(current.title))
         .bind(args.content.unwrap_or(current.content))
         .bind(args.language.unwrap_or(current.language))
         .bind(tags)
-        .bind(args.folder.unwrap_or(current.folder))
+        .bind(folder)
+        .bind(folder_id)
         .bind(now_ms())
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
+        if created_folder {
+            self.emit_changed("folders", "create", None);
+        }
         self.emit_changed("snippets", "update", Some(args.id.clone()));
         self.snippets_get(Parameters(IdArgs { id: args.id })).await
     }
@@ -2127,6 +2533,172 @@ impl DevdrivrMcpService {
         to_json_text(json!({ "deleted": true }))
     }
 
+    #[tool(
+        description = "List shared resource folders. Filter by notes, snippets, or apiRequests; only folders allowed by the matching read permission are returned."
+    )]
+    async fn resource_folders_list(
+        &self,
+        Parameters(args): Parameters<FolderListArgs>,
+    ) -> McpResult {
+        let requested_kind = args.kind.as_deref().map(parse_folder_kind).transpose()?;
+        let kinds = match requested_kind {
+            Some(kind) => {
+                self.ensure_permission(kind, "read").await?;
+                vec![kind]
+            }
+            None => {
+                let mut kinds = Vec::new();
+                for kind in ["notes", "snippets", "apiRequests"] {
+                    if self.ensure_permission(kind, "read").await.is_ok() {
+                        kinds.push(kind);
+                    }
+                }
+                kinds
+            }
+        };
+        let rows = sqlx::query_as::<_, ResourceFolderRow>(
+            "SELECT * FROM resource_folders ORDER BY kind ASC, parent_id ASC, sort_order ASC, name ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let values = apply_limit(
+            rows.into_iter()
+                .filter(|folder| kinds.contains(&folder.kind.as_str()))
+                .map(resource_folder_to_json)
+                .filter(|value| matches_query(value, &args.query))
+                .collect(),
+            args.limit,
+        );
+        to_json_text(json!({ "folders": values }))
+    }
+
+    #[tool(
+        description = "Create a shared resource folder for notes, snippets, or saved API requests. API request folders remain compatible with API collections."
+    )]
+    async fn resource_folders_create(
+        &self,
+        Parameters(args): Parameters<FolderCreateArgs>,
+    ) -> McpResult {
+        let kind = parse_folder_kind(&args.kind)?;
+        self.ensure_permission(kind, "create").await?;
+        let name = args.name.trim();
+        if name.is_empty() {
+            return Err(invalid_argument(
+                "name",
+                "Folder name cannot be empty",
+                &["Provide a non-empty folder name"],
+            ));
+        }
+        validate_default_language(kind, args.default_language.is_some())?;
+        self.validate_folder_parent(kind, None, args.parent_id.as_deref())
+            .await?;
+        let max_sort = sqlx::query_scalar::<_, f64>(
+            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
+        )
+        .bind(kind)
+        .bind(&args.parent_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let now = now_ms();
+        let folder = ResourceFolderRow {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            parent_id: args.parent_id,
+            kind: kind.to_string(),
+            sort_order: max_sort + FOLDER_SORT_STEP,
+            default_language: args.default_language,
+            created_at: now,
+            updated_at: now,
+        };
+        self.save_folder(&folder).await?;
+        self.emit_changed("folders", "create", Some(folder.id.clone()));
+        self.emit_changed(kind, "create", Some(folder.id.clone()));
+        if kind == "apiRequests" {
+            self.emit_changed("apiCollections", "create", Some(folder.id.clone()));
+        }
+        to_json_text(resource_folder_to_json(folder))
+    }
+
+    #[tool(
+        description = "Rename or update a shared resource folder. Folder deletion is intentionally not exposed through MCP."
+    )]
+    async fn resource_folders_update(
+        &self,
+        Parameters(args): Parameters<FolderUpdateArgs>,
+    ) -> McpResult {
+        let mut folder = self
+            .folder_by_id(&args.id)
+            .await?
+            .ok_or_else(|| not_found("folders", &args.id))?;
+        self.ensure_permission(&folder.kind, "update").await?;
+        if is_system_inbox(&folder.id) {
+            return Err(system_inbox_update_denied(&folder.id));
+        }
+        validate_default_language(&folder.kind, args.default_language.is_some())?;
+        if let Some(name) = args.name {
+            let name = name.trim();
+            if name.is_empty() {
+                return Err(invalid_argument(
+                    "name",
+                    "Folder name cannot be empty",
+                    &["Provide a non-empty folder name"],
+                ));
+            }
+            folder.name = name.to_string();
+        }
+        if let Some(default_language) = args.default_language {
+            folder.default_language = default_language;
+        }
+        folder.updated_at = now_ms();
+        self.save_folder(&folder).await?;
+        self.emit_changed("folders", "update", Some(folder.id.clone()));
+        self.emit_changed(&folder.kind, "update", Some(folder.id.clone()));
+        if folder.kind == "apiRequests" {
+            self.emit_changed("apiCollections", "update", Some(folder.id.clone()));
+        }
+        to_json_text(resource_folder_to_json(folder))
+    }
+
+    #[tool(
+        description = "Move a shared resource folder under another folder of the same kind. Moves that would create a cycle are rejected."
+    )]
+    async fn resource_folders_move(
+        &self,
+        Parameters(args): Parameters<FolderMoveArgs>,
+    ) -> McpResult {
+        let mut folder = self
+            .folder_by_id(&args.id)
+            .await?
+            .ok_or_else(|| not_found("folders", &args.id))?;
+        self.ensure_permission(&folder.kind, "update").await?;
+        if is_system_inbox(&folder.id) {
+            return Err(system_inbox_update_denied(&folder.id));
+        }
+        self.validate_folder_parent(&folder.kind, Some(&folder.id), args.parent_id.as_deref())
+            .await?;
+        let max_sort = sqlx::query_scalar::<_, f64>(
+            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND id <> $2 AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
+        )
+        .bind(&folder.kind)
+        .bind(&folder.id)
+        .bind(&args.parent_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db_error)?;
+        folder.parent_id = args.parent_id;
+        folder.sort_order = max_sort + FOLDER_SORT_STEP;
+        folder.updated_at = now_ms();
+        self.save_folder(&folder).await?;
+        self.emit_changed("folders", "update", Some(folder.id.clone()));
+        self.emit_changed(&folder.kind, "update", Some(folder.id.clone()));
+        if folder.kind == "apiRequests" {
+            self.emit_changed("apiCollections", "update", Some(folder.id.clone()));
+        }
+        to_json_text(resource_folder_to_json(folder))
+    }
+
     #[tool(description = "List API client collections for assigning saved requests.")]
     async fn api_collections_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
@@ -2151,15 +2723,10 @@ impl DevdrivrMcpService {
     )]
     async fn api_requests_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
-        let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-        let rows =
-            sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests ORDER BY name ASC")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(db_error)?;
         let values = apply_limit(
-            rows.into_iter()
-                .map(|row| api_request_to_json(row, expose_auth))
+            self.fetch_resource_values(ResourceType::ApiRequests)
+                .await?
+                .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
@@ -2177,7 +2744,7 @@ impl DevdrivrMcpService {
             .await
             .map_err(db_error)?
             .ok_or_else(|| not_found("apiRequests", &args.id))?;
-        to_json_text(api_request_to_json(row, expose_auth))
+        to_json_text(self.api_request_value(row, expose_auth).await?)
     }
 
     #[tool(description = "Create a saved API client request. This does not execute the request.")]
@@ -2188,11 +2755,16 @@ impl DevdrivrMcpService {
         self.ensure_permission("apiRequests", "create").await?;
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
+        let folder_id = args
+            .folder_id
+            .or(args.collection_id)
+            .unwrap_or_else(|| "api-requests-inbox".to_string());
+        self.require_folder_kind(&folder_id, "apiRequests").await?;
         sqlx::query(
             "INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         )
         .bind(&id)
-        .bind(args.collection_id)
+        .bind(folder_id)
         .bind(args.name)
         .bind(args.method.to_uppercase())
         .bind(args.url)
@@ -2233,11 +2805,17 @@ impl DevdrivrMcpService {
             .headers
             .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
             .unwrap_or(current.headers);
+        let folder_id = args
+            .folder_id
+            .or(args.collection_id)
+            .or(current.collection_id)
+            .unwrap_or_else(|| "api-requests-inbox".to_string());
+        self.require_folder_kind(&folder_id, "apiRequests").await?;
         sqlx::query(
             "UPDATE api_requests SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$10 WHERE id=$1",
         )
         .bind(&args.id)
-        .bind(args.collection_id.or(current.collection_id))
+        .bind(folder_id)
         .bind(args.name.unwrap_or(current.name))
         .bind(args.method.unwrap_or(current.method).to_uppercase())
         .bind(args.url.unwrap_or(current.url))
@@ -2313,15 +2891,21 @@ mod tests {
             "password": "super-secret"
         });
 
-        let redacted = api_request_to_json(api_request_with_auth(auth.clone()), false);
+        let redacted = api_request_to_json(
+            api_request_with_auth(auth.clone()),
+            vec!["Inbox".to_string(), "Users".to_string()],
+            false,
+        );
         assert_eq!(redacted["collectionId"], "collection-1");
+        assert_eq!(redacted["folderId"], "collection-1");
+        assert_eq!(redacted["folderPath"], json!(["Inbox", "Users"]));
         assert_eq!(redacted["headers"][0]["key"], "X-Trace");
         assert_eq!(redacted["bodyMode"], "json");
         assert_eq!(redacted["auth"]["username"], "ada");
         assert_eq!(redacted["auth"]["password"], REDACTED_AUTH_VALUE);
         assert_eq!(redacted["auth"]["__devdrivrRedacted"], true);
 
-        let exposed = api_request_to_json(api_request_with_auth(auth), true);
+        let exposed = api_request_to_json(api_request_with_auth(auth), Vec::new(), true);
         assert_eq!(exposed["auth"]["password"], "super-secret");
         assert_eq!(exposed["auth"].get("__devdrivrRedacted"), None);
     }
@@ -2492,6 +3076,62 @@ mod tests {
     }
 
     #[test]
+    fn folder_kind_parser_accepts_only_resource_kinds_with_folders() {
+        assert_eq!(parse_folder_kind("notes").unwrap(), "notes");
+        assert_eq!(parse_folder_kind(" apiRequests ").unwrap(), "apiRequests");
+
+        let err = parse_folder_kind("promptTemplates").expect_err("templates have no folders");
+        let data = err.data.expect("error data");
+        assert_eq!(data["code"], "INVALID_ARGUMENT");
+        assert_eq!(data["argument"], "kind");
+    }
+
+    #[test]
+    fn resource_folder_json_exposes_typed_tree_fields() {
+        let value = resource_folder_to_json(ResourceFolderRow {
+            id: "notes-project".to_string(),
+            name: "Project".to_string(),
+            parent_id: Some("notes-inbox".to_string()),
+            kind: "notes".to_string(),
+            sort_order: 1000.0,
+            default_language: None,
+            created_at: 1,
+            updated_at: 2,
+        });
+
+        assert_eq!(value["parentId"], "notes-inbox");
+        assert_eq!(value["kind"], "notes");
+        assert_eq!(value["sortOrder"], 1000.0);
+        assert!(value["defaultLanguage"].is_null());
+    }
+
+    #[test]
+    fn system_inboxes_are_immutable_and_default_language_is_snippets_only() {
+        assert!(is_system_inbox("notes-inbox"));
+        assert!(is_system_inbox("snippets-inbox"));
+        assert!(is_system_inbox("api-requests-inbox"));
+        assert!(!is_system_inbox("notes-project"));
+
+        assert!(validate_default_language("snippets", true).is_ok());
+        assert!(validate_default_language("notes", false).is_ok());
+        let err = validate_default_language("apiRequests", true)
+            .expect_err("API request folders cannot have a snippet language default");
+        let data = err.data.expect("error data");
+        assert_eq!(data["argument"], "defaultLanguage");
+    }
+
+    #[test]
+    fn folder_update_accepts_an_explicit_null_default_language_to_clear_it() {
+        let args = serde_json::from_value::<FolderUpdateArgs>(json!({
+            "id": "snippets-project",
+            "defaultLanguage": null,
+        }))
+        .expect("valid update arguments");
+
+        assert_eq!(args.default_language, Some(None));
+    }
+
+    #[test]
     fn structured_permission_error_has_actionable_metadata() {
         let err = permission_denied("notes", "read");
         let data = err.data.expect("error data");
@@ -2573,6 +3213,8 @@ mod tests {
         assert!(content.contains("`multi_get`"));
         assert!(content.contains("`introspect`"));
         assert!(content.contains("`counts`"));
+        assert!(content.contains("`resource_folders_list`"));
+        assert!(content.contains("`resource_folders_move`"));
     }
 
     #[test]

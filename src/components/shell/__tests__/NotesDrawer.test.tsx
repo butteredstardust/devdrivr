@@ -7,9 +7,14 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { DEFAULT_SETTINGS, type Note } from '@/types/models'
 import { processMarkdown } from '@/lib/markdown'
+import { sendToTool } from '@/lib/tool-handoff'
 
 vi.mock('@/lib/markdown', () => ({
   processMarkdown: vi.fn().mockResolvedValue('<p>rendered</p>'),
+}))
+
+vi.mock('@/lib/tool-handoff', () => ({
+  sendToTool: vi.fn(),
 }))
 
 const testNote: Note = {
@@ -41,6 +46,14 @@ beforeEach(() => {
   useNotesStore.setState({
     notes: [testNote],
     initialized: true,
+    pendingSaveIds: [],
+    saveErrorIds: [],
+    edit: vi.fn((id, patch) => {
+      useNotesStore.setState((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? { ...note, ...patch } : note)),
+      }))
+    }),
+    flushPending: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
     reorder: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
@@ -107,6 +120,20 @@ describe('NotesDrawer', () => {
     expect(screen.getByRole('complementary', { name: 'Notes and history' })).toHaveAttribute(
       'inert'
     )
+  })
+
+  it('flushes the active note when the drawer closes', async () => {
+    const flushPending = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ flushPending })
+    const { rerender } = render(<NotesDrawer />)
+    fireEvent.click(screen.getByText('Test note'))
+
+    act(() => {
+      useSettingsStore.setState({ notesDrawerOpen: false })
+    })
+    rerender(<NotesDrawer />)
+
+    await waitFor(() => expect(flushPending).toHaveBeenCalledWith('note-1'))
   })
 
   it('labels compact note actions for assistive technology', () => {
@@ -249,10 +276,13 @@ describe('NotesDrawer', () => {
     expect(screen.getByRole('button', { name: 'Move Second note down' })).toBeDisabled()
   })
 
-  it('debounces note text persistence while keeping the draft responsive', async () => {
-    vi.useFakeTimers()
-    const update = vi.fn().mockResolvedValue(undefined)
-    useNotesStore.setState({ update })
+  it('writes note text into the canonical store draft immediately', () => {
+    const edit = vi.fn((id: string, patch: Partial<Note>) => {
+      useNotesStore.setState((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? { ...note, ...patch } : note)),
+      }))
+    })
+    useNotesStore.setState({ edit })
     render(<NotesDrawer />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Test note' }))
@@ -260,17 +290,7 @@ describe('NotesDrawer', () => {
     fireEvent.change(title, { target: { value: 'A better title' } })
 
     expect(title).toHaveValue('A better title')
-    expect(update).not.toHaveBeenCalled()
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(450)
-    })
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith('note-1', {
-      title: 'A better title',
-      content: 'Use this as input',
-    })
-    vi.useRealTimers()
+    expect(edit).toHaveBeenCalledWith('note-1', { title: 'A better title' })
   })
 
   it('renders the note title at display size, not the variant default', () => {
@@ -284,6 +304,18 @@ describe('NotesDrawer', () => {
     const title = screen.getByRole('textbox', { name: 'Note title' })
     expect(title.className).toContain('text-lg')
     expect(title.className).not.toContain('text-sm')
+  })
+
+  it('flushes and opens the selected note in the full workspace', async () => {
+    const flushPending = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({ flushPending })
+    render(<NotesDrawer />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Test note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open note in Notes workspace' }))
+
+    await waitFor(() => expect(flushPending).toHaveBeenCalledWith('note-1'))
+    expect(sendToTool).toHaveBeenCalledWith('notes', { selectedId: 'note-1' })
   })
 
   it('requires confirmation before deleting a note', async () => {

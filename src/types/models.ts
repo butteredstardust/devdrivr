@@ -150,6 +150,8 @@ export type Snippet = {
   tags: string[]
   /** Persisted favorite flag; optional for imported/legacy in-memory fixtures. */
   favorite?: boolean
+  /** The typed folder backing the legacy display-name `folder` field. */
+  folderId?: string
   folder: string
   createdAt: number
   updatedAt: number
@@ -216,6 +218,21 @@ export type Note = {
   updatedAt: number
   tags: string[]
   sortOrder: number
+  /** Always populated from persisted rows after migration 013. */
+  folderId?: string
+}
+
+export type ResourceKind = 'notes' | 'snippets' | 'apiRequests'
+
+export type ResourceFolder = {
+  id: string
+  name: string
+  parentId: string | null
+  kind: ResourceKind
+  sortOrder: number
+  defaultLanguage?: string | null
+  createdAt: number
+  updatedAt: number
 }
 
 export type HistoryEntry = {
@@ -253,6 +270,10 @@ export type ApiEnvironment = {
 export type ApiCollection = {
   id: string
   name: string
+  /** Parent typed API folder. Undefined is accepted for legacy import payloads. */
+  parentId?: string | null
+  sortOrder?: number
+  defaultLanguage?: string | null
   createdAt: number
   updatedAt: number
 }
@@ -289,6 +310,8 @@ export type ApiImportFormat =
 export type ApiImportCollectionDraft = {
   key: string
   name: string
+  parentKey?: string | null
+  sortOrder?: number
 }
 
 export type ApiImportRequestDraft = Omit<
@@ -329,7 +352,7 @@ export type McpStatus = {
   lastError: string | null
 }
 
-export type McpDataChangedResource = McpResource | 'apiCollections'
+export type McpDataChangedResource = McpResource | 'apiCollections' | 'folders'
 
 export type McpDataChangedEvent = {
   resource: McpDataChangedResource

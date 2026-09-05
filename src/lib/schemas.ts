@@ -5,6 +5,7 @@ import type {
   HistoryEntry,
   PromptTemplate,
   PromptTemplateVariable,
+  ResourceFolder,
 } from '@/types/models'
 
 export const NOTE_COLORS = [
@@ -67,6 +68,7 @@ export const noteRowSchema = z
     updated_at: z.number(),
     tags: z.string().optional(),
     sort_order: z.number().default(0),
+    folder_id: z.string().nullable().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -89,6 +91,7 @@ export const noteRowSchema = z
       })(),
       sortOrder: row.sort_order,
     }
+    if (row.folder_id != null) note.folderId = row.folder_id
     if (
       row.window_x != null &&
       row.window_y != null &&
@@ -115,11 +118,12 @@ export const snippetRowSchema = z
     tags: z.string(),
     favorite: z.union([z.number(), z.boolean()]).default(0),
     folder: z.string().default(''),
+    folder_id: z.string().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
   })
-  .transform(
-    (row): Snippet => ({
+  .transform((row): Snippet => {
+    const snippet: Snippet = {
       id: row.id,
       title: row.title,
       content: row.content,
@@ -130,8 +134,36 @@ export const snippetRowSchema = z
         row.favorite === true || row.favorite === 1 || parseStringArray(row.tags).includes('⭐'),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    })
-  )
+    }
+    if (row.folder_id != null) snippet.folderId = row.folder_id
+    return snippet
+  })
+
+/** Validates a raw resource_folders row and transforms it into a ResourceFolder. */
+export const resourceFolderRowSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    parent_id: z.string().nullable(),
+    kind: z.enum(['notes', 'snippets', 'apiRequests']),
+    sort_order: z.number(),
+    default_language: z.string().nullable(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): ResourceFolder => {
+    const folder: ResourceFolder = {
+      id: row.id,
+      name: row.name,
+      parentId: row.parent_id,
+      kind: row.kind,
+      sortOrder: row.sort_order,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+    if (row.default_language != null) folder.defaultLanguage = row.default_language
+    return folder
+  })
 
 /** Validates a raw user_prompt_templates row from SQLite and transforms it into a PromptTemplate. */
 export const promptTemplateRowSchema = z
@@ -269,15 +301,24 @@ export const apiCollectionRowSchema = z
   .object({
     id: z.string(),
     name: z.string(),
+    parent_id: z.string().nullable().optional(),
+    sort_order: z.number().optional(),
+    default_language: z.string().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
   })
-  .transform((row): import('@/types/models').ApiCollection => ({
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
+  .transform((row): import('@/types/models').ApiCollection => {
+    const collection: import('@/types/models').ApiCollection = {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+    if (row.parent_id !== undefined) collection.parentId = row.parent_id
+    if (row.sort_order !== undefined) collection.sortOrder = row.sort_order
+    if (row.default_language != null) collection.defaultLanguage = row.default_language
+    return collection
+  })
 
 export const apiRequestRowSchema = z
   .object({

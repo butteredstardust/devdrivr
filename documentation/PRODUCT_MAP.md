@@ -57,35 +57,37 @@ Use this file as the product inventory. The tool registry defines the available 
 
 ### Network
 
-| Tool         | ID             | Description                                                                         |
-| ------------ | -------------- | ----------------------------------------------------------------------------------- |
-| API Client   | `api-client`   | Send HTTP requests with form or file bodies, cURL export, and a response inspector. |
-| Docs Browser | `docs-browser` | Browse devdocs.io documentation.                                                    |
+| Tool         | ID             | Description                                                                              |
+| ------------ | -------------- | ---------------------------------------------------------------------------------------- |
+| API Client   | `api-client`   | Organize nested request folders, send HTTP requests, export cURL, and inspect responses. |
+| Docs Browser | `docs-browser` | Browse devdocs.io documentation.                                                         |
 
 ### Write
 
 | Tool             | ID                 | Description                                                                                  |
 | ---------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| Notes            | `notes`            | Organize nested folders and write, search, and preview persistent Markdown notes.            |
 | Markdown Editor  | `markdown-editor`  | Edit Markdown with find and replace, templates, table of contents, reading time, and export. |
 | Mermaid Editor   | `mermaid-editor`   | Edit and preview Mermaid diagrams. Export SVG or PNG.                                        |
-| Snippets         | `snippets`         | Organize, search, edit, and back up reusable code snippets.                                  |
+| Snippets         | `snippets`         | Organize nested folders, search, edit, and back up reusable code snippets.                   |
 | Prompt Templates | `prompt-templates` | Fill AI prompt templates with variables, preview tokens, and copy the result.                |
 
 ## Workspace Data
 
 The app opens the SQLite database named `cockpit.db`. The Tauri application identifier is `com.devdrivr.cockpit`.
 
-| Table                   | Contents                            |
-| ----------------------- | ----------------------------------- |
-| `settings`              | App preferences.                    |
-| `tool_state`            | State for a tool tab.               |
-| `notes`                 | Notes and their properties.         |
-| `snippets`              | Saved code snippets.                |
-| `history`               | Tool execution history.             |
-| `api_environments`      | API Client environments.            |
-| `api_collections`       | API Client collections.             |
-| `api_requests`          | Saved API Client requests.          |
-| `user_prompt_templates` | Built-in and user prompt templates. |
+| Table                   | Contents                                                     |
+| ----------------------- | ------------------------------------------------------------ |
+| `settings`              | App preferences.                                             |
+| `tool_state`            | State for a tool tab.                                        |
+| `notes`                 | Notes and their properties.                                  |
+| `snippets`              | Saved code snippets.                                         |
+| `history`               | Tool execution history.                                      |
+| `api_environments`      | API Client environments.                                     |
+| `api_collections`       | API Client collections.                                      |
+| `api_requests`          | Saved API Client requests.                                   |
+| `resource_folders`      | Shared nested folders for Notes, Snippets, and API requests. |
+| `user_prompt_templates` | Built-in and user prompt templates.                          |
 
 The first tab for a tool uses its tool ID as the state key. Duplicate tabs use `<toolId>#<tabId>`. Closing a duplicate tab removes its saved state.
 

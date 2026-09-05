@@ -29,6 +29,8 @@ type MarkdownPreviewProps = {
   toc: TocEntry[]
   /** Called with the source-order index of a GFM task-list checkbox that was toggled. */
   onToggleTask?: (index: number) => void
+  /** Disables rendered GFM task controls for a genuinely read-only preview. */
+  readOnlyTaskLists?: boolean
   source?: string
   editingEnabled?: boolean
   showEditingToggle?: boolean
@@ -37,6 +39,8 @@ type MarkdownPreviewProps = {
   onEditCaretChange?: (offset: number) => void
   onRevealSource?: (line: number) => void
   activeSourceLine?: number | null
+  /** Adds an accessible one-click copy action to every rendered fenced code block. */
+  onCopyCodeBlock?: (code: string) => void
 }
 
 type ActiveBlockEdit = {
@@ -151,6 +155,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       showToc,
       toc,
       onToggleTask,
+      readOnlyTaskLists = false,
       source = '',
       editingEnabled = false,
       showEditingToggle = false,
@@ -159,6 +164,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       onEditCaretChange,
       onRevealSource,
       activeSourceLine = null,
+      onCopyCodeBlock,
     },
     ref
   ) {
@@ -353,6 +359,45 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     // re-renders this component, which wiped the very selection being tracked.
     // Keeping the object stable makes React skip the write entirely.
     const htmlProp = useMemo(() => ({ __html: html }), [html])
+
+    useLayoutEffect(() => {
+      const surface = innerRef.current
+      if (!surface || !readOnlyTaskLists) return
+      const checkboxes = surface.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+      checkboxes.forEach((checkbox) => {
+        checkbox.disabled = true
+      })
+      return () => {
+        checkboxes.forEach((checkbox) => {
+          checkbox.disabled = false
+        })
+      }
+    }, [html, readOnlyTaskLists])
+
+    useEffect(() => {
+      const surface = innerRef.current
+      if (!surface || !onCopyCodeBlock) return
+      const cleanups = Array.from(surface.querySelectorAll('pre')).map((block) => {
+        const code = block.querySelector('code')
+        if (!code) return () => undefined
+        block.classList.add('relative')
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = 'Copy'
+        button.setAttribute('aria-label', 'Copy code block')
+        button.className =
+          'absolute right-2 top-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]'
+        const handleCopy = () => onCopyCodeBlock(code.textContent ?? '')
+        button.addEventListener('click', handleCopy)
+        block.append(button)
+        return () => {
+          button.removeEventListener('click', handleCopy)
+          button.remove()
+          block.classList.remove('relative')
+        }
+      })
+      return () => cleanups.forEach((cleanup) => cleanup())
+    }, [html, onCopyCodeBlock])
 
     const remeasureActiveEdit = useCallback(() => {
       const surface = innerRef.current

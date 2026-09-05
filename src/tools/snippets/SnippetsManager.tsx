@@ -33,10 +33,12 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Input, Select } from '@/components/shared/Input'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
+import { useFoldersStore } from '@/stores/folders.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
@@ -45,6 +47,7 @@ import { useToolState } from '@/hooks/useToolState'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { formatBytes } from '@/lib/format'
+import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
 
 const FAVORITE_TAG = '⭐'
 
@@ -230,6 +233,7 @@ function importedSnippet(item: unknown): {
   tags: string[]
   folder: string
   favorite: boolean
+  folderId: string | null
 } | null {
   if (!item || typeof item !== 'object') return null
   const candidate = item as Record<string, unknown>
@@ -247,6 +251,7 @@ function importedSnippet(item: unknown): {
           .slice(0, MAX_SNIPPET_TAGS)
       : [],
     folder: typeof candidate['folder'] === 'string' ? candidate['folder'] : '',
+    folderId: typeof candidate['folderId'] === 'string' ? candidate['folderId'] : null,
     favorite:
       candidate['favorite'] === true ||
       candidate['favorite'] === 1 ||
@@ -255,7 +260,6 @@ function importedSnippet(item: unknown): {
 }
 
 export default function SnippetsManager() {
-  const folderListId = useId()
   const tagSuggestionsId = useId()
   const snippetOptionsId = useId()
   const isInstanceActive = useIsInstanceActive()
@@ -272,6 +276,10 @@ export default function SnippetsManager() {
   const flushPendingSnippet = useSnippetsStore((state) => state.flushPending)
   const removeSnippet = useSnippetsStore((state) => state.remove)
   const restoreSnippet = useSnippetsStore((state) => state.restore)
+  const folders = useFoldersStore((state) => state.folders)
+  const createFolder = useFoldersStore((state) => state.create)
+  const updateFolder = useFoldersStore((state) => state.update)
+  const moveFolder = useFoldersStore((state) => state.move)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
 
@@ -358,10 +366,20 @@ export default function SnippetsManager() {
     )
   }, [fuseResults])
 
-  const allFolders = useMemo(
-    () => [...new Set(snippets.map((snippet) => snippet.folder).filter(Boolean))].sort(),
-    [snippets]
+  const snippetFolders = useMemo(() => foldersForKind(folders, 'snippets'), [folders])
+  const selectedFolderIds = useMemo(
+    () => (activeFolder ? descendantFolderIds(snippetFolders, activeFolder) : null),
+    [activeFolder, snippetFolders]
   )
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const snippet of snippets) {
+      if (snippet.folderId) {
+        counts.set(snippet.folderId, (counts.get(snippet.folderId) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [snippets])
 
   const allTags = useMemo(
     () =>
@@ -376,7 +394,8 @@ export default function SnippetsManager() {
   const filtered = useMemo(() => {
     const candidates = fuseResults ? fuseResults.map((result) => result.item) : [...snippets]
     const visible = candidates.filter((snippet) => {
-      if (activeFolder && snippet.folder !== activeFolder) return false
+      if (selectedFolderIds && (!snippet.folderId || !selectedFolderIds.has(snippet.folderId)))
+        return false
       if (filterTag && !snippet.tags.includes(filterTag)) return false
       if (favoritesOnly && !isFavorite(snippet.tags, snippet.favorite)) return false
       return true
@@ -395,7 +414,7 @@ export default function SnippetsManager() {
     })
 
     return visible
-  }, [activeFolder, favoritesOnly, filterTag, fuseResults, snippets, sortMode])
+  }, [favoritesOnly, filterTag, fuseResults, selectedFolderIds, snippets, sortMode])
 
   const selected = useMemo(
     () => snippets.find((snippet) => snippet.id === selectedId) ?? null,
@@ -454,14 +473,23 @@ export default function SnippetsManager() {
 
   const handleNew = useCallback(async () => {
     try {
-      const snippet = await addSnippet('Untitled snippet', '', 'javascript', [], activeFolder)
+      const folder = snippetFolders.find((candidate) => candidate.id === activeFolder)
+      const snippet = await addSnippet(
+        'Untitled snippet',
+        '',
+        folder?.defaultLanguage ?? 'javascript',
+        [],
+        folder?.name ?? '',
+        false,
+        folder?.id ?? 'snippets-inbox'
+      )
       setSelectedId(snippet.id)
       setTitleFocusRequest((request) => request + 1)
       setLastAction('Snippet created', 'success')
     } catch {
       setLastAction('Failed to create snippet', 'error')
     }
-  }, [activeFolder, addSnippet, setLastAction])
+  }, [activeFolder, addSnippet, setLastAction, snippetFolders])
 
   const handleDuplicate = useCallback(async () => {
     if (!selected) return
@@ -473,7 +501,8 @@ export default function SnippetsManager() {
         visibleTags(selected.tags),
         selected.folder,
         // Without this the copy defaults to unfavorited and vanishes under the Favorites filter.
-        !!selected.favorite
+        !!selected.favorite,
+        selected.folderId
       )
       setSelectedId(duplicate.id)
       setTitleFocusRequest((request) => request + 1)
@@ -560,7 +589,8 @@ export default function SnippetsManager() {
 
   const handleExportAll = useCallback(async () => {
     try {
-      const path = await exportFile(JSON.stringify(snippets, null, 2), 'snippets-backup.json')
+      const backup = { version: 2, folders: snippetFolders, snippets }
+      const path = await exportFile(JSON.stringify(backup, null, 2), 'snippets-backup.json')
       if (path) {
         setLastAction(
           `Exported ${snippets.length} snippet${snippets.length === 1 ? '' : 's'}`,
@@ -570,7 +600,7 @@ export default function SnippetsManager() {
     } catch {
       setLastAction('Export failed', 'error')
     }
-  }, [setLastAction, snippets])
+  }, [setLastAction, snippetFolders, snippets])
 
   const handleImport = useCallback(async () => {
     try {
@@ -589,16 +619,25 @@ export default function SnippetsManager() {
       }
 
       const parsed: unknown = JSON.parse(file.content)
-      if (!Array.isArray(parsed)) throw new Error('Expected an array')
-      if (parsed.length > MAX_IMPORT_SNIPPETS) {
+      const envelope =
+        parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : null
+      const parsedItems = Array.isArray(parsed)
+        ? parsed
+        : envelope?.['version'] === 2 && Array.isArray(envelope['snippets'])
+          ? envelope['snippets']
+          : null
+      if (!parsedItems) throw new Error('Expected a snippets array or version 2 library')
+      if (parsedItems.length > MAX_IMPORT_SNIPPETS) {
         setLastAction(
-          `Import failed — ${parsed.length} snippets exceeds the ${MAX_IMPORT_SNIPPETS} snippet limit`,
+          `Import failed — ${parsedItems.length} snippets exceeds the ${MAX_IMPORT_SNIPPETS} snippet limit`,
           'error'
         )
         return
       }
 
-      const validSnippets = parsed
+      const validSnippets = parsedItems
         .map((item) => importedSnippet(item))
         .filter((item): item is NonNullable<typeof item> => item !== null)
       if (validSnippets.length === 0) throw new Error('No valid snippets')
@@ -622,15 +661,71 @@ export default function SnippetsManager() {
       let firstImported: Snippet | null = null
       let imported = 0
       let writeError: unknown = null
+      const folderIdMap = new Map<string, string>()
+      const availableFolders = foldersForKind(useFoldersStore.getState().folders, 'snippets')
+      const folderDrafts = Array.isArray(envelope?.['folders'])
+        ? envelope['folders']
+            .map((value) =>
+              value && typeof value === 'object' ? (value as Record<string, unknown>) : null
+            )
+            .filter((value): value is Record<string, unknown> => value !== null)
+        : []
+      // Walk the exported tree order (parents before children) while still splicing safely.
+      const unresolved = [...folderDrafts].reverse()
+      while (unresolved.length > 0) {
+        const before = unresolved.length
+        for (let index = unresolved.length - 1; index >= 0; index--) {
+          const draft = unresolved[index]
+          if (!draft) continue
+          const oldId = typeof draft['id'] === 'string' ? draft['id'] : null
+          const name = typeof draft['name'] === 'string' ? draft['name'].trim() : ''
+          const oldParentId = typeof draft['parentId'] === 'string' ? draft['parentId'] : null
+          if (!oldId || !name || (oldParentId && !folderIdMap.has(oldParentId))) continue
+          const parentId = oldParentId ? (folderIdMap.get(oldParentId) ?? null) : null
+          const existing = availableFolders.find(
+            (folder) => folder.name === name && folder.parentId === parentId
+          )
+          const resolved =
+            existing ??
+            (await createFolder({
+              name,
+              kind: 'snippets',
+              parentId,
+              ...(typeof draft['defaultLanguage'] === 'string'
+                ? { defaultLanguage: draft['defaultLanguage'] }
+                : {}),
+            }))
+          if (!existing) availableFolders.push(resolved)
+          folderIdMap.set(oldId, resolved.id)
+          unresolved.splice(index, 1)
+        }
+        if (unresolved.length === before) break
+      }
       for (const item of uniqueSnippets) {
         try {
+          let folderId = item.folderId ? folderIdMap.get(item.folderId) : undefined
+          if (!folderId && item.folder) {
+            let folder = availableFolders.find(
+              (candidate) => candidate.parentId === null && candidate.name === item.folder
+            )
+            if (!folder) {
+              folder = await createFolder({
+                name: item.folder,
+                kind: 'snippets',
+                parentId: null,
+              })
+              availableFolders.push(folder)
+            }
+            folderId = folder.id
+          }
           const created = await addSnippet(
             item.title,
             item.content,
             item.language,
             item.tags,
             item.folder,
-            item.favorite
+            item.favorite,
+            folderId ?? 'snippets-inbox'
           )
           firstImported ??= created
           imported += 1
@@ -657,7 +752,7 @@ export default function SnippetsManager() {
     } catch {
       setLastAction('Import failed — choose a valid snippets JSON file', 'error')
     }
-  }, [addSnippet, setLastAction, snippets])
+  }, [addSnippet, createFolder, setLastAction, snippets])
 
   const handleDownload = useCallback(async () => {
     if (!selected) return
@@ -797,20 +892,7 @@ export default function SnippetsManager() {
                 aria-label="Search snippets"
               />
 
-              <div className="grid grid-cols-2 gap-2">
-                <Select
-                  value={activeFolder}
-                  onChange={(event) => setActiveFolder(event.target.value)}
-                  aria-label="Filter by folder"
-                  title="Filter by folder"
-                >
-                  <option value="">All folders</option>
-                  {allFolders.map((folder) => (
-                    <option key={folder} value={folder}>
-                      {folder}
-                    </option>
-                  ))}
-                </Select>
+              <div className="grid grid-cols-1 gap-2">
                 <Select
                   value={sortMode}
                   onChange={(event) => setSortMode(event.target.value as SortMode)}
@@ -863,6 +945,19 @@ export default function SnippetsManager() {
                 )}
               </div>
             </div>
+            <ResourceFolderTree
+              folders={snippetFolders}
+              selectedFolderId={activeFolder || null}
+              onSelect={(folderId) => setActiveFolder(folderId ?? '')}
+              onCreate={(parentId) =>
+                createFolder({ name: 'New folder', kind: 'snippets', parentId })
+              }
+              onUpdate={updateFolder}
+              onMove={moveFolder}
+              itemCounts={folderCounts}
+              languageOptions={LANGUAGES}
+              label="Snippet folders"
+            />
 
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
               <span>
@@ -1145,21 +1240,28 @@ export default function SnippetsManager() {
                     <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
 
                     <Field label="Folder">
-                      <Input
-                        value={selected.folder}
-                        onChange={(event) =>
-                          void updateSnippet(selected.id, { folder: event.target.value })
-                        }
-                        placeholder="No folder"
-                        list={folderListId}
+                      <Select
+                        value={selected.folderId ?? 'snippets-inbox'}
+                        onChange={(event) => {
+                          const folder = snippetFolders.find(
+                            (candidate) => candidate.id === event.target.value
+                          )
+                          if (!folder) return
+                          void updateSnippet(selected.id, {
+                            folderId: folder.id,
+                            folder: folderPath(snippetFolders, folder.id).join(' / '),
+                          })
+                        }}
+                        aria-label="Snippet folder"
                         className="w-full"
-                      />
+                      >
+                        {snippetFolders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            {folderPath(snippetFolders, folder.id).join(' / ')}
+                          </option>
+                        ))}
+                      </Select>
                     </Field>
-                    <datalist id={folderListId}>
-                      {allFolders.map((folder) => (
-                        <option key={folder} value={folder} />
-                      ))}
-                    </datalist>
 
                     <div className="mt-5">
                       <SectionLabel as="div" className="mb-2">

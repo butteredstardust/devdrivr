@@ -84,7 +84,7 @@ For “open a PR” or “commit and push,” create a branch if needed. Commit,
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
 - **Build**: Vite 7 + Bun (package manager)
-- **30 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **31 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
 - **No cloud, no accounts** — everything runs locally
 
 ---
@@ -153,6 +153,7 @@ src/lib/tool-actions.ts           ← pub/sub: dispatchToolAction / useToolActio
 src/stores/settings.store.ts      ← theme, sidebar, editor prefs → persisted
 src/stores/notes.store.ts         ← notes CRUD → persisted
 src/stores/snippets.store.ts      ← snippets CRUD → persisted
+src/stores/folders.store.ts       ← shared resource folder hierarchy → persisted
 src/stores/history.store.ts       ← tool execution history → persisted
 src/stores/ui.store.ts            ← active tool, modals, toasts → transient
 src/hooks/useToolState.ts         ← per-tool state persistence (cache + SQLite)

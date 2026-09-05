@@ -140,10 +140,11 @@ describe('API Client DB helpers', () => {
     expect(command).toBe('db_execute_batch')
     expect(payload.immediate).toBe(false)
     expect(payload.statements.map((s) => s.sql.trim())).toEqual([
+      expect.stringContaining('INSERT INTO resource_folders'),
       expect.stringContaining('INSERT INTO api_collections'),
       expect.stringContaining('INSERT INTO api_requests'),
     ])
-    expect(payload.statements[1]?.params[1]).toBe(collection.id)
+    expect(payload.statements[2]?.params[1]).toBe(collection.id)
 
     const pluginStatements = sqlMock.execute.mock.calls.map(([sql]) => String(sql).trim())
     expect(pluginStatements).not.toContain('BEGIN TRANSACTION')
