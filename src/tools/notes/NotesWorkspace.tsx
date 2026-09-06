@@ -135,6 +135,15 @@ function dueDateLabel(value: string, today: string): string {
 export default function NotesWorkspace() {
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
+  const noteEditorOptions = useMemo(
+    () => ({
+      ...monacoOptions,
+      minimap: { enabled: false },
+      padding: { top: 14, bottom: 14 },
+      scrollBeyondLastLine: false,
+    }),
+    [monacoOptions]
+  )
   const notes = useNotesStore((state) => state.notes)
   const trashedNotes = useNotesStore((state) => state.trashedNotes)
   const pendingSaveIds = useNotesStore((state) => state.pendingSaveIds)
@@ -868,7 +877,7 @@ export default function NotesWorkspace() {
             />
             <div
               ref={listRef}
-              className="min-h-0 flex-1 overflow-y-auto"
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
               role="listbox"
               aria-label="Notes"
             >
@@ -1154,12 +1163,7 @@ export default function NotesWorkspace() {
                       : content.length
                     setWikiTrigger(findWikiTrigger(content, cursor))
                   }}
-                  options={{
-                    ...monacoOptions,
-                    minimap: { enabled: false },
-                    padding: { top: 14, bottom: 14 },
-                    scrollBeyondLastLine: false,
-                  }}
+                  options={noteEditorOptions}
                 />
                 {wikiTrigger && (
                   <WikiLinkPicker

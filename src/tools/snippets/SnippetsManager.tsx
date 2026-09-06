@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useId,
   useMemo,
@@ -340,6 +341,16 @@ export default function SnippetsManager() {
   const fragmentEditorId = useId()
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
+  const snippetEditorOptions = useMemo(
+    () => ({
+      ...monacoOptions,
+      minimap: { enabled: false },
+      lineNumbers: 'on' as const,
+      padding: { top: 12, bottom: 12 },
+      scrollBeyondLastLine: false,
+    }),
+    [monacoOptions]
+  )
   const [formatterRequested, setFormatterRequested] = useState(false)
   const formatter = useWorker<FormatterWorker>(
     () => new FormatterWorkerFactory(),
@@ -347,6 +358,7 @@ export default function SnippetsManager() {
     formatterRequested
   )
   const snippets = useSnippetsStore((state) => state.snippets)
+  const deferredSnippets = useDeferredValue(snippets)
   const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
   const [handoffState, updateHandoffState] = useToolState<{
     handoff: { title: string; content: string; language: string } | null
@@ -460,30 +472,26 @@ export default function SnippetsManager() {
     titleInputRef.current = element
   }, [])
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(snippets, {
-        keys: [
-          'title',
-          'description',
-          'content',
-          'language',
-          'fragments.name',
-          'fragments.content',
-          'fragments.language',
-          'folder',
-          'tags',
-        ],
-        threshold: 0.32,
-        includeMatches: true,
-      }),
-    [snippets]
-  )
+  const fuse = useMemo(() => {
+    if (!search.trim()) return null
+    return new Fuse(deferredSnippets, {
+      keys: [
+        'title',
+        'description',
+        'content',
+        'language',
+        'fragments.name',
+        'fragments.content',
+        'fragments.language',
+        'folder',
+        'tags',
+      ],
+      threshold: 0.32,
+      includeMatches: true,
+    })
+  }, [deferredSnippets, search])
 
-  const fuseResults = useMemo(
-    () => (search.trim() ? fuse.search(search.trim()) : null),
-    [fuse, search]
-  )
+  const fuseResults = useMemo(() => (fuse ? fuse.search(search.trim()) : null), [fuse, search])
 
   const matchMap = useMemo(() => {
     if (!fuseResults) return new Map<string, ReadonlyArray<FuseMatchEntry>>()
@@ -542,7 +550,9 @@ export default function SnippetsManager() {
   )
 
   const filtered = useMemo(() => {
-    const candidates = fuseResults ? fuseResults.map((result) => result.item) : [...snippets]
+    const candidates = fuseResults
+      ? fuseResults.map((result) => result.item)
+      : [...deferredSnippets]
     const visible = candidates.filter((snippet) => {
       if (selectedFolderIds && (!snippet.folderId || !selectedFolderIds.has(snippet.folderId)))
         return false
@@ -564,7 +574,7 @@ export default function SnippetsManager() {
     })
 
     return visible
-  }, [favoritesOnly, filterTag, fuseResults, selectedFolderIds, snippets, sortMode])
+  }, [deferredSnippets, favoritesOnly, filterTag, fuseResults, selectedFolderIds, sortMode])
 
   const selected = useMemo(
     () => snippets.find((snippet) => snippet.id === selectedId) ?? null,
@@ -1517,7 +1527,11 @@ export default function SnippetsManager() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Snippets">
+            <div
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+              role="listbox"
+              aria-label="Snippets"
+            >
               {filtered.map((snippet) => {
                 const isSelected = snippet.id === selectedId
                 const matches = isSelected ? undefined : matchMap.get(snippet.id)
@@ -1542,7 +1556,7 @@ export default function SnippetsManager() {
                         : 'hover:bg-[var(--color-surface-hover)]'
                     }`}
                   >
-                    <div className="flex items-start gap-2">
+                    <div className="flex w-full min-w-0 items-start gap-2">
                       <span
                         className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-2xs font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
                       >
@@ -1565,7 +1579,7 @@ export default function SnippetsManager() {
                             {relativeTime(snippet.updatedAt)}
                           </span>
                         </span>
-                        <span className="mt-1 block truncate text-2xs text-[var(--color-text-muted)]">
+                        <span className="mt-1 line-clamp-2 break-all text-2xs text-[var(--color-text-muted)]">
                           {contentPreview(snippet.content) || 'Empty snippet'}
                         </span>
                         {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
@@ -1943,6 +1957,7 @@ export default function SnippetsManager() {
               >
                 <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
                   <Editor
+                    key={activeFragment?.id ?? 'empty-fragment'}
                     theme={monacoTheme}
                     language={activeFragment?.language ?? 'text'}
                     value={activeFragment?.content ?? ''}
@@ -1951,13 +1966,7 @@ export default function SnippetsManager() {
                       setFormatError(null)
                       updateActiveFragment({ content: value ?? '' })
                     }}
-                    options={{
-                      ...monacoOptions,
-                      minimap: { enabled: false },
-                      lineNumbers: 'on',
-                      padding: { top: 12, bottom: 12 },
-                      scrollBeyondLastLine: false,
-                    }}
+                    options={snippetEditorOptions}
                   />
                 </div>
 

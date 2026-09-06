@@ -448,7 +448,7 @@ export function CollectionsSidebar({
               label="API request folders"
             />
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
               {grouped.map(({ col, reqs, total }) => {
                 const isExpanded = !!needle || !collapsedCols.has(col.id)
                 const isRenaming = editingColId === col.id

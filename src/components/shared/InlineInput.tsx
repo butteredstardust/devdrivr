@@ -1,4 +1,13 @@
-import { forwardRef, type InputHTMLAttributes } from 'react'
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  type ChangeEventHandler,
+  type FocusEventHandler,
+  type InputHTMLAttributes,
+} from 'react'
 
 type InlineInputVariant = 'title' | 'heading' | 'display' | 'code' | 'plain'
 
@@ -41,11 +50,61 @@ const VARIANT_CLASSES: Record<InlineInputVariant, string> = {
 const BASE_CLASSES =
   'min-w-0 rounded-[var(--radius-sm)] bg-transparent text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus-visible:shadow-[var(--focus-ring)] disabled:opacity-50'
 
+type DomInlineInputProps = InputHTMLAttributes<HTMLInputElement> & {
+  elementRef: (node: HTMLInputElement | null) => void
+}
+
+const DomInlineInput = memo(function DomInlineInput({ elementRef, ...props }: DomInlineInputProps) {
+  return <input ref={elementRef} {...props} />
+})
+
 export const InlineInput = forwardRef<HTMLInputElement, InlineInputProps>(
-  ({ variant = 'title', className = '', ...props }, ref) => {
+  (
+    { variant = 'title', className = '', value, defaultValue, onChange, onBlur, ...props },
+    forwardedRef
+  ) => {
+    const fieldRef = useRef<HTMLInputElement | null>(null)
+    const initialValueRef = useRef(value ?? defaultValue)
+    const valueRef = useRef(value)
+    valueRef.current = value
+    const onChangeRef = useRef(onChange)
+    onChangeRef.current = onChange
+    const onBlurRef = useRef(onBlur)
+    onBlurRef.current = onBlur
+    const setRef = useCallback(
+      (node: HTMLInputElement | null) => {
+        if (node && node !== fieldRef.current && initialValueRef.current !== undefined) {
+          node.value = String(initialValueRef.current)
+        }
+        fieldRef.current = node
+        if (typeof forwardedRef === 'function') forwardedRef(node)
+        else if (forwardedRef) forwardedRef.current = node
+      },
+      [forwardedRef]
+    )
+    const handleChange = useCallback<ChangeEventHandler<HTMLInputElement>>((event) => {
+      onChangeRef.current?.(event)
+    }, [])
+    const handleBlur = useCallback<FocusEventHandler<HTMLInputElement>>((event) => {
+      const nextValue = valueRef.current
+      if (nextValue !== undefined && event.currentTarget.value !== String(nextValue)) {
+        event.currentTarget.value = String(nextValue)
+      }
+      onBlurRef.current?.(event)
+    }, [])
+
+    useLayoutEffect(() => {
+      if (value === undefined || !fieldRef.current) return
+      if (document.activeElement === fieldRef.current) return
+      const next = String(value)
+      if (fieldRef.current.value !== next) fieldRef.current.value = next
+    }, [value])
+
     return (
-      <input
-        ref={ref}
+      <DomInlineInput
+        elementRef={setRef}
+        onChange={handleChange}
+        onBlur={handleBlur}
         className={`${BASE_CLASSES} ${VARIANT_CLASSES[variant]} ${className}`}
         {...props}
       />
