@@ -2,5 +2,6 @@
 export function getCurrentWebviewWindow() {
   return {
     onDragDropEvent: (_handler: unknown) => Promise.resolve(() => {}),
+    scaleFactor: () => Promise.resolve(1),
   }
 }

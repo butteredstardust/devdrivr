@@ -20,7 +20,7 @@ remote-ui = ["dep:tauri-remote-ui"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2", features = ["devtools", "protocol-asset"] }
 tauri-runtime = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-fs = "2"

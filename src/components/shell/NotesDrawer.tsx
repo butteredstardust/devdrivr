@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Select'
 import { TabBar } from '@/components/shared/TabBar'
 import { processMarkdown } from '@/lib/markdown'
+import { resolveNoteAssetMarkdown } from '@/lib/note-assets'
 import { useHistoryStore } from '@/stores/history.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
@@ -89,7 +90,8 @@ function MarkdownRenderer({ content }: { content: string }) {
 
   useEffect(() => {
     let cancelled = false
-    void processMarkdown(content)
+    void resolveNoteAssetMarkdown(content)
+      .then(processMarkdown)
       .then((result) => {
         if (!cancelled) setHtml(result)
       })

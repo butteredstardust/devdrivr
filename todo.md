@@ -180,18 +180,20 @@ with ordering and languages intact.
 
 ### 8. Managed image attachments for Notes
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** Screenshots and diagrams can be pasted or dropped into a note and
 remain available offline.
 
-- [ ] Add a Tauri-managed notes asset directory with collision-safe names, atomic
+- [x] Add a Tauri-managed notes asset directory with collision-safe names, atomic
       writes, size/type limits, and path traversal protection.
-- [ ] Handle clipboard paste and file drop in the Notes editor, inserting portable
+- [x] Handle clipboard paste and file drop in the Notes editor, inserting portable
       app asset URLs or relative Markdown references.
-- [ ] Resolve assets through a narrowly scoped Tauri protocol/capability and keep
+- [x] Resolve assets through a narrowly scoped Tauri protocol/capability and keep
       remote images subject to the existing sanitized Markdown policy.
-- [ ] Include assets in note backup/export; detect references before deletion and
+- [x] Include assets in note backup/export; detect references before deletion and
       offer orphan cleanup rather than deleting shared files automatically.
-- [ ] Test Unicode filenames, duplicate names, missing files, malicious paths,
+- [x] Test Unicode filenames, duplicate names, missing files, malicious paths,
       large files, export/restore, and offline rendering.
 
 **Depends on:** item 2. **Risk:** high filesystem/security surface. **Done when:**

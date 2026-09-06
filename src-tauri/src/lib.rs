@@ -1,5 +1,6 @@
 mod batch;
 mod mcp;
+mod note_assets;
 #[cfg(feature = "remote-ui")]
 mod remote_ui;
 mod window_commands;
@@ -186,6 +187,12 @@ pub fn run() {
             mcp::mcp_start,
             mcp::mcp_status,
             mcp::mcp_stop,
+            note_assets::note_asset_import,
+            note_assets::note_asset_resolve,
+            note_assets::note_assets_delete_orphans,
+            note_assets::note_assets_export,
+            note_assets::note_assets_find_orphans,
+            note_assets::note_assets_restore,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

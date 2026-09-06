@@ -14,6 +14,10 @@ import rehypeHighlight from 'rehype-highlight'
  */
 export const markdownSanitizeSchema = {
   ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    src: [...(defaultSchema.protocols?.['src'] ?? []), 'asset'],
+  },
   attributes: {
     ...defaultSchema.attributes,
     a: [...(defaultSchema.attributes?.['a'] ?? []), 'target', 'rel'],

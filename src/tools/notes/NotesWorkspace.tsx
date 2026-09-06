@@ -4,10 +4,13 @@ import Fuse from 'fuse.js'
 import {
   CheckCircleIcon,
   CopyIcon,
+  DownloadSimpleIcon,
+  ImageIcon,
   NoteIcon,
   PlusIcon,
   PushPinIcon,
   TrashIcon,
+  UploadSimpleIcon,
 } from '@phosphor-icons/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { Button } from '@/components/shared/Button'
@@ -43,6 +46,16 @@ import {
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import type { Note, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { exportFile, openFileDialog } from '@/lib/file-io'
+import {
+  collectNoteAssetIds,
+  createNotesBackup,
+  deleteOrphanNoteAssets,
+  findOrphanNoteAssets,
+  resolveNoteAssetMarkdown,
+  restoreNotesBackup,
+  type NoteAsset,
+} from '@/lib/note-assets'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
 import { sendToTool } from '@/lib/tool-handoff'
 import {
@@ -56,6 +69,7 @@ import {
   type WikiTrigger,
 } from '@/lib/wiki-links'
 import { WikiLinkPicker } from '@/tools/notes/WikiLinkPicker'
+import { useNoteImageAttachments } from '@/tools/notes/useNoteImageAttachments'
 import {
   isTask,
   localDateKey,
@@ -164,13 +178,25 @@ export default function NotesWorkspace() {
   const [trashOpen, setTrashOpen] = useState(false)
   const [removeTaskCandidate, setRemoveTaskCandidate] = useState<Note | null>(null)
   const [trashCompletedOpen, setTrashCompletedOpen] = useState(false)
+  const [orphanAssets, setOrphanAssets] = useState<NoteAsset[] | null>(null)
   const [today, setToday] = useState(() => localDateKey())
   const [wikiTrigger, setWikiTrigger] = useState<WikiTrigger | null>(null)
   const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const previousSelectedIdRef = useRef<string | null>(null)
   const editorCursorCleanupRef = useRef<(() => void) | null>(null)
+  const { isDraggingImage, onPasteCapture } = useNoteImageAttachments(
+    mountedEditor,
+    editorContainerRef,
+    {
+      onSuccess: (count) =>
+        setLastAction(`${count} image${count === 1 ? '' : 's'} attached`, 'success'),
+      onError: (message) => setLastAction(`Failed to attach image: ${message}`, 'error'),
+    },
+    isInstanceActive && state.mode !== 'preview' && state.selectedId !== null
+  )
 
   useEffect(() => {
     const now = new Date()
@@ -341,15 +367,101 @@ export default function NotesWorkspace() {
     let cancelled = false
     const timer = window.setTimeout(() => {
       const linkedMarkdown = renderWikiLinks(selected?.content ?? '', wikiResources)
-      void renderMarkdownContent(linkedMarkdown).then((rendered) => {
-        if (!cancelled) setHtml(rendered)
-      })
+      void resolveNoteAssetMarkdown(linkedMarkdown)
+        .then(renderMarkdownContent)
+        .then((rendered) => {
+          if (!cancelled) setHtml(rendered)
+        })
     }, 200)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
     }
   }, [selected?.content, wikiResources])
+
+  const handleExportBackup = useCallback(async () => {
+    try {
+      await flushPending()
+      const currentNotes = useNotesStore.getState().notes
+      const content = await createNotesBackup(currentNotes)
+      const path = await exportFile(content, 'devdrivr-notes-backup.json')
+      if (path) setLastAction(`${currentNotes.length} notes exported with attachments`, 'success')
+    } catch (error) {
+      setLastAction(
+        `Failed to export notes: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      )
+    }
+  }, [flushPending, setLastAction])
+
+  const handleImportBackup = useCallback(async () => {
+    try {
+      const file = await openFileDialog()
+      if (!file) return
+      const entries = await restoreNotesBackup(file.content)
+      for (const entry of entries) {
+        const task = entry.taskStatus
+          ? {
+              status: entry.taskStatus,
+              ...(entry.taskPriority ? { priority: entry.taskPriority } : {}),
+              ...(entry.taskDueDate ? { dueDate: entry.taskDueDate } : {}),
+            }
+          : undefined
+        const note = await addNote(entry.title, entry.content, entry.color, 'notes-inbox', task)
+        await updateNote(note.id, {
+          pinned: entry.pinned,
+          tags: entry.tags,
+        })
+      }
+      setLastAction(`${entries.length} notes restored with attachments`, 'success')
+    } catch (error) {
+      setLastAction(
+        `Failed to restore notes: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      )
+    }
+  }, [addNote, setLastAction, updateNote])
+
+  const referencedAssetIds = useCallback(() => {
+    const current = useNotesStore.getState()
+    return collectNoteAssetIds([
+      ...current.notes.map((note) => note.content),
+      ...current.trashedNotes.map((note) => note.content),
+    ])
+  }, [])
+
+  const handleFindOrphans = useCallback(async () => {
+    try {
+      const assets = await findOrphanNoteAssets(referencedAssetIds())
+      if (assets.length === 0) {
+        setLastAction('No unused note images found', 'info')
+        return
+      }
+      setOrphanAssets(assets)
+    } catch (error) {
+      setLastAction(
+        `Failed to inspect note images: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      )
+    }
+  }, [referencedAssetIds, setLastAction])
+
+  const handleDeleteOrphans = useCallback(async () => {
+    if (!orphanAssets) return
+    try {
+      const count = await deleteOrphanNoteAssets(
+        orphanAssets.map((asset) => asset.id),
+        referencedAssetIds()
+      )
+      setOrphanAssets(null)
+      setLastAction(`${count} unused image${count === 1 ? '' : 's'} deleted`, 'success')
+    } catch (error) {
+      setLastAction(
+        `Failed to clean up note images: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      )
+    }
+  }, [orphanAssets, referencedAssetIds, setLastAction])
 
   const handleNew = useCallback(async () => {
     try {
@@ -612,6 +724,36 @@ export default function NotesWorkspace() {
         onToggleSidebar={() => updateState({ libraryOpen: !state.libraryOpen })}
         sidebarActions={
           <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => void handleExportBackup()}
+              aria-label="Export notes backup with images"
+              title="Export notes backup"
+            >
+              <DownloadSimpleIcon size={15} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => void handleImportBackup()}
+              aria-label="Restore notes backup with images"
+              title="Restore notes backup"
+            >
+              <UploadSimpleIcon size={15} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => void handleFindOrphans()}
+              aria-label="Clean up unused note images"
+              title="Clean up unused images"
+            >
+              <ImageIcon size={15} aria-hidden="true" />
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -975,7 +1117,11 @@ export default function NotesWorkspace() {
               secondVisible={state.mode !== 'edit'}
               aria-label="Resize note editor and preview"
             >
-              <div className="relative min-h-0 flex-1 overflow-hidden">
+              <div
+                ref={editorContainerRef}
+                onPasteCapture={onPasteCapture}
+                className="relative min-h-0 flex-1 overflow-hidden"
+              >
                 <Editor
                   theme={monacoTheme}
                   language="markdown"
@@ -1007,6 +1153,14 @@ export default function NotesWorkspace() {
                     onSelect={handleWikiSelect}
                     onClose={() => setWikiTrigger(null)}
                   />
+                )}
+                {isDraggingImage && (
+                  <div
+                    className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-sm font-semibold text-[var(--color-accent)]"
+                    role="status"
+                  >
+                    Drop image to attach
+                  </div>
                 )}
               </div>
               {preview}
@@ -1133,6 +1287,27 @@ export default function NotesWorkspace() {
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
             {completedCount} completed task{completedCount === 1 ? '' : 's'} will move to durable
             Trash and can be restored later.
+          </p>
+        </Dialog>
+      )}
+      {orphanAssets && (
+        <Dialog
+          title="Delete unused note images?"
+          onClose={() => setOrphanAssets(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setOrphanAssets(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => void handleDeleteOrphans()}>
+                Delete {orphanAssets.length}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            {orphanAssets.length} managed image{orphanAssets.length === 1 ? '' : 's'} are not used
+            by any active or trashed note. Only these confirmed orphan files will be deleted.
           </p>
         </Dialog>
       )}
