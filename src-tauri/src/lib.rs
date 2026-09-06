@@ -106,6 +106,12 @@ pub fn run() {
             sql: include_str!("../migrations/014_durable_trash.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 15,
+            description: "add structured note tasks",
+            sql: include_str!("../migrations/015_note_tasks.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

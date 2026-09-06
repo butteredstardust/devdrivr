@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type { Note, NoteColor } from '@/types/models'
+import type { Note, NoteColor, TaskPriority, TaskStatus } from '@/types/models'
 import {
   loadNotes,
   loadTrashedNotes,
@@ -10,12 +10,18 @@ import {
   restoreNote,
   permanentlyDeleteNote,
   clearAllNotes,
+  trashCompletedNotes,
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
 const SORT_STEP = 1024
 
 type DropPosition = 'before' | 'after'
+type TaskPatch = {
+  status?: TaskStatus | null
+  priority?: TaskPriority | null
+  dueDate?: string | null
+}
 
 type NotesStore = {
   notes: Note[]
@@ -25,7 +31,13 @@ type NotesStore = {
   saveErrorIds: string[]
   init: () => Promise<void>
   refresh: () => Promise<void>
-  add: (title?: string, content?: string, color?: NoteColor, folderId?: string) => Promise<Note>
+  add: (
+    title?: string,
+    content?: string,
+    color?: NoteColor,
+    folderId?: string,
+    task?: { status: TaskStatus; priority?: TaskPriority; dueDate?: string }
+  ) => Promise<Note>
   edit: (id: string, patch: Partial<Pick<Note, 'title' | 'content'>>) => void
   flushPending: (id?: string) => Promise<void>
   update: (
@@ -41,13 +53,18 @@ type NotesStore = {
         | 'windowBounds'
         | 'tags'
         | 'folderId'
+        | 'taskStatus'
+        | 'taskPriority'
+        | 'taskDueDate'
       >
     >
   ) => Promise<void>
+  updateTask: (id: string, patch: TaskPatch) => Promise<void>
   reorder: (sourceId: string, targetId: string, position: DropPosition) => Promise<void>
   remove: (id: string) => Promise<void>
   restore: (id: string) => Promise<void>
   permanentlyDelete: (id: string) => Promise<void>
+  trashCompleted: () => Promise<void>
   clearAll: () => Promise<void>
 }
 
@@ -98,7 +115,13 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     if (revision === notesRevision) set({ notes, trashedNotes, initialized: true })
   },
 
-  add: async (title = '', content = '', color: NoteColor = 'yellow', folderId = 'notes-inbox') => {
+  add: async (
+    title = '',
+    content = '',
+    color: NoteColor = 'yellow',
+    folderId = 'notes-inbox',
+    task
+  ) => {
     if (clearing) throw new Error('Cannot add a note while clearing notes')
     // Invalidate any refresh already reading the database before this write starts.
     notesRevision++
@@ -121,6 +144,11 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       tags: [],
       sortOrder: firstUnpinnedOrder - SORT_STEP,
       folderId,
+    }
+    if (task) {
+      note.taskStatus = task.status
+      if (task.priority) note.taskPriority = task.priority
+      if (task.dueDate) note.taskDueDate = task.dueDate
     }
     try {
       await saveNote(note)
@@ -254,6 +282,46 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     }
   },
 
+  updateTask: async (id, patch) => {
+    if (clearing || deletingIds.has(id)) return
+    if (pendingSaves.has(id) || inFlightSaves.has(id)) await get().flushPending(id)
+    const existing = get().notes.find((note) => note.id === id)
+    if (!existing) return
+    const updated: Note = {
+      ...existing,
+      updatedAt: Math.max(Date.now(), existing.updatedAt + 1),
+    }
+    if (patch.status === null) {
+      delete updated.taskStatus
+      delete updated.taskPriority
+      delete updated.taskDueDate
+    } else {
+      if (patch.status !== undefined) updated.taskStatus = patch.status
+      if (patch.priority === null) delete updated.taskPriority
+      else if (patch.priority !== undefined) updated.taskPriority = patch.priority
+      if (patch.dueDate === null) delete updated.taskDueDate
+      else if (patch.dueDate !== undefined) updated.taskDueDate = patch.dueDate
+    }
+    notesRevision++
+    set((state) => ({
+      notes: sortNotes(state.notes.map((note) => (note.id === id ? updated : note))),
+    }))
+    try {
+      await saveNote(updated)
+    } catch (err) {
+      const current = get().notes.find((note) => note.id === id)
+      if (current?.updatedAt === updated.updatedAt) {
+        notesRevision++
+        set((state) => ({
+          notes: sortNotes(state.notes.map((note) => (note.id === id ? existing : note))),
+        }))
+      }
+      const message = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to update task: ' + message, 'error')
+      throw err
+    }
+  },
+
   reorder: async (sourceId, targetId, position) => {
     if (sourceId === targetId) return
     if (clearing || deletingIds.has(sourceId) || deletingIds.has(targetId)) return
@@ -333,6 +401,22 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     await permanentlyDeleteNote(id)
     notesRevision++
     set((state) => ({ trashedNotes: state.trashedNotes.filter((note) => note.id !== id) }))
+  },
+
+  trashCompleted: async () => {
+    notesRevision++
+    const completedIds = get()
+      .notes.filter((note) => note.taskStatus === 'done')
+      .map((note) => note.id)
+    for (const id of completedIds) deletingIds.add(id)
+    try {
+      await get().flushPending()
+      await trashCompletedNotes()
+      const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+      set({ notes, trashedNotes })
+    } finally {
+      for (const id of completedIds) deletingIds.delete(id)
+    }
   },
 
   clearAll: async () => {

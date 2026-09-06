@@ -5,6 +5,7 @@ import notesSortOrderMigration from '@/../src-tauri/migrations/008_notes_sort_or
 import persistenceBackfillsMigration from '@/../src-tauri/migrations/009_persistence_backfills.sql?raw'
 import resourceFoldersMigration from '@/../src-tauri/migrations/013_resource_folders.sql?raw'
 import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.sql?raw'
+import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -82,5 +83,21 @@ describe('persistence migrations', () => {
   it('registers the durable trash migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*14/)
     expect(tauriLib).toContain('include_str!("../migrations/014_durable_trash.sql")')
+  })
+
+  it('adds, backfills, and indexes optional note task metadata', () => {
+    for (const column of ['task_status', 'task_priority', 'task_due_date']) {
+      expect(noteTasksMigration).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+notes\\s+ADD\\s+COLUMN\\s+${column}`, 'i')
+      )
+      expect(noteTasksMigration).toMatch(new RegExp(`${column}\\s*=\\s*NULL`, 'i'))
+    }
+    expect(noteTasksMigration).toContain('idx_notes_task_status')
+    expect(noteTasksMigration).toContain('idx_notes_task_due_date')
+  })
+
+  it('registers the structured note tasks migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*15/)
+    expect(tauriLib).toContain('include_str!("../migrations/015_note_tasks.sql")')
   })
 })

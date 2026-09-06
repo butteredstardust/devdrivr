@@ -202,6 +202,8 @@ export type PromptTemplate = {
 export type PromptTemplateValues = Record<string, string>
 
 export type NoteColor = (typeof NOTE_COLORS)[number]
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
+export type TaskPriority = 'low' | 'medium' | 'high'
 
 export type Note = {
   id: string
@@ -224,6 +226,11 @@ export type Note = {
   folderId?: string
   /** Set only while the note is in durable trash. */
   deletedAt?: number
+  /** Present when this note also acts as a task. */
+  taskStatus?: TaskStatus
+  taskPriority?: TaskPriority
+  /** Local calendar date in YYYY-MM-DD form. */
+  taskDueDate?: string
 }
 
 export type ResourceKind = 'notes' | 'snippets' | 'apiRequests'

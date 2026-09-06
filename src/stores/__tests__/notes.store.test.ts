@@ -9,6 +9,7 @@ import {
   restoreNote,
   permanentlyDeleteNote,
   clearAllNotes,
+  trashCompletedNotes,
 } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 import type { Note } from '@/types/models'
@@ -22,6 +23,7 @@ vi.mock('@/lib/db', () => ({
   restoreNote: vi.fn(),
   permanentlyDeleteNote: vi.fn(),
   clearAllNotes: vi.fn(),
+  trashCompletedNotes: vi.fn(),
 }))
 
 // Reset store state between tests
@@ -44,6 +46,7 @@ beforeEach(() => {
   ;(restoreNote as any).mockResolvedValue(undefined)
   ;(permanentlyDeleteNote as any).mockResolvedValue(undefined)
   ;(clearAllNotes as any).mockResolvedValue(undefined)
+  ;(trashCompletedNotes as any).mockResolvedValue(undefined)
 })
 
 function deferred<T>() {
@@ -104,6 +107,58 @@ describe('notes store', () => {
 
     await useNotesStore.getState().update(note.id, { tags: ['tag1'] })
     expect(useNotesStore.getState().notes[0]!.tags).toEqual(['tag1'])
+  })
+
+  it('converts between note and task without discarding note content or location', async () => {
+    const note = await useNotesStore
+      .getState()
+      .add('Release plan', 'Full body', 'yellow', 'notes-inbox')
+    await useNotesStore.getState().update(note.id, { tags: ['release'] })
+
+    await useNotesStore.getState().updateTask(note.id, {
+      status: 'in_progress',
+      priority: 'high',
+      dueDate: '2026-09-08',
+    })
+    expect(useNotesStore.getState().notes[0]).toMatchObject({
+      title: 'Release plan',
+      content: 'Full body',
+      tags: ['release'],
+      folderId: 'notes-inbox',
+      taskStatus: 'in_progress',
+      taskPriority: 'high',
+      taskDueDate: '2026-09-08',
+    })
+
+    await useNotesStore.getState().updateTask(note.id, { status: null })
+    const converted = useNotesStore.getState().notes[0]!
+    expect(converted).toMatchObject({
+      title: 'Release plan',
+      content: 'Full body',
+      tags: ['release'],
+      folderId: 'notes-inbox',
+    })
+    expect(converted).not.toHaveProperty('taskStatus')
+    expect(converted).not.toHaveProperty('taskPriority')
+    expect(converted).not.toHaveProperty('taskDueDate')
+  })
+
+  it('flushes edits before moving completed tasks to durable Trash', async () => {
+    const note = await useNotesStore.getState().add('Done task', 'Original')
+    await useNotesStore.getState().updateTask(note.id, { status: 'done' })
+    ;(saveNote as any).mockClear()
+    useNotesStore.getState().edit(note.id, { content: 'Latest' })
+    ;(loadTrashedNotes as any).mockResolvedValue([
+      { ...note, content: 'Latest', taskStatus: 'done' },
+    ])
+
+    await useNotesStore.getState().trashCompleted()
+
+    expect(saveNote).toHaveBeenCalledWith(expect.objectContaining({ content: 'Latest' }))
+    expect(vi.mocked(saveNote).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(trashCompletedNotes).mock.invocationCallOrder[0]!
+    )
+    expect(useNotesStore.getState().trashedNotes[0]?.content).toBe('Latest')
   })
 
   it('updates note state before the database write finishes', async () => {

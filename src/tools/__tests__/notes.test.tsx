@@ -6,6 +6,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import type { Note } from '@/types/models'
+import { localDateKey } from '@/tools/notes/task-model'
+import { useToolStateCache } from '@/stores/tool-state.store'
 
 const note: Note = {
   id: 'note-1',
@@ -26,8 +28,10 @@ const realActions = {
   add: useNotesStore.getState().add,
   edit: useNotesStore.getState().edit,
   update: useNotesStore.getState().update,
+  updateTask: useNotesStore.getState().updateTask,
   flushPending: useNotesStore.getState().flushPending,
   remove: useNotesStore.getState().remove,
+  trashCompleted: useNotesStore.getState().trashCompleted,
 }
 
 function arrangeNotes() {
@@ -42,6 +46,28 @@ function arrangeNotes() {
   const flushPending = vi.fn().mockImplementation(async () => {
     useNotesStore.setState({ pendingSaveIds: [] })
   })
+  const updateTask = vi
+    .fn()
+    .mockImplementation(async (id: string, patch: Record<string, unknown>) => {
+      useNotesStore.setState((state) => ({
+        notes: state.notes.map((existing) => {
+          if (existing.id !== id) return existing
+          if (patch.status === null) {
+            const plain = { ...existing }
+            delete plain.taskStatus
+            delete plain.taskPriority
+            delete plain.taskDueDate
+            return plain
+          }
+          return {
+            ...existing,
+            ...(patch.status !== undefined ? { taskStatus: patch.status } : {}),
+            ...(patch.priority !== undefined ? { taskPriority: patch.priority } : {}),
+            ...(patch.dueDate !== undefined ? { taskDueDate: patch.dueDate } : {}),
+          } as Note
+        }),
+      }))
+    })
   useNotesStore.setState({
     notes: [note],
     trashedNotes: [],
@@ -51,16 +77,19 @@ function arrangeNotes() {
     edit,
     flushPending,
     update: vi.fn().mockResolvedValue(undefined),
+    updateTask,
     remove: vi.fn().mockResolvedValue(undefined),
     restore: vi.fn().mockResolvedValue(undefined),
     permanentlyDelete: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
+    trashCompleted: vi.fn().mockResolvedValue(undefined),
   })
-  return { edit, flushPending }
+  return { edit, flushPending, updateTask }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
   arrangeNotes()
   useUiStore.setState({ lastAction: null, dirtyTabIds: [] })
   useFoldersStore.setState({
@@ -185,6 +214,93 @@ describe('Notes workspace', () => {
 
     dispatchToolAction({ type: 'save-file' })
     await waitFor(() => expect(flushPending).toHaveBeenCalled())
+  })
+
+  it('creates a structured task without replacing the note model', async () => {
+    const created = {
+      ...note,
+      id: 'task-2',
+      title: 'Untitled task',
+      content: '',
+      taskStatus: 'todo' as const,
+      taskPriority: 'medium' as const,
+    }
+    const add = vi.fn().mockResolvedValue(created)
+    useNotesStore.setState({ add })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
+
+    await waitFor(() =>
+      expect(add).toHaveBeenCalledWith('Untitled task', '', 'yellow', 'notes-inbox', {
+        status: 'todo',
+        priority: 'medium',
+      })
+    )
+  })
+
+  it('filters task views and supports quick completion from a list row', async () => {
+    const today = localDateKey()
+    const { updateTask } = arrangeNotes()
+    useNotesStore.setState({
+      notes: [
+        note,
+        { ...note, id: 'today-task', title: 'Today task', taskStatus: 'todo', taskDueDate: today },
+        {
+          ...note,
+          id: 'done-task',
+          title: 'Done task',
+          taskStatus: 'done',
+          taskDueDate: today,
+        },
+      ],
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Today/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Today task/ })).toBeInTheDocument()
+    )
+    expect(screen.queryByRole('option', { name: /Release plan/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Done task/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Today task' }))
+    await waitFor(() => expect(updateTask).toHaveBeenCalledWith('today-task', { status: 'done' }))
+  })
+
+  it('confirms task-to-note conversion before removing only task metadata', async () => {
+    const { updateTask } = arrangeNotes()
+    useNotesStore.setState({
+      notes: [
+        {
+          ...note,
+          taskStatus: 'blocked',
+          taskPriority: 'high',
+          taskDueDate: localDateKey(),
+        },
+      ],
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Convert to note' }))
+    expect(screen.getByText(/Its title, body, folder, and tags will stay unchanged/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove task metadata' }))
+
+    await waitFor(() => expect(updateTask).toHaveBeenCalledWith('note-1', { status: null }))
+  })
+
+  it('confirms before moving all completed tasks to durable Trash', async () => {
+    const trashCompleted = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({
+      notes: [{ ...note, taskStatus: 'done' }],
+      trashCompleted,
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trash completed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move 1 to Trash' }))
+
+    await waitFor(() => expect(trashCompleted).toHaveBeenCalledOnce())
   })
 
   it('keeps editor and preview available in the narrow stacked layout', async () => {

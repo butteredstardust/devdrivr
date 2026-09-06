@@ -117,18 +117,20 @@ linked, or exported accidentally.
 
 ### 5. Structured tasks inside Notes
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** A note can carry actionable status without becoming a separate task
 system.
 
-- [ ] Add optional task fields for status (`todo`, `in_progress`, `done`,
+- [x] Add optional task fields for status (`todo`, `in_progress`, `done`,
       `blocked`), priority, and due date, including a complete migration backfill.
-- [ ] Support new task, note-to-task, and task-to-note flows with explicit removal
+- [x] Support new task, note-to-task, and task-to-note flows with explicit removal
       confirmation for task metadata.
-- [ ] Add All, Today, Upcoming, Completed, and Overdue views plus quick completion
+- [x] Add All, Today, Upcoming, Completed, and Overdue views plus quick completion
       from list rows.
-- [ ] Keep tasks searchable and available in normal note folders/tags; add hide-
+- [x] Keep tasks searchable and available in normal note folders/tags; add hide-
       completed and soft-delete-completed actions.
-- [ ] Test timezone boundaries, overdue rules, sorting, conversion, cleanup, and
+- [x] Test timezone boundaries, overdue rules, sorting, conversion, cleanup, and
       MCP serialization.
 
 **Depends on:** items 2-4. **Done when:** task views are derived consistently from

@@ -138,6 +138,13 @@ Use the notes drawer for quick capture or open the Notes workspace for the full 
 - Searchable notes list
 - Rich text support
 - Nested folders and durable Trash with restore and empty-trash confirmation
+- Optional task status, priority, and local due date without changing note content
+- Notes, All Tasks, Today, Upcoming, Completed, and Overdue views
+- Quick completion, hide-completed filtering, and confirmed cleanup of completed tasks
+
+Select **Make task** on any note to add task metadata. Select **Convert to note** to remove that
+metadata after confirmation; the title, Markdown body, folder, and tags are preserved. Due dates
+are local calendar dates, so a task becomes overdue only after midnight in the current timezone.
 
 ### Snippets
 

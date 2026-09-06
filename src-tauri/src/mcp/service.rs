@@ -143,6 +143,9 @@ struct NoteCreateArgs {
     pinned: Option<bool>,
     tags: Option<Vec<String>>,
     folder_id: Option<String>,
+    task_status: Option<String>,
+    task_priority: Option<String>,
+    task_due_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -155,6 +158,12 @@ struct NoteUpdateArgs {
     pinned: Option<bool>,
     tags: Option<Vec<String>>,
     folder_id: Option<String>,
+    task_status: Option<String>,
+    task_priority: Option<String>,
+    task_due_date: Option<String>,
+    clear_task_metadata: Option<bool>,
+    clear_task_priority: Option<bool>,
+    clear_task_due_date: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -294,6 +303,9 @@ struct NoteRow {
     tags: Option<String>,
     folder_id: Option<String>,
     deleted_at: Option<i64>,
+    task_status: Option<String>,
+    task_priority: Option<String>,
+    task_due_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -606,6 +618,59 @@ fn validate_default_language(kind: &str, supplied: bool) -> std::result::Result<
     Ok(())
 }
 
+fn validate_task_status(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "todo" | "in_progress" | "done" | "blocked" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "taskStatus",
+            format!("Unsupported task status: {value}"),
+            &["Use one of: todo, in_progress, done, blocked"],
+        )),
+    }
+}
+
+fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "low" | "medium" | "high" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "taskPriority",
+            format!("Unsupported task priority: {value}"),
+            &["Use one of: low, medium, high"],
+        )),
+    }
+}
+
+fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> {
+    let parts = value
+        .split('-')
+        .map(str::parse::<u32>)
+        .collect::<std::result::Result<Vec<_>, _>>();
+    let valid = parts.ok().is_some_and(|parts| {
+        if parts.len() != 3 || value.len() != 10 {
+            return false;
+        }
+        let (year, month, day) = (parts[0], parts[1], parts[2]);
+        let leap =
+            year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+        let days = match month {
+            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+            4 | 6 | 9 | 11 => 30,
+            2 if leap => 29,
+            2 => 28,
+            _ => return false,
+        };
+        day > 0 && day <= days
+    });
+    if !valid {
+        return Err(invalid_argument(
+            "taskDueDate",
+            format!("Invalid local calendar date: {value}"),
+            &["Use a real date in YYYY-MM-DD form"],
+        ));
+    }
+    Ok(value.to_string())
+}
+
 fn unknown_help_topic(topic: &str) -> McpError {
     invalid_argument(
         "topic",
@@ -646,6 +711,9 @@ fn note_to_json(row: NoteRow, folder_path: Vec<String>) -> Value {
         "tags": parse_json(row.tags.as_deref().unwrap_or("[]"), json!([])),
         "folderId": row.folder_id,
         "folderPath": folder_path,
+        "taskStatus": row.task_status,
+        "taskPriority": row.task_priority,
+        "taskDueDate": row.task_due_date,
     })
 }
 
@@ -1380,7 +1448,7 @@ fn help_schema(settings: &McpSettings) -> String {
 Use `introspect()` for complete resource fields, examples, permissions, and redaction metadata.
 
 Primary resource types:
-- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, `createdAt`, `updatedAt`.
+- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, optional `taskStatus`, `taskPriority`, `taskDueDate`, `createdAt`, `updatedAt`.
 - `snippets`: fields include `id`, `title`, `content`, `language`, `folderId`, `folderPath`, legacy `folder`, `tags`, `createdAt`, `updatedAt`.
 - `promptTemplates`: fields include `id`, `name`, `prompt`, `variables`, `author`, `tags`, `estimatedTokens`, `createdAt`, `updatedAt`.
 - `apiRequests`: fields include `id`, `folderId`, `folderPath`, legacy `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
@@ -2230,6 +2298,9 @@ impl DevdrivrMcpService {
                         "tags": "string[]",
                         "folderId": "string (defaults to notes-inbox)",
                         "folderPath": "string[] (computed from resource folder ancestry)",
+                        "taskStatus": "todo|in_progress|done|blocked|null",
+                        "taskPriority": "low|medium|high|null",
+                        "taskDueDate": "string|null (local YYYY-MM-DD date)",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
@@ -2450,9 +2521,27 @@ impl DevdrivrMcpService {
         let pinned = args.pinned.unwrap_or(false);
         let tags = string_vec_to_db_json(args.tags);
         let folder_id = args.folder_id.unwrap_or_else(|| "notes-inbox".to_string());
+        let task_priority = args
+            .task_priority
+            .as_deref()
+            .map(validate_task_priority)
+            .transpose()?;
+        let task_due_date = args
+            .task_due_date
+            .as_deref()
+            .map(validate_task_due_date)
+            .transpose()?;
+        let task_status = args
+            .task_status
+            .as_deref()
+            .map(validate_task_status)
+            .transpose()?
+            .or_else(|| {
+                (task_priority.is_some() || task_due_date.is_some()).then(|| "todo".to_string())
+            });
         self.require_folder_kind(&folder_id, "notes").await?;
         sqlx::query(
-            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9)",
+            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id, task_status, task_priority, task_due_date) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(&id)
         .bind(title)
@@ -2463,6 +2552,9 @@ impl DevdrivrMcpService {
         .bind(now)
         .bind(tags)
         .bind(folder_id)
+        .bind(task_status)
+        .bind(task_priority)
+        .bind(task_due_date)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
@@ -2490,9 +2582,53 @@ impl DevdrivrMcpService {
                 .folder_id
                 .unwrap_or_else(|| "notes-inbox".to_string())
         });
+        let supplied_task_status = args
+            .task_status
+            .as_deref()
+            .map(validate_task_status)
+            .transpose()?;
+        let supplied_task_priority = args
+            .task_priority
+            .as_deref()
+            .map(validate_task_priority)
+            .transpose()?;
+        let supplied_task_due_date = args
+            .task_due_date
+            .as_deref()
+            .map(validate_task_due_date)
+            .transpose()?;
+        let clear_task_metadata = args.clear_task_metadata.unwrap_or(false);
+        if clear_task_metadata
+            && (supplied_task_status.is_some()
+                || supplied_task_priority.is_some()
+                || supplied_task_due_date.is_some())
+        {
+            return Err(invalid_argument(
+                "clearTaskMetadata",
+                "Task metadata cannot be supplied while clearing it",
+                &["Remove taskStatus, taskPriority, and taskDueDate from this request"],
+            ));
+        }
+        let task_priority = if clear_task_metadata || args.clear_task_priority.unwrap_or(false) {
+            None
+        } else {
+            supplied_task_priority.or(current.task_priority)
+        };
+        let task_due_date = if clear_task_metadata || args.clear_task_due_date.unwrap_or(false) {
+            None
+        } else {
+            supplied_task_due_date.or(current.task_due_date)
+        };
+        let task_status = if clear_task_metadata {
+            None
+        } else {
+            supplied_task_status.or(current.task_status).or_else(|| {
+                (task_priority.is_some() || task_due_date.is_some()).then(|| "todo".to_string())
+            })
+        };
         self.require_folder_kind(&folder_id, "notes").await?;
         sqlx::query(
-            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8 WHERE id=$1",
+            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(args.title.unwrap_or(current.title))
@@ -2502,6 +2638,9 @@ impl DevdrivrMcpService {
         .bind(tags)
         .bind(folder_id)
         .bind(now_ms())
+        .bind(task_status)
+        .bind(task_priority)
+        .bind(task_due_date)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
@@ -3224,6 +3363,51 @@ mod tests {
             updated_at: 2,
             deleted_at: None,
         }
+    }
+
+    fn task_note_row() -> NoteRow {
+        NoteRow {
+            id: "note-task-1".to_string(),
+            title: "Ship release".to_string(),
+            content: "Keep the full note body".to_string(),
+            color: "yellow".to_string(),
+            pinned: 0,
+            popped_out: 0,
+            window_x: None,
+            window_y: None,
+            window_width: None,
+            window_height: None,
+            created_at: 1,
+            updated_at: 2,
+            tags: Some(r#"["release"]"#.to_string()),
+            folder_id: Some("notes-inbox".to_string()),
+            deleted_at: None,
+            task_status: Some("in_progress".to_string()),
+            task_priority: Some("high".to_string()),
+            task_due_date: Some("2026-09-08".to_string()),
+        }
+    }
+
+    #[test]
+    fn note_json_serializes_structured_task_metadata() {
+        let value = note_to_json(task_note_row(), vec!["Inbox".to_string()]);
+
+        assert_eq!(value["taskStatus"], "in_progress");
+        assert_eq!(value["taskPriority"], "high");
+        assert_eq!(value["taskDueDate"], "2026-09-08");
+        assert_eq!(value["content"], "Keep the full note body");
+        assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn task_metadata_validation_rejects_invalid_values_and_dates() {
+        assert!(validate_task_status("blocked").is_ok());
+        assert!(validate_task_priority("high").is_ok());
+        assert!(validate_task_due_date("2024-02-29").is_ok());
+        assert!(validate_task_status("waiting").is_err());
+        assert!(validate_task_priority("urgent").is_err());
+        assert!(validate_task_due_date("2026-02-29").is_err());
+        assert!(validate_task_due_date("2026-9-8").is_err());
     }
 
     #[test]

@@ -54,7 +54,7 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 ### Shell features
 
 - **Command palette** — fuzzy search every tool (`Cmd+K`)
-- **Notes drawer and workspace** — persistent Markdown notes with nested folders and full-text search
+- **Notes drawer and workspace** — persistent Markdown notes with nested folders, full-text search, and structured task views
 - **Per-tool history** — inputs and outputs are saved automatically
 - **Shared libraries** — nested, keyboard-accessible folders for notes, snippets, and API requests
 - **Durable Trash** — restore notes, snippets, API requests, and complete folder subtrees after restart

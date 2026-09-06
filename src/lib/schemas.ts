@@ -70,6 +70,9 @@ export const noteRowSchema = z
     sort_order: z.number().default(0),
     folder_id: z.string().nullable().optional(),
     deleted_at: z.number().nullable().optional(),
+    task_status: z.enum(['todo', 'in_progress', 'done', 'blocked']).nullable().optional(),
+    task_priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
+    task_due_date: z.string().nullable().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -94,6 +97,9 @@ export const noteRowSchema = z
     }
     if (row.folder_id != null) note.folderId = row.folder_id
     if (row.deleted_at != null) note.deletedAt = row.deleted_at
+    if (row.task_status != null) note.taskStatus = row.task_status
+    if (row.task_priority != null) note.taskPriority = row.task_priority
+    if (row.task_due_date != null) note.taskDueDate = row.task_due_date
     if (
       row.window_x != null &&
       row.window_y != null &&
