@@ -1,6 +1,6 @@
 [package]
 name = "devdrivr"
-version = "0.1.89"
+version = "0.1.90"
 description = "devdrivr — developer utility workspace"
 authors = ["devdrivr"]
 edition = "2021"
