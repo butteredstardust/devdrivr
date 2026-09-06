@@ -343,31 +343,25 @@ export async function restoreNotesBackup(content: string): Promise<RestoredNotes
   }
   if (value.notes.length > 10_000) throw new Error('Backup contains too many notes')
   const version = value.version
-  const notes =
-    version === 1 ? value.notes.map(parseLegacyNote) : value.notes.map(parseVersion2Note)
-  const folders =
-    version === 2 && Array.isArray(value.folders) ? parseVersion2Folders(value.folders) : []
-  if (version === 2 && !Array.isArray(value.folders)) {
-    throw new Error('Unsupported notes backup')
+  const assets = parseAssets(value.assets)
+  if (version === 1) {
+    const notes = value.notes.map(parseLegacyNote)
+    await invoke<number>('note_assets_restore', { assets })
+    return { version, notes, folders: [] }
   }
-  if (version === 2) {
-    const noteIds = new Set<string>()
-    for (const note of notes as Note[]) {
-      if (noteIds.has(note.id)) throw new Error('Backup contains duplicate notes')
-      noteIds.add(note.id)
-      if (
-        note.folderId !== 'notes-inbox' &&
-        !folders.some((folder) => folder.id === note.folderId)
-      ) {
-        throw new Error('Backup contains a note with a missing folder')
-      }
+  if (!Array.isArray(value.folders)) throw new Error('Unsupported notes backup')
+  const notes = value.notes.map(parseVersion2Note)
+  const folders = parseVersion2Folders(value.folders)
+  const noteIds = new Set<string>()
+  for (const note of notes) {
+    if (noteIds.has(note.id)) throw new Error('Backup contains duplicate notes')
+    noteIds.add(note.id)
+    if (note.folderId !== 'notes-inbox' && !folders.some((folder) => folder.id === note.folderId)) {
+      throw new Error('Backup contains a note with a missing folder')
     }
   }
-  const assets = parseAssets(value.assets)
   await invoke<number>('note_assets_restore', { assets })
-  return version === 1
-    ? { version, notes: notes as LegacyNoteBackupEntry[], folders: [] }
-    : { version, notes: notes as Note[], folders }
+  return { version, notes, folders }
 }
 
 export async function findOrphanNoteAssets(referencedIds: string[]): Promise<NoteAsset[]> {
