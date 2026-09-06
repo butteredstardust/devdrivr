@@ -118,6 +118,12 @@ pub fn run() {
             sql: include_str!("../migrations/016_note_links.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 17,
+            description: "add snippet fragments and descriptions",
+            sql: include_str!("../migrations/017_snippet_fragments.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

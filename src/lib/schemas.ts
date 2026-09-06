@@ -123,6 +123,7 @@ export const snippetRowSchema = z
     title: z.string(),
     content: z.string(),
     language: z.string(),
+    description: z.string().default(''),
     tags: z.string(),
     favorite: z.union([z.number(), z.boolean()]).default(0),
     folder: z.string().default(''),
@@ -137,6 +138,7 @@ export const snippetRowSchema = z
       title: row.title,
       content: row.content,
       language: row.language,
+      description: row.description,
       folder: row.folder,
       tags: parseStringArray(row.tags),
       favorite:
@@ -148,6 +150,27 @@ export const snippetRowSchema = z
     if (row.deleted_at != null) snippet.deletedAt = row.deleted_at
     return snippet
   })
+
+export const snippetFragmentRowSchema = z
+  .object({
+    id: z.string(),
+    snippet_id: z.string(),
+    name: z.string(),
+    content: z.string(),
+    language: z.string(),
+    sort_order: z.number(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): import('@/types/models').SnippetFragment => ({
+    id: row.id,
+    name: row.name,
+    content: row.content,
+    language: row.language,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
 
 /** Validates a raw resource_folders row and transforms it into a ResourceFolder. */
 export const resourceFolderRowSchema = z

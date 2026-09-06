@@ -36,7 +36,7 @@ describe('SnippetsManager editor toolbar', () => {
     expect(screen.getByRole('button', { name: 'Duplicate snippet' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save snippet as file' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show snippet details' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete snippet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move snippet to Trash' })).toBeInTheDocument()
   })
 
   it('communicates favorite state in both the list and editor', async () => {
@@ -67,6 +67,6 @@ describe('SnippetsManager editor toolbar', () => {
 
     fireEvent.keyDown(window, { key: 'F8' })
 
-    expect(screen.getByRole('dialog', { name: 'Delete snippet?' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Move snippet to Trash?' })).toBeInTheDocument()
   })
 })

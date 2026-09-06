@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type { Snippet } from '@/types/models'
+import type { Snippet, SnippetFragment } from '@/types/models'
 import {
   loadSnippets,
   loadTrashedSnippets,
@@ -11,6 +11,7 @@ import {
   clearAllSnippets,
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
+import { normalizeSnippet } from '@/lib/snippet-fragments'
 
 type SnippetsStore = {
   snippets: Snippet[]
@@ -28,12 +29,25 @@ type SnippetsStore = {
     tags?: string[],
     folder?: string,
     favorite?: boolean,
-    folderId?: string
+    folderId?: string,
+    description?: string,
+    fragments?: SnippetFragment[]
   ) => Promise<Snippet>
   update: (
     id: string,
     patch: Partial<
-      Pick<Snippet, 'title' | 'content' | 'language' | 'tags' | 'folder' | 'favorite' | 'folderId'>
+      Pick<
+        Snippet,
+        | 'title'
+        | 'content'
+        | 'language'
+        | 'description'
+        | 'fragments'
+        | 'tags'
+        | 'folder'
+        | 'favorite'
+        | 'folderId'
+      >
     >
   ) => Promise<void>
   flushPending: (id?: string) => Promise<void>
@@ -99,12 +113,15 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     tags = [],
     folder = '',
     favorite = false,
-    folderId = 'snippets-inbox'
+    folderId = 'snippets-inbox',
+    description = '',
+    fragments
   ) => {
     if (clearing) throw new Error('Cannot add a snippet while clearing the library')
     const now = Date.now()
-    const snippet: Snippet = {
-      id: nanoid(),
+    const id = nanoid()
+    const snippet = normalizeSnippet({
+      id,
       title,
       content,
       language,
@@ -112,9 +129,21 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       favorite,
       folder,
       folderId,
+      description,
+      ...(fragments
+        ? {
+            fragments: fragments.map((fragment, index) => ({
+              ...fragment,
+              id: nanoid(),
+              sortOrder: index,
+              createdAt: now,
+              updatedAt: now,
+            })),
+          }
+        : {}),
       createdAt: now,
       updatedAt: now,
-    }
+    })
     set({ saving: true })
     try {
       const save = saveSnippet(snippet)
@@ -141,7 +170,26 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     if (idx < 0) return
     const oldSnippet = snippets[idx]
     if (!oldSnippet) return
-    const updated = { ...oldSnippet, ...patch, updatedAt: Date.now() }
+    const normalizedOld = normalizeSnippet(oldSnippet)
+    let nextFragments = patch.fragments ?? normalizedOld.fragments!
+    if (!patch.fragments && (patch.content !== undefined || patch.language !== undefined)) {
+      const primary = nextFragments[0]!
+      nextFragments = [
+        {
+          ...primary,
+          ...(patch.content !== undefined ? { content: patch.content } : {}),
+          ...(patch.language !== undefined ? { language: patch.language } : {}),
+          updatedAt: Date.now(),
+        },
+        ...nextFragments.slice(1),
+      ]
+    }
+    const updated = normalizeSnippet({
+      ...normalizedOld,
+      ...patch,
+      fragments: nextFragments,
+      updatedAt: Date.now(),
+    })
     const original = pendingSaves.get(id)?.original ?? oldSnippet
 
     // 1. Update state immediately (optimistic)

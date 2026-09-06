@@ -129,4 +129,58 @@ describe('snippets store initialization', () => {
     )
     expect(useSnippetsStore.getState().trashedSnippets[0]?.content).toBe('after')
   })
+
+  it('coalesces rapid edits across fragment switches without losing either fragment', async () => {
+    const { useSnippetsStore } = await import('../snippets.store')
+    const snippet: Snippet = {
+      id: 'snippet-fragments',
+      title: 'Client',
+      content: 'one',
+      language: 'text',
+      fragments: [
+        {
+          id: 'one',
+          name: 'one.txt',
+          content: 'one',
+          language: 'text',
+          sortOrder: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: 'two',
+          name: 'two.txt',
+          content: 'two',
+          language: 'text',
+          sortOrder: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      tags: [],
+      folder: '',
+      folderId: 'snippets-inbox',
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    useSnippetsStore.setState({ snippets: [snippet], trashedSnippets: [] })
+
+    await useSnippetsStore.getState().update(snippet.id, {
+      fragments: [{ ...snippet.fragments![0]!, content: 'one edited' }, snippet.fragments![1]!],
+    })
+    const current = useSnippetsStore.getState().snippets[0]!
+    await useSnippetsStore.getState().update(snippet.id, {
+      fragments: [current.fragments![0]!, { ...current.fragments![1]!, content: 'two edited' }],
+    })
+    await useSnippetsStore.getState().flushPending(snippet.id)
+
+    expect(saveSnippet).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        fragments: [
+          expect.objectContaining({ id: 'one', content: 'one edited' }),
+          expect.objectContaining({ id: 'two', content: 'two edited' }),
+        ],
+      })
+    )
+  })
 })

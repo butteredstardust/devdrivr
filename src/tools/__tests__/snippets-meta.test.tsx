@@ -3,6 +3,7 @@ import { act, fireEvent, screen, within } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import SnippetsManager from '@/tools/snippets/SnippetsManager'
+import { useFoldersStore } from '@/stores/folders.store'
 
 const testSnippet = {
   id: 'snippet-1',
@@ -11,6 +12,7 @@ const testSnippet = {
   language: 'javascript',
   tags: ['tag1', 'tag2'],
   folder: 'work',
+  folderId: 'folder-work',
   createdAt: Date.now(),
   updatedAt: Date.now(),
 }
@@ -21,6 +23,21 @@ beforeEach(() => {
     initialized: true,
     saving: false,
     activeFolder: '',
+  })
+  useFoldersStore.setState({
+    folders: [
+      {
+        id: 'folder-work',
+        name: 'work',
+        parentId: null,
+        kind: 'snippets',
+        sortOrder: 0,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
+    trashedFolders: [],
+    initialized: true,
   })
 })
 

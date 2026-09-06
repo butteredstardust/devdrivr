@@ -159,17 +159,19 @@ user can navigate forward and back without ambiguous routing.
 
 ### 7. Multi-fragment snippets with descriptions
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** One snippet can hold related files, language variants, or examples,
 plus usage context, without title/tag conventions.
 
-- [ ] Split snippet content into ordered fragment records with name, language,
+- [x] Split snippet content into ordered fragment records with name, language,
       content, and timestamps; migrate each existing snippet into one fragment.
-- [ ] Add accessible fragment tabs with create, rename, reorder, duplicate, and
+- [x] Add accessible fragment tabs with create, rename, reorder, duplicate, and
       guarded delete actions.
-- [ ] Add an optional Markdown description at snippet level, collapsed when empty.
-- [ ] Update search, copy/download, duplication, import/export, MCP, and cross-tool
+- [x] Add an optional Markdown description at snippet level, collapsed when empty.
+- [x] Update search, copy/download, duplication, import/export, MCP, and cross-tool
       handoff semantics for one fragment versus the full snippet.
-- [ ] Preserve per-fragment debounced saving and prove that rapid tab switches do
+- [x] Preserve per-fragment debounced saving and prove that rapid tab switches do
       not lose edits.
 
 **Depends on:** item 3; coordinate with item 4 for deletion semantics. **Done

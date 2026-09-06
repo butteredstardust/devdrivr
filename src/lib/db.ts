@@ -14,6 +14,7 @@ import type {
 import {
   noteRowSchema,
   snippetRowSchema,
+  snippetFragmentRowSchema,
   historyRowSchema,
   apiEnvironmentRowSchema,
   apiCollectionRowSchema,
@@ -22,6 +23,7 @@ import {
   resourceFolderRowSchema,
 } from '@/lib/schemas'
 import { parseWikiLinks } from '@/lib/wiki-links'
+import { normalizeSnippet } from '@/lib/snippet-fragments'
 
 // Promise singleton prevents TOCTOU race when multiple callers hit getDb() concurrently
 // (e.g., StrictMode double-mount or parallel store inits).
@@ -310,11 +312,23 @@ type SnippetRow = {
   title: string
   content: string
   language: string
+  description: string
   tags: string
   folder: string
   folder_id: string | null
   deleted_at: number | null
   favorite: number
+  created_at: number
+  updated_at: number
+}
+
+type SnippetFragmentRow = {
+  id: string
+  snippet_id: string
+  name: string
+  content: string
+  language: string
+  sort_order: number
   created_at: number
   updated_at: number
 }
@@ -338,32 +352,80 @@ export async function loadTrashedSnippets(): Promise<Snippet[]> {
 
 async function loadSnippetsByTrash(trashed: boolean): Promise<Snippet[]> {
   const conn = await getDb()
-  const rows = await conn.select<SnippetRow[]>(
-    `SELECT * FROM snippets WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY updated_at DESC`
-  )
-  return rows.map(rowToSnippet).filter((s): s is Snippet => s !== null)
+  const [rows, fragmentRows] = await Promise.all([
+    conn.select<SnippetRow[]>(
+      `SELECT * FROM snippets WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY updated_at DESC`
+    ),
+    conn.select<SnippetFragmentRow[]>(
+      `SELECT fragment.* FROM snippet_fragments fragment
+       JOIN snippets snippet ON snippet.id = fragment.snippet_id
+       WHERE snippet.deleted_at IS ${trashed ? 'NOT ' : ''}NULL
+       ORDER BY fragment.snippet_id, fragment.sort_order`
+    ),
+  ])
+  const fragmentsBySnippet = new Map<string, Snippet['fragments']>()
+  for (const row of fragmentRows) {
+    const result = snippetFragmentRowSchema.safeParse(row)
+    if (!result.success) {
+      console.warn('[db] invalid snippet fragment, skipping', result.error.issues)
+      continue
+    }
+    const fragments = fragmentsBySnippet.get(row.snippet_id) ?? []
+    fragments.push(result.data)
+    fragmentsBySnippet.set(row.snippet_id, fragments)
+  }
+  return rows
+    .map(rowToSnippet)
+    .filter((snippet): snippet is Snippet => snippet !== null)
+    .map((snippet) => {
+      const fragments = [...(fragmentsBySnippet.get(snippet.id) ?? [])].sort(
+        (left, right) => left.sortOrder - right.sortOrder || left.createdAt - right.createdAt
+      )
+      return normalizeSnippet({ ...snippet, fragments })
+    })
 }
 
 export async function saveSnippet(snippet: Snippet): Promise<void> {
-  await enqueueWrite((conn) =>
-    conn.execute(
-      `INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, favorite, created_at, updated_at, deleted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, folder_id=$7, favorite=$8, updated_at=$10`,
-      [
-        snippet.id,
-        snippet.title,
-        snippet.content,
-        snippet.language,
-        JSON.stringify(snippet.tags),
-        snippet.folder,
-        snippet.folderId ?? 'snippets-inbox',
-        snippet.favorite ? 1 : 0,
-        snippet.createdAt,
-        snippet.updatedAt,
-        snippet.deletedAt ?? null,
-      ]
-    )
+  const normalized = normalizeSnippet(snippet)
+  await runBatch(
+    [
+      {
+        sql: `INSERT INTO snippets (id, title, content, language, description, tags, folder, folder_id, favorite, created_at, updated_at, deleted_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, favorite=$9, updated_at=$11`,
+        params: [
+          normalized.id,
+          normalized.title,
+          normalized.content,
+          normalized.language,
+          normalized.description ?? '',
+          JSON.stringify(normalized.tags),
+          normalized.folder,
+          normalized.folderId ?? 'snippets-inbox',
+          normalized.favorite ? 1 : 0,
+          normalized.createdAt,
+          normalized.updatedAt,
+          normalized.deletedAt ?? null,
+        ],
+      },
+      { sql: 'DELETE FROM snippet_fragments WHERE snippet_id = $1', params: [normalized.id] },
+      ...normalized.fragments!.map((fragment) => ({
+        sql: `INSERT INTO snippet_fragments
+          (id, snippet_id, name, content, language, sort_order, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        params: [
+          fragment.id,
+          normalized.id,
+          fragment.name,
+          fragment.content,
+          fragment.language,
+          fragment.sortOrder,
+          fragment.createdAt,
+          fragment.updatedAt,
+        ],
+      })),
+    ],
+    true
   )
 }
 

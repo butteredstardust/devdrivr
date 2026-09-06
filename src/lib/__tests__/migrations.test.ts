@@ -7,6 +7,7 @@ import resourceFoldersMigration from '@/../src-tauri/migrations/013_resource_fol
 import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.sql?raw'
 import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
 import noteLinksMigration from '@/../src-tauri/migrations/016_note_links.sql?raw'
+import snippetFragmentsMigration from '@/../src-tauri/migrations/017_snippet_fragments.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -112,5 +113,26 @@ describe('persistence migrations', () => {
   it('registers the stable note link migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*16/)
     expect(tauriLib).toContain('include_str!("../migrations/016_note_links.sql")')
+  })
+
+  it('backfills every legacy snippet into one ordered fragment', () => {
+    expect(snippetFragmentsMigration).toMatch(
+      /ALTER TABLE snippets ADD COLUMN description TEXT NOT NULL DEFAULT ''/i
+    )
+    expect(snippetFragmentsMigration).toMatch(
+      /UPDATE snippets SET description = '' WHERE description IS NULL/i
+    )
+    expect(snippetFragmentsMigration).toMatch(/CREATE TABLE IF NOT EXISTS snippet_fragments/i)
+    expect(snippetFragmentsMigration).toMatch(/REFERENCES snippets\(id\) ON DELETE CASCADE/i)
+    expect(snippetFragmentsMigration).toMatch(
+      /SELECT id \|\| ':fragment:1', id, 'main', content, language, 0, created_at, updated_at/i
+    )
+    expect(snippetFragmentsMigration).toContain('UNIQUE(snippet_id, sort_order)')
+    expect(snippetFragmentsMigration).toContain('idx_snippet_fragments_snippet_order')
+  })
+
+  it('registers the snippet fragments migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*17/)
+    expect(tauriLib).toContain('include_str!("../migrations/017_snippet_fragments.sql")')
   })
 })

@@ -48,8 +48,9 @@ describe('durable trash DB helpers', () => {
     ])
 
     const selects = sqlMock.select.mock.calls.map(([sql]) => String(sql))
-    expect(selects.filter((sql) => sql.includes('deleted_at IS NULL'))).toHaveLength(5)
-    expect(selects.filter((sql) => sql.includes('deleted_at IS NOT NULL'))).toHaveLength(5)
+    // Five top-level resource queries plus the snippet-fragment child query.
+    expect(selects.filter((sql) => sql.includes('deleted_at IS NULL'))).toHaveLength(6)
+    expect(selects.filter((sql) => sql.includes('deleted_at IS NOT NULL'))).toHaveLength(6)
   })
 
   it('soft deletes existing helpers and restores individual resources to Inbox only when needed', async () => {

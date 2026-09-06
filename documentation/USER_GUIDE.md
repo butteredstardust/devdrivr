@@ -156,13 +156,20 @@ targets render as unavailable instead of opening an ambiguous match. Title-only 
 
 ### Snippets
 
-Use Snippets to save and find reusable code.
+Use Snippets to save and find reusable code. A snippet can contain several ordered fragments—for
+example, a component, its styles, and a usage example—while remaining one searchable library item.
 
 - Categorize by language or purpose
 - Quick insert with keyboard shortcuts
 - Syntax highlighting
+- Accessible fragment tabs with create, rename, reorder, duplicate, and guarded delete controls
+- An optional Markdown description for usage notes and constraints
 - Export/import capabilities
 - Nested folders and durable Trash with restore and empty-trash confirmation
+
+Copy, download, language selection, and **Send to Prompt Templates** operate on the selected
+fragment. Duplicating a snippet and version 3 JSON backup/restore preserve the complete description,
+fragment order, names, languages, and contents. Older backups import as a single `main` fragment.
 
 ## Settings and Customization
 

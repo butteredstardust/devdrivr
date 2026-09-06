@@ -142,6 +142,7 @@ describe('core DB helpers', () => {
         { ...validNote, id: 'bad-color', color: 'ultraviolet' },
       ])
       .mockResolvedValueOnce([validSnippet, { ...validSnippet, created_at: 'yesterday' }])
+      .mockResolvedValueOnce([])
     const { loadNotes, loadSnippets } = await import('@/lib/db')
 
     await expect(loadNotes()).resolves.toEqual([

@@ -170,8 +170,10 @@ struct NoteUpdateArgs {
 #[serde(rename_all = "camelCase")]
 struct SnippetCreateArgs {
     title: String,
-    content: String,
+    content: Option<String>,
     language: Option<String>,
+    description: Option<String>,
+    fragments: Option<Vec<SnippetFragmentInput>>,
     tags: Option<Vec<String>>,
     folder_id: Option<String>,
     folder: Option<String>,
@@ -184,9 +186,65 @@ struct SnippetUpdateArgs {
     title: Option<String>,
     content: Option<String>,
     language: Option<String>,
+    description: Option<String>,
+    fragments: Option<Vec<SnippetFragmentInput>>,
     tags: Option<Vec<String>>,
     folder_id: Option<String>,
     folder: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct SnippetFragmentInput {
+    id: Option<String>,
+    name: String,
+    content: String,
+    language: Option<String>,
+}
+
+fn normalize_snippet_fragments(
+    fragments: Option<Vec<SnippetFragmentInput>>,
+    legacy_content: Option<String>,
+    legacy_language: Option<String>,
+) -> std::result::Result<Vec<(String, String, String, String)>, McpError> {
+    let Some(fragments) = fragments else {
+        return Ok(vec![(
+            Uuid::new_v4().to_string(),
+            "main".to_string(),
+            legacy_content.unwrap_or_default(),
+            legacy_language.unwrap_or_else(|| "text".to_string()),
+        )]);
+    };
+    if fragments.is_empty() || fragments.len() > 100 {
+        return Err(invalid_argument(
+            "fragments",
+            "A snippet must contain between 1 and 100 fragments",
+            &["Supply at least one fragment and no more than 100"],
+        ));
+    }
+    fragments
+        .into_iter()
+        .enumerate()
+        .map(|(index, fragment)| {
+            let name = fragment.name.trim().to_string();
+            if name.is_empty() {
+                return Err(invalid_argument(
+                    "fragments",
+                    format!("Fragment {} has an empty name", index + 1),
+                    &["Give every fragment a readable name"],
+                ));
+            }
+            Ok((
+                fragment
+                    .id
+                    .filter(|id| !id.trim().is_empty())
+                    .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                name,
+                fragment.content,
+                fragment.language.unwrap_or_else(|| "text".to_string()),
+            ))
+        })
+        .collect()
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -314,12 +372,24 @@ struct SnippetRow {
     title: String,
     content: String,
     language: String,
+    description: String,
     tags: String,
     folder: String,
     folder_id: Option<String>,
     created_at: i64,
     updated_at: i64,
     deleted_at: Option<i64>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct SnippetFragmentRow {
+    id: String,
+    name: String,
+    content: String,
+    language: String,
+    sort_order: i64,
+    created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -756,6 +826,7 @@ fn snippet_to_json(row: SnippetRow, folder_path: Vec<String>) -> Value {
         "title": row.title,
         "content": row.content,
         "language": row.language,
+        "description": row.description,
         "tags": parse_json(&row.tags, json!([])),
         "folder": row.folder,
         "folderId": row.folder_id,
@@ -1040,14 +1111,32 @@ fn searchable_text(resource_type: ResourceType, value: &Value) -> String {
             value_tags(value).join(" ")
         ),
         ResourceType::Snippets => format!(
-            "{}\n{}\n{}\n{}",
+            "{}\n{}\n{}\n{}\n{}",
             resource_title(resource_type, value),
             value
-                .get("content")
+                .get("description")
                 .and_then(Value::as_str)
                 .unwrap_or_default(),
             value
-                .get("language")
+                .get("fragments")
+                .map_or_else(String::new, |fragments| {
+                    fragments
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .flat_map(|fragment| {
+                            ["name", "content", "language"].map(|field| {
+                                fragment
+                                    .get(field)
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }),
+            value
+                .get("content")
                 .and_then(Value::as_str)
                 .unwrap_or_default(),
             value_tags(value).join(" ")
@@ -1482,7 +1571,7 @@ Use `introspect()` for complete resource fields, examples, permissions, and reda
 
 Primary resource types:
 - `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, optional `taskStatus`, `taskPriority`, `taskDueDate`, `createdAt`, `updatedAt`.
-- `snippets`: fields include `id`, `title`, `content`, `language`, `folderId`, `folderPath`, legacy `folder`, `tags`, `createdAt`, `updatedAt`.
+- `snippets`: fields include `id`, `title`, Markdown `description`, ordered `fragments`, legacy primary `content`/`language`, `folderId`, `folderPath`, legacy `folder`, `tags`, `createdAt`, `updatedAt`.
 - `promptTemplates`: fields include `id`, `name`, `prompt`, `variables`, `author`, `tags`, `estimatedTokens`, `createdAt`, `updatedAt`.
 - `apiRequests`: fields include `id`, `folderId`, `folderPath`, legacy `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
 
@@ -1583,6 +1672,36 @@ impl DevdrivrMcpService {
             .bind(kind)
             .bind(id)
             .bind(now_ms())
+            .execute(&mut **transaction)
+            .await
+            .map_err(db_error)?;
+        }
+        Ok(())
+    }
+
+    async fn replace_snippet_fragments(
+        transaction: &mut Transaction<'_, Sqlite>,
+        snippet_id: &str,
+        fragments: &[(String, String, String, String)],
+        now: i64,
+    ) -> std::result::Result<(), McpError> {
+        sqlx::query("DELETE FROM snippet_fragments WHERE snippet_id = $1")
+            .bind(snippet_id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(db_error)?;
+        for (sort_order, (id, name, content, language)) in fragments.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO snippet_fragments (id, snippet_id, name, content, language, sort_order, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            )
+            .bind(id)
+            .bind(snippet_id)
+            .bind(name)
+            .bind(content)
+            .bind(language)
+            .bind(sort_order as i64)
+            .bind(now)
+            .bind(now)
             .execute(&mut **transaction)
             .await
             .map_err(db_error)?;
@@ -1854,8 +1973,34 @@ impl DevdrivrMcpService {
     }
 
     async fn snippet_value(&self, row: SnippetRow) -> std::result::Result<Value, McpError> {
+        let snippet_id = row.id.clone();
         let folder_path = self.folder_path(row.folder_id.as_deref()).await?;
-        Ok(snippet_to_json(row, folder_path))
+        let fragments = sqlx::query_as::<_, SnippetFragmentRow>(
+            "SELECT id, name, content, language, sort_order, created_at, updated_at FROM snippet_fragments WHERE snippet_id = $1 ORDER BY sort_order, created_at",
+        )
+        .bind(snippet_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let mut value = snippet_to_json(row, folder_path);
+        if let Value::Object(fields) = &mut value {
+            fields.insert(
+                "fragments".to_string(),
+                json!(fragments
+                    .into_iter()
+                    .map(|fragment| json!({
+                        "id": fragment.id,
+                        "name": fragment.name,
+                        "content": fragment.content,
+                        "language": fragment.language,
+                        "sortOrder": fragment.sort_order,
+                        "createdAt": fragment.created_at,
+                        "updatedAt": fragment.updated_at,
+                    }))
+                    .collect::<Vec<_>>()),
+            );
+        }
+        Ok(value)
     }
 
     async fn api_request_value(
@@ -2417,12 +2562,14 @@ impl DevdrivrMcpService {
                     }
                 },
                 "snippets": {
-                    "description": "Reusable code or text snippets.",
+                    "description": "Reusable code or text snippets with ordered fragments.",
                     "fields": {
                         "id": "string",
                         "title": "string",
                         "content": "string",
                         "language": "string",
+                        "description": "string (Markdown)",
+                        "fragments": "{id,name,content,language,sortOrder,createdAt,updatedAt}[]",
                         "folder": "string",
                         "folderId": "string (defaults to snippets-inbox; legacy folder is accepted)",
                         "folderPath": "string[] (computed from resource folder ancestry)",
@@ -2430,15 +2577,15 @@ impl DevdrivrMcpService {
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
-                    "searchableFields": ["title", "content", "language", "tags"],
+                    "searchableFields": ["title", "description", "fragments.name", "fragments.content", "fragments.language", "tags"],
                     "dateFields": ["createdAt", "updatedAt"],
                     "tags": true,
-                    "createRequired": ["title", "content"],
+                    "createRequired": ["title"],
                     "updateRequired": ["id"],
                     "example": {
                         "title": "Fetch wrapper",
-                        "content": "async function request() {}",
-                        "language": "typescript",
+                        "description": "Fetch JSON with consistent error handling.",
+                        "fragments": [{ "name": "client.ts", "content": "async function request() {}", "language": "typescript" }],
                         "tags": ["typescript"]
                     }
                 },
@@ -2809,24 +2956,30 @@ impl DevdrivrMcpService {
         self.ensure_permission("snippets", "create").await?;
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
+        let fragments = normalize_snippet_fragments(args.fragments, args.content, args.language)?;
+        let primary = &fragments[0];
         let (folder_id, folder, created_folder) = self
             .resolve_snippet_folder(args.folder_id, args.folder, None)
             .await?;
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         sqlx::query(
-            "INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            "INSERT INTO snippets (id, title, content, language, description, tags, folder, folder_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(&id)
         .bind(args.title)
-        .bind(args.content)
-        .bind(args.language.unwrap_or_default())
+        .bind(&primary.2)
+        .bind(&primary.3)
+        .bind(args.description.unwrap_or_default())
         .bind(string_vec_to_db_json(args.tags))
         .bind(folder)
         .bind(folder_id)
         .bind(now)
         .bind(now)
-        .execute(&self.pool)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        Self::replace_snippet_fragments(&mut transaction, &id, &fragments, now).await?;
+        transaction.commit().await.map_err(db_error)?;
         if created_folder {
             self.emit_changed("folders", "create", None);
         }
@@ -2849,23 +3002,55 @@ impl DevdrivrMcpService {
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
             .unwrap_or_else(|| current.tags.clone());
+        let replacement_fragments = args
+            .fragments
+            .map(|fragments| normalize_snippet_fragments(Some(fragments), None, None))
+            .transpose()?;
+        let content = replacement_fragments
+            .as_ref()
+            .map(|fragments| fragments[0].2.clone())
+            .or(args.content)
+            .unwrap_or_else(|| current.content.clone());
+        let language = replacement_fragments
+            .as_ref()
+            .map(|fragments| fragments[0].3.clone())
+            .or(args.language)
+            .unwrap_or_else(|| current.language.clone());
         let (folder_id, folder, created_folder) = self
             .resolve_snippet_folder(args.folder_id, args.folder, Some(&current))
             .await?;
+        let now = now_ms();
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         sqlx::query(
-            "UPDATE snippets SET title=$2, content=$3, language=$4, tags=$5, folder=$6, folder_id=$7, updated_at=$8 WHERE id=$1",
+            "UPDATE snippets SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, updated_at=$9 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(args.title.unwrap_or(current.title))
-        .bind(args.content.unwrap_or(current.content))
-        .bind(args.language.unwrap_or(current.language))
+        .bind(&content)
+        .bind(&language)
+        .bind(args.description.unwrap_or(current.description))
         .bind(tags)
         .bind(folder)
         .bind(folder_id)
-        .bind(now_ms())
-        .execute(&self.pool)
+        .bind(now)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        if let Some(fragments) = replacement_fragments {
+            Self::replace_snippet_fragments(&mut transaction, &args.id, &fragments, now).await?;
+        } else {
+            sqlx::query(
+                "UPDATE snippet_fragments SET content=$2, language=$3, updated_at=$4 WHERE id = (SELECT id FROM snippet_fragments WHERE snippet_id=$1 ORDER BY sort_order LIMIT 1)",
+            )
+            .bind(&args.id)
+            .bind(content)
+            .bind(language)
+            .bind(now)
+            .execute(&mut *transaction)
+            .await
+            .map_err(db_error)?;
+        }
+        transaction.commit().await.map_err(db_error)?;
         if created_folder {
             self.emit_changed("folders", "create", None);
         }
@@ -3534,6 +3719,44 @@ mod tests {
                 ("snippet".to_string(), "snippet-1".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn snippet_fragments_preserve_order_and_require_readable_names() {
+        let fragments = normalize_snippet_fragments(
+            Some(vec![
+                SnippetFragmentInput {
+                    id: Some("client".to_string()),
+                    name: "client.ts".to_string(),
+                    content: "fetch(url)".to_string(),
+                    language: Some("typescript".to_string()),
+                },
+                SnippetFragmentInput {
+                    id: Some("styles".to_string()),
+                    name: "styles.css".to_string(),
+                    content: ".root {}".to_string(),
+                    language: Some("css".to_string()),
+                },
+            ]),
+            None,
+            None,
+        )
+        .expect("valid fragments");
+
+        assert_eq!(fragments[0].0, "client");
+        assert_eq!(fragments[1].1, "styles.css");
+        assert!(normalize_snippet_fragments(Some(Vec::new()), None, None).is_err());
+        assert!(normalize_snippet_fragments(
+            Some(vec![SnippetFragmentInput {
+                id: None,
+                name: "  ".to_string(),
+                content: String::new(),
+                language: None,
+            }]),
+            None,
+            None,
+        )
+        .is_err());
     }
 
     #[test]

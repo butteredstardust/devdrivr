@@ -129,7 +129,7 @@ These stores hold application state. The table identifies its persistence.
 | `settings.store.ts`         | Theme, sidebar, drawer, editor prefs                           | SQLite `settings` → `appSettings` key                        |
 | `ui.store.ts`               | Active tool, modals open, toasts, pendingSendTo                | None (transient)                                             |
 | `notes.store.ts`            | All sticky notes (color, pinned, bounds, sort order)           | SQLite `notes` table                                         |
-| `snippets.store.ts`         | Code snippets with tags and folders                            | SQLite `snippets` table                                      |
+| `snippets.store.ts`         | Multi-fragment code snippets, descriptions, tags, and folders  | SQLite `snippets` + `snippet_fragments` tables               |
 | `folders.store.ts`          | Shared Notes, Snippets, and API request folder hierarchy       | SQLite `resource_folders` table                              |
 | `history.store.ts`          | Tool execution history (input/output)                          | SQLite `history` table                                       |
 | `tool-state.store.ts`       | In-memory cache of tool UI states                              | Write-through to SQLite `tool_state`                         |
@@ -238,7 +238,8 @@ src-tauri/
 │   ├── 013_resource_folders.sql              ← typed nested libraries and legacy backfills
 │   ├── 014_durable_trash.sql                 ← soft-delete timestamps and live/trash indexes
 │   ├── 015_note_tasks.sql                    ← optional note task metadata and task-view indexes
-│   └── 016_note_links.sql                    ← stable outgoing-link and backlink index
+│   ├── 016_note_links.sql                    ← stable outgoing-link and backlink index
+│   └── 017_snippet_fragments.sql             ← descriptions, ordered fragments, legacy backfill
 ├── icons/                     ← App icons (all sizes)
 └── tauri.conf.json            ← Window size/min, bundle config, app identifier
 ```

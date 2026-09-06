@@ -147,6 +147,10 @@ export type Snippet = {
   title: string
   content: string
   language: string
+  /** Optional Markdown context shared by every fragment. */
+  description?: string
+  /** Ordered code fragments. Legacy callers may omit this and use content/language. */
+  fragments?: SnippetFragment[]
   tags: string[]
   /** Persisted favorite flag; optional for imported/legacy in-memory fixtures. */
   favorite?: boolean
@@ -157,6 +161,16 @@ export type Snippet = {
   updatedAt: number
   /** Set only while the snippet is in durable trash. */
   deletedAt?: number
+}
+
+export type SnippetFragment = {
+  id: string
+  name: string
+  content: string
+  language: string
+  sortOrder: number
+  createdAt: number
+  updatedAt: number
 }
 
 export const PROMPT_TEMPLATE_CATEGORIES = [
