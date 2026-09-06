@@ -100,6 +100,12 @@ pub fn run() {
             sql: include_str!("../migrations/013_resource_folders.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 14,
+            description: "add durable trash",
+            sql: include_str!("../migrations/014_durable_trash.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

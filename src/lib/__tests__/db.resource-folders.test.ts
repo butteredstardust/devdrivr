@@ -69,6 +69,7 @@ describe('resource folder DB helpers', () => {
         folder.defaultLanguage,
         folder.createdAt,
         folder.updatedAt,
+        null,
       ]
     )
     expect(coreMock.invoke).toHaveBeenCalledWith('db_execute_batch', {

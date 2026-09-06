@@ -4,6 +4,7 @@ import promptTemplateAuthorsMigration from '@/../src-tauri/migrations/007_prompt
 import notesSortOrderMigration from '@/../src-tauri/migrations/008_notes_sort_order.sql?raw'
 import persistenceBackfillsMigration from '@/../src-tauri/migrations/009_persistence_backfills.sql?raw'
 import resourceFoldersMigration from '@/../src-tauri/migrations/013_resource_folders.sql?raw'
+import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -58,5 +59,28 @@ describe('persistence migrations', () => {
   it('registers the resource folder migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*13/)
     expect(tauriLib).toContain('include_str!("../migrations/013_resource_folders.sql")')
+  })
+
+  it('backfills and indexes durable trash columns for every trashable resource', () => {
+    for (const table of [
+      'notes',
+      'snippets',
+      'api_requests',
+      'resource_folders',
+      'api_collections',
+    ]) {
+      expect(durableTrashMigration).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+${table}\\s+ADD\\s+COLUMN\\s+deleted_at`, 'i')
+      )
+      expect(durableTrashMigration).toMatch(
+        new RegExp(`UPDATE\\s+${table}\\s+SET\\s+deleted_at\\s*=\\s*NULL`, 'i')
+      )
+      expect(durableTrashMigration).toMatch(new RegExp(`idx_${table}_deleted_at`, 'i'))
+    }
+  })
+
+  it('registers the durable trash migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*14/)
+    expect(tauriLib).toContain('include_str!("../migrations/014_durable_trash.sql")')
   })
 })

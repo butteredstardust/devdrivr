@@ -69,6 +69,7 @@ export const noteRowSchema = z
     tags: z.string().optional(),
     sort_order: z.number().default(0),
     folder_id: z.string().nullable().optional(),
+    deleted_at: z.number().nullable().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -92,6 +93,7 @@ export const noteRowSchema = z
       sortOrder: row.sort_order,
     }
     if (row.folder_id != null) note.folderId = row.folder_id
+    if (row.deleted_at != null) note.deletedAt = row.deleted_at
     if (
       row.window_x != null &&
       row.window_y != null &&
@@ -119,6 +121,7 @@ export const snippetRowSchema = z
     favorite: z.union([z.number(), z.boolean()]).default(0),
     folder: z.string().default(''),
     folder_id: z.string().nullable().optional(),
+    deleted_at: z.number().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
   })
@@ -136,6 +139,7 @@ export const snippetRowSchema = z
       updatedAt: row.updated_at,
     }
     if (row.folder_id != null) snippet.folderId = row.folder_id
+    if (row.deleted_at != null) snippet.deletedAt = row.deleted_at
     return snippet
   })
 
@@ -150,6 +154,7 @@ export const resourceFolderRowSchema = z
     default_language: z.string().nullable(),
     created_at: z.number(),
     updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
   })
   .transform((row): ResourceFolder => {
     const folder: ResourceFolder = {
@@ -162,6 +167,7 @@ export const resourceFolderRowSchema = z
       updatedAt: row.updated_at,
     }
     if (row.default_language != null) folder.defaultLanguage = row.default_language
+    if (row.deleted_at != null) folder.deletedAt = row.deleted_at
     return folder
   })
 
@@ -306,6 +312,7 @@ export const apiCollectionRowSchema = z
     default_language: z.string().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
   })
   .transform((row): import('@/types/models').ApiCollection => {
     const collection: import('@/types/models').ApiCollection = {
@@ -317,6 +324,7 @@ export const apiCollectionRowSchema = z
     if (row.parent_id !== undefined) collection.parentId = row.parent_id
     if (row.sort_order !== undefined) collection.sortOrder = row.sort_order
     if (row.default_language != null) collection.defaultLanguage = row.default_language
+    if (row.deleted_at != null) collection.deletedAt = row.deleted_at
     return collection
   })
 
@@ -333,9 +341,10 @@ export const apiRequestRowSchema = z
     auth: z.string(),
     created_at: z.number(),
     updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
   })
   .transform((row): import('@/types/models').ApiRequest => {
-    return {
+    const request: import('@/types/models').ApiRequest = {
       id: row.id,
       collectionId: row.collection_id,
       name: row.name,
@@ -360,4 +369,6 @@ export const apiRequestRowSchema = z
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
+    if (row.deleted_at != null) request.deletedAt = row.deleted_at
+    return request
   })

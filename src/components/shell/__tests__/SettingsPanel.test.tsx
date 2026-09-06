@@ -104,11 +104,11 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Notes (1)' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm clear?' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Trash Notes (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move all to Trash?' }))
 
     await waitFor(() => expect(clearNotes).toHaveBeenCalledTimes(1))
-    expect(addToast).toHaveBeenCalledWith('Notes cleared', 'success')
+    expect(addToast).toHaveBeenCalledWith('Notes moved to Trash', 'success')
   })
 
   it('rejects invalid MCP port input with feedback', async () => {

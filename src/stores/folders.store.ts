@@ -2,9 +2,14 @@ import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 import {
   loadResourceFolders,
+  loadTrashedResourceFolders,
+  emptyResourceTrash,
+  permanentlyDeleteResourceFolderSubtree,
+  restoreResourceFolderSubtree,
   saveResourceFolder,
   saveResourceFolderMove,
   saveResourceFolderOrder,
+  trashResourceFolderSubtree,
 } from '@/lib/db'
 import type { ResourceFolder, ResourceKind } from '@/types/models'
 import { isInboxFolder } from '@/lib/resource-folders'
@@ -22,6 +27,7 @@ type UpdateFolder = Partial<Pick<ResourceFolder, 'name' | 'defaultLanguage'>>
 
 type FoldersStore = {
   folders: ResourceFolder[]
+  trashedFolders: ResourceFolder[]
   initialized: boolean
   init: () => Promise<void>
   refresh: () => Promise<void>
@@ -30,6 +36,10 @@ type FoldersStore = {
   rename: (id: string, name: string) => Promise<void>
   move: (id: string, parentId: string | null, index?: number) => Promise<void>
   reorder: (sourceId: string, targetId: string, position: 'before' | 'after') => Promise<void>
+  trash: (id: string) => Promise<void>
+  restore: (id: string) => Promise<void>
+  permanentlyDelete: (id: string) => Promise<void>
+  emptyTrash: (kind: ResourceKind) => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -61,12 +71,21 @@ function hasDescendant(
 
 export const useFoldersStore = create<FoldersStore>()((set, get) => ({
   folders: [],
+  trashedFolders: [],
   initialized: false,
 
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        set({ folders: sortFolders(await loadResourceFolders()), initialized: true })
+        const [folders, trashedFolders] = await Promise.all([
+          loadResourceFolders(),
+          loadTrashedResourceFolders(),
+        ])
+        set({
+          folders: sortFolders(folders),
+          trashedFolders: sortFolders(trashedFolders),
+          initialized: true,
+        })
       })().catch((error: unknown) => {
         initPromise = null
         throw error
@@ -76,7 +95,15 @@ export const useFoldersStore = create<FoldersStore>()((set, get) => ({
   },
 
   refresh: async () => {
-    set({ folders: sortFolders(await loadResourceFolders()), initialized: true })
+    const [folders, trashedFolders] = await Promise.all([
+      loadResourceFolders(),
+      loadTrashedResourceFolders(),
+    ])
+    set({
+      folders: sortFolders(folders),
+      trashedFolders: sortFolders(trashedFolders),
+      initialized: true,
+    })
   },
 
   create: async ({ name, kind, parentId = null, defaultLanguage }) => {
@@ -191,5 +218,26 @@ export const useFoldersStore = create<FoldersStore>()((set, get) => ({
     set((state) => ({
       folders: sortFolders(state.folders.map((folder) => byId.get(folder.id) ?? folder)),
     }))
+  },
+
+  trash: async (id) => {
+    if (isInboxFolder(id)) throw new Error('Inbox folders cannot be moved to Trash')
+    await trashResourceFolderSubtree(id)
+    await get().refresh()
+  },
+
+  restore: async (id) => {
+    await restoreResourceFolderSubtree(id)
+    await get().refresh()
+  },
+
+  permanentlyDelete: async (id) => {
+    await permanentlyDeleteResourceFolderSubtree(id)
+    await get().refresh()
+  },
+
+  emptyTrash: async (kind) => {
+    await emptyResourceTrash(kind)
+    await get().refresh()
   },
 }))

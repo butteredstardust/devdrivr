@@ -235,7 +235,8 @@ src-tauri/
 │   ├── 009_persistence_backfills.sql        ← backfills for prior migrations' NULL columns
 │   ├── 011_api_history_response.sql          ← API history response snapshots
 │   ├── 012_snippets_favorite.sql             ← snippet favorite flag
-│   └── 013_resource_folders.sql              ← typed nested libraries and legacy backfills
+│   ├── 013_resource_folders.sql              ← typed nested libraries and legacy backfills
+│   └── 014_durable_trash.sql                 ← soft-delete timestamps and live/trash indexes
 ├── icons/                     ← App icons (all sizes)
 └── tauri.conf.json            ← Window size/min, bundle config, app identifier
 ```

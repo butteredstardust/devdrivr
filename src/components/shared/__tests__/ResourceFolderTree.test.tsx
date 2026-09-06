@@ -95,4 +95,16 @@ describe('ResourceFolderTree', () => {
     await waitFor(() => expect(props.onCreate).toHaveBeenCalledWith('root'))
     expect(props.onSelect).toHaveBeenCalledWith('new')
   })
+
+  it('offers folder trash without exposing the system Inbox', () => {
+    const onTrash = vi.fn()
+    renderTree({
+      folders: [{ ...root, id: 'snippets-inbox' }, sibling],
+      onTrash,
+    })
+
+    expect(screen.queryByRole('button', { name: 'Move Inbox to Trash' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Move Work to Trash' }))
+    expect(onTrash).toHaveBeenCalledWith(sibling)
+  })
 })

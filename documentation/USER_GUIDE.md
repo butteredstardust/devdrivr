@@ -124,18 +124,20 @@ Use this tool to validate, view, and transform YAML.
 Use this tool to send HTTP requests and inspect responses.
 
 - Create collections for organizing requests
+- Restore deleted requests or complete collection subtrees from durable Trash
 - Set up environment variables
 - View request history
 - Inspect detailed response information
 
 ### Notes
 
-Use the notes drawer to create and update local notes.
+Use the notes drawer for quick capture or open the Notes workspace for the full library.
 
 - Color-coded note system
 - Automatic saving and syncing
 - Searchable notes list
 - Rich text support
+- Nested folders and durable Trash with restore and empty-trash confirmation
 
 ### Snippets
 
@@ -145,6 +147,7 @@ Use Snippets to save and find reusable code.
 - Quick insert with keyboard shortcuts
 - Syntax highlighting
 - Export/import capabilities
+- Nested folders and durable Trash with restore and empty-trash confirmation
 
 ## Settings and Customization
 
@@ -240,6 +243,8 @@ The app stores workspace data locally in SQLite:
 - Snippets are stored in the `snippets` table
 - History is stored in the `history` table
 - API data is stored in `api_environments`, `api_collections`, and `api_requests` tables
+- Deleted notes, snippets, requests, and folders remain in SQLite with a deletion timestamp until
+  they are restored, permanently deleted, or removed with the relevant Empty Trash action.
 
 ### Data Persistence
 

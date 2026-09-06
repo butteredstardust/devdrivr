@@ -34,13 +34,14 @@ import { Input, Select } from '@/components/shared/Input'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
+import { TrashDialog, type TrashEntry } from '@/components/shared/TrashDialog'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useUiStore } from '@/stores/ui.store'
-import type { Snippet } from '@/types/models'
+import type { ResourceFolder, Snippet } from '@/types/models'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolState } from '@/hooks/useToolState'
@@ -265,6 +266,7 @@ export default function SnippetsManager() {
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const snippets = useSnippetsStore((state) => state.snippets)
+  const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
   const [handoffState, updateHandoffState] = useToolState<{
     handoff: { title: string; content: string; language: string } | null
   }>('snippets', { handoff: null })
@@ -276,10 +278,17 @@ export default function SnippetsManager() {
   const flushPendingSnippet = useSnippetsStore((state) => state.flushPending)
   const removeSnippet = useSnippetsStore((state) => state.remove)
   const restoreSnippet = useSnippetsStore((state) => state.restore)
+  const permanentlyDeleteSnippet = useSnippetsStore((state) => state.permanentlyDelete)
+  const refreshSnippets = useSnippetsStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
+  const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
   const updateFolder = useFoldersStore((state) => state.update)
   const moveFolder = useFoldersStore((state) => state.move)
+  const trashFolder = useFoldersStore((state) => state.trash)
+  const restoreFolder = useFoldersStore((state) => state.restore)
+  const permanentlyDeleteFolder = useFoldersStore((state) => state.permanentlyDelete)
+  const emptyFolderTrash = useFoldersStore((state) => state.emptyTrash)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
 
@@ -294,6 +303,8 @@ export default function SnippetsManager() {
   const [suggestionIndex, setSuggestionIndex] = useState(-1)
   const [titleFocusRequest, setTitleFocusRequest] = useState(0)
   const [recentlyDeleted, setRecentlyDeleted] = useState<Snippet | null>(null)
+  const [folderTrashCandidate, setFolderTrashCandidate] = useState<ResourceFolder | null>(null)
+  const [trashOpen, setTrashOpen] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -367,6 +378,30 @@ export default function SnippetsManager() {
   }, [fuseResults])
 
   const snippetFolders = useMemo(() => foldersForKind(folders, 'snippets'), [folders])
+  const trashedSnippetFolders = useMemo(
+    () => foldersForKind(trashedFolders, 'snippets'),
+    [trashedFolders]
+  )
+  const trashEntries = useMemo<TrashEntry[]>(() => {
+    const trashedFolderIds = new Set(trashedSnippetFolders.map((folder) => folder.id))
+    const folderEntries = trashedSnippetFolders
+      .filter((folder) => !folder.parentId || !trashedFolderIds.has(folder.parentId))
+      .map((folder) => ({
+        id: folder.id,
+        name: folder.name,
+        detail: 'Folder and its contents',
+        type: 'folder' as const,
+      }))
+    const snippetEntries = trashedSnippets
+      .filter((snippet) => !snippet.folderId || !trashedFolderIds.has(snippet.folderId))
+      .map((snippet) => ({
+        id: snippet.id,
+        name: snippet.title || 'Untitled snippet',
+        detail: snippet.language,
+        type: 'item' as const,
+      }))
+    return [...folderEntries, ...snippetEntries]
+  }, [trashedSnippetFolders, trashedSnippets])
   const selectedFolderIds = useMemo(
     () => (activeFolder ? descendantFolderIds(snippetFolders, activeFolder) : null),
     [activeFolder, snippetFolders]
@@ -523,16 +558,16 @@ export default function SnippetsManager() {
       deleteUndoTimerRef.current = setTimeout(() => setRecentlyDeleted(null), 8_000)
       setSelectedId(nextSelection?.id ?? null)
       setDeleteDialogOpen(false)
-      setLastAction('Snippet deleted', 'info')
+      setLastAction('Snippet moved to Trash', 'info')
     } catch {
-      setLastAction('Delete failed', 'error')
+      setLastAction('Failed to move snippet to Trash', 'error')
     }
   }, [filtered, removeSnippet, selected, setLastAction])
 
   const handleUndoDelete = useCallback(async () => {
     if (!recentlyDeleted) return
     try {
-      await restoreSnippet(recentlyDeleted)
+      await restoreSnippet(recentlyDeleted.id)
       setSelectedId(recentlyDeleted.id)
       setRecentlyDeleted(null)
       if (deleteUndoTimerRef.current) clearTimeout(deleteUndoTimerRef.current)
@@ -541,6 +576,59 @@ export default function SnippetsManager() {
       setLastAction('Restore failed', 'error')
     }
   }, [recentlyDeleted, restoreSnippet, setLastAction])
+
+  const handleTrashFolder = useCallback(async () => {
+    if (!folderTrashCandidate) return
+    try {
+      await flushPendingSnippet()
+      await trashFolder(folderTrashCandidate.id)
+      await refreshSnippets()
+      setActiveFolder('')
+      setFolderTrashCandidate(null)
+      setLastAction('Folder moved to Trash', 'info')
+    } catch {
+      setLastAction('Failed to move folder to Trash', 'error')
+    }
+  }, [
+    flushPendingSnippet,
+    folderTrashCandidate,
+    refreshSnippets,
+    setActiveFolder,
+    setLastAction,
+    trashFolder,
+  ])
+
+  const handleRestoreTrashEntry = useCallback(
+    async (entry: TrashEntry) => {
+      if (entry.type === 'folder') {
+        await restoreFolder(entry.id)
+        await refreshSnippets()
+      } else {
+        await restoreSnippet(entry.id)
+      }
+      setLastAction(`${entry.name} restored`, 'success')
+    },
+    [refreshSnippets, restoreFolder, restoreSnippet, setLastAction]
+  )
+
+  const handleDeleteTrashEntry = useCallback(
+    async (entry: TrashEntry) => {
+      if (entry.type === 'folder') {
+        await permanentlyDeleteFolder(entry.id)
+        await refreshSnippets()
+      } else {
+        await permanentlyDeleteSnippet(entry.id)
+      }
+      setLastAction(`${entry.name} permanently deleted`, 'info')
+    },
+    [permanentlyDeleteFolder, permanentlyDeleteSnippet, refreshSnippets, setLastAction]
+  )
+
+  const handleEmptyTrash = useCallback(async () => {
+    await emptyFolderTrash('snippets')
+    await refreshSnippets()
+    setLastAction('Snippets Trash emptied', 'info')
+  }, [emptyFolderTrash, refreshSnippets, setLastAction])
 
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
@@ -871,6 +959,16 @@ export default function SnippetsManager() {
             )}
             <Button
               type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTrashOpen(true)}
+              aria-label={`Open Snippets Trash, ${trashEntries.length} items`}
+            >
+              <TrashIcon size={12} aria-hidden="true" />
+              Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}
+            </Button>
+            <Button
+              type="button"
               variant="secondary"
               size="sm"
               onClick={() => void handleNew()}
@@ -954,6 +1052,7 @@ export default function SnippetsManager() {
               }
               onUpdate={updateFolder}
               onMove={moveFolder}
+              onTrash={setFolderTrashCandidate}
               itemCounts={folderCounts}
               languageOptions={LANGUAGES}
               label="Snippet folders"
@@ -1206,8 +1305,8 @@ export default function SnippetsManager() {
                     variant="icon"
                     size="sm"
                     onClick={() => setDeleteDialogOpen(true)}
-                    title="Delete snippet"
-                    aria-label="Delete snippet"
+                    title="Move snippet to Trash"
+                    aria-label="Move snippet to Trash"
                     className="hover:text-[var(--color-error)]"
                   >
                     <TrashIcon size={14} aria-hidden="true" />
@@ -1421,7 +1520,7 @@ export default function SnippetsManager() {
 
       {deleteDialogOpen && selected && (
         <Dialog
-          title="Delete snippet?"
+          title="Move snippet to Trash?"
           onClose={() => setDeleteDialogOpen(false)}
           initialFocusRef={cancelDeleteRef}
           footer={
@@ -1435,15 +1534,46 @@ export default function SnippetsManager() {
                 Cancel
               </Button>
               <Button type="button" variant="danger" onClick={() => void handleDelete()}>
-                Delete snippet
+                Move to Trash
               </Button>
             </>
           }
         >
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-            “{selected.title || 'Untitled'}” will be removed. You can undo for a few seconds.
+            “{selected.title || 'Untitled'}” can be restored from Trash at any time.
           </p>
         </Dialog>
+      )}
+      {folderTrashCandidate && (
+        <Dialog
+          title="Move folder to Trash?"
+          onClose={() => setFolderTrashCandidate(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setFolderTrashCandidate(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => void handleTrashFolder()}>
+                Move folder to Trash
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            “{folderTrashCandidate.name}” and everything nested inside it will move to Trash
+            together.
+          </p>
+        </Dialog>
+      )}
+      {trashOpen && (
+        <TrashDialog
+          title="Snippets Trash"
+          entries={trashEntries}
+          onClose={() => setTrashOpen(false)}
+          onRestore={handleRestoreTrashEntry}
+          onDeletePermanently={handleDeleteTrashEntry}
+          onEmpty={handleEmptyTrash}
+        />
       )}
     </>
   )

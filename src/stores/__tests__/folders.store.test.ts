@@ -1,18 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   loadResourceFolders,
+  loadTrashedResourceFolders,
   saveResourceFolder,
   saveResourceFolderMove,
   saveResourceFolderOrder,
+  emptyResourceTrash,
+  permanentlyDeleteResourceFolderSubtree,
+  restoreResourceFolderSubtree,
+  trashResourceFolderSubtree,
 } from '@/lib/db'
 import type { ResourceFolder } from '@/types/models'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   loadResourceFolders: vi.fn(),
+  loadTrashedResourceFolders: vi.fn(),
   saveResourceFolder: vi.fn(),
   saveResourceFolderMove: vi.fn(),
   saveResourceFolderOrder: vi.fn(),
+  emptyResourceTrash: vi.fn(),
+  permanentlyDeleteResourceFolderSubtree: vi.fn(),
+  restoreResourceFolderSubtree: vi.fn(),
+  trashResourceFolderSubtree: vi.fn(),
 }))
 
 const parent: ResourceFolder = {
@@ -30,9 +40,14 @@ describe('folders store', () => {
     vi.resetModules()
     vi.clearAllMocks()
     vi.mocked(loadResourceFolders).mockResolvedValue([])
+    vi.mocked(loadTrashedResourceFolders).mockResolvedValue([])
     vi.mocked(saveResourceFolder).mockResolvedValue()
     vi.mocked(saveResourceFolderMove).mockResolvedValue()
     vi.mocked(saveResourceFolderOrder).mockResolvedValue()
+    vi.mocked(emptyResourceTrash).mockResolvedValue()
+    vi.mocked(permanentlyDeleteResourceFolderSubtree).mockResolvedValue()
+    vi.mocked(restoreResourceFolderSubtree).mockResolvedValue()
+    vi.mocked(trashResourceFolderSubtree).mockResolvedValue()
   })
 
   it('initializes only once and recovers from a failed initialization', async () => {
@@ -131,5 +146,23 @@ describe('folders store', () => {
       })
     ).rejects.toThrow('snippet folders')
     expect(saveResourceFolderMove).not.toHaveBeenCalled()
+  })
+
+  it('trashes, restores, permanently deletes, and empties folder Trash by kind', async () => {
+    const { useFoldersStore } = await import('@/stores/folders.store')
+    const trashed = { ...parent, deletedAt: 2 }
+    useFoldersStore.setState({ folders: [parent], trashedFolders: [] })
+    vi.mocked(loadTrashedResourceFolders).mockResolvedValueOnce([trashed])
+
+    await useFoldersStore.getState().trash(parent.id)
+    expect(trashResourceFolderSubtree).toHaveBeenCalledWith(parent.id)
+    expect(useFoldersStore.getState().trashedFolders).toEqual([trashed])
+
+    await useFoldersStore.getState().restore(parent.id)
+    expect(restoreResourceFolderSubtree).toHaveBeenCalledWith(parent.id)
+    await useFoldersStore.getState().permanentlyDelete(parent.id)
+    expect(permanentlyDeleteResourceFolderSubtree).toHaveBeenCalledWith(parent.id)
+    await useFoldersStore.getState().emptyTrash('snippets')
+    expect(emptyResourceTrash).toHaveBeenCalledWith('snippets')
   })
 })

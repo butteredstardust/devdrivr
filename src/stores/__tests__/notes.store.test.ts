@@ -1,14 +1,26 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
-import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
+import {
+  loadNotes,
+  loadTrashedNotes,
+  saveNote,
+  saveNotesOrder,
+  deleteNote,
+  restoreNote,
+  permanentlyDeleteNote,
+  clearAllNotes,
+} from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 import type { Note } from '@/types/models'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
+  loadTrashedNotes: vi.fn(),
   saveNote: vi.fn(),
   saveNotesOrder: vi.fn(),
   deleteNote: vi.fn(),
+  restoreNote: vi.fn(),
+  permanentlyDeleteNote: vi.fn(),
   clearAllNotes: vi.fn(),
 }))
 
@@ -17,6 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useNotesStore.setState({
     notes: [],
+    trashedNotes: [],
     initialized: false,
     pendingSaveIds: [],
     saveErrorIds: [],
@@ -24,9 +37,12 @@ beforeEach(() => {
   // Reset the module-level initPromise by re-importing
   // Instead, we test the store actions directly (add, update, remove)
   ;(loadNotes as any).mockResolvedValue([])
+  ;(loadTrashedNotes as any).mockResolvedValue([])
   ;(saveNote as any).mockResolvedValue(undefined)
   ;(saveNotesOrder as any).mockResolvedValue(undefined)
   ;(deleteNote as any).mockResolvedValue(undefined)
+  ;(restoreNote as any).mockResolvedValue(undefined)
+  ;(permanentlyDeleteNote as any).mockResolvedValue(undefined)
   ;(clearAllNotes as any).mockResolvedValue(undefined)
 })
 
@@ -228,6 +244,36 @@ describe('notes store', () => {
     const { notes } = useNotesStore.getState()
     expect(notes).toHaveLength(0)
     expect(deleteNote).toHaveBeenCalledWith(note.id)
+  })
+
+  it('restores and permanently deletes notes from durable Trash', async () => {
+    const trashed: Note = {
+      id: 'trashed-note',
+      title: 'Recover me',
+      content: '',
+      color: 'yellow',
+      pinned: false,
+      poppedOut: false,
+      tags: [],
+      sortOrder: 0,
+      folderId: 'notes-inbox',
+      createdAt: 1,
+      updatedAt: 1,
+      deletedAt: 2,
+    }
+    useNotesStore.setState({ trashedNotes: [trashed] })
+    const restored = { ...trashed }
+    delete restored.deletedAt
+    ;(loadNotes as any).mockResolvedValueOnce([restored])
+
+    await useNotesStore.getState().restore(trashed.id)
+    expect(restoreNote).toHaveBeenCalledWith(trashed.id)
+    expect(useNotesStore.getState().notes).toHaveLength(1)
+
+    useNotesStore.setState({ trashedNotes: [trashed] })
+    await useNotesStore.getState().permanentlyDelete(trashed.id)
+    expect(permanentlyDeleteNote).toHaveBeenCalledWith(trashed.id)
+    expect(useNotesStore.getState().trashedNotes).toEqual([])
   })
 
   it('reorders notes within the same pin group', async () => {

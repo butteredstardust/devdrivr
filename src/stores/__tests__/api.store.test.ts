@@ -7,11 +7,14 @@ import {
   loadApiCollections,
   loadApiEnvironments,
   loadApiRequests,
+  loadTrashedApiRequests,
   loadHistory,
   saveApiCollection,
   saveApiEnvironment,
   saveApiImport,
   saveApiRequest,
+  restoreApiRequest,
+  permanentlyDeleteApiRequest,
 } from '@/lib/db'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
@@ -22,12 +25,15 @@ vi.mock('@/lib/db', () => ({
   deleteApiCollection: vi.fn(),
   deleteApiEnvironment: vi.fn(),
   deleteApiRequest: vi.fn(),
+  restoreApiRequest: vi.fn(),
+  permanentlyDeleteApiRequest: vi.fn(),
   // NET-03: the active environment id is now persisted like any other setting.
   getSetting: vi.fn().mockResolvedValue(null),
   setSetting: vi.fn().mockResolvedValue(undefined),
   loadApiCollections: vi.fn(),
   loadApiEnvironments: vi.fn(),
   loadApiRequests: vi.fn(),
+  loadTrashedApiRequests: vi.fn(),
   loadHistory: vi.fn(),
   saveApiCollection: vi.fn(),
   saveApiEnvironment: vi.fn(),
@@ -75,6 +81,7 @@ describe('API store persistence', () => {
     vi.mocked(loadApiEnvironments).mockResolvedValue([])
     vi.mocked(loadApiCollections).mockResolvedValue([])
     vi.mocked(loadApiRequests).mockResolvedValue([])
+    vi.mocked(loadTrashedApiRequests).mockResolvedValue([])
     vi.mocked(loadHistory).mockResolvedValue([])
     vi.mocked(saveApiEnvironment).mockResolvedValue()
     vi.mocked(saveApiCollection).mockResolvedValue()
@@ -83,12 +90,15 @@ describe('API store persistence', () => {
     vi.mocked(deleteApiEnvironment).mockResolvedValue()
     vi.mocked(deleteApiCollection).mockResolvedValue()
     vi.mocked(deleteApiRequest).mockResolvedValue()
+    vi.mocked(restoreApiRequest).mockResolvedValue()
+    vi.mocked(permanentlyDeleteApiRequest).mockResolvedValue()
     vi.mocked(addHistoryEntry).mockResolvedValue()
     useApiStore.setState({
       initialized: false,
       environments: [],
       collections: [],
       requests: [],
+      trashedRequests: [],
       activeEnvironmentId: null,
       requestHistory: [],
     })
@@ -205,6 +215,21 @@ describe('API store persistence', () => {
       collections: [],
       requests: [],
     })
+  })
+
+  it('restores and permanently deletes requests from durable Trash', async () => {
+    const trashed = { ...persistedRequest, deletedAt: 10 }
+    useApiStore.setState({ trashedRequests: [trashed] })
+    vi.mocked(loadApiRequests).mockResolvedValueOnce([persistedRequest])
+
+    await useApiStore.getState().restoreRequest(trashed.id)
+    expect(restoreApiRequest).toHaveBeenCalledWith(trashed.id)
+    expect(useApiStore.getState().requests).toEqual([persistedRequest])
+
+    useApiStore.setState({ trashedRequests: [trashed] })
+    await useApiStore.getState().permanentlyDeleteRequest(trashed.id)
+    expect(permanentlyDeleteApiRequest).toHaveBeenCalledWith(trashed.id)
+    expect(useApiStore.getState().trashedRequests).toEqual([])
   })
 
   it('imports multiple collections with fresh IDs and preserves request metadata', async () => {

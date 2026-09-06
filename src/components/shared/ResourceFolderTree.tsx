@@ -10,6 +10,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   PencilSimpleIcon,
+  TrashIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
@@ -26,6 +27,7 @@ type Props = {
   onCreate: (parentId: string | null) => Promise<ResourceFolder>
   onUpdate: (id: string, patch: FolderPatch) => Promise<void>
   onMove: (id: string, parentId: string | null, index: number) => Promise<void>
+  onTrash?: (folder: ResourceFolder) => void
   itemCounts?: ReadonlyMap<string, number>
   languageOptions?: readonly string[]
   label?: string
@@ -58,6 +60,7 @@ export function ResourceFolderTree({
   onCreate,
   onUpdate,
   onMove,
+  onTrash,
   itemCounts,
   languageOptions,
   label = 'Folders',
@@ -353,6 +356,18 @@ export function ResourceFolderTree({
                       className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <PencilSimpleIcon size={11} aria-hidden="true" />
+                    </Button>
+                  )}
+                  {movable && onTrash && (
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="xs"
+                      onClick={() => onTrash(folder)}
+                      aria-label={`Move ${folder.name} to Trash`}
+                      className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <TrashIcon size={11} aria-hidden="true" />
                     </Button>
                   )}
                   {movable && (

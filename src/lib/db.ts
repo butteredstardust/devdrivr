@@ -165,6 +165,7 @@ type NoteRow = {
   tags: string
   sort_order: number
   folder_id: string | null
+  deleted_at: number | null
 }
 
 function rowToNote(row: NoteRow): Note | null {
@@ -177,9 +178,17 @@ function rowToNote(row: NoteRow): Note | null {
 }
 
 export async function loadNotes(): Promise<Note[]> {
+  return loadNotesByTrash(false)
+}
+
+export async function loadTrashedNotes(): Promise<Note[]> {
+  return loadNotesByTrash(true)
+}
+
+async function loadNotesByTrash(trashed: boolean): Promise<Note[]> {
   const conn = await getDb()
   const rows = await conn.select<NoteRow[]>(
-    'SELECT * FROM notes ORDER BY pinned DESC, sort_order ASC, updated_at DESC'
+    `SELECT * FROM notes WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY pinned DESC, sort_order ASC, updated_at DESC`
   )
   return rows.map(rowToNote).filter((n): n is Note => n !== null)
 }
@@ -187,8 +196,8 @@ export async function loadNotes(): Promise<Note[]> {
 export async function saveNote(note: Note): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order, folder_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order, folder_id, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, color=$4, pinned=$5, popped_out=$6, window_x=$7, window_y=$8, window_width=$9, window_height=$10, updated_at=$12, tags=$13, sort_order=$14, folder_id=$15`,
       [
         note.id,
@@ -206,6 +215,7 @@ export async function saveNote(note: Note): Promise<void> {
         JSON.stringify(note.tags || []),
         note.sortOrder,
         note.folderId ?? 'notes-inbox',
+        note.deletedAt ?? null,
       ]
     )
   )
@@ -223,7 +233,32 @@ export async function saveNotesOrder(notes: Pick<Note, 'id' | 'sortOrder'>[]): P
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM notes WHERE id = $1', [id]))
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE notes SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL', [
+      Date.now(),
+      id,
+    ])
+  )
+}
+
+export async function restoreNote(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `UPDATE notes SET deleted_at = NULL,
+       folder_id = CASE WHEN EXISTS (
+         SELECT 1 FROM resource_folders folder
+         WHERE folder.id = notes.folder_id AND folder.kind = 'notes' AND folder.deleted_at IS NULL
+       ) THEN folder_id ELSE 'notes-inbox' END
+       WHERE id = $1 AND deleted_at IS NOT NULL`,
+      [id]
+    )
+  )
+}
+
+export async function permanentlyDeleteNote(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute('DELETE FROM notes WHERE id = $1 AND deleted_at IS NOT NULL', [id])
+  )
 }
 
 // --- Snippets ---
@@ -236,6 +271,7 @@ type SnippetRow = {
   tags: string
   folder: string
   folder_id: string | null
+  deleted_at: number | null
   favorite: number
   created_at: number
   updated_at: number
@@ -251,16 +287,26 @@ function rowToSnippet(row: SnippetRow): Snippet | null {
 }
 
 export async function loadSnippets(): Promise<Snippet[]> {
+  return loadSnippetsByTrash(false)
+}
+
+export async function loadTrashedSnippets(): Promise<Snippet[]> {
+  return loadSnippetsByTrash(true)
+}
+
+async function loadSnippetsByTrash(trashed: boolean): Promise<Snippet[]> {
   const conn = await getDb()
-  const rows = await conn.select<SnippetRow[]>('SELECT * FROM snippets ORDER BY updated_at DESC')
+  const rows = await conn.select<SnippetRow[]>(
+    `SELECT * FROM snippets WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY updated_at DESC`
+  )
   return rows.map(rowToSnippet).filter((s): s is Snippet => s !== null)
 }
 
 export async function saveSnippet(snippet: Snippet): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute(
-      `INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, favorite, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO snippets (id, title, content, language, tags, folder, folder_id, favorite, created_at, updated_at, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, tags=$5, folder=$6, folder_id=$7, favorite=$8, updated_at=$10`,
       [
         snippet.id,
@@ -273,13 +319,43 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
         snippet.favorite ? 1 : 0,
         snippet.createdAt,
         snippet.updatedAt,
+        snippet.deletedAt ?? null,
       ]
     )
   )
 }
 
 export async function deleteSnippet(id: string): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets WHERE id = $1', [id]))
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE snippets SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL', [
+      Date.now(),
+      id,
+    ])
+  )
+}
+
+export async function restoreSnippet(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `UPDATE snippets SET deleted_at = NULL,
+       folder_id = CASE WHEN EXISTS (
+         SELECT 1 FROM resource_folders folder
+         WHERE folder.id = snippets.folder_id AND folder.kind = 'snippets' AND folder.deleted_at IS NULL
+       ) THEN folder_id ELSE 'snippets-inbox' END,
+       folder = CASE WHEN EXISTS (
+         SELECT 1 FROM resource_folders folder
+         WHERE folder.id = snippets.folder_id AND folder.kind = 'snippets' AND folder.deleted_at IS NULL
+       ) THEN folder ELSE '' END
+       WHERE id = $1 AND deleted_at IS NOT NULL`,
+      [id]
+    )
+  )
+}
+
+export async function permanentlyDeleteSnippet(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute('DELETE FROM snippets WHERE id = $1 AND deleted_at IS NOT NULL', [id])
+  )
 }
 
 // --- Prompt Templates ---
@@ -481,11 +557,23 @@ export async function pruneHistory(tool: string, keepCount: number): Promise<voi
 // --- Bulk clear ---
 
 export async function clearAllNotes(): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM notes'))
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE notes SET deleted_at = $1 WHERE deleted_at IS NULL', [Date.now()])
+  )
 }
 
 export async function clearAllSnippets(): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets'))
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE snippets SET deleted_at = $1 WHERE deleted_at IS NULL', [Date.now()])
+  )
+}
+
+export async function emptyNotesTrash(): Promise<void> {
+  await enqueueWrite((conn) => conn.execute('DELETE FROM notes WHERE deleted_at IS NOT NULL'))
+}
+
+export async function emptySnippetsTrash(): Promise<void> {
+  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets WHERE deleted_at IS NOT NULL'))
 }
 
 export async function clearAllHistory(): Promise<void> {
@@ -497,9 +585,17 @@ export async function clearAllHistory(): Promise<void> {
 // --- Resource folders ---
 
 export async function loadResourceFolders(): Promise<ResourceFolder[]> {
+  return loadResourceFoldersByTrash(false)
+}
+
+export async function loadTrashedResourceFolders(): Promise<ResourceFolder[]> {
+  return loadResourceFoldersByTrash(true)
+}
+
+async function loadResourceFoldersByTrash(trashed: boolean): Promise<ResourceFolder[]> {
   const conn = await getDb()
   const rows = await conn.select<Array<Record<string, unknown>>>(
-    'SELECT * FROM resource_folders ORDER BY kind ASC, parent_id ASC, sort_order ASC, name ASC'
+    `SELECT * FROM resource_folders WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY kind ASC, parent_id ASC, sort_order ASC, name ASC`
   )
   return rows
     .map((row) => {
@@ -515,8 +611,8 @@ export async function loadResourceFolders(): Promise<ResourceFolder[]> {
 
 function buildSaveResourceFolder(folder: ResourceFolder): BatchStatement {
   return {
-    sql: `INSERT INTO resource_folders (id, name, parent_id, kind, sort_order, default_language, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    sql: `INSERT INTO resource_folders (id, name, parent_id, kind, sort_order, default_language, created_at, updated_at, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, kind=$4, sort_order=$5, default_language=$6, updated_at=$8`,
     params: [
       folder.id,
@@ -527,6 +623,7 @@ function buildSaveResourceFolder(folder: ResourceFolder): BatchStatement {
       folder.defaultLanguage ?? null,
       folder.createdAt,
       folder.updatedAt,
+      folder.deletedAt ?? null,
     ],
   }
 }
@@ -612,6 +709,153 @@ export async function saveResourceFolderOrder(
   )
 }
 
+const subtreeIdsSql = `WITH RECURSIVE subtree(id) AS (
+  SELECT id FROM resource_folders WHERE id = $2
+  UNION ALL
+  SELECT folder.id FROM resource_folders folder JOIN subtree ON folder.parent_id = subtree.id
+) SELECT id FROM subtree`
+const subtreeIdsForIdSql = subtreeIdsSql.replace('$2', '$1')
+const trashedSubtreeIdsForIdSql = subtreeIdsForIdSql.replace(
+  'WHERE id = $1',
+  'WHERE id = $1 AND deleted_at IS NOT NULL'
+)
+
+/** Soft-deletes a folder, every descendant, and the resources they contain. */
+export async function trashResourceFolderSubtree(id: string): Promise<void> {
+  const deletedAt = Date.now()
+  await runBatch(
+    [
+      {
+        sql: `UPDATE resource_folders SET deleted_at = $1
+          WHERE id IN (${subtreeIdsSql}) AND deleted_at IS NULL`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE notes SET deleted_at = $1
+          WHERE folder_id IN (${subtreeIdsSql}) AND deleted_at IS NULL`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE snippets SET deleted_at = $1
+          WHERE folder_id IN (${subtreeIdsSql}) AND deleted_at IS NULL`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE api_collections SET deleted_at = $1
+          WHERE id IN (${subtreeIdsSql}) AND deleted_at IS NULL`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE api_requests SET deleted_at = $1
+          WHERE collection_id IN (${subtreeIdsSql}) AND deleted_at IS NULL`,
+        params: [deletedAt, id],
+      },
+    ],
+    true
+  )
+}
+
+/** Restores only rows marked by this folder deletion, retaining their original parents. */
+export async function restoreResourceFolderSubtree(id: string): Promise<void> {
+  const conn = await getDb()
+  const rows = await conn.select<Array<{ deleted_at: number | null }>>(
+    'SELECT deleted_at FROM resource_folders WHERE id = $1',
+    [id]
+  )
+  const deletedAt = rows[0]?.deleted_at
+  if (deletedAt == null) return
+  await runBatch(
+    [
+      {
+        sql: `UPDATE resource_folders SET deleted_at = NULL
+          WHERE id IN (${subtreeIdsSql}) AND deleted_at = $1`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE notes SET deleted_at = NULL
+          WHERE folder_id IN (${subtreeIdsSql}) AND deleted_at = $1`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE snippets SET deleted_at = NULL
+          WHERE folder_id IN (${subtreeIdsSql}) AND deleted_at = $1`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE api_collections SET deleted_at = NULL
+          WHERE id IN (${subtreeIdsSql}) AND deleted_at = $1`,
+        params: [deletedAt, id],
+      },
+      {
+        sql: `UPDATE api_requests SET deleted_at = NULL
+          WHERE collection_id IN (${subtreeIdsSql}) AND deleted_at = $1`,
+        params: [deletedAt, id],
+      },
+    ],
+    true
+  )
+}
+
+export async function permanentlyDeleteResourceFolderSubtree(id: string): Promise<void> {
+  await runBatch(
+    [
+      {
+        sql: `DELETE FROM notes WHERE folder_id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
+        params: [id],
+      },
+      {
+        sql: `DELETE FROM snippets WHERE folder_id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
+        params: [id],
+      },
+      {
+        sql: `DELETE FROM api_requests WHERE collection_id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
+        params: [id],
+      },
+      {
+        sql: `DELETE FROM api_collections WHERE id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
+        params: [id],
+      },
+      {
+        sql: `DELETE FROM resource_folders WHERE id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
+        params: [id],
+      },
+    ],
+    true
+  )
+}
+
+/** Permanently removes only trashed data belonging to the requested resource kind. */
+export async function emptyResourceTrash(kind: ResourceKind): Promise<void> {
+  const statementsByKind: Record<ResourceKind, BatchStatement[]> = {
+    notes: [
+      { sql: 'DELETE FROM notes WHERE deleted_at IS NOT NULL', params: [] },
+      {
+        sql: "DELETE FROM resource_folders WHERE kind = 'notes' AND deleted_at IS NOT NULL",
+        params: [],
+      },
+    ],
+    snippets: [
+      { sql: 'DELETE FROM snippets WHERE deleted_at IS NOT NULL', params: [] },
+      {
+        sql: "DELETE FROM resource_folders WHERE kind = 'snippets' AND deleted_at IS NOT NULL",
+        params: [],
+      },
+    ],
+    apiRequests: [
+      { sql: 'DELETE FROM api_requests WHERE deleted_at IS NOT NULL', params: [] },
+      {
+        sql: 'DELETE FROM api_collections WHERE deleted_at IS NOT NULL',
+        params: [],
+      },
+      {
+        sql: "DELETE FROM resource_folders WHERE kind = 'apiRequests' AND deleted_at IS NOT NULL",
+        params: [],
+      },
+    ],
+  }
+  await runBatch(statementsByKind[kind], true)
+}
+
 export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
   const conn = await getDb()
   const rows = await conn.select<Array<Record<string, unknown>>>(
@@ -645,9 +889,17 @@ export async function deleteApiEnvironment(id: string): Promise<void> {
 }
 
 export async function loadApiCollections(): Promise<ApiCollection[]> {
+  return loadApiCollectionsByTrash(false)
+}
+
+export async function loadTrashedApiCollections(): Promise<ApiCollection[]> {
+  return loadApiCollectionsByTrash(true)
+}
+
+async function loadApiCollectionsByTrash(trashed: boolean): Promise<ApiCollection[]> {
   const conn = await getDb()
   const rows = await conn.select<Array<Record<string, unknown>>>(
-    'SELECT * FROM api_collections ORDER BY name ASC'
+    `SELECT * FROM api_collections WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY name ASC`
   )
   return rows
     .map((r) => {
@@ -663,8 +915,8 @@ export async function loadApiCollections(): Promise<ApiCollection[]> {
 
 function buildSaveApiCollection(col: ApiCollection): BatchStatement {
   return {
-    sql: `INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+    sql: `INSERT INTO api_collections (id, name, parent_id, sort_order, default_language, created_at, updated_at, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT(id) DO UPDATE SET name=$2, parent_id=$3, sort_order=$4, default_language=$5, updated_at=$7`,
     params: [
       col.id,
@@ -674,6 +926,7 @@ function buildSaveApiCollection(col: ApiCollection): BatchStatement {
       col.defaultLanguage ?? null,
       col.createdAt,
       col.updatedAt,
+      col.deletedAt ?? null,
     ],
   }
 }
@@ -689,6 +942,7 @@ function buildApiCollectionFolder(col: ApiCollection): BatchStatement {
     updatedAt: col.updatedAt,
   }
   if (col.defaultLanguage !== undefined) folder.defaultLanguage = col.defaultLanguage
+  if (col.deletedAt !== undefined) folder.deletedAt = col.deletedAt
   return buildSaveResourceFolder(folder)
 }
 
@@ -700,13 +954,29 @@ export async function saveApiCollection(col: ApiCollection): Promise<void> {
 }
 
 export async function deleteApiCollection(id: string): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM api_collections WHERE id = $1', [id]))
+  await trashResourceFolderSubtree(id)
+}
+
+export async function restoreApiCollection(id: string): Promise<void> {
+  await restoreResourceFolderSubtree(id)
+}
+
+export async function permanentlyDeleteApiCollection(id: string): Promise<void> {
+  await permanentlyDeleteResourceFolderSubtree(id)
 }
 
 export async function loadApiRequests(): Promise<ApiRequest[]> {
+  return loadApiRequestsByTrash(false)
+}
+
+export async function loadTrashedApiRequests(): Promise<ApiRequest[]> {
+  return loadApiRequestsByTrash(true)
+}
+
+async function loadApiRequestsByTrash(trashed: boolean): Promise<ApiRequest[]> {
   const conn = await getDb()
   const rows = await conn.select<Array<Record<string, unknown>>>(
-    'SELECT * FROM api_requests ORDER BY name ASC'
+    `SELECT * FROM api_requests WHERE deleted_at IS ${trashed ? 'NOT ' : ''}NULL ORDER BY name ASC`
   )
   return rows
     .map((r) => {
@@ -722,8 +992,8 @@ export async function loadApiRequests(): Promise<ApiRequest[]> {
 
 function buildSaveApiRequest(req: ApiRequest): BatchStatement {
   return {
-    sql: `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    sql: `INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT(id) DO UPDATE SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$11`,
     params: [
       req.id,
@@ -737,6 +1007,7 @@ function buildSaveApiRequest(req: ApiRequest): BatchStatement {
       JSON.stringify(req.auth),
       req.createdAt,
       req.updatedAt,
+      req.deletedAt ?? null,
     ],
   }
 }
@@ -759,5 +1030,34 @@ export async function saveApiImport(
 }
 
 export async function deleteApiRequest(id: string): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM api_requests WHERE id = $1', [id]))
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE api_requests SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL', [
+      Date.now(),
+      id,
+    ])
+  )
+}
+
+export async function restoreApiRequest(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute(
+      `UPDATE api_requests SET deleted_at = NULL,
+       collection_id = CASE WHEN EXISTS (
+         SELECT 1 FROM api_collections collection
+         WHERE collection.id = api_requests.collection_id AND collection.deleted_at IS NULL
+       ) THEN collection_id ELSE 'api-requests-inbox' END
+       WHERE id = $1 AND deleted_at IS NOT NULL`,
+      [id]
+    )
+  )
+}
+
+export async function permanentlyDeleteApiRequest(id: string): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute('DELETE FROM api_requests WHERE id = $1 AND deleted_at IS NOT NULL', [id])
+  )
+}
+
+export async function emptyApiRequestsTrash(): Promise<void> {
+  await emptyResourceTrash('apiRequests')
 }

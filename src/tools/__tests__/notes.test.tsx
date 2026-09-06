@@ -44,6 +44,7 @@ function arrangeNotes() {
   })
   useNotesStore.setState({
     notes: [note],
+    trashedNotes: [],
     initialized: true,
     pendingSaveIds: [],
     saveErrorIds: [],
@@ -51,6 +52,9 @@ function arrangeNotes() {
     flushPending,
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
   })
   return { edit, flushPending }
 }
@@ -71,14 +75,33 @@ beforeEach(() => {
         updatedAt: 0,
       },
     ],
+    trashedFolders: [],
     initialized: true,
     create: vi.fn(),
     update: vi.fn(),
     move: vi.fn(),
+    trash: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    emptyTrash: vi.fn().mockResolvedValue(undefined),
   })
 })
 
 describe('Notes workspace', () => {
+  it('opens durable Trash and restores a note', async () => {
+    const restore = vi.fn().mockResolvedValue(undefined)
+    useNotesStore.setState({
+      trashedNotes: [{ ...note, id: 'trashed-note', title: 'Archived note', deletedAt: 2 }],
+      restore,
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Notes Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Archived note' }))
+
+    await waitFor(() => expect(restore).toHaveBeenCalledWith('trashed-note'))
+  })
+
   it('opens a searchable note library with all three editor modes', async () => {
     render(<NotesWorkspace />)
 

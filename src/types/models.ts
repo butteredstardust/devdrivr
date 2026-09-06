@@ -155,6 +155,8 @@ export type Snippet = {
   folder: string
   createdAt: number
   updatedAt: number
+  /** Set only while the snippet is in durable trash. */
+  deletedAt?: number
 }
 
 export const PROMPT_TEMPLATE_CATEGORIES = [
@@ -220,6 +222,8 @@ export type Note = {
   sortOrder: number
   /** Always populated from persisted rows after migration 013. */
   folderId?: string
+  /** Set only while the note is in durable trash. */
+  deletedAt?: number
 }
 
 export type ResourceKind = 'notes' | 'snippets' | 'apiRequests'
@@ -233,6 +237,8 @@ export type ResourceFolder = {
   defaultLanguage?: string | null
   createdAt: number
   updatedAt: number
+  /** Set only while the folder is in durable trash. */
+  deletedAt?: number
 }
 
 export type HistoryEntry = {
@@ -276,6 +282,8 @@ export type ApiCollection = {
   defaultLanguage?: string | null
   createdAt: number
   updatedAt: number
+  /** Set only while the collection is in durable trash. */
+  deletedAt?: number
 }
 
 export type ApiHeader = { key: string; value: string; enabled: boolean }
@@ -297,6 +305,8 @@ export type ApiRequest = {
   auth: ApiRequestAuth
   createdAt: number
   updatedAt: number
+  /** Set only while the request is in durable trash. */
+  deletedAt?: number
 }
 
 export type ApiImportFormat =

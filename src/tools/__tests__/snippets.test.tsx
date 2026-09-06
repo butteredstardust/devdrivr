@@ -61,13 +61,18 @@ beforeEach(() => {
   })
   useSnippetsStore.setState({
     snippets: [],
+    trashedSnippets: [],
     initialized: true,
     saving: false,
     activeFolder: '',
     ...realActions,
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
   })
   useFoldersStore.setState({
     folders: snippetFolders,
+    trashedFolders: [],
     initialized: true,
     create: vi.fn().mockImplementation(async ({ name, kind, parentId = null }) => ({
       id: `folder-${name}`,
@@ -80,6 +85,10 @@ beforeEach(() => {
     })),
     update: vi.fn().mockResolvedValue(undefined),
     move: vi.fn().mockResolvedValue(undefined),
+    trash: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    emptyTrash: vi.fn().mockResolvedValue(undefined),
   })
   useUiStore.setState({ lastAction: null })
 })
@@ -89,6 +98,20 @@ afterEach(() => {
 })
 
 describe('SnippetsManager — library experience', () => {
+  it('opens durable Trash and restores a snippet', async () => {
+    const restore = vi.fn().mockResolvedValue(undefined)
+    useSnippetsStore.setState({
+      trashedSnippets: [snippet({ id: 'trashed-snippet', title: 'Archived helper', deletedAt: 2 })],
+      restore,
+    })
+    renderTool(SnippetsManager)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Snippets Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Archived helper' }))
+
+    await waitFor(() => expect(restore).toHaveBeenCalledWith('trashed-snippet'))
+  })
+
   it('presents the primary library actions with accessible labels', () => {
     renderTool(SnippetsManager)
 
@@ -332,12 +355,12 @@ describe('SnippetsManager — editor and details', () => {
     renderTool(SnippetsManager)
     await screen.findByDisplayValue('API helper')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move snippet to Trash' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Delete snippet?' })
-    expect(within(dialog).getByText(/undo for a few seconds/)).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Move snippet to Trash?' })
+    expect(within(dialog).getByText(/restored from Trash/)).toBeInTheDocument()
     expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move to Trash' }))
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith('snippet-1'))
   })
@@ -346,12 +369,14 @@ describe('SnippetsManager — editor and details', () => {
     useSnippetsStore.setState({ remove: vi.fn().mockRejectedValue(new Error('locked')) })
     renderTool(SnippetsManager)
     await screen.findByDisplayValue('API helper')
-    fireEvent.click(screen.getByRole('button', { name: 'Delete snippet' }))
-    const dialog = screen.getByRole('dialog', { name: 'Delete snippet?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move snippet to Trash' }))
+    const dialog = screen.getByRole('dialog', { name: 'Move snippet to Trash?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move to Trash' }))
 
-    await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Delete failed'))
-    expect(screen.getByRole('dialog', { name: 'Delete snippet?' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe('Failed to move snippet to Trash')
+    )
+    expect(screen.getByRole('dialog', { name: 'Move snippet to Trash?' })).toBeInTheDocument()
   })
 
   it('surfaces duplicate failures without an unhandled rejection', async () => {

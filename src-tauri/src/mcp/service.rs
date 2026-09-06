@@ -271,6 +271,12 @@ struct FolderMoveArgs {
     parent_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct EmptyTrashArgs {
+    kind: String,
+}
+
 #[derive(Debug, Serialize, FromRow)]
 struct NoteRow {
     id: String,
@@ -287,6 +293,7 @@ struct NoteRow {
     updated_at: i64,
     tags: Option<String>,
     folder_id: Option<String>,
+    deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -300,6 +307,7 @@ struct SnippetRow {
     folder_id: Option<String>,
     created_at: i64,
     updated_at: i64,
+    deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -328,6 +336,7 @@ struct ApiCollectionRow {
     sort_order: f64,
     created_at: i64,
     updated_at: i64,
+    deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -343,6 +352,7 @@ struct ApiRequestRow {
     auth: String,
     created_at: i64,
     updated_at: i64,
+    deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -355,6 +365,7 @@ struct ResourceFolderRow {
     default_language: Option<String>,
     created_at: i64,
     updated_at: i64,
+    deleted_at: Option<i64>,
 }
 
 fn now_ms() -> i64 {
@@ -1543,22 +1554,26 @@ impl DevdrivrMcpService {
     ) -> std::result::Result<Option<Value>, McpError> {
         match resource_type {
             ResourceType::Notes => {
-                let row = sqlx::query_as::<_, NoteRow>("SELECT * FROM notes WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await
-                    .map_err(db_error)?;
+                let row = sqlx::query_as::<_, NoteRow>(
+                    "SELECT * FROM notes WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db_error)?;
                 match row {
                     Some(row) => Ok(Some(self.note_value(row).await?)),
                     None => Ok(None),
                 }
             }
             ResourceType::Snippets => {
-                let row = sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await
-                    .map_err(db_error)?;
+                let row = sqlx::query_as::<_, SnippetRow>(
+                    "SELECT * FROM snippets WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db_error)?;
                 match row {
                     Some(row) => Ok(Some(self.snippet_value(row).await?)),
                     None => Ok(None),
@@ -1574,12 +1589,13 @@ impl DevdrivrMcpService {
             .map_err(db_error),
             ResourceType::ApiRequests => {
                 let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-                let row =
-                    sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests WHERE id = $1")
-                        .bind(id)
-                        .fetch_optional(&self.pool)
-                        .await
-                        .map_err(db_error)?;
+                let row = sqlx::query_as::<_, ApiRequestRow>(
+                    "SELECT * FROM api_requests WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db_error)?;
                 match row {
                     Some(row) => Ok(Some(self.api_request_value(row, expose_auth).await?)),
                     None => Ok(None),
@@ -1595,7 +1611,7 @@ impl DevdrivrMcpService {
         match resource_type {
             ResourceType::Notes => {
                 let rows = sqlx::query_as::<_, NoteRow>(
-                    "SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC",
+                    "SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC",
                 )
                 .fetch_all(&self.pool)
                 .await
@@ -1608,7 +1624,7 @@ impl DevdrivrMcpService {
             }
             ResourceType::Snippets => {
                 let rows = sqlx::query_as::<_, SnippetRow>(
-                    "SELECT * FROM snippets ORDER BY updated_at DESC",
+                    "SELECT * FROM snippets WHERE deleted_at IS NULL ORDER BY updated_at DESC",
                 )
                 .fetch_all(&self.pool)
                 .await
@@ -1629,7 +1645,7 @@ impl DevdrivrMcpService {
             ResourceType::ApiRequests => {
                 let expose_auth = self.settings.read().await.api_requests_expose_secrets;
                 let rows = sqlx::query_as::<_, ApiRequestRow>(
-                    "SELECT * FROM api_requests ORDER BY name ASC",
+                    "SELECT * FROM api_requests WHERE deleted_at IS NULL ORDER BY name ASC",
                 )
                 .fetch_all(&self.pool)
                 .await
@@ -1652,11 +1668,11 @@ impl DevdrivrMcpService {
         };
         sqlx::query_scalar::<_, String>(
             "WITH RECURSIVE path(id, name, parent_id, depth) AS (\
-             SELECT id, name, parent_id, 0 FROM resource_folders WHERE id = $1 \
+             SELECT id, name, parent_id, 0 FROM resource_folders WHERE id = $1 AND deleted_at IS NULL \
              UNION ALL \
              SELECT folder.id, folder.name, folder.parent_id, path.depth + 1 \
              FROM resource_folders folder JOIN path ON path.parent_id = folder.id \
-             WHERE path.depth < 100\
+             WHERE path.depth < 100 AND folder.deleted_at IS NULL\
              ) SELECT name FROM path ORDER BY depth DESC",
         )
         .bind(folder_id)
@@ -1688,11 +1704,224 @@ impl DevdrivrMcpService {
         &self,
         id: &str,
     ) -> std::result::Result<Option<ResourceFolderRow>, McpError> {
+        sqlx::query_as::<_, ResourceFolderRow>(
+            "SELECT * FROM resource_folders WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn folder_by_id_including_trashed(
+        &self,
+        id: &str,
+    ) -> std::result::Result<Option<ResourceFolderRow>, McpError> {
         sqlx::query_as::<_, ResourceFolderRow>("SELECT * FROM resource_folders WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await
             .map_err(db_error)
+    }
+
+    async fn folder_subtree(
+        &self,
+        id: &str,
+    ) -> std::result::Result<Vec<ResourceFolderRow>, McpError> {
+        sqlx::query_as::<_, ResourceFolderRow>(
+            "WITH RECURSIVE subtree(id, depth) AS (\
+             SELECT id, 0 FROM resource_folders WHERE id = $1 \
+             UNION ALL \
+             SELECT folder.id, subtree.depth + 1 FROM resource_folders folder \
+             JOIN subtree ON folder.parent_id = subtree.id WHERE subtree.depth < 100\
+             ) SELECT folder.* FROM resource_folders folder JOIN subtree ON folder.id = subtree.id \
+             ORDER BY subtree.depth DESC",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn set_folder_subtree_trashed(
+        &self,
+        id: &str,
+        deleted_at: Option<i64>,
+    ) -> std::result::Result<ResourceFolderRow, McpError> {
+        let root = self
+            .folder_by_id_including_trashed(id)
+            .await?
+            .ok_or_else(|| not_found("folders", id))?;
+        let action = if deleted_at.is_some() {
+            "delete"
+        } else {
+            "update"
+        };
+        self.ensure_permission(&root.kind, action).await?;
+        if is_system_inbox(&root.id) {
+            return Err(system_inbox_update_denied(&root.id));
+        }
+        if deleted_at.is_some() && root.deleted_at.is_some() {
+            return Err(not_found("folders", id));
+        }
+        if deleted_at.is_none() && root.deleted_at.is_none() {
+            return Err(invalid_argument(
+                "id",
+                "Folder is not in trash",
+                &["Use resource_folders_trash first"],
+            ));
+        }
+        let folders = self.folder_subtree(id).await?;
+        let operation_timestamp = deleted_at.or(root.deleted_at);
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        for folder in &folders {
+            let notes_query = if deleted_at.is_some() {
+                "UPDATE notes SET deleted_at = $2 WHERE folder_id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE notes SET deleted_at = NULL WHERE folder_id = $1 AND deleted_at = $2"
+            };
+            sqlx::query(notes_query)
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            let snippets_query = if deleted_at.is_some() {
+                "UPDATE snippets SET deleted_at = $2 WHERE folder_id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE snippets SET deleted_at = NULL WHERE folder_id = $1 AND deleted_at = $2"
+            };
+            sqlx::query(snippets_query)
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            let requests_query = if deleted_at.is_some() {
+                "UPDATE api_requests SET deleted_at = $2 WHERE collection_id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE api_requests SET deleted_at = NULL WHERE collection_id = $1 AND deleted_at = $2"
+            };
+            sqlx::query(requests_query)
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            let collections_query = if deleted_at.is_some() {
+                "UPDATE api_collections SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE api_collections SET deleted_at = NULL WHERE id = $1 AND deleted_at = $2"
+            };
+            sqlx::query(collections_query)
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            let folders_query = if deleted_at.is_some() {
+                "UPDATE resource_folders SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE resource_folders SET deleted_at = NULL WHERE id = $1 AND deleted_at = $2"
+            };
+            sqlx::query(folders_query)
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+        }
+        transaction.commit().await.map_err(db_error)?;
+        Ok(root)
+    }
+
+    fn emit_folder_subtree_changed(&self, folder: &ResourceFolderRow, action: &str) {
+        self.emit_changed("folders", action, Some(folder.id.clone()));
+        self.emit_changed(&folder.kind, action, Some(folder.id.clone()));
+        if folder.kind == "apiRequests" {
+            self.emit_changed("apiCollections", action, Some(folder.id.clone()));
+        }
+    }
+
+    async fn permanently_delete_folder_subtree(
+        &self,
+        id: &str,
+    ) -> std::result::Result<ResourceFolderRow, McpError> {
+        let root = self
+            .folder_by_id_including_trashed(id)
+            .await?
+            .ok_or_else(|| not_found("folders", id))?;
+        self.ensure_permission(&root.kind, "delete").await?;
+        if is_system_inbox(&root.id) {
+            return Err(system_inbox_update_denied(&root.id));
+        }
+        if root.deleted_at.is_none() {
+            return Err(invalid_argument(
+                "id",
+                "Only trashed folders can be permanently deleted",
+                &["Use resource_folders_trash before permanent deletion"],
+            ));
+        }
+        let folders = self.folder_subtree(id).await?;
+        if folders.iter().any(|folder| folder.deleted_at.is_none()) {
+            return Err(invalid_argument(
+                "id",
+                "The folder subtree contains restored folders",
+                &["Trash the entire subtree before permanent deletion"],
+            ));
+        }
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        for folder in &folders {
+            for query in [
+                "SELECT COUNT(*) FROM notes WHERE folder_id = $1 AND deleted_at IS NULL",
+                "SELECT COUNT(*) FROM snippets WHERE folder_id = $1 AND deleted_at IS NULL",
+                "SELECT COUNT(*) FROM api_requests WHERE collection_id = $1 AND deleted_at IS NULL",
+            ] {
+                let active = sqlx::query_scalar::<_, i64>(query)
+                    .bind(&folder.id)
+                    .fetch_one(&mut *transaction)
+                    .await
+                    .map_err(db_error)?;
+                if active > 0 {
+                    return Err(invalid_argument(
+                        "id",
+                        "The folder subtree contains active resources",
+                        &["Trash the entire subtree before permanent deletion"],
+                    ));
+                }
+            }
+        }
+        for folder in &folders {
+            sqlx::query("DELETE FROM notes WHERE folder_id = $1 AND deleted_at IS NOT NULL")
+                .bind(&folder.id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            sqlx::query("DELETE FROM snippets WHERE folder_id = $1 AND deleted_at IS NOT NULL")
+                .bind(&folder.id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            sqlx::query(
+                "DELETE FROM api_requests WHERE collection_id = $1 AND deleted_at IS NOT NULL",
+            )
+            .bind(&folder.id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(db_error)?;
+            sqlx::query("DELETE FROM api_collections WHERE id = $1 AND deleted_at IS NOT NULL")
+                .bind(&folder.id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+            sqlx::query("DELETE FROM resource_folders WHERE id = $1 AND deleted_at IS NOT NULL")
+                .bind(&folder.id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+        }
+        transaction.commit().await.map_err(db_error)?;
+        Ok(root)
     }
 
     async fn require_folder_kind(
@@ -1780,10 +2009,10 @@ impl DevdrivrMcpService {
                     "The requested folder tree contains a cycle",
                 ));
             }
-            cursor = self
-                .folder_by_id(&current_id)
-                .await?
-                .and_then(|folder| folder.parent_id);
+            let ancestor = self.folder_by_id(&current_id).await?.ok_or_else(|| {
+                invalid_folder_parent("A folder cannot be nested under a trashed ancestor")
+            })?;
+            cursor = ancestor.parent_id;
         }
         Ok(())
     }
@@ -1803,7 +2032,7 @@ impl DevdrivrMcpService {
                 return Ok(("snippets-inbox".to_string(), String::new(), false));
             }
             if let Some(folder) = sqlx::query_as::<_, ResourceFolderRow>(
-                "SELECT * FROM resource_folders WHERE kind = 'snippets' AND name = $1 AND parent_id IS NULL ORDER BY sort_order ASC LIMIT 1",
+                "SELECT * FROM resource_folders WHERE kind = 'snippets' AND name = $1 AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC LIMIT 1",
             )
             .bind(&folder_name)
             .fetch_optional(&self.pool)
@@ -1821,6 +2050,7 @@ impl DevdrivrMcpService {
                 default_language: None,
                 created_at: now,
                 updated_at: now,
+                deleted_at: None,
             };
             self.save_folder(&folder).await?;
             return Ok((folder.id, folder_name, true));
@@ -1839,10 +2069,12 @@ impl DevdrivrMcpService {
         resource_type: ResourceType,
     ) -> std::result::Result<i64, McpError> {
         let query = match resource_type {
-            ResourceType::Notes => "SELECT COUNT(*) FROM notes",
-            ResourceType::Snippets => "SELECT COUNT(*) FROM snippets",
+            ResourceType::Notes => "SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL",
+            ResourceType::Snippets => "SELECT COUNT(*) FROM snippets WHERE deleted_at IS NULL",
             ResourceType::PromptTemplates => "SELECT COUNT(*) FROM user_prompt_templates",
-            ResourceType::ApiRequests => "SELECT COUNT(*) FROM api_requests",
+            ResourceType::ApiRequests => {
+                "SELECT COUNT(*) FROM api_requests WHERE deleted_at IS NULL"
+            }
         };
         sqlx::query_scalar::<_, i64>(query)
             .fetch_one(&self.pool)
@@ -2116,7 +2348,7 @@ impl DevdrivrMcpService {
                     "tools": ["api_collections_list"]
                 },
                 "resourceFolders": {
-                    "description": "Typed hierarchical folders for notes, snippets, and API requests. MCP does not expose folder deletion.",
+                    "description": "Typed hierarchical folders for notes, snippets, and API requests, with durable Trash actions.",
                     "fields": {
                         "id": "string",
                         "name": "string",
@@ -2127,15 +2359,15 @@ impl DevdrivrMcpService {
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
-                    "tools": ["resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"]
+                    "tools": ["resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"]
                 }
             },
             "tools": {
                 "discovery": ["help", "search", "multi_get", "introspect", "counts"],
-                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
-                "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
+                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
+                "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
                 "promptTemplates": ["prompt_templates_list", "prompt_templates_get", "prompt_templates_create", "prompt_templates_update", "prompt_templates_delete"],
-                "apiRequests": ["api_requests_list", "api_requests_get", "api_requests_create", "api_requests_update", "api_requests_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move"],
+                "apiRequests": ["api_requests_list", "api_requests_get", "api_requests_create", "api_requests_update", "api_requests_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
             },
             "permissions": {
                 "notes": settings.permissions.notes,
@@ -2196,12 +2428,14 @@ impl DevdrivrMcpService {
     #[tool(description = "Get one devdrivr note by ID.")]
     async fn notes_get(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
-        let row = sqlx::query_as::<_, NoteRow>("SELECT * FROM notes WHERE id = $1")
-            .bind(&args.id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| not_found("notes", &args.id))?;
+        let row = sqlx::query_as::<_, NoteRow>(
+            "SELECT * FROM notes WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("notes", &args.id))?;
         to_json_text(self.note_value(row).await?)
     }
 
@@ -2239,12 +2473,14 @@ impl DevdrivrMcpService {
     #[tool(description = "Update a devdrivr note by ID.")]
     async fn notes_update(&self, Parameters(args): Parameters<NoteUpdateArgs>) -> McpResult {
         self.ensure_permission("notes", "update").await?;
-        let current = sqlx::query_as::<_, NoteRow>("SELECT * FROM notes WHERE id = $1")
-            .bind(&args.id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| not_found("notes", &args.id))?;
+        let current = sqlx::query_as::<_, NoteRow>(
+            "SELECT * FROM notes WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("notes", &args.id))?;
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -2273,19 +2509,21 @@ impl DevdrivrMcpService {
         self.notes_get(Parameters(IdArgs { id: args.id })).await
     }
 
-    #[tool(description = "Delete a devdrivr note by ID.")]
+    #[tool(description = "Move a devdrivr note to durable Trash by ID.")]
     async fn notes_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("notes", "delete").await?;
-        let result = sqlx::query("DELETE FROM notes WHERE id = $1")
-            .bind(&args.id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_error)?;
+        let result =
+            sqlx::query("UPDATE notes SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL")
+                .bind(&args.id)
+                .bind(now_ms())
+                .execute(&self.pool)
+                .await
+                .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(not_found("notes", &args.id));
         }
         self.emit_changed("notes", "delete", Some(args.id));
-        to_json_text(json!({ "deleted": true }))
+        to_json_text(json!({ "trashed": true }))
     }
 
     #[tool(description = "List devdrivr snippets. Returns JSON snippet records.")]
@@ -2305,12 +2543,14 @@ impl DevdrivrMcpService {
     #[tool(description = "Get one devdrivr snippet by ID.")]
     async fn snippets_get(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("snippets", "read").await?;
-        let row = sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets WHERE id = $1")
-            .bind(&args.id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| not_found("snippets", &args.id))?;
+        let row = sqlx::query_as::<_, SnippetRow>(
+            "SELECT * FROM snippets WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("snippets", &args.id))?;
         to_json_text(self.snippet_value(row).await?)
     }
 
@@ -2347,12 +2587,14 @@ impl DevdrivrMcpService {
     #[tool(description = "Update a devdrivr snippet by ID.")]
     async fn snippets_update(&self, Parameters(args): Parameters<SnippetUpdateArgs>) -> McpResult {
         self.ensure_permission("snippets", "update").await?;
-        let current = sqlx::query_as::<_, SnippetRow>("SELECT * FROM snippets WHERE id = $1")
-            .bind(&args.id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| not_found("snippets", &args.id))?;
+        let current = sqlx::query_as::<_, SnippetRow>(
+            "SELECT * FROM snippets WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("snippets", &args.id))?;
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -2381,19 +2623,21 @@ impl DevdrivrMcpService {
         self.snippets_get(Parameters(IdArgs { id: args.id })).await
     }
 
-    #[tool(description = "Delete a devdrivr snippet by ID.")]
+    #[tool(description = "Move a devdrivr snippet to durable Trash by ID.")]
     async fn snippets_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("snippets", "delete").await?;
-        let result = sqlx::query("DELETE FROM snippets WHERE id = $1")
-            .bind(&args.id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_error)?;
+        let result =
+            sqlx::query("UPDATE snippets SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL")
+                .bind(&args.id)
+                .bind(now_ms())
+                .execute(&self.pool)
+                .await
+                .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(not_found("snippets", &args.id));
         }
         self.emit_changed("snippets", "delete", Some(args.id));
-        to_json_text(json!({ "deleted": true }))
+        to_json_text(json!({ "trashed": true }))
     }
 
     #[tool(description = "List devdrivr prompt templates, including persisted built-ins.")]
@@ -2557,7 +2801,12 @@ impl DevdrivrMcpService {
             }
         };
         let rows = sqlx::query_as::<_, ResourceFolderRow>(
-            "SELECT * FROM resource_folders ORDER BY kind ASC, parent_id ASC, sort_order ASC, name ASC",
+            "WITH RECURSIVE active_folders(id) AS (\
+             SELECT id FROM resource_folders WHERE parent_id IS NULL AND deleted_at IS NULL \
+             UNION ALL \
+             SELECT child.id FROM resource_folders child JOIN active_folders parent ON child.parent_id = parent.id WHERE child.deleted_at IS NULL\
+             ) SELECT folder.* FROM resource_folders folder JOIN active_folders ON folder.id = active_folders.id \
+             ORDER BY folder.kind ASC, folder.parent_id ASC, folder.sort_order ASC, folder.name ASC",
         )
         .fetch_all(&self.pool)
         .await
@@ -2594,7 +2843,7 @@ impl DevdrivrMcpService {
         self.validate_folder_parent(kind, None, args.parent_id.as_deref())
             .await?;
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
+            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
         )
         .bind(kind)
         .bind(&args.parent_id)
@@ -2611,6 +2860,7 @@ impl DevdrivrMcpService {
             default_language: args.default_language,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
         self.save_folder(&folder).await?;
         self.emit_changed("folders", "create", Some(folder.id.clone()));
@@ -2622,7 +2872,7 @@ impl DevdrivrMcpService {
     }
 
     #[tool(
-        description = "Rename or update a shared resource folder. Folder deletion is intentionally not exposed through MCP."
+        description = "Rename or update an active shared resource folder. Use the dedicated Trash tools for deletion and recovery."
     )]
     async fn resource_folders_update(
         &self,
@@ -2679,7 +2929,7 @@ impl DevdrivrMcpService {
         self.validate_folder_parent(&folder.kind, Some(&folder.id), args.parent_id.as_deref())
             .await?;
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND id <> $2 AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
+            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND id <> $2 AND deleted_at IS NULL AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
         )
         .bind(&folder.kind)
         .bind(&folder.id)
@@ -2699,11 +2949,97 @@ impl DevdrivrMcpService {
         to_json_text(resource_folder_to_json(folder))
     }
 
+    #[tool(
+        description = "Move a folder subtree and its contained resources to trash. This never executes or exports saved API requests."
+    )]
+    async fn resource_folders_trash(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+        let folder = self
+            .set_folder_subtree_trashed(&args.id, Some(now_ms()))
+            .await?;
+        self.emit_folder_subtree_changed(&folder, "delete");
+        to_json_text(json!({ "trashed": true, "id": folder.id }))
+    }
+
+    #[tool(
+        description = "Restore a trashed folder subtree and its contained resources. This never executes or exports saved API requests."
+    )]
+    async fn resource_folders_restore(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+        let folder = self.set_folder_subtree_trashed(&args.id, None).await?;
+        self.emit_folder_subtree_changed(&folder, "update");
+        to_json_text(json!({ "restored": true, "id": folder.id }))
+    }
+
+    #[tool(
+        description = "Permanently delete a trashed folder subtree and trashed contained resources. This operation cannot be undone and never executes or exports API requests."
+    )]
+    async fn resource_folders_permanent_delete(
+        &self,
+        Parameters(args): Parameters<IdArgs>,
+    ) -> McpResult {
+        let folder = self.permanently_delete_folder_subtree(&args.id).await?;
+        self.emit_folder_subtree_changed(&folder, "delete");
+        to_json_text(json!({ "permanentlyDeleted": true, "id": folder.id }))
+    }
+
+    #[tool(
+        description = "Permanently delete all trashed resources and folder subtrees for one kind. This cannot be undone and never executes or exports API requests."
+    )]
+    async fn resource_folders_empty_trash(
+        &self,
+        Parameters(args): Parameters<EmptyTrashArgs>,
+    ) -> McpResult {
+        let kind = parse_folder_kind(&args.kind)?;
+        self.ensure_permission(kind, "delete").await?;
+        let roots = sqlx::query_scalar::<_, String>(
+            "SELECT folder.id FROM resource_folders folder WHERE folder.kind = $1 AND folder.deleted_at IS NOT NULL \
+             AND (folder.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM resource_folders parent WHERE parent.id = folder.parent_id AND parent.deleted_at IS NOT NULL))",
+        )
+        .bind(kind)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let mut deleted_folders = 0usize;
+        for id in roots {
+            self.permanently_delete_folder_subtree(&id).await?;
+            deleted_folders += 1;
+        }
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        let deleted_resources = match kind {
+            "notes" => sqlx::query("DELETE FROM notes WHERE deleted_at IS NOT NULL")
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?
+                .rows_affected(),
+            "snippets" => sqlx::query("DELETE FROM snippets WHERE deleted_at IS NOT NULL")
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?
+                .rows_affected(),
+            "apiRequests" => sqlx::query("DELETE FROM api_requests WHERE deleted_at IS NOT NULL")
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?
+                .rows_affected(),
+            _ => unreachable!(),
+        };
+        transaction.commit().await.map_err(db_error)?;
+        self.emit_changed("folders", "delete", None);
+        self.emit_changed(kind, "delete", None);
+        if kind == "apiRequests" {
+            self.emit_changed("apiCollections", "delete", None);
+        }
+        to_json_text(json!({
+            "permanentlyDeleted": true,
+            "folderSubtrees": deleted_folders,
+            "resources": deleted_resources,
+        }))
+    }
+
     #[tool(description = "List API client collections for assigning saved requests.")]
     async fn api_collections_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
         let rows = sqlx::query_as::<_, ApiCollectionRow>(
-            "SELECT * FROM api_collections ORDER BY name ASC",
+            "SELECT collection.* FROM api_collections collection WHERE collection.deleted_at IS NULL AND (collection.parent_id IS NULL OR EXISTS (SELECT 1 FROM resource_folders parent WHERE parent.id = collection.parent_id AND parent.deleted_at IS NULL)) ORDER BY collection.name ASC",
         )
         .fetch_all(&self.pool)
         .await
@@ -2738,12 +3074,14 @@ impl DevdrivrMcpService {
     async fn api_requests_get(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
         let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-        let row = sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests WHERE id = $1")
-            .bind(&args.id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| not_found("apiRequests", &args.id))?;
+        let row = sqlx::query_as::<_, ApiRequestRow>(
+            "SELECT * FROM api_requests WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("apiRequests", &args.id))?;
         to_json_text(self.api_request_value(row, expose_auth).await?)
     }
 
@@ -2790,13 +3128,14 @@ impl DevdrivrMcpService {
         Parameters(args): Parameters<ApiRequestUpdateArgs>,
     ) -> McpResult {
         self.ensure_permission("apiRequests", "update").await?;
-        let current =
-            sqlx::query_as::<_, ApiRequestRow>("SELECT * FROM api_requests WHERE id = $1")
-                .bind(&args.id)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(db_error)?
-                .ok_or_else(|| not_found("apiRequests", &args.id))?;
+        let current = sqlx::query_as::<_, ApiRequestRow>(
+            "SELECT * FROM api_requests WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_error)?
+        .ok_or_else(|| not_found("apiRequests", &args.id))?;
         let auth = args
             .auth
             .map(|value| resolve_auth_update(value, &current.auth))
@@ -2832,19 +3171,22 @@ impl DevdrivrMcpService {
             .await
     }
 
-    #[tool(description = "Delete a saved API client request by ID.")]
+    #[tool(description = "Move a saved API client request to durable Trash by ID.")]
     async fn api_requests_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "delete").await?;
-        let result = sqlx::query("DELETE FROM api_requests WHERE id = $1")
-            .bind(&args.id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_error)?;
+        let result = sqlx::query(
+            "UPDATE api_requests SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(&args.id)
+        .bind(now_ms())
+        .execute(&self.pool)
+        .await
+        .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(not_found("apiRequests", &args.id));
         }
         self.emit_changed("apiRequests", "delete", Some(args.id));
-        to_json_text(json!({ "deleted": true }))
+        to_json_text(json!({ "trashed": true }))
     }
 }
 
@@ -2880,6 +3222,7 @@ mod tests {
             auth: auth.to_string(),
             created_at: 1,
             updated_at: 2,
+            deleted_at: None,
         }
     }
 
@@ -2908,6 +3251,17 @@ mod tests {
         let exposed = api_request_to_json(api_request_with_auth(auth), Vec::new(), true);
         assert_eq!(exposed["auth"]["password"], "super-secret");
         assert_eq!(exposed["auth"].get("__devdrivrRedacted"), None);
+    }
+
+    #[test]
+    fn resource_json_does_not_expose_internal_tombstone_metadata() {
+        let mut row = api_request_with_auth(json!({ "type": "none" }));
+        row.deleted_at = Some(123);
+
+        let value = api_request_to_json(row, vec!["Inbox".to_string()], false);
+
+        assert!(value.get("deletedAt").is_none());
+        assert_eq!(value["folderPath"], json!(["Inbox"]));
     }
 
     #[test]
@@ -3097,6 +3451,7 @@ mod tests {
             default_language: None,
             created_at: 1,
             updated_at: 2,
+            deleted_at: None,
         });
 
         assert_eq!(value["parentId"], "notes-inbox");
@@ -3215,6 +3570,10 @@ mod tests {
         assert!(content.contains("`counts`"));
         assert!(content.contains("`resource_folders_list`"));
         assert!(content.contains("`resource_folders_move`"));
+        assert!(content.contains("`resource_folders_trash`"));
+        assert!(content.contains("`resource_folders_restore`"));
+        assert!(content.contains("`resource_folders_permanent_delete`"));
+        assert!(content.contains("`resource_folders_empty_trash`"));
     }
 
     #[test]

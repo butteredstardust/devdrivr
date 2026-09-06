@@ -1,7 +1,16 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Note, NoteColor } from '@/types/models'
-import { loadNotes, saveNote, saveNotesOrder, deleteNote, clearAllNotes } from '@/lib/db'
+import {
+  loadNotes,
+  loadTrashedNotes,
+  saveNote,
+  saveNotesOrder,
+  deleteNote,
+  restoreNote,
+  permanentlyDeleteNote,
+  clearAllNotes,
+} from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
 const SORT_STEP = 1024
@@ -10,6 +19,7 @@ type DropPosition = 'before' | 'after'
 
 type NotesStore = {
   notes: Note[]
+  trashedNotes: Note[]
   initialized: boolean
   pendingSaveIds: string[]
   saveErrorIds: string[]
@@ -36,6 +46,8 @@ type NotesStore = {
   ) => Promise<void>
   reorder: (sourceId: string, targetId: string, position: DropPosition) => Promise<void>
   remove: (id: string) => Promise<void>
+  restore: (id: string) => Promise<void>
+  permanentlyDelete: (id: string) => Promise<void>
   clearAll: () => Promise<void>
 }
 
@@ -59,6 +71,7 @@ function sortNotes(notes: Note[]): Note[] {
 
 export const useNotesStore = create<NotesStore>()((set, get) => ({
   notes: [],
+  trashedNotes: [],
   initialized: false,
   pendingSaveIds: [],
   saveErrorIds: [],
@@ -66,8 +79,8 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const notes = await loadNotes()
-        set({ notes, initialized: true })
+        const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+        set({ notes, trashedNotes, initialized: true })
       })().catch((err: unknown) => {
         // Clear the cached promise on failure so a later call retries
         // instead of latching a transient error for the process lifetime.
@@ -81,8 +94,8 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
   refresh: async () => {
     await get().flushPending()
     const revision = notesRevision
-    const notes = await loadNotes()
-    if (revision === notesRevision) set({ notes, initialized: true })
+    const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+    if (revision === notesRevision) set({ notes, trashedNotes, initialized: true })
   },
 
   add: async (title = '', content = '', color: NoteColor = 'yellow', folderId = 'notes-inbox') => {
@@ -305,7 +318,21 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     } finally {
       deletingIds.delete(id)
     }
-    set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }))
+    const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+    set({ notes, trashedNotes })
+  },
+
+  restore: async (id) => {
+    await restoreNote(id)
+    notesRevision++
+    const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+    set({ notes, trashedNotes })
+  },
+
+  permanentlyDelete: async (id) => {
+    await permanentlyDeleteNote(id)
+    notesRevision++
+    set((state) => ({ trashedNotes: state.trashedNotes.filter((note) => note.id !== id) }))
   },
 
   clearAll: async () => {
@@ -316,10 +343,11 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     try {
       await get().flushPending()
       await clearAllNotes()
+      const trashedNotes = await loadTrashedNotes()
       for (const timer of saveTimers.values()) clearTimeout(timer)
       saveTimers.clear()
       pendingSaves.clear()
-      set({ notes: [], pendingSaveIds: [], saveErrorIds: [] })
+      set({ notes: [], trashedNotes, pendingSaveIds: [], saveErrorIds: [] })
     } finally {
       clearing = false
     }

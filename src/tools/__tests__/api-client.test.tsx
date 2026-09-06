@@ -11,6 +11,7 @@ import {
   unresolvedVariableNames,
 } from '@/tools/api-client/request-model'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
+import { useFoldersStore } from '@/stores/folders.store'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const clipboardWriteText = vi.fn()
@@ -66,8 +67,19 @@ describe('ApiClient', () => {
       environments: [],
       collections: [],
       requests: [],
+      trashedRequests: [],
       activeEnvironmentId: null,
       requestHistory: [],
+      restoreRequest: vi.fn().mockResolvedValue(undefined),
+      permanentlyDeleteRequest: vi.fn().mockResolvedValue(undefined),
+    })
+    useFoldersStore.setState({
+      folders: [],
+      trashedFolders: [],
+      trash: vi.fn().mockResolvedValue(undefined),
+      restore: vi.fn().mockResolvedValue(undefined),
+      permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+      emptyTrash: vi.fn().mockResolvedValue(undefined),
     })
   })
 
@@ -84,6 +96,35 @@ describe('ApiClient', () => {
   it('renders send button', () => {
     renderTool(ApiClient)
     expect(screen.getByText('Send')).toBeInTheDocument()
+  })
+
+  it('opens durable Trash and restores a saved request', async () => {
+    const restoreRequest = vi.fn().mockResolvedValue(undefined)
+    useApiStore.setState({
+      trashedRequests: [
+        {
+          id: 'trashed-request',
+          collectionId: 'api-requests-inbox',
+          name: 'Archived request',
+          method: 'GET',
+          url: 'https://example.com/archived',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+          createdAt: 1,
+          updatedAt: 1,
+          deletedAt: 2,
+        },
+      ],
+      restoreRequest,
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open API Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Archived request' }))
+
+    await waitFor(() => expect(restoreRequest).toHaveBeenCalledWith('trashed-request'))
   })
 
   it('offers form body editors and cURL export', () => {
@@ -624,14 +665,14 @@ describe('ApiClient', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Get User' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move to Trash…' }))
 
     expect(deleteRequest).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete request' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }))
     expect(deleteRequest).toHaveBeenCalledWith('req-saved')
   })
 
-  it('does not expose folder deletion before durable trash is available', () => {
+  it('does not expose permanent deletion on a live collection', () => {
     const deleteCollection = vi.fn().mockResolvedValue(undefined)
     useApiStore.setState({
       collections: [{ id: 'col-1', name: 'Accounts', createdAt: 1, updatedAt: 1 }],

@@ -1,11 +1,20 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Snippet } from '@/types/models'
-import { loadSnippets, saveSnippet, deleteSnippet, clearAllSnippets } from '@/lib/db'
+import {
+  loadSnippets,
+  loadTrashedSnippets,
+  saveSnippet,
+  deleteSnippet,
+  restoreSnippet,
+  permanentlyDeleteSnippet,
+  clearAllSnippets,
+} from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
 type SnippetsStore = {
   snippets: Snippet[]
+  trashedSnippets: Snippet[]
   initialized: boolean
   saving: boolean
   activeFolder: string
@@ -29,7 +38,8 @@ type SnippetsStore = {
   ) => Promise<void>
   flushPending: (id?: string) => Promise<void>
   remove: (id: string) => Promise<void>
-  restore: (snippet: Snippet) => Promise<void>
+  restore: (id: string) => Promise<void>
+  permanentlyDelete: (id: string) => Promise<void>
   clearAll: () => Promise<void>
 }
 
@@ -41,11 +51,13 @@ const inFlightSaves = new Map<string, Promise<void>>()
 const inFlightMutations = new Set<Promise<void>>()
 const deletingIds = new Set<string>()
 let clearing = false
+let flushingForClear = false
 let libraryGeneration = 0
 let saveVersion = 0
 
 export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   snippets: [],
+  trashedSnippets: [],
   initialized: false,
   saving: false,
   activeFolder: '',
@@ -55,12 +67,15 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     if (!initPromise) {
       const generation = libraryGeneration
       initPromise = (async () => {
-        const snippets = await loadSnippets()
+        const [snippets, trashedSnippets] = await Promise.all([
+          loadSnippets(),
+          loadTrashedSnippets(),
+        ])
         if (generation !== libraryGeneration) {
           initPromise = null
           return
         }
-        set({ snippets, initialized: true })
+        set({ snippets, trashedSnippets, initialized: true })
       })().catch((err: unknown) => {
         // Clear the cached promise on failure so a later call retries
         // instead of latching a transient error for the process lifetime.
@@ -73,8 +88,8 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
 
   refresh: async () => {
     const generation = libraryGeneration
-    const snippets = await loadSnippets()
-    if (generation === libraryGeneration) set({ snippets, initialized: true })
+    const [snippets, trashedSnippets] = await Promise.all([loadSnippets(), loadTrashedSnippets()])
+    if (generation === libraryGeneration) set({ snippets, trashedSnippets, initialized: true })
   },
 
   add: async (
@@ -147,10 +162,10 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   },
 
   flushPending: async (id) => {
-    if (clearing) return
+    if (clearing && !flushingForClear) return
     const ids = id ? [id] : [...pendingSaves.keys()]
     for (const pendingId of ids) {
-      if (clearing) break
+      if (clearing && !flushingForClear) break
       const pending = pendingSaves.get(pendingId)
       if (!pending || savingIds.has(pendingId)) continue
       const timer = saveTimers.get(pendingId)
@@ -190,28 +205,23 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
 
   remove: (id) => {
     deletingIds.add(id)
-    if (saveTimers.has(id)) {
-      clearTimeout(saveTimers.get(id))
-      saveTimers.delete(id)
-    }
-    pendingSaves.delete(id)
     let operation: Promise<void>
     operation = (async () => {
-      const inFlight = inFlightSaves.get(id)
-      if (inFlight) {
-        try {
-          await inFlight
-        } catch {
-          // The flush path already reports the failed save; deletion should still proceed.
-        }
-      }
+      // Persist the latest debounce before setting the tombstone so restoring never
+      // brings back an older version of the snippet.
+      await get().flushPending(id)
       set({ saving: true })
       try {
         await deleteSnippet(id)
-        set((s) => ({
-          snippets: s.snippets.filter((sn) => sn.id !== id),
+        const [snippets, trashedSnippets] = await Promise.all([
+          loadSnippets(),
+          loadTrashedSnippets(),
+        ])
+        set({
+          snippets,
+          trashedSnippets,
           saving: saveTimers.size > 0,
-        }))
+        })
       } catch (err) {
         set({ saving: saveTimers.size > 0 })
         const msg = err instanceof Error ? err.message : String(err)
@@ -227,24 +237,18 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     return operation
   },
 
-  restore: async (snippet) => {
+  restore: async (id) => {
     if (clearing) throw new Error('Cannot restore a snippet while clearing the library')
-    if (deletingIds.has(snippet.id)) throw new Error('Cannot restore a snippet while deleting it')
+    if (deletingIds.has(id)) throw new Error('Cannot restore a snippet while deleting it')
     set({ saving: true })
     try {
-      const save = saveSnippet(snippet)
-      inFlightMutations.add(save)
-      try {
-        await save
-      } finally {
-        inFlightMutations.delete(save)
-      }
-      set((state) => ({
-        snippets: state.snippets.some((existing) => existing.id === snippet.id)
-          ? state.snippets.map((existing) => (existing.id === snippet.id ? snippet : existing))
-          : [snippet, ...state.snippets],
+      await restoreSnippet(id)
+      const [snippets, trashedSnippets] = await Promise.all([loadSnippets(), loadTrashedSnippets()])
+      set({
+        snippets,
+        trashedSnippets,
         saving: pendingSaves.size > 0,
-      }))
+      })
     } catch (err) {
       set({ saving: pendingSaves.size > 0 })
       const msg = err instanceof Error ? err.message : String(err)
@@ -253,22 +257,31 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     }
   },
 
+  permanentlyDelete: async (id) => {
+    await permanentlyDeleteSnippet(id)
+    set((state) => ({
+      trashedSnippets: state.trashedSnippets.filter((snippet) => snippet.id !== id),
+    }))
+  },
+
   clearAll: async () => {
+    if (clearing) return
     clearing = true
+    flushingForClear = true
     libraryGeneration++
-    for (const timer of saveTimers.values()) {
-      clearTimeout(timer)
-    }
-    saveTimers.clear()
-    pendingSaves.clear()
-    await Promise.allSettled(inFlightMutations)
-    savingIds.clear()
-    inFlightSaves.clear()
-    set({ saving: true })
     try {
+      // Trash is recoverable, so persist every pending edit before tombstoning
+      // the library instead of discarding the debounce queue.
+      await get().flushPending()
+      await Promise.allSettled(inFlightMutations)
+      savingIds.clear()
+      inFlightSaves.clear()
+      set({ saving: true })
       await clearAllSnippets()
-      set({ snippets: [], saving: false })
+      const trashedSnippets = await loadTrashedSnippets()
+      set({ snippets: [], trashedSnippets, saving: false })
     } finally {
+      flushingForClear = false
       clearing = false
     }
   },

@@ -3,6 +3,7 @@ import {
   loadApiCollections,
   loadApiEnvironments,
   loadApiRequests,
+  loadTrashedApiRequests,
   saveApiCollection,
   saveApiEnvironment,
   saveApiImport,
@@ -10,6 +11,8 @@ import {
   deleteApiCollection,
   deleteApiEnvironment,
   deleteApiRequest,
+  restoreApiRequest,
+  permanentlyDeleteApiRequest,
   loadHistory,
   addHistoryEntry,
   getSetting,
@@ -26,6 +29,7 @@ type ApiStore = {
   environments: ApiEnvironment[]
   collections: ApiCollection[]
   requests: ApiRequest[]
+  trashedRequests: ApiRequest[]
   activeEnvironmentId: string | null
   requestHistory: HistoryEntry[]
 
@@ -45,6 +49,8 @@ type ApiStore = {
   createRequest: (req: Omit<ApiRequest, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiRequest>
   updateRequest: (req: ApiRequest) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
+  restoreRequest: (id: string) => Promise<void>
+  permanentlyDeleteRequest: (id: string) => Promise<void>
   importApiData: (data: ApiImportResult) => Promise<{ collections: number; requests: number }>
 
   addRequestHistory: (entry: Omit<HistoryEntry, 'id' | 'tool' | 'timestamp'>) => Promise<void>
@@ -59,16 +65,18 @@ export const useApiStore = create<ApiStore>((set) => ({
   environments: [],
   collections: [],
   requests: [],
+  trashedRequests: [],
   activeEnvironmentId: null,
   requestHistory: [],
 
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const [envs, cols, reqs, hist, savedEnvId] = await Promise.all([
+        const [envs, cols, reqs, trashedReqs, hist, savedEnvId] = await Promise.all([
           loadApiEnvironments(),
           loadApiCollections(),
           loadApiRequests(),
+          loadTrashedApiRequests(),
           loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
           getSetting<string | null>(ACTIVE_ENVIRONMENT_SETTING, null),
         ])
@@ -77,6 +85,7 @@ export const useApiStore = create<ApiStore>((set) => ({
           environments: envs,
           collections: cols,
           requests: reqs,
+          trashedRequests: trashedReqs,
           requestHistory: hist,
           // Restore the chosen environment, falling back to the first only when the saved one
           // no longer exists — silently reverting to environment A changes resolved endpoints
@@ -96,16 +105,18 @@ export const useApiStore = create<ApiStore>((set) => ({
   },
 
   refresh: async () => {
-    const [envs, cols, reqs, hist] = await Promise.all([
+    const [envs, cols, reqs, trashedReqs, hist] = await Promise.all([
       loadApiEnvironments(),
       loadApiCollections(),
       loadApiRequests(),
+      loadTrashedApiRequests(),
       loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
     ])
     set((state) => ({
       environments: envs,
       collections: cols,
       requests: reqs,
+      trashedRequests: trashedReqs,
       requestHistory: hist,
       activeEnvironmentId:
         state.activeEnvironmentId && envs.some((env) => env.id === state.activeEnvironmentId)
@@ -179,10 +190,12 @@ export const useApiStore = create<ApiStore>((set) => ({
 
   deleteCollection: async (id) => {
     await deleteApiCollection(id)
-    set((state) => ({
-      collections: state.collections.filter((c) => c.id !== id),
-      requests: state.requests.filter((request) => request.collectionId !== id),
-    }))
+    const [collections, requests, trashedRequests] = await Promise.all([
+      loadApiCollections(),
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ collections, requests, trashedRequests })
   },
 
   createRequest: async (draft) => {
@@ -212,8 +225,26 @@ export const useApiStore = create<ApiStore>((set) => ({
 
   deleteRequest: async (id) => {
     await deleteApiRequest(id)
+    const [requests, trashedRequests] = await Promise.all([
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ requests, trashedRequests })
+  },
+
+  restoreRequest: async (id) => {
+    await restoreApiRequest(id)
+    const [requests, trashedRequests] = await Promise.all([
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ requests, trashedRequests })
+  },
+
+  permanentlyDeleteRequest: async (id) => {
+    await permanentlyDeleteApiRequest(id)
     set((state) => ({
-      requests: state.requests.filter((r) => r.id !== id),
+      trashedRequests: state.trashedRequests.filter((request) => request.id !== id),
     }))
   },
 

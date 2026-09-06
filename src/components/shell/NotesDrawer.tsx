@@ -240,7 +240,12 @@ function NoteEditor({
         >
           <CopyIcon size={16} aria-hidden="true" />
         </Button>
-        <Button variant="icon" size="sm" onClick={handleDeleteRequest} aria-label="Delete note">
+        <Button
+          variant="icon"
+          size="sm"
+          onClick={handleDeleteRequest}
+          aria-label="Move note to Trash"
+        >
           <TrashIcon size={16} aria-hidden="true" />
         </Button>
       </div>
@@ -515,9 +520,9 @@ export function NotesDrawer() {
     try {
       await removeNote(deleteCandidate.id)
       setDeleteCandidate(null)
-      setLastAction('Note deleted', 'info')
+      setLastAction('Note moved to Trash', 'info')
     } catch {
-      setLastAction('Failed to delete note', 'error')
+      setLastAction('Failed to move note to Trash', 'error')
     }
   }, [deleteCandidate, removeNote, setLastAction])
 
@@ -1007,7 +1012,7 @@ export function NotesDrawer() {
 
       {deleteCandidate && (
         <Dialog
-          title="Delete note?"
+          title="Move note to Trash?"
           onClose={() => setDeleteCandidate(null)}
           footer={
             <>
@@ -1015,14 +1020,13 @@ export function NotesDrawer() {
                 Cancel
               </Button>
               <Button variant="danger" onClick={() => void handleDelete()}>
-                Delete note
+                Move to Trash
               </Button>
             </>
           }
         >
           <p className="text-sm text-[var(--color-text-muted)]">
-            “{deleteCandidate.title || 'Untitled'}” will be permanently deleted. This cannot be
-            undone.
+            “{deleteCandidate.title || 'Untitled'}” can be restored from the Notes workspace Trash.
           </p>
         </Dialog>
       )}

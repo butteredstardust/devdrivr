@@ -10,6 +10,7 @@ import { InlineInput } from '@/components/shared/InlineInput'
 import { Select } from '@/components/shared/Input'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
+import { TrashDialog, type TrashEntry } from '@/components/shared/TrashDialog'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SplitPane } from '@/components/shared/SplitPane'
@@ -31,7 +32,7 @@ import {
   type EditorMode,
 } from '@/tools/markdown-editor/markdown-model'
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
-import type { Note } from '@/types/models'
+import type { Note, ResourceFolder } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
 
@@ -66,6 +67,7 @@ export default function NotesWorkspace() {
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const notes = useNotesStore((state) => state.notes)
+  const trashedNotes = useNotesStore((state) => state.trashedNotes)
   const pendingSaveIds = useNotesStore((state) => state.pendingSaveIds)
   const saveErrorIds = useNotesStore((state) => state.saveErrorIds)
   const addNote = useNotesStore((state) => state.add)
@@ -73,10 +75,18 @@ export default function NotesWorkspace() {
   const updateNote = useNotesStore((state) => state.update)
   const flushPending = useNotesStore((state) => state.flushPending)
   const removeNote = useNotesStore((state) => state.remove)
+  const restoreNote = useNotesStore((state) => state.restore)
+  const permanentlyDeleteNote = useNotesStore((state) => state.permanentlyDelete)
+  const refreshNotes = useNotesStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
+  const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
   const updateFolder = useFoldersStore((state) => state.update)
   const moveFolder = useFoldersStore((state) => state.move)
+  const trashFolder = useFoldersStore((state) => state.trash)
+  const restoreFolder = useFoldersStore((state) => state.restore)
+  const permanentlyDeleteFolder = useFoldersStore((state) => state.permanentlyDelete)
+  const emptyFolderTrash = useFoldersStore((state) => state.emptyTrash)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const copy = useCopyToClipboard()
   const [state, updateState] = useToolState<NotesWorkspaceState>('notes', {
@@ -88,6 +98,8 @@ export default function NotesWorkspace() {
   const [search, setSearch] = useState('')
   const [html, setHtml] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<Note | null>(null)
+  const [folderTrashCandidate, setFolderTrashCandidate] = useState<ResourceFolder | null>(null)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -108,6 +120,30 @@ export default function NotesWorkspace() {
     [notes]
   )
   const noteFolders = useMemo(() => foldersForKind(folders, 'notes'), [folders])
+  const trashedNoteFolders = useMemo(
+    () => foldersForKind(trashedFolders, 'notes'),
+    [trashedFolders]
+  )
+  const trashEntries = useMemo<TrashEntry[]>(() => {
+    const trashedFolderIds = new Set(trashedNoteFolders.map((folder) => folder.id))
+    const folderEntries = trashedNoteFolders
+      .filter((folder) => !folder.parentId || !trashedFolderIds.has(folder.parentId))
+      .map((folder) => ({
+        id: folder.id,
+        name: folder.name,
+        detail: 'Folder and its contents',
+        type: 'folder' as const,
+      }))
+    const noteEntries = trashedNotes
+      .filter((note) => !note.folderId || !trashedFolderIds.has(note.folderId))
+      .map((note) => ({
+        id: note.id,
+        name: note.title || 'Untitled note',
+        detail: 'Note',
+        type: 'item' as const,
+      }))
+    return [...folderEntries, ...noteEntries]
+  }, [trashedNoteFolders, trashedNotes])
   const selectedFolderIds = useMemo(
     () =>
       state.selectedFolderId ? descendantFolderIds(noteFolders, state.selectedFolderId) : null,
@@ -203,11 +239,57 @@ export default function NotesWorkspace() {
     try {
       await removeNote(deleteCandidate.id)
       setDeleteCandidate(null)
-      setLastAction('Note deleted', 'info')
+      setLastAction('Note moved to Trash', 'info')
     } catch {
-      setLastAction('Failed to delete note', 'error')
+      setLastAction('Failed to move note to Trash', 'error')
     }
   }, [deleteCandidate, removeNote, setLastAction])
+
+  const handleTrashFolder = useCallback(async () => {
+    if (!folderTrashCandidate) return
+    try {
+      await flushPending()
+      await trashFolder(folderTrashCandidate.id)
+      await refreshNotes()
+      updateState({ selectedFolderId: null })
+      setFolderTrashCandidate(null)
+      setLastAction('Folder moved to Trash', 'info')
+    } catch {
+      setLastAction('Failed to move folder to Trash', 'error')
+    }
+  }, [flushPending, folderTrashCandidate, refreshNotes, setLastAction, trashFolder, updateState])
+
+  const handleRestoreTrashEntry = useCallback(
+    async (entry: TrashEntry) => {
+      if (entry.type === 'folder') {
+        await restoreFolder(entry.id)
+        await refreshNotes()
+      } else {
+        await restoreNote(entry.id)
+      }
+      setLastAction(`${entry.name} restored`, 'success')
+    },
+    [refreshNotes, restoreFolder, restoreNote, setLastAction]
+  )
+
+  const handleDeleteTrashEntry = useCallback(
+    async (entry: TrashEntry) => {
+      if (entry.type === 'folder') {
+        await permanentlyDeleteFolder(entry.id)
+        await refreshNotes()
+      } else {
+        await permanentlyDeleteNote(entry.id)
+      }
+      setLastAction(`${entry.name} permanently deleted`, 'info')
+    },
+    [permanentlyDeleteFolder, permanentlyDeleteNote, refreshNotes, setLastAction]
+  )
+
+  const handleEmptyTrash = useCallback(async () => {
+    await emptyFolderTrash('notes')
+    await refreshNotes()
+    setLastAction('Notes Trash emptied', 'info')
+  }, [emptyFolderTrash, refreshNotes, setLastAction])
 
   const handleCopyCode = useCallback(
     (code: string) => {
@@ -309,16 +391,28 @@ export default function NotesWorkspace() {
         sidebarOpen={state.libraryOpen}
         onToggleSidebar={() => updateState({ libraryOpen: !state.libraryOpen })}
         sidebarActions={
-          <Button
-            type="button"
-            variant="icon"
-            size="sm"
-            onClick={() => void handleNew()}
-            aria-label="New note"
-            title={`New note (${formatShortcut('mod+n')})`}
-          >
-            <PlusIcon size={15} aria-hidden="true" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTrashOpen(true)}
+              aria-label={`Open Notes Trash, ${trashEntries.length} items`}
+            >
+              <TrashIcon size={14} aria-hidden="true" />
+              Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}
+            </Button>
+            <Button
+              type="button"
+              variant="icon"
+              size="sm"
+              onClick={() => void handleNew()}
+              aria-label="New note"
+              title={`New note (${formatShortcut('mod+n')})`}
+            >
+              <PlusIcon size={15} aria-hidden="true" />
+            </Button>
+          </div>
         }
         sidebar={
           <>
@@ -338,6 +432,7 @@ export default function NotesWorkspace() {
               onCreate={(parentId) => createFolder({ name: 'New folder', kind: 'notes', parentId })}
               onUpdate={updateFolder}
               onMove={moveFolder}
+              onTrash={setFolderTrashCandidate}
               itemCounts={folderCounts}
               label="Note folders"
             />
@@ -478,7 +573,7 @@ export default function NotesWorkspace() {
                 variant="icon"
                 size="sm"
                 onClick={() => setDeleteCandidate(selected)}
-                aria-label="Delete note"
+                aria-label="Move note to Trash"
                 className="hover:text-[var(--color-error)]"
               >
                 <TrashIcon size={15} aria-hidden="true" />
@@ -528,7 +623,7 @@ export default function NotesWorkspace() {
 
       {deleteCandidate && (
         <Dialog
-          title="Delete note?"
+          title="Move note to Trash?"
           onClose={() => setDeleteCandidate(null)}
           footer={
             <>
@@ -536,15 +631,46 @@ export default function NotesWorkspace() {
                 Cancel
               </Button>
               <Button variant="danger" onClick={() => void handleDelete()}>
-                Delete note
+                Move to Trash
               </Button>
             </>
           }
         >
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-            “{deleteCandidate.title || 'Untitled note'}” will be permanently removed.
+            “{deleteCandidate.title || 'Untitled note'}” can be restored until Trash is emptied.
           </p>
         </Dialog>
+      )}
+      {folderTrashCandidate && (
+        <Dialog
+          title="Move folder to Trash?"
+          onClose={() => setFolderTrashCandidate(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setFolderTrashCandidate(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => void handleTrashFolder()}>
+                Move folder to Trash
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            “{folderTrashCandidate.name}” and everything nested inside it will move to Trash
+            together.
+          </p>
+        </Dialog>
+      )}
+      {trashOpen && (
+        <TrashDialog
+          title="Notes Trash"
+          entries={trashEntries}
+          onClose={() => setTrashOpen(false)}
+          onRestore={handleRestoreTrashEntry}
+          onDeletePermanently={handleDeleteTrashEntry}
+          onEmpty={handleEmptyTrash}
+        />
       )}
     </>
   )

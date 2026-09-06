@@ -93,20 +93,22 @@ survives restart and export/import for all three resources.
 
 ### 4. Durable Trash, restore, and empty-trash workflows
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** Accidental deletion is recoverable after the current eight-second
 snippet undo window and across application restarts.
 
-- [ ] Add `deleted_at` to notes, snippets, API requests, and folders, with explicit
+- [x] Add `deleted_at` to notes, snippets, API requests, and folders, with explicit
       backfills and indexes for live/trash queries.
-- [ ] Change delete actions to soft-delete and add Trash views, restore, permanent
+- [x] Change delete actions to soft-delete and add Trash views, restore, permanent
       delete, and empty-trash confirmation. Trashing a folder marks its entire
       subtree and contained resources in one transaction while retaining parent
       IDs; restoring that folder restores the subtree intact.
-- [ ] Preserve the original folder/collection for individually deleted resources;
+- [x] Preserve the original folder/collection for individually deleted resources;
       restore to Inbox only when the original parent no longer exists.
-- [ ] Exclude trashed items from search, MCP reads, runners, links, and exports by
+- [x] Exclude trashed items from search, MCP reads, runners, links, and exports by
       default; provide deliberate inclusion where useful.
-- [ ] Cover cascading folder behavior, concurrent autosaves, restore conflicts,
+- [x] Cover cascading folder behavior, concurrent autosaves, restore conflicts,
       and permanent deletion in DB/store/UI tests.
 
 **Depends on:** item 3. **Done when:** deleted content remains recoverable after

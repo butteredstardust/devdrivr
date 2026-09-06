@@ -84,6 +84,7 @@ describe('API Client DB helpers', () => {
       JSON.stringify(request.auth),
       request.createdAt,
       request.updatedAt,
+      null,
     ])
   })
 

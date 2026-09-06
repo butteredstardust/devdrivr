@@ -325,9 +325,9 @@ describe('NotesDrawer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Test note' }))
     expect(remove).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog', { name: 'Delete note?' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Move note to Trash?' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }))
     await waitFor(() => expect(remove).toHaveBeenCalledWith('note-1'))
   })
 
