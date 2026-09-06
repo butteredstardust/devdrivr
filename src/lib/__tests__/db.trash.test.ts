@@ -115,6 +115,16 @@ describe('durable trash DB helpers', () => {
       emptyResourceTrash,
     } = await import('@/lib/db')
 
+    sqlMock.select
+      .mockResolvedValueOnce([
+        { id: 'folder-1', parent_id: null },
+        { id: 'folder-child', parent_id: 'folder-1' },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'api-parent', parent_id: null },
+        { id: 'api-child', parent_id: 'api-parent' },
+      ])
+
     await permanentlyDeleteNote('note-1')
     await permanentlyDeleteSnippet('snippet-1')
     await permanentlyDeleteApiRequest('request-1')
@@ -129,12 +139,17 @@ describe('durable trash DB helpers', () => {
     )
     const [, subtreePayload] = coreMock.invoke.mock.calls[0] as [
       string,
-      { statements: Array<{ params: unknown[] }> },
+      { statements: Array<{ sql: string; params: unknown[] }> },
     ]
-    expect(subtreePayload.statements.every((statement) => statement.params[0] === 'folder-1')).toBe(
-      true
+    const folderDeletes = subtreePayload.statements.filter((statement) =>
+      statement.sql.startsWith('DELETE FROM resource_folders')
     )
+    expect(folderDeletes.map((statement) => statement.params[0])).toEqual([
+      'folder-child',
+      'folder-1',
+    ])
     const [, emptyPayload] = coreMock.invoke.mock.calls[1] as [string, { statements: unknown[] }]
-    expect(emptyPayload.statements).toHaveLength(3)
+    expect(JSON.stringify(emptyPayload.statements)).toContain('api-child')
+    expect(JSON.stringify(emptyPayload.statements)).toContain('api-parent')
   })
 })

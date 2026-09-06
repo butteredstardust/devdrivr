@@ -6,7 +6,7 @@ import {
   resolveNoteAssetMarkdown,
   restoreNotesBackup,
 } from '@/lib/note-assets'
-import type { Note } from '@/types/models'
+import type { Note, ResourceFolder } from '@/types/models'
 
 const core = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -16,6 +16,24 @@ const core = vi.hoisted(() => ({
 vi.mock('@tauri-apps/api/core', () => core)
 
 const ID = '550e8400-e29b-41d4-a716-446655440000'
+
+const parentFolder: ResourceFolder = {
+  id: 'notes-project',
+  name: 'Project',
+  parentId: null,
+  kind: 'notes',
+  sortOrder: 1_000,
+  createdAt: 1,
+  updatedAt: 2,
+}
+
+const childFolder: ResourceFolder = {
+  ...parentFolder,
+  id: 'notes-project-design',
+  name: 'Design',
+  parentId: parentFolder.id,
+  sortOrder: 2_000,
+}
 
 function note(content: string): Note {
   return {
@@ -64,9 +82,7 @@ describe('managed note assets', () => {
 
   it('gives duplicate display names independent portable references', async () => {
     const secondId = '00000000-0000-0000-0000-000000000001'
-    core.invoke
-      .mockResolvedValueOnce({ id: ID })
-      .mockResolvedValueOnce({ id: secondId })
+    core.invoke.mockResolvedValueOnce({ id: ID }).mockResolvedValueOnce({ id: secondId })
     const first = await importNoteImage(new Uint8Array([1]), 'diagram.png')
     const second = await importNoteImage(new Uint8Array([2]), 'diagram.png')
     expect(first).toBe(`![diagram](devdrivr-asset:${ID})`)
@@ -98,9 +114,10 @@ describe('managed note assets', () => {
       bytes: [137, 80, 78, 71],
     }
     core.invoke.mockResolvedValueOnce([asset])
-    const json = await createNotesBackup([
-      note(`![first](devdrivr-asset:${ID})\n![second](devdrivr-asset:${ID})`),
-    ])
+    const json = await createNotesBackup(
+      [note(`![first](devdrivr-asset:${ID})\n![second](devdrivr-asset:${ID})`)],
+      []
+    )
     expect(core.invoke).toHaveBeenCalledWith('note_assets_export', { ids: [ID] })
     const backup = JSON.parse(json) as { notes: unknown[]; assets: unknown[] }
     expect(backup.notes).toHaveLength(1)
@@ -109,7 +126,40 @@ describe('managed note assets', () => {
     core.invoke.mockResolvedValueOnce(1)
     const restored = await restoreNotesBackup(json)
     expect(core.invoke).toHaveBeenLastCalledWith('note_assets_restore', { assets: [asset] })
-    expect(restored[0]).toMatchObject({ title: 'Reference', color: 'orange', pinned: true })
+    expect(restored.version).toBe(2)
+    expect(restored.notes[0]).toMatchObject({
+      id: 'note-1',
+      title: 'Reference',
+      color: 'orange',
+      pinned: true,
+    })
+  })
+
+  it('round-trips nested folders, stable note IDs, and wiki-link targets', async () => {
+    const target = { ...note('Target'), id: 'note-target', folderId: childFolder.id }
+    const source = {
+      ...note('[[note:note-target|Target]]'),
+      id: 'note-source',
+      folderId: childFolder.id,
+    }
+    core.invoke.mockResolvedValueOnce([])
+    const json = await createNotesBackup([source, target], [childFolder, parentFolder])
+
+    core.invoke.mockResolvedValueOnce(0)
+    const restored = await restoreNotesBackup(json)
+
+    expect(restored.version).toBe(2)
+    expect(restored.folders.map((folder) => folder.id)).toEqual([parentFolder.id, childFolder.id])
+    expect(restored.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'note-source',
+          folderId: childFolder.id,
+          content: '[[note:note-target|Target]]',
+        }),
+        expect.objectContaining({ id: 'note-target', folderId: childFolder.id }),
+      ])
+    )
   })
 
   it('rejects malformed backup notes before writing assets', async () => {

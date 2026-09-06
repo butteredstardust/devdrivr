@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { NOTE_COLORS } from '@/lib/schemas'
-import type { Note, NoteColor, TaskPriority, TaskStatus } from '@/types/models'
+import type { Note, NoteColor, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 
 const ASSET_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const ASSET_URL_PATTERN = new RegExp(`devdrivr-asset:(${ASSET_ID})`, 'g')
@@ -17,19 +17,46 @@ export type NoteAsset = {
 
 export type NoteAssetBackup = Omit<NoteAsset, 'size' | 'path'> & { bytes: number[] }
 
-export type NoteBackupEntry = Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'tags'> & {
+type LegacyNoteBackupEntry = Pick<Note, 'title' | 'content' | 'color' | 'pinned' | 'tags'> & {
   taskStatus?: TaskStatus
   taskPriority?: TaskPriority
   taskDueDate?: string
 }
 
-type NotesBackup = {
+export type NoteBackupEntry = Pick<
+  Note,
+  | 'id'
+  | 'title'
+  | 'content'
+  | 'color'
+  | 'pinned'
+  | 'tags'
+  | 'sortOrder'
+  | 'folderId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'taskStatus'
+  | 'taskPriority'
+  | 'taskDueDate'
+>
+
+export type NoteFolderBackupEntry = Pick<
+  ResourceFolder,
+  'id' | 'name' | 'parentId' | 'sortOrder' | 'createdAt' | 'updatedAt'
+>
+
+type NotesBackupV2 = {
   format: 'devdrivr-notes'
-  version: 1
+  version: 2
   exportedAt: string
   notes: NoteBackupEntry[]
+  folders: NoteFolderBackupEntry[]
   assets: NoteAssetBackup[]
 }
+
+export type RestoredNotesBackup =
+  | { version: 1; notes: LegacyNoteBackupEntry[]; folders: [] }
+  | { version: 2; notes: Note[]; folders: ResourceFolder[] }
 
 const VALID_NOTE_COLORS = new Set<string>(NOTE_COLORS)
 const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'done', 'blocked'])
@@ -94,24 +121,39 @@ export async function resolveNoteAssetMarkdown(content: string): Promise<string>
   })
 }
 
-export async function createNotesBackup(notes: Note[]): Promise<string> {
+export async function createNotesBackup(notes: Note[], folders: ResourceFolder[]): Promise<string> {
   const ids = collectNoteAssetIds(notes.map((note) => note.content))
   const assets = await invoke<NoteAssetBackup[]>('note_assets_export', { ids })
   const entries: NoteBackupEntry[] = notes.map((note) => ({
+    id: note.id,
     title: note.title,
     content: note.content,
     color: note.color,
     pinned: note.pinned,
     tags: note.tags,
+    sortOrder: note.sortOrder,
+    folderId: note.folderId ?? 'notes-inbox',
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
     ...(note.taskStatus ? { taskStatus: note.taskStatus } : {}),
     ...(note.taskPriority ? { taskPriority: note.taskPriority } : {}),
     ...(note.taskDueDate ? { taskDueDate: note.taskDueDate } : {}),
   }))
-  const backup: NotesBackup = {
+  const backup: NotesBackupV2 = {
     format: 'devdrivr-notes',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     notes: entries,
+    folders: folders
+      .filter((folder) => folder.kind === 'notes' && folder.id !== 'notes-inbox')
+      .map(({ id, name, parentId, sortOrder, createdAt, updatedAt }) => ({
+        id,
+        name,
+        parentId,
+        sortOrder,
+        createdAt,
+        updatedAt,
+      })),
     assets,
   }
   return JSON.stringify(backup, null, 2)
@@ -121,7 +163,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseNote(value: unknown): NoteBackupEntry {
+function parseLegacyNote(value: unknown): LegacyNoteBackupEntry {
   if (!isRecord(value)) throw new Error('Backup contains an invalid note')
   if (
     typeof value.title !== 'string' ||
@@ -156,6 +198,93 @@ function parseNote(value: unknown): NoteBackupEntry {
     ...(value.taskPriority ? { taskPriority: value.taskPriority as TaskPriority } : {}),
     ...(value.taskDueDate ? { taskDueDate: value.taskDueDate } : {}),
   }
+}
+
+function validPortableId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 200
+}
+
+function parseVersion2Note(value: unknown): Note {
+  const legacy = parseLegacyNote(value)
+  if (
+    !isRecord(value) ||
+    !validPortableId(value.id) ||
+    !validPortableId(value.folderId) ||
+    typeof value.sortOrder !== 'number' ||
+    !Number.isFinite(value.sortOrder) ||
+    typeof value.createdAt !== 'number' ||
+    !Number.isFinite(value.createdAt) ||
+    typeof value.updatedAt !== 'number' ||
+    !Number.isFinite(value.updatedAt)
+  ) {
+    throw new Error('Backup contains an invalid note')
+  }
+  return {
+    id: value.id,
+    title: legacy.title,
+    content: legacy.content,
+    color: legacy.color,
+    pinned: legacy.pinned,
+    poppedOut: false,
+    tags: legacy.tags,
+    sortOrder: value.sortOrder,
+    folderId: value.folderId,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    ...(legacy.taskStatus ? { taskStatus: legacy.taskStatus } : {}),
+    ...(legacy.taskPriority ? { taskPriority: legacy.taskPriority } : {}),
+    ...(legacy.taskDueDate ? { taskDueDate: legacy.taskDueDate } : {}),
+  }
+}
+
+function parseVersion2Folders(values: unknown[]): ResourceFolder[] {
+  const folders = values.map((value): ResourceFolder => {
+    if (
+      !isRecord(value) ||
+      !validPortableId(value.id) ||
+      typeof value.name !== 'string' ||
+      (value.parentId !== null && !validPortableId(value.parentId)) ||
+      typeof value.sortOrder !== 'number' ||
+      !Number.isFinite(value.sortOrder) ||
+      typeof value.createdAt !== 'number' ||
+      !Number.isFinite(value.createdAt) ||
+      typeof value.updatedAt !== 'number' ||
+      !Number.isFinite(value.updatedAt)
+    ) {
+      throw new Error('Backup contains an invalid note folder')
+    }
+    return {
+      id: value.id,
+      name: value.name,
+      parentId: value.parentId,
+      kind: 'notes',
+      sortOrder: value.sortOrder,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    }
+  })
+  const byId = new Map(folders.map((folder) => [folder.id, folder]))
+  if (byId.size !== folders.length || byId.has('notes-inbox')) {
+    throw new Error('Backup contains duplicate or reserved note folders')
+  }
+  const ordered: ResourceFolder[] = []
+  const visiting = new Set<string>()
+  const visited = new Set<string>()
+  const visit = (folder: ResourceFolder): void => {
+    if (visited.has(folder.id)) return
+    if (visiting.has(folder.id)) throw new Error('Backup contains a cyclic note folder tree')
+    visiting.add(folder.id)
+    if (folder.parentId && folder.parentId !== 'notes-inbox') {
+      const parent = byId.get(folder.parentId)
+      if (!parent) throw new Error('Backup contains a note folder with a missing parent')
+      visit(parent)
+    }
+    visiting.delete(folder.id)
+    visited.add(folder.id)
+    ordered.push(folder)
+  }
+  folders.forEach(visit)
+  return ordered
 }
 
 function parseAssets(values: unknown[]): NoteAssetBackup[] {
@@ -196,7 +325,7 @@ function parseAssets(values: unknown[]): NoteAssetBackup[] {
   })
 }
 
-export async function restoreNotesBackup(content: string): Promise<NoteBackupEntry[]> {
+export async function restoreNotesBackup(content: string): Promise<RestoredNotesBackup> {
   let value: unknown
   try {
     value = JSON.parse(content)
@@ -206,17 +335,39 @@ export async function restoreNotesBackup(content: string): Promise<NoteBackupEnt
   if (
     !isRecord(value) ||
     value.format !== 'devdrivr-notes' ||
-    value.version !== 1 ||
+    (value.version !== 1 && value.version !== 2) ||
     !Array.isArray(value.notes) ||
     !Array.isArray(value.assets)
   ) {
     throw new Error('Unsupported notes backup')
   }
   if (value.notes.length > 10_000) throw new Error('Backup contains too many notes')
-  const notes = value.notes.map(parseNote)
+  const version = value.version
+  const notes =
+    version === 1 ? value.notes.map(parseLegacyNote) : value.notes.map(parseVersion2Note)
+  const folders =
+    version === 2 && Array.isArray(value.folders) ? parseVersion2Folders(value.folders) : []
+  if (version === 2 && !Array.isArray(value.folders)) {
+    throw new Error('Unsupported notes backup')
+  }
+  if (version === 2) {
+    const noteIds = new Set<string>()
+    for (const note of notes as Note[]) {
+      if (noteIds.has(note.id)) throw new Error('Backup contains duplicate notes')
+      noteIds.add(note.id)
+      if (
+        note.folderId !== 'notes-inbox' &&
+        !folders.some((folder) => folder.id === note.folderId)
+      ) {
+        throw new Error('Backup contains a note with a missing folder')
+      }
+    }
+  }
   const assets = parseAssets(value.assets)
   await invoke<number>('note_assets_restore', { assets })
-  return notes
+  return version === 1
+    ? { version, notes: notes as LegacyNoteBackupEntry[], folders: [] }
+    : { version, notes: notes as Note[], folders }
 }
 
 export async function findOrphanNoteAssets(referencedIds: string[]): Promise<NoteAsset[]> {

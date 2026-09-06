@@ -57,6 +57,7 @@ import {
   type NoteAsset,
 } from '@/lib/note-assets'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
+import { restoreNotesFromBackup } from '@/lib/db'
 import { sendToTool } from '@/lib/tool-handoff'
 import {
   backlinksForResource,
@@ -153,6 +154,7 @@ export default function NotesWorkspace() {
   const apiInitialized = useApiStore((state) => state.initialized)
   const refreshNotes = useNotesStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
+  const refreshFolders = useFoldersStore((state) => state.refresh)
   const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
   const updateFolder = useFoldersStore((state) => state.update)
@@ -384,7 +386,7 @@ export default function NotesWorkspace() {
     try {
       await flushPending()
       const currentNotes = useNotesStore.getState().notes
-      const content = await createNotesBackup(currentNotes)
+      const content = await createNotesBackup(currentNotes, foldersForKind(folders, 'notes'))
       const path = await exportFile(content, 'devdrivr-notes-backup.json')
       if (path) setLastAction(`${currentNotes.length} notes exported with attachments`, 'success')
     } catch (error) {
@@ -393,35 +395,40 @@ export default function NotesWorkspace() {
         'error'
       )
     }
-  }, [flushPending, setLastAction])
+  }, [flushPending, folders, setLastAction])
 
   const handleImportBackup = useCallback(async () => {
     try {
       const file = await openFileDialog()
       if (!file) return
-      const entries = await restoreNotesBackup(file.content)
-      for (const entry of entries) {
-        const task = entry.taskStatus
-          ? {
-              status: entry.taskStatus,
-              ...(entry.taskPriority ? { priority: entry.taskPriority } : {}),
-              ...(entry.taskDueDate ? { dueDate: entry.taskDueDate } : {}),
-            }
-          : undefined
-        const note = await addNote(entry.title, entry.content, entry.color, 'notes-inbox', task)
-        await updateNote(note.id, {
-          pinned: entry.pinned,
-          tags: entry.tags,
-        })
+      const backup = await restoreNotesBackup(file.content)
+      if (backup.version === 2) {
+        await restoreNotesFromBackup(backup.folders, backup.notes)
+        await Promise.all([refreshFolders(), refreshNotes()])
+      } else {
+        for (const entry of backup.notes) {
+          const task = entry.taskStatus
+            ? {
+                status: entry.taskStatus,
+                ...(entry.taskPriority ? { priority: entry.taskPriority } : {}),
+                ...(entry.taskDueDate ? { dueDate: entry.taskDueDate } : {}),
+              }
+            : undefined
+          const note = await addNote(entry.title, entry.content, entry.color, 'notes-inbox', task)
+          await updateNote(note.id, {
+            pinned: entry.pinned,
+            tags: entry.tags,
+          })
+        }
       }
-      setLastAction(`${entries.length} notes restored with attachments`, 'success')
+      setLastAction(`${backup.notes.length} notes restored with attachments`, 'success')
     } catch (error) {
       setLastAction(
         `Failed to restore notes: ${error instanceof Error ? error.message : String(error)}`,
         'error'
       )
     }
-  }, [addNote, setLastAction, updateNote])
+  }, [addNote, refreshFolders, refreshNotes, setLastAction, updateNote])
 
   const referencedAssetIds = useCallback(() => {
     const current = useNotesStore.getState()

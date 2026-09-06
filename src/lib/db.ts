@@ -901,6 +901,8 @@ export async function restoreResourceFolderSubtree(id: string): Promise<void> {
 }
 
 export async function permanentlyDeleteResourceFolderSubtree(id: string): Promise<void> {
+  const folderIds = await loadTrashedFolderIdsChildFirst({ rootId: id })
+  if (folderIds.length === 0) return
   await runBatch(
     [
       {
@@ -915,49 +917,108 @@ export async function permanentlyDeleteResourceFolderSubtree(id: string): Promis
         sql: `DELETE FROM api_requests WHERE collection_id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
         params: [id],
       },
-      {
-        sql: `DELETE FROM api_collections WHERE id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
-        params: [id],
-      },
-      {
-        sql: `DELETE FROM resource_folders WHERE id IN (${trashedSubtreeIdsForIdSql}) AND deleted_at IS NOT NULL`,
-        params: [id],
-      },
+      ...folderIds.map((folderId) => ({
+        sql: 'DELETE FROM api_collections WHERE id = $1 AND deleted_at IS NOT NULL',
+        params: [folderId],
+      })),
+      ...folderIds.map((folderId) => ({
+        sql: 'DELETE FROM resource_folders WHERE id = $1 AND deleted_at IS NOT NULL',
+        params: [folderId],
+      })),
     ],
     true
   )
 }
 
+async function loadTrashedFolderIdsChildFirst(options: {
+  kind?: ResourceKind
+  rootId?: string
+}): Promise<string[]> {
+  const conn = await getDb()
+  const params: unknown[] = []
+  let where = 'deleted_at IS NOT NULL'
+  if (options.kind) {
+    params.push(options.kind)
+    where += ` AND kind = $${params.length}`
+  }
+  if (options.rootId) {
+    params.push(options.rootId)
+    where += ` AND id IN (${trashedSubtreeIdsForIdSql.replaceAll('$1', `$${params.length}`)})`
+  }
+  const rows = await conn.select<Array<{ id: string; parent_id: string | null }>>(
+    `SELECT id, parent_id FROM resource_folders WHERE ${where}`,
+    params
+  )
+  const parentById = new Map(rows.map((row) => [row.id, row.parent_id]))
+  const depth = (id: string): number => {
+    let current = parentById.get(id)
+    let result = 0
+    const visited = new Set([id])
+    while (current && parentById.has(current) && !visited.has(current)) {
+      visited.add(current)
+      result++
+      current = parentById.get(current)
+    }
+    return result
+  }
+  return rows.map((row) => row.id).sort((a, b) => depth(b) - depth(a) || a.localeCompare(b))
+}
+
 /** Permanently removes only trashed data belonging to the requested resource kind. */
 export async function emptyResourceTrash(kind: ResourceKind): Promise<void> {
+  const folderIds = await loadTrashedFolderIdsChildFirst({ kind })
   const statementsByKind: Record<ResourceKind, BatchStatement[]> = {
     notes: [
       { sql: 'DELETE FROM notes WHERE deleted_at IS NOT NULL', params: [] },
-      {
-        sql: "DELETE FROM resource_folders WHERE kind = 'notes' AND deleted_at IS NOT NULL",
-        params: [],
-      },
+      ...folderIds.map((id) => ({
+        sql: "DELETE FROM resource_folders WHERE id = $1 AND kind = 'notes' AND deleted_at IS NOT NULL",
+        params: [id],
+      })),
     ],
     snippets: [
       { sql: 'DELETE FROM snippets WHERE deleted_at IS NOT NULL', params: [] },
-      {
-        sql: "DELETE FROM resource_folders WHERE kind = 'snippets' AND deleted_at IS NOT NULL",
-        params: [],
-      },
+      ...folderIds.map((id) => ({
+        sql: "DELETE FROM resource_folders WHERE id = $1 AND kind = 'snippets' AND deleted_at IS NOT NULL",
+        params: [id],
+      })),
     ],
     apiRequests: [
       { sql: 'DELETE FROM api_requests WHERE deleted_at IS NOT NULL', params: [] },
-      {
-        sql: 'DELETE FROM api_collections WHERE deleted_at IS NOT NULL',
-        params: [],
-      },
-      {
-        sql: "DELETE FROM resource_folders WHERE kind = 'apiRequests' AND deleted_at IS NOT NULL",
-        params: [],
-      },
+      ...folderIds.map((id) => ({
+        sql: 'DELETE FROM api_collections WHERE id = $1 AND deleted_at IS NOT NULL',
+        params: [id],
+      })),
+      ...folderIds.map((id) => ({
+        sql: "DELETE FROM resource_folders WHERE id = $1 AND kind = 'apiRequests' AND deleted_at IS NOT NULL",
+        params: [id],
+      })),
     ],
   }
   await runBatch(statementsByKind[kind], true)
+}
+
+/** Restores a versioned Notes backup in one DB transaction and is safe to retry. */
+export async function restoreNotesFromBackup(
+  folders: ResourceFolder[],
+  notes: Note[]
+): Promise<void> {
+  await runBatch(
+    [
+      ...folders.flatMap((folder) => [
+        buildSaveResourceFolder(folder),
+        {
+          sql: "UPDATE resource_folders SET deleted_at = NULL WHERE id = $1 AND kind = 'notes'",
+          params: [folder.id],
+        },
+      ]),
+      ...notes.flatMap((note) => [
+        noteSaveStatement(note),
+        { sql: 'UPDATE notes SET deleted_at = NULL WHERE id = $1', params: [note.id] },
+        ...noteLinkStatements(note),
+      ]),
+    ],
+    true
+  )
 }
 
 export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
