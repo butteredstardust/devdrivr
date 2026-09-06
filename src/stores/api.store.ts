@@ -259,14 +259,18 @@ export const useApiStore = create<ApiStore>((set) => ({
     }
     const importedCollections: ApiCollection[] = data.collections
       .filter((collection) => collection.key !== 'api-requests-inbox')
-      .map((collection) => ({
-        id: collectionIdByKey.get(collection.key)!,
-        name: collection.name,
-        parentId: 'api-requests-inbox',
-        sortOrder: collection.sortOrder ?? now,
-        createdAt: now,
-        updatedAt: now,
-      }))
+      .map((collection) => {
+        const id = collectionIdByKey.get(collection.key)
+        if (!id) throw new Error(`Missing imported collection ID for ${collection.key}`)
+        return {
+          id,
+          name: collection.name,
+          parentId: 'api-requests-inbox',
+          sortOrder: collection.sortOrder ?? now,
+          createdAt: now,
+          updatedAt: now,
+        }
+      })
     data.collections
       .filter((collection) => collection.key !== 'api-requests-inbox')
       .forEach((collection, index) => {

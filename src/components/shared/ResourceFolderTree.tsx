@@ -102,8 +102,9 @@ export function ResourceFolderTree({
 
   const createFolder = useCallback(async () => {
     const created = await onCreate(selectedFolderId)
-    if (created.parentId) {
-      setExpanded((current) => new Set(current).add(created.parentId!))
+    const parentId = created.parentId
+    if (parentId) {
+      setExpanded((current) => new Set(current).add(parentId))
     }
     onSelect(created.id)
     startRename(created)
@@ -182,7 +183,8 @@ export function ResourceFolderTree({
         if (!expanded.has(folder.id)) {
           setExpanded((current) => new Set(current).add(folder.id))
         } else {
-          focusRow(children[0]!.id)
+          const firstChild = children[0]
+          if (firstChild) focusRow(firstChild.id)
         }
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault()
@@ -283,7 +285,7 @@ export function ResourceFolderTree({
                       onClick={() => void commitRename()}
                       aria-label="Save folder changes"
                     >
-                      <CheckIcon size={11} aria-hidden="true" />
+                      <CheckIcon size={12} aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -292,7 +294,7 @@ export function ResourceFolderTree({
                       onClick={() => setEditingId(null)}
                       aria-label="Cancel folder changes"
                     >
-                      <XIcon size={11} aria-hidden="true" />
+                      <XIcon size={12} aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -315,14 +317,14 @@ export function ResourceFolderTree({
                       }}
                     >
                       {isExpanded ? (
-                        <CaretDownIcon size={11} aria-hidden="true" />
+                        <CaretDownIcon size={12} aria-hidden="true" />
                       ) : (
-                        <CaretRightIcon size={11} aria-hidden="true" />
+                        <CaretRightIcon size={12} aria-hidden="true" />
                       )}
                     </Button>
                   ) : (
                     <FolderIcon
-                      size={11}
+                      size={12}
                       aria-hidden="true"
                       className="mx-1.5 shrink-0 text-[var(--color-text-muted)]"
                     />
@@ -355,7 +357,7 @@ export function ResourceFolderTree({
                       aria-label={`Rename ${folder.name}`}
                       className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                     >
-                      <PencilSimpleIcon size={11} aria-hidden="true" />
+                      <PencilSimpleIcon size={12} aria-hidden="true" />
                     </Button>
                   )}
                   {movable && onTrash && (
@@ -367,7 +369,7 @@ export function ResourceFolderTree({
                       aria-label={`Move ${folder.name} to Trash`}
                       className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
                     >
-                      <TrashIcon size={11} aria-hidden="true" />
+                      <TrashIcon size={12} aria-hidden="true" />
                     </Button>
                   )}
                   {movable && (
@@ -379,7 +381,7 @@ export function ResourceFolderTree({
                         onClick={() => void moveSibling(folder, -1)}
                         aria-label={`Move ${folder.name} up`}
                       >
-                        <ArrowUpIcon size={10} aria-hidden="true" />
+                        <ArrowUpIcon size={12} aria-hidden="true" />
                       </Button>
                       <Button
                         type="button"
@@ -388,7 +390,7 @@ export function ResourceFolderTree({
                         onClick={() => void moveSibling(folder, 1)}
                         aria-label={`Move ${folder.name} down`}
                       >
-                        <ArrowDownIcon size={10} aria-hidden="true" />
+                        <ArrowDownIcon size={12} aria-hidden="true" />
                       </Button>
                       <Button
                         type="button"
@@ -397,7 +399,7 @@ export function ResourceFolderTree({
                         onClick={() => void nestUnderPrevious(folder)}
                         aria-label={`Nest ${folder.name}`}
                       >
-                        <ArrowRightIcon size={10} aria-hidden="true" />
+                        <ArrowRightIcon size={12} aria-hidden="true" />
                       </Button>
                       <Button
                         type="button"
@@ -406,7 +408,7 @@ export function ResourceFolderTree({
                         onClick={() => void moveOut(folder)}
                         aria-label={`Move ${folder.name} out`}
                       >
-                        <ArrowLeftIcon size={10} aria-hidden="true" />
+                        <ArrowLeftIcon size={12} aria-hidden="true" />
                       </Button>
                     </span>
                   )}

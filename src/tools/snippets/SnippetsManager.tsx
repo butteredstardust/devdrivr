@@ -1850,7 +1850,7 @@ export default function SnippetsManager() {
                       onClick={handleAddFragment}
                       aria-label="Add fragment"
                     >
-                      <PlusIcon size={13} aria-hidden="true" />
+                      <PlusIcon size={12} aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -1860,7 +1860,7 @@ export default function SnippetsManager() {
                       disabled={activeFragment.sortOrder === 0}
                       aria-label="Move fragment left"
                     >
-                      <CaretLeftIcon size={13} aria-hidden="true" />
+                      <CaretLeftIcon size={12} aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -1870,7 +1870,7 @@ export default function SnippetsManager() {
                       disabled={activeFragment.sortOrder === fragments.length - 1}
                       aria-label="Move fragment right"
                     >
-                      <CaretRightIcon size={13} aria-hidden="true" />
+                      <CaretRightIcon size={12} aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -1911,7 +1911,7 @@ export default function SnippetsManager() {
                     </span>
                   </div>
                   <div
-                    className={`grid transition-[grid-template-rows] duration-200 ${
+                    className={`grid transition-[grid-template-rows] duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${
                       descriptionOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                     }`}
                   >

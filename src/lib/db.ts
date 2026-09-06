@@ -409,7 +409,7 @@ export async function saveSnippet(snippet: Snippet): Promise<void> {
         ],
       },
       { sql: 'DELETE FROM snippet_fragments WHERE snippet_id = $1', params: [normalized.id] },
-      ...normalized.fragments!.map((fragment) => ({
+      ...normalized.fragments.map((fragment) => ({
         sql: `INSERT INTO snippet_fragments
           (id, snippet_id, name, content, language, sort_order, created_at, updated_at)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,

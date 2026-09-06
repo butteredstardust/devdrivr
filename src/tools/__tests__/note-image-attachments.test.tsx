@@ -59,7 +59,8 @@ describe('useNoteImageAttachments', () => {
         mountedEditor as unknown as EditorInstance,
         { current: container },
         { onSuccess, onError: vi.fn() },
-        true
+        true,
+        'note-1'
       )
     )
     await waitFor(() => expect(mocks.dragHandler).not.toBeNull())
@@ -88,10 +89,62 @@ describe('useNoteImageAttachments', () => {
         editor() as unknown as EditorInstance,
         { current: document.createElement('div') },
         { onSuccess: vi.fn(), onError: vi.fn() },
-        false
+        false,
+        'note-1'
       )
     )
     await Promise.resolve()
     expect(mocks.dragHandler).toBeNull()
+  })
+
+  it('does not insert into a different note when Monaco reuses the editor instance', async () => {
+    const mountedEditor = editor()
+    const container = document.createElement('div')
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+      width: 100,
+      height: 100,
+      toJSON: () => ({}),
+    })
+    let finishImport: ((markdown: string) => void) | undefined
+    mocks.importNoteImage.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          finishImport = resolve
+        })
+    )
+    const onError = vi.fn()
+    const { rerender } = renderHook(
+      ({ noteId }) =>
+        useNoteImageAttachments(
+          mountedEditor as unknown as EditorInstance,
+          { current: container },
+          { onSuccess: vi.fn(), onError },
+          true,
+          noteId
+        ),
+      { initialProps: { noteId: 'note-1' } }
+    )
+    await waitFor(() => expect(mocks.dragHandler).not.toBeNull())
+    const drop = mocks.dragHandler?.({
+      payload: {
+        type: 'drop',
+        paths: ['/tmp/slow.png'],
+        position: { x: 100, y: 100 },
+      },
+    })
+    await waitFor(() => expect(mocks.importNoteImage).toHaveBeenCalledOnce())
+
+    rerender({ noteId: 'note-2' })
+    finishImport?.('![slow](devdrivr-asset:asset-id)')
+    await act(async () => await drop)
+
+    expect(mountedEditor.executeEdits).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith('The active note changed before the image import finished')
   })
 })

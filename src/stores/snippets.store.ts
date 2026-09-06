@@ -171,9 +171,10 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
     const oldSnippet = snippets[idx]
     if (!oldSnippet) return
     const normalizedOld = normalizeSnippet(oldSnippet)
-    let nextFragments = patch.fragments ?? normalizedOld.fragments!
+    let nextFragments = patch.fragments?.length ? patch.fragments : normalizedOld.fragments
     if (!patch.fragments && (patch.content !== undefined || patch.language !== undefined)) {
-      const primary = nextFragments[0]!
+      const primary = nextFragments[0]
+      if (!primary) throw new Error('A snippet must contain at least one fragment')
       nextFragments = [
         {
           ...primary,

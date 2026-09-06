@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { LinkIcon } from '@phosphor-icons/react'
 import { Input } from '@/components/shared/Input'
+import { Button } from '@/components/shared/Button'
 import type { WikiResource } from '@/lib/wiki-links'
 
 type WikiLinkPickerProps = {
@@ -49,7 +50,7 @@ export function WikiLinkPicker({
   return (
     <div className="absolute left-3 top-3 z-30 w-[min(24rem,calc(100%-1.5rem))] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-2 shadow-lg shadow-[var(--color-shadow)]">
       <div className="mb-1 flex items-center gap-1.5 text-2xs font-semibold text-[var(--color-text-muted)]">
-        <LinkIcon size={13} aria-hidden="true" />
+        <LinkIcon size={12} aria-hidden="true" />
         Link a resource
       </div>
       <Input
@@ -82,17 +83,19 @@ export function WikiLinkPicker({
       />
       <div id={listboxId} role="listbox" aria-label="Wiki link suggestions" className="mt-1">
         {suggestions.map((resource, index) => (
-          <button
+          <Button
             key={`${resource.kind}:${resource.id}`}
             id={`${listboxId}-${resource.kind}-${resource.id}`}
             type="button"
+            variant="ghost"
+            size="xs"
             role="option"
             aria-selected={index === activeIndex}
             onMouseDown={(event) => {
               event.preventDefault()
               onSelect(resource)
             }}
-            className={`block w-full rounded-[var(--radius-sm)] px-2 py-1.5 text-left focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+            className={`h-auto w-full flex-col items-stretch justify-start px-2 py-1.5 text-left ${
               index === activeIndex
                 ? 'bg-[var(--color-accent-dim)]'
                 : 'hover:bg-[var(--color-surface-hover)]'
@@ -105,7 +108,7 @@ export function WikiLinkPicker({
               {resourceTypeLabel(resource)}
               {resource.location ? ` · ${resource.location}` : ''}
             </span>
-          </button>
+          </Button>
         ))}
         {suggestions.length === 0 && (
           <p className="px-2 py-3 text-center text-xs text-[var(--color-text-muted)]">

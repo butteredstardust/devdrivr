@@ -195,7 +195,8 @@ export default function NotesWorkspace() {
         setLastAction(`${count} image${count === 1 ? '' : 's'} attached`, 'success'),
       onError: (message) => setLastAction(`Failed to attach image: ${message}`, 'error'),
     },
-    isInstanceActive && state.mode !== 'preview' && state.selectedId !== null
+    isInstanceActive && state.mode !== 'preview' && state.selectedId !== null,
+    state.selectedId
   )
 
   useEffect(() => {
@@ -732,7 +733,7 @@ export default function NotesWorkspace() {
               aria-label="Export notes backup with images"
               title="Export notes backup"
             >
-              <DownloadSimpleIcon size={15} aria-hidden="true" />
+              <DownloadSimpleIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -742,7 +743,7 @@ export default function NotesWorkspace() {
               aria-label="Restore notes backup with images"
               title="Restore notes backup"
             >
-              <UploadSimpleIcon size={15} aria-hidden="true" />
+              <UploadSimpleIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -752,7 +753,7 @@ export default function NotesWorkspace() {
               aria-label="Clean up unused note images"
               title="Clean up unused images"
             >
-              <ImageIcon size={15} aria-hidden="true" />
+              <ImageIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -782,7 +783,7 @@ export default function NotesWorkspace() {
               aria-label="New note"
               title={`New note (${formatShortcut('mod+n')})`}
             >
-              <PlusIcon size={15} aria-hidden="true" />
+              <PlusIcon size={14} aria-hidden="true" />
             </Button>
           </div>
         }
@@ -803,41 +804,47 @@ export default function NotesWorkspace() {
             >
               <div className="grid grid-cols-2 gap-1">
                 {TASK_VIEWS.map((view) => (
-                  <button
+                  <Button
                     key={view.value}
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     aria-pressed={state.taskView === view.value}
                     onClick={() => updateState({ taskView: view.value })}
-                    className={`flex items-center justify-between rounded-[var(--radius-sm)] px-2 py-1 text-left text-2xs focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                    className={`w-full justify-between px-2 py-1 text-left text-2xs ${
                       state.taskView === view.value
                         ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                        : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+                        : ''
                     }`}
                   >
                     <span>{view.label}</span>
                     <span aria-label={`${taskCounts.get(view.value) ?? 0} items`}>
                       {taskCounts.get(view.value) ?? 0}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   aria-pressed={state.hideCompleted}
                   onClick={() => updateState({ hideCompleted: !state.hideCompleted })}
-                  className="text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                  className="p-0 text-2xs hover:bg-transparent"
                 >
                   {state.hideCompleted ? 'Show completed' : 'Hide completed'}
-                </button>
+                </Button>
                 {completedCount > 0 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setTrashCompletedOpen(true)}
-                    className="text-2xs text-[var(--color-error)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                    className="p-0 text-2xs text-[var(--color-error)] hover:bg-transparent hover:text-[var(--color-error)] hover:underline"
                   >
                     Trash completed
-                  </button>
+                  </Button>
                 )}
               </div>
             </nav>
@@ -862,14 +869,16 @@ export default function NotesWorkspace() {
                 const active = note.id === selected?.id
                 return (
                   <div key={note.id} className="relative border-b border-[var(--color-border)]">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       role="option"
                       aria-selected={active}
                       data-notes-workspace-id={note.id}
                       onClick={() => updateState({ selectedId: note.id })}
                       onKeyDown={(event) => handleListKeyDown(event, note.id)}
-                      className={`block w-full px-3 py-2.5 text-left focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                      className={`h-auto w-full flex-col items-stretch justify-start rounded-none px-3 py-2.5 text-left ${
                         note.taskStatus ? 'pr-10' : ''
                       } ${
                         active
@@ -877,7 +886,7 @@ export default function NotesWorkspace() {
                           : 'hover:bg-[var(--color-surface-hover)]'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex w-full items-center gap-2">
                         <span
                           className={`min-w-0 flex-1 truncate text-xs font-semibold text-[var(--color-text)] ${
                             note.taskStatus === 'done' ? 'line-through opacity-70' : ''
@@ -908,10 +917,12 @@ export default function NotesWorkspace() {
                       <p className="mt-1 text-2xs text-[var(--color-text-muted)]">
                         {timeAgo(note.updatedAt)}
                       </p>
-                    </button>
+                    </Button>
                     {note.taskStatus && (
-                      <button
+                      <Button
                         type="button"
+                        variant="icon"
+                        size="xs"
                         onClick={() => void handleToggleComplete(note)}
                         aria-label={
                           note.taskStatus === 'done'
@@ -919,7 +930,7 @@ export default function NotesWorkspace() {
                             : `Complete ${note.title || 'Untitled task'}`
                         }
                         aria-pressed={note.taskStatus === 'done'}
-                        className={`absolute right-2 top-2.5 rounded-[var(--radius-sm)] p-1 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+                        className={`absolute right-2 top-2.5 ${
                           note.taskStatus === 'done'
                             ? 'text-[var(--color-success)]'
                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-success)]'
@@ -930,7 +941,7 @@ export default function NotesWorkspace() {
                           weight={note.taskStatus === 'done' ? 'fill' : 'regular'}
                           aria-hidden="true"
                         />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )
@@ -1081,7 +1092,7 @@ export default function NotesWorkspace() {
                 className={selected.pinned ? 'text-[var(--color-accent)]' : undefined}
               >
                 <PushPinIcon
-                  size={15}
+                  size={14}
                   weight={selected.pinned ? 'fill' : 'regular'}
                   aria-hidden="true"
                 />
@@ -1097,7 +1108,7 @@ export default function NotesWorkspace() {
                 }
                 aria-label="Copy note"
               >
-                <CopyIcon size={15} aria-hidden="true" />
+                <CopyIcon size={14} aria-hidden="true" />
               </Button>
               <Button
                 variant="icon"
@@ -1106,7 +1117,7 @@ export default function NotesWorkspace() {
                 aria-label="Move note to Trash"
                 className="hover:text-[var(--color-error)]"
               >
-                <TrashIcon size={15} aria-hidden="true" />
+                <TrashIcon size={14} aria-hidden="true" />
               </Button>
             </header>
 

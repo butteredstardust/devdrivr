@@ -1,5 +1,7 @@
 import type { Snippet, SnippetFragment } from '@/types/models'
 
+export type NormalizedSnippet = Snippet & { fragments: SnippetFragment[] }
+
 export function fragmentsForSnippet(snippet: Snippet): SnippetFragment[] {
   if (snippet.fragments?.length) {
     return [...snippet.fragments].sort(
@@ -19,7 +21,7 @@ export function fragmentsForSnippet(snippet: Snippet): SnippetFragment[] {
   ]
 }
 
-export function normalizeSnippet(snippet: Snippet): Snippet {
+export function normalizeSnippet(snippet: Snippet): NormalizedSnippet {
   const sourceFragments = snippet.fragments?.length
     ? [...snippet.fragments]
     : fragmentsForSnippet(snippet)
@@ -29,7 +31,8 @@ export function normalizeSnippet(snippet: Snippet): Snippet {
     language: fragment.language || 'text',
     sortOrder: index,
   }))
-  const primary = fragments[0]!
+  const primary = fragments[0]
+  if (!primary) throw new Error('A snippet must contain at least one fragment')
   return {
     ...snippet,
     description: snippet.description ?? '',

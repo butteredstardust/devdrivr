@@ -54,7 +54,8 @@ export function useNoteImageAttachments(
   editor: EditorInstance | null,
   containerRef: RefObject<HTMLDivElement | null>,
   callbacks: AttachmentCallbacks,
-  enabled: boolean
+  enabled: boolean,
+  contextKey: string | null
 ): {
   isDraggingImage: boolean
   onPasteCapture: (event: ClipboardEvent<HTMLDivElement>) => void
@@ -62,41 +63,50 @@ export function useNoteImageAttachments(
   const [isDraggingImage, setIsDraggingImage] = useState(false)
   const editorRef = useRef(editor)
   const callbacksRef = useRef(callbacks)
+  const contextKeyRef = useRef(contextKey)
   editorRef.current = editor
   callbacksRef.current = callbacks
+  contextKeyRef.current = contextKey
 
-  const importFiles = useCallback(async (files: Array<{ name: string; bytes: Uint8Array }>) => {
-    const activeEditor = editorRef.current
-    if (!activeEditor) return
-    const markdown: string[] = []
-    try {
-      for (const file of files) {
-        markdown.push(await importNoteImage(file.bytes, file.name))
+  const importFiles = useCallback(
+    async (files: Array<{ name: string; bytes: Uint8Array }>, expectedContextKey: string) => {
+      const activeEditor = editorRef.current
+      if (!activeEditor || contextKeyRef.current !== expectedContextKey) return
+      const markdown: string[] = []
+      try {
+        for (const file of files) {
+          markdown.push(await importNoteImage(file.bytes, file.name))
+        }
+        if (markdown.length === 0) return
+        if (editorRef.current !== activeEditor || contextKeyRef.current !== expectedContextKey) {
+          throw new Error('The active note changed before the image import finished')
+        }
+        insertAtCursor(activeEditor, markdown.join('\n\n'))
+        callbacksRef.current.onSuccess(markdown.length)
+      } catch (error) {
+        callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
       }
-      if (markdown.length === 0) return
-      if (editorRef.current !== activeEditor) {
-        throw new Error('The active note changed before the image import finished')
-      }
-      insertAtCursor(activeEditor, markdown.join('\n\n'))
-      callbacksRef.current.onSuccess(markdown.length)
-    } catch (error) {
-      callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
-    }
-  }, [])
+    },
+    []
+  )
 
   const onPasteCapture = useCallback(
     (event: ClipboardEvent<HTMLDivElement>) => {
       const files = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'))
-      if (files.length === 0) return
+      const expectedContextKey = contextKeyRef.current
+      if (files.length === 0 || !expectedContextKey) return
       event.preventDefault()
       void Promise.all(
         files.map(async (file) => ({
           name: file.name || 'pasted-image.png',
           bytes: new Uint8Array(await file.arrayBuffer()),
         }))
-      ).then(importFiles, (error: unknown) => {
-        callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
-      })
+      ).then(
+        (loaded) => importFiles(loaded, expectedContextKey),
+        (error: unknown) => {
+          callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
+        }
+      )
     },
     [importFiles]
   )
@@ -111,6 +121,7 @@ export function useNoteImageAttachments(
     const webview = getCurrentWebviewWindow()
     webview
       .onDragDropEvent(async (event) => {
+        const expectedContextKey = contextKeyRef.current
         if (event.payload.type === 'leave') {
           setIsDraggingImage(false)
           return
@@ -127,7 +138,7 @@ export function useNoteImageAttachments(
           return
         }
         setIsDraggingImage(false)
-        if (!withinEditor || event.payload.type !== 'drop') return
+        if (!withinEditor || event.payload.type !== 'drop' || !expectedContextKey) return
         const paths = event.payload.paths.filter(supportsFilename)
         if (paths.length === 0) return
         try {
@@ -137,7 +148,7 @@ export function useNoteImageAttachments(
               bytes: await readFile(path),
             }))
           )
-          await importFiles(files)
+          await importFiles(files, expectedContextKey)
         } catch (error) {
           callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
         }
