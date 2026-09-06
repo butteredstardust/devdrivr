@@ -146,6 +146,14 @@ Select **Make task** on any note to add task metadata. Select **Convert to note*
 metadata after confirmation; the title, Markdown body, folder, and tags are preserved. Due dates
 are local calendar dates, so a task becomes overdue only after midnight in the current timezone.
 
+Type `[[` in the Notes editor to open the resource picker. Search notes, snippets, or saved API
+requests, then use the arrow keys and Enter—or select a result—to insert a stable link. Preview
+links always resolve by resource ID, so renaming or moving a target does not break navigation.
+Duplicate titles are disambiguated with the shortest folder/type path that identifies one result.
+When another note links to the open note, its backlink appears below the editor. Trashed or missing
+targets render as unavailable instead of opening an ambiguous match. Title-only legacy text such as
+`[[Release plan]]` is preserved as text and is never guessed.
+
 ### Snippets
 
 Use Snippets to save and find reusable code.

@@ -10,6 +10,7 @@ import {
   permanentlyDeleteNote,
   clearAllNotes,
   trashCompletedNotes,
+  rebuildNoteLinks,
 } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 import type { Note } from '@/types/models'
@@ -24,6 +25,7 @@ vi.mock('@/lib/db', () => ({
   permanentlyDeleteNote: vi.fn(),
   clearAllNotes: vi.fn(),
   trashCompletedNotes: vi.fn(),
+  rebuildNoteLinks: vi.fn(),
 }))
 
 // Reset store state between tests
@@ -47,6 +49,7 @@ beforeEach(() => {
   ;(permanentlyDeleteNote as any).mockResolvedValue(undefined)
   ;(clearAllNotes as any).mockResolvedValue(undefined)
   ;(trashCompletedNotes as any).mockResolvedValue(undefined)
+  ;(rebuildNoteLinks as any).mockResolvedValue(undefined)
 })
 
 function deferred<T>() {

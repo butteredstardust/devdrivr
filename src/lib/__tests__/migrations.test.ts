@@ -6,6 +6,7 @@ import persistenceBackfillsMigration from '@/../src-tauri/migrations/009_persist
 import resourceFoldersMigration from '@/../src-tauri/migrations/013_resource_folders.sql?raw'
 import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.sql?raw'
 import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
+import noteLinksMigration from '@/../src-tauri/migrations/016_note_links.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -99,5 +100,17 @@ describe('persistence migrations', () => {
   it('registers the structured note tasks migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*15/)
     expect(tauriLib).toContain('include_str!("../migrations/015_note_tasks.sql")')
+  })
+
+  it('creates and indexes stable note links', () => {
+    expect(noteLinksMigration).toMatch(/CREATE TABLE IF NOT EXISTS note_links/i)
+    expect(noteLinksMigration).toMatch(/source_note_id TEXT NOT NULL REFERENCES notes\(id\)/i)
+    expect(noteLinksMigration).toContain('PRIMARY KEY(source_note_id, target_kind, target_id)')
+    expect(noteLinksMigration).toContain('idx_note_links_target')
+  })
+
+  it('registers the stable note link migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*16/)
+    expect(tauriLib).toContain('include_str!("../migrations/016_note_links.sql")')
   })
 })

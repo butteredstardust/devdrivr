@@ -58,6 +58,7 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 - **Per-tool history** — inputs and outputs are saved automatically
 - **Shared libraries** — nested, keyboard-accessible folders for notes, snippets, and API requests
 - **Durable Trash** — restore notes, snippets, API requests, and complete folder subtrees after restart
+- **Wiki links and backlinks** — connect notes to live notes, snippets, and API requests with stable IDs
 - **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
 - **Themes** — system mode plus 32 built-in themes
 - **Always-on-top** — pin the window over your editor or browser

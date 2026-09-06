@@ -632,6 +632,7 @@ if (typeof data === 'object' && data !== null) { ... }
 settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
 tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
 notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags, folder_id, deleted_at, task_status, task_priority, task_due_date)
+note_links       (source_note_id, target_kind, target_id, created_at)  -- stable wiki-link index
 snippets         (id, title, content, language, tags TEXT, folder TEXT, folder_id, created_at, updated_at, deleted_at)  -- tags = JSON array; folder added migration 005
 history          (id, tool, sub_tab, input, output, timestamp)
 api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002

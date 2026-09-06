@@ -66,7 +66,7 @@ Use this file as the product inventory. The tool registry defines the available 
 
 | Tool             | ID                 | Description                                                                                  |
 | ---------------- | ------------------ | -------------------------------------------------------------------------------------------- |
-| Notes            | `notes`            | Write, organize, recover, and track Markdown notes as structured tasks with local due dates. |
+| Notes            | `notes`            | Write, organize, recover, track tasks, and link Markdown notes to local developer resources. |
 | Markdown Editor  | `markdown-editor`  | Edit Markdown with find and replace, templates, table of contents, reading time, and export. |
 | Mermaid Editor   | `mermaid-editor`   | Edit and preview Mermaid diagrams. Export SVG or PNG.                                        |
 | Snippets         | `snippets`         | Organize nested folders, recover, search, edit, and back up reusable code snippets.          |

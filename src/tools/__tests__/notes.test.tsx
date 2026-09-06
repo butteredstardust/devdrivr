@@ -8,6 +8,8 @@ import { dispatchToolAction } from '@/lib/tool-actions'
 import type { Note } from '@/types/models'
 import { localDateKey } from '@/tools/notes/task-model'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { useSnippetsStore } from '@/stores/snippets.store'
+import { useApiStore } from '@/stores/api.store'
 
 const note: Note = {
   id: 'note-1',
@@ -90,6 +92,16 @@ function arrangeNotes() {
 beforeEach(() => {
   vi.clearAllMocks()
   useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
+  useUiStore
+    .getState()
+    .restoreTabs([{ id: 'notes-tab', toolId: 'notes', stateKey: 'notes' }], 'notes-tab')
+  useSnippetsStore.setState({ snippets: [], trashedSnippets: [], initialized: true })
+  useApiStore.setState({
+    initialized: true,
+    requests: [],
+    trashedRequests: [],
+    collections: [],
+  })
   arrangeNotes()
   useUiStore.setState({ lastAction: null, dirtyTabIds: [] })
   useFoldersStore.setState({
@@ -184,6 +196,93 @@ describe('Notes workspace', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Copy code block' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('const ready = true\n'))
+  })
+
+  it('opens an accessible cross-resource picker after [[ and inserts a stable link', async () => {
+    const { edit } = arrangeNotes()
+    useSnippetsStore.setState({
+      snippets: [
+        {
+          id: 'snippet-1',
+          title: 'Fetch helper',
+          content: 'fetch(url)',
+          language: 'javascript',
+          tags: [],
+          folder: '',
+          folderId: 'snippets-inbox',
+          favorite: false,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'See [[' } })
+    const picker = screen.getByRole('combobox', {
+      name: 'Find a note, snippet, or API request',
+    })
+    fireEvent.change(picker, { target: { value: 'Fetch' } })
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Fetch helper/ }))
+
+    expect(edit).toHaveBeenLastCalledWith('note-1', {
+      content: 'See [[snippet:snippet-1|Fetch helper]]',
+    })
+  })
+
+  it('renders renamed targets and navigates forward and back through backlinks', async () => {
+    const source = {
+      ...note,
+      title: 'Source note',
+      content: 'See [[note:target|Old target title]]',
+    }
+    const target = {
+      ...note,
+      id: 'target',
+      title: 'Renamed target',
+      content: 'Destination',
+    }
+    useNotesStore.setState({ notes: [source, target] })
+    render(<NotesWorkspace />)
+
+    const link = await screen.findByRole('link', { name: 'Renamed target' })
+    fireEvent.click(link)
+    await waitFor(() => expect(screen.getByLabelText('Note title')).toHaveValue('Renamed target'))
+    expect(screen.getByText('Backlinks (1)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source note' }))
+    await waitFor(() => expect(screen.getByLabelText('Note title')).toHaveValue('Source note'))
+  })
+
+  it('opens the exact linked snippet and carries an explicit route back to the note', async () => {
+    useNotesStore.setState({
+      notes: [{ ...note, content: 'Use [[snippet:snippet-1|Old helper name]]' }],
+    })
+    useSnippetsStore.setState({
+      snippets: [
+        {
+          id: 'snippet-1',
+          title: 'Renamed helper',
+          content: 'fetch(url)',
+          language: 'javascript',
+          tags: [],
+          folder: '',
+          folderId: 'snippets-inbox',
+          favorite: false,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    })
+    render(<NotesWorkspace />)
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Renamed helper' }))
+
+    expect(useUiStore.getState().activeTool).toBe('snippets')
+    expect(useToolStateCache.getState().get('snippets')).toMatchObject({
+      wikiTargetId: 'snippet-1',
+      backlinkNoteId: 'note-1',
+    })
   })
 
   it('keeps task checkboxes read-only in Preview mode', async () => {

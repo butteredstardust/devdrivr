@@ -269,7 +269,9 @@ export default function SnippetsManager() {
   const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
   const [handoffState, updateHandoffState] = useToolState<{
     handoff: { title: string; content: string; language: string } | null
-  }>('snippets', { handoff: null })
+    wikiTargetId: string | null
+    backlinkNoteId: string | null
+  }>('snippets', { handoff: null, wikiTargetId: null, backlinkNoteId: null })
   const saving = useSnippetsStore((state) => state.saving)
   const activeFolder = useSnippetsStore((state) => state.activeFolder)
   const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)
@@ -312,6 +314,7 @@ export default function SnippetsManager() {
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
   const handledTitleFocusRequestRef = useRef(0)
   const previousSelectedIdRef = useRef<string | null>(null)
+  const linkedSnippetIdRef = useRef<string | null>(null)
   const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handoffInFlightRef = useRef<string | null>(null)
 
@@ -474,6 +477,26 @@ export default function SnippetsManager() {
   }, [allTags, selected, tagInput])
 
   const hasFilters = Boolean(search || activeFolder || filterTag || favoritesOnly)
+
+  useEffect(() => {
+    if (!handoffState.wikiTargetId) return
+    if (!snippets.some((snippet) => snippet.id === handoffState.wikiTargetId)) return
+    linkedSnippetIdRef.current = handoffState.wikiTargetId
+    setSelectedId(handoffState.wikiTargetId)
+    updateHandoffState({ wikiTargetId: null })
+  }, [handoffState.wikiTargetId, snippets, updateHandoffState])
+
+  useEffect(() => {
+    if (
+      handoffState.backlinkNoteId &&
+      !handoffState.wikiTargetId &&
+      linkedSnippetIdRef.current &&
+      selectedId !== linkedSnippetIdRef.current
+    ) {
+      linkedSnippetIdRef.current = null
+      updateHandoffState({ backlinkNoteId: null })
+    }
+  }, [handoffState.backlinkNoteId, handoffState.wikiTargetId, selectedId, updateHandoffState])
 
   useEffect(() => {
     if (snippets.length === 0) {
@@ -1231,6 +1254,22 @@ export default function SnippetsManager() {
                       {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}
                     </p>
                   </div>
+                  {handoffState.backlinkNoteId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        sendToTool('notes', {
+                          selectedId: handoffState.backlinkNoteId,
+                          selectedFolderId: null,
+                          taskView: 'notes',
+                        })
+                      }
+                    >
+                      Back to note
+                    </Button>
+                  )}
                   <Select
                     value={selected.language}
                     onChange={(event) =>

@@ -7,7 +7,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, Sqlite, SqlitePool, Transaction};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -669,6 +669,39 @@ fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> 
         ));
     }
     Ok(value.to_string())
+}
+
+fn stable_note_link_targets(content: &str) -> Vec<(String, String)> {
+    let mut targets = Vec::new();
+    let mut remaining = content;
+    while let Some(open) = remaining.find("[[") {
+        let after_open = &remaining[open + 2..];
+        let Some(close) = after_open.find("]]") else {
+            break;
+        };
+        let token = &after_open[..close];
+        if let Some((target, label)) = token.split_once('|') {
+            if let Some((kind, id)) = target.split_once(':') {
+                if matches!(kind, "note" | "snippet" | "api-request")
+                    && !id.is_empty()
+                    && !label.is_empty()
+                    && !id
+                        .chars()
+                        .any(|character| matches!(character, '|' | ']' | '\r' | '\n'))
+                    && !label
+                        .chars()
+                        .any(|character| matches!(character, ']' | '\r' | '\n'))
+                {
+                    let pair = (kind.to_string(), id.to_string());
+                    if !targets.contains(&pair) {
+                        targets.push(pair);
+                    }
+                }
+            }
+        }
+        remaining = &after_open[close + 2..];
+    }
+    targets
 }
 
 fn unknown_help_topic(topic: &str) -> McpError {
@@ -1532,6 +1565,31 @@ impl DevdrivrMcpService {
         }
     }
 
+    async fn replace_note_links(
+        transaction: &mut Transaction<'_, Sqlite>,
+        source_note_id: &str,
+        content: &str,
+    ) -> std::result::Result<(), McpError> {
+        sqlx::query("DELETE FROM note_links WHERE source_note_id = $1")
+            .bind(source_note_id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(db_error)?;
+        for (kind, id) in stable_note_link_targets(content) {
+            sqlx::query(
+                "INSERT INTO note_links (source_note_id, target_kind, target_id, created_at) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(source_note_id)
+            .bind(kind)
+            .bind(id)
+            .bind(now_ms())
+            .execute(&mut **transaction)
+            .await
+            .map_err(db_error)?;
+        }
+        Ok(())
+    }
+
     async fn permissions_for(&self, resource: &str) -> ResourcePermissions {
         let settings = self.settings.read().await;
         match resource {
@@ -1750,8 +1808,49 @@ impl DevdrivrMcpService {
     }
 
     async fn note_value(&self, row: NoteRow) -> std::result::Result<Value, McpError> {
+        let note_id = row.id.clone();
         let folder_path = self.folder_path(row.folder_id.as_deref()).await?;
-        Ok(note_to_json(row, folder_path))
+        let outgoing = sqlx::query_as::<_, (String, String)>(
+            r#"SELECT target_kind, target_id FROM note_links link
+               WHERE source_note_id = $1 AND (
+                 (target_kind = 'note' AND EXISTS (SELECT 1 FROM notes target WHERE target.id = link.target_id AND target.deleted_at IS NULL)) OR
+                 (target_kind = 'snippet' AND EXISTS (SELECT 1 FROM snippets target WHERE target.id = link.target_id AND target.deleted_at IS NULL)) OR
+                 (target_kind = 'api-request' AND EXISTS (SELECT 1 FROM api_requests target WHERE target.id = link.target_id AND target.deleted_at IS NULL))
+               ) ORDER BY target_kind, target_id"#,
+        )
+        .bind(&note_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let backlinks = sqlx::query_as::<_, (String, String)>(
+            r#"SELECT source.id, source.title FROM note_links link
+               JOIN notes source ON source.id = link.source_note_id
+               WHERE link.target_kind = 'note' AND link.target_id = $1
+                 AND source.deleted_at IS NULL
+               ORDER BY source.updated_at DESC"#,
+        )
+        .bind(&note_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        let mut value = note_to_json(row, folder_path);
+        if let Value::Object(fields) = &mut value {
+            fields.insert(
+                "outgoingLinks".to_string(),
+                json!(outgoing
+                    .into_iter()
+                    .map(|(kind, id)| json!({ "kind": kind, "id": id }))
+                    .collect::<Vec<_>>()),
+            );
+            fields.insert(
+                "backlinks".to_string(),
+                json!(backlinks
+                    .into_iter()
+                    .map(|(id, title)| json!({ "id": id, "title": title }))
+                    .collect::<Vec<_>>()),
+            );
+        }
+        Ok(value)
     }
 
     async fn snippet_value(&self, row: SnippetRow) -> std::result::Result<Value, McpError> {
@@ -2301,6 +2400,8 @@ impl DevdrivrMcpService {
                         "taskStatus": "todo|in_progress|done|blocked|null",
                         "taskPriority": "low|medium|high|null",
                         "taskDueDate": "string|null (local YYYY-MM-DD date)",
+                        "outgoingLinks": "{kind,id}[] (live stable targets)",
+                        "backlinks": "{id,title}[] (live source notes)",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
@@ -2540,12 +2641,13 @@ impl DevdrivrMcpService {
                 (task_priority.is_some() || task_due_date.is_some()).then(|| "todo".to_string())
             });
         self.require_folder_kind(&folder_id, "notes").await?;
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         sqlx::query(
             "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id, task_status, task_priority, task_due_date) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(&id)
         .bind(title)
-        .bind(content)
+        .bind(&content)
         .bind(color)
         .bind(if pinned { 1 } else { 0 })
         .bind(now)
@@ -2555,9 +2657,11 @@ impl DevdrivrMcpService {
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
-        .execute(&self.pool)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        Self::replace_note_links(&mut transaction, &id, &content).await?;
+        transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "create", Some(id.clone()));
         self.notes_get(Parameters(IdArgs { id })).await
     }
@@ -2573,6 +2677,10 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("notes", &args.id))?;
+        let title = args.title.unwrap_or_else(|| current.title.clone());
+        let content = args.content.unwrap_or_else(|| current.content.clone());
+        let color = args.color.unwrap_or_else(|| current.color.clone());
+        let pinned = args.pinned.unwrap_or(current.pinned == 1);
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -2627,23 +2735,26 @@ impl DevdrivrMcpService {
             })
         };
         self.require_folder_kind(&folder_id, "notes").await?;
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         sqlx::query(
             "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1",
         )
         .bind(&args.id)
-        .bind(args.title.unwrap_or(current.title))
-        .bind(args.content.unwrap_or(current.content))
-        .bind(args.color.unwrap_or(current.color))
-        .bind(if args.pinned.unwrap_or(current.pinned == 1) { 1 } else { 0 })
+        .bind(title)
+        .bind(&content)
+        .bind(color)
+        .bind(if pinned { 1 } else { 0 })
         .bind(tags)
         .bind(folder_id)
         .bind(now_ms())
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
-        .execute(&self.pool)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        Self::replace_note_links(&mut transaction, &args.id, &content).await?;
+        transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "update", Some(args.id.clone()));
         self.notes_get(Parameters(IdArgs { id: args.id })).await
     }
@@ -3408,6 +3519,21 @@ mod tests {
         assert!(validate_task_priority("urgent").is_err());
         assert!(validate_task_due_date("2026-02-29").is_err());
         assert!(validate_task_due_date("2026-9-8").is_err());
+    }
+
+    #[test]
+    fn stable_note_links_are_deduplicated_without_guessing_legacy_titles() {
+        let targets = stable_note_link_targets(
+            "[[note:note-1|Plan]] [[snippet:snippet-1|Helper]] [[note:note-1|Renamed]] [[Legacy]]",
+        );
+
+        assert_eq!(
+            targets,
+            vec![
+                ("note".to_string(), "note-1".to_string()),
+                ("snippet".to_string(), "snippet-1".to_string()),
+            ]
+        );
     }
 
     #[test]

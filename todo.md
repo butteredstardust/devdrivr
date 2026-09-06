@@ -138,18 +138,20 @@ local dates and no conversion discards note title/body/folder/tags.
 
 ### 6. Wiki links, backlinks, and cross-resource navigation
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** Notes can connect local knowledge to other notes, snippets, and saved
 API requests using `[[target]]` links.
 
-- [ ] Define stable link syntax and resolution by resource ID, while inserting a
+- [x] Define stable link syntax and resolution by resource ID, while inserting a
       readable shortest unambiguous label/path.
-- [ ] Add an accessible `[[` autocomplete picker spanning notes, snippets, and API
+- [x] Add an accessible `[[` autocomplete picker spanning notes, snippets, and API
       requests, with keyboard navigation and resource/location labels.
-- [ ] Render safe internal links in preview and open the exact destination through
+- [x] Render safe internal links in preview and open the exact destination through
       the existing tab/handoff infrastructure.
-- [ ] Parse outgoing links and expose backlinks; update indexes on rename, move,
+- [x] Parse outgoing links and expose backlinks; update indexes on rename, move,
       delete, restore, and content save.
-- [ ] Handle duplicate titles, broken links, renamed targets, trashed targets, and
+- [x] Handle duplicate titles, broken links, renamed targets, trashed targets, and
       legacy content in tests.
 
 **Depends on:** items 2-4. **Done when:** links survive target rename/move and a

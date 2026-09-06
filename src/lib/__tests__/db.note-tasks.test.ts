@@ -6,9 +6,10 @@ const sqlMock = vi.hoisted(() => ({
   select: vi.fn(),
   load: vi.fn(),
 }))
+const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
 
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: sqlMock.load } }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
 
 describe('note task DB helpers', () => {
   beforeEach(() => {
@@ -17,6 +18,7 @@ describe('note task DB helpers', () => {
     sqlMock.execute.mockResolvedValue({ rowsAffected: 1, lastInsertId: 0 })
     sqlMock.select.mockResolvedValue([])
     sqlMock.load.mockResolvedValue({ execute: sqlMock.execute, select: sqlMock.select })
+    coreMock.invoke.mockResolvedValue(undefined)
   })
 
   it('round-trips optional task metadata when saving a note', async () => {
@@ -40,9 +42,12 @@ describe('note task DB helpers', () => {
 
     await saveNote(note)
 
-    const [sql, params] = sqlMock.execute.mock.calls[2] as [string, unknown[]]
-    expect(sql).toContain('task_status=$17')
-    expect(params.slice(-3)).toEqual(['in_progress', 'high', '2026-09-08'])
+    const [, payload] = coreMock.invoke.mock.calls[0] as [
+      string,
+      { statements: Array<{ sql: string; params: unknown[] }> },
+    ]
+    expect(payload.statements[0]?.sql).toContain('task_status=$17')
+    expect(payload.statements[0]?.params.slice(-3)).toEqual(['in_progress', 'high', '2026-09-08'])
   })
 
   it('soft-deletes only completed live tasks', async () => {

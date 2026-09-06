@@ -29,6 +29,8 @@ import { useTabDirty } from '@/hooks/useTabDirty'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { useNotesStore } from '@/stores/notes.store'
+import { useSnippetsStore } from '@/stores/snippets.store'
+import { useApiStore } from '@/stores/api.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useUiStore } from '@/stores/ui.store'
 import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
@@ -42,6 +44,18 @@ import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import type { Note, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
+import { sendToTool } from '@/lib/tool-handoff'
+import {
+  backlinksForResource,
+  buildWikiResources,
+  findWikiTrigger,
+  renderWikiLinks,
+  wikiToken,
+  type WikiResource,
+  type WikiResourceRef,
+  type WikiTrigger,
+} from '@/lib/wiki-links'
+import { WikiLinkPicker } from '@/tools/notes/WikiLinkPicker'
 import {
   isTask,
   localDateKey,
@@ -119,6 +133,10 @@ export default function NotesWorkspace() {
   const restoreNote = useNotesStore((state) => state.restore)
   const permanentlyDeleteNote = useNotesStore((state) => state.permanentlyDelete)
   const trashCompletedNotes = useNotesStore((state) => state.trashCompleted)
+  const snippets = useSnippetsStore((state) => state.snippets)
+  const apiRequests = useApiStore((state) => state.requests)
+  const apiCollections = useApiStore((state) => state.collections)
+  const apiInitialized = useApiStore((state) => state.initialized)
   const refreshNotes = useNotesStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
   const trashedFolders = useFoldersStore((state) => state.trashedFolders)
@@ -147,10 +165,12 @@ export default function NotesWorkspace() {
   const [removeTaskCandidate, setRemoveTaskCandidate] = useState<Note | null>(null)
   const [trashCompletedOpen, setTrashCompletedOpen] = useState(false)
   const [today, setToday] = useState(() => localDateKey())
+  const [wikiTrigger, setWikiTrigger] = useState<WikiTrigger | null>(null)
   const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const previousSelectedIdRef = useRef<string | null>(null)
+  const editorCursorCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const now = new Date()
@@ -161,6 +181,17 @@ export default function NotesWorkspace() {
     )
     return () => window.clearTimeout(timer)
   }, [today])
+
+  useEffect(() => {
+    if (apiInitialized) return
+    void useApiStore
+      .getState()
+      .init()
+      .catch(() => {
+        // The API Client reports its own initialization failures when opened. Notes
+        // remains usable with note and snippet link targets in the meantime.
+      })
+  }, [apiInitialized])
 
   const selected = useMemo(
     () => notes.find((note) => note.id === state.selectedId) ?? null,
@@ -229,6 +260,14 @@ export default function NotesWorkspace() {
     return counts
   }, [notes, today])
   const completedCount = taskCounts.get('completed') ?? 0
+  const wikiResources = useMemo(
+    () => buildWikiResources(notes, snippets, apiRequests, folders, apiCollections),
+    [apiCollections, apiRequests, folders, notes, snippets]
+  )
+  const backlinks = useMemo(
+    () => (selected ? backlinksForResource(notes, { kind: 'note', id: selected.id }) : []),
+    [notes, selected]
+  )
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const note of notes) {
@@ -237,8 +276,26 @@ export default function NotesWorkspace() {
     return counts
   }, [notes])
 
-  const editorMount: OnMount = useCallback((editor) => setMountedEditor(editor), [])
+  const editorMount: OnMount = useCallback((editor) => {
+    editorCursorCleanupRef.current?.()
+    setMountedEditor(editor)
+    const disposable = editor.onDidChangeCursorPosition(() => {
+      const model = editor.getModel()
+      const position = editor.getPosition()
+      if (!model || !position) return
+      setWikiTrigger(findWikiTrigger(model.getValue(), model.getOffsetAt(position)))
+    })
+    editorCursorCleanupRef.current = () => disposable.dispose()
+  }, [])
   useScrollSync(mountedEditor, previewRef, state.mode === 'split', state.mode === 'split')
+
+  useEffect(
+    () => () => {
+      editorCursorCleanupRef.current?.()
+      editorCursorCleanupRef.current = null
+    },
+    []
+  )
 
   useTabDirty(selected ? pendingSaveIds.includes(selected.id) : false)
 
@@ -251,6 +308,8 @@ export default function NotesWorkspace() {
       updateState({ selectedId: filteredNotes[0]?.id ?? null })
     }
   }, [filteredNotes, state.selectedId, updateState])
+
+  useEffect(() => setWikiTrigger(null), [selectedId])
 
   useEffect(() => {
     const previousId = previousSelectedIdRef.current
@@ -281,7 +340,8 @@ export default function NotesWorkspace() {
   useEffect(() => {
     let cancelled = false
     const timer = window.setTimeout(() => {
-      void renderMarkdownContent(selected?.content ?? '').then((rendered) => {
+      const linkedMarkdown = renderWikiLinks(selected?.content ?? '', wikiResources)
+      void renderMarkdownContent(linkedMarkdown).then((rendered) => {
         if (!cancelled) setHtml(rendered)
       })
     }, 200)
@@ -289,7 +349,7 @@ export default function NotesWorkspace() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [selected?.content])
+  }, [selected?.content, wikiResources])
 
   const handleNew = useCallback(async () => {
     try {
@@ -423,6 +483,43 @@ export default function NotesWorkspace() {
     [copy]
   )
 
+  const handleWikiSelect = useCallback(
+    (resource: WikiResource) => {
+      if (!selected || !wikiTrigger) return
+      const token = wikiToken(resource)
+      const content = `${selected.content.slice(0, wikiTrigger.start)}${token}${selected.content.slice(wikiTrigger.end)}`
+      const nextOffset = wikiTrigger.start + token.length
+      editNote(selected.id, { content })
+      setWikiTrigger(null)
+      window.setTimeout(() => {
+        const model = mountedEditor?.getModel()
+        if (!model) return
+        mountedEditor?.focus()
+        mountedEditor?.setPosition(model.getPositionAt(nextOffset))
+      }, 0)
+    },
+    [editNote, mountedEditor, selected, wikiTrigger]
+  )
+
+  const handleOpenInternalLink = useCallback(
+    (target: WikiResourceRef) => {
+      if (target.kind === 'note') {
+        updateState({ selectedId: target.id, selectedFolderId: null, taskView: 'notes' })
+        return
+      }
+      const backlinkNoteId = selected?.id ?? null
+      if (target.kind === 'snippet') {
+        sendToTool('snippets', { wikiTargetId: target.id, backlinkNoteId })
+      } else {
+        sendToTool('api-client', {
+          wikiTargetId: target.id,
+          backlinkNoteId,
+        })
+      }
+    },
+    [selected?.id, updateState]
+  )
+
   const handleListKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>, noteId: string) => {
       const index = filteredNotes.findIndex((note) => note.id === noteId)
@@ -497,6 +594,7 @@ export default function NotesWorkspace() {
       toc={[]}
       readOnlyTaskLists={state.mode === 'preview'}
       onCopyCodeBlock={handleCopyCode}
+      onInternalLink={handleOpenInternalLink}
       {...(selected && state.mode === 'split'
         ? {
             onToggleTask: (index: number) => handleToggleTask(selected.id, index),
@@ -877,13 +975,21 @@ export default function NotesWorkspace() {
               secondVisible={state.mode !== 'edit'}
               aria-label="Resize note editor and preview"
             >
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="relative min-h-0 flex-1 overflow-hidden">
                 <Editor
                   theme={monacoTheme}
                   language="markdown"
                   value={selected.content}
                   onMount={editorMount}
-                  onChange={(value) => editNote(selected.id, { content: value ?? '' })}
+                  onChange={(value, event) => {
+                    const content = value ?? ''
+                    editNote(selected.id, { content })
+                    const lastChange = event?.changes[event.changes.length - 1]
+                    const cursor = lastChange
+                      ? lastChange.rangeOffset + lastChange.text.length
+                      : content.length
+                    setWikiTrigger(findWikiTrigger(content, cursor))
+                  }}
                   options={{
                     ...monacoOptions,
                     minimap: { enabled: false },
@@ -891,9 +997,44 @@ export default function NotesWorkspace() {
                     scrollBeyondLastLine: false,
                   }}
                 />
+                {wikiTrigger && (
+                  <WikiLinkPicker
+                    query={wikiTrigger.query}
+                    resources={wikiResources}
+                    onQueryChange={(query) =>
+                      setWikiTrigger((current) => (current ? { ...current, query } : null))
+                    }
+                    onSelect={handleWikiSelect}
+                    onClose={() => setWikiTrigger(null)}
+                  />
+                )}
               </div>
               {preview}
             </SplitPane>
+            {backlinks.length > 0 && (
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+                <span className="text-2xs font-semibold text-[var(--color-text-muted)]">
+                  Backlinks ({backlinks.length})
+                </span>
+                {backlinks.map((note) => (
+                  <Button
+                    key={note.id}
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() =>
+                      updateState({
+                        selectedId: note.id,
+                        selectedFolderId: null,
+                        taskView: 'notes',
+                      })
+                    }
+                  >
+                    {note.title || 'Untitled note'}
+                  </Button>
+                ))}
+              </div>
+            )}
           </section>
         ) : (
           <EmptyState

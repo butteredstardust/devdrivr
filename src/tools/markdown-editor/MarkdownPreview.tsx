@@ -16,6 +16,7 @@ import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TextArea } from '@/components/shared/TextArea'
 import { Toggle } from '@/components/shared/Toggle'
 import { nextHeadingId } from './heading-ids'
+import { parseInternalResourceHref, type WikiResourceRef } from '@/lib/wiki-links'
 
 type TocEntry = {
   level: number
@@ -41,6 +42,8 @@ type MarkdownPreviewProps = {
   activeSourceLine?: number | null
   /** Adds an accessible one-click copy action to every rendered fenced code block. */
   onCopyCodeBlock?: (code: string) => void
+  /** Handles sanitized devdrivr resource links without navigating the WebView. */
+  onInternalLink?: (target: WikiResourceRef) => void
 }
 
 type ActiveBlockEdit = {
@@ -165,6 +168,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       onRevealSource,
       activeSourceLine = null,
       onCopyCodeBlock,
+      onInternalLink,
     },
     ref
   ) {
@@ -251,12 +255,23 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           e.preventDefault()
           return
         }
+        if (onInternalLink && e.target instanceof window.HTMLElement) {
+          const anchor = e.target.closest<HTMLAnchorElement>('a[href]')
+          const target = anchor
+            ? parseInternalResourceHref(anchor.getAttribute('href') ?? '')
+            : null
+          if (target) {
+            e.preventDefault()
+            onInternalLink(target)
+            return
+          }
+        }
         if (beginEditFromTarget(e.target)) {
           e.preventDefault()
           return
         }
       },
-      [beginEditFromTarget, toggleFromEventTarget]
+      [beginEditFromTarget, onInternalLink, toggleFromEventTarget]
     )
 
     const handlePreviewKeyDown = useCallback(

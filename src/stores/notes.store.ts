@@ -11,6 +11,7 @@ import {
   permanentlyDeleteNote,
   clearAllNotes,
   trashCompletedNotes,
+  rebuildNoteLinks,
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -97,6 +98,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     if (!initPromise) {
       initPromise = (async () => {
         const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+        await rebuildNoteLinks(notes)
         set({ notes, trashedNotes, initialized: true })
       })().catch((err: unknown) => {
         // Clear the cached promise on failure so a later call retries
@@ -112,7 +114,10 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     await get().flushPending()
     const revision = notesRevision
     const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
-    if (revision === notesRevision) set({ notes, trashedNotes, initialized: true })
+    if (revision === notesRevision) {
+      await rebuildNoteLinks(notes)
+      if (revision === notesRevision) set({ notes, trashedNotes, initialized: true })
+    }
   },
 
   add: async (
@@ -394,6 +399,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     await restoreNote(id)
     notesRevision++
     const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
+    await rebuildNoteLinks(notes)
     set({ notes, trashedNotes })
   },
 

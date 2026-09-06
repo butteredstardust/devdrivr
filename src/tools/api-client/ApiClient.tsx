@@ -149,6 +149,8 @@ export default function ApiClient() {
 
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
     activeRequestId: null,
+    wikiTargetId: null,
+    backlinkNoteId: null,
     libraryOpen: true,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     draft: createDefaultDraft(),
@@ -813,7 +815,12 @@ export default function ApiClient() {
 
   const resetToNewRequest = useCallback(() => {
     clearTransientFormState()
-    updateState({ activeRequestId: null, draft: createDefaultDraft() })
+    updateState({
+      activeRequestId: null,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      draft: createDefaultDraft(),
+    })
     setResponse(null)
     setError(null)
   }, [clearTransientFormState, updateState])
@@ -823,11 +830,12 @@ export default function ApiClient() {
   }, [guardUnsaved, resetToNewRequest])
 
   const handleSelectLoadedRequest = useCallback(
-    (req: ApiRequest) => {
+    (req: ApiRequest, backlinkNoteId: string | null = null) => {
       guardUnsaved(`opening “${req.name}”`, () => {
         clearTransientFormState()
         updateState({
           activeRequestId: req.id,
+          backlinkNoteId,
           draft: {
             name: req.name,
             method: req.method,
@@ -845,6 +853,14 @@ export default function ApiClient() {
     [clearTransientFormState, guardUnsaved, updateState]
   )
 
+  useEffect(() => {
+    if (!state.wikiTargetId) return
+    const request = requests.find((candidate) => candidate.id === state.wikiTargetId)
+    if (!request) return
+    handleSelectLoadedRequest(request, state.backlinkNoteId)
+    updateState({ wikiTargetId: null })
+  }, [handleSelectLoadedRequest, requests, state.backlinkNoteId, state.wikiTargetId, updateState])
+
   const handleLoadFromHistory = useCallback(
     (entry: HistoryEntry) => {
       const [histMethod, ...urlParts] = entry.input.split(' ')
@@ -853,6 +869,7 @@ export default function ApiClient() {
         clearTransientFormState()
         updateState({
           activeRequestId: null,
+          backlinkNoteId: null,
           draft: createDefaultDraft(histMethod ?? 'GET', { url: histUrl }),
         })
         if (entry.responseBody != null) {
@@ -1250,6 +1267,23 @@ export default function ApiClient() {
                     {statusLine}
                   </p>
                 </div>
+
+                {state.backlinkNoteId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      sendToTool('notes', {
+                        selectedId: state.backlinkNoteId,
+                        selectedFolderId: null,
+                        taskView: 'notes',
+                      })
+                    }
+                  >
+                    Back to note
+                  </Button>
+                )}
 
                 <Button
                   type="button"

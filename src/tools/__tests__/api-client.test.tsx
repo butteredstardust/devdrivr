@@ -12,6 +12,7 @@ import {
 } from '@/tools/api-client/request-model'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 import { useFoldersStore } from '@/stores/folders.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const clipboardWriteText = vi.fn()
@@ -634,6 +635,31 @@ describe('ApiClient', () => {
 
     expect(screen.getByDisplayValue('https://example.com/user')).toBeInTheDocument()
     expect(screen.getByLabelText('Request name')).toHaveValue('Get User')
+  })
+
+  it('guards unsaved drafts when a note link opens an exact saved request', async () => {
+    useApiStore.setState({ requests: [savedRequest] })
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://draft.example.com' },
+    })
+    act(() => {
+      useToolStateCache.getState().seed('api-client', {
+        wikiTargetId: savedRequest.id,
+        backlinkNoteId: 'source-note',
+      })
+    })
+
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)).toHaveValue(
+      'https://draft.example.com'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(screen.getByDisplayValue('https://example.com/user')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to note' })).toBeInTheDocument()
   })
 
   it('opens a saved request without prompting when the draft is untouched', () => {

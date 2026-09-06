@@ -112,6 +112,12 @@ pub fn run() {
             sql: include_str!("../migrations/015_note_tasks.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 16,
+            description: "add stable note link index",
+            sql: include_str!("../migrations/016_note_links.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();
