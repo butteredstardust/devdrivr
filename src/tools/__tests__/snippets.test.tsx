@@ -6,8 +6,12 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
-import SnippetsManager from '@/tools/snippets/SnippetsManager'
+import SnippetsManager, {
+  hasRegisteredDocumentFormatter,
+  runRegisteredDocumentFormatter,
+} from '@/tools/snippets/SnippetsManager'
 import { ToolInstanceContext } from '@/app/tool-instance'
+import { sendToTool } from '@/lib/tool-handoff'
 
 vi.mock('@/lib/file-io', async () => {
   const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
@@ -17,6 +21,8 @@ vi.mock('@/lib/file-io', async () => {
     openFileDialog: vi.fn(),
   }
 })
+
+vi.mock('@/lib/tool-handoff', () => ({ sendToTool: vi.fn() }))
 
 const realActions = {
   add: useSnippetsStore.getState().add,
@@ -606,6 +612,190 @@ describe('SnippetsManager — native import and export', () => {
 
     await waitFor(() =>
       expect(exportFile).toHaveBeenCalledWith('console.log("hello")', 'my_snippet.js')
+    )
+  })
+})
+
+describe('SnippetsManager — formatting and contextual previews', () => {
+  it('uses a registered Monaco document formatter when one is available', async () => {
+    const run = vi.fn().mockResolvedValue(undefined)
+    const editor = {
+      getAction: vi.fn(() => ({ isSupported: () => true, run })),
+    }
+    expect(hasRegisteredDocumentFormatter(editor as never)).toBe(true)
+    await expect(runRegisteredDocumentFormatter(editor as never)).resolves.toBe(true)
+    expect(run).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the existing formatter worker and updates only the active fragment', async () => {
+    const update = vi.fn().mockImplementation(realActions.update)
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'format-me',
+          title: 'Formatter',
+          content: 'const value={ok:true}',
+          language: 'javascript',
+          fragments: [
+            fragment('main', 'main.js', 'const value={ok:true}', 'javascript', 0),
+            fragment('other', 'other.txt', 'leave me', 'text', 1),
+          ],
+        }),
+      ],
+      update,
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        'format-me',
+        expect.objectContaining({
+          fragments: [
+            expect.objectContaining({ id: 'main', content: 'const value = { ok: true }\n' }),
+            expect.objectContaining({ id: 'other', content: 'leave me' }),
+          ],
+        })
+      )
+    )
+    expect(useUiStore.getState().lastAction?.message).toBe('Formatted main.js')
+  })
+
+  it('does not overwrite edits made while fallback formatting is in flight', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'typing', title: 'Typing', content: 'const value={ok:true}' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: 'const userTyping = true' },
+    })
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe(
+        'Fragment changed while formatting — format again'
+      )
+    )
+    expect(useSnippetsStore.getState().snippets[0]?.content).toBe('const userTyping = true')
+  })
+
+  it('shows formatter syntax errors without changing the fragment', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'broken-js', title: 'Broken JS', content: 'const =' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unexpected token|parse/i)
+    expect(useSnippetsStore.getState().snippets[0]?.content).toBe('const =')
+  })
+
+  it('explains unsupported formatting and previews', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'python', title: 'Python', language: 'python' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    expect(formatButton).toBeDisabled()
+    expect(formatButton).toHaveAttribute('title', 'No formatter is available for python')
+    const previewButton = screen.getByRole('button', { name: 'Preview HTML and CSS fragments' })
+    expect(previewButton).toBeDisabled()
+    expect(previewButton).toHaveAttribute(
+      'title',
+      'Preview supports JSON or snippets containing an HTML fragment'
+    )
+  })
+
+  it('opens a composed HTML/CSS preview without changing fragment selection', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'web',
+          title: 'Card',
+          content: '<article>Card</article>',
+          language: 'html',
+          fragments: [
+            fragment('html', 'card.html', '<article>Card</article>', 'html', 0),
+            fragment('css', 'card.css', 'article { display: grid }', 'css', 1),
+          ],
+        }),
+      ],
+    })
+    renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Card')
+    const activeTab = screen.getByRole('tab', { name: 'card.html' })
+    expect(activeTab).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Preview HTML and CSS fragments' }))
+
+    const frame = await screen.findByTitle('Rendered snippet preview')
+    expect(frame).toHaveAttribute('sandbox', '')
+    expect(frame.getAttribute('srcdoc')).toContain('<article>Card</article>')
+    expect(frame.getAttribute('srcdoc')).toContain('article { display: grid }')
+    expect(activeTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('hands valid JSON to the existing tree view and rejects invalid JSON locally', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'json',
+          title: 'Payload',
+          content: 'notes',
+          language: 'text',
+          fragments: [
+            fragment('readme', 'readme.txt', 'notes', 'text', 0),
+            fragment('payload', 'payload.json', '{"ok":true}', 'json', 1),
+          ],
+        }),
+      ],
+    })
+    const view = renderTool(SnippetsManager)
+    fireEvent.click(await screen.findByRole('tab', { name: 'payload.json' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview JSON fragment' }))
+    expect(sendToTool).toHaveBeenCalledWith('json-tools', { input: '{"ok":true}', view: 'tree' })
+    expect(screen.getByRole('tab', { name: 'payload.json' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+
+    view.unmount()
+    vi.mocked(sendToTool).mockClear()
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'bad-json', title: 'Broken', content: '{', language: 'json' })],
+    })
+    renderTool(SnippetsManager)
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview JSON fragment' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('JSON preview unavailable')
+    expect(sendToTool).not.toHaveBeenCalled()
+  })
+
+  it('exposes keyboard commands for formatting and web preview', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'shortcuts',
+          title: 'Shortcuts',
+          content: '<main>Preview</main>',
+          language: 'html',
+        }),
+      ],
+    })
+    renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Shortcuts')
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true, shiftKey: true })
+    expect(await screen.findByTitle('Rendered snippet preview')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close snippet preview' }))
+
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true, shiftKey: true })
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toMatch(/Formatted|already formatted/)
     )
   })
 })

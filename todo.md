@@ -221,18 +221,20 @@ added headers.
 
 ### 10. Snippet formatting and contextual previews
 
+**Status:** Complete (2026-09-06)
+
 **Outcome:** Common snippets can be cleaned up and inspected without leaving the
 library.
 
-- [ ] Use Monaco's registered document formatters first; add language-specific
+- [x] Use Monaco's registered document formatters first; add language-specific
       formatting dependencies only where platform/editor support is insufficient.
-- [ ] Add a sandboxed HTML/CSS preview that composes selected fragments and blocks
+- [x] Add a sandboxed HTML/CSS preview that composes selected fragments and blocks
       privileged Tauri access, navigation, and unexpected network access.
-- [ ] Reuse the existing JSON visualization tool through `sendToTool` instead of
+- [x] Reuse the existing JSON visualization tool through `sendToTool` instead of
       building a second renderer; preserve the current fragment selection.
-- [ ] Provide format/preview commands, shortcuts, disabled-state explanations,
+- [x] Provide format/preview commands, shortcuts, disabled-state explanations,
       syntax-error feedback, and unsaved-edit safety.
-- [ ] Test formatter failures, unsupported languages, CSP/sandbox boundaries,
+- [x] Test formatter failures, unsupported languages, CSP/sandbox boundaries,
       multi-fragment composition, and handoff behavior.
 
 **Depends on:** item 7. **Risk:** medium due to executable preview content. **Done

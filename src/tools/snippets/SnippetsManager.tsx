@@ -8,16 +8,19 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
+import type { OnMount } from '@monaco-editor/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import Fuse from 'fuse.js'
 import {
   ArrowRightIcon,
+  BroomIcon,
   CaretLeftIcon,
   CaretRightIcon,
   ClipboardTextIcon,
   CopyIcon,
   DownloadSimpleIcon,
   FolderOpenIcon,
+  EyeIcon,
   PlusIcon,
   ScissorsIcon,
   SidebarIcon,
@@ -28,6 +31,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
+import { Alert } from '@/components/shared/Alert'
 import { Field } from '@/components/shared/Field'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
@@ -53,6 +57,12 @@ import { formatShortcut } from '@/lib/shortcut-label'
 import { formatBytes } from '@/lib/format'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
 import { fragmentsForSnippet } from '@/lib/snippet-fragments'
+import { useWorker } from '@/hooks/useWorker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
+import type { FormatterWorker } from '@/workers/formatter.worker'
+import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/tools/code-formatter/languages'
+import { buildWebPreviewDocument, previewKindFor } from '@/tools/snippets/snippet-preview'
+import { SnippetWebPreview } from '@/tools/snippets/SnippetWebPreview'
 
 const FAVORITE_TAG = '⭐'
 
@@ -153,6 +163,20 @@ const LANG_TONE_CLASSES: Record<LangTone, string> = {
 }
 
 type SortMode = 'updated' | 'created' | 'title' | 'language'
+type SnippetEditor = Parameters<OnMount>[0]
+
+const FORMATTER_LANGUAGES = new Set(FORMATTER_LANGUAGE_OPTIONS.map((language) => language.id))
+
+export function hasRegisteredDocumentFormatter(editor: SnippetEditor | null): boolean {
+  return editor?.getAction('editor.action.formatDocument')?.isSupported() === true
+}
+
+export async function runRegisteredDocumentFormatter(editor: SnippetEditor): Promise<boolean> {
+  const action = editor.getAction('editor.action.formatDocument')
+  if (!action?.isSupported()) return false
+  await action.run()
+  return true
+}
 
 interface FuseMatchEntry {
   key?: string
@@ -316,6 +340,12 @@ export default function SnippetsManager() {
   const fragmentEditorId = useId()
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
+  const [formatterRequested, setFormatterRequested] = useState(false)
+  const formatter = useWorker<FormatterWorker>(
+    () => new FormatterWorkerFactory(),
+    ['format', 'detectLanguage', 'getSupportedLanguages'],
+    formatterRequested
+  )
   const snippets = useSnippetsStore((state) => state.snippets)
   const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
   const [handoffState, updateHandoffState] = useToolState<{
@@ -368,6 +398,10 @@ export default function SnippetsManager() {
   const [recentlyDeleted, setRecentlyDeleted] = useState<Snippet | null>(null)
   const [folderTrashCandidate, setFolderTrashCandidate] = useState<ResourceFolder | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
+  const [formatError, setFormatError] = useState<string | null>(null)
+  const [formatting, setFormatting] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [monacoFormatterAvailable, setMonacoFormatterAvailable] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -378,6 +412,13 @@ export default function SnippetsManager() {
   const linkedSnippetIdRef = useRef<string | null>(null)
   const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handoffInFlightRef = useRef<string | null>(null)
+  const editorRef = useRef<SnippetEditor | null>(null)
+  const formattingRef = useRef(false)
+  const pendingFormatRef = useRef<{
+    snippetId: string
+    fragmentId: string
+    content: string
+  } | null>(null)
 
   useEffect(() => {
     const handoff = handoffState.handoff
@@ -537,6 +578,36 @@ export default function SnippetsManager() {
     return fragments.find((fragment) => fragment.id === activeId) ?? fragments[0] ?? null
   }, [fragments, handoffState.activeFragmentIds, selected])
 
+  const previewKind = useMemo(
+    () => previewKindFor(activeFragment, fragments),
+    [activeFragment, fragments]
+  )
+  const previewDocument = useMemo(
+    () =>
+      previewOpen && previewKind === 'web' && activeFragment
+        ? buildWebPreviewDocument(fragments, activeFragment.id)
+        : null,
+    [activeFragment, fragments, previewKind, previewOpen]
+  )
+  const fallbackFormatterAvailable = Boolean(
+    activeFragment && FORMATTER_LANGUAGES.has(activeFragment.language)
+  )
+  const canFormat = Boolean(
+    activeFragment?.content.trim() && (monacoFormatterAvailable || fallbackFormatterAvailable)
+  )
+  const formatDisabledReason = !activeFragment
+    ? 'Select a fragment to format'
+    : !activeFragment.content.trim()
+      ? 'Add content before formatting'
+      : !monacoFormatterAvailable && !fallbackFormatterAvailable
+        ? `No formatter is available for ${activeFragment.language}`
+        : formatting
+          ? 'Formatting fragment…'
+          : `Format fragment (${formatShortcut('mod+shift+f')})`
+  const previewDisabledReason = previewKind
+    ? `Preview fragment (${formatShortcut('mod+shift+enter')})`
+    : 'Preview supports JSON or snippets containing an HTML fragment'
+
   const editorStats = useMemo(() => {
     if (!activeFragment) return null
     return {
@@ -595,7 +666,23 @@ export default function SnippetsManager() {
       .getState()
       .snippets.find((snippet) => snippet.id === selectedId)
     setDescriptionOpen(Boolean(current?.description))
+    setFormatError(null)
+    setPreviewOpen(false)
   }, [selectedId])
+
+  useEffect(() => {
+    setMonacoFormatterAvailable(hasRegisteredDocumentFormatter(editorRef.current))
+    setFormatError(null)
+  }, [activeFragment?.id, activeFragment?.language])
+
+  useEffect(() => {
+    if (!previewKind) setPreviewOpen(false)
+  }, [previewKind])
+
+  const handleEditorMount: OnMount = useCallback((editor) => {
+    editorRef.current = editor
+    setMonacoFormatterAvailable(hasRegisteredDocumentFormatter(editor))
+  }, [])
 
   useEffect(() => {
     if (
@@ -1074,6 +1161,127 @@ export default function SnippetsManager() {
     setLastAction('Snippet sent to Prompt Templates', 'success')
   }, [activeFragment, selected, setLastAction])
 
+  const handleFormat = useCallback(async () => {
+    if (!selected || !activeFragment || formattingRef.current || !activeFragment.content.trim()) {
+      return
+    }
+    if (
+      !hasRegisteredDocumentFormatter(editorRef.current) &&
+      FORMATTER_LANGUAGES.has(activeFragment.language) &&
+      !formatter
+    ) {
+      pendingFormatRef.current = {
+        snippetId: selected.id,
+        fragmentId: activeFragment.id,
+        content: activeFragment.content,
+      }
+      setFormatting(true)
+      setFormatterRequested(true)
+      return
+    }
+    formattingRef.current = true
+    setFormatting(true)
+    setFormatError(null)
+    const snippetId = selected.id
+    const fragmentId = activeFragment.id
+    const snapshot = activeFragment.content
+    try {
+      const editor = editorRef.current
+      if (editor && hasRegisteredDocumentFormatter(editor)) {
+        if (editor.getValue() !== snapshot) {
+          setLastAction('Editor changed before formatting — format again', 'info')
+          return
+        }
+        await runRegisteredDocumentFormatter(editor)
+        if (editor.getValue() !== snapshot) {
+          setLastAction(`Formatted ${activeFragment.name || 'fragment'} with Monaco`, 'success')
+          return
+        }
+      }
+      if (!formatter && FORMATTER_LANGUAGES.has(activeFragment.language)) {
+        pendingFormatRef.current = { snippetId, fragmentId, content: snapshot }
+        setFormatterRequested(true)
+        return
+      }
+      if (!formatter) {
+        throw new Error(`No formatter is available for ${activeFragment.language}`)
+      }
+      const tabSize =
+        typeof monacoOptions.tabSize === 'number' && monacoOptions.tabSize > 0
+          ? monacoOptions.tabSize
+          : 2
+      const result = await formatter.format(snapshot, {
+        language: activeFragment.language,
+        tabWidth: tabSize,
+        useTabs: monacoOptions.insertSpaces === false,
+      })
+      const current = useSnippetsStore
+        .getState()
+        .snippets.find((snippet) => snippet.id === snippetId)
+      const currentFragments = current ? fragmentsForSnippet(current) : []
+      const currentFragment = currentFragments.find((fragment) => fragment.id === fragmentId)
+      if (!currentFragment || currentFragment.content !== snapshot) {
+        setLastAction('Fragment changed while formatting — format again', 'info')
+        return
+      }
+      if (result === snapshot) {
+        setLastAction('Fragment is already formatted', 'info')
+        return
+      }
+      await updateSnippet(snippetId, {
+        fragments: currentFragments.map((fragment) =>
+          fragment.id === fragmentId
+            ? { ...fragment, content: result, updatedAt: Date.now() }
+            : fragment
+        ),
+      })
+      setLastAction(`Formatted ${activeFragment.name || 'fragment'}`, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setFormatError(message)
+      setLastAction('Could not format fragment', 'error')
+    } finally {
+      formattingRef.current = false
+      setFormatting(false)
+    }
+  }, [activeFragment, formatter, monacoOptions, selected, setLastAction, updateSnippet])
+
+  useEffect(() => {
+    const pending = pendingFormatRef.current
+    if (!formatter || !pending) return
+    pendingFormatRef.current = null
+    setFormatting(false)
+    if (
+      selected?.id !== pending.snippetId ||
+      activeFragment?.id !== pending.fragmentId ||
+      activeFragment.content !== pending.content
+    ) {
+      setLastAction('Fragment changed while loading the formatter — format again', 'info')
+      return
+    }
+    void handleFormat()
+  }, [activeFragment, formatter, handleFormat, selected?.id, setLastAction])
+
+  const handlePreview = useCallback(() => {
+    if (!activeFragment || !previewKind) return
+    setFormatError(null)
+    if (previewKind === 'json') {
+      try {
+        JSON.parse(activeFragment.content)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setFormatError(`JSON preview unavailable: ${message}`)
+        setLastAction('Invalid JSON cannot be previewed', 'error')
+        return
+      }
+      sendToTool('json-tools', { input: activeFragment.content, view: 'tree' })
+      setLastAction('Fragment opened in JSON Tools', 'success')
+      return
+    }
+    setPreviewOpen(true)
+    setLastAction('HTML/CSS preview opened', 'success')
+  }, [activeFragment, previewKind, setLastAction])
+
   const clearFilters = useCallback(() => {
     setSearch('')
     setActiveFolder('')
@@ -1109,9 +1317,16 @@ export default function SnippetsManager() {
         event.preventDefault()
         void handleNew()
       }
-      if (modifier && event.key.toLowerCase() === 'f') {
+      if (modifier && event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        void handleFormat()
+      } else if (modifier && !event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault()
         searchInputRef.current?.focus()
+      }
+      if (modifier && event.shiftKey && event.key === 'Enter') {
+        event.preventDefault()
+        handlePreview()
       }
       if (modifier && event.shiftKey && event.key.toLowerCase() === 'd') {
         event.preventDefault()
@@ -1140,7 +1355,16 @@ export default function SnippetsManager() {
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [handleDuplicate, handleExportAll, handleImport, handleNew, isInstanceActive, selected])
+  }, [
+    handleDuplicate,
+    handleExportAll,
+    handleFormat,
+    handleImport,
+    handleNew,
+    handlePreview,
+    isInstanceActive,
+    selected,
+  ])
 
   return (
     <>
@@ -1471,6 +1695,35 @@ export default function SnippetsManager() {
                     type="button"
                     variant="icon"
                     size="sm"
+                    onClick={() => void handleFormat()}
+                    disabled={!canFormat || formatting}
+                    title={formatDisabledReason}
+                    aria-label={
+                      formatting ? 'Formatting snippet fragment' : 'Format snippet fragment'
+                    }
+                  >
+                    <BroomIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
+                    onClick={handlePreview}
+                    disabled={!previewKind}
+                    title={previewDisabledReason}
+                    aria-label={
+                      previewKind === 'json'
+                        ? 'Preview JSON fragment'
+                        : 'Preview HTML and CSS fragments'
+                    }
+                    aria-pressed={previewKind === 'web' ? previewOpen : undefined}
+                  >
+                    <EyeIcon size={14} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="sm"
                     onClick={() => void handleCopy()}
                     title="Copy snippet"
                     aria-label="Copy snippet"
@@ -1534,6 +1787,12 @@ export default function SnippetsManager() {
                   </Button>
                 </div>
               </header>
+
+              {formatError && (
+                <Alert variant="error" className="m-3 mb-0">
+                  {formatError}
+                </Alert>
+              )}
 
               {activeFragment && (
                 <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -1687,7 +1946,11 @@ export default function SnippetsManager() {
                     theme={monacoTheme}
                     language={activeFragment?.language ?? 'text'}
                     value={activeFragment?.content ?? ''}
-                    onChange={(value) => updateActiveFragment({ content: value ?? '' })}
+                    onMount={handleEditorMount}
+                    onChange={(value) => {
+                      setFormatError(null)
+                      updateActiveFragment({ content: value ?? '' })
+                    }}
                     options={{
                       ...monacoOptions,
                       minimap: { enabled: false },
@@ -1859,6 +2122,12 @@ export default function SnippetsManager() {
                       </div>
                     </dl>
                   </aside>
+                )}
+                {previewOpen && previewDocument && (
+                  <SnippetWebPreview
+                    document={previewDocument}
+                    onClose={() => setPreviewOpen(false)}
+                  />
                 )}
               </div>
             </>
