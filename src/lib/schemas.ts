@@ -5,6 +5,7 @@ import type {
   HistoryEntry,
   PromptTemplate,
   PromptTemplateVariable,
+  ResourceFolder,
 } from '@/types/models'
 
 export const NOTE_COLORS = [
@@ -67,6 +68,11 @@ export const noteRowSchema = z
     updated_at: z.number(),
     tags: z.string().optional(),
     sort_order: z.number().default(0),
+    folder_id: z.string().nullable().optional(),
+    deleted_at: z.number().nullable().optional(),
+    task_status: z.enum(['todo', 'in_progress', 'done', 'blocked']).nullable().optional(),
+    task_priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
+    task_due_date: z.string().nullable().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -89,6 +95,11 @@ export const noteRowSchema = z
       })(),
       sortOrder: row.sort_order,
     }
+    if (row.folder_id != null) note.folderId = row.folder_id
+    if (row.deleted_at != null) note.deletedAt = row.deleted_at
+    if (row.task_status != null) note.taskStatus = row.task_status
+    if (row.task_priority != null) note.taskPriority = row.task_priority
+    if (row.task_due_date != null) note.taskDueDate = row.task_due_date
     if (
       row.window_x != null &&
       row.window_y != null &&
@@ -112,26 +123,82 @@ export const snippetRowSchema = z
     title: z.string(),
     content: z.string(),
     language: z.string(),
+    description: z.string().default(''),
     tags: z.string(),
     favorite: z.union([z.number(), z.boolean()]).default(0),
     folder: z.string().default(''),
+    folder_id: z.string().nullable().optional(),
+    deleted_at: z.number().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
   })
-  .transform(
-    (row): Snippet => ({
+  .transform((row): Snippet => {
+    const snippet: Snippet = {
       id: row.id,
       title: row.title,
       content: row.content,
       language: row.language,
+      description: row.description,
       folder: row.folder,
       tags: parseStringArray(row.tags),
       favorite:
         row.favorite === true || row.favorite === 1 || parseStringArray(row.tags).includes('⭐'),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    })
-  )
+    }
+    if (row.folder_id != null) snippet.folderId = row.folder_id
+    if (row.deleted_at != null) snippet.deletedAt = row.deleted_at
+    return snippet
+  })
+
+export const snippetFragmentRowSchema = z
+  .object({
+    id: z.string(),
+    snippet_id: z.string(),
+    name: z.string(),
+    content: z.string(),
+    language: z.string(),
+    sort_order: z.number(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .transform((row): import('@/types/models').SnippetFragment => ({
+    id: row.id,
+    name: row.name,
+    content: row.content,
+    language: row.language,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+
+/** Validates a raw resource_folders row and transforms it into a ResourceFolder. */
+export const resourceFolderRowSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    parent_id: z.string().nullable(),
+    kind: z.enum(['notes', 'snippets', 'apiRequests']),
+    sort_order: z.number(),
+    default_language: z.string().nullable(),
+    created_at: z.number(),
+    updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
+  })
+  .transform((row): ResourceFolder => {
+    const folder: ResourceFolder = {
+      id: row.id,
+      name: row.name,
+      parentId: row.parent_id,
+      kind: row.kind,
+      sortOrder: row.sort_order,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+    if (row.default_language != null) folder.defaultLanguage = row.default_language
+    if (row.deleted_at != null) folder.deletedAt = row.deleted_at
+    return folder
+  })
 
 /** Validates a raw user_prompt_templates row from SQLite and transforms it into a PromptTemplate. */
 export const promptTemplateRowSchema = z
@@ -269,15 +336,26 @@ export const apiCollectionRowSchema = z
   .object({
     id: z.string(),
     name: z.string(),
+    parent_id: z.string().nullable().optional(),
+    sort_order: z.number().optional(),
+    default_language: z.string().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
   })
-  .transform((row): import('@/types/models').ApiCollection => ({
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
+  .transform((row): import('@/types/models').ApiCollection => {
+    const collection: import('@/types/models').ApiCollection = {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+    if (row.parent_id !== undefined) collection.parentId = row.parent_id
+    if (row.sort_order !== undefined) collection.sortOrder = row.sort_order
+    if (row.default_language != null) collection.defaultLanguage = row.default_language
+    if (row.deleted_at != null) collection.deletedAt = row.deleted_at
+    return collection
+  })
 
 export const apiRequestRowSchema = z
   .object({
@@ -292,9 +370,10 @@ export const apiRequestRowSchema = z
     auth: z.string(),
     created_at: z.number(),
     updated_at: z.number(),
+    deleted_at: z.number().nullable().optional(),
   })
   .transform((row): import('@/types/models').ApiRequest => {
-    return {
+    const request: import('@/types/models').ApiRequest = {
       id: row.id,
       collectionId: row.collection_id,
       name: row.name,
@@ -319,4 +398,6 @@ export const apiRequestRowSchema = z
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
+    if (row.deleted_at != null) request.deletedAt = row.deleted_at
+    return request
   })

@@ -32,6 +32,11 @@ describe('processMarkdown', () => {
     expect(html).toContain('alt="alt text"')
   })
 
+  it('allows only resolved Tauri asset URLs for managed note images', async () => {
+    const html = await processMarkdown('![offline](asset://localhost/note-assets/image.png)')
+    expect(html).toContain('src="asset://localhost/note-assets/image.png"')
+  })
+
   it('renders strikethrough', async () => {
     const html = await processMarkdown('~~strike~~')
     expect(html).toContain('<del>strike</del>')

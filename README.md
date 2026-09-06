@@ -49,14 +49,17 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 | **Convert** | Case Converter · Color Converter · Timestamp Converter · Base64 · URL Encode/Decode · cURL → Fetch · UUID Generator · Hash · Image Tool |
 | **Test**    | Regex Tester · JWT Decoder                                                                                                              |
 | **Network** | API Client · Docs Browser                                                                                                               |
-| **Write**   | Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                                  |
+| **Write**   | Notes · Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                          |
 
 ### Shell features
 
 - **Command palette** — fuzzy search every tool (`Cmd+K`)
-- **Notes drawer** — persistent notes with color tags and full-text search
+- **Notes drawer and workspace** — persistent Markdown notes with nested folders, full-text search, and structured task views
 - **Per-tool history** — inputs and outputs are saved automatically
-- **Snippets library** — tagged code snippets accessible from any tool
+- **Shared libraries** — nested, keyboard-accessible folders for notes, snippets, and API requests
+- **Durable Trash** — restore notes, snippets, API requests, and complete folder subtrees after restart
+- **Wiki links and backlinks** — connect notes to live notes, snippets, and API requests with stable IDs
+- **Multi-fragment snippets** — keep related files and Markdown usage notes in one reusable snippet
 - **MCP server** — local agent access for notes, snippets, prompt templates, and saved API requests
 - **Themes** — system mode plus 32 built-in themes
 - **Always-on-top** — pin the window over your editor or browser

@@ -10,6 +10,22 @@ describe('InlineInput', () => {
     expect(onChange).toHaveBeenCalled()
   })
 
+  it('preserves native typing through focused rerenders and syncs external changes on blur', () => {
+    const { rerender } = render(
+      <InlineInput aria-label="Title" value="start" onChange={() => {}} />
+    )
+    const input = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
+    input.focus()
+    fireEvent.change(input, { target: { value: 'typed' } })
+
+    rerender(<InlineInput aria-label="Title" value="reset" onChange={() => {}} />)
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBe(input)
+    expect(input.value).toBe('typed')
+
+    fireEvent.blur(input)
+    expect(input.value).toBe('reset')
+  })
+
   it('always draws the keyboard focus ring', () => {
     // A borderless field has no other focus affordance, so every variant must
     // carry the ring — this is the regression the component was extracted to stop.

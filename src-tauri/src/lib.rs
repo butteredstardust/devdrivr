@@ -1,5 +1,6 @@
 mod batch;
 mod mcp;
+mod note_assets;
 #[cfg(feature = "remote-ui")]
 mod remote_ui;
 mod window_commands;
@@ -94,6 +95,36 @@ pub fn run() {
             sql: include_str!("../migrations/012_snippets_favorite.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "add shared resource folders",
+            sql: include_str!("../migrations/013_resource_folders.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 14,
+            description: "add durable trash",
+            sql: include_str!("../migrations/014_durable_trash.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 15,
+            description: "add structured note tasks",
+            sql: include_str!("../migrations/015_note_tasks.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 16,
+            description: "add stable note link index",
+            sql: include_str!("../migrations/016_note_links.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 17,
+            description: "add snippet fragments and descriptions",
+            sql: include_str!("../migrations/017_snippet_fragments.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();
@@ -156,6 +187,12 @@ pub fn run() {
             mcp::mcp_start,
             mcp::mcp_status,
             mcp::mcp_stop,
+            note_assets::note_asset_import,
+            note_assets::note_asset_resolve,
+            note_assets::note_assets_delete_orphans,
+            note_assets::note_assets_export,
+            note_assets::note_assets_find_orphans,
+            note_assets::note_assets_restore,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

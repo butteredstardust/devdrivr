@@ -4,9 +4,14 @@ import { renderTool } from '@/tools/__tests__/test-utils'
 import { exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
-import type { Snippet } from '@/types/models'
-import SnippetsManager from '@/tools/snippets/SnippetsManager'
+import { useFoldersStore } from '@/stores/folders.store'
+import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
+import SnippetsManager, {
+  hasRegisteredDocumentFormatter,
+  runRegisteredDocumentFormatter,
+} from '@/tools/snippets/SnippetsManager'
 import { ToolInstanceContext } from '@/app/tool-instance'
+import { sendToTool } from '@/lib/tool-handoff'
 
 vi.mock('@/lib/file-io', async () => {
   const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
@@ -16,6 +21,8 @@ vi.mock('@/lib/file-io', async () => {
     openFileDialog: vi.fn(),
   }
 })
+
+vi.mock('@/lib/tool-handoff', () => ({ sendToTool: vi.fn() }))
 
 const realActions = {
   add: useSnippetsStore.getState().add,
@@ -30,11 +37,32 @@ function snippet(overrides: Partial<Snippet> & Pick<Snippet, 'id' | 'title'>): S
     tags: [],
     favorite: false,
     folder: '',
+    folderId: overrides.folder ? `folder-${overrides.folder}` : 'snippets-inbox',
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,
     ...overrides,
   }
 }
+
+function fragment(
+  id: string,
+  name: string,
+  content: string,
+  language: string,
+  sortOrder: number
+): SnippetFragment {
+  return { id, name, content, language, sortOrder, createdAt: 1, updatedAt: 1 }
+}
+
+const snippetFolders: ResourceFolder[] = ['Inbox', 'work', 'personal'].map((name, index) => ({
+  id: index === 0 ? 'snippets-inbox' : `folder-${name}`,
+  name,
+  parentId: null,
+  kind: 'snippets',
+  sortOrder: index,
+  createdAt: 0,
+  updatedAt: 0,
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -49,10 +77,34 @@ beforeEach(() => {
   })
   useSnippetsStore.setState({
     snippets: [],
+    trashedSnippets: [],
     initialized: true,
     saving: false,
     activeFolder: '',
     ...realActions,
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  })
+  useFoldersStore.setState({
+    folders: snippetFolders,
+    trashedFolders: [],
+    initialized: true,
+    create: vi.fn().mockImplementation(async ({ name, kind, parentId = null }) => ({
+      id: `folder-${name}`,
+      name,
+      kind,
+      parentId,
+      sortOrder: 100,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    update: vi.fn().mockResolvedValue(undefined),
+    move: vi.fn().mockResolvedValue(undefined),
+    trash: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
+    permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+    emptyTrash: vi.fn().mockResolvedValue(undefined),
   })
   useUiStore.setState({ lastAction: null })
 })
@@ -62,6 +114,20 @@ afterEach(() => {
 })
 
 describe('SnippetsManager — library experience', () => {
+  it('opens durable Trash and restores a snippet', async () => {
+    const restore = vi.fn().mockResolvedValue(undefined)
+    useSnippetsStore.setState({
+      trashedSnippets: [snippet({ id: 'trashed-snippet', title: 'Archived helper', deletedAt: 2 })],
+      restore,
+    })
+    renderTool(SnippetsManager)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Snippets Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Archived helper' }))
+
+    await waitFor(() => expect(restore).toHaveBeenCalledWith('trashed-snippet'))
+  })
+
   it('presents the primary library actions with accessible labels', () => {
     renderTool(SnippetsManager)
 
@@ -113,6 +179,32 @@ describe('SnippetsManager — library experience', () => {
     expect(screen.getByRole('option', { name: /Schema/ })).toBeInTheDocument()
   })
 
+  it('searches descriptions and every fragment, not only the primary fragment', () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'multi',
+          title: 'Component bundle',
+          description: 'Keyboard interaction details',
+          fragments: [
+            fragment('primary', 'view.tsx', 'export function View() {}', 'typescript', 0),
+            fragment('secondary', 'theme.css', '.focus-ring {}', 'css', 1),
+          ],
+        }),
+        snippet({ id: 'other', title: 'Other' }),
+      ],
+    })
+    renderTool(SnippetsManager)
+    const search = screen.getByRole('searchbox', { name: 'Search snippets' })
+
+    fireEvent.change(search, { target: { value: 'focus-ring' } })
+    expect(screen.getByRole('option', { name: /Component bundle/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Other/ })).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'Keyboard interaction' } })
+    expect(screen.getByRole('option', { name: /Component bundle/ })).toBeInTheDocument()
+  })
+
   it('combines favorite, folder, and tag filters and clears them together', () => {
     useSnippetsStore.setState({
       snippets: [
@@ -123,7 +215,7 @@ describe('SnippetsManager — library experience', () => {
     })
     renderTool(SnippetsManager)
 
-    fireEvent.change(screen.getByLabelText('Filter by folder'), { target: { value: 'work' } })
+    fireEvent.click(screen.getByRole('button', { name: 'work, 2 items' }))
     fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 'api' } })
     fireEvent.click(screen.getByRole('button', { name: 'Favorites' }))
 
@@ -195,12 +287,62 @@ describe('SnippetsManager — editor and details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show snippet details' }))
 
     const details = screen.getByLabelText('Snippet details')
-    expect(within(details).getByDisplayValue('work')).toBeInTheDocument()
+    expect(within(details).getByRole('combobox', { name: 'Snippet folder' })).toHaveValue(
+      'folder-work'
+    )
     expect(within(details).getByText('2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hide snippet details' })).toHaveAttribute(
       'aria-expanded',
       'true'
     )
+  })
+
+  it('edits, reorders, duplicates, and guardedly deletes fragments with accessible tabs', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'snippet-1',
+          title: 'API helper',
+          description: 'Use both fragments together.',
+          fragments: [
+            fragment('client', 'client.ts', 'fetch(url)', 'typescript', 0),
+            fragment('styles', 'styles.css', '.root {}', 'css', 1),
+          ],
+        }),
+      ],
+    })
+    renderTool(SnippetsManager)
+
+    const clientTab = await screen.findByRole('tab', { name: 'client.ts' })
+    const stylesTab = screen.getByRole('tab', { name: 'styles.css' })
+    expect(clientTab).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(stylesTab)
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('.root {}')
+    expect(screen.getByLabelText('Snippet language')).toHaveValue('css')
+
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: '.card {}' } })
+    await waitFor(() =>
+      expect(
+        useSnippetsStore
+          .getState()
+          .snippets[0]?.fragments?.find((candidate) => candidate.id === 'styles')?.content
+      ).toBe('.card {}')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move fragment left' }))
+    await waitFor(() =>
+      expect(useSnippetsStore.getState().snippets[0]?.fragments?.[0]?.id).toBe('styles')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate fragment' }))
+    await screen.findByRole('tab', { name: 'styles.css copy' })
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete fragment' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete fragment?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete fragment' }))
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(screen.getByLabelText('Snippet description')).toHaveValue('Use both fragments together.')
   })
 
   it('uses a correctly wired tag combobox and preserves focus on suggestion selection', async () => {
@@ -228,7 +370,7 @@ describe('SnippetsManager — editor and details', () => {
     expect(document.activeElement).toBe(input)
   })
 
-  it('generates distinct folder and tag relationship ids for each mounted instance', async () => {
+  it('generates distinct tag relationship ids for each mounted instance', async () => {
     useSnippetsStore.setState({
       snippets: [
         snippet({ id: 'snippet-1', title: 'API helper', updatedAt: 2 }),
@@ -246,17 +388,14 @@ describe('SnippetsManager — editor and details', () => {
       fireEvent.click(button)
     }
     const snippetOptions = screen.getAllByRole('option', { name: /API helper/ })
-    const folderInputs = screen.getAllByPlaceholderText('No folder')
     const tagInputs = screen.getAllByRole('combobox', { name: 'Add tag' })
     fireEvent.change(tagInputs[0]!, { target: { value: 'a' } })
     fireEvent.change(tagInputs[1]!, { target: { value: 'a' } })
 
-    const folderIds = folderInputs.map((input) => input.getAttribute('list'))
     const suggestionIds = tagInputs.map((input) => input.getAttribute('aria-controls'))
     expect(new Set(snippetOptions.map((option) => option.id)).size).toBe(2)
-    expect(new Set(folderIds).size).toBe(2)
     expect(new Set(suggestionIds).size).toBe(2)
-    for (const id of [...folderIds, ...suggestionIds]) {
+    for (const id of suggestionIds) {
       expect(id).toBeTruthy()
       expect(document.getElementById(id!)).not.toBeNull()
     }
@@ -306,12 +445,12 @@ describe('SnippetsManager — editor and details', () => {
     renderTool(SnippetsManager)
     await screen.findByDisplayValue('API helper')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move snippet to Trash' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Delete snippet?' })
-    expect(within(dialog).getByText(/undo for a few seconds/)).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Move snippet to Trash?' })
+    expect(within(dialog).getByText(/restored from Trash/)).toBeInTheDocument()
     expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move to Trash' }))
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith('snippet-1'))
   })
@@ -320,12 +459,14 @@ describe('SnippetsManager — editor and details', () => {
     useSnippetsStore.setState({ remove: vi.fn().mockRejectedValue(new Error('locked')) })
     renderTool(SnippetsManager)
     await screen.findByDisplayValue('API helper')
-    fireEvent.click(screen.getByRole('button', { name: 'Delete snippet' }))
-    const dialog = screen.getByRole('dialog', { name: 'Delete snippet?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete snippet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move snippet to Trash' }))
+    const dialog = screen.getByRole('dialog', { name: 'Move snippet to Trash?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move to Trash' }))
 
-    await waitFor(() => expect(useUiStore.getState().lastAction?.message).toBe('Delete failed'))
-    expect(screen.getByRole('dialog', { name: 'Delete snippet?' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe('Failed to move snippet to Trash')
+    )
+    expect(screen.getByRole('dialog', { name: 'Move snippet to Trash?' })).toBeInTheDocument()
   })
 
   it('surfaces duplicate failures without an unhandled rejection', async () => {
@@ -350,7 +491,7 @@ describe('SnippetsManager — native import and export', () => {
 
     await waitFor(() =>
       expect(exportFile).toHaveBeenCalledWith(
-        JSON.stringify(items, null, 2),
+        JSON.stringify({ version: 3, folders: snippetFolders, snippets: items }, null, 2),
         'snippets-backup.json'
       )
     )
@@ -378,9 +519,70 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith('Imported', 'SELECT 1;', 'sql', ['database'], 'work', false)
+      expect(add).toHaveBeenCalledWith(
+        'Imported',
+        'SELECT 1;',
+        'sql',
+        ['database'],
+        'work',
+        false,
+        'folder-work',
+        '',
+        [expect.objectContaining({ name: 'main', content: 'SELECT 1;', language: 'sql' })]
+      )
     )
     expect(useUiStore.getState().lastAction?.message).toBe('Imported 1 snippet')
+  })
+
+  it('round-trips version 3 descriptions and ordered fragments', async () => {
+    const add = vi.fn().mockResolvedValue(snippet({ id: 'created', title: 'Bundle' }))
+    useSnippetsStore.setState({ add })
+    vi.mocked(openFileDialog).mockResolvedValue({
+      path: '/tmp/snippets-v3.json',
+      filename: 'snippets-v3.json',
+      content: JSON.stringify({
+        version: 3,
+        folders: [],
+        snippets: [
+          {
+            title: 'Bundle',
+            content: 'fetch(url)',
+            language: 'typescript',
+            description: 'Use these together.',
+            fragments: [
+              { name: 'client.ts', content: 'fetch(url)', language: 'typescript' },
+              { name: 'styles.css', content: '.root {}', language: 'css' },
+            ],
+            tags: [],
+            folder: '',
+          },
+        ],
+      }),
+    })
+    renderTool(SnippetsManager)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
+
+    await waitFor(() =>
+      expect(add).toHaveBeenCalledWith(
+        'Bundle',
+        'fetch(url)',
+        'typescript',
+        [],
+        '',
+        false,
+        'snippets-inbox',
+        'Use these together.',
+        [
+          expect.objectContaining({
+            name: 'client.ts',
+            content: 'fetch(url)',
+            language: 'typescript',
+          }),
+          expect.objectContaining({ name: 'styles.css', content: '.root {}', language: 'css' }),
+        ]
+      )
+    )
   })
 
   it('rejects malformed backups with an actionable error', async () => {
@@ -414,6 +616,190 @@ describe('SnippetsManager — native import and export', () => {
   })
 })
 
+describe('SnippetsManager — formatting and contextual previews', () => {
+  it('uses a registered Monaco document formatter when one is available', async () => {
+    const run = vi.fn().mockResolvedValue(undefined)
+    const editor = {
+      getAction: vi.fn(() => ({ isSupported: () => true, run })),
+    }
+    expect(hasRegisteredDocumentFormatter(editor as never)).toBe(true)
+    await expect(runRegisteredDocumentFormatter(editor as never)).resolves.toBe(true)
+    expect(run).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the existing formatter worker and updates only the active fragment', async () => {
+    const update = vi.fn().mockImplementation(realActions.update)
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'format-me',
+          title: 'Formatter',
+          content: 'const value={ok:true}',
+          language: 'javascript',
+          fragments: [
+            fragment('main', 'main.js', 'const value={ok:true}', 'javascript', 0),
+            fragment('other', 'other.txt', 'leave me', 'text', 1),
+          ],
+        }),
+      ],
+      update,
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        'format-me',
+        expect.objectContaining({
+          fragments: [
+            expect.objectContaining({ id: 'main', content: 'const value = { ok: true }\n' }),
+            expect.objectContaining({ id: 'other', content: 'leave me' }),
+          ],
+        })
+      )
+    )
+    expect(useUiStore.getState().lastAction?.message).toBe('Formatted main.js')
+  })
+
+  it('does not overwrite edits made while fallback formatting is in flight', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'typing', title: 'Typing', content: 'const value={ok:true}' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: 'const userTyping = true' },
+    })
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe(
+        'Fragment changed while formatting — format again'
+      )
+    )
+    expect(useSnippetsStore.getState().snippets[0]?.content).toBe('const userTyping = true')
+  })
+
+  it('shows formatter syntax errors without changing the fragment', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'broken-js', title: 'Broken JS', content: 'const =' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    await waitFor(() => expect(formatButton).toBeEnabled())
+    fireEvent.click(formatButton)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unexpected token|parse/i)
+    expect(useSnippetsStore.getState().snippets[0]?.content).toBe('const =')
+  })
+
+  it('explains unsupported formatting and previews', async () => {
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'python', title: 'Python', language: 'python' })],
+    })
+    renderTool(SnippetsManager)
+    const formatButton = await screen.findByRole('button', { name: 'Format snippet fragment' })
+    expect(formatButton).toBeDisabled()
+    expect(formatButton).toHaveAttribute('title', 'No formatter is available for python')
+    const previewButton = screen.getByRole('button', { name: 'Preview HTML and CSS fragments' })
+    expect(previewButton).toBeDisabled()
+    expect(previewButton).toHaveAttribute(
+      'title',
+      'Preview supports JSON or snippets containing an HTML fragment'
+    )
+  })
+
+  it('opens a composed HTML/CSS preview without changing fragment selection', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'web',
+          title: 'Card',
+          content: '<article>Card</article>',
+          language: 'html',
+          fragments: [
+            fragment('html', 'card.html', '<article>Card</article>', 'html', 0),
+            fragment('css', 'card.css', 'article { display: grid }', 'css', 1),
+          ],
+        }),
+      ],
+    })
+    renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Card')
+    const activeTab = screen.getByRole('tab', { name: 'card.html' })
+    expect(activeTab).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Preview HTML and CSS fragments' }))
+
+    const frame = await screen.findByTitle('Rendered snippet preview')
+    expect(frame).toHaveAttribute('sandbox', '')
+    expect(frame.getAttribute('srcdoc')).toContain('<article>Card</article>')
+    expect(frame.getAttribute('srcdoc')).toContain('article { display: grid }')
+    expect(activeTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('hands valid JSON to the existing tree view and rejects invalid JSON locally', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'json',
+          title: 'Payload',
+          content: 'notes',
+          language: 'text',
+          fragments: [
+            fragment('readme', 'readme.txt', 'notes', 'text', 0),
+            fragment('payload', 'payload.json', '{"ok":true}', 'json', 1),
+          ],
+        }),
+      ],
+    })
+    const view = renderTool(SnippetsManager)
+    fireEvent.click(await screen.findByRole('tab', { name: 'payload.json' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview JSON fragment' }))
+    expect(sendToTool).toHaveBeenCalledWith('json-tools', { input: '{"ok":true}', view: 'tree' })
+    expect(screen.getByRole('tab', { name: 'payload.json' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+
+    view.unmount()
+    vi.mocked(sendToTool).mockClear()
+    useSnippetsStore.setState({
+      snippets: [snippet({ id: 'bad-json', title: 'Broken', content: '{', language: 'json' })],
+    })
+    renderTool(SnippetsManager)
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview JSON fragment' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('JSON preview unavailable')
+    expect(sendToTool).not.toHaveBeenCalled()
+  })
+
+  it('exposes keyboard commands for formatting and web preview', async () => {
+    useSnippetsStore.setState({
+      snippets: [
+        snippet({
+          id: 'shortcuts',
+          title: 'Shortcuts',
+          content: '<main>Preview</main>',
+          language: 'html',
+        }),
+      ],
+    })
+    renderTool(SnippetsManager)
+    await screen.findByDisplayValue('Shortcuts')
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true, shiftKey: true })
+    expect(await screen.findByTitle('Rendered snippet preview')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close snippet preview' }))
+
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true, shiftKey: true })
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toMatch(/Formatted|already formatted/)
+    )
+  })
+})
+
 describe('SnippetsManager — keyboard workflow', () => {
   it('focuses search with the platform search shortcut', () => {
     renderTool(SnippetsManager)
@@ -435,7 +821,15 @@ describe('SnippetsManager — keyboard workflow', () => {
     fireEvent.keyDown(window, { key: 'n', metaKey: true })
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith('Untitled snippet', '', 'javascript', [], '')
+      expect(add).toHaveBeenCalledWith(
+        'Untitled snippet',
+        '',
+        'javascript',
+        [],
+        '',
+        false,
+        'snippets-inbox'
+      )
     )
     const title = await screen.findByLabelText('Snippet title')
     expect(document.activeElement).toBe(title)

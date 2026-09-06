@@ -5,6 +5,7 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useApiStore } from '@/stores/api.store'
+import { useFoldersStore } from '@/stores/folders.store'
 import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
@@ -129,6 +130,7 @@ export function Providers({ children }: { children: ReactNode }) {
       // Initialize stores
       await init()
       if (cancelled) return
+      await useFoldersStore.getState().init()
       await useNotesStore.getState().init()
       await useSnippetsStore.getState().init()
       await usePromptTemplatesStore.getState().init()
@@ -142,6 +144,7 @@ export function Providers({ children }: { children: ReactNode }) {
         if (resource === 'apiRequests' || resource === 'apiCollections') {
           void useApiStore.getState().refresh()
         }
+        if (resource === 'folders') void useFoldersStore.getState().refresh()
       })
       // Register (or, if unmount already happened while we were awaiting
       // `listen()`, immediately tear down) right at the moment the listener

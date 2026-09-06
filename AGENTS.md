@@ -84,7 +84,7 @@ For “open a PR” or “commit and push,” create a branch if needed. Commit,
 - **UI**: React 19 + TypeScript 5.9 + Tailwind CSS 4
 - **State**: Zustand 5 stores → SQLite (WAL mode) via `@tauri-apps/plugin-sql`
 - **Build**: Vite 7 + Bun (package manager)
-- **30 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
+- **31 registered tools** across 7 groups (Code, Data, Web, Convert, Test, Network, Write)
 - **No cloud, no accounts** — everything runs locally
 
 ---
@@ -153,6 +153,7 @@ src/lib/tool-actions.ts           ← pub/sub: dispatchToolAction / useToolActio
 src/stores/settings.store.ts      ← theme, sidebar, editor prefs → persisted
 src/stores/notes.store.ts         ← notes CRUD → persisted
 src/stores/snippets.store.ts      ← snippets CRUD → persisted
+src/stores/folders.store.ts       ← shared resource folder hierarchy → persisted
 src/stores/history.store.ts       ← tool execution history → persisted
 src/stores/ui.store.ts            ← active tool, modals, toasts → transient
 src/hooks/useToolState.ts         ← per-tool state persistence (cache + SQLite)
@@ -630,12 +631,15 @@ if (typeof data === 'object' && data !== null) { ... }
 ```sql
 settings         (key TEXT PRIMARY KEY, value TEXT)            -- JSON values
 tool_state       (tool_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)
-notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags)
-snippets         (id, title, content, language, tags TEXT, folder TEXT, created_at, updated_at)  -- tags = JSON array; folder added migration 005
+notes            (id, title, content, color, pinned, popped_out, window_*, created_at, updated_at, tags, folder_id, deleted_at, task_status, task_priority, task_due_date)
+note_links       (source_note_id, target_kind, target_id, created_at)  -- stable wiki-link index
+snippets         (id, title, content, language, description, tags TEXT, folder TEXT, folder_id, created_at, updated_at, deleted_at)  -- content/language mirror primary fragment
+snippet_fragments (id, snippet_id, name, content, language, sort_order, created_at, updated_at)
 history          (id, tool, sub_tab, input, output, timestamp)
 api_environments (id, name, base_url, headers, created_at, updated_at)  -- API Client — migration 002
-api_collections  (id, name, description, created_at, updated_at)        -- API Client — migration 002
-api_requests     (id, collection_id, name, method, url, headers, body, created_at, updated_at)  -- API Client — migration 002
+api_collections  (id, name, description, parent_id, sort_order, deleted_at, created_at, updated_at)
+api_requests     (id, collection_id, name, method, url, headers, body, deleted_at, created_at, updated_at)
+resource_folders (id, name, parent_id, kind, sort_order, default_language, deleted_at, created_at, updated_at)
 ```
 
 Set WAL mode at connection time in `getDb()`. Do not set it in migrations.

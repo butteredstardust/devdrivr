@@ -89,4 +89,22 @@ describe('useWorker', () => {
 
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
+
+  it('can defer worker creation until a feature first requests it', async () => {
+    const worker = new ControllableWorker()
+    const factory = vi.fn(() => worker as unknown as Worker)
+    const { result, rerender, unmount } = renderHook(
+      ({ enabled }) => useWorker<TestWorkerApi>(factory, ['echo'], enabled),
+      { initialProps: { enabled: false } }
+    )
+    expect(result.current).toBeNull()
+    expect(factory).not.toHaveBeenCalled()
+
+    rerender({ enabled: true })
+    await waitFor(() => expect(result.current).not.toBeNull())
+    expect(factory).toHaveBeenCalledOnce()
+
+    unmount()
+    expect(worker.terminate).toHaveBeenCalledOnce()
+  })
 })

@@ -9,21 +9,20 @@ import {
   type ReactNode,
 } from 'react'
 import { useApiStore } from '@/stores/api.store'
-import type { ApiCollection, ApiRequest, HistoryEntry } from '@/types/models'
+import type { ApiCollection, ApiRequest, HistoryEntry, ResourceFolder } from '@/types/models'
 import {
   CaretDownIcon,
   CaretRightIcon,
   ClockCounterClockwiseIcon,
   DotsThreeVerticalIcon,
   DownloadSimpleIcon,
-  FolderPlusIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlayIcon,
   StopIcon,
   TrayIcon,
+  TrashIcon,
   UploadSimpleIcon,
-  XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { httpMethodTextClass } from '@/lib/http-method'
@@ -33,6 +32,10 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
+import { TrashDialog, type TrashEntry } from '@/components/shared/TrashDialog'
+import { useFoldersStore } from '@/stores/folders.store'
+import { descendantFolderIds, foldersForKind } from '@/lib/resource-folders'
 
 type Props = {
   activeRequestId: string | null
@@ -101,17 +104,33 @@ export function CollectionsSidebar({
   const requestRowsId = useId()
   const collections = useApiStore((s) => s.collections)
   const requests = useApiStore((s) => s.requests)
+  const trashedRequests = useApiStore((s) => s.trashedRequests)
   const requestHistory = useApiStore((s) => s.requestHistory)
-  const createCollection = useApiStore((s) => s.createCollection)
   const updateCollection = useApiStore((s) => s.updateCollection)
-  const deleteCollection = useApiStore((s) => s.deleteCollection)
   const createRequest = useApiStore((s) => s.createRequest)
   const updateRequest = useApiStore((s) => s.updateRequest)
   const deleteRequest = useApiStore((s) => s.deleteRequest)
+  const restoreRequest = useApiStore((s) => s.restoreRequest)
+  const permanentlyDeleteRequest = useApiStore((s) => s.permanentlyDeleteRequest)
+  const refreshApi = useApiStore((s) => s.refresh)
+  const folders = useFoldersStore((s) => s.folders)
+  const trashedFolders = useFoldersStore((s) => s.trashedFolders)
+  const createFolder = useFoldersStore((s) => s.create)
+  const updateFolder = useFoldersStore((s) => s.update)
+  const moveFolder = useFoldersStore((s) => s.move)
+  const trashFolder = useFoldersStore((s) => s.trash)
+  const restoreFolder = useFoldersStore((s) => s.restore)
+  const permanentlyDeleteFolder = useFoldersStore((s) => s.permanentlyDelete)
+  const emptyFolderTrash = useFoldersStore((s) => s.emptyTrash)
+  const refreshFolders = useFoldersStore((s) => s.refresh)
 
   const [search, setSearch] = useState('')
   const [collapsedCols, setCollapsedCols] = useState<Set<string>>(new Set())
   const [expandedHistory, setExpandedHistory] = useState(false)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [folderTrashCandidate, setFolderTrashCandidate] = useState<ResourceFolder | null>(null)
+  const [folderTrashError, setFolderTrashError] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
 
   // Inline collection rename state
   const [editingColId, setEditingColId] = useState<string | null>(null)
@@ -123,12 +142,50 @@ export function CollectionsSidebar({
   const menuTriggerRef = useRef<HTMLElement | null>(null)
 
   const [pendingRequestDelete, setPendingRequestDelete] = useState<ApiRequest | null>(null)
-  const [pendingCollectionDelete, setPendingCollectionDelete] = useState<ApiCollection | null>(null)
+  const [requestTrashError, setRequestTrashError] = useState(false)
 
   const needle = search.trim().toLowerCase()
+  const apiFolders = useMemo(() => foldersForKind(folders, 'apiRequests'), [folders])
+  const trashedApiFolders = useMemo(
+    () => foldersForKind(trashedFolders, 'apiRequests'),
+    [trashedFolders]
+  )
+  const trashEntries = useMemo<TrashEntry[]>(() => {
+    const trashedFolderIds = new Set(trashedApiFolders.map((folder) => folder.id))
+    const folderEntries = trashedApiFolders
+      .filter((folder) => !folder.parentId || !trashedFolderIds.has(folder.parentId))
+      .map((folder) => ({
+        id: folder.id,
+        name: folder.name,
+        detail: 'Collection and its requests',
+        type: 'folder' as const,
+      }))
+    const requestEntries = trashedRequests
+      .filter((request) => !request.collectionId || !trashedFolderIds.has(request.collectionId))
+      .map((request) => ({
+        id: request.id,
+        name: request.name,
+        detail: `${request.method} ${request.url}`,
+        type: 'item' as const,
+      }))
+    return [...folderEntries, ...requestEntries]
+  }, [trashedApiFolders, trashedRequests])
+  const selectedFolderIds = useMemo(
+    () => (selectedFolderId ? descendantFolderIds(apiFolders, selectedFolderId) : null),
+    [apiFolders, selectedFolderId]
+  )
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const request of requests) {
+      const folderId = request.collectionId ?? 'api-requests-inbox'
+      counts.set(folderId, (counts.get(folderId) ?? 0) + 1)
+    }
+    return counts
+  }, [requests])
 
   const grouped = useMemo(() => {
     return collections
+      .filter((col) => !selectedFolderIds || selectedFolderIds.has(col.id))
       .map((col) => {
         const all = requests.filter((r) => r.collectionId === col.id)
         const matched = needle ? all.filter((r) => matchesQuery(r, needle)) : all
@@ -142,12 +199,14 @@ export function CollectionsSidebar({
       .filter(
         ({ col, reqs }) => !needle || reqs.length > 0 || col.name.toLowerCase().includes(needle)
       )
-  }, [collections, requests, needle])
+  }, [collections, requests, needle, selectedFolderIds])
 
   const unassigned = useMemo(() => {
-    const all = requests.filter((r) => !r.collectionId)
+    const all = requests.filter(
+      (r) => !r.collectionId && (!selectedFolderIds || selectedFolderIds.has('api-requests-inbox'))
+    )
     return needle ? all.filter((r) => matchesQuery(r, needle)) : all
-  }, [requests, needle])
+  }, [requests, needle, selectedFolderIds])
 
   // Flattened list of the request rows the user can actually see, in visual
   // order — the roving arrow-key navigation walks this, not the raw store list.
@@ -195,18 +254,6 @@ export function CollectionsSidebar({
     })
   }
 
-  const handleCreateCollection = async () => {
-    const col = await createCollection('New Collection')
-    setCollapsedCols((prev) => {
-      const next = new Set(prev)
-      next.delete(col.id)
-      return next
-    })
-    // Immediately enter rename mode for the new collection
-    setEditingColId(col.id)
-    setEditingColName(col.name)
-  }
-
   const startRename = (col: ApiCollection) => {
     setEditingColId(col.id)
     setEditingColName(col.name)
@@ -216,6 +263,7 @@ export function CollectionsSidebar({
     const trimmed = editingColName.trim()
     if (trimmed && trimmed !== col.name) {
       await updateCollection({ ...col, name: trimmed })
+      await refreshFolders()
     }
     setEditingColId(null)
   }
@@ -294,6 +342,42 @@ export function CollectionsSidebar({
     }
   }
 
+  const handleTrashFolder = async () => {
+    if (!folderTrashCandidate) return
+    setFolderTrashError(false)
+    try {
+      await trashFolder(folderTrashCandidate.id)
+      await refreshApi()
+      setSelectedFolderId(null)
+      setFolderTrashCandidate(null)
+    } catch {
+      setFolderTrashError(true)
+    }
+  }
+
+  const handleRestoreTrashEntry = async (entry: TrashEntry) => {
+    if (entry.type === 'folder') {
+      await restoreFolder(entry.id)
+      await refreshApi()
+    } else {
+      await restoreRequest(entry.id)
+    }
+  }
+
+  const handleDeleteTrashEntry = async (entry: TrashEntry) => {
+    if (entry.type === 'folder') {
+      await permanentlyDeleteFolder(entry.id)
+      await refreshApi()
+    } else {
+      await permanentlyDeleteRequest(entry.id)
+    }
+  }
+
+  const handleEmptyTrash = async () => {
+    await emptyFolderTrash('apiRequests')
+    await refreshApi()
+  }
+
   const menuRequest = menu ? requests.find((r) => r.id === menu.reqId) : undefined
   const totalMatches = grouped.reduce((sum, g) => sum + g.reqs.length, 0) + unassigned.length
 
@@ -302,22 +386,22 @@ export function CollectionsSidebar({
       <MasterDetailLayout
         title="Requests"
         subtitle={`${requests.length} saved · ${collections.length} collections`}
+        sidebarActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setTrashOpen(true)}
+            aria-label={`Open API Trash, ${trashEntries.length} items`}
+          >
+            <TrashIcon size={12} aria-hidden="true" />
+            Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}
+          </Button>
+        }
         sidebarOpen={open}
         onCrampedChange={onCrampedChange}
         showSidebarWhenCramped={showWhenCramped}
         onCloseCrampedSidebar={onCloseCramped}
-        sidebarActions={
-          <Button
-            type="button"
-            variant="icon"
-            size="sm"
-            onClick={() => void handleCreateCollection()}
-            title="New collection"
-            aria-label="New collection"
-          >
-            <FolderPlusIcon size={16} aria-hidden="true" />
-          </Button>
-        }
         sidebar={
           <>
             <div className="border-b border-[var(--color-border)] p-2">
@@ -335,7 +419,36 @@ export function CollectionsSidebar({
               )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            <ResourceFolderTree
+              folders={apiFolders}
+              selectedFolderId={selectedFolderId}
+              onSelect={setSelectedFolderId}
+              onCreate={async (parentId) => {
+                const folder = await createFolder({
+                  name: 'New folder',
+                  kind: 'apiRequests',
+                  parentId,
+                })
+                await refreshApi()
+                return folder
+              }}
+              onUpdate={async (id, patch) => {
+                await updateFolder(id, patch)
+                await refreshApi()
+              }}
+              onMove={async (id, parentId, index) => {
+                await moveFolder(id, parentId, index)
+                await refreshApi()
+              }}
+              onTrash={(folder) => {
+                setFolderTrashError(false)
+                setFolderTrashCandidate(folder)
+              }}
+              itemCounts={folderCounts}
+              label="API request folders"
+            />
+
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
               {grouped.map(({ col, reqs, total }) => {
                 const isExpanded = !!needle || !collapsedCols.has(col.id)
                 const isRenaming = editingColId === col.id
@@ -419,17 +532,6 @@ export function CollectionsSidebar({
                             className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                           >
                             <PencilSimpleIcon size={12} aria-hidden="true" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="icon"
-                            size="xs"
-                            onClick={() => setPendingCollectionDelete(col)}
-                            title={`Delete ${col.name}`}
-                            aria-label={`Delete collection ${col.name}`}
-                            className="opacity-0 hover:text-[var(--color-error)] focus-visible:opacity-100 group-hover:opacity-100"
-                          >
-                            <XIcon size={12} aria-hidden="true" />
                           </Button>
                         </>
                       )}
@@ -661,10 +763,11 @@ export function CollectionsSidebar({
                   // closeMenu (not setMenu(null)) so focus returns to the row's
                   // trigger — that is what the confirm dialog restores to on cancel.
                   closeMenu()
+                  setRequestTrashError(false)
                   setPendingRequestDelete(menuRequest)
                 }}
               >
-                Delete…
+                Move to Trash…
               </MenuItem>
             </>
           ) : (
@@ -692,48 +795,54 @@ export function CollectionsSidebar({
 
       {pendingRequestDelete && (
         <ConfirmDialog
-          title="Delete request"
-          confirmLabel="Delete request"
+          title="Move request to Trash"
+          confirmLabel="Move to Trash"
           onClose={() => setPendingRequestDelete(null)}
           onConfirm={() => {
             const id = pendingRequestDelete.id
-            setPendingRequestDelete(null)
+            setRequestTrashError(false)
             void deleteRequest(id)
+              .then(() => setPendingRequestDelete(null))
+              .catch(() => setRequestTrashError(true))
           }}
         >
           <p>
-            Delete <strong>{pendingRequestDelete.name}</strong>? This cannot be undone.
+            Move <strong>{pendingRequestDelete.name}</strong> to Trash? You can restore it later.
           </p>
+          {requestTrashError && (
+            <p role="alert" className="mt-2 text-[var(--color-error)]">
+              Could not move this request to Trash. Try again.
+            </p>
+          )}
         </ConfirmDialog>
       )}
-
-      {pendingCollectionDelete && (
+      {folderTrashCandidate && (
         <ConfirmDialog
-          title="Delete collection"
-          confirmLabel="Delete collection"
-          onClose={() => setPendingCollectionDelete(null)}
-          onConfirm={() => {
-            const id = pendingCollectionDelete.id
-            setPendingCollectionDelete(null)
-            void deleteCollection(id)
-          }}
+          title="Move collection to Trash"
+          confirmLabel="Move collection to Trash"
+          onClose={() => setFolderTrashCandidate(null)}
+          onConfirm={() => void handleTrashFolder()}
         >
           <p>
-            Delete <strong>{pendingCollectionDelete.name}</strong>?
+            Move <strong>{folderTrashCandidate.name}</strong>, its nested collections, and requests
+            to Trash?
           </p>
-          {(() => {
-            const count = requests.filter(
-              (r) => r.collectionId === pendingCollectionDelete.id
-            ).length
-            return (
-              <p className="mt-2 text-[var(--color-warning)]">
-                {count === 0
-                  ? 'The collection is empty.'
-                  : `${count} saved ${count === 1 ? 'request' : 'requests'} inside it will also be deleted.`}
-              </p>
-            )
-          })()}
+          {folderTrashError && (
+            <p role="alert" className="mt-2 text-[var(--color-error)]">
+              Could not move this collection to Trash. Try again.
+            </p>
+          )}
         </ConfirmDialog>
+      )}
+      {trashOpen && (
+        <TrashDialog
+          title="API Trash"
+          entries={trashEntries}
+          onClose={() => setTrashOpen(false)}
+          onRestore={handleRestoreTrashEntry}
+          onDeletePermanently={handleDeleteTrashEntry}
+          onEmpty={handleEmptyTrash}
+        />
       )}
     </>
   )

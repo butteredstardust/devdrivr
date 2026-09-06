@@ -23,6 +23,7 @@ import {
   ImageSquareIcon,
   LinkIcon,
   MarkdownLogoIcon,
+  NoteIcon,
   PaletteIcon,
   PaperPlaneTiltIcon,
   ScissorsIcon,
@@ -64,6 +65,7 @@ const SnippetsManager = lazy(() => import('@/tools/snippets/SnippetsManager'))
 const CsvTools = lazy(() => import('@/tools/csv-tools/CsvTools'))
 const ImageTool = lazy(() => import('@/tools/image-tool/ImageTool'))
 const PromptTemplates = lazy(() => import('@/tools/prompt-templates/PromptTemplates'))
+const NotesWorkspace = lazy(() => import('@/tools/notes/NotesWorkspace'))
 
 const toolIcon = (Icon: Icon) => createElement(Icon, { size: 16, weight: 'regular' })
 
@@ -333,6 +335,16 @@ export const TOOLS: ToolDefinition[] = [
     component: DocsBrowser,
   },
   // --- Write ---
+  {
+    id: 'notes',
+    name: 'Notes',
+    group: 'write',
+    icon: toolIcon(NoteIcon),
+    description: 'Write, search, and preview persistent Markdown notes',
+    component: NotesWorkspace,
+    supportsSaveFile: true,
+    usesMonaco: true,
+  },
   {
     id: 'markdown-editor',
     name: 'Markdown Editor',

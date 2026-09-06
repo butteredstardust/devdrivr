@@ -51,6 +51,8 @@ export type RequestDraft = {
 
 export type ApiClientState = {
   activeRequestId: string | null
+  wikiTargetId: string | null
+  backlinkNoteId: string | null
   /** Library sidebar visibility — persisted so narrow windows stay where the user left them. */
   libraryOpen: boolean
   timeoutMs: number

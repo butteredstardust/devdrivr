@@ -11,6 +11,8 @@ import {
   unresolvedVariableNames,
 } from '@/tools/api-client/request-model'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
+import { useFoldersStore } from '@/stores/folders.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const clipboardWriteText = vi.fn()
@@ -66,8 +68,19 @@ describe('ApiClient', () => {
       environments: [],
       collections: [],
       requests: [],
+      trashedRequests: [],
       activeEnvironmentId: null,
       requestHistory: [],
+      restoreRequest: vi.fn().mockResolvedValue(undefined),
+      permanentlyDeleteRequest: vi.fn().mockResolvedValue(undefined),
+    })
+    useFoldersStore.setState({
+      folders: [],
+      trashedFolders: [],
+      trash: vi.fn().mockResolvedValue(undefined),
+      restore: vi.fn().mockResolvedValue(undefined),
+      permanentlyDelete: vi.fn().mockResolvedValue(undefined),
+      emptyTrash: vi.fn().mockResolvedValue(undefined),
     })
   })
 
@@ -84,6 +97,35 @@ describe('ApiClient', () => {
   it('renders send button', () => {
     renderTool(ApiClient)
     expect(screen.getByText('Send')).toBeInTheDocument()
+  })
+
+  it('opens durable Trash and restores a saved request', async () => {
+    const restoreRequest = vi.fn().mockResolvedValue(undefined)
+    useApiStore.setState({
+      trashedRequests: [
+        {
+          id: 'trashed-request',
+          collectionId: 'api-requests-inbox',
+          name: 'Archived request',
+          method: 'GET',
+          url: 'https://example.com/archived',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+          createdAt: 1,
+          updatedAt: 1,
+          deletedAt: 2,
+        },
+      ],
+      restoreRequest,
+    })
+    renderTool(ApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open API Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Archived request' }))
+
+    await waitFor(() => expect(restoreRequest).toHaveBeenCalledWith('trashed-request'))
   })
 
   it('offers form body editors and cURL export', () => {
@@ -198,22 +240,28 @@ describe('ApiClient', () => {
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const exported = clipboardWriteText.mock.calls[0]?.[0]
     expect(exported).toBeTypeOf('string')
-    expect(JSON.parse(exported as string)).toEqual([
-      {
-        name: 'Create account',
-        method: 'POST',
-        url: '{{baseUrl}}/accounts',
-        headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
-        body: '{"enabled":true}',
-        bodyMode: 'json',
-        auth: { type: 'bearer', token: '{{apiToken}}' },
-        collectionKey: 'collection-1',
-        collectionName: 'Accounts',
-      },
-    ])
+    expect(JSON.parse(exported as string)).toEqual({
+      version: 2,
+      folders: [{ key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 }],
+      requests: [
+        {
+          name: 'Create account',
+          method: 'POST',
+          url: '{{baseUrl}}/accounts',
+          headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
+          body: '{"enabled":true}',
+          bodyMode: 'json',
+          auth: { type: 'bearer', token: '{{apiToken}}' },
+          collectionKey: 'collection-1',
+          collectionName: 'Accounts',
+        },
+      ],
+    })
 
     const imported = importApiSpec({ content: exported as string })
-    expect(imported.collections).toEqual([{ key: 'collection-1', name: 'Accounts' }])
+    expect(imported.collections).toEqual([
+      { key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 },
+    ])
     expect(imported.requests[0]).toMatchObject({
       collectionKey: 'collection-1',
       headers: [{ key: 'X-Trace', value: '{{traceId}}', enabled: false }],
@@ -265,8 +313,8 @@ describe('ApiClient', () => {
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })
     expect(imported.collections).toEqual([
-      { key: 'collection-1', name: 'Users' },
-      { key: 'collection-2', name: 'users' },
+      { key: 'collection-1', name: 'Users', parentKey: null, sortOrder: 0 },
+      { key: 'collection-2', name: 'users', parentKey: null, sortOrder: 0 },
     ])
     expect(imported.requests.map((request) => request.collectionKey)).toEqual([
       'collection-1',
@@ -589,6 +637,31 @@ describe('ApiClient', () => {
     expect(screen.getByLabelText('Request name')).toHaveValue('Get User')
   })
 
+  it('guards unsaved drafts when a note link opens an exact saved request', async () => {
+    useApiStore.setState({ requests: [savedRequest] })
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://draft.example.com' },
+    })
+    act(() => {
+      useToolStateCache.getState().seed('api-client', {
+        wikiTargetId: savedRequest.id,
+        backlinkNoteId: 'source-note',
+      })
+    })
+
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)).toHaveValue(
+      'https://draft.example.com'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(screen.getByDisplayValue('https://example.com/user')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to note' })).toBeInTheDocument()
+  })
+
   it('opens a saved request without prompting when the draft is untouched', () => {
     useApiStore.setState({ requests: [savedRequest] })
     renderTool(ApiClient)
@@ -618,14 +691,14 @@ describe('ApiClient', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Get User' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move to Trash…' }))
 
     expect(deleteRequest).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete request' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }))
     expect(deleteRequest).toHaveBeenCalledWith('req-saved')
   })
 
-  it('warns that deleting a collection also deletes the requests inside it', () => {
+  it('does not expose permanent deletion on a live collection', () => {
     const deleteCollection = vi.fn().mockResolvedValue(undefined)
     useApiStore.setState({
       collections: [{ id: 'col-1', name: 'Accounts', createdAt: 1, updatedAt: 1 }],
@@ -638,11 +711,10 @@ describe('ApiClient', () => {
       </CollectionsSidebar>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete collection Accounts' }))
-
-    expect(screen.getByText('1 saved request inside it will also be deleted.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
-    expect(deleteCollection).toHaveBeenCalledWith('col-1')
+    expect(
+      screen.queryByRole('button', { name: 'Delete collection Accounts' })
+    ).not.toBeInTheDocument()
+    expect(deleteCollection).not.toHaveBeenCalled()
   })
 
   it('filters saved requests by name, URL, and method', () => {

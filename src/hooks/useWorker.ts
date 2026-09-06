@@ -13,6 +13,9 @@ import { useEffect, useRef, useState } from 'react'
  *     () => new FormatterWorkerFactory(),
  *     ['format', 'detectLanguage', 'getSupportedLanguages']
  *   )
+ *
+ * Pass `enabled: false` as the third argument to defer creating a large worker until its feature
+ * is first requested. Once enabled, keep it enabled for the owning component's lifetime.
  */
 
 /** The promisified view of a worker API, as handed to callers of `useWorker`. */
@@ -26,12 +29,14 @@ let nextId = 1
 
 export function useWorker<T>(
   factory: () => Worker,
-  methods: readonly (keyof T & string)[]
+  methods: readonly (keyof T & string)[],
+  enabled = true
 ): WorkerRpc<T> | null {
   const [rpc, setRpc] = useState<WorkerRpc<T> | null>(null)
   const workerRef = useRef<Worker | null>(null)
 
   useEffect(() => {
+    if (!enabled) return
     const worker = factory()
     workerRef.current = worker
 
@@ -82,7 +87,7 @@ export function useWorker<T>(
       worker.terminate()
       workerRef.current = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return rpc
 }

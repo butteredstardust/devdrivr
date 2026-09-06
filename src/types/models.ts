@@ -147,10 +147,28 @@ export type Snippet = {
   title: string
   content: string
   language: string
+  /** Optional Markdown context shared by every fragment. */
+  description?: string
+  /** Ordered code fragments. Legacy callers may omit this and use content/language. */
+  fragments?: SnippetFragment[]
   tags: string[]
   /** Persisted favorite flag; optional for imported/legacy in-memory fixtures. */
   favorite?: boolean
+  /** The typed folder backing the legacy display-name `folder` field. */
+  folderId?: string
   folder: string
+  createdAt: number
+  updatedAt: number
+  /** Set only while the snippet is in durable trash. */
+  deletedAt?: number
+}
+
+export type SnippetFragment = {
+  id: string
+  name: string
+  content: string
+  language: string
+  sortOrder: number
   createdAt: number
   updatedAt: number
 }
@@ -198,6 +216,8 @@ export type PromptTemplate = {
 export type PromptTemplateValues = Record<string, string>
 
 export type NoteColor = (typeof NOTE_COLORS)[number]
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
+export type TaskPriority = 'low' | 'medium' | 'high'
 
 export type Note = {
   id: string
@@ -216,6 +236,30 @@ export type Note = {
   updatedAt: number
   tags: string[]
   sortOrder: number
+  /** Always populated from persisted rows after migration 013. */
+  folderId?: string
+  /** Set only while the note is in durable trash. */
+  deletedAt?: number
+  /** Present when this note also acts as a task. */
+  taskStatus?: TaskStatus
+  taskPriority?: TaskPriority
+  /** Local calendar date in YYYY-MM-DD form. */
+  taskDueDate?: string
+}
+
+export type ResourceKind = 'notes' | 'snippets' | 'apiRequests'
+
+export type ResourceFolder = {
+  id: string
+  name: string
+  parentId: string | null
+  kind: ResourceKind
+  sortOrder: number
+  defaultLanguage?: string | null
+  createdAt: number
+  updatedAt: number
+  /** Set only while the folder is in durable trash. */
+  deletedAt?: number
 }
 
 export type HistoryEntry = {
@@ -253,8 +297,14 @@ export type ApiEnvironment = {
 export type ApiCollection = {
   id: string
   name: string
+  /** Parent typed API folder. Undefined is accepted for legacy import payloads. */
+  parentId?: string | null
+  sortOrder?: number
+  defaultLanguage?: string | null
   createdAt: number
   updatedAt: number
+  /** Set only while the collection is in durable trash. */
+  deletedAt?: number
 }
 
 export type ApiHeader = { key: string; value: string; enabled: boolean }
@@ -276,6 +326,8 @@ export type ApiRequest = {
   auth: ApiRequestAuth
   createdAt: number
   updatedAt: number
+  /** Set only while the request is in durable trash. */
+  deletedAt?: number
 }
 
 export type ApiImportFormat =
@@ -289,6 +341,8 @@ export type ApiImportFormat =
 export type ApiImportCollectionDraft = {
   key: string
   name: string
+  parentKey?: string | null
+  sortOrder?: number
 }
 
 export type ApiImportRequestDraft = Omit<
@@ -329,7 +383,7 @@ export type McpStatus = {
   lastError: string | null
 }
 
-export type McpDataChangedResource = McpResource | 'apiCollections'
+export type McpDataChangedResource = McpResource | 'apiCollections' | 'folders'
 
 export type McpDataChangedEvent = {
   resource: McpDataChangedResource

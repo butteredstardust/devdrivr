@@ -3,6 +3,11 @@ import snippetsFolderMigration from '@/../src-tauri/migrations/005_snippets_fold
 import promptTemplateAuthorsMigration from '@/../src-tauri/migrations/007_prompt_template_authors.sql?raw'
 import notesSortOrderMigration from '@/../src-tauri/migrations/008_notes_sort_order.sql?raw'
 import persistenceBackfillsMigration from '@/../src-tauri/migrations/009_persistence_backfills.sql?raw'
+import resourceFoldersMigration from '@/../src-tauri/migrations/013_resource_folders.sql?raw'
+import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.sql?raw'
+import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
+import noteLinksMigration from '@/../src-tauri/migrations/016_note_links.sql?raw'
+import snippetFragmentsMigration from '@/../src-tauri/migrations/017_snippet_fragments.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -33,5 +38,101 @@ describe('persistence migrations', () => {
   it('registers the corrective migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*9/)
     expect(tauriLib).toContain('include_str!("../migrations/009_persistence_backfills.sql")')
+  })
+
+  it('creates typed Inboxes and explicitly backfills resource folder references', () => {
+    expect(resourceFoldersMigration).toContain("'notes-inbox', 'Inbox', NULL, 'notes'")
+    expect(resourceFoldersMigration).toContain("'snippets-inbox', 'Inbox', NULL, 'snippets'")
+    expect(resourceFoldersMigration).toContain("'api-requests-inbox', 'Inbox', NULL, 'apiRequests'")
+    expect(resourceFoldersMigration).toMatch(
+      /UPDATE\s+notes\s+SET\s+folder_id\s*=\s*'notes-inbox'\s+WHERE\s+folder_id\s+IS\s+NULL/i
+    )
+    expect(resourceFoldersMigration).toMatch(
+      /UPDATE\s+snippets\s+SET\s+folder_id\s*=\s*'snippets-inbox'[\s\S]*folder\s*=\s*''/i
+    )
+    expect(resourceFoldersMigration).toMatch(
+      /UPDATE\s+api_requests\s+SET\s+collection_id\s*=\s*'api-requests-inbox'\s+WHERE\s+collection_id\s+IS\s+NULL/i
+    )
+    expect(resourceFoldersMigration).toMatch(/GROUP BY\s+folder/i)
+    expect(resourceFoldersMigration).toMatch(
+      /ALTER TABLE\s+api_collections\s+ADD COLUMN\s+parent_id/i
+    )
+  })
+
+  it('registers the resource folder migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*13/)
+    expect(tauriLib).toContain('include_str!("../migrations/013_resource_folders.sql")')
+  })
+
+  it('backfills and indexes durable trash columns for every trashable resource', () => {
+    for (const table of [
+      'notes',
+      'snippets',
+      'api_requests',
+      'resource_folders',
+      'api_collections',
+    ]) {
+      expect(durableTrashMigration).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+${table}\\s+ADD\\s+COLUMN\\s+deleted_at`, 'i')
+      )
+      expect(durableTrashMigration).toMatch(
+        new RegExp(`UPDATE\\s+${table}\\s+SET\\s+deleted_at\\s*=\\s*NULL`, 'i')
+      )
+      expect(durableTrashMigration).toMatch(new RegExp(`idx_${table}_deleted_at`, 'i'))
+    }
+  })
+
+  it('registers the durable trash migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*14/)
+    expect(tauriLib).toContain('include_str!("../migrations/014_durable_trash.sql")')
+  })
+
+  it('adds, backfills, and indexes optional note task metadata', () => {
+    for (const column of ['task_status', 'task_priority', 'task_due_date']) {
+      expect(noteTasksMigration).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+notes\\s+ADD\\s+COLUMN\\s+${column}`, 'i')
+      )
+      expect(noteTasksMigration).toMatch(new RegExp(`${column}\\s*=\\s*NULL`, 'i'))
+    }
+    expect(noteTasksMigration).toContain('idx_notes_task_status')
+    expect(noteTasksMigration).toContain('idx_notes_task_due_date')
+  })
+
+  it('registers the structured note tasks migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*15/)
+    expect(tauriLib).toContain('include_str!("../migrations/015_note_tasks.sql")')
+  })
+
+  it('creates and indexes stable note links', () => {
+    expect(noteLinksMigration).toMatch(/CREATE TABLE IF NOT EXISTS note_links/i)
+    expect(noteLinksMigration).toMatch(/source_note_id TEXT NOT NULL REFERENCES notes\(id\)/i)
+    expect(noteLinksMigration).toContain('PRIMARY KEY(source_note_id, target_kind, target_id)')
+    expect(noteLinksMigration).toContain('idx_note_links_target')
+  })
+
+  it('registers the stable note link migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*16/)
+    expect(tauriLib).toContain('include_str!("../migrations/016_note_links.sql")')
+  })
+
+  it('backfills every legacy snippet into one ordered fragment', () => {
+    expect(snippetFragmentsMigration).toMatch(
+      /ALTER TABLE snippets ADD COLUMN description TEXT NOT NULL DEFAULT ''/i
+    )
+    expect(snippetFragmentsMigration).toMatch(
+      /UPDATE snippets SET description = '' WHERE description IS NULL/i
+    )
+    expect(snippetFragmentsMigration).toMatch(/CREATE TABLE IF NOT EXISTS snippet_fragments/i)
+    expect(snippetFragmentsMigration).toMatch(/REFERENCES snippets\(id\) ON DELETE CASCADE/i)
+    expect(snippetFragmentsMigration).toMatch(
+      /SELECT id \|\| ':fragment:1', id, 'main', content, language, 0, created_at, updated_at/i
+    )
+    expect(snippetFragmentsMigration).toContain('UNIQUE(snippet_id, sort_order)')
+    expect(snippetFragmentsMigration).toContain('idx_snippet_fragments_snippet_order')
+  })
+
+  it('registers the snippet fragments migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*17/)
+    expect(tauriLib).toContain('include_str!("../migrations/017_snippet_fragments.sql")')
   })
 })

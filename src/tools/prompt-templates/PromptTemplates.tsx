@@ -1108,7 +1108,7 @@ export default function PromptTemplates() {
             </div>
 
             <div
-              className="min-h-0 flex-1 overflow-auto"
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
               role="listbox"
               aria-label="Prompt templates"
             >
@@ -1138,7 +1138,7 @@ export default function PromptTemplates() {
                     }}
                     className={`flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left ${selected ? 'bg-[var(--color-accent-dim)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
                   >
-                    <span className="min-w-0 flex-1">
+                    <span className="w-full min-w-0 flex-1">
                       <span className="flex items-center gap-2">
                         <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
                           {template.name}

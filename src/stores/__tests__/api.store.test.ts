@@ -7,11 +7,14 @@ import {
   loadApiCollections,
   loadApiEnvironments,
   loadApiRequests,
+  loadTrashedApiRequests,
   loadHistory,
   saveApiCollection,
   saveApiEnvironment,
   saveApiImport,
   saveApiRequest,
+  restoreApiRequest,
+  permanentlyDeleteApiRequest,
 } from '@/lib/db'
 import { useApiStore } from '@/stores/api.store'
 import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
@@ -22,12 +25,15 @@ vi.mock('@/lib/db', () => ({
   deleteApiCollection: vi.fn(),
   deleteApiEnvironment: vi.fn(),
   deleteApiRequest: vi.fn(),
+  restoreApiRequest: vi.fn(),
+  permanentlyDeleteApiRequest: vi.fn(),
   // NET-03: the active environment id is now persisted like any other setting.
   getSetting: vi.fn().mockResolvedValue(null),
   setSetting: vi.fn().mockResolvedValue(undefined),
   loadApiCollections: vi.fn(),
   loadApiEnvironments: vi.fn(),
   loadApiRequests: vi.fn(),
+  loadTrashedApiRequests: vi.fn(),
   loadHistory: vi.fn(),
   saveApiCollection: vi.fn(),
   saveApiEnvironment: vi.fn(),
@@ -75,6 +81,7 @@ describe('API store persistence', () => {
     vi.mocked(loadApiEnvironments).mockResolvedValue([])
     vi.mocked(loadApiCollections).mockResolvedValue([])
     vi.mocked(loadApiRequests).mockResolvedValue([])
+    vi.mocked(loadTrashedApiRequests).mockResolvedValue([])
     vi.mocked(loadHistory).mockResolvedValue([])
     vi.mocked(saveApiEnvironment).mockResolvedValue()
     vi.mocked(saveApiCollection).mockResolvedValue()
@@ -83,12 +90,15 @@ describe('API store persistence', () => {
     vi.mocked(deleteApiEnvironment).mockResolvedValue()
     vi.mocked(deleteApiCollection).mockResolvedValue()
     vi.mocked(deleteApiRequest).mockResolvedValue()
+    vi.mocked(restoreApiRequest).mockResolvedValue()
+    vi.mocked(permanentlyDeleteApiRequest).mockResolvedValue()
     vi.mocked(addHistoryEntry).mockResolvedValue()
     useApiStore.setState({
       initialized: false,
       environments: [],
       collections: [],
       requests: [],
+      trashedRequests: [],
       activeEnvironmentId: null,
       requestHistory: [],
     })
@@ -207,6 +217,21 @@ describe('API store persistence', () => {
     })
   })
 
+  it('restores and permanently deletes requests from durable Trash', async () => {
+    const trashed = { ...persistedRequest, deletedAt: 10 }
+    useApiStore.setState({ trashedRequests: [trashed] })
+    vi.mocked(loadApiRequests).mockResolvedValueOnce([persistedRequest])
+
+    await useApiStore.getState().restoreRequest(trashed.id)
+    expect(restoreApiRequest).toHaveBeenCalledWith(trashed.id)
+    expect(useApiStore.getState().requests).toEqual([persistedRequest])
+
+    useApiStore.setState({ trashedRequests: [trashed] })
+    await useApiStore.getState().permanentlyDeleteRequest(trashed.id)
+    expect(permanentlyDeleteApiRequest).toHaveBeenCalledWith(trashed.id)
+    expect(useApiStore.getState().trashedRequests).toEqual([])
+  })
+
   it('imports multiple collections with fresh IDs and preserves request metadata', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(3_000)
@@ -277,6 +302,67 @@ describe('API store persistence', () => {
     expect(
       new Set(useApiStore.getState().collections.map((collection) => collection.id)).size
     ).toBe(3)
+  })
+
+  it('maps an exported system Inbox back to the existing Inbox', async () => {
+    vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000021')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000022')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000023')
+
+    const result = await useApiStore.getState().importApiData({
+      format: 'devdrivr-json',
+      sourceTitle: 'Nested round trip',
+      collections: [
+        { key: 'api-requests-inbox', name: 'Inbox', sortOrder: 0 },
+        {
+          key: 'admin',
+          name: 'Admin',
+          parentKey: 'users',
+          sortOrder: 1_000,
+        },
+        {
+          key: 'users',
+          name: 'Users',
+          parentKey: 'api-requests-inbox',
+          sortOrder: 1_000,
+        },
+      ],
+      requests: [
+        {
+          collectionKey: 'api-requests-inbox',
+          name: 'Health',
+          method: 'GET',
+          url: 'https://example.com/health',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+        },
+      ],
+      warnings: [],
+    })
+
+    expect(result).toEqual({ collections: 2, requests: 1 })
+    const [collections, requests] = vi.mocked(saveApiImport).mock.calls[0]!
+    expect(collections).toEqual([
+      expect.objectContaining({
+        id: '00000000-0000-4000-8000-000000000022',
+        name: 'Users',
+        parentId: 'api-requests-inbox',
+      }),
+      expect.objectContaining({
+        id: '00000000-0000-4000-8000-000000000021',
+        name: 'Admin',
+        parentId: '00000000-0000-4000-8000-000000000022',
+      }),
+    ])
+    expect(requests).toEqual([
+      expect.objectContaining({
+        id: '00000000-0000-4000-8000-000000000023',
+        collectionId: 'api-requests-inbox',
+      }),
+    ])
   })
 })
 

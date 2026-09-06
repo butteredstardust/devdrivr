@@ -124,27 +124,52 @@ Use this tool to validate, view, and transform YAML.
 Use this tool to send HTTP requests and inspect responses.
 
 - Create collections for organizing requests
+- Restore deleted requests or complete collection subtrees from durable Trash
 - Set up environment variables
 - View request history
 - Inspect detailed response information
 
 ### Notes
 
-Use the notes drawer to create and update local notes.
+Use the notes drawer for quick capture or open the Notes workspace for the full library.
 
 - Color-coded note system
 - Automatic saving and syncing
 - Searchable notes list
 - Rich text support
+- Nested folders and durable Trash with restore and empty-trash confirmation
+- Optional task status, priority, and local due date without changing note content
+- Notes, All Tasks, Today, Upcoming, Completed, and Overdue views
+- Quick completion, hide-completed filtering, and confirmed cleanup of completed tasks
+
+Select **Make task** on any note to add task metadata. Select **Convert to note** to remove that
+metadata after confirmation; the title, Markdown body, folder, and tags are preserved. Due dates
+are local calendar dates, so a task becomes overdue only after midnight in the current timezone.
+
+Type `[[` in the Notes editor to open the resource picker. Search notes, snippets, or saved API
+requests, then use the arrow keys and Enter—or select a result—to insert a stable link. Preview
+links always resolve by resource ID, so renaming or moving a target does not break navigation.
+Duplicate titles are disambiguated with the shortest folder/type path that identifies one result.
+When another note links to the open note, its backlink appears below the editor. Trashed or missing
+targets render as unavailable instead of opening an ambiguous match. Title-only legacy text such as
+`[[Release plan]]` is preserved as text and is never guessed.
 
 ### Snippets
 
-Use Snippets to save and find reusable code.
+Use Snippets to save and find reusable code. A snippet can contain several ordered fragments—for
+example, a component, its styles, and a usage example—while remaining one searchable library item.
 
 - Categorize by language or purpose
 - Quick insert with keyboard shortcuts
 - Syntax highlighting
+- Accessible fragment tabs with create, rename, reorder, duplicate, and guarded delete controls
+- An optional Markdown description for usage notes and constraints
 - Export/import capabilities
+- Nested folders and durable Trash with restore and empty-trash confirmation
+
+Copy, download, language selection, and **Send to Prompt Templates** operate on the selected
+fragment. Duplicating a snippet and version 3 JSON backup/restore preserve the complete description,
+fragment order, names, languages, and contents. Older backups import as a single `main` fragment.
 
 ## Settings and Customization
 
@@ -240,6 +265,8 @@ The app stores workspace data locally in SQLite:
 - Snippets are stored in the `snippets` table
 - History is stored in the `history` table
 - API data is stored in `api_environments`, `api_collections`, and `api_requests` tables
+- Deleted notes, snippets, requests, and folders remain in SQLite with a deletion timestamp until
+  they are restored, permanently deleted, or removed with the relevant Empty Trash action.
 
 ### Data Persistence
 

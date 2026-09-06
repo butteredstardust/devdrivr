@@ -149,6 +149,8 @@ export default function ApiClient() {
 
   const [state, updateState] = useToolState<ApiClientState>('api-client', {
     activeRequestId: null,
+    wikiTargetId: null,
+    backlinkNoteId: null,
     libraryOpen: true,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     draft: createDefaultDraft(),
@@ -813,7 +815,12 @@ export default function ApiClient() {
 
   const resetToNewRequest = useCallback(() => {
     clearTransientFormState()
-    updateState({ activeRequestId: null, draft: createDefaultDraft() })
+    updateState({
+      activeRequestId: null,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      draft: createDefaultDraft(),
+    })
     setResponse(null)
     setError(null)
   }, [clearTransientFormState, updateState])
@@ -823,11 +830,12 @@ export default function ApiClient() {
   }, [guardUnsaved, resetToNewRequest])
 
   const handleSelectLoadedRequest = useCallback(
-    (req: ApiRequest) => {
+    (req: ApiRequest, backlinkNoteId: string | null = null) => {
       guardUnsaved(`opening “${req.name}”`, () => {
         clearTransientFormState()
         updateState({
           activeRequestId: req.id,
+          backlinkNoteId,
           draft: {
             name: req.name,
             method: req.method,
@@ -845,6 +853,14 @@ export default function ApiClient() {
     [clearTransientFormState, guardUnsaved, updateState]
   )
 
+  useEffect(() => {
+    if (!state.wikiTargetId) return
+    const request = requests.find((candidate) => candidate.id === state.wikiTargetId)
+    if (!request) return
+    handleSelectLoadedRequest(request, state.backlinkNoteId)
+    updateState({ wikiTargetId: null })
+  }, [handleSelectLoadedRequest, requests, state.backlinkNoteId, state.wikiTargetId, updateState])
+
   const handleLoadFromHistory = useCallback(
     (entry: HistoryEntry) => {
       const [histMethod, ...urlParts] = entry.input.split(' ')
@@ -853,6 +869,7 @@ export default function ApiClient() {
         clearTransientFormState()
         updateState({
           activeRequestId: null,
+          backlinkNoteId: null,
           draft: createDefaultDraft(histMethod ?? 'GET', { url: histUrl }),
         })
         if (entry.responseBody != null) {
@@ -1080,12 +1097,12 @@ export default function ApiClient() {
 
   const handleExport = useCallback(async () => {
     const exportCollectionById = new Map(
-      collections.map((collection, index) => [
+      collections.map((collection) => [
         collection.id,
-        { key: `collection-${index + 1}`, name: collection.name },
+        { key: collection.id, name: collection.name },
       ])
     )
-    const exportData = requests.map((r) => {
+    const exportRequests = requests.map((r) => {
       const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
       return {
         name: r.name,
@@ -1099,8 +1116,18 @@ export default function ApiClient() {
         collectionName: collection?.name ?? null,
       }
     })
+    const exportData = {
+      version: 2,
+      folders: collections.map((collection) => ({
+        key: collection.id,
+        name: collection.name,
+        parentKey: collection.parentId ?? null,
+        sortOrder: collection.sortOrder ?? 0,
+      })),
+      requests: exportRequests,
+    }
     await copy(JSON.stringify(exportData, null, 2), {
-      success: `Exported ${exportData.length} requests to clipboard`,
+      success: `Exported ${exportRequests.length} requests to clipboard`,
       failure: 'Export failed — clipboard unavailable',
     })
   }, [collections, requests, copy])
@@ -1240,6 +1267,23 @@ export default function ApiClient() {
                     {statusLine}
                   </p>
                 </div>
+
+                {state.backlinkNoteId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      sendToTool('notes', {
+                        selectedId: state.backlinkNoteId,
+                        selectedFolderId: null,
+                        taskView: 'notes',
+                      })
+                    }
+                  >
+                    Back to note
+                  </Button>
+                )}
 
                 <Button
                   type="button"

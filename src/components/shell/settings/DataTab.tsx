@@ -316,20 +316,20 @@ export function DataTab() {
         </SectionLabel>
         <div className="flex flex-wrap gap-2">
           <DangerButton
-            label={`Clear Notes (${noteCount})`}
-            confirmLabel="Confirm clear?"
+            label={`Trash Notes (${noteCount})`}
+            confirmLabel="Move all to Trash?"
             onConfirm={clearNotes}
             icon={<TrashIcon size={12} />}
-            successMessage="Notes cleared"
-            errorMessage="Failed to clear notes"
+            successMessage="Notes moved to Trash"
+            errorMessage="Failed to move notes to Trash"
           />
           <DangerButton
-            label={`Clear Snippets (${snippetCount})`}
-            confirmLabel="Confirm clear?"
+            label={`Trash Snippets (${snippetCount})`}
+            confirmLabel="Move all to Trash?"
             onConfirm={clearSnippets}
             icon={<TrashIcon size={12} />}
-            successMessage="Snippets cleared"
-            errorMessage="Failed to clear snippets"
+            successMessage="Snippets moved to Trash"
+            errorMessage="Failed to move snippets to Trash"
           />
           <DangerButton
             label={`Clear History (${historyCount})`}

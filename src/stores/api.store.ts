@@ -3,6 +3,7 @@ import {
   loadApiCollections,
   loadApiEnvironments,
   loadApiRequests,
+  loadTrashedApiRequests,
   saveApiCollection,
   saveApiEnvironment,
   saveApiImport,
@@ -10,6 +11,8 @@ import {
   deleteApiCollection,
   deleteApiEnvironment,
   deleteApiRequest,
+  restoreApiRequest,
+  permanentlyDeleteApiRequest,
   loadHistory,
   addHistoryEntry,
   getSetting,
@@ -26,6 +29,7 @@ type ApiStore = {
   environments: ApiEnvironment[]
   collections: ApiCollection[]
   requests: ApiRequest[]
+  trashedRequests: ApiRequest[]
   activeEnvironmentId: string | null
   requestHistory: HistoryEntry[]
 
@@ -45,6 +49,8 @@ type ApiStore = {
   createRequest: (req: Omit<ApiRequest, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiRequest>
   updateRequest: (req: ApiRequest) => Promise<void>
   deleteRequest: (id: string) => Promise<void>
+  restoreRequest: (id: string) => Promise<void>
+  permanentlyDeleteRequest: (id: string) => Promise<void>
   importApiData: (data: ApiImportResult) => Promise<{ collections: number; requests: number }>
 
   addRequestHistory: (entry: Omit<HistoryEntry, 'id' | 'tool' | 'timestamp'>) => Promise<void>
@@ -59,16 +65,18 @@ export const useApiStore = create<ApiStore>((set) => ({
   environments: [],
   collections: [],
   requests: [],
+  trashedRequests: [],
   activeEnvironmentId: null,
   requestHistory: [],
 
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const [envs, cols, reqs, hist, savedEnvId] = await Promise.all([
+        const [envs, cols, reqs, trashedReqs, hist, savedEnvId] = await Promise.all([
           loadApiEnvironments(),
           loadApiCollections(),
           loadApiRequests(),
+          loadTrashedApiRequests(),
           loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
           getSetting<string | null>(ACTIVE_ENVIRONMENT_SETTING, null),
         ])
@@ -77,6 +85,7 @@ export const useApiStore = create<ApiStore>((set) => ({
           environments: envs,
           collections: cols,
           requests: reqs,
+          trashedRequests: trashedReqs,
           requestHistory: hist,
           // Restore the chosen environment, falling back to the first only when the saved one
           // no longer exists — silently reverting to environment A changes resolved endpoints
@@ -96,16 +105,18 @@ export const useApiStore = create<ApiStore>((set) => ({
   },
 
   refresh: async () => {
-    const [envs, cols, reqs, hist] = await Promise.all([
+    const [envs, cols, reqs, trashedReqs, hist] = await Promise.all([
       loadApiEnvironments(),
       loadApiCollections(),
       loadApiRequests(),
+      loadTrashedApiRequests(),
       loadHistory(API_CLIENT_HISTORY_TOOL, API_CLIENT_HISTORY_LIMIT),
     ])
     set((state) => ({
       environments: envs,
       collections: cols,
       requests: reqs,
+      trashedRequests: trashedReqs,
       requestHistory: hist,
       activeEnvironmentId:
         state.activeEnvironmentId && envs.some((env) => env.id === state.activeEnvironmentId)
@@ -151,11 +162,14 @@ export const useApiStore = create<ApiStore>((set) => ({
   },
 
   createCollection: async (name) => {
+    const now = Date.now()
     const col: ApiCollection = {
       id: crypto.randomUUID(),
       name,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      parentId: 'api-requests-inbox',
+      sortOrder: now,
+      createdAt: now,
+      updatedAt: now,
     }
     await saveApiCollection(col)
     set((state) => ({
@@ -176,15 +190,18 @@ export const useApiStore = create<ApiStore>((set) => ({
 
   deleteCollection: async (id) => {
     await deleteApiCollection(id)
-    set((state) => ({
-      collections: state.collections.filter((c) => c.id !== id),
-      requests: state.requests.filter((request) => request.collectionId !== id),
-    }))
+    const [collections, requests, trashedRequests] = await Promise.all([
+      loadApiCollections(),
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ collections, requests, trashedRequests })
   },
 
   createRequest: async (draft) => {
     const req: ApiRequest = {
       ...draft,
+      collectionId: draft.collectionId ?? 'api-requests-inbox',
       id: crypto.randomUUID(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -208,30 +225,86 @@ export const useApiStore = create<ApiStore>((set) => ({
 
   deleteRequest: async (id) => {
     await deleteApiRequest(id)
+    const [requests, trashedRequests] = await Promise.all([
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ requests, trashedRequests })
+  },
+
+  restoreRequest: async (id) => {
+    await restoreApiRequest(id)
+    const [requests, trashedRequests] = await Promise.all([
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ requests, trashedRequests })
+  },
+
+  permanentlyDeleteRequest: async (id) => {
+    await permanentlyDeleteApiRequest(id)
     set((state) => ({
-      requests: state.requests.filter((r) => r.id !== id),
+      trashedRequests: state.trashedRequests.filter((request) => request.id !== id),
     }))
   },
 
   importApiData: async (data) => {
     const now = Date.now()
-    const importedCollections: ApiCollection[] = data.collections.map((collection) => ({
-      id: crypto.randomUUID(),
-      name: collection.name,
-      createdAt: now,
-      updatedAt: now,
-    }))
-    const collectionIdByKey = new Map(
-      data.collections.map((collection, index) => [
+    const collectionIdByKey = new Map<string, string>()
+    for (const collection of data.collections) {
+      collectionIdByKey.set(
         collection.key,
-        importedCollections[index]?.id ?? null,
-      ])
-    )
+        collection.key === 'api-requests-inbox' ? collection.key : crypto.randomUUID()
+      )
+    }
+    const importedCollections: ApiCollection[] = data.collections
+      .filter((collection) => collection.key !== 'api-requests-inbox')
+      .map((collection) => {
+        const id = collectionIdByKey.get(collection.key)
+        if (!id) throw new Error(`Missing imported collection ID for ${collection.key}`)
+        return {
+          id,
+          name: collection.name,
+          parentId: 'api-requests-inbox',
+          sortOrder: collection.sortOrder ?? now,
+          createdAt: now,
+          updatedAt: now,
+        }
+      })
+    data.collections
+      .filter((collection) => collection.key !== 'api-requests-inbox')
+      .forEach((collection, index) => {
+        const imported = importedCollections[index]
+        if (!imported) return
+        imported.parentId = collection.parentKey
+          ? (collectionIdByKey.get(collection.parentKey) ?? 'api-requests-inbox')
+          : 'api-requests-inbox'
+      })
+    // The shared-folder trigger requires parents to exist before children. Exported
+    // collections may be alphabetical, so normalize them into a parent-first order.
+    const pendingCollections = [...importedCollections]
+    const orderedCollections: ApiCollection[] = []
+    const availableParentIds = new Set(['api-requests-inbox'])
+    while (pendingCollections.length > 0) {
+      const readyIndex = pendingCollections.findIndex(
+        (collection) => !collection.parentId || availableParentIds.has(collection.parentId)
+      )
+      if (readyIndex < 0) {
+        // Malformed cyclic hierarchies remain importable without creating a cycle.
+        for (const collection of pendingCollections) collection.parentId = 'api-requests-inbox'
+        orderedCollections.push(...pendingCollections)
+        break
+      }
+      const [ready] = pendingCollections.splice(readyIndex, 1)
+      if (!ready) continue
+      orderedCollections.push(ready)
+      availableParentIds.add(ready.id)
+    }
     const importedRequests: ApiRequest[] = data.requests.map((request) => ({
       id: crypto.randomUUID(),
       collectionId: request.collectionKey
-        ? (collectionIdByKey.get(request.collectionKey) ?? null)
-        : null,
+        ? (collectionIdByKey.get(request.collectionKey) ?? 'api-requests-inbox')
+        : 'api-requests-inbox',
       name: request.name,
       method: request.method,
       url: request.url,
@@ -243,16 +316,16 @@ export const useApiStore = create<ApiStore>((set) => ({
       updatedAt: now,
     }))
 
-    await saveApiImport(importedCollections, importedRequests)
+    await saveApiImport(orderedCollections, importedRequests)
     set((state) => ({
-      collections: [...state.collections, ...importedCollections].sort((a, b) =>
+      collections: [...state.collections, ...orderedCollections].sort((a, b) =>
         a.name.localeCompare(b.name)
       ),
       requests: [...state.requests, ...importedRequests].sort((a, b) =>
         a.name.localeCompare(b.name)
       ),
     }))
-    return { collections: importedCollections.length, requests: importedRequests.length }
+    return { collections: orderedCollections.length, requests: importedRequests.length }
   },
 
   addRequestHistory: async (entryData) => {
