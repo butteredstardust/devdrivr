@@ -757,23 +757,23 @@ export default function NotesWorkspace() {
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="icon"
               size="sm"
               onClick={() => setTrashOpen(true)}
               aria-label={`Open Notes Trash, ${trashEntries.length} items`}
+              title="Open Notes Trash"
             >
               <TrashIcon size={14} aria-hidden="true" />
-              Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="icon"
               size="sm"
               onClick={() => void handleNewTask()}
               aria-label="New task"
+              title="New task"
             >
               <CheckCircleIcon size={14} aria-hidden="true" />
-              Task
             </Button>
             <Button
               type="button"
