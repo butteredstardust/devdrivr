@@ -41,6 +41,28 @@ function sortedChildren(folders: ResourceFolder[], parentId: string | null): Res
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
 }
 
+/**
+ * Which moves change the folder's position.
+ *
+ * The move buttons and the Alt+Arrow shortcuts must share this, or a disabled button stays
+ * reachable from the keyboard and writes a move the store then discards.
+ */
+function moveCapabilities(folders: ResourceFolder[], folder: ResourceFolder) {
+  const siblings = sortedChildren(folders, folder.parentId)
+  const index = siblings.findIndex((candidate) => candidate.id === folder.id)
+  // A system Inbox holds the first root slot, so the folder after it cannot move up.
+  const firstFreeIndex = Math.max(
+    0,
+    siblings.findIndex((candidate) => !isInboxFolder(candidate.id))
+  )
+  return {
+    canMoveUp: index > firstFreeIndex,
+    canMoveDown: index >= 0 && index < siblings.length - 1,
+    canNest: index > 0,
+    canMoveOut: folder.parentId !== null,
+  }
+}
+
 function flattenFolders(folders: ResourceFolder[], expanded: Set<string>): TreeRow[] {
   const rows: TreeRow[] = []
   const visit = (parentId: string | null, level: number) => {
@@ -70,13 +92,21 @@ export function ResourceFolderTree({
   const [draftName, setDraftName] = useState('')
   const [draftLanguage, setDraftLanguage] = useState('')
   const treeRef = useRef<HTMLDivElement>(null)
+  const knownFolderIds = useRef<Set<string>>(new Set(folders.map((folder) => folder.id)))
   const rows = useMemo(() => flattenFolders(folders, expanded), [expanded, folders])
   const selectedFolderIsVisible = rows.some((row) => row.folder.id === selectedFolderId)
 
+  // Expand a root folder only the first time it appears. Expanding every root folder on each
+  // update reverts a collapse the user made, because a rename or a move replaces the array.
   useEffect(() => {
+    const newRoots = folders.filter(
+      (folder) => folder.parentId === null && !knownFolderIds.current.has(folder.id)
+    )
+    for (const folder of folders) knownFolderIds.current.add(folder.id)
+    if (newRoots.length === 0) return
     setExpanded((current) => {
       const next = new Set(current)
-      for (const folder of folders) if (folder.parentId === null) next.add(folder.id)
+      for (const folder of newRoots) next.add(folder.id)
       return next
     })
   }, [folders])
@@ -112,10 +142,11 @@ export function ResourceFolderTree({
 
   const moveSibling = useCallback(
     async (folder: ResourceFolder, delta: -1 | 1) => {
+      const { canMoveUp, canMoveDown } = moveCapabilities(folders, folder)
+      if (delta === -1 ? !canMoveUp : !canMoveDown) return
       const siblings = sortedChildren(folders, folder.parentId)
       const index = siblings.findIndex((candidate) => candidate.id === folder.id)
-      const nextIndex = Math.max(0, Math.min(index + delta, siblings.length - 1))
-      if (nextIndex !== index) await onMove(folder.id, folder.parentId, nextIndex)
+      await onMove(folder.id, folder.parentId, index + delta)
     },
     [folders, onMove]
   )
@@ -236,6 +267,7 @@ export function ResourceFolderTree({
           const selected = selectedFolderId === folder.id
           const editing = editingId === folder.id
           const movable = !isInboxFolder(folder.id)
+          const { canMoveUp, canMoveDown, canNest, canMoveOut } = moveCapabilities(folders, folder)
           return (
             <div
               key={folder.id}
@@ -379,6 +411,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveSibling(folder, -1)}
+                        disabled={!canMoveUp}
                         aria-label={`Move ${folder.name} up`}
                       >
                         <ArrowUpIcon size={12} aria-hidden="true" />
@@ -388,6 +421,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveSibling(folder, 1)}
+                        disabled={!canMoveDown}
                         aria-label={`Move ${folder.name} down`}
                       >
                         <ArrowDownIcon size={12} aria-hidden="true" />
@@ -397,6 +431,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void nestUnderPrevious(folder)}
+                        disabled={!canNest}
                         aria-label={`Nest ${folder.name}`}
                       >
                         <ArrowRightIcon size={12} aria-hidden="true" />
@@ -406,6 +441,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveOut(folder)}
+                        disabled={!canMoveOut}
                         aria-label={`Move ${folder.name} out`}
                       >
                         <ArrowLeftIcon size={12} aria-hidden="true" />
