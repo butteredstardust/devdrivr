@@ -143,6 +143,18 @@ describe('ResourceFolderTree', () => {
     expect(screen.getByRole('button', { name: 'Move API down' })).toBeDisabled()
   })
 
+  it('ignores a keyboard move the buttons disable', () => {
+    const props = renderTree({ folders: [{ ...root, id: 'snippets-inbox' }, sibling] })
+    const row = screen.getByRole('button', { name: 'Work, 0 items' })
+
+    // The Inbox holds the first root slot, so Work is already as high as it goes.
+    fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true })
+    // Work is last, so it cannot move down either.
+    fireEvent.keyDown(row, { key: 'ArrowDown', altKey: true })
+
+    expect(props.onMove).not.toHaveBeenCalled()
+  })
+
   it('offers folder trash without exposing the system Inbox', () => {
     const onTrash = vi.fn()
     renderTree({

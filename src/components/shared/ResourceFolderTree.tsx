@@ -41,6 +41,28 @@ function sortedChildren(folders: ResourceFolder[], parentId: string | null): Res
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
 }
 
+/**
+ * Which moves change the folder's position.
+ *
+ * The move buttons and the Alt+Arrow shortcuts must share this, or a disabled button stays
+ * reachable from the keyboard and writes a move the store then discards.
+ */
+function moveCapabilities(folders: ResourceFolder[], folder: ResourceFolder) {
+  const siblings = sortedChildren(folders, folder.parentId)
+  const index = siblings.findIndex((candidate) => candidate.id === folder.id)
+  // A system Inbox holds the first root slot, so the folder after it cannot move up.
+  const firstFreeIndex = Math.max(
+    0,
+    siblings.findIndex((candidate) => !isInboxFolder(candidate.id))
+  )
+  return {
+    canMoveUp: index > firstFreeIndex,
+    canMoveDown: index >= 0 && index < siblings.length - 1,
+    canNest: index > 0,
+    canMoveOut: folder.parentId !== null,
+  }
+}
+
 function flattenFolders(folders: ResourceFolder[], expanded: Set<string>): TreeRow[] {
   const rows: TreeRow[] = []
   const visit = (parentId: string | null, level: number) => {
@@ -120,10 +142,11 @@ export function ResourceFolderTree({
 
   const moveSibling = useCallback(
     async (folder: ResourceFolder, delta: -1 | 1) => {
+      const { canMoveUp, canMoveDown } = moveCapabilities(folders, folder)
+      if (delta === -1 ? !canMoveUp : !canMoveDown) return
       const siblings = sortedChildren(folders, folder.parentId)
       const index = siblings.findIndex((candidate) => candidate.id === folder.id)
-      const nextIndex = Math.max(0, Math.min(index + delta, siblings.length - 1))
-      if (nextIndex !== index) await onMove(folder.id, folder.parentId, nextIndex)
+      await onMove(folder.id, folder.parentId, index + delta)
     },
     [folders, onMove]
   )
@@ -244,17 +267,7 @@ export function ResourceFolderTree({
           const selected = selectedFolderId === folder.id
           const editing = editingId === folder.id
           const movable = !isInboxFolder(folder.id)
-          const siblings = sortedChildren(folders, folder.parentId)
-          const siblingIndex = siblings.findIndex((candidate) => candidate.id === folder.id)
-          // A system Inbox holds the first root slot, so the folder after it cannot move up.
-          const firstFreeIndex = Math.max(
-            0,
-            siblings.findIndex((candidate) => !isInboxFolder(candidate.id))
-          )
-          const canMoveUp = siblingIndex > firstFreeIndex
-          const canMoveDown = siblingIndex >= 0 && siblingIndex < siblings.length - 1
-          const canNest = siblingIndex > 0
-          const canMoveOut = folder.parentId !== null
+          const { canMoveUp, canMoveDown, canNest, canMoveOut } = moveCapabilities(folders, folder)
           return (
             <div
               key={folder.id}
