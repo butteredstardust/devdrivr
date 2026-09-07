@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from './Button'
 import { SidebarSimpleIcon } from '@phosphor-icons/react'
+import { cn } from '@/lib/cn'
 
 /**
  * Width below which the sidebar yields, however the caller has it set.
@@ -120,7 +121,10 @@ export function MasterDetailLayout({
   const overlayClose = onCloseCrampedSidebar ?? toggleInternalCrampedSidebar
 
   return (
-    <div ref={rootRef} className={`relative flex h-full min-h-0 bg-[var(--color-bg)] ${className}`}>
+    <div
+      ref={rootRef}
+      className={cn(`relative flex h-full min-h-0 bg-[var(--color-bg)]`, className)}
+    >
       <aside
         aria-label={title}
         // The collapsed state below hides the pane from the eye and the mouse but not from the

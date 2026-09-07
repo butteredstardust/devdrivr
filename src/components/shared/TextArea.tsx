@@ -8,6 +8,7 @@ import {
   type FocusEventHandler,
   type TextareaHTMLAttributes,
 } from 'react'
+import { cn } from '@/lib/cn'
 
 type TextAreaSize = 'sm' | 'md'
 
@@ -88,7 +89,10 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         elementRef={setRef}
         onChange={handleChange}
         onBlur={handleBlur}
-        className={`${BASE_CLASSES} ${SIZE_CLASSES[size]} ${monospace ? 'font-mono' : ''} ${className}`}
+        className={cn(
+          `${BASE_CLASSES} ${SIZE_CLASSES[size]} ${monospace ? 'font-mono' : ''}`,
+          className
+        )}
         {...props}
       />
     )

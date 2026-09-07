@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type PanelProps = {
   children: ReactNode
@@ -16,7 +17,10 @@ type PanelProps = {
 export function Panel({ children, title, actions, padded = true, className = '' }: PanelProps) {
   return (
     <div
-      className={`rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] ${className}`}
+      className={cn(
+        `rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]`,
+        className
+      )}
     >
       {(title || actions) && (
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">

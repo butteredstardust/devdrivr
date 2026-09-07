@@ -1,5 +1,6 @@
 import { usePlatform } from '@/hooks/usePlatform'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { cn } from '@/lib/cn'
 
 type KbdProps = {
   /**
@@ -36,7 +37,9 @@ export function Kbd({ keys, variant = 'boxed', className = '' }: KbdProps) {
       : 'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[var(--color-text-muted)]'
 
   return (
-    <kbd className={`font-mono inline-flex shrink-0 items-center text-2xs ${chrome} ${className}`}>
+    <kbd
+      className={cn(`font-mono inline-flex shrink-0 items-center text-2xs ${chrome}`, className)}
+    >
       {label}
     </kbd>
   )

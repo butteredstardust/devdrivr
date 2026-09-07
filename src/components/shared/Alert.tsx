@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import { CheckCircleIcon, InfoIcon, WarningCircleIcon, XCircleIcon } from '@phosphor-icons/react'
+import { cn } from '@/lib/cn'
 
 type AlertVariant = 'error' | 'success' | 'warning' | 'info'
 
@@ -31,7 +32,10 @@ export function Alert({ variant, children, className = '' }: AlertProps) {
     <div
       role="alert"
       aria-live={variant === 'error' ? 'assertive' : 'polite'}
-      className={`flex items-start gap-2 rounded-[var(--radius-md)] border-l-2 px-3 py-2 text-xs ${VARIANT_CLASSES[variant]} ${className}`}
+      className={cn(
+        `flex items-start gap-2 rounded-[var(--radius-md)] border-l-2 px-3 py-2 text-xs ${VARIANT_CLASSES[variant]}`,
+        className
+      )}
     >
       <Icon size={14} weight="fill" aria-hidden="true" className="mt-px shrink-0" />
       <div className="min-w-0 flex-1">{children}</div>

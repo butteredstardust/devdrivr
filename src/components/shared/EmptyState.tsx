@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type EmptyStateSize = 'sm' | 'md'
 
@@ -32,7 +33,10 @@ export function EmptyState({
   const config = SIZE_CONFIG[size]
   return (
     <div
-      className={`flex flex-col items-center justify-center gap-3 text-center text-[var(--color-text-muted)] ${config.padding} ${className}`}
+      className={cn(
+        `flex flex-col items-center justify-center gap-3 text-center text-[var(--color-text-muted)] ${config.padding}`,
+        className
+      )}
     >
       {Icon && <Icon size={config.iconSize} weight="light" />}
       <div>

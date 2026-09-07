@@ -1,6 +1,7 @@
 import { useId, type ReactNode, type RefObject } from 'react'
 import { XIcon } from '@phosphor-icons/react'
 import { useModalFocus } from '@/hooks/useModalFocus'
+import { cn } from '@/lib/cn'
 
 /**
  * The dialog width scale.
@@ -78,7 +79,10 @@ export function Dialog({
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${SIZE_CLASSES[size]} ${className}`}
+        className={cn(
+          `animate-fade-in fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[90vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${SIZE_CLASSES[size]}`,
+          className
+        )}
       >
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <h2 id={titleId} className={`font-ui text-sm text-[var(--color-text)] ${titleClassName}`}>

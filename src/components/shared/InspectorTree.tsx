@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CaretDownIcon, CaretRightIcon, DotOutlineIcon } from '@phosphor-icons/react'
 import { Input } from '@/components/shared/Input'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { cn } from '@/lib/cn'
 
 type Entry = readonly [string, unknown]
 
@@ -54,7 +55,10 @@ export function InspectorDisclosure({
       aria-expanded={hasChildren ? expanded : undefined}
       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
       disabled={!hasChildren}
-      className={`text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${className}`}
+      className={cn(
+        `text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]`,
+        className
+      )}
     >
       {hasChildren ? (
         expanded ? (

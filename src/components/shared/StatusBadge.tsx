@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type StatusBadgeVariant = 'neutral' | 'info' | 'success' | 'warning' | 'error'
 
@@ -19,7 +20,10 @@ const VARIANT_CLASSES: Record<StatusBadgeVariant, string> = {
 export function StatusBadge({ variant = 'neutral', children, className = '' }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-bold ${VARIANT_CLASSES[variant]} ${className}`}
+      className={cn(
+        `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-bold ${VARIANT_CLASSES[variant]}`,
+        className
+      )}
     >
       {children}
     </span>

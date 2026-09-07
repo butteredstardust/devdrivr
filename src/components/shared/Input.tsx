@@ -8,6 +8,7 @@ import {
   type FocusEventHandler,
   type InputHTMLAttributes,
 } from 'react'
+import { cn } from '@/lib/cn'
 
 // Select now lives in its own primitive file — re-exported here so the many
 // existing `import { Input, Select } from '@/components/shared/Input'` call
@@ -102,7 +103,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         elementRef={setRef}
         onChange={handleChange}
         onBlur={handleBlur}
-        className={`${BASE_CLASSES} ${SIZE_CLASSES[size]} ${monospace ? 'font-mono' : ''} ${className}`}
+        className={cn(
+          `${BASE_CLASSES} ${SIZE_CLASSES[size]} ${monospace ? 'font-mono' : ''}`,
+          className
+        )}
         {...props}
       />
     )

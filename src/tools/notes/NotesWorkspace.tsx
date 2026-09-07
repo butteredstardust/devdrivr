@@ -292,11 +292,16 @@ export default function NotesWorkspace() {
     for (const view of TASK_VIEWS) {
       counts.set(
         view.value,
-        notes.filter((note) => taskMatchesView(note, view.value, today)).length
+        notes.filter(
+          (note) =>
+            taskMatchesView(note, view.value, today) &&
+            // Match the list filter, so a count never exceeds the visible rows.
+            (!state.hideCompleted || view.value === 'completed' || note.taskStatus !== 'done')
+        ).length
       )
     }
     return counts
-  }, [notes, today])
+  }, [notes, state.hideCompleted, today])
   const completedCount = taskCounts.get('completed') ?? 0
   const wikiResources = useMemo(
     () => buildWikiResources(notes, snippets, apiRequests, folders, apiCollections),
@@ -528,12 +533,15 @@ export default function NotesWorkspace() {
     if (!removeTaskCandidate) return
     try {
       await updateTask(removeTaskCandidate.id, { status: null })
+      // A task view cannot hold a plain note. Follow the note back to the Notes
+      // view, otherwise the list drops it and the editor clears.
+      updateState({ selectedId: removeTaskCandidate.id, taskView: 'notes' })
       setRemoveTaskCandidate(null)
       setLastAction('Task converted to note', 'success')
     } catch {
       setLastAction('Failed to convert task to note', 'error')
     }
-  }, [removeTaskCandidate, setLastAction, updateTask])
+  }, [removeTaskCandidate, setLastAction, updateState, updateTask])
 
   const handleTrashCompleted = useCallback(async () => {
     try {

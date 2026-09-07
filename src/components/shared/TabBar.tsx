@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type Tab = {
   id: string
@@ -110,7 +111,10 @@ export function TabBar({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={`flex min-w-0 overflow-x-auto ${noBorder ? '' : 'border-b border-[var(--color-border)]'} ${className}`}
+      className={cn(
+        `flex min-w-0 overflow-x-auto ${noBorder ? '' : 'border-b border-[var(--color-border)]'}`,
+        className
+      )}
     >
       {tabs.map((tab, index) => (
         <button

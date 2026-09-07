@@ -1,4 +1,5 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react'
+import { cn } from '@/lib/cn'
 
 type SelectSize = 'sm' | 'md'
 
@@ -23,7 +24,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <select
         ref={ref}
-        className={`${BASE_CLASSES} ${SIZE_CLASSES[size]} ${className}`}
+        className={cn(`${BASE_CLASSES} ${SIZE_CLASSES[size]}`, className)}
         {...props}
       />
     )

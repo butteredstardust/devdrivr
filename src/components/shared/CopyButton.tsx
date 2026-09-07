@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { Button } from '@/components/shared/Button'
+import { cn } from '@/lib/cn'
 
 type CopyButtonProps = {
   text: string
@@ -36,7 +37,10 @@ export function CopyButton({ text, label = 'Copy', className = '' }: CopyButtonP
         void handleCopy()
       }}
       aria-label={copied ? `${label}: copied` : label}
-      className={`min-w-[5rem] ${copied ? 'border-[var(--color-success)] text-[var(--color-success)]' : ''} ${className}`}
+      className={cn(
+        `min-w-[5rem] ${copied ? 'border-[var(--color-success)] text-[var(--color-success)]' : ''}`,
+        className
+      )}
     >
       {copied ? (
         <CheckIcon size={12} weight="bold" aria-hidden="true" />
