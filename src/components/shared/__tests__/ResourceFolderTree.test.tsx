@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { RenderResult } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
@@ -43,8 +44,12 @@ function renderTree(overrides: Partial<ComponentProps<typeof ResourceFolderTree>
     label: 'Snippet folders',
     ...overrides,
   }
-  render(<ResourceFolderTree {...props} />)
-  return props
+  const view: RenderResult = render(<ResourceFolderTree {...props} />)
+  return {
+    ...props,
+    rerender: (next: Partial<typeof props>) =>
+      view.rerender(<ResourceFolderTree {...props} {...next} />),
+  }
 }
 
 describe('ResourceFolderTree', () => {
@@ -94,6 +99,48 @@ describe('ResourceFolderTree', () => {
 
     await waitFor(() => expect(props.onCreate).toHaveBeenCalledWith('root'))
     expect(props.onSelect).toHaveBeenCalledWith('new')
+  })
+
+  it('keeps a collapsed root folder collapsed after a folder update', () => {
+    const tree = renderTree()
+    expect(screen.getByRole('button', { name: 'API, 1 items' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Inbox' }))
+    expect(screen.queryByRole('button', { name: 'API, 1 items' })).not.toBeInTheDocument()
+
+    tree.rerender({ folders: [root, child, { ...sibling, name: 'Projects' }] })
+
+    expect(screen.getByRole('button', { name: 'Projects, 0 items' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'API, 1 items' })).not.toBeInTheDocument()
+  })
+
+  it('expands a root folder the first time it appears', () => {
+    const tree = renderTree({ folders: [root, child] })
+    const added: ResourceFolder = { ...root, id: 'added', name: 'Archive' }
+
+    tree.rerender({
+      folders: [root, child, added, { ...child, id: 'nested', parentId: 'added', name: 'Old' }],
+    })
+
+    expect(screen.getByRole('button', { name: 'Old, 0 items' })).toBeInTheDocument()
+  })
+
+  it('disables move controls that cannot change the folder position', () => {
+    renderTree({ folders: [{ ...root, id: 'snippets-inbox' }, sibling] })
+
+    expect(screen.getByRole('button', { name: 'Move Work up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Work down' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Work out' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Nest Work' })).toBeEnabled()
+  })
+
+  it('enables the move controls a nested folder can use', () => {
+    renderTree()
+
+    expect(screen.getByRole('button', { name: 'Move API out' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Nest API' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move API up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move API down' })).toBeDisabled()
   })
 
   it('offers folder trash without exposing the system Inbox', () => {

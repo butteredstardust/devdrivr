@@ -70,13 +70,21 @@ export function ResourceFolderTree({
   const [draftName, setDraftName] = useState('')
   const [draftLanguage, setDraftLanguage] = useState('')
   const treeRef = useRef<HTMLDivElement>(null)
+  const knownFolderIds = useRef<Set<string>>(new Set(folders.map((folder) => folder.id)))
   const rows = useMemo(() => flattenFolders(folders, expanded), [expanded, folders])
   const selectedFolderIsVisible = rows.some((row) => row.folder.id === selectedFolderId)
 
+  // Expand a root folder only the first time it appears. Expanding every root folder on each
+  // update reverts a collapse the user made, because a rename or a move replaces the array.
   useEffect(() => {
+    const newRoots = folders.filter(
+      (folder) => folder.parentId === null && !knownFolderIds.current.has(folder.id)
+    )
+    for (const folder of folders) knownFolderIds.current.add(folder.id)
+    if (newRoots.length === 0) return
     setExpanded((current) => {
       const next = new Set(current)
-      for (const folder of folders) if (folder.parentId === null) next.add(folder.id)
+      for (const folder of newRoots) next.add(folder.id)
       return next
     })
   }, [folders])
@@ -236,6 +244,17 @@ export function ResourceFolderTree({
           const selected = selectedFolderId === folder.id
           const editing = editingId === folder.id
           const movable = !isInboxFolder(folder.id)
+          const siblings = sortedChildren(folders, folder.parentId)
+          const siblingIndex = siblings.findIndex((candidate) => candidate.id === folder.id)
+          // A system Inbox holds the first root slot, so the folder after it cannot move up.
+          const firstFreeIndex = Math.max(
+            0,
+            siblings.findIndex((candidate) => !isInboxFolder(candidate.id))
+          )
+          const canMoveUp = siblingIndex > firstFreeIndex
+          const canMoveDown = siblingIndex >= 0 && siblingIndex < siblings.length - 1
+          const canNest = siblingIndex > 0
+          const canMoveOut = folder.parentId !== null
           return (
             <div
               key={folder.id}
@@ -379,6 +398,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveSibling(folder, -1)}
+                        disabled={!canMoveUp}
                         aria-label={`Move ${folder.name} up`}
                       >
                         <ArrowUpIcon size={12} aria-hidden="true" />
@@ -388,6 +408,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveSibling(folder, 1)}
+                        disabled={!canMoveDown}
                         aria-label={`Move ${folder.name} down`}
                       >
                         <ArrowDownIcon size={12} aria-hidden="true" />
@@ -397,6 +418,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void nestUnderPrevious(folder)}
+                        disabled={!canNest}
                         aria-label={`Nest ${folder.name}`}
                       >
                         <ArrowRightIcon size={12} aria-hidden="true" />
@@ -406,6 +428,7 @@ export function ResourceFolderTree({
                         variant="icon"
                         size="xs"
                         onClick={() => void moveOut(folder)}
+                        disabled={!canMoveOut}
                         aria-label={`Move ${folder.name} out`}
                       >
                         <ArrowLeftIcon size={12} aria-hidden="true" />
