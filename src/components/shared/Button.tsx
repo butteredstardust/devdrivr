@@ -1,5 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { Spinner } from './Spinner'
+import { cn } from '@/lib/cn'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'icon'
 type ButtonSize = 'xs' | 'sm' | 'md'
@@ -59,7 +60,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         aria-busy={loading || undefined}
         title={title ?? (variant === 'icon' ? props['aria-label'] : undefined)}
-        className={`font-ui relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] transition-colors duration-[var(--duration-fast)] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${VARIANT_CLASSES[variant]} ${sizeClasses} ${className}`}
+        className={cn(
+          `font-ui relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] transition-colors duration-[var(--duration-fast)] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${VARIANT_CLASSES[variant]} ${sizeClasses}`,
+          className
+        )}
         {...props}
       >
         {loading ? (

@@ -8,6 +8,7 @@ import {
   type FocusEventHandler,
   type InputHTMLAttributes,
 } from 'react'
+import { cn } from '@/lib/cn'
 
 type InlineInputVariant = 'title' | 'heading' | 'display' | 'code' | 'plain'
 
@@ -105,7 +106,7 @@ export const InlineInput = forwardRef<HTMLInputElement, InlineInputProps>(
         elementRef={setRef}
         onChange={handleChange}
         onBlur={handleBlur}
-        className={`${BASE_CLASSES} ${VARIANT_CLASSES[variant]} ${className}`}
+        className={cn(`${BASE_CLASSES} ${VARIANT_CLASSES[variant]}`, className)}
         {...props}
       />
     )

@@ -1,4 +1,5 @@
 import type { ElementType, HTMLAttributes, ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type SectionLabelProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode
@@ -34,7 +35,10 @@ export function SectionLabel({
   return (
     <Tag
       {...rest}
-      className={`font-ui flex items-center gap-2 text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] ${className}`}
+      className={cn(
+        `font-ui flex items-center gap-2 text-2xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]`,
+        className
+      )}
     >
       {children}
       {hint && <span className="font-normal normal-case tracking-normal opacity-80">{hint}</span>}

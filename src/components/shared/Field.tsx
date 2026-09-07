@@ -1,4 +1,5 @@
 import { Children, cloneElement, isValidElement, useId, type ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type FieldProps = {
   label: string
@@ -63,7 +64,7 @@ export function Field({
     : children
 
   return (
-    <Wrapper className={`flex flex-col gap-1 ${className}`}>
+    <Wrapper className={cn(`flex flex-col gap-1`, className)}>
       {/* font-ui, not font-mono: a field name is chrome naming the control, not content. */}
       {htmlFor ? (
         <label htmlFor={htmlFor} className="font-ui text-xs text-[var(--color-text-muted)]">

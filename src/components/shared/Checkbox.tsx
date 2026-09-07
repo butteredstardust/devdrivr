@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, type InputHTMLAttributes } from 'react'
 import { CheckIcon, MinusIcon } from '@phosphor-icons/react'
+import { cn } from '@/lib/cn'
 
 type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> & {
   /** Renders the mixed state. Also sets `input.indeterminate`, which has no HTML attribute. */
@@ -29,7 +30,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
 
     return (
       <span
-        className={`relative inline-flex h-4 w-4 shrink-0 items-center justify-center ${className}`}
+        className={cn(
+          `relative inline-flex h-4 w-4 shrink-0 items-center justify-center`,
+          className
+        )}
       >
         <input
           ref={(node) => {

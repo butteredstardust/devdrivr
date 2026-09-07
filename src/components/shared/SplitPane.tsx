@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type SplitPaneProps = {
   /** Exactly two panes. A three-way split is a nested `SplitPane`, not a third child. */
@@ -243,7 +244,10 @@ export function SplitPane({
   return (
     <div
       ref={containerRef}
-      className={`flex min-h-0 min-w-0 flex-1 ${isHorizontal ? 'flex-row' : 'flex-col'} ${className}`}
+      className={cn(
+        `flex min-h-0 min-w-0 flex-1 ${isHorizontal ? 'flex-row' : 'flex-col'}`,
+        className
+      )}
     >
       <div
         className={`min-h-0 min-w-0 flex-col overflow-hidden ${

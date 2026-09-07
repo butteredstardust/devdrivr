@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 type ToolLayoutProps = {
   /** Rendered as-is above the body. Tools own their toolbar's internal
@@ -31,7 +32,7 @@ export function ToolLayout({
   className = '',
 }: ToolLayoutProps) {
   return (
-    <div className={`flex h-full flex-col ${className}`}>
+    <div className={cn(`flex h-full flex-col`, className)}>
       {toolbar && <div className="shrink-0 bg-[var(--color-surface)]">{toolbar}</div>}
       {fullBleed ? (
         <div className="flex flex-1 flex-col overflow-hidden">{children}</div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { cn } from '@/lib/cn'
 
 type SpinnerSize = 'xs' | 'sm' | 'md'
 
@@ -27,7 +28,10 @@ export function Spinner({ size = 'sm', className = '', label = 'Loading' }: Spin
     <span
       role="status"
       aria-label={label}
-      className={`inline-block animate-spin rounded-full border-current border-t-transparent ${SIZE_CLASSES[size]} ${className}`}
+      className={cn(
+        `inline-block animate-spin rounded-full border-current border-t-transparent ${SIZE_CLASSES[size]}`,
+        className
+      )}
     />
   )
 }

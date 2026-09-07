@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { SectionLabel } from './SectionLabel'
+import { cn } from '@/lib/cn'
 
 type PaneHeaderProps = {
   title: ReactNode
@@ -26,7 +27,10 @@ type PaneHeaderProps = {
 export function PaneHeader({ title, hint, status, actions, className = '' }: PaneHeaderProps) {
   return (
     <div
-      className={`flex min-h-8 shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 ${className}`}
+      className={cn(
+        `flex min-h-8 shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5`,
+        className
+      )}
     >
       <SectionLabel className="min-w-0 flex-1" hint={hint}>
         <span className="truncate">{title}</span>

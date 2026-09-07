@@ -15,6 +15,7 @@ import { CaretDownIcon } from '@phosphor-icons/react'
 import { Button } from './Button'
 import { Popover, type PopoverTriggerProps } from './Popover'
 import { SectionLabel } from './SectionLabel'
+import { cn } from '@/lib/cn'
 
 type ToolbarProps = {
   children: ReactNode
@@ -203,7 +204,10 @@ export function Toolbar({
       ref={containerRef}
       role="toolbar"
       aria-label={ariaLabel}
-      className={`flex min-h-11 items-center gap-2 bg-[var(--color-surface)] px-4 py-1.5 ${border ? 'border-b border-[var(--color-border)]' : ''} ${className}`}
+      className={cn(
+        `flex min-h-11 items-center gap-2 bg-[var(--color-surface)] px-4 py-1.5 ${border ? 'border-b border-[var(--color-border)]' : ''}`,
+        className
+      )}
     >
       {analysis.nodes.map((node, index) => {
         const ordinal = analysis.groupOrdinal.get(index)
@@ -281,7 +285,10 @@ export function ToolbarGroup({
       role="group"
       aria-label={label}
       data-toolbar-group=""
-      className={`flex shrink-0 items-center gap-1.5 ${separated ? 'border-l border-[var(--color-border)] pl-2' : ''} ${className}`}
+      className={cn(
+        `flex shrink-0 items-center gap-1.5 ${separated ? 'border-l border-[var(--color-border)] pl-2' : ''}`,
+        className
+      )}
     >
       {children}
     </div>
@@ -409,7 +416,7 @@ export function DocumentToolbar({
   ...props
 }: DocumentToolbarProps) {
   return (
-    <Toolbar {...props} border={border} className={`gap-x-3 ${className}`}>
+    <Toolbar {...props} border={border} className={cn(`gap-x-3`, className)}>
       {children}
     </Toolbar>
   )
@@ -461,7 +468,7 @@ export function DocumentIdentity({
     // is readable; `overflow-hidden` handles the rest, so the last few pixels truncate the status
     // instead of escaping the box. Safe to clip here — this subtree is text, with no focus ring to
     // cut off.
-    <div className={`flex min-w-32 flex-1 items-center gap-2 overflow-hidden ${className}`}>
+    <div className={cn(`flex min-w-32 flex-1 items-center gap-2 overflow-hidden`, className)}>
       {icon}
       <span
         data-testid={titleTestId}

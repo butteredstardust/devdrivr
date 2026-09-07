@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from 'react'
+import { cn } from '@/lib/cn'
 
 export type SegmentedControlOption<T extends string> = {
   value: T
@@ -84,7 +85,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={`inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-sunken)] p-0.5 ${className}`}
+      className={cn(
+        `inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-sunken)] p-0.5`,
+        className
+      )}
     >
       {options.map((option, index) => {
         const selected = option.value === value

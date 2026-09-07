@@ -1,4 +1,5 @@
 import { ArrowRightIcon, InfoIcon, WarningCircleIcon, WarningIcon } from '@phosphor-icons/react'
+import { cn } from '@/lib/cn'
 
 export type ProblemSeverity = 'error' | 'warning' | 'info'
 
@@ -24,7 +25,7 @@ export function ProblemsList({
 }) {
   if (items.length === 0) {
     return (
-      <p className={`px-3 py-2 text-xs text-[var(--color-text-muted)] ${className}`}>
+      <p className={cn(`px-3 py-2 text-xs text-[var(--color-text-muted)]`, className)}>
         {emptyMessage}
       </p>
     )

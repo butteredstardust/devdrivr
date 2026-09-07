@@ -2,6 +2,7 @@ import { forwardRef, type InputHTMLAttributes } from 'react'
 import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react'
 import { Input } from '@/components/shared/Input'
 import { Button } from '@/components/shared/Button'
+import { cn } from '@/lib/cn'
 
 type SearchInputSize = 'sm' | 'md'
 
@@ -61,7 +62,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       // exactly as tall as it is. It also stops the half-pixel leaking outward: the sidebar header
       // holds one of these, so its fractional height was making the tool list's `flex-1` 733.5px and
       // putting every icon below it on a half pixel too.
-      <div className={`relative flex ${className}`}>
+      <div className={cn(`relative flex`, className)}>
         <MagnifyingGlassIcon
           size={geometry.icon}
           aria-hidden="true"

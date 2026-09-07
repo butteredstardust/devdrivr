@@ -15,6 +15,7 @@ import {
 import { createPortal } from 'react-dom'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { cycleFocus } from '@/lib/focus'
+import { cn } from '@/lib/cn'
 
 /** Gap between the trigger and the surface, and the minimum inset from a viewport edge. */
 const GAP = 6
@@ -299,7 +300,10 @@ export function Popover({
             tabIndex={-1}
             onKeyDown={handleKeyDown}
             style={position}
-            className={`animate-fade-in fixed z-[var(--z-popover)] flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none ${className}`}
+            className={cn(
+              `animate-fade-in fixed z-[var(--z-popover)] flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none`,
+              className
+            )}
           >
             {children}
           </div>,

@@ -136,6 +136,7 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
     license: 'MIT',
     copyright: 'sql-formatter contributors',
   },
+  { name: 'tailwind-merge', version: '3.6.0', license: 'MIT', copyright: 'Dany Castillo' },
   { name: 'tailwindcss', version: '4.2.2', license: 'MIT', copyright: 'Tailwind Labs' },
   { name: 'unified', version: '11.0.5', license: 'MIT', copyright: 'Titus Wormer' },
   { name: 'xpath', version: '0.0.34', license: 'MIT', copyright: 'Cameron McCormack' },
