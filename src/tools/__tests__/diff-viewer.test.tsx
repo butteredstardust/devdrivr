@@ -158,6 +158,27 @@ describe('DiffViewer', () => {
     )
   })
 
+  // The confirmation covers the patch it was given, not the tool. A flag would still read true on
+  // the render that receives the next patch, and that render builds the markup.
+  it('asks again when the next diff is also too large', async () => {
+    renderTool(DiffViewer)
+    const left = Array.from({ length: 1200 }, (_, i) => `line ${i}`).join('\n')
+    fillBothSides(left, Array.from({ length: 1200 }, (_, i) => `LINE ${i} changed`).join('\n'))
+    fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
+
+    await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Render anyway' }))
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Diff result' })).toBeInTheDocument()
+    )
+
+    fillBothSides(left, Array.from({ length: 1200 }, (_, i) => `LINE ${i} again`).join('\n'))
+    fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
+
+    await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
+    expect(screen.queryByRole('region', { name: 'Diff result' })).not.toBeInTheDocument()
+  })
+
   it('renders a diff under the cap without asking', async () => {
     renderTool(DiffViewer)
     fillBothSides()

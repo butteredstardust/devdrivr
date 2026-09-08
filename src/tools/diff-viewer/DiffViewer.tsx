@@ -279,7 +279,10 @@ export default function DiffViewer() {
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const [rawPatch, setRawPatch] = useState<string>('')
-  const [renderConfirmed, setRenderConfirmed] = useState(false)
+  // The confirmed patch, not a flag. A flag cleared by an effect still reads `true` during the
+  // render that receives the next patch, and that render is the one that builds the markup — so the
+  // next large diff would render once before the guard came back.
+  const [confirmedPatch, setConfirmedPatch] = useState<string | null>(null)
   const [isComparing, setIsComparing] = useState(false)
   const [activeHunk, setActiveHunk] = useState(-1)
   const diffContainerRef = useRef<HTMLDivElement>(null)
@@ -315,7 +318,6 @@ export default function DiffViewer() {
 
   useEffect(() => {
     setActiveHunk(-1)
-    setRenderConfirmed(false)
   }, [rawPatch])
 
   const navigateHunk = useCallback(
@@ -349,7 +351,7 @@ export default function DiffViewer() {
   // How much of the patch diff2html will turn into DOM. It emits a row per patch line — two in
   // side-by-side — plus a handful of nodes inside each, so this tracks the cost closely.
   const patchLineCount = useMemo(() => (rawPatch ? rawPatch.split('\n').length : 0), [rawPatch])
-  const tooLargeToRender = patchLineCount > MAX_RENDERED_DIFF_LINES && !renderConfirmed
+  const tooLargeToRender = patchLineCount > MAX_RENDERED_DIFF_LINES && confirmedPatch !== rawPatch
 
   // WARNING: rendering is the expensive half, not the comparison. The worker computes the patch
   // off-thread, but diff2html builds the markup here and the browser then parses roughly twelve
@@ -557,7 +559,7 @@ export default function DiffViewer() {
       title="Large diff"
       description={`${patchLineCount.toLocaleString()} lines will all render at once, which freezes the window for a few seconds. Copy patch and Export work without rendering.`}
       action={
-        <Button variant="secondary" size="sm" onClick={() => setRenderConfirmed(true)}>
+        <Button variant="secondary" size="sm" onClick={() => setConfirmedPatch(rawPatch)}>
           Render anyway
         </Button>
       }

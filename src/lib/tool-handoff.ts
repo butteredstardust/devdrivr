@@ -21,6 +21,23 @@ export type SendToToolOptions = {
  */
 const delivered = new Map<string, string>()
 
+/**
+ * How many delivered documents to remember. Each entry holds a whole document, and closing a tab
+ * does not free its key, so the map is capped rather than left to grow for the session.
+ *
+ * Evicting an entry only costs one extra tab: the destination then looks edited, so the handoff
+ * moves aside instead of replacing it. Forgetting is always the safe direction.
+ */
+const MAX_REMEMBERED_DELIVERIES = 32
+
+/**
+ * State keys that name the file a document came from.
+ *
+ * A handoff replaces the document but not the row around it, so these would otherwise survive and
+ * point the destination's next Save at a file the handed-over content never came from.
+ */
+const FILE_METADATA_KEYS = ['filePath', 'fileName'] as const
+
 /** The `tool_state` key of the tab now in front, falling back to the bare tool id. */
 function focusedStateKey(toolId: string): string {
   const ui = useUiStore.getState()
@@ -52,8 +69,35 @@ function wouldReplaceDocument(
 function rememberDelivery(key: string, patch: Record<string, unknown>, documentKeys: string[]) {
   for (const documentKey of documentKeys) {
     const value = patch[documentKey]
-    if (typeof value === 'string') delivered.set(`${key}:${documentKey}`, value)
+    if (typeof value !== 'string') continue
+    // Re-insert rather than update, so the entry counts as the most recent for eviction.
+    delivered.delete(`${key}:${documentKey}`)
+    delivered.set(`${key}:${documentKey}`, value)
   }
+  // Map iterates in insertion order, so the first key is the oldest.
+  while (delivered.size > MAX_REMEMBERED_DELIVERIES) {
+    const oldest = delivered.keys().next().value
+    if (oldest === undefined) break
+    delivered.delete(oldest)
+  }
+}
+
+/**
+ * Clears the destination's file metadata, so the handed-over document is not tied to its file.
+ *
+ * Only touches keys the destination actually holds and the caller does not set itself. A handoff
+ * that names its own file keeps it.
+ */
+function withoutFileMetadata(
+  patch: Record<string, unknown>,
+  state: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  if (!state) return patch
+  const next = { ...patch }
+  for (const key of FILE_METADATA_KEYS) {
+    if (state[key] != null && !(key in next)) next[key] = null
+  }
+  return next
 }
 
 /** Seeds the patch into one tab's state row, on top of whatever that row already holds. */
@@ -101,20 +145,28 @@ async function route(
   useUiStore.getState().openTab(toolId)
   let key = focusedStateKey(toolId)
   const documentKeys = options.documentKeys
+  let outgoing = patch
 
   if (documentKeys?.length) {
     // A destination that has never been open keeps its document on disk, so the check has to read
     // it. Nothing is seeded until the tab that receives the handoff is known.
     const cached = useToolStateCache.getState().get(key)
-    const state = cached ?? (await loadToolState(key).catch(() => null))
+    const stored = cached ?? (await loadToolState(key).catch(() => null))
+    // WARNING: the tab is on screen and usable during that read. Whatever the user typed while it
+    // ran is in the cache and is newer than the row on disk, so the check has to see it.
+    const state = { ...stored, ...useToolStateCache.getState().get(key) }
+
     if (wouldReplaceDocument(state, patch, key, documentKeys)) {
+      // The new tab has its own state key and holds nothing, so there is no file to detach from.
       useUiStore.getState().openTabInstance(toolId)
       key = focusedStateKey(toolId)
+    } else {
+      outgoing = withoutFileMetadata(patch, state)
     }
-    rememberDelivery(key, patch, documentKeys)
+    rememberDelivery(key, outgoing, documentKeys)
   }
 
-  deliver(key, patch)
+  deliver(key, outgoing)
 }
 
 /**
