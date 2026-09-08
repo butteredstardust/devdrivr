@@ -153,6 +153,23 @@ describe('openFileInTool', () => {
     expect(claimPendingToolAction(tab.stateKey!)).toMatchObject({ filename: 'b.json' })
   })
 
+  it('gives a second file its own tab even when the first was taken at once', () => {
+    openFileInTool({ content: '{"a":1}', filename: 'a.json', path: '/tmp/a.json' })
+    const first = useUiStore.getState().tabs[0]!
+    // A tool that was already mounted claims its file before the next one finishes reading, so
+    // nothing is left queued to reveal the collision.
+    claimPendingToolAction(first.stateKey!)
+
+    openFileInTool(
+      { content: '{"b":2}', filename: 'b.json', path: '/tmp/b.json' },
+      { forceNewTab: true }
+    )
+
+    const tabs = useUiStore.getState().tabs
+    expect(tabs).toHaveLength(2)
+    expect(claimPendingToolAction(tabs[1]!.stateKey!)).toMatchObject({ filename: 'b.json' })
+  })
+
   it('routes source files to a tool that can save them back', () => {
     // TS Playground drops the path and saves compiled output, so an opened `.ts` could not be
     // written back to the file it came from.

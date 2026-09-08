@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useOpenedFiles } from '@/hooks/useOpenedFiles'
-import { claimPendingToolAction, clearPendingToolActions } from '@/lib/tool-actions'
+import {
+  claimPendingToolAction,
+  clearPendingToolActions,
+  subscribePendingToolAction,
+} from '@/lib/tool-actions'
 import { useUiStore } from '@/stores/ui.store'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -122,6 +126,20 @@ describe('useOpenedFiles', () => {
     const [first, second] = useUiStore.getState().tabs
     expect(claimPendingToolAction(first!.stateKey!)).toMatchObject({ filename: 'a.json' })
     expect(claimPendingToolAction(second!.stateKey!)).toMatchObject({ filename: 'b.json' })
+  })
+
+  it('keeps both files when the first tool takes its file immediately', async () => {
+    backendWith({ '/tmp/a.json': '{}', '/tmp/b.json': '[]' })
+    // Stands in for a JSON Tools tab that is already mounted: it claims the file as soon as it is
+    // queued, so nothing is left waiting when the second file arrives.
+    const unsubscribe = subscribePendingToolAction(() => {
+      for (const tab of useUiStore.getState().tabs) claimPendingToolAction(tab.stateKey!)
+    })
+
+    render(<Harness />)
+
+    await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+    unsubscribe()
   })
 
   it('reports a file it cannot read', async () => {

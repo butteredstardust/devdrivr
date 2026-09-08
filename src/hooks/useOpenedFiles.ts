@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { openFileInTool } from '@/lib/file-routing'
+import { openFileInTool, toolIdForFile } from '@/lib/file-routing'
 import { filenameFromPath, isLikelyBinaryText } from '@/lib/file-io'
 import { getToolById } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
@@ -31,7 +31,7 @@ export function useOpenedFiles(): void {
     let cancelled = false
     let unlisten: (() => void) | undefined
 
-    const openPath = async (path: string) => {
+    const openPath = async (path: string, opened: Set<string>) => {
       const filename = filenameFromPath(path)
       try {
         const content = await invoke<string>('opened_file_read', { path })
@@ -40,7 +40,11 @@ export function useOpenedFiles(): void {
           addToast(`Unsupported binary file: ${filename}`, 'error')
           return
         }
-        const toolId = openFileInTool({ content, filename, path })
+        // Files after the first that route to the same tool get their own tab, so a selection of
+        // three `.json` files is three documents rather than the last one.
+        const forceNewTab = opened.has(toolIdForFile(filename))
+        const toolId = openFileInTool({ content, filename, path }, { forceNewTab })
+        opened.add(toolId)
         addToast(`Opened ${filename} in ${getToolById(toolId)?.name ?? toolId}`, 'success')
       } catch (err) {
         if (cancelled) return
@@ -54,9 +58,11 @@ export function useOpenedFiles(): void {
     // interleave the tab the shell is about to focus with the file addressed to it.
     const drain = async () => {
       const paths = await invoke<string[]>('opened_files_take')
+      // One drain is one gesture, so the tools it has already filled are tracked across it.
+      const opened = new Set<string>()
       for (const path of paths) {
         if (cancelled) return
-        await openPath(path)
+        await openPath(path, opened)
       }
     }
 

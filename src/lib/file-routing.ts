@@ -69,19 +69,31 @@ function focusedStateKey(toolId: string): string {
  * already mounted and active, and a tab opened one line earlier is neither — it is still loading
  * its lazy component. The tool claims the action once it is live.
  *
+ * Set `forceNewTab` for every file after the first when several arrive together. Selecting two
+ * files of one type is two documents, and reusing the tab would leave only the second — an
+ * already-mounted tool claims its file at once, so a check on what is still queued cannot see the
+ * collision coming.
+ *
  * Returns the tool the file went to.
  */
-export function openFileInTool(file: { content: string; filename: string; path: string }): string {
+export function openFileInTool(
+  file: { content: string; filename: string; path: string },
+  options: { forceNewTab?: boolean } = {}
+): string {
   const toolId = toolIdForFile(file.filename)
   const ui = useUiStore.getState()
-  ui.openTab(toolId)
+  if (options.forceNewTab) {
+    ui.openTabInstance(toolId)
+  } else {
+    ui.openTab(toolId)
+  }
 
-  // Address the tab `openTab` selected, not the tool id: a second tab of the same tool writes to
+  // Address the tab just selected, not the tool id: a second tab of the same tool writes to
   // `${toolId}#${tabId}`, and the bare id would deliver the file to a tab nothing is watching.
   let stateKey = focusedStateKey(toolId)
 
-  // Selecting two files of one type is two documents, not one. A tab still holding an unclaimed
-  // file gets a sibling rather than having that file replaced before anyone has seen it.
+  // A tab still holding an unclaimed file gets a sibling rather than having that file replaced
+  // before anyone has seen it.
   if (hasPendingToolAction(stateKey)) {
     useUiStore.getState().openTabInstance(toolId)
     stateKey = focusedStateKey(toolId)
