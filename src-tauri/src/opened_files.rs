@@ -21,7 +21,11 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Event emitted when the OS opens a file while the app already runs.
+/// Emitted when the OS opens a file while the app already runs.
+///
+/// The event carries no payload on purpose: it means "the queue changed", and the frontend answers
+/// it by draining the queue. Sending the paths as well would hand the same file to a frontend that
+/// is also draining at startup, and open it twice.
 pub const OPENED_FILES_EVENT: &str = "opened-files";
 
 #[derive(Default)]
@@ -64,18 +68,37 @@ pub fn accept(app: &AppHandle, paths: Vec<String>) {
             }
         }
     }
-    lock(&state.pending).extend(files.clone());
+    lock(&state.pending).extend(files);
 
-    let _ = app.emit(OPENED_FILES_EVENT, files);
+    let _ = app.emit(OPENED_FILES_EVENT, ());
 }
 
 /// Collects file paths from a process argument list.
-pub fn paths_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<String> {
+///
+/// `base` is the working directory those arguments were typed in, and a relative argument is
+/// resolved against it. For a forwarded second instance that directory is not this process's own:
+/// `devdrivr notes.md` run from another folder names a file this process cannot see from where it
+/// started.
+pub fn paths_from_args<I: IntoIterator<Item = String>>(args: I, base: &Path) -> Vec<String> {
     args.into_iter()
         .skip(1) // argv[0] is the executable
         .filter(|arg| !arg.starts_with('-'))
-        .filter(|arg| Path::new(arg).is_file())
+        .map(|arg| {
+            let path = PathBuf::from(&arg);
+            if path.is_absolute() {
+                path
+            } else {
+                base.join(path)
+            }
+        })
+        .filter(|path| path.is_file())
+        .map(|path| path.to_string_lossy().into_owned())
         .collect()
+}
+
+/// This process's working directory, for arguments it was started with itself.
+pub fn current_dir() -> PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
 /// Drains the queue. The frontend calls this once on mount, for paths that arrived before it could
@@ -102,30 +125,49 @@ pub fn opened_file_read(app: AppHandle, path: String) -> Result<String, String> 
 mod tests {
     use super::*;
 
+    /// A file that certainly exists, with the directory to resolve it against.
+    fn sample_file() -> (PathBuf, String) {
+        let base = current_dir();
+        (base, file!().to_string())
+    }
+
     #[test]
     fn paths_from_args_keeps_existing_files_only() {
-        let this_file = file!().to_string();
-        let exists = Path::new(&this_file).is_file();
+        let (base, name) = sample_file();
         let args = vec![
             "devdrivr".to_string(),
             "--flag".to_string(),
             "/definitely/not/here.json".to_string(),
-            this_file.clone(),
+            name.clone(),
         ];
-        let found = paths_from_args(args);
-        if exists {
-            assert_eq!(found, vec![this_file]);
-        } else {
-            assert!(found.is_empty());
-        }
+        assert_eq!(
+            paths_from_args(args, &base),
+            vec![base.join(&name).to_string_lossy().into_owned()]
+        );
     }
 
     #[test]
     fn paths_from_args_drops_the_executable() {
-        let this_file = file!().to_string();
-        if !Path::new(&this_file).is_file() {
-            return;
-        }
-        assert!(paths_from_args(vec![this_file]).is_empty());
+        let (base, name) = sample_file();
+        assert!(paths_from_args(vec![name], &base).is_empty());
+    }
+
+    #[test]
+    fn paths_from_args_resolves_against_the_callers_directory() {
+        let (base, name) = sample_file();
+        // The same relative argument, read from a directory that does not hold the file.
+        let elsewhere = base.join("icons");
+        let args = vec!["devdrivr".to_string(), name];
+        assert!(!paths_from_args(args.clone(), &base).is_empty());
+        assert!(paths_from_args(args, &elsewhere).is_empty());
+    }
+
+    #[test]
+    fn paths_from_args_keeps_an_absolute_path_as_given() {
+        let (base, name) = sample_file();
+        let absolute = base.join(&name).to_string_lossy().into_owned();
+        let args = vec!["devdrivr".to_string(), absolute.clone()];
+        // The base is wrong on purpose: an absolute argument must ignore it.
+        assert_eq!(paths_from_args(args, Path::new("/nowhere")), vec![absolute]);
     }
 }

@@ -120,6 +120,46 @@ describe('openFileInTool', () => {
     expect(claimPendingToolAction(survivor.stateKey!)).toMatchObject({ filename: 'a.json' })
   })
 
+  it('drops a queued file when its tab closes', () => {
+    openFileInTool({ content: '{}', filename: 'a.json', path: '/tmp/a.json' })
+    const tab = useUiStore.getState().tabs[0]!
+
+    useUiStore.getState().closeTab(tab.id)
+
+    // Reopening the tool takes the same bare key. The dismissed file must not come back with it.
+    useUiStore.getState().openTab('json-tools')
+    expect(claimPendingToolAction(useUiStore.getState().tabs[0]!.stateKey!)).toBeNull()
+  })
+
+  it('gives a second file of the same type its own tab', () => {
+    openFileInTool({ content: '{"a":1}', filename: 'a.json', path: '/tmp/a.json' })
+    openFileInTool({ content: '{"b":2}', filename: 'b.json', path: '/tmp/b.json' })
+
+    // The first file was still queued, so replacing it would lose a document the user chose.
+    const tabs = useUiStore.getState().tabs
+    expect(tabs).toHaveLength(2)
+    expect(claimPendingToolAction(tabs[0]!.stateKey!)).toMatchObject({ filename: 'a.json' })
+    expect(claimPendingToolAction(tabs[1]!.stateKey!)).toMatchObject({ filename: 'b.json' })
+  })
+
+  it('reuses the tab once its file has been taken', () => {
+    openFileInTool({ content: '{"a":1}', filename: 'a.json', path: '/tmp/a.json' })
+    const tab = useUiStore.getState().tabs[0]!
+    claimPendingToolAction(tab.stateKey!)
+
+    openFileInTool({ content: '{"b":2}', filename: 'b.json', path: '/tmp/b.json' })
+
+    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect(claimPendingToolAction(tab.stateKey!)).toMatchObject({ filename: 'b.json' })
+  })
+
+  it('routes source files to a tool that can save them back', () => {
+    // TS Playground drops the path and saves compiled output, so an opened `.ts` could not be
+    // written back to the file it came from.
+    expect(toolIdForFile('main.ts')).toBe('code-formatter')
+    expect(toolIdForFile('App.tsx')).toBe('code-formatter')
+  })
+
   it('keeps two files apart when they route to different tools', () => {
     openFileInTool({ content: '{}', filename: 'a.json', path: '/tmp/a.json' })
     openFileInTool({ content: '# b', filename: 'b.md', path: '/tmp/b.md' })

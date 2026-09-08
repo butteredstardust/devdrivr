@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { setSetting, deleteToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { assignStateKeys, stateKeyFor } from '@/lib/tab-state-key'
+import { discardPendingToolAction } from '@/lib/tool-actions'
 import type { WorkspaceTab } from '@/types/tools'
 
 const MAX_RECENT = 5
@@ -152,6 +153,10 @@ function persistTabs(tabs: WorkspaceTab[], activeTabId: string | null): void {
 function discardClosedState(closed: WorkspaceTab[]): void {
   for (const tab of closed) {
     const key = tab.stateKey ?? tab.toolId
+    // A file the OS opened can still be waiting for this tab — it is queued while the tool loads.
+    // Closing the tab during that moment must drop the file, or the next tab to take the same key
+    // opens a document the user already dismissed.
+    discardPendingToolAction(key)
     if (!key.includes('#')) continue
     useToolStateCache.getState().discard(key)
     // Not toast-worthy: a leftover row for a tab id that will never recur is invisible to the user

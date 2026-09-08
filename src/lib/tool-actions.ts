@@ -60,6 +60,16 @@ export function subscribePendingToolAction(listener: () => void): () => void {
   }
 }
 
+/** True while an action addressed to `stateKey` is still waiting to be claimed. */
+export function hasPendingToolAction(stateKey: string): boolean {
+  return pending.has(stateKey)
+}
+
+/** Drops the action addressed to `stateKey`. Called when its tab closes, so it cannot reappear. */
+export function discardPendingToolAction(stateKey: string): void {
+  pending.delete(stateKey)
+}
+
 /** Takes the action addressed to `stateKey`, if there is one. Removes it, so it runs once. */
 export function claimPendingToolAction(stateKey: string): ToolAction | null {
   const action = pending.get(stateKey)

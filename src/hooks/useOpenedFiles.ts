@@ -48,29 +48,32 @@ export function useOpenedFiles(): void {
       }
     }
 
-    // Serial, not `Promise.all`: each file opens a tab, and opening them at once would interleave
-    // the tab the shell is about to focus with the file being addressed to it.
-    const openPaths = async (paths: string[]) => {
+    // The single source of paths, for a cold start and a warm one alike. Draining removes them in
+    // Rust, so a file cannot be opened twice by a drain and an event that describe the same
+    // arrival. Serial, not `Promise.all`: each file opens a tab, and opening them at once would
+    // interleave the tab the shell is about to focus with the file addressed to it.
+    const drain = async () => {
+      const paths = await invoke<string[]>('opened_files_take')
       for (const path of paths) {
         if (cancelled) return
         await openPath(path)
       }
     }
 
-    invoke<string[]>('opened_files_take')
-      .then((paths) => {
-        if (!cancelled && paths.length > 0) void openPaths(paths)
-      })
-      // No Tauri backend (the Vite-only web preview) — there is nothing to open.
-      .catch(() => {})
-
-    listen<string[]>(OPENED_FILES_EVENT, (event) => {
-      if (!cancelled) void openPaths(event.payload)
+    // Listen first, then drain. A file that arrives in between is left in the queue by the event —
+    // which only reports that the queue changed — and collected by the drain that follows.
+    listen(OPENED_FILES_EVENT, () => {
+      if (!cancelled) void drain().catch(() => {})
     })
       .then((fn) => {
-        if (cancelled) fn()
-        else unlisten = fn
+        if (cancelled) {
+          fn()
+          return
+        }
+        unlisten = fn
+        void drain().catch(() => {})
       })
+      // No Tauri backend (the Vite-only web preview) — there is nothing to open.
       .catch(() => {})
 
     return () => {

@@ -1,5 +1,5 @@
 import { OPEN_FILE_TOOL_IDS } from '@/app/tool-registry'
-import { queueToolAction } from '@/lib/tool-actions'
+import { hasPendingToolAction, queueToolAction } from '@/lib/tool-actions'
 import { useUiStore } from '@/stores/ui.store'
 
 /**
@@ -27,8 +27,11 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   css: 'css-validator',
   html: 'html-validator',
   htm: 'html-validator',
-  ts: 'ts-playground',
-  tsx: 'ts-playground',
+  // Source files go to Code Formatter, not TS Playground: the Playground drops the path it was
+  // opened from and its save writes compiled JavaScript, so a file opened from disk could not be
+  // saved back. Code Formatter keeps the path and detects the language from the name.
+  ts: 'code-formatter',
+  tsx: 'code-formatter',
   js: 'code-formatter',
   jsx: 'code-formatter',
 }
@@ -53,6 +56,12 @@ export function toolIdForFile(pathOrName: string): string {
   return toolId && OPEN_FILE_TOOL_IDS.has(toolId) ? toolId : FALLBACK_OPEN_FILE_TOOL
 }
 
+/** The `tool_state` key of the tab now in front, falling back to the bare tool id. */
+function focusedStateKey(toolId: string): string {
+  const ui = useUiStore.getState()
+  return ui.tabs.find((tab) => tab.id === ui.activeTabId)?.stateKey ?? toolId
+}
+
 /**
  * Opens file content in the tool its extension routes to, and brings that tool forward.
  *
@@ -64,13 +73,19 @@ export function toolIdForFile(pathOrName: string): string {
  */
 export function openFileInTool(file: { content: string; filename: string; path: string }): string {
   const toolId = toolIdForFile(file.filename)
-  useUiStore.getState().openTab(toolId)
+  const ui = useUiStore.getState()
+  ui.openTab(toolId)
 
   // Address the tab `openTab` selected, not the tool id: a second tab of the same tool writes to
   // `${toolId}#${tabId}`, and the bare id would deliver the file to a tab nothing is watching.
-  const ui = useUiStore.getState()
-  const target = ui.tabs.find((tab) => tab.id === ui.activeTabId)
-  const stateKey = target?.stateKey ?? toolId
+  let stateKey = focusedStateKey(toolId)
+
+  // Selecting two files of one type is two documents, not one. A tab still holding an unclaimed
+  // file gets a sibling rather than having that file replaced before anyone has seen it.
+  if (hasPendingToolAction(stateKey)) {
+    useUiStore.getState().openTabInstance(toolId)
+    stateKey = focusedStateKey(toolId)
+  }
 
   queueToolAction(stateKey, {
     type: 'open-file',

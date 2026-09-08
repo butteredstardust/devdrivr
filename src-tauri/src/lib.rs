@@ -134,11 +134,14 @@ pub fn run() {
     // "Open With" launches a second process; without this the user gets a second devdrivr window
     // instead of the file appearing in the one already open.
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
         if let Some(window) = app.webview_windows().values().next() {
             let _ = window.set_focus();
         }
-        opened_files::accept(app, opened_files::paths_from_args(argv));
+        // `cwd` is the second instance's working directory, which is where its relative arguments
+        // make sense — not this process's own.
+        let paths = opened_files::paths_from_args(argv, std::path::Path::new(&cwd));
+        opened_files::accept(app, paths);
     }));
 
     #[cfg(feature = "remote-ui")]
@@ -150,10 +153,9 @@ pub fn run() {
                 window_corners::apply(&window.as_ref().window_ref());
             }
             // Windows and Linux deliver the launch path here. macOS uses `RunEvent::Opened` below.
-            opened_files::accept(
-                app.handle(),
-                opened_files::paths_from_args(std::env::args()),
-            );
+            let launch_paths =
+                opened_files::paths_from_args(std::env::args(), &opened_files::current_dir());
+            opened_files::accept(app.handle(), launch_paths);
             #[cfg(feature = "remote-ui")]
             remote_ui::start(app.handle());
             Ok(())
