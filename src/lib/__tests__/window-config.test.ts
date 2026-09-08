@@ -59,7 +59,7 @@ describe('macOS window override', () => {
     expect(mac.titleBarStyle).toBe('Overlay')
     expect(mac.hiddenTitle).toBe(true)
     // Required by Tauri: the inset is honoured only with Overlay and decorations enabled.
-    expect(mac.trafficLightPosition).toEqual({ x: 12, y: 20 })
+    expect(mac.trafficLightPosition).toEqual({ x: 12, y: 24 })
   })
 
   it('leaves Windows and Linux undecorated, where the app draws its own controls', () => {
