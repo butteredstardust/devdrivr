@@ -1,24 +1,18 @@
+//! Window lifecycle commands for the title bar.
+//!
+//! The window is titled on every platform: Windows and Linux hide the frame with
+//! `decorations: false`, and macOS keeps the AppKit frame and hides only its title bar
+//! (`titleBarStyle: Overlay` in tauri.macos.conf.json). A titled window is what lets macOS report
+//! and enter its own fullscreen, so the state below is read from the platform rather than tracked
+//! here.
+
 use serde::Deserialize;
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::State;
 use tauri::WebviewWindow;
 use tauri_runtime::ResizeDirection;
 
 fn command_error(error: tauri::Error) -> String {
     error.to_string()
-}
-
-#[derive(Default)]
-pub struct WindowFullscreenState {
-    is_fullscreen: AtomicBool,
-    transition_in_flight: AtomicBool,
-}
-
-impl WindowFullscreenState {
-    pub fn is_fullscreen(&self) -> bool {
-        self.is_fullscreen.load(Ordering::SeqCst)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -69,11 +63,9 @@ pub fn window_focus(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_get_state(
-    window: WebviewWindow,
-    fullscreen_state: State<'_, WindowFullscreenState>,
-) -> Result<WindowState, String> {
-    current_state(&window, fullscreen_state.is_fullscreen())
+pub fn window_get_state(window: WebviewWindow) -> Result<WindowState, String> {
+    let fullscreen = window.is_fullscreen().map_err(command_error)?;
+    current_state(&window, fullscreen)
 }
 
 #[tauri::command]
@@ -82,59 +74,30 @@ pub fn window_minimize(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_toggle_maximize(
-    window: WebviewWindow,
-    fullscreen_state: State<'_, WindowFullscreenState>,
-) -> Result<WindowState, String> {
+pub fn window_toggle_maximize(window: WebviewWindow) -> Result<WindowState, String> {
     let maximized = window.is_maximized().map_err(command_error)?;
     if maximized {
         window.unmaximize().map_err(command_error)?;
     } else {
         window.maximize().map_err(command_error)?;
     }
-    current_state(&window, fullscreen_state.is_fullscreen())
+    let fullscreen = window.is_fullscreen().map_err(command_error)?;
+    current_state(&window, fullscreen)
 }
 
+/// Enter or leave the platform's own fullscreen mode.
+///
+/// On macOS this is a fullscreen Space: the zoom animation, the menu bar that drops down on hover,
+/// the Mission Control tile, and Split View. The green button and `⌃⌘F` reach the same state, so
+/// the title bar reads the window rather than a flag of its own.
+///
+/// The returned state is the *target*. macOS animates the transition, and the window reports the
+/// target from the moment the toggle is accepted, which is what the title bar needs.
 #[tauri::command]
-pub fn window_toggle_fullscreen(
-    window: WebviewWindow,
-    fullscreen_state: State<'_, WindowFullscreenState>,
-) -> Result<WindowState, String> {
-    if fullscreen_state
-        .transition_in_flight
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return Err("a fullscreen transition is already in progress".to_string());
-    }
-
-    let previous = fullscreen_state.is_fullscreen();
-    let target = !previous;
-    // Publish before resizing so the synchronous resize event sees the new state and applies the
-    // correct corner radius without trying to lock state held by this command.
-    fullscreen_state
-        .is_fullscreen
-        .store(target, Ordering::SeqCst);
-
-    // An undecorated AppKit window cannot enter macOS Spaces fullscreen. Tauri's simple
-    // fullscreen is the native borderless-display mode intended for this exact case; on Windows
-    // and Linux the same API falls back to the platform's ordinary fullscreen implementation.
-    if let Err(error) = window.set_simple_fullscreen(target) {
-        fullscreen_state
-            .is_fullscreen
-            .store(previous, Ordering::SeqCst);
-        fullscreen_state
-            .transition_in_flight
-            .store(false, Ordering::SeqCst);
-        return Err(command_error(error));
-    }
-    crate::window_corners::set_fullscreen(&window.as_ref().window_ref(), target);
-
-    let state = current_state(&window, target);
-    fullscreen_state
-        .transition_in_flight
-        .store(false, Ordering::SeqCst);
-    state
+pub fn window_toggle_fullscreen(window: WebviewWindow) -> Result<WindowState, String> {
+    let target = !window.is_fullscreen().map_err(command_error)?;
+    window.set_fullscreen(target).map_err(command_error)?;
+    current_state(&window, target)
 }
 
 #[tauri::command]
@@ -142,6 +105,8 @@ pub fn window_close(window: WebviewWindow) -> Result<(), String> {
     window.close().map_err(command_error)
 }
 
+/// Start an edge or corner resize drag for the undecorated Windows and Linux frame. macOS keeps
+/// its native frame, so it resizes from the OS edges and never calls this.
 #[tauri::command]
 pub fn window_start_resize(
     window: WebviewWindow,

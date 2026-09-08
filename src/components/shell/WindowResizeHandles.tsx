@@ -1,14 +1,14 @@
 import { startNativeWindowResize } from '@/lib/native-window'
+import { isMacOS } from '@/lib/platform'
 
 /**
- * Edge/corner resize handles for client-side-decorated windows.
+ * Edge and corner resize handles for the undecorated Windows and Linux frame.
  *
- * Mounted on every platform, macOS included. An earlier version rendered nothing on macOS on the
- * theory that `decorations: false` only clears the AppKit `NSWindowStyleMask.titled` bit and
- * leaves OS-level edge tracking intact. Tested against the real build (Tauri 2.10.3, macOS 15):
- * that is false — dragging every edge and corner, at ±3px around the frame, resized nothing, so
- * the window could not be resized at all. The same synthetic drag resized a control window
- * normally, ruling out the test method. See documentation/NATIVE_UI_HARNESS.md.
+ * Nothing renders on macOS: that window keeps its AppKit frame, which tracks its own edges. These
+ * handles are needed only where `decorations: false` applies. An undecorated macOS window resizes
+ * from no edge at all — measured against the real build, dragging every edge and corner at ±3px
+ * moved nothing — which is why the handles cover the platforms that are still undecorated. See
+ * documentation/NATIVE_UI_HARNESS.md.
  *
  * Handles sit at `--z-scrim` minus one (39) — below every documented overlay tier in
  * src/styles/tokens.css (scrim 40 through toast 80) — so modals, popovers, tooltips, and toasts
@@ -46,6 +46,7 @@ const HANDLES: EdgeHandle[] = [
 const EDGE_DIRECTIONS = new Set(['North', 'South', 'East', 'West'])
 
 export function WindowResizeHandles() {
+  if (isMacOS()) return null
   return (
     <>
       {HANDLES.map((handle) => {

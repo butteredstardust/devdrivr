@@ -26,12 +26,16 @@ const SIDE_CLUSTER_CLASS = 'relative z-10 flex items-center gap-1'
 const SIDE_RESERVE_CLASS = { mac: 'px-[120px]', other: 'px-[224px]' } as const
 
 /**
- * Unified client-side-decorated title bar (Safari-style). Replaces the native titlebar removed
- * by `decorations: false` in tauri.conf.json.
+ * Unified title bar (Safari-style), drawn by the app on every platform.
  *
- * That same flag also costs the window its rounded corners on macOS, which `src-tauri/src/
- * window_corners.rs` puts back by clipping the content layer. If decorations are ever restored,
- * that module becomes redundant — check it alongside this file.
+ * The window chrome underneath differs. Windows and Linux are undecorated, so this bar also
+ * carries the minimize/maximize/close buttons. macOS keeps its AppKit frame with the title bar
+ * hidden (`titleBarStyle: Overlay` in tauri.macos.conf.json), so AppKit draws the traffic lights
+ * over this bar and this file only reserves the space they land in. Native chrome is what gives
+ * macOS its fullscreen Space, rounded corners and edge resizing.
+ *
+ * `trafficLightPosition` in that config file places the buttons on this bar. Change the bar height
+ * and that inset has to move with it.
  *
  * A dedicated background layer carries `data-tauri-drag-region` so the window can be
  * dragged/double-click-zoomed from empty space. Interactive controls are siblings above it, never
@@ -89,16 +93,8 @@ export function TitleBar() {
         aria-hidden="true"
         className="absolute inset-0 z-0"
       />
-      {isMac && (
-        <div
-          data-testid="titlebar-mac-controls"
-          className="absolute left-3 top-1/2 z-10 -translate-y-1/2"
-        >
-          <WindowControls />
-        </div>
-      )}
-
-      {/* Left: the one control with state worth glancing at. Settings and Shortcuts moved to the
+      {/* Left: the one control with state worth glancing at. The `ml` on macOS clears the native
+          traffic lights, which AppKit paints over this bar. Settings and Shortcuts moved to the
           trailing edge — both are modal, rarely-used and reachable from the palette, and keeping
           three buttons here left only 14px between them and the macOS traffic lights, so the
           cluster read as a fourth window control. */}

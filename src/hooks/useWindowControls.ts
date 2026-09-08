@@ -3,16 +3,12 @@ import {
   closeNativeWindow,
   getNativeWindowState,
   minimizeNativeWindow,
-  toggleNativeWindowFullscreen,
   toggleNativeWindowMaximize,
 } from '@/lib/native-window'
 
 export interface UseWindowControlsResult {
   isMaximized: boolean
-  isFullscreen: boolean
-  isFocused: boolean
   minimize: () => void
-  toggleFullscreen: () => void
   toggleMaximize: () => void
   close: () => void
 }
@@ -20,16 +16,22 @@ export interface UseWindowControlsResult {
 const RESIZE_RECONCILE_MS = 200
 
 /**
- * Window state for the client-side title bar.
+ * Window state for the drawn window controls on Windows and Linux.
+ *
+ * macOS never mounts this hook: that window keeps its AppKit frame and its own traffic lights, so
+ * `WindowControls` renders nothing there. The fullscreen shortcut is owned by `useGlobalShortcuts`
+ * on every platform and needs no state from here.
  *
  * Native mutations use dedicated Rust commands instead of the window plugin. The plugin path can
- * deadlock when resize events and state reads overlap on macOS; browser focus/resize events keep
+ * deadlock when resize events and state reads overlap on macOS; the browser resize event keeps
  * this hook independent of that channel while retaining accurate control state.
+ *
+ * The resize event is also how a maximize the app did not start reaches the button — a window-snap
+ * drag, a double-click on the title bar, the keyboard shortcut of the desktop environment. Each of
+ * them resizes the window, and the reconciliation that follows reads the platform's own state.
  */
 export function useWindowControls(): UseWindowControlsResult {
   const [isMaximized, setIsMaximized] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [isFocused, setIsFocused] = useState(() => document.hasFocus())
 
   useEffect(() => {
     let cancelled = false
@@ -47,10 +49,7 @@ export function useWindowControls(): UseWindowControlsResult {
       reconcilePending = false
       void getNativeWindowState()
         .then((state) => {
-          if (!cancelled) {
-            setIsMaximized(state.isMaximized)
-            setIsFullscreen(state.isFullscreen)
-          }
+          if (!cancelled) setIsMaximized(state.isMaximized)
         })
         .catch((err) => console.error('[useWindowControls] getState failed:', err))
         .finally(() => {
@@ -67,19 +66,12 @@ export function useWindowControls(): UseWindowControlsResult {
       }, RESIZE_RECONCILE_MS)
     }
 
-    const handleFocus = () => setIsFocused(true)
-    const handleBlur = () => setIsFocused(false)
-
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('blur', handleBlur)
     window.addEventListener('resize', scheduleReconcile)
     reconcileWindowState()
 
     return () => {
       cancelled = true
       if (reconcileTimer) clearTimeout(reconcileTimer)
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('blur', handleBlur)
       window.removeEventListener('resize', scheduleReconcile)
     }
   }, [])
@@ -92,33 +84,13 @@ export function useWindowControls(): UseWindowControlsResult {
 
   const toggleMaximize = useCallback(() => {
     void toggleNativeWindowMaximize()
-      .then((state) => {
-        setIsMaximized(state.isMaximized)
-        setIsFullscreen(state.isFullscreen)
-      })
+      .then((state) => setIsMaximized(state.isMaximized))
       .catch((err) => console.error('[useWindowControls] toggleMaximize failed:', err))
-  }, [])
-
-  const toggleFullscreen = useCallback(() => {
-    void toggleNativeWindowFullscreen()
-      .then((state) => {
-        setIsMaximized(state.isMaximized)
-        setIsFullscreen(state.isFullscreen)
-      })
-      .catch((err) => console.error('[useWindowControls] toggleFullscreen failed:', err))
   }, [])
 
   const close = useCallback(() => {
     void closeNativeWindow().catch((err) => console.error('[useWindowControls] close failed:', err))
   }, [])
 
-  return {
-    isMaximized,
-    isFullscreen,
-    isFocused,
-    minimize,
-    toggleFullscreen,
-    toggleMaximize,
-    close,
-  }
+  return { isMaximized, minimize, toggleMaximize, close }
 }

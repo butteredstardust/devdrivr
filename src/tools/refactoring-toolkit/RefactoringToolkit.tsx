@@ -497,7 +497,9 @@ export default function RefactoringToolkit() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => sendToTool('code-formatter', { input, language })}
+              onClick={() =>
+                sendToTool('code-formatter', { input, language }, { documentKeys: ['input'] })
+              }
               disabled={!hasCode}
               title="Open the current code in Code Formatter"
             >

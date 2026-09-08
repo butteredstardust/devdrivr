@@ -190,11 +190,11 @@ describe('TitleBar — command palette trigger', () => {
 })
 
 describe('TitleBar — platform layout', () => {
-  it('renders window controls on the left (traffic lights) and none on the right on macOS', () => {
+  it('draws no window controls on macOS, where AppKit owns them', () => {
     mocks.platform.current = 'mac'
     render(<TitleBar />)
-    expect(screen.getByTestId('titlebar-mac-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('titlebar-right-controls')).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Window controls' })).not.toBeInTheDocument()
   })
 
   it('reserves macOS traffic-light space without covering their hit targets', () => {
@@ -210,7 +210,7 @@ describe('TitleBar — platform layout', () => {
     mocks.platform.current = 'windows'
     render(<TitleBar />)
     expect(screen.getByTestId('titlebar-right-controls')).toBeInTheDocument()
-    expect(screen.queryByTestId('titlebar-mac-controls')).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Window controls' })).toBeInTheDocument()
   })
 })
 

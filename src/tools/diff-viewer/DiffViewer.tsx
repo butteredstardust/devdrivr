@@ -12,6 +12,7 @@ import {
   GitDiffIcon,
   SlidersHorizontalIcon,
   TrashIcon,
+  WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -43,6 +44,15 @@ import { dispatchToolAction } from '@/lib/tool-actions'
 import { languageFromFilename } from '@/tools/code-formatter/languages'
 
 const { sanitize } = DOMPurify
+
+/**
+ * Patch lines that render without asking. Above this the diff waits for a confirmation.
+ *
+ * Measured in the running app: 4,000 lines cost 550ms of blocked main thread and 50,000 DOM
+ * nodes, and both grow linearly. This cap keeps the freeze near a quarter of a second, which is
+ * the most a comparison the user asked for should cost.
+ */
+const MAX_RENDERED_DIFF_LINES = 2000
 
 /**
  * Which panes are on screen. The old tool had no such concept: computing a diff
@@ -268,8 +278,11 @@ export default function DiffViewer() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const [diffHtml, setDiffHtml] = useState<string>('')
   const [rawPatch, setRawPatch] = useState<string>('')
+  // The confirmed patch, not a flag. A flag cleared by an effect still reads `true` during the
+  // render that receives the next patch, and that render is the one that builds the markup — so the
+  // next large diff would render once before the guard came back.
+  const [confirmedPatch, setConfirmedPatch] = useState<string | null>(null)
   const [isComparing, setIsComparing] = useState(false)
   const [activeHunk, setActiveHunk] = useState(-1)
   const diffContainerRef = useRef<HTMLDivElement>(null)
@@ -303,7 +316,9 @@ export default function DiffViewer() {
   const stats = useMemo(() => (rawPatch ? parseDiffStats(rawPatch) : null), [rawPatch])
   const hunkCount = useMemo(() => rawPatch.match(/^@@/gm)?.length ?? 0, [rawPatch])
 
-  useEffect(() => setActiveHunk(-1), [rawPatch])
+  useEffect(() => {
+    setActiveHunk(-1)
+  }, [rawPatch])
 
   const navigateHunk = useCallback(
     (direction: -1 | 1) => {
@@ -332,6 +347,26 @@ export default function DiffViewer() {
   const identical =
     (state.left === state.right && state.left.trim().length > 0) ||
     (stats !== null && stats.additions === 0 && stats.deletions === 0)
+
+  // How much of the patch diff2html will turn into DOM. It emits a row per patch line — two in
+  // side-by-side — plus a handful of nodes inside each, so this tracks the cost closely.
+  const patchLineCount = useMemo(() => (rawPatch ? rawPatch.split('\n').length : 0), [rawPatch])
+  const tooLargeToRender = patchLineCount > MAX_RENDERED_DIFF_LINES && confirmedPatch !== rawPatch
+
+  // WARNING: rendering is the expensive half, not the comparison. The worker computes the patch
+  // off-thread, but diff2html builds the markup here and the browser then parses roughly twelve
+  // nodes per line. A 16,000-line patch blocks the main thread for about 3.5 seconds, so a patch
+  // over the cap waits for the user to ask for it.
+  //
+  // Deriving this from the patch rather than storing it also makes a view-mode change free: it
+  // re-renders the markup instead of re-running the comparison.
+  const diffHtml = useMemo(() => {
+    if (!rawPatch || tooLargeToRender) return ''
+    return diff2htmlRender(rawPatch, {
+      outputFormat: state.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
+      drawFileList: false,
+    })
+  }, [rawPatch, state.mode, tooLargeToRender])
 
   // Stable object identity is load-bearing: React 19 compares
   // `dangerouslySetInnerHTML` by object identity, not by the `__html` string, so
@@ -371,12 +406,6 @@ export default function DiffViewer() {
         // A newer edit arrived while this ran; the effect it triggered owns the next result.
         if (generation !== generationRef.current) return
         setRawPatch(patch)
-        setDiffHtml(
-          diff2htmlRender(patch, {
-            outputFormat: current.mode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
-            drawFileList: false,
-          })
-        )
         // Auto-compare fires on a 600ms debounce while typing; toasting there
         // would spam the status bar, so only an explicit Compare speaks up.
         if (announceRef.current) setLastAction('Diff computed', 'success')
@@ -385,7 +414,6 @@ export default function DiffViewer() {
         // flight; that is a teardown, not a failure the user should see.
         if (mountedRef.current && generation === generationRef.current) {
           setLastAction('Diff computation failed', 'error')
-          setDiffHtml('')
           setRawPatch('')
         }
         void err
@@ -408,7 +436,6 @@ export default function DiffViewer() {
     generationRef.current += 1
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!state.left.trim() || !state.right.trim()) {
-      setDiffHtml('')
       setRawPatch('')
       return
     }
@@ -424,7 +451,8 @@ export default function DiffViewer() {
     state.ignoreWhitespace,
     state.ignoreCase,
     state.jsonMode,
-    state.mode,
+    // `state.mode` is deliberately absent: it changes the markup, not the patch, and the memo that
+    // builds the markup already watches it.
     computeDiff,
   ])
 
@@ -503,7 +531,7 @@ export default function DiffViewer() {
   // empty state — whose entire message is "paste into the editors" — was the
   // largest thing on screen, crowding out the editors it was pointing at. The
   // editors keep the space until there is a real result to show.
-  const hasComparison = identical || isComparing || !!diffHtml
+  const hasComparison = identical || isComparing || !!diffHtml || tooLargeToRender
 
   const prompt = bothSidesFilled
     ? `Press ${formatShortcut('mod+enter')} to compare the two sides.`
@@ -522,6 +550,20 @@ export default function DiffViewer() {
       <Spinner size="sm" />
       Comparing…
     </div>
+  ) : tooLargeToRender ? (
+    // The patch is ready — only the markup is withheld. Copy patch and Export still work, so the
+    // result is reachable without paying for the DOM.
+    <EmptyState
+      size="sm"
+      icon={WarningCircleIcon}
+      title="Large diff"
+      description={`${patchLineCount.toLocaleString()} lines will all render at once, which freezes the window for a few seconds. Copy patch and Export work without rendering.`}
+      action={
+        <Button variant="secondary" size="sm" onClick={() => setConfirmedPatch(rawPatch)}>
+          Render anyway
+        </Button>
+      }
+    />
   ) : diffHtml ? (
     <div
       ref={diffContainerRef}

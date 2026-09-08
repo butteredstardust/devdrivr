@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { sendToTool } from '@/lib/tool-handoff'
+import { clearHandoffDeliveries, sendToTool } from '@/lib/tool-handoff'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { loadToolState, saveToolState } from '@/lib/db'
@@ -17,6 +17,7 @@ beforeEach(() => {
   vi.mocked(loadToolState).mockResolvedValue(null)
   useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
   useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
+  clearHandoffDeliveries()
 })
 
 describe('sendToTool', () => {
@@ -172,5 +173,196 @@ describe('sendToTool', () => {
     sendToTool('json-tools', { input: 'x' })
 
     expect(useUiStore.getState().tabs).toHaveLength(1)
+  })
+
+  describe('documentKeys', () => {
+    it('gives the handoff a new tab rather than replacing an open document', async () => {
+      useUiStore.getState().openTab('yaml-tools')
+      const occupied = useUiStore.getState().tabs[0]!
+      useToolStateCache
+        .getState()
+        .set(occupied.stateKey!, { input: 'services:\n  web:\n', filePath: '/app/compose.yml' })
+
+      sendToTool('yaml-tools', { input: '{"a":1}' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      const arrival = useUiStore.getState().tabs[1]!
+      expect(useToolStateCache.getState().get(arrival.stateKey!)).toEqual({ input: '{"a":1}' })
+      // The document that was already there, and the path it would be saved to, are untouched.
+      expect(useToolStateCache.getState().get(occupied.stateKey!)).toEqual({
+        input: 'services:\n  web:\n',
+        filePath: '/app/compose.yml',
+      })
+    })
+
+    it('protects a document the destination has only on disk', async () => {
+      // The destination has never been open this session, so the document it would lose is not in
+      // the cache to be found.
+      vi.mocked(loadToolState).mockResolvedValue({ input: 'saved work', filePath: '/a.json' })
+
+      sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      const arrival = useUiStore.getState().tabs[1]!
+      expect(useToolStateCache.getState().get(arrival.stateKey!)).toMatchObject({
+        input: 'handoff',
+      })
+      expect(useToolStateCache.getState().get('json-tools')).toBeUndefined()
+    })
+
+    it('reuses the tab when the destination is empty', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache.getState().set('json-tools', { input: '   ', view: 'tree' })
+
+      sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get('json-tools')).toEqual({
+          input: 'handoff',
+          view: 'tree',
+        })
+      )
+      expect(useUiStore.getState().tabs).toHaveLength(1)
+    })
+
+    it('reuses the tab when the same document is sent twice', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache.getState().set('json-tools', { input: 'same' })
+
+      sendToTool('json-tools', { input: 'same' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() => expect(useToolStateCache.getState().seeds.get('json-tools')).toBe(1))
+      expect(useUiStore.getState().tabs).toHaveLength(1)
+    })
+
+    it('refills a tab it filled itself, so repeats do not pile up', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache.getState().set('json-tools', { input: 'first' })
+
+      // The first handoff moves aside for the document already there.
+      sendToTool('json-tools', { input: 'second' }, { documentKeys: ['input'] })
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      const arrival = useUiStore.getState().tabs[1]!
+
+      // The second finds only its own output, which nobody has edited, and overwrites it.
+      sendToTool('json-tools', { input: 'third' }, { documentKeys: ['input'] })
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get(arrival.stateKey!)).toMatchObject({
+          input: 'third',
+        })
+      )
+      expect(useUiStore.getState().tabs).toHaveLength(2)
+    })
+
+    it('moves aside once the user edits what a handoff delivered', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache.getState().set('json-tools', { input: 'handed over' })
+      sendToTool('json-tools', { input: 'handed over' }, { documentKeys: ['input'] })
+      await vi.waitFor(() => expect(useToolStateCache.getState().seeds.get('json-tools')).toBe(1))
+
+      useToolStateCache.getState().set('json-tools', { input: 'edited by hand' })
+      sendToTool('json-tools', { input: 'next' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      expect(useToolStateCache.getState().get('json-tools')).toEqual({ input: 'edited by hand' })
+    })
+
+    it('checks every document key it is given', async () => {
+      useUiStore.getState().openTab('json-schema-validator')
+      useToolStateCache.getState().set('json-schema-validator', { data: '', schema: '{"x":1}' })
+
+      // `data` is empty, but `schema` holds work — one occupied key is enough.
+      sendToTool(
+        'json-schema-validator',
+        { data: '[]', schema: '{"y":2}' },
+        { documentKeys: ['data', 'schema'] }
+      )
+
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      expect(useToolStateCache.getState().get('json-schema-validator')).toEqual({
+        data: '',
+        schema: '{"x":1}',
+      })
+    })
+
+    // The destination keeps the row around the document, so the file it came from would otherwise
+    // survive the handoff and take the next Save with it.
+    it('detaches the destination from the file it had open', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache
+        .getState()
+        .set('json-tools', { input: '', filePath: '/notes.json', fileName: 'notes.json' })
+
+      sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get('json-tools')).toEqual({
+          input: 'handoff',
+          filePath: null,
+          fileName: null,
+        })
+      )
+    })
+
+    it('keeps a file the handoff names itself', async () => {
+      useUiStore.getState().openTab('json-tools')
+      useToolStateCache.getState().set('json-tools', { input: '', filePath: '/notes.json' })
+
+      sendToTool(
+        'json-tools',
+        { input: 'handoff', filePath: '/opened.json' },
+        { documentKeys: ['input'] }
+      )
+
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get('json-tools')).toMatchObject({
+          filePath: '/opened.json',
+        })
+      )
+    })
+
+    // Every remembered delivery holds a whole document, and closing a tab does not free its key.
+    // Forgetting the oldest only costs an extra tab, which is the safe direction.
+    it('forgets the oldest delivery once it has remembered enough', async () => {
+      const send = (tool: string, input: string) => {
+        useUiStore.getState().openTab(tool)
+        useToolStateCache.getState().set(tool, { input: '' })
+        sendToTool(tool, { input }, { documentKeys: ['input'] })
+      }
+
+      send('json-tools', 'first')
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get('json-tools')).toEqual({ input: 'first' })
+      )
+
+      // Push the first delivery past the cap.
+      for (let i = 0; i < 32; i++) send(`filler-${i}`, `doc ${i}`)
+
+      // The destination still holds exactly what the handoff delivered, but that is no longer
+      // remembered, so it now looks like the user's own work.
+      const before = useUiStore.getState().tabs.length
+      sendToTool('json-tools', { input: 'second' }, { documentKeys: ['input'] })
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(before + 1))
+    })
+
+    // The tab is on screen while its row is read from disk. What the user typed in that window is
+    // newer than the row, and the check has to see it.
+    it('sees an edit made while the saved state was still loading', async () => {
+      let release: (value: Record<string, unknown> | null) => void = () => {}
+      vi.mocked(loadToolState).mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve
+        })
+      )
+
+      sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
+
+      const key = useUiStore.getState().tabs[0]!.stateKey!
+      useToolStateCache.getState().set(key, { input: 'typed while loading' })
+      release(null)
+
+      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      expect(useToolStateCache.getState().get(key)).toEqual({ input: 'typed while loading' })
+    })
   })
 })

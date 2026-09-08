@@ -122,7 +122,7 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open API Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open API Trash, 1 item' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore Archived request' }))
 
     await waitFor(() => expect(restoreRequest).toHaveBeenCalledWith('trashed-request'))

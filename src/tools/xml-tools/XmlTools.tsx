@@ -911,7 +911,13 @@ function JsonPane({
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => sendToTool('json-tools', { input: value, view: 'source' })}
+                onClick={() =>
+                  sendToTool(
+                    'json-tools',
+                    { input: value, view: 'source' },
+                    { documentKeys: ['input'] }
+                  )
+                }
                 title="Open this JSON in JSON Tools"
               >
                 JSON Tools

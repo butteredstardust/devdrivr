@@ -45,6 +45,78 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["app", "dmg", "nsis", "appimage"],
+    "fileAssociations": [
+      {
+        "ext": ["json"],
+        "name": "JSON",
+        "description": "JSON document",
+        "mimeType": "application/json",
+        "role": "Editor"
+      },
+      {
+        "ext": ["yaml", "yml"],
+        "name": "YAML",
+        "description": "YAML document",
+        "mimeType": "application/yaml",
+        "role": "Editor"
+      },
+      {
+        "ext": ["xml"],
+        "name": "XML",
+        "description": "XML document",
+        "mimeType": "application/xml",
+        "role": "Editor"
+      },
+      {
+        "ext": ["csv", "tsv"],
+        "name": "CSV",
+        "description": "Delimited data",
+        "mimeType": "text/csv",
+        "role": "Editor"
+      },
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown",
+        "description": "Markdown document",
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      },
+      {
+        "ext": ["mmd", "mermaid"],
+        "name": "Mermaid",
+        "description": "Mermaid diagram",
+        "mimeType": "text/plain",
+        "role": "Editor"
+      },
+      {
+        "ext": ["css"],
+        "name": "CSS",
+        "description": "Stylesheet",
+        "mimeType": "text/css",
+        "role": "Editor"
+      },
+      {
+        "ext": ["html", "htm"],
+        "name": "HTML",
+        "description": "HTML document",
+        "mimeType": "text/html",
+        "role": "Editor"
+      },
+      {
+        "ext": ["ts", "tsx"],
+        "name": "TypeScript",
+        "description": "TypeScript source",
+        "mimeType": "text/plain",
+        "role": "Editor"
+      },
+      {
+        "ext": ["js", "jsx"],
+        "name": "JavaScript",
+        "description": "JavaScript source",
+        "mimeType": "text/javascript",
+        "role": "Editor"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

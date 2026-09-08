@@ -97,7 +97,7 @@ describe('cargo attribution', () => {
     // every other assertion in this block vacuously pass.
     expect(directCrates).toContain('tauri')
     expect(directCrates).toContain('tauri-build')
-    expect(directCrates).toContain('objc2-app-kit')
+    expect(directCrates).toContain('tauri-plugin-single-instance')
     expect(directCrates).not.toContain('tauri-remote-ui')
   })
 

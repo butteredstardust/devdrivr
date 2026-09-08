@@ -480,13 +480,17 @@ export default function CsvTools() {
               variant="ghost"
               size="sm"
               onClick={() =>
-                sendToTool('json-tools', {
-                  input:
-                    view === 'convert' && (format === 'json-rows' || format === 'json-columns')
-                      ? activeOutput
-                      : JSON.stringify(rows, null, 2),
-                  view: 'source',
-                })
+                sendToTool(
+                  'json-tools',
+                  {
+                    input:
+                      view === 'convert' && (format === 'json-rows' || format === 'json-columns')
+                        ? activeOutput
+                        : JSON.stringify(rows, null, 2),
+                    view: 'source',
+                  },
+                  { documentKeys: ['input'] }
+                )
               }
               disabled={!rows.length}
               title="Open the current rows in JSON Tools"
@@ -498,10 +502,14 @@ export default function CsvTools() {
               variant="ghost"
               size="sm"
               onClick={() =>
-                sendToTool('json-schema-validator', {
-                  data: JSON.stringify(rows, null, 2),
-                  schema: JSON.stringify(inferSchema(rows), null, 2),
-                })
+                sendToTool(
+                  'json-schema-validator',
+                  {
+                    data: JSON.stringify(rows, null, 2),
+                    schema: JSON.stringify(inferSchema(rows), null, 2),
+                  },
+                  { documentKeys: ['data', 'schema'] }
+                )
               }
               disabled={!rows.length}
               title="Validate the current rows against an inferred JSON Schema"

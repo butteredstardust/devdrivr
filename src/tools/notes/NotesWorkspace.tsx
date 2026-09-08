@@ -784,7 +784,9 @@ export default function NotesWorkspace() {
               variant="icon"
               size="sm"
               onClick={() => setTrashOpen(true)}
-              aria-label={`Open Notes Trash, ${trashEntries.length} items`}
+              aria-label={`Open Notes Trash, ${trashEntries.length} item${
+                trashEntries.length === 1 ? '' : 's'
+              }`}
               title="Open Notes Trash"
             >
               <TrashIcon size={14} aria-hidden="true" />

@@ -392,7 +392,9 @@ export function CollectionsSidebar({
             variant="ghost"
             size="sm"
             onClick={() => setTrashOpen(true)}
-            aria-label={`Open API Trash, ${trashEntries.length} items`}
+            aria-label={`Open API Trash, ${trashEntries.length} item${
+              trashEntries.length === 1 ? '' : 's'
+            }`}
           >
             <TrashIcon size={12} aria-hidden="true" />
             Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}

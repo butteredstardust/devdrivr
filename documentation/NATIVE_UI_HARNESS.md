@@ -1,6 +1,8 @@
 # Native UI Harness
 
-Use this harness to validate the real Tauri window on macOS and Windows. It covers client-side decorations, drag regions, window controls, edge resizing, and IPC health.
+Use this harness to validate the real Tauri window on macOS and Windows. It covers window chrome, drag regions, window controls, edge resizing, and IPC health.
+
+The chrome differs per platform. Windows and Linux are undecorated: the app draws the title bar, the three window buttons, and the edge resize handles. macOS keeps the AppKit frame with its title bar hidden, so the traffic lights, edge resizing, rounded corners, and fullscreen are the system's own.
 
 > Use [HARNESSES.md](HARNESSES.md) to select a harness.
 
@@ -60,10 +62,10 @@ scripts/native-ui/window.sh minimized   # -> true | false
 scripts/native-ui/window.sh front       # raise it — do this before any hand-rolled screencapture
 scripts/native-ui/window.sh shot /tmp/a.png
 
-/tmp/mouse click 260 152                # traffic lights: x+13/+33/+53, y+22
+/tmp/mouse click 260 152                # native traffic lights: x+12/+32/+52, y+22
 /tmp/mouse dblclick 600 152             # zoom / restore via the drag region
 /tmp/mouse drag 600 152 900 400         # move the window
-/tmp/mouse drag 1120 430 1240 430       # resize from the East edge
+/tmp/mouse drag 1120 430 1240 430       # resize from the East edge (native on macOS)
 ```
 
 Check the event target before you report a dead control. A settings panel can place a full-screen scrim above the window. The probe shows this as tgt=DIV top=DIV.
@@ -158,7 +160,7 @@ Custom Tauri commands and plugin commands use independent dispatch. Check both c
 
 devdrivr persists through plugin:sql. A stalled plugin dispatch can leave the UI responsive while persistence stops. Use the probe to check custom, plugin:window, and plugin:sql commands independently.
 
-Title-bar lifecycle operations use dedicated Rust commands in src-tauri/src/window_commands.rs. useWindowControls uses browser focus and resize events. It performs one trailing custom-command reconciliation after resize bursts.
+Title-bar lifecycle operations use dedicated Rust commands in src-tauri/src/window_commands.rs. useWindowControls uses the browser resize event. It performs one trailing custom-command reconciliation after each resize burst. A maximize started outside the app — a window-snap drag, a title-bar double-click — arrives the same way, because both resize the window. macOS never mounts this hook: WindowControls renders nothing there.
 
 ## Control and input validation
 
@@ -166,7 +168,9 @@ The drag region can cover a control. Check OS state after each click. Hover only
 
 Do not accept a check when the window already has the expected state. Change the state first. Then validate the transition.
 
-On macOS, decorations: false removes native edge resizing. Use WindowResizeHandles on every platform.
+On macOS the window is decorated, so edge resizing, the traffic lights and fullscreen are native. WindowResizeHandles renders nothing there. Check fullscreen against the Space, not the frame size: the window gets its own Space, animates into it, and reveals the menu bar on hover.
+
+Windows and Linux stay undecorated and need WindowResizeHandles.
 
 On Windows, decorations: false can leave an invisible resize border in GetWindowRect. Use DWMWA_EXTENDED_FRAME_BOUNDS.
 

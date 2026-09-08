@@ -485,7 +485,11 @@ export default function YamlTools() {
                 variant="ghost"
                 size="sm"
                 onClick={() =>
-                  sendToTool('json-tools', { input: documentsToJson(documents), view: 'source' })
+                  sendToTool(
+                    'json-tools',
+                    { input: documentsToJson(documents), view: 'source' },
+                    { documentKeys: ['input'] }
+                  )
                 }
                 disabled={!isValid}
                 title="Open this YAML as JSON"

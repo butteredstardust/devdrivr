@@ -1284,7 +1284,11 @@ export default function SnippetsManager() {
         setLastAction('Invalid JSON cannot be previewed', 'error')
         return
       }
-      sendToTool('json-tools', { input: activeFragment.content, view: 'tree' })
+      sendToTool(
+        'json-tools',
+        { input: activeFragment.content, view: 'tree' },
+        { documentKeys: ['input'] }
+      )
       setLastAction('Fragment opened in JSON Tools', 'success')
       return
     }
@@ -1402,7 +1406,9 @@ export default function SnippetsManager() {
               variant="ghost"
               size="sm"
               onClick={() => setTrashOpen(true)}
-              aria-label={`Open Snippets Trash, ${trashEntries.length} items`}
+              aria-label={`Open Snippets Trash, ${trashEntries.length} item${
+                trashEntries.length === 1 ? '' : 's'
+              }`}
             >
               <TrashIcon size={12} aria-hidden="true" />
               Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}

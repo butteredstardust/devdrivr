@@ -12,12 +12,14 @@ import { UpdateNotification } from '@/components/shell/UpdateNotification'
 import { WindowResizeHandles } from '@/components/shell/WindowResizeHandles'
 import { useExternalLinks } from '@/hooks/useExternalLinks'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
+import { useOpenedFiles } from '@/hooks/useOpenedFiles'
 import { ShellWidthContext, useElementWidth } from '@/hooks/useShellWidth'
 import { useSettingsStore } from '@/stores/settings.store'
 
 export function App() {
   useGlobalShortcuts()
   useExternalLinks()
+  useOpenedFiles()
   const shellStyle = useSettingsStore((s) => s.shellStyle)
 
   const [sendTo, setSendTo] = useState<{

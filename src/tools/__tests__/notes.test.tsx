@@ -137,7 +137,7 @@ describe('Notes workspace', () => {
     })
     render(<NotesWorkspace />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Notes Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Notes Trash, 1 item' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore Archived note' }))
 
     await waitFor(() => expect(restore).toHaveBeenCalledWith('trashed-note'))
