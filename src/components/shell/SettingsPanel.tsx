@@ -15,10 +15,12 @@ import {
   GearSixIcon,
   HeartIcon,
   IdentificationBadgeIcon,
+  PaletteIcon,
   PlugsConnectedIcon,
 } from '@phosphor-icons/react'
 import { AboutTab } from '@/components/shell/AboutTab'
 import { GeneralTab } from '@/components/shell/settings/GeneralTab'
+import { ThemeTab } from '@/components/shell/settings/ThemeTab'
 import { EditorTab } from '@/components/shell/settings/EditorTab'
 import { DataTab } from '@/components/shell/settings/DataTab'
 import { McpTab } from '@/components/shell/settings/McpTab'
@@ -28,10 +30,11 @@ import { Dialog } from '@/components/shared/Dialog'
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-type TabId = 'general' | 'editor' | 'data' | 'mcp' | 'about' | 'acknowledgments'
+type TabId = 'general' | 'theme' | 'editor' | 'data' | 'mcp' | 'about' | 'acknowledgments'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'general', label: 'General', icon: <GearSixIcon size={14} /> },
+  { id: 'theme', label: 'Theme', icon: <PaletteIcon size={14} /> },
   { id: 'editor', label: 'Editor', icon: <CodeIcon size={14} /> },
   { id: 'data', label: 'Data', icon: <DatabaseIcon size={14} /> },
   { id: 'mcp', label: 'MCP', icon: <PlugsConnectedIcon size={14} /> },
@@ -53,13 +56,12 @@ export function SettingsPanel() {
       title="Settings"
       onClose={() => setOpen(false)}
       closeLabel="Close settings"
-      // `xl` since About and Acknowledgments joined: six tabs no longer fit across 35rem, and the
-      // acknowledgments list is two columns of text per row that wrapped at the narrower step.
+      // `xl` because seven tabs do not fit across 35rem, and the acknowledgments list is two
+      // columns of text per row that wrap at the narrower step.
       size="xl"
-      // The dialog is already a flex column capped at 90vh, so the body only has
-      // to opt into filling it. It previously carried a hard `max-h-[60vh]` on the
-      // tab content, which scrolled a three-wide theme grid of 20+ swatches
-      // through a keyhole while ~30vh of the dialog sat unused below it.
+      // The dialog is already a flex column capped at 90vh, so the body only has to opt into
+      // filling it. A fixed cap here would scroll the theme grid of 20+ swatches through a keyhole
+      // while the rest of the dialog sat unused.
       bodyClassName="flex min-h-0 flex-col p-0"
       titleClassName="text-[var(--color-accent)]"
       footer={
@@ -93,6 +95,7 @@ export function SettingsPanel() {
         className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
       >
         {activeTab === 'general' && <GeneralTab />}
+        {activeTab === 'theme' && <ThemeTab />}
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && <DataTab />}
         {activeTab === 'mcp' && <McpTab />}

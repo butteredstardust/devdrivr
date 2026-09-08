@@ -1,4 +1,4 @@
-/** Settings → General: appearance, window behaviour and the updater. */
+/** Settings → General: shell layout, window behaviour and the updater. */
 import { useCallback, useEffect, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -13,13 +13,11 @@ import {
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import { ThemePicker } from '@/components/shell/ThemePicker'
 import { getVersion } from '@tauri-apps/api/app'
 import { SettingRow } from '@/components/shell/settings/SettingControls'
 
 export function GeneralTab() {
   const update = useSettingsStore((s) => s.update)
-  const theme = useSettingsStore((s) => s.theme)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const shellStyle = useSettingsStore((s) => s.shellStyle)
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -62,14 +60,6 @@ export function GeneralTab() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h4 className="mb-1 text-xs text-[var(--color-text)]">Theme</h4>
-        <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
-          Appearance mode for the app — hover or focus a swatch to preview it
-        </p>
-        <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
-      </div>
-
       <div>
         <h4 className="mb-1 text-xs text-[var(--color-text)]">Shell layout</h4>
         <p className="mb-2 text-2xs text-[var(--color-text-muted)]">

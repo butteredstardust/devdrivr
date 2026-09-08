@@ -182,6 +182,22 @@ describe('SettingsPanel', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('shellStyle', 'flush'))
   })
 
+  // The picker is 20+ live previews. It has its own tab so it does not sit under the window and
+  // updater rows, and so General does not scroll.
+  it('keeps the theme picker on its own tab', async () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+
+    render(<SettingsPanel />)
+
+    expect(screen.queryByRole('option', { name: 'Dracula' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Theme' }))
+
+    fireEvent.click(screen.getByRole('option', { name: 'Dracula' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('theme', 'dracula'))
+  })
+
   it('names every setting row control from the row label', async () => {
     const update = vi.fn().mockResolvedValue(true)
     useSettingsStore.setState({ update })
