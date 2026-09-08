@@ -262,7 +262,11 @@ export default function ApiClient() {
     (text: string) => {
       // `view`, not `activeTab` — JSON Tools has no such field, so the old key
       // switched nothing and was persisted as junk into its row.
-      sendToTool('json-tools', { input: text, view: 'source', query: '' })
+      sendToTool(
+        'json-tools',
+        { input: text, view: 'source', query: '' },
+        { documentKeys: ['input'] }
+      )
       setLastAction('Sent response selection to JSON Tools', 'success')
     },
     [setLastAction]

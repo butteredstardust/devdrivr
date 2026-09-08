@@ -434,7 +434,9 @@ export default function JsonTools() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => sendToTool('yaml-tools', { input, view: 'source' })}
+                onClick={() =>
+                  sendToTool('yaml-tools', { input, view: 'source' }, { documentKeys: ['input'] })
+                }
                 disabled={!hasInput}
                 title="Open this JSON in YAML Tools"
               >

@@ -122,7 +122,7 @@ describe('SnippetsManager — library experience', () => {
     })
     renderTool(SnippetsManager)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Snippets Trash, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Snippets Trash, 1 item' }))
     fireEvent.click(screen.getByRole('button', { name: 'Restore Archived helper' }))
 
     await waitFor(() => expect(restore).toHaveBeenCalledWith('trashed-snippet'))
@@ -758,7 +758,12 @@ describe('SnippetsManager — formatting and contextual previews', () => {
     const view = renderTool(SnippetsManager)
     fireEvent.click(await screen.findByRole('tab', { name: 'payload.json' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Preview JSON fragment' }))
-    expect(sendToTool).toHaveBeenCalledWith('json-tools', { input: '{"ok":true}', view: 'tree' })
+    expect(sendToTool).toHaveBeenCalledWith(
+      'json-tools',
+      { input: '{"ok":true}', view: 'tree' },
+      // The fragment is a whole document, so JSON Tools must not lose what it already holds.
+      { documentKeys: ['input'] }
+    )
     expect(screen.getByRole('tab', { name: 'payload.json' })).toHaveAttribute(
       'aria-selected',
       'true'

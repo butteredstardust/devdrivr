@@ -433,7 +433,11 @@ export default function TsPlayground() {
               // Stale output belongs to source the user has already changed.
               disabled={!output || outputStale}
               onClick={() =>
-                sendToTool('code-formatter', { input: output, language: 'javascript' })
+                sendToTool(
+                  'code-formatter',
+                  { input: output, language: 'javascript' },
+                  { documentKeys: ['input'] }
+                )
               }
               title="Open the compiled JavaScript in Code Formatter"
             >
