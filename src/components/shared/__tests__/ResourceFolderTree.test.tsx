@@ -103,15 +103,15 @@ describe('ResourceFolderTree', () => {
 
   it('keeps a collapsed root folder collapsed after a folder update', () => {
     const tree = renderTree()
-    expect(screen.getByRole('button', { name: 'API, 1 items' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'API, 1 item' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Inbox' }))
-    expect(screen.queryByRole('button', { name: 'API, 1 items' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'API, 1 item' })).not.toBeInTheDocument()
 
     tree.rerender({ folders: [root, child, { ...sibling, name: 'Projects' }] })
 
     expect(screen.getByRole('button', { name: 'Projects, 0 items' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'API, 1 items' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'API, 1 item' })).not.toBeInTheDocument()
   })
 
   it('expands a root folder the first time it appears', () => {

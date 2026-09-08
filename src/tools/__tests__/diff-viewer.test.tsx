@@ -139,6 +139,36 @@ describe('DiffViewer', () => {
   // A no-op worker mock never resolves computeDiff, so the patch never
   // populates — these only pass against the real `diff` package output.
 
+  it('holds back a diff too large to render until the user asks for it', async () => {
+    renderTool(DiffViewer)
+    // Every line differs, so the patch carries both sides in full and passes MAX_RENDERED_DIFF_LINES.
+    // A sparse change in a file this size stays cheap, because the patch is only its hunks.
+    const left = Array.from({ length: 1200 }, (_, i) => `line ${i}`).join('\n')
+    const right = Array.from({ length: 1200 }, (_, i) => `LINE ${i} changed`).join('\n')
+    fillBothSides(left, right)
+    fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
+
+    await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
+    expect(screen.queryByRole('region', { name: 'Diff result' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Render anyway' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Diff result' })).toBeInTheDocument()
+    )
+  })
+
+  it('renders a diff under the cap without asking', async () => {
+    renderTool(DiffViewer)
+    fillBothSides()
+    fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Diff result' })).toBeInTheDocument()
+    )
+    expect(screen.queryByText('Large diff')).not.toBeInTheDocument()
+  })
+
   it('computes a real unified patch while leaving the editors on screen', async () => {
     renderTool(DiffViewer)
     fillBothSides()

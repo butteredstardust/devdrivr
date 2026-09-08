@@ -267,6 +267,7 @@ export function ResourceFolderTree({
           const selected = selectedFolderId === folder.id
           const editing = editingId === folder.id
           const movable = !isInboxFolder(folder.id)
+          const itemCount = itemCounts?.get(folder.id) ?? 0
           const { canMoveUp, canMoveDown, canNest, canMoveOut } = moveCapabilities(folders, folder)
           return (
             <div
@@ -367,7 +368,7 @@ export function ResourceFolderTree({
                     size="xs"
                     data-folder-tree-id={folder.id}
                     tabIndex={selected || (!selectedFolderIsVisible && rowIndex === 0) ? 0 : -1}
-                    aria-label={`${folder.name}, ${itemCounts?.get(folder.id) ?? 0} items`}
+                    aria-label={`${folder.name}, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
                     onClick={() => onSelect(folder.id)}
                     onDoubleClick={() => startRename(folder)}
                     onKeyDown={(event) => handleKeyDown(event, folder)}
@@ -376,9 +377,7 @@ export function ResourceFolderTree({
                     }`}
                   >
                     <span className="min-w-0 flex-1 truncate text-left">{folder.name}</span>
-                    <span className="text-2xs text-[var(--color-text-muted)]">
-                      {itemCounts?.get(folder.id) ?? 0}
-                    </span>
+                    <span className="text-2xs text-[var(--color-text-muted)]">{itemCount}</span>
                   </Button>
                   {movable && (
                     <Button
