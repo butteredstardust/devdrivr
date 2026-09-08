@@ -31,3 +31,44 @@ export function subscribeToolAction(listener: Listener): () => void {
 export function dispatchToolAction(action: ToolAction): void {
   listeners.forEach((fn) => fn(action))
 }
+
+/**
+ * An action addressed to one tab, held until that tab can take it.
+ *
+ * `dispatchToolAction` reaches only tools that are already mounted and active. That is enough for
+ * a keyboard shortcut, which by definition targets the tool on screen. It is not enough when the
+ * shell opens a file the operating system handed over: the receiving tab is created for the file
+ * and is still loading its component when the content arrives.
+ *
+ * Keyed by tab, because "Open With" can hand over several files at once and each one is on its way
+ * to a different tab. Two files that route to the same tab keep the last, which is the same result
+ * as opening them one after the other.
+ */
+const pending = new Map<string, ToolAction>()
+const pendingListeners = new Set<() => void>()
+
+/** Holds `action` for the tab that owns `stateKey`, and wakes any tab already mounted. */
+export function queueToolAction(stateKey: string, action: ToolAction): void {
+  pending.set(stateKey, action)
+  pendingListeners.forEach((fn) => fn())
+}
+
+export function subscribePendingToolAction(listener: () => void): () => void {
+  pendingListeners.add(listener)
+  return () => {
+    pendingListeners.delete(listener)
+  }
+}
+
+/** Takes the action addressed to `stateKey`, if there is one. Removes it, so it runs once. */
+export function claimPendingToolAction(stateKey: string): ToolAction | null {
+  const action = pending.get(stateKey)
+  if (!action) return null
+  pending.delete(stateKey)
+  return action
+}
+
+/** Drops every queued action. Test helper — the queue outlives a component tree. */
+export function clearPendingToolActions(): void {
+  pending.clear()
+}
