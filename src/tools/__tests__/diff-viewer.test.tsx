@@ -160,10 +160,13 @@ describe('DiffViewer', () => {
 
   // The confirmation covers the patch it was given, not the tool. A flag would still read true on
   // the render that receives the next patch, and that render builds the markup.
+  //
+  // Confirming renders one diff over the cap for real, which is the cost the cap exists to avoid.
+  // The test carries its own timeout because a CI runner cannot pay it in the 5s default.
   it('asks again when the next diff is also too large', async () => {
     renderTool(DiffViewer)
-    const left = Array.from({ length: 1200 }, (_, i) => `line ${i}`).join('\n')
-    fillBothSides(left, Array.from({ length: 1200 }, (_, i) => `LINE ${i} changed`).join('\n'))
+    const left = Array.from({ length: 1050 }, (_, i) => `line ${i}`).join('\n')
+    fillBothSides(left, Array.from({ length: 1050 }, (_, i) => `LINE ${i} changed`).join('\n'))
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
     await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
@@ -172,12 +175,12 @@ describe('DiffViewer', () => {
       expect(screen.getByRole('region', { name: 'Diff result' })).toBeInTheDocument()
     )
 
-    fillBothSides(left, Array.from({ length: 1200 }, (_, i) => `LINE ${i} again`).join('\n'))
+    fillBothSides(left, Array.from({ length: 1050 }, (_, i) => `LINE ${i} again`).join('\n'))
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
     await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
     expect(screen.queryByRole('region', { name: 'Diff result' })).not.toBeInTheDocument()
-  })
+  }, 30_000)
 
   it('renders a diff under the cap without asking', async () => {
     renderTool(DiffViewer)
