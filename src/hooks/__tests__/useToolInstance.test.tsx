@@ -5,7 +5,7 @@ import { useToolAction } from '@/hooks/useToolAction'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import { dispatchToolAction } from '@/lib/tool-actions'
+import { clearPendingToolActions, dispatchToolAction, queueToolAction } from '@/lib/tool-actions'
 import { saveToolState } from '@/lib/db'
 
 vi.mock('@/lib/db', () => ({
@@ -89,6 +89,89 @@ describe('backgrounded tabs and shell events', () => {
 
     expect(active).toHaveBeenCalledTimes(1)
     expect(background).not.toHaveBeenCalled()
+  })
+})
+
+describe('files addressed to one tab', () => {
+  function Listener({ onAction }: { onAction: () => void }) {
+    useToolAction(onAction)
+    return null
+  }
+
+  const file = { type: 'open-file', content: '{}', filename: 'a.json' } as const
+
+  beforeEach(() => {
+    clearPendingToolActions()
+  })
+
+  it('delivers a file queued before the tab mounted', () => {
+    // A file the OS opened creates its tab, so the content is always ready first.
+    queueToolAction('json-tools', file)
+    const onAction = vi.fn()
+
+    render(
+      <ToolInstanceContext.Provider value={instance()}>
+        <Listener onAction={onAction} />
+      </ToolInstanceContext.Provider>
+    )
+
+    expect(onAction).toHaveBeenCalledWith(file)
+  })
+
+  it('delivers to a tab that was already open', () => {
+    const onAction = vi.fn()
+    render(
+      <ToolInstanceContext.Provider value={instance()}>
+        <Listener onAction={onAction} />
+      </ToolInstanceContext.Provider>
+    )
+
+    act(() => queueToolAction('json-tools', file))
+
+    expect(onAction).toHaveBeenCalledWith(file)
+  })
+
+  it('delivers to one tab only', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    render(
+      <>
+        <ToolInstanceContext.Provider value={instance()}>
+          <Listener onAction={first} />
+        </ToolInstanceContext.Provider>
+        <ToolInstanceContext.Provider
+          value={instance({ tabId: 'tab-2', stateKey: 'json-tools#tab-2' })}
+        >
+          <Listener onAction={second} />
+        </ToolInstanceContext.Provider>
+      </>
+    )
+
+    act(() => queueToolAction('json-tools#tab-2', file))
+
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledWith(file)
+  })
+
+  it('holds the file until its tab is shown', () => {
+    const onAction = vi.fn()
+    const { rerender } = render(
+      <ToolInstanceContext.Provider value={instance({ isActive: false })}>
+        <Listener onAction={onAction} />
+      </ToolInstanceContext.Provider>
+    )
+
+    act(() => queueToolAction('json-tools', file))
+    expect(onAction).not.toHaveBeenCalled()
+
+    // Shown at last — the file is still waiting rather than lost.
+    rerender(
+      <ToolInstanceContext.Provider value={instance()}>
+        <Listener onAction={onAction} />
+      </ToolInstanceContext.Provider>
+    )
+
+    expect(onAction).toHaveBeenCalledWith(file)
   })
 })
 

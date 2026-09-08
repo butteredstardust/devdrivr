@@ -222,6 +222,12 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
+    name: 'tauri-plugin-single-instance',
+    version: '2.4.4',
+    license: 'Apache-2.0 OR MIT',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
     name: 'tauri-plugin-sql',
     version: '2.4.1',
     license: 'Apache-2.0 OR MIT',
