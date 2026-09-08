@@ -21,8 +21,9 @@ function describe(err: unknown): string {
  * - A cold start queues the path in Rust before the webview exists. `opened_files_take` drains it.
  * - A warm start emits `opened-files` while the app runs.
  *
- * Content is read through a Rust command rather than `plugin-fs`, because a path from the system
- * carries no filesystem-scope grant. See src-tauri/src/opened_files.rs.
+ * Content is read through a Rust command rather than `plugin-fs`, which accepts only a path the
+ * system itself handed over. Rust grants the same path to the filesystem scope, so the file can be
+ * saved back afterwards. See src-tauri/src/opened_files.rs.
  */
 export function useOpenedFiles(): void {
   const addToast = useUiStore((s) => s.addToast)

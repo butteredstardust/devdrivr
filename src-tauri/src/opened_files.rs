@@ -1,9 +1,10 @@
 //! Files the operating system hands to devdrivr — "Open With", a double-click on an associated
 //! file, or a path passed on the command line.
 //!
-//! WARNING: `opened_file_read` reads a path outside the filesystem scope in `capabilities`. It is
-//! safe only because it refuses any path the OS did not hand over. Every accepted path is recorded
-//! in `allowed` first, and the read compares canonical paths. Do not widen that check.
+//! WARNING: `opened_file_read` reads a path outside the filesystem scope in `capabilities`, and
+//! `accept` grants that path to the same scope so it can be saved back. Both are safe only because
+//! nothing but a path the OS handed over reaches them. Every accepted path is recorded in `allowed`
+//! first, and the read compares canonical paths. Do not widen that check.
 //!
 //! Two arrival routes exist, and both are needed:
 //!
@@ -80,7 +81,8 @@ pub fn accept(app: &AppHandle, paths: Vec<String>) {
     let _ = app.emit(OPENED_FILES_EVENT, ());
 }
 
-/// Decodes `%XX` escapes in a URI path. Returns the input unchanged if an escape is malformed.
+/// Decodes `%XX` escapes in a URI path. A malformed escape is kept as written, so `100%zz` stays
+/// `100%zz` while the well-formed escapes around it still decode.
 fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
@@ -100,26 +102,34 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }
 
-/// Turns one process argument into a path.
+/// Turns one process argument into a path. Returns `None` for an argument this process must not
+/// open.
 ///
 /// A launcher may pass a `file://` URI rather than a path — the Linux desktop entry takes `%U` when
 /// the app also declares a URL scheme, and several file managers pass URIs regardless. The URI form
 /// is percent-encoded, so a file named `my notes.json` arrives as `my%20notes.json`.
-fn path_from_arg(arg: &str) -> PathBuf {
+///
+/// Only a local URI is accepted. `file://server/share` names another machine, and a remote
+/// authority is refused rather than resolved: on Windows it would otherwise become a UNC path, and
+/// on any platform a leftover relative fragment would be joined to the working directory and could
+/// name a different local file.
+fn path_from_arg(arg: &str) -> Option<PathBuf> {
     let Some(rest) = arg.strip_prefix("file://") else {
-        return PathBuf::from(arg);
+        return Some(PathBuf::from(arg));
     };
-    // `file://host/path` names another machine, which this process cannot open. Only an empty
-    // host — `file:///path` — is a local file.
-    let Some(absolute) = rest.strip_prefix('/') else {
-        return PathBuf::from(arg);
-    };
-    let decoded = percent_decode(absolute);
+    // Everything up to the first `/` is the authority. `file:///path` leaves it empty.
+    let (authority, path) = rest.split_at(rest.find('/')?);
+    if !authority.is_empty() && authority != "localhost" {
+        return None;
+    }
+    // Collapse repeated leading slashes. `file:////server/share` would otherwise keep the `//`
+    // prefix that makes a UNC path on Windows.
+    let decoded = percent_decode(path.trim_start_matches('/'));
     // A Windows URI carries the drive letter first: `file:///C:/dir` is `C:/dir`, not `/C:/dir`.
     if cfg!(windows) && decoded.as_bytes().get(1) == Some(&b':') {
-        PathBuf::from(decoded)
+        Some(PathBuf::from(decoded))
     } else {
-        PathBuf::from(format!("/{decoded}"))
+        Some(PathBuf::from(format!("/{decoded}")))
     }
 }
 
@@ -133,13 +143,13 @@ pub fn paths_from_args<I: IntoIterator<Item = String>>(args: I, base: &Path) -> 
     args.into_iter()
         .skip(1) // argv[0] is the executable
         .filter(|arg| !arg.starts_with('-'))
-        .map(|arg| {
-            let path = path_from_arg(&arg);
-            if path.is_absolute() {
+        .filter_map(|arg| {
+            let path = path_from_arg(&arg)?;
+            Some(if path.is_absolute() {
                 path
             } else {
                 base.join(path)
-            }
+            })
         })
         .filter(|path| path.is_file())
         .map(|path| path.to_string_lossy().into_owned())
@@ -228,23 +238,45 @@ mod tests {
     fn path_from_arg_decodes_percent_escapes() {
         assert_eq!(
             path_from_arg("file:///tmp/my%20notes.json"),
-            PathBuf::from("/tmp/my notes.json")
+            Some(PathBuf::from("/tmp/my notes.json"))
+        );
+        // A multi-byte character arrives as one escape per byte.
+        assert_eq!(
+            path_from_arg("file:///tmp/n%C3%B8tes.json"),
+            Some(PathBuf::from("/tmp/nøtes.json"))
         );
     }
 
     #[test]
-    fn path_from_arg_leaves_a_remote_uri_alone() {
-        // `file://host/path` names another machine. It resolves to no local file, so it is dropped
-        // by the `is_file` filter rather than read from the wrong place.
-        let path = path_from_arg("file://server/share/notes.json");
-        assert_eq!(path, PathBuf::from("file://server/share/notes.json"));
-        assert!(!path.is_file());
+    fn path_from_arg_accepts_the_localhost_authority() {
+        assert_eq!(
+            path_from_arg("file://localhost/tmp/notes.json"),
+            Some(PathBuf::from("/tmp/notes.json"))
+        );
+    }
+
+    #[test]
+    fn path_from_arg_refuses_a_remote_uri() {
+        // `file://host/path` names another machine. Resolving it would make a UNC path on Windows
+        // and a working-directory-relative path everywhere else, so it is refused outright.
+        assert_eq!(path_from_arg("file://server/share/notes.json"), None);
+        assert_eq!(path_from_arg("file://server"), None);
+    }
+
+    #[test]
+    fn path_from_arg_collapses_repeated_leading_slashes() {
+        assert_eq!(
+            path_from_arg("file:////server/share/notes.json"),
+            Some(PathBuf::from("/server/share/notes.json"))
+        );
     }
 
     #[test]
     fn percent_decode_keeps_a_malformed_escape() {
         assert_eq!(percent_decode("100%zz done"), "100%zz done");
         assert_eq!(percent_decode("trailing%"), "trailing%");
+        // A malformed escape does not stop the well-formed ones around it.
+        assert_eq!(percent_decode("a%20b%zz%20c"), "a b%zz c");
     }
 
     #[test]
