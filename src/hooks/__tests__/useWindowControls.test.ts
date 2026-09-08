@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
   minimize: vi.fn(),
   toggleMaximize: vi.fn(),
-  toggleFullscreen: vi.fn(),
 }))
 
 vi.mock('@/lib/native-window', () => ({
@@ -15,7 +14,6 @@ vi.mock('@/lib/native-window', () => ({
   getNativeWindowState: mocks.getState,
   minimizeNativeWindow: mocks.minimize,
   toggleNativeWindowMaximize: mocks.toggleMaximize,
-  toggleNativeWindowFullscreen: mocks.toggleFullscreen,
 }))
 
 beforeEach(() => {
@@ -24,7 +22,6 @@ beforeEach(() => {
   mocks.getState.mockResolvedValue({ isMaximized: false, isFullscreen: false })
   mocks.minimize.mockResolvedValue(undefined)
   mocks.toggleMaximize.mockResolvedValue({ isMaximized: true, isFullscreen: false })
-  mocks.toggleFullscreen.mockResolvedValue({ isMaximized: false, isFullscreen: true })
 })
 
 afterEach(() => {
@@ -40,19 +37,19 @@ describe('useWindowControls', () => {
     await waitFor(() => expect(result.current.isMaximized).toBe(true))
   })
 
-  it('picks up a fullscreen change the app did not start', async () => {
-    // The macOS green button, `⌃⌘F` and Mission Control all resize the window. The reconciliation
-    // that follows is the only thing that tells the title bar about them.
+  it('picks up a maximize the app did not start', async () => {
+    // A window-snap drag, a title-bar double-click and the desktop environment's own shortcut all
+    // resize the window. The reconciliation that follows is the only thing that tells the button.
     vi.useFakeTimers()
     try {
       const { result } = renderHook(() => useWindowControls())
       await act(async () => Promise.resolve())
-      mocks.getState.mockResolvedValue({ isMaximized: false, isFullscreen: true })
+      mocks.getState.mockResolvedValue({ isMaximized: true, isFullscreen: false })
 
       act(() => window.dispatchEvent(new window.Event('resize')))
       await act(async () => vi.advanceTimersByTimeAsync(200))
 
-      expect(result.current.isFullscreen).toBe(true)
+      expect(result.current.isMaximized).toBe(true)
     } finally {
       vi.useRealTimers()
     }
@@ -63,14 +60,12 @@ describe('useWindowControls', () => {
 
     act(() => result.current.minimize())
     act(() => result.current.toggleMaximize())
-    act(() => result.current.toggleFullscreen())
     act(() => result.current.close())
 
     expect(mocks.minimize).toHaveBeenCalledTimes(1)
     expect(mocks.toggleMaximize).toHaveBeenCalledTimes(1)
-    expect(mocks.toggleFullscreen).toHaveBeenCalledTimes(1)
     expect(mocks.close).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(result.current.isFullscreen).toBe(true))
+    await waitFor(() => expect(result.current.isMaximized).toBe(true))
   })
 
   it('contains native command failures', async () => {

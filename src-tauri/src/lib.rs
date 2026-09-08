@@ -135,6 +135,10 @@ pub fn run() {
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
         if let Some(window) = app.webview_windows().values().next() {
+            // Focus alone does not raise a minimized window on Windows or Linux. Without this the
+            // file opens into a window the user cannot see, and nothing appears to happen.
+            let _ = window.unminimize();
+            let _ = window.show();
             let _ = window.set_focus();
         }
         // `cwd` is the second instance's working directory, which is where its relative arguments

@@ -5,7 +5,6 @@ import { WindowControls } from '@/components/shell/WindowControls'
 const mocks = vi.hoisted(() => ({
   minimize: vi.fn(),
   toggleMaximize: vi.fn(),
-  toggleFullscreen: vi.fn(),
   close: vi.fn(),
   useWindowControls: vi.fn(),
 }))
@@ -18,10 +17,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.useWindowControls.mockReturnValue({
     isMaximized: false,
-    isFullscreen: false,
     minimize: mocks.minimize,
     toggleMaximize: mocks.toggleMaximize,
-    toggleFullscreen: mocks.toggleFullscreen,
     close: mocks.close,
   })
 })
@@ -56,10 +53,8 @@ describe('WindowControls', () => {
   it('shows Restore as the accessible name when maximized', () => {
     mocks.useWindowControls.mockReturnValue({
       isMaximized: true,
-      isFullscreen: false,
       minimize: mocks.minimize,
       toggleMaximize: mocks.toggleMaximize,
-      toggleFullscreen: mocks.toggleFullscreen,
       close: mocks.close,
     })
     render(<WindowControls />)

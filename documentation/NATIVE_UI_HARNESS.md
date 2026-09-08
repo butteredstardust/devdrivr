@@ -160,7 +160,7 @@ Custom Tauri commands and plugin commands use independent dispatch. Check both c
 
 devdrivr persists through plugin:sql. A stalled plugin dispatch can leave the UI responsive while persistence stops. Use the probe to check custom, plugin:window, and plugin:sql commands independently.
 
-Title-bar lifecycle operations use dedicated Rust commands in src-tauri/src/window_commands.rs. useWindowControls uses the browser resize event. It performs one trailing custom-command reconciliation after each resize burst. A fullscreen change started by the green button or by ⌃⌘F arrives the same way, because both resize the window.
+Title-bar lifecycle operations use dedicated Rust commands in src-tauri/src/window_commands.rs. useWindowControls uses the browser resize event. It performs one trailing custom-command reconciliation after each resize burst. A maximize started outside the app — a window-snap drag, a title-bar double-click — arrives the same way, because both resize the window. macOS never mounts this hook: WindowControls renders nothing there.
 
 ## Control and input validation
 
