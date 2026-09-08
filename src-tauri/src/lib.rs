@@ -5,7 +5,6 @@ mod opened_files;
 #[cfg(feature = "remote-ui")]
 mod remote_ui;
 mod window_commands;
-mod window_corners;
 
 // The bridge pulls in an AGPL-3.0-only crate. Making this a hard build failure rather than a note
 // in a README means a shipped binary cannot acquire that copyleft by way of someone typing
@@ -149,9 +148,6 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            for window in app.webview_windows().values() {
-                window_corners::apply(&window.as_ref().window_ref());
-            }
             // Windows and Linux deliver the launch path here. macOS uses `RunEvent::Opened` below.
             let launch_paths =
                 opened_files::paths_from_args(std::env::args(), &opened_files::current_dir());
@@ -159,18 +155,6 @@ pub fn run() {
             #[cfg(feature = "remote-ui")]
             remote_ui::start(app.handle());
             Ok(())
-        })
-        // The radius depends on whether the window is fullscreen, and entering or leaving
-        // fullscreen always resizes. Matched on the resize event rather than a dedicated
-        // fullscreen hook because Tauri does not emit one.
-        .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Resized(_)) {
-                let fullscreen = window
-                    .app_handle()
-                    .state::<window_commands::WindowFullscreenState>()
-                    .is_fullscreen();
-                window_corners::refresh(window, fullscreen);
-            }
         })
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -187,7 +171,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(window_commands::WindowFullscreenState::default())
         .manage(opened_files::OpenedFiles::default())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())

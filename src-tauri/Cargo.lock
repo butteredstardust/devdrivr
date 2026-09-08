@@ -1003,9 +1003,6 @@ name = "devdrivr"
 version = "0.1.92"
 dependencies = [
  "axum",
- "objc2",
- "objc2-app-kit",
- "objc2-quartz-core",
  "rmcp",
  "serde",
  "serde_json",
@@ -2850,7 +2847,6 @@ dependencies = [
  "objc2",
  "objc2-core-foundation",
  "objc2-foundation",
- "objc2-quartz-core",
 ]
 
 [[package]]

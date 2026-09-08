@@ -147,19 +147,6 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
 /** Rust crates `src-tauri` depends on directly. */
 export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   { name: 'axum', version: '0.8.9', license: 'MIT', copyright: 'Tokio contributors' },
-  { name: 'objc2', version: '0.6.4', license: 'MIT', copyright: 'objc2 contributors' },
-  {
-    name: 'objc2-app-kit',
-    version: '0.3.2',
-    license: 'Zlib OR Apache-2.0 OR MIT',
-    copyright: 'objc2 contributors',
-  },
-  {
-    name: 'objc2-quartz-core',
-    version: '0.3.2',
-    license: 'Zlib OR Apache-2.0 OR MIT',
-    copyright: 'objc2 contributors',
-  },
   {
     name: 'rmcp',
     version: '0.16.0',

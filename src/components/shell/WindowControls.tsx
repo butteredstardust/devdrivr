@@ -1,115 +1,20 @@
-import type { MouseEvent, ReactNode } from 'react'
-import { CornersInIcon, CornersOutIcon, MinusIcon, SquareIcon, XIcon } from '@phosphor-icons/react'
+import { CornersInIcon, MinusIcon, SquareIcon, XIcon } from '@phosphor-icons/react'
 import { useWindowControls } from '@/hooks/useWindowControls'
-import { isMacOS } from '@/lib/platform'
 
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]'
 
-/**
- * macOS traffic-light colours (close/minimize/maximize) are a deliberate exact match to the
- * native AppKit palette — they are brand-fixed reference colours, not themeable surfaces, so
- * they are hardcoded here rather than pulled from CSS variables.
- */
-const TRAFFIC_LIGHT_COLORS = {
-  close: '#ff5f57',
-  minimize: '#febc2e',
-  maximize: '#28c840',
-} as const
-
-/** Standard Windows 11 "close" red — also a fixed reference colour, not a theme token. */
+/** Standard Windows 11 "close" red — a fixed reference colour, not a theme token. */
 const WINDOWS_CLOSE_HOVER = '#e81123'
 
+/**
+ * Minimize, maximize and close buttons for the undecorated Windows and Linux frame.
+ *
+ * macOS never renders these. That window keeps its AppKit frame and shows the real traffic lights,
+ * which carry the hover menu, Option-click zoom and fullscreen behaviour no drawn copy can
+ * reproduce. `TitleBar` is the one place that decides, and reserves the leading space for them.
+ */
 export function WindowControls() {
-  const controls = useWindowControls()
-  return isMacOS() ? <MacTrafficLights {...controls} /> : <WindowsControls {...controls} />
-}
-
-interface ControlsProps {
-  isMaximized: boolean
-  isFullscreen: boolean
-  isFocused: boolean
-  minimize: () => void
-  toggleFullscreen: () => void
-  toggleMaximize: () => void
-  close: () => void
-}
-
-function MacTrafficLights({
-  isFocused,
-  isFullscreen,
-  minimize,
-  toggleFullscreen,
-  toggleMaximize,
-  close,
-}: ControlsProps) {
-  const dimmed = !isFocused
-  const handleGreenClick = (event: MouseEvent<HTMLButtonElement>) => {
-    // Native macOS traffic lights enter fullscreen on click and zoom on Option-click.
-    if (event.altKey && !isFullscreen) toggleMaximize()
-    else toggleFullscreen()
-  }
-  return (
-    <div className="group flex items-center gap-2" role="group" aria-label="Window controls">
-      <TrafficLight
-        label="Close"
-        color={TRAFFIC_LIGHT_COLORS.close}
-        dimmed={dimmed}
-        onClick={close}
-        glyph={<XIcon size={8} weight="bold" />}
-      />
-      <TrafficLight
-        label="Minimize"
-        color={TRAFFIC_LIGHT_COLORS.minimize}
-        dimmed={dimmed}
-        onClick={minimize}
-        glyph={<MinusIcon size={8} weight="bold" />}
-      />
-      <TrafficLight
-        label={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
-        color={TRAFFIC_LIGHT_COLORS.maximize}
-        dimmed={dimmed}
-        onClick={handleGreenClick}
-        glyph={
-          isFullscreen ? (
-            <CornersInIcon size={8} weight="bold" />
-          ) : (
-            <CornersOutIcon size={8} weight="bold" />
-          )
-        }
-      />
-    </div>
-  )
-}
-
-function TrafficLight({
-  label,
-  color,
-  dimmed,
-  onClick,
-  glyph,
-}: {
-  label: string
-  color: string
-  dimmed: boolean
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void
-  glyph: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className={`flex h-3 w-3 items-center justify-center rounded-full text-black/60 ${FOCUS_RING}`}
-      style={{ backgroundColor: dimmed ? 'var(--color-border)' : color }}
-    >
-      <span className="opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100">
-        {glyph}
-      </span>
-    </button>
-  )
-}
-
-function WindowsControls({ isMaximized, minimize, toggleMaximize, close }: ControlsProps) {
+  const { isMaximized, minimize, toggleMaximize, close } = useWindowControls()
   return (
     <div className="flex h-8 items-stretch" role="group" aria-label="Window controls">
       <button

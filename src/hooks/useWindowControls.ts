@@ -10,7 +10,6 @@ import {
 export interface UseWindowControlsResult {
   isMaximized: boolean
   isFullscreen: boolean
-  isFocused: boolean
   minimize: () => void
   toggleFullscreen: () => void
   toggleMaximize: () => void
@@ -23,13 +22,16 @@ const RESIZE_RECONCILE_MS = 200
  * Window state for the client-side title bar.
  *
  * Native mutations use dedicated Rust commands instead of the window plugin. The plugin path can
- * deadlock when resize events and state reads overlap on macOS; browser focus/resize events keep
+ * deadlock when resize events and state reads overlap on macOS; the browser resize event keeps
  * this hook independent of that channel while retaining accurate control state.
+ *
+ * The resize event is also how a fullscreen change the app did not start reaches the title bar —
+ * the macOS green button, `⌃⌘F`, Mission Control. Each of them resizes the window, and the
+ * reconciliation that follows reads the platform's own fullscreen state.
  */
 export function useWindowControls(): UseWindowControlsResult {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [isFocused, setIsFocused] = useState(() => document.hasFocus())
 
   useEffect(() => {
     let cancelled = false
@@ -67,19 +69,12 @@ export function useWindowControls(): UseWindowControlsResult {
       }, RESIZE_RECONCILE_MS)
     }
 
-    const handleFocus = () => setIsFocused(true)
-    const handleBlur = () => setIsFocused(false)
-
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('blur', handleBlur)
     window.addEventListener('resize', scheduleReconcile)
     reconcileWindowState()
 
     return () => {
       cancelled = true
       if (reconcileTimer) clearTimeout(reconcileTimer)
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('blur', handleBlur)
       window.removeEventListener('resize', scheduleReconcile)
     }
   }, [])
@@ -115,7 +110,6 @@ export function useWindowControls(): UseWindowControlsResult {
   return {
     isMaximized,
     isFullscreen,
-    isFocused,
     minimize,
     toggleFullscreen,
     toggleMaximize,

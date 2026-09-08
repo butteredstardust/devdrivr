@@ -40,14 +40,22 @@ describe('useWindowControls', () => {
     await waitFor(() => expect(result.current.isMaximized).toBe(true))
   })
 
-  it('tracks focus using browser focus and blur events', () => {
-    const { result } = renderHook(() => useWindowControls())
+  it('picks up a fullscreen change the app did not start', async () => {
+    // The macOS green button, `⌃⌘F` and Mission Control all resize the window. The reconciliation
+    // that follows is the only thing that tells the title bar about them.
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useWindowControls())
+      await act(async () => Promise.resolve())
+      mocks.getState.mockResolvedValue({ isMaximized: false, isFullscreen: true })
 
-    act(() => window.dispatchEvent(new window.Event('blur')))
-    expect(result.current.isFocused).toBe(false)
+      act(() => window.dispatchEvent(new window.Event('resize')))
+      await act(async () => vi.advanceTimersByTimeAsync(200))
 
-    act(() => window.dispatchEvent(new window.Event('focus')))
-    expect(result.current.isFocused).toBe(true)
+      expect(result.current.isFullscreen).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('routes minimize, maximize, and close through native commands', async () => {
