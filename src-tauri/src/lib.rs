@@ -1,6 +1,7 @@
 mod batch;
 mod mcp;
 mod note_assets;
+mod opened_files;
 #[cfg(feature = "remote-ui")]
 mod remote_ui;
 mod window_commands;
@@ -129,6 +130,17 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
 
+    // Registered before every other plugin, as the plugin requires. On Windows and Linux a second
+    // "Open With" launches a second process; without this the user gets a second devdrivr window
+    // instead of the file appearing in the one already open.
+    #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        if let Some(window) = app.webview_windows().values().next() {
+            let _ = window.set_focus();
+        }
+        opened_files::accept(app, opened_files::paths_from_args(argv));
+    }));
+
     #[cfg(feature = "remote-ui")]
     let builder = builder.plugin(tauri_remote_ui::init());
 
@@ -137,6 +149,11 @@ pub fn run() {
             for window in app.webview_windows().values() {
                 window_corners::apply(&window.as_ref().window_ref());
             }
+            // Windows and Linux deliver the launch path here. macOS uses `RunEvent::Opened` below.
+            opened_files::accept(
+                app.handle(),
+                opened_files::paths_from_args(std::env::args()),
+            );
             #[cfg(feature = "remote-ui")]
             remote_ui::start(app.handle());
             Ok(())
@@ -169,6 +186,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(window_commands::WindowFullscreenState::default())
+        .manage(opened_files::OpenedFiles::default())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())
         .invoke_handler(tauri::generate_handler![
@@ -193,7 +211,26 @@ pub fn run() {
             note_assets::note_assets_export,
             note_assets::note_assets_find_orphans,
             note_assets::note_assets_restore,
+            opened_files::opened_file_read,
+            opened_files::opened_files_take,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        // macOS routes an associated file through the application delegate, not through argv, and
+        // does so for both a cold launch and a file opened while the app runs.
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect();
+                opened_files::accept(app, paths);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (app, event);
+            }
+        });
 }

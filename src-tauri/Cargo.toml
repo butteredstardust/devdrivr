@@ -41,6 +41,11 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # binary, which is why it is absent from src/lib/acknowledgments.ts.
 tauri-remote-ui = { version = "1.1", optional = true }
 
+# "Open With" on Windows and Linux launches a second process. This forwards its arguments to the
+# running window — see src/opened_files.rs.
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 # Rounding the window corners is an AppKit-level change (see src/window_corners.rs). These are
 # already in the dependency graph via tao/wry, so this pins names rather than pulling new crates.
 [target.'cfg(target_os = "macos")'.dependencies]
