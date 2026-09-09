@@ -377,18 +377,12 @@ const apiRequestAuthSchema = z.discriminatedUnion('type', [
 
 /**
  * WARNING: The API Client calls array methods on `headers` while it renders a request, so this
- * must return an array for every stored row.
+ * must return an array for every input.
  *
- * Rows written before the MCP tools normalised their input hold a flat header map. Recover those
+ * Values written before the MCP tools normalised their input hold a flat header map. Recover those
  * rather than dropping the request's headers.
  */
-function parseApiHeaders(value: string): ApiHeader[] {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch {
-    return []
-  }
+export function coerceApiHeaders(parsed: unknown): ApiHeader[] {
   const asArray = z.array(apiHeaderSchema).safeParse(parsed)
   if (asArray.success) return asArray.data
   const asMap = z.record(z.string(), z.string()).safeParse(parsed)
@@ -402,11 +396,23 @@ function parseApiHeaders(value: string): ApiHeader[] {
   return []
 }
 
-/** Falls back to no auth so an unrecognised stored shape never sends a malformed credential. */
+/** Falls back to no auth so an unrecognised shape never sends a malformed credential. */
+export function coerceApiRequestAuth(parsed: unknown): ApiRequestAuth {
+  const result = apiRequestAuthSchema.safeParse(parsed)
+  return result.success ? result.data : { type: 'none' }
+}
+
+function parseApiHeaders(value: string): ApiHeader[] {
+  try {
+    return coerceApiHeaders(JSON.parse(value))
+  } catch {
+    return []
+  }
+}
+
 function parseApiRequestAuth(value: string): ApiRequestAuth {
   try {
-    const result = apiRequestAuthSchema.safeParse(JSON.parse(value))
-    return result.success ? result.data : { type: 'none' }
+    return coerceApiRequestAuth(JSON.parse(value))
   } catch {
     return { type: 'none' }
   }
