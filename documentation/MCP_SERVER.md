@@ -177,8 +177,36 @@ regardless, which is the previous behaviour.
 
 ## Notes on list responses
 
-A list response carries `total`, `limit` and `hasMore` beside the records. Raise `limit` when
-`hasMore` is true. A `limit` of zero or less is rejected.
+A list response carries `total`, `limit`, `hasMore` and `nextCursor` beside the records:
+
+- `total` counts every record the filter matches, not the records on this page.
+- `hasMore` is true when more pages follow.
+- `nextCursor` is the token for the next page. It is null on the last page.
+- A `limit` of zero or less is rejected.
+
+Read the next page by passing `nextCursor` back as `cursor`. Treat the value as opaque:
+
+```text
+notes_list({ "query": "rust", "limit": 50 })
+notes_list({ "query": "rust", "limit": 50, "cursor": "<nextCursor from the previous page>" })
+```
+
+Keep `query` and `limit` the same across the pages of one walk. A page is read from the database by
+offset, so a write between two pages can repeat or skip one record.
+
+The `query` of a list is a case-insensitive substring, applied by the database to the named fields
+of the record:
+
+| Tool                    | Fields searched                             |
+| ----------------------- | ------------------------------------------- |
+| `notes_list`            | title, content, tags                        |
+| `snippets_list`         | title, description, content, language, tags |
+| `prompt_templates_list` | name, description, category, prompt, tags   |
+| `api_requests_list`     | name, method, url, body, headers            |
+| `api_collections_list`  | name                                        |
+| `resource_folders_list` | name                                        |
+
+Use `search` instead to rank results across resource types.
 
 ## Troubleshooting
 

@@ -54,8 +54,11 @@ pub struct DevdrivrMcpService {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ListArgs {
+    /// Case-insensitive substring, matched by the database against the named fields of the record.
     query: Option<String>,
     limit: Option<i64>,
+    /// The `nextCursor` of the previous page. Omit for the first page.
+    cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -158,6 +161,8 @@ struct TrashListArgs {
     types: Option<Vec<String>>,
     query: Option<String>,
     limit: Option<i64>,
+    /// The `nextCursor` of the previous page. Omit for the first page.
+    cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -372,8 +377,11 @@ struct ApiRequestUpdateArgs {
 #[serde(rename_all = "camelCase")]
 struct FolderListArgs {
     kind: Option<String>,
+    /// Case-insensitive substring, matched against the folder name.
     query: Option<String>,
     limit: Option<i64>,
+    /// The `nextCursor` of the previous page. Omit for the first page.
+    cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -2229,33 +2237,148 @@ Do not paste the raw API key into prompts. Keep it in `DEVDRIVR_MCP_KEY` or your
     )
 }
 
-fn matches_query(value: &Value, query: &Option<String>) -> bool {
-    let Some(query) = query
-        .as_ref()
-        .map(|q| q.trim().to_lowercase())
-        .filter(|q| !q.is_empty())
-    else {
+/// Case-insensitive substring match. The in-memory equal of the database `LIKE` filter.
+fn matches_text(text: &str, query: Option<&str>) -> bool {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
         return true;
     };
-    value.to_string().to_lowercase().contains(&query)
+    text.to_lowercase().contains(&query.to_lowercase())
+}
+
+fn matches_query(value: &Value, query: &Option<String>) -> bool {
+    matches_text(&value.to_string(), query.as_deref())
+}
+
+/// Turn a caller query into a `LIKE` pattern that matches a substring.
+///
+/// An absent or blank query becomes `%`, which matches every row. The three `LIKE` metacharacters
+/// are escaped, so a query containing `%` looks for a literal percent sign.
+fn like_pattern(query: Option<&str>) -> String {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return "%".to_string();
+    };
+    let mut pattern = String::with_capacity(query.len() + 2);
+    pattern.push('%');
+    for character in query.chars() {
+        if matches!(character, '\\' | '%' | '_') {
+            pattern.push('\\');
+        }
+        pattern.push(character);
+    }
+    pattern.push('%');
+    pattern
+}
+
+/// Match any of the named columns against the bound `LIKE` pattern.
+///
+/// WARNING: the column names are composed into SQL. Pass literals only.
+///
+/// `COALESCE` keeps a NULL column matchable. `NULL LIKE '%'` is NULL, not true, so a filter over
+/// one nullable column would hide every row that leaves it empty.
+fn like_any(columns: &[&str]) -> String {
+    columns
+        .iter()
+        .map(|column| format!(r"COALESCE({column}, '') LIKE $1 ESCAPE '\'"))
+        .collect::<Vec<_>>()
+        .join(" OR ")
+}
+
+/// One page of a list response.
+///
+/// WARNING: offset paging, not keyset paging. A write that lands between two page reads can repeat
+/// or skip one record. The database serves one desktop user, so pages are read faster than they
+/// are invalidated.
+#[derive(Debug, Clone, Copy)]
+struct PageRequest {
+    limit: usize,
+    offset: usize,
+}
+
+impl PageRequest {
+    fn parse(limit: Option<i64>, cursor: Option<&str>) -> std::result::Result<Self, McpError> {
+        Ok(Self {
+            limit: normalize_limit(limit)?,
+            offset: cursor.map(decode_cursor).transpose()?.unwrap_or(0),
+        })
+    }
+
+    /// Read one row past the page. A full page is then told from an exhausted one without a second
+    /// query.
+    fn probe_limit(self) -> i64 {
+        self.limit as i64 + 1
+    }
+
+    fn offset(self) -> i64 {
+        self.offset as i64
+    }
+}
+
+/// Encode the offset of the next page.
+///
+/// The encoding is hex so that a caller treats the value as opaque and passes it back unchanged
+/// instead of doing arithmetic on it.
+fn encode_cursor(offset: usize) -> String {
+    format!("offset:{offset}")
+        .bytes()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn decode_cursor(cursor: &str) -> std::result::Result<usize, McpError> {
+    let bad_cursor = || {
+        invalid_argument(
+            "cursor",
+            "cursor is not a cursor returned by this server",
+            &[
+                "Pass back the nextCursor value from the previous page",
+                "Omit cursor to read the first page",
+            ],
+        )
+    };
+    if !cursor.len().is_multiple_of(2) {
+        return Err(bad_cursor());
+    }
+    let bytes = (0..cursor.len())
+        .step_by(2)
+        .map(|start| u8::from_str_radix(&cursor[start..start + 2], 16))
+        .collect::<std::result::Result<Vec<u8>, _>>()
+        .map_err(|_| bad_cursor())?;
+    String::from_utf8(bytes)
+        .ok()
+        .and_then(|decoded| decoded.strip_prefix("offset:")?.parse::<usize>().ok())
+        .ok_or_else(bad_cursor)
 }
 
 /// Bound a list response and say what was cut.
 ///
+/// `values` holds up to one row more than the page, the probe row that proves more rows exist.
+///
 /// An absent limit means the default page, not the whole table. Without a default, listing ten
 /// thousand notes serialised every one of them into a single tool response.
-///
-/// `total` and `hasMore` let a client tell a short page from an exhausted one.
-fn list_payload(key: &str, mut values: Vec<Value>, limit: Option<i64>) -> McpResult {
-    let total = values.len();
-    let limit = normalize_limit(limit)?;
-    values.truncate(limit);
+fn page_payload(key: &str, mut values: Vec<Value>, page: PageRequest, total: i64) -> McpResult {
+    let has_more = values.len() > page.limit;
+    values.truncate(page.limit);
     to_json_text(json!({
         key: values,
         "total": total,
-        "limit": limit,
-        "hasMore": total > limit,
+        "limit": page.limit,
+        "hasMore": has_more,
+        "nextCursor": has_more.then(|| encode_cursor(page.offset + page.limit)),
     }))
+}
+
+/// Page a list the database cannot bound, such as one that merges several tables.
+///
+/// The whole list is already in memory here, so this only cuts the response. Prefer the paged SQL
+/// helpers for anything that grows with user data.
+fn page_in_memory(key: &str, values: Vec<Value>, page: PageRequest) -> McpResult {
+    let total = values.len() as i64;
+    let page_values = values
+        .into_iter()
+        .skip(page.offset)
+        .take(page.limit + 1)
+        .collect();
+    page_payload(key, page_values, page, total)
 }
 
 #[tool_router]
@@ -2554,6 +2677,43 @@ impl DevdrivrMcpService {
             // Deleting a prompt template removes the row, so there is nothing to list.
             ResourceType::PromptTemplates => Ok(Vec::new()),
         }
+    }
+
+    /// Count the matching rows, then read one page of them.
+    ///
+    /// WARNING: `filter` and `order` are composed into SQL. Build them from `like_any` and from
+    /// literals only. The caller query reaches the database as the single bound `LIKE` pattern.
+    ///
+    /// Both queries share one filter, so `total` always describes the page's own result set.
+    /// `order` must end in a unique column, or offset paging repeats a row across two pages.
+    async fn page_rows<Row>(
+        &self,
+        table: &str,
+        filter: &str,
+        order: &str,
+        query: Option<&str>,
+        page: PageRequest,
+    ) -> std::result::Result<(i64, Vec<Row>), McpError>
+    where
+        Row: for<'row> FromRow<'row, sqlx::sqlite::SqliteRow> + Send + Unpin,
+    {
+        let pattern = like_pattern(query);
+        let total =
+            sqlx::query_scalar::<_, i64>(&format!("SELECT COUNT(*) FROM {table} WHERE {filter}"))
+                .bind(&pattern)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(db_error)?;
+        let rows = sqlx::query_as::<_, Row>(&format!(
+            "SELECT * FROM {table} WHERE {filter} ORDER BY {order} LIMIT $2 OFFSET $3"
+        ))
+        .bind(&pattern)
+        .bind(page.probe_limit())
+        .bind(page.offset())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_error)?;
+        Ok((total, rows))
     }
 
     async fn fetch_resource_values(
@@ -3485,15 +3645,24 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr notes. Returns compact JSON note records.")]
     async fn notes_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
-        list_payload(
-            "notes",
-            self.fetch_resource_values(ResourceType::Notes)
-                .await?
-                .into_iter()
-                .filter(|value| matches_query(value, &args.query))
-                .collect(),
-            args.limit,
-        )
+        let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
+        let (total, rows) = self
+            .page_rows::<NoteRow>(
+                "notes",
+                &format!(
+                    "deleted_at IS NULL AND ({})",
+                    like_any(&["title", "content", "tags"])
+                ),
+                "pinned DESC, updated_at DESC, id ASC",
+                args.query.as_deref(),
+                page,
+            )
+            .await?;
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            values.push(self.note_value(row).await?);
+        }
+        page_payload("notes", values, page, total)
     }
 
     #[tool(description = "Get one devdrivr note by ID.")]
@@ -3698,15 +3867,24 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr snippets. Returns JSON snippet records.")]
     async fn snippets_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("snippets", "read").await?;
-        list_payload(
-            "snippets",
-            self.fetch_resource_values(ResourceType::Snippets)
-                .await?
-                .into_iter()
-                .filter(|value| matches_query(value, &args.query))
-                .collect(),
-            args.limit,
-        )
+        let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
+        let (total, rows) = self
+            .page_rows::<SnippetRow>(
+                "snippets",
+                &format!(
+                    "deleted_at IS NULL AND ({})",
+                    like_any(&["title", "description", "content", "language", "tags"])
+                ),
+                "updated_at DESC, id ASC",
+                args.query.as_deref(),
+                page,
+            )
+            .await?;
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            values.push(self.snippet_value(row).await?);
+        }
+        page_payload("snippets", values, page, total)
     }
 
     #[tool(description = "Get one devdrivr snippet by ID.")]
@@ -3873,19 +4051,21 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr prompt templates, including persisted built-ins.")]
     async fn prompt_templates_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("promptTemplates", "read").await?;
-        let rows = sqlx::query_as::<_, PromptTemplateRow>(
-            "SELECT * FROM user_prompt_templates ORDER BY author ASC, updated_at DESC",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_error)?;
-        list_payload(
+        let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
+        let (total, rows) = self
+            .page_rows::<PromptTemplateRow>(
+                "user_prompt_templates",
+                &like_any(&["name", "description", "category", "prompt", "tags"]),
+                "author ASC, updated_at DESC, id ASC",
+                args.query.as_deref(),
+                page,
+            )
+            .await?;
+        page_payload(
             "promptTemplates",
-            rows.into_iter()
-                .map(prompt_to_json)
-                .filter(|value| matches_query(value, &args.query))
-                .collect(),
-            args.limit,
+            rows.into_iter().map(prompt_to_json).collect(),
+            page,
+            total,
         )
     }
 
@@ -4094,14 +4274,16 @@ impl DevdrivrMcpService {
         .fetch_all(&self.pool)
         .await
         .map_err(db_error)?;
-        list_payload(
+        page_in_memory(
             "folders",
             rows.into_iter()
-                .filter(|folder| kinds.contains(&folder.kind.as_str()))
+                .filter(|folder| {
+                    kinds.contains(&folder.kind.as_str())
+                        && matches_text(&folder.name, args.query.as_deref())
+                })
                 .map(resource_folder_to_json)
-                .filter(|value| matches_query(value, &args.query))
                 .collect(),
-            args.limit,
+            PageRequest::parse(args.limit, args.cursor.as_deref())?,
         )
     }
 
@@ -4253,7 +4435,11 @@ impl DevdrivrMcpService {
             }
         }
         values.retain(|value| matches_query(value, &args.query));
-        list_payload("trashed", values, args.limit)
+        page_in_memory(
+            "trashed",
+            values,
+            PageRequest::parse(args.limit, args.cursor.as_deref())?,
+        )
     }
 
     #[tool(
@@ -4374,19 +4560,26 @@ impl DevdrivrMcpService {
     #[tool(description = "List API client collections for assigning saved requests.")]
     async fn api_collections_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
-        let rows = sqlx::query_as::<_, ApiCollectionRow>(
-            "SELECT collection.* FROM api_collections collection WHERE collection.deleted_at IS NULL AND (collection.parent_id IS NULL OR EXISTS (SELECT 1 FROM resource_folders parent WHERE parent.id = collection.parent_id AND parent.deleted_at IS NULL)) ORDER BY collection.name ASC",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_error)?;
-        list_payload(
+        let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
+        let (total, rows) = self
+            .page_rows::<ApiCollectionRow>(
+                "api_collections collection",
+                &format!(
+                    "collection.deleted_at IS NULL \
+                     AND (collection.parent_id IS NULL OR EXISTS (SELECT 1 FROM resource_folders parent WHERE parent.id = collection.parent_id AND parent.deleted_at IS NULL)) \
+                     AND ({})",
+                    like_any(&["collection.name"])
+                ),
+                "collection.name ASC, collection.id ASC",
+                args.query.as_deref(),
+                page,
+            )
+            .await?;
+        page_payload(
             "apiCollections",
-            rows.into_iter()
-                .map(api_collection_to_json)
-                .filter(|value| matches_query(value, &args.query))
-                .collect(),
-            args.limit,
+            rows.into_iter().map(api_collection_to_json).collect(),
+            page,
+            total,
         )
     }
 
@@ -4395,15 +4588,25 @@ impl DevdrivrMcpService {
     )]
     async fn api_requests_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
-        list_payload(
-            "apiRequests",
-            self.fetch_resource_values(ResourceType::ApiRequests)
-                .await?
-                .into_iter()
-                .filter(|value| matches_query(value, &args.query))
-                .collect(),
-            args.limit,
-        )
+        let expose_auth = self.settings.read().await.api_requests_expose_secrets;
+        let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
+        let (total, rows) = self
+            .page_rows::<ApiRequestRow>(
+                "api_requests",
+                &format!(
+                    "deleted_at IS NULL AND ({})",
+                    like_any(&["name", "method", "url", "body", "headers"])
+                ),
+                "name ASC, id ASC",
+                args.query.as_deref(),
+                page,
+            )
+            .await?;
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            values.push(self.api_request_value(row, expose_auth).await?);
+        }
+        page_payload("apiRequests", values, page, total)
     }
 
     #[tool(description = "Get one saved API client request by ID.")]
@@ -5162,6 +5365,171 @@ mod tests {
                 .await
                 .expect_err("zero limit must fail");
             assert!(error.message.contains("greater than zero"));
+        }
+    }
+
+    /// A list must read one page from the database, not the whole table.
+    ///
+    /// The filter and the page both belong in SQL. Loading every note to hydrate its folder path
+    /// and links, only to drop all but fifty, cost the same whether the caller asked for one
+    /// record or all of them.
+    mod list_paging {
+        use super::*;
+
+        fn list_args(value: Value) -> ListArgs {
+            serde_json::from_value(value).expect("list args")
+        }
+
+        async fn service_with_titles(titles: &[&str]) -> DevdrivrMcpService {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            for title in titles {
+                service
+                    .notes_create(Parameters(note_create_args(title)))
+                    .await
+                    .expect("create a note");
+            }
+            service
+        }
+
+        fn titles(payload: &Value) -> Vec<String> {
+            payload["notes"]
+                .as_array()
+                .expect("notes")
+                .iter()
+                .map(|note| note["title"].as_str().expect("title").to_string())
+                .collect()
+        }
+
+        #[tokio::test]
+        async fn a_cursor_walks_every_record_exactly_once() {
+            let service = service_with_titles(&["one", "two", "three", "four", "five"]).await;
+            let mut seen = Vec::new();
+            let mut cursor = Value::Null;
+
+            loop {
+                let mut args = json!({ "limit": 2 });
+                if let Some(cursor) = cursor.as_str() {
+                    args["cursor"] = json!(cursor);
+                }
+                let payload = result_json(
+                    &service
+                        .notes_list(Parameters(list_args(args)))
+                        .await
+                        .expect("list"),
+                );
+                assert_eq!(payload["total"], 5);
+                seen.extend(titles(&payload));
+                cursor = payload["nextCursor"].clone();
+                if cursor.is_null() {
+                    break;
+                }
+            }
+
+            seen.sort();
+            assert_eq!(seen, ["five", "four", "one", "three", "two"]);
+        }
+
+        #[tokio::test]
+        async fn the_last_page_carries_no_cursor() {
+            let service = service_with_titles(&["only"]).await;
+            let payload = result_json(
+                &service
+                    .notes_list(Parameters(list_args(json!({}))))
+                    .await
+                    .expect("list"),
+            );
+            assert_eq!(payload["hasMore"], false);
+            assert!(payload["nextCursor"].is_null());
+        }
+
+        #[tokio::test]
+        async fn a_query_counts_and_returns_only_the_matching_records() {
+            let service = service_with_titles(&["rust notes", "swift notes", "rust guide"]).await;
+            let payload = result_json(
+                &service
+                    .notes_list(Parameters(list_args(json!({ "query": "RUST" }))))
+                    .await
+                    .expect("list"),
+            );
+            // The count comes from the same filter as the page, so it must not report the table.
+            assert_eq!(payload["total"], 2);
+            let mut found = titles(&payload);
+            found.sort();
+            assert_eq!(found, ["rust guide", "rust notes"]);
+        }
+
+        #[tokio::test]
+        async fn a_wildcard_in_the_query_matches_itself() {
+            let service = service_with_titles(&["50% off", "50 percent off"]).await;
+            let payload = result_json(
+                &service
+                    .notes_list(Parameters(list_args(json!({ "query": "50%" }))))
+                    .await
+                    .expect("list"),
+            );
+            // Unescaped, `%` and `_` are LIKE wildcards, so this query would return both notes.
+            assert_eq!(titles(&payload), ["50% off"]);
+
+            let payload = result_json(
+                &service
+                    .notes_list(Parameters(list_args(json!({ "query": "50_percent" }))))
+                    .await
+                    .expect("list"),
+            );
+            assert_eq!(payload["total"], 0);
+        }
+
+        #[tokio::test]
+        async fn a_cursor_the_server_did_not_issue_is_rejected() {
+            let service = service_with_titles(&["one"]).await;
+            let error = service
+                .notes_list(Parameters(list_args(json!({ "cursor": "not-a-cursor" }))))
+                .await
+                .expect_err("a forged cursor must fail");
+            assert!(error.message.contains("cursor"));
+        }
+
+        #[tokio::test]
+        async fn every_list_tool_pages_the_same_way() {
+            let service = service_with_titles(&["one"]).await;
+            for (tool, key) in [
+                ("snippets", "snippets"),
+                ("promptTemplates", "promptTemplates"),
+                ("apiRequests", "apiRequests"),
+                ("apiCollections", "apiCollections"),
+            ] {
+                let payload = match tool {
+                    "snippets" => {
+                        service
+                            .snippets_list(Parameters(list_args(json!({}))))
+                            .await
+                    }
+                    "promptTemplates" => {
+                        service
+                            .prompt_templates_list(Parameters(list_args(json!({}))))
+                            .await
+                    }
+                    "apiRequests" => {
+                        service
+                            .api_requests_list(Parameters(list_args(json!({}))))
+                            .await
+                    }
+                    _ => {
+                        service
+                            .api_collections_list(Parameters(list_args(json!({}))))
+                            .await
+                    }
+                }
+                .expect("list");
+                let payload = result_json(&payload);
+                assert!(payload[key].is_array(), "{tool} must return {key}");
+                assert_eq!(payload["limit"], 50, "{tool} must apply the default page");
+                assert!(payload["total"].is_i64(), "{tool} must report a total");
+                assert_eq!(payload["hasMore"], false, "{tool} must report hasMore");
+            }
         }
     }
 
