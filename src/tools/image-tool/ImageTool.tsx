@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useToolState } from '@/hooks/useToolState'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { useUiStore } from '@/stores/ui.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { Button } from '@/components/shared/Button'
@@ -367,7 +368,25 @@ export default function ImageTool() {
       live = false
       clearTimeout(encodeTimer)
     }
-  }, [originalImg, state, setLastAction])
+    // Keyed on the fields the draw reads, not on the whole state object. `state` is a new object
+    // on every patch, so switching a tab or toggling the aspect lock redrew the canvas and
+    // restarted the encode for an output that could not have changed.
+  }, [
+    originalImg,
+    state.cropEnabled,
+    state.cropX,
+    state.cropY,
+    state.cropW,
+    state.cropH,
+    state.resizeW,
+    state.resizeH,
+    state.rotation,
+    state.flipX,
+    state.flipY,
+    state.format,
+    state.quality,
+    setLastAction,
+  ])
 
   // ── Resize helpers ─────────────────────────────────────────────
 
@@ -450,13 +469,18 @@ export default function ImageTool() {
     [displayMetrics, originalImg, state.cropX, state.cropY, state.cropW, state.cropH]
   )
 
-  const handleCropMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  /** Last rect handed to updateState. Guards a redraw for a crop that has not moved. */
+  const committedCropRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  // Every commit re-renders the tool, resizes the output canvas and redraws the image. A mouse
+  // delivers several moves per frame, and only the last one can paint, so only the last is applied.
+  const { run: scheduleCrop, flush: flushCrop } = useFrameThrottle(
+    (clientX: number, clientY: number) => {
       const drag = cropDragRef.current
       if (!drag) return
       const { displayScale, origW, origH } = drag
-      const dx = (e.clientX - drag.startMouseX) / displayScale
-      const dy = (e.clientY - drag.startMouseY) / displayScale
+      const dx = (clientX - drag.startMouseX) / displayScale
+      const dy = (clientY - drag.startMouseY) / displayScale
 
       let { x, y, w, h } = drag.startCrop
       switch (drag.handle) {
@@ -509,19 +533,44 @@ export default function ImageTool() {
 
       const next = clampCropRect({ x, y, w, h }, { maxW: origW, maxH: origH })
 
+      // Dragging past the image edge keeps producing the same clamped rect. Committing it again
+      // would redraw the canvas once a frame for a crop that is standing still.
+      const previous = committedCropRef.current
+      if (
+        previous &&
+        previous.x === next.x &&
+        previous.y === next.y &&
+        previous.w === next.w &&
+        previous.h === next.h
+      ) {
+        return
+      }
+      committedCropRef.current = next
+
       updateState({
         cropX: next.x,
         cropY: next.y,
         cropW: next.w,
         cropH: next.h,
       })
+    }
+  )
+
+  const handleCropMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!cropDragRef.current) return
+      scheduleCrop(e.clientX, e.clientY)
     },
-    [updateState]
+    [scheduleCrop]
   )
 
   const handleCropMouseUp = useCallback(() => {
+    // Land the last position before the drag is dropped, or the crop settles a frame behind
+    // where the pointer let go.
+    flushCrop()
     cropDragRef.current = null
-  }, [])
+    committedCropRef.current = null
+  }, [flushCrop])
 
   const handleCropKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
