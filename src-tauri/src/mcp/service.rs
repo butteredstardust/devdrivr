@@ -2283,6 +2283,66 @@ fn like_any(columns: &[&str]) -> String {
         .join(" OR ")
 }
 
+fn json_schema(value: Value) -> Arc<rmcp::model::JsonObject> {
+    Arc::new(
+        value
+            .as_object()
+            .cloned()
+            .expect("a schema is a JSON object"),
+    )
+}
+
+/// The schema of one page of a list, published so a client validates `structuredContent` instead
+/// of inferring the shape from a sample.
+///
+/// `key` names the array of records, which differs per tool.
+fn list_page_schema(key: &str) -> Arc<rmcp::model::JsonObject> {
+    json_schema(json!({
+        "type": "object",
+        "properties": {
+            key: {
+                "type": "array",
+                "items": { "type": "object" },
+                "description": "The records on this page.",
+            },
+            "total": {
+                "type": "integer",
+                "description": "Records the filter matches, across every page.",
+            },
+            "limit": { "type": "integer", "description": "Records this page can hold." },
+            "hasMore": { "type": "boolean", "description": "True when a page follows." },
+            "nextCursor": {
+                "type": ["string", "null"],
+                "description": "Pass back as `cursor` to read the next page. Null on the last page.",
+            },
+        },
+        "required": [key, "total", "limit", "hasMore"],
+    }))
+}
+
+/// The schema of a write receipt.
+///
+/// `record` rides along only when the read permission is granted, so it is not required.
+fn mutation_schema() -> Arc<rmcp::model::JsonObject> {
+    json_schema(json!({
+        "type": "object",
+        "properties": {
+            "id": { "type": "string", "description": "The record written." },
+            "resource": { "type": "string", "description": "The resource type written." },
+            "action": {
+                "type": "string",
+                "enum": ["create", "update"],
+                "description": "The write that was committed.",
+            },
+            "record": {
+                "type": "object",
+                "description": "The record as stored. Absent without the read permission.",
+            },
+        },
+        "required": ["id", "resource", "action"],
+    }))
+}
+
 fn resource_table(resource_type: ResourceType) -> &'static str {
     match resource_type {
         ResourceType::Notes => "notes",
@@ -3703,7 +3763,7 @@ impl DevdrivrMcpService {
         to_json_text(Value::Object(counts))
     }
 
-    #[tool(description = "List devdrivr notes. Returns compact JSON note records.")]
+    #[tool(description = "List devdrivr notes. Returns compact JSON note records.", output_schema = list_page_schema("notes"))]
     async fn notes_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
@@ -3737,7 +3797,7 @@ impl DevdrivrMcpService {
         to_json_text(self.note_value(row).await?)
     }
 
-    #[tool(description = "Create a devdrivr note.")]
+    #[tool(description = "Create a devdrivr note.", output_schema = mutation_schema())]
     async fn notes_create(&self, Parameters(args): Parameters<NoteCreateArgs>) -> McpResult {
         self.ensure_permission("notes", "create").await?;
         let id = Uuid::new_v4().to_string();
@@ -3796,7 +3856,7 @@ impl DevdrivrMcpService {
             .await
     }
 
-    #[tool(description = "Update a devdrivr note by ID.")]
+    #[tool(description = "Update a devdrivr note by ID.", output_schema = mutation_schema())]
     async fn notes_update(&self, Parameters(args): Parameters<NoteUpdateArgs>) -> McpResult {
         self.ensure_permission("notes", "update").await?;
         let current = sqlx::query_as::<_, NoteRow>(
@@ -3922,7 +3982,7 @@ impl DevdrivrMcpService {
         to_json_text(json!({ "trashed": true }))
     }
 
-    #[tool(description = "List devdrivr snippets. Returns JSON snippet records.")]
+    #[tool(description = "List devdrivr snippets. Returns JSON snippet records.", output_schema = list_page_schema("snippets"))]
     async fn snippets_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("snippets", "read").await?;
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
@@ -3956,7 +4016,7 @@ impl DevdrivrMcpService {
         to_json_text(self.snippet_value(row).await?)
     }
 
-    #[tool(description = "Create a devdrivr snippet.")]
+    #[tool(description = "Create a devdrivr snippet.", output_schema = mutation_schema())]
     async fn snippets_create(&self, Parameters(args): Parameters<SnippetCreateArgs>) -> McpResult {
         self.ensure_permission("snippets", "create").await?;
         let id = Uuid::new_v4().to_string();
@@ -3998,7 +4058,7 @@ impl DevdrivrMcpService {
             .await
     }
 
-    #[tool(description = "Update a devdrivr snippet by ID.")]
+    #[tool(description = "Update a devdrivr snippet by ID.", output_schema = mutation_schema())]
     async fn snippets_update(&self, Parameters(args): Parameters<SnippetUpdateArgs>) -> McpResult {
         self.ensure_permission("snippets", "update").await?;
         let current = sqlx::query_as::<_, SnippetRow>(
@@ -4103,7 +4163,7 @@ impl DevdrivrMcpService {
         to_json_text(json!({ "trashed": true }))
     }
 
-    #[tool(description = "List devdrivr prompt templates, including persisted built-ins.")]
+    #[tool(description = "List devdrivr prompt templates, including persisted built-ins.", output_schema = list_page_schema("promptTemplates"))]
     async fn prompt_templates_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("promptTemplates", "read").await?;
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
@@ -4138,7 +4198,7 @@ impl DevdrivrMcpService {
         to_json_text(prompt_to_json(row))
     }
 
-    #[tool(description = "Create a user-owned devdrivr prompt template.")]
+    #[tool(description = "Create a user-owned devdrivr prompt template.", output_schema = mutation_schema())]
     async fn prompt_templates_create(
         &self,
         Parameters(args): Parameters<PromptTemplateCreateArgs>,
@@ -4179,7 +4239,7 @@ impl DevdrivrMcpService {
             .await
     }
 
-    #[tool(description = "Update a user prompt template. Updating a built-in creates a user copy.")]
+    #[tool(description = "Update a user prompt template. Updating a built-in creates a user copy.", output_schema = mutation_schema())]
     async fn prompt_templates_update(
         &self,
         Parameters(args): Parameters<PromptTemplateUpdateArgs>,
@@ -4297,7 +4357,7 @@ impl DevdrivrMcpService {
 
     #[tool(
         description = "List shared resource folders. Filter by notes, snippets, or apiRequests; only folders allowed by the matching read permission are returned."
-    )]
+    , output_schema = list_page_schema("folders"))]
     async fn resource_folders_list(
         &self,
         Parameters(args): Parameters<FolderListArgs>,
@@ -4468,7 +4528,7 @@ impl DevdrivrMcpService {
 
     #[tool(
         description = "List records in devdrivr Trash. Prompt templates are deleted outright and never appear here."
-    )]
+    , output_schema = list_page_schema("trashed"))]
     async fn trash_list(&self, Parameters(args): Parameters<TrashListArgs>) -> McpResult {
         let resource_types = self.readable_resource_types(args.types).await?;
         let expose_auth = self.settings.read().await.api_requests_expose_secrets;
@@ -4612,7 +4672,7 @@ impl DevdrivrMcpService {
         }))
     }
 
-    #[tool(description = "List API client collections for assigning saved requests.")]
+    #[tool(description = "List API client collections for assigning saved requests.", output_schema = list_page_schema("apiCollections"))]
     async fn api_collections_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
@@ -4640,7 +4700,7 @@ impl DevdrivrMcpService {
 
     #[tool(
         description = "List saved API client requests. Auth secrets are redacted unless allowed."
-    )]
+    , output_schema = list_page_schema("apiRequests"))]
     async fn api_requests_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
         let expose_auth = self.settings.read().await.api_requests_expose_secrets;
@@ -4676,7 +4736,7 @@ impl DevdrivrMcpService {
         to_json_text(self.api_request_value(row, expose_auth).await?)
     }
 
-    #[tool(description = "Create a saved API client request. This does not execute the request.")]
+    #[tool(description = "Create a saved API client request. This does not execute the request.", output_schema = mutation_schema())]
     async fn api_requests_create(
         &self,
         Parameters(args): Parameters<ApiRequestCreateArgs>,
@@ -4717,7 +4777,7 @@ impl DevdrivrMcpService {
             .await
     }
 
-    #[tool(description = "Update a saved API client request by ID.")]
+    #[tool(description = "Update a saved API client request by ID.", output_schema = mutation_schema())]
     async fn api_requests_update(
         &self,
         Parameters(args): Parameters<ApiRequestUpdateArgs>,
@@ -5417,6 +5477,79 @@ mod tests {
                 .await
                 .expect_err("zero limit must fail");
             assert!(error.message.contains("greater than zero"));
+        }
+    }
+
+    /// A published output schema must describe what the tool really returns.
+    mod output_schemas {
+        use super::*;
+
+        fn tool_named(service: &DevdrivrMcpService, name: &str) -> rmcp::model::Tool {
+            service
+                .tool_router
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| panic!("{name} must be registered"))
+        }
+
+        async fn service() -> DevdrivrMcpService {
+            service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await
+        }
+
+        /// Every field the schema requires must be present in a real response, or a client that
+        /// validates rejects a correct answer.
+        #[tokio::test]
+        async fn a_list_response_carries_every_field_its_schema_requires() {
+            let service = service().await;
+            let schema = tool_named(&service, "notes_list")
+                .output_schema
+                .expect("notes_list must publish an output schema");
+            let payload = result_json(
+                &service
+                    .notes_list(Parameters(
+                        serde_json::from_value(json!({})).expect("list args"),
+                    ))
+                    .await
+                    .expect("list"),
+            );
+
+            let required = schema["required"].as_array().expect("required");
+            assert!(!required.is_empty());
+            for field in required {
+                let field = field.as_str().expect("field name");
+                assert!(
+                    payload.get(field).is_some(),
+                    "notes_list must return the required field {field}"
+                );
+            }
+            assert!(schema["properties"].get("notes").is_some());
+        }
+
+        #[tokio::test]
+        async fn a_write_receipt_carries_every_field_its_schema_requires() {
+            let service = service().await;
+            let schema = tool_named(&service, "notes_create")
+                .output_schema
+                .expect("notes_create must publish an output schema");
+            let payload = result_json(
+                &service
+                    .notes_create(Parameters(note_create_args("one")))
+                    .await
+                    .expect("create"),
+            );
+
+            for field in schema["required"].as_array().expect("required") {
+                let field = field.as_str().expect("field name");
+                assert!(
+                    payload.get(field).is_some(),
+                    "notes_create must return the required field {field}"
+                );
+            }
+            // `record` is optional, because a write-only client is never shown the record.
+            assert!(schema["properties"].get("record").is_some());
         }
     }
 
