@@ -197,16 +197,19 @@ offset, so a write between two pages can repeat or skip one record.
 The `query` of a list is a case-insensitive substring, applied by the database to the named fields
 of the record:
 
-| Tool                    | Fields searched                             |
-| ----------------------- | ------------------------------------------- |
-| `notes_list`            | title, content, tags                        |
-| `snippets_list`         | title, description, content, language, tags |
-| `prompt_templates_list` | name, description, category, prompt, tags   |
-| `api_requests_list`     | name, method, url, body, headers            |
-| `api_collections_list`  | name                                        |
-| `resource_folders_list` | name                                        |
+| Tool                    | Fields searched                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `notes_list`            | title, content, tags                                                                             |
+| `snippets_list`         | title, description, content, language, tags, and the name, content and language of each fragment |
+| `prompt_templates_list` | name, description, category, prompt, tags                                                        |
+| `api_requests_list`     | name, method, url, body, headers                                                                 |
+| `api_collections_list`  | name                                                                                             |
+| `resource_folders_list` | name                                                                                             |
 
-Use `search` instead to rank results across resource types.
+`search` applies the same field filter before it ranks results across resource types.
+
+Case is ignored for ASCII letters only. A query that differs from the stored text in the case of a
+non-ASCII letter does not match.
 
 ## Troubleshooting
 

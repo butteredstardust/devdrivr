@@ -2283,6 +2283,51 @@ fn like_any(columns: &[&str]) -> String {
         .join(" OR ")
 }
 
+fn resource_table(resource_type: ResourceType) -> &'static str {
+    match resource_type {
+        ResourceType::Notes => "notes",
+        ResourceType::Snippets => "snippets",
+        ResourceType::PromptTemplates => "user_prompt_templates",
+        ResourceType::ApiRequests => "api_requests",
+    }
+}
+
+/// The SQL filter for one resource type, applied to both a list and a search.
+///
+/// WARNING: names every field `searchable_text` reads. A field added to the score and not here is
+/// a record the score would have matched that the database never returns.
+fn resource_filter(resource_type: ResourceType) -> String {
+    match resource_type {
+        ResourceType::Notes => format!(
+            "deleted_at IS NULL AND ({})",
+            like_any(&["title", "content", "tags"])
+        ),
+        // A fragment holds its own name, content and language, so a snippet matches through one.
+        ResourceType::Snippets => format!(
+            "deleted_at IS NULL AND ({own} OR EXISTS (SELECT 1 FROM snippet_fragments fragment WHERE fragment.snippet_id = snippets.id AND ({fragment})))",
+            own = like_any(&["title", "description", "content", "language", "tags"]),
+            fragment = like_any(&["fragment.name", "fragment.content", "fragment.language"]),
+        ),
+        ResourceType::PromptTemplates => {
+            like_any(&["name", "description", "category", "prompt", "tags"])
+        }
+        ResourceType::ApiRequests => format!(
+            "deleted_at IS NULL AND ({})",
+            like_any(&["name", "method", "url", "body", "headers"])
+        ),
+    }
+}
+
+/// The order of one resource type. Ends in a unique column, so offset paging never repeats a row.
+fn resource_order(resource_type: ResourceType) -> &'static str {
+    match resource_type {
+        ResourceType::Notes => "pinned DESC, updated_at DESC, id ASC",
+        ResourceType::Snippets => "updated_at DESC, id ASC",
+        ResourceType::PromptTemplates => "author ASC, updated_at DESC, id ASC",
+        ResourceType::ApiRequests => "name ASC, id ASC",
+    }
+}
+
 /// One page of a list response.
 ///
 /// WARNING: offset paging, not keyset paging. A write that lands between two page reads can repeat
@@ -2716,18 +2761,34 @@ impl DevdrivrMcpService {
         Ok((total, rows))
     }
 
+    /// Read every record of one type that matches `query`, hydrated for scoring.
+    ///
+    /// The database applies the filter, so a search hydrates the matching records only. Hydrating
+    /// a note reads its folder path and its links, which made an unfiltered read cost one query
+    /// per record in the table.
+    ///
+    /// An absent query still reads the whole type. Search ranks across all candidates, so it
+    /// cannot stop early.
     async fn fetch_resource_values(
         &self,
         resource_type: ResourceType,
+        query: Option<&str>,
     ) -> std::result::Result<Vec<Value>, McpError> {
+        let filter = resource_filter(resource_type);
+        let order = resource_order(resource_type);
+        let pattern = like_pattern(query);
+        let sql = format!(
+            "SELECT * FROM {table} WHERE {filter} ORDER BY {order}",
+            table = resource_table(resource_type)
+        );
+
         match resource_type {
             ResourceType::Notes => {
-                let rows = sqlx::query_as::<_, NoteRow>(
-                    "SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC",
-                )
-                .fetch_all(&self.pool)
-                .await
-                .map_err(db_error)?;
+                let rows = sqlx::query_as::<_, NoteRow>(&sql)
+                    .bind(&pattern)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_error)?;
                 let mut values = Vec::with_capacity(rows.len());
                 for row in rows {
                     values.push(self.note_value(row).await?);
@@ -2735,33 +2796,30 @@ impl DevdrivrMcpService {
                 Ok(values)
             }
             ResourceType::Snippets => {
-                let rows = sqlx::query_as::<_, SnippetRow>(
-                    "SELECT * FROM snippets WHERE deleted_at IS NULL ORDER BY updated_at DESC",
-                )
-                .fetch_all(&self.pool)
-                .await
-                .map_err(db_error)?;
+                let rows = sqlx::query_as::<_, SnippetRow>(&sql)
+                    .bind(&pattern)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_error)?;
                 let mut values = Vec::with_capacity(rows.len());
                 for row in rows {
                     values.push(self.snippet_value(row).await?);
                 }
                 Ok(values)
             }
-            ResourceType::PromptTemplates => sqlx::query_as::<_, PromptTemplateRow>(
-                "SELECT * FROM user_prompt_templates ORDER BY author ASC, updated_at DESC",
-            )
-            .fetch_all(&self.pool)
-            .await
-            .map(|rows| rows.into_iter().map(prompt_to_json).collect())
-            .map_err(db_error),
-            ResourceType::ApiRequests => {
-                let expose_auth = self.settings.read().await.api_requests_expose_secrets;
-                let rows = sqlx::query_as::<_, ApiRequestRow>(
-                    "SELECT * FROM api_requests WHERE deleted_at IS NULL ORDER BY name ASC",
-                )
+            ResourceType::PromptTemplates => sqlx::query_as::<_, PromptTemplateRow>(&sql)
+                .bind(&pattern)
                 .fetch_all(&self.pool)
                 .await
-                .map_err(db_error)?;
+                .map(|rows| rows.into_iter().map(prompt_to_json).collect())
+                .map_err(db_error),
+            ResourceType::ApiRequests => {
+                let expose_auth = self.settings.read().await.api_requests_expose_secrets;
+                let rows = sqlx::query_as::<_, ApiRequestRow>(&sql)
+                    .bind(&pattern)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(db_error)?;
                 let mut values = Vec::with_capacity(rows.len());
                 for row in rows {
                     values.push(self.api_request_value(row, expose_auth).await?);
@@ -3348,7 +3406,10 @@ impl DevdrivrMcpService {
         let mut candidates = Vec::new();
 
         for resource_type in resource_types {
-            for value in self.fetch_resource_values(resource_type).await? {
+            for value in self
+                .fetch_resource_values(resource_type, args.query.as_deref())
+                .await?
+            {
                 if let Some(candidate) = build_search_candidate(
                     resource_type,
                     value,
@@ -3648,12 +3709,9 @@ impl DevdrivrMcpService {
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
         let (total, rows) = self
             .page_rows::<NoteRow>(
-                "notes",
-                &format!(
-                    "deleted_at IS NULL AND ({})",
-                    like_any(&["title", "content", "tags"])
-                ),
-                "pinned DESC, updated_at DESC, id ASC",
+                resource_table(ResourceType::Notes),
+                &resource_filter(ResourceType::Notes),
+                resource_order(ResourceType::Notes),
                 args.query.as_deref(),
                 page,
             )
@@ -3870,12 +3928,9 @@ impl DevdrivrMcpService {
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
         let (total, rows) = self
             .page_rows::<SnippetRow>(
-                "snippets",
-                &format!(
-                    "deleted_at IS NULL AND ({})",
-                    like_any(&["title", "description", "content", "language", "tags"])
-                ),
-                "updated_at DESC, id ASC",
+                resource_table(ResourceType::Snippets),
+                &resource_filter(ResourceType::Snippets),
+                resource_order(ResourceType::Snippets),
                 args.query.as_deref(),
                 page,
             )
@@ -4054,9 +4109,9 @@ impl DevdrivrMcpService {
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
         let (total, rows) = self
             .page_rows::<PromptTemplateRow>(
-                "user_prompt_templates",
-                &like_any(&["name", "description", "category", "prompt", "tags"]),
-                "author ASC, updated_at DESC, id ASC",
+                resource_table(ResourceType::PromptTemplates),
+                &resource_filter(ResourceType::PromptTemplates),
+                resource_order(ResourceType::PromptTemplates),
                 args.query.as_deref(),
                 page,
             )
@@ -4592,12 +4647,9 @@ impl DevdrivrMcpService {
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
         let (total, rows) = self
             .page_rows::<ApiRequestRow>(
-                "api_requests",
-                &format!(
-                    "deleted_at IS NULL AND ({})",
-                    like_any(&["name", "method", "url", "body", "headers"])
-                ),
-                "name ASC, id ASC",
+                resource_table(ResourceType::ApiRequests),
+                &resource_filter(ResourceType::ApiRequests),
+                resource_order(ResourceType::ApiRequests),
                 args.query.as_deref(),
                 page,
             )
@@ -5365,6 +5417,72 @@ mod tests {
                 .await
                 .expect_err("zero limit must fail");
             assert!(error.message.contains("greater than zero"));
+        }
+    }
+
+    /// The database applies the search filter, so it must match every field the score reads.
+    mod search_filter {
+        use super::*;
+
+        async fn service_with_snippet(value: Value) -> DevdrivrMcpService {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            service
+                .snippets_create(Parameters(
+                    serde_json::from_value(value).expect("snippet create args"),
+                ))
+                .await
+                .expect("create a snippet");
+            service
+        }
+
+        async fn search_titles(service: &DevdrivrMcpService, query: &str) -> Vec<String> {
+            let payload = result_json(
+                &service
+                    .search(Parameters(
+                        serde_json::from_value(json!({ "query": query, "types": ["snippets"] }))
+                            .expect("search args"),
+                    ))
+                    .await
+                    .expect("search"),
+            );
+            payload["results"]
+                .as_array()
+                .expect("results")
+                .iter()
+                .map(|result| result["title"].as_str().unwrap_or_default().to_string())
+                .collect()
+        }
+
+        /// A fragment holds its own text. Filtering on the snippet columns alone would hide a
+        /// snippet whose only match is inside a fragment.
+        #[tokio::test]
+        async fn a_snippet_matches_through_its_fragment() {
+            let service = service_with_snippet(json!({
+                "title": "helpers",
+                "fragments": [
+                    { "name": "setup", "content": "connect to sqlite", "language": "rust" },
+                    { "name": "teardown", "content": "close the pool", "language": "rust" }
+                ]
+            }))
+            .await;
+
+            assert_eq!(search_titles(&service, "teardown").await, ["helpers"]);
+            assert_eq!(search_titles(&service, "close the pool").await, ["helpers"]);
+        }
+
+        #[tokio::test]
+        async fn a_snippet_that_matches_nothing_is_not_returned() {
+            let service = service_with_snippet(json!({
+                "title": "helpers",
+                "content": "connect to sqlite",
+                "language": "rust"
+            }))
+            .await;
+
+            assert!(search_titles(&service, "postgres").await.is_empty());
         }
     }
 
