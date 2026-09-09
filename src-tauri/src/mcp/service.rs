@@ -789,10 +789,6 @@ fn estimated_tokens(prompt: &str) -> i64 {
     std::cmp::max(1, (prompt.chars().count() as i64 + 3) / 4)
 }
 
-fn value_to_db_json(value: Option<Value>, fallback: Value) -> String {
-    serde_json::to_string(&value.unwrap_or(fallback)).unwrap_or_else(|_| "[]".to_string())
-}
-
 fn string_vec_to_db_json(value: Option<Vec<String>>) -> String {
     serde_json::to_string(&value.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string())
 }
@@ -971,6 +967,106 @@ fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, 
         }
     };
     Ok(serde_json::to_string(&Value::Array(entries)).unwrap_or_else(|_| "[]".to_string()))
+}
+
+fn invalid_prompt_variables(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "variables",
+        message,
+        &[
+            "Send an array of {\"name\": \"code\", \"label\": \"Code\", \"type\": \"text\"} objects",
+            "Use type text, textarea or select",
+            "Give every select variable a non-empty options array",
+        ],
+    )
+}
+
+fn normalize_prompt_variable(variable: Value) -> std::result::Result<Value, McpError> {
+    let Value::Object(obj) = variable else {
+        return Err(invalid_prompt_variables(
+            "Every variable must be an object with a name",
+        ));
+    };
+    let name = obj
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| invalid_prompt_variables("Every variable needs a non-empty name"))?
+        .to_string();
+    let label = obj
+        .get("label")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .map_or_else(|| name.clone(), str::to_string);
+    let variable_type = obj.get("type").and_then(Value::as_str).unwrap_or("text");
+    if !matches!(variable_type, "text" | "textarea" | "select") {
+        return Err(invalid_prompt_variables(format!(
+            "Variable {name} has unsupported type {variable_type}"
+        )));
+    }
+
+    let mut normalized = serde_json::Map::new();
+    normalized.insert("name".to_string(), Value::String(name.clone()));
+    normalized.insert("label".to_string(), Value::String(label));
+    normalized.insert("type".to_string(), Value::String(variable_type.to_string()));
+
+    let options: Vec<Value> = match obj.get("options") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|item| {
+                item.as_str().map(str::trim).map(str::to_string).ok_or_else(|| {
+                    invalid_prompt_variables(format!("Variable {name} needs text options"))
+                })
+            })
+            .filter(|option| option.as_ref().is_ok_and(|option| !option.is_empty()))
+            .map(|option| option.map(Value::String))
+            .collect::<std::result::Result<Vec<_>, _>>()?,
+        Some(_) => {
+            return Err(invalid_prompt_variables(format!(
+                "Variable {name} needs options as an array of strings"
+            )))
+        }
+    };
+    if variable_type == "select" && options.is_empty() {
+        return Err(invalid_prompt_variables(format!(
+            "Select variable {name} needs at least one option"
+        )));
+    }
+    if !options.is_empty() {
+        normalized.insert("options".to_string(), Value::Array(options));
+    }
+
+    if let Some(placeholder) = obj.get("placeholder").and_then(Value::as_str) {
+        if !placeholder.is_empty() {
+            normalized.insert(
+                "placeholder".to_string(),
+                Value::String(placeholder.to_string()),
+            );
+        }
+    }
+    if let Some(required) = obj.get("required").and_then(Value::as_bool) {
+        normalized.insert("required".to_string(), Value::Bool(required));
+    }
+    Ok(Value::Object(normalized))
+}
+
+/// WARNING: Prompt Templates drops any stored variable it cannot recognise, so an unchecked write
+/// makes an import look successful while the template loses every field the user must fill.
+///
+/// Apply the rules the tool's own import applies, and reject what it would reject.
+fn normalize_prompt_variables(variables: Option<Value>) -> std::result::Result<String, McpError> {
+    let normalized = match variables {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .into_iter()
+            .map(normalize_prompt_variable)
+            .collect::<std::result::Result<Vec<_>, _>>()?,
+        Some(_) => return Err(invalid_prompt_variables("Variables must be an array")),
+    };
+    Ok(serde_json::to_string(&Value::Array(normalized)).unwrap_or_else(|_| "[]".to_string()))
 }
 
 fn invalid_api_auth(message: impl Into<String>) -> McpError {
@@ -3234,7 +3330,7 @@ impl DevdrivrMcpService {
         .bind(args.category.unwrap_or_else(|| "productivity".to_string()))
         .bind(string_vec_to_db_json(args.tags))
         .bind(&args.prompt)
-        .bind(value_to_db_json(args.variables, json!([])))
+        .bind(normalize_prompt_variables(args.variables)?)
         .bind(estimated_tokens(&args.prompt))
         .bind(args.optimized_for.unwrap_or_else(|| "Generic".to_string()))
         .bind(args.version.unwrap_or_else(|| "1.0.0".to_string()))
@@ -3269,10 +3365,10 @@ impl DevdrivrMcpService {
         };
         let now = now_ms();
         let prompt = args.prompt.unwrap_or(current.prompt);
-        let variables = args
-            .variables
-            .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
-            .unwrap_or(current.variables_schema);
+        let variables = match args.variables {
+            Some(value) => normalize_prompt_variables(Some(value))?,
+            None => current.variables_schema,
+        };
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -3951,6 +4047,38 @@ mod tests {
 
         assert!(value.get("deletedAt").is_none());
         assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn prompt_variables_normalize_to_the_shape_the_tool_renders() {
+        let normalized = normalize_prompt_variables(Some(json!([
+            { "name": " code ", "type": "textarea", "required": true },
+            { "name": "lang", "label": "Language", "type": "select", "options": ["ts", " ", "rs"] },
+        ])))
+        .expect("normalize");
+
+        assert_eq!(
+            parse_json(&normalized, json!([])),
+            json!([
+                { "name": "code", "label": "code", "type": "textarea", "required": true },
+                { "name": "lang", "label": "Language", "type": "select", "options": ["ts", "rs"] },
+            ])
+        );
+        assert_eq!(normalize_prompt_variables(None).expect("absent"), "[]");
+    }
+
+    #[test]
+    fn prompt_variables_reject_what_the_tool_would_discard() {
+        assert!(normalize_prompt_variables(Some(json!({ "code": "text" }))).is_err());
+        assert!(normalize_prompt_variables(Some(json!([{ "label": "No name" }]))).is_err());
+        assert!(normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err());
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "select" }]))).is_err()
+        );
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "x", "type": "select", "options": [" "] }])
+        ))
+        .is_err());
     }
 
     #[test]
