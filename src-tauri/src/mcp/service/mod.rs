@@ -2,7 +2,7 @@ use std::{cmp::Ordering, sync::Arc, time::Duration};
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ServerCapabilities, ServerInfo},
     schemars, tool, tool_router, ErrorData as McpError, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,18 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use super::types::{McpDataChangedEvent, McpSettings, ResourcePermissions};
+
+mod args;
+mod errors;
+mod paging;
+mod rows;
+mod validation;
+
+use args::*;
+use errors::*;
+use paging::*;
+use rows::*;
+use validation::*;
 
 type SharedSettings = Arc<RwLock<McpSettings>>;
 type McpResult = std::result::Result<CallToolResult, McpError>;
@@ -50,29 +62,6 @@ pub struct DevdrivrMcpService {
     /// change event is dropped instead of emitted.
     app: Option<AppHandle>,
     tool_router: ToolRouter<Self>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ListArgs {
-    /// Case-insensitive substring, matched by the database against the named fields of the record.
-    query: Option<String>,
-    limit: Option<i64>,
-    /// The `nextCursor` of the previous page. Omit for the first page.
-    cursor: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct IdArgs {
-    id: String,
-}
-
-/// WARNING: `expected_updated_at` is optional. Omitting it deletes whatever the record now holds.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct DeleteArgs {
-    id: String,
-    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
-    expected_updated_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -122,405 +111,6 @@ enum SearchSort {
     CreatedAsc,
 }
 
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct SearchArgs {
-    query: Option<String>,
-    types: Option<Vec<String>>,
-    tags: Option<Vec<String>>,
-    created_after: Option<i64>,
-    created_before: Option<i64>,
-    updated_after: Option<i64>,
-    updated_before: Option<i64>,
-    limit: Option<i64>,
-    sort: Option<SearchSort>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ResourceId {
-    #[serde(rename = "type")]
-    resource_type: String,
-    id: String,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct MultiGetArgs {
-    ids: Vec<ResourceId>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct CountsArgs {
-    types: Option<Vec<String>>,
-}
-
-/// WARNING: prompt templates are deleted outright and never appear in trash.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct TrashListArgs {
-    /// Resource types to include. Omit for every readable type that supports trash.
-    types: Option<Vec<String>>,
-    query: Option<String>,
-    limit: Option<i64>,
-    /// The `nextCursor` of the previous page. Omit for the first page.
-    cursor: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct TrashRestoreArgs {
-    /// One of `notes`, `snippets`, `apiRequests`.
-    #[serde(rename = "type")]
-    resource_type: String,
-    id: String,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct HelpArgs {
-    topic: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct NoteCreateArgs {
-    title: Option<String>,
-    content: Option<String>,
-    color: Option<String>,
-    pinned: Option<bool>,
-    tags: Option<Vec<String>>,
-    folder_id: Option<String>,
-    task_status: Option<String>,
-    task_priority: Option<String>,
-    task_due_date: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct NoteUpdateArgs {
-    id: String,
-    title: Option<String>,
-    content: Option<String>,
-    color: Option<String>,
-    pinned: Option<bool>,
-    tags: Option<Vec<String>>,
-    folder_id: Option<String>,
-    task_status: Option<String>,
-    task_priority: Option<String>,
-    task_due_date: Option<String>,
-    clear_task_metadata: Option<bool>,
-    clear_task_priority: Option<bool>,
-    clear_task_due_date: Option<bool>,
-    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
-    expected_updated_at: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct SnippetCreateArgs {
-    title: String,
-    content: Option<String>,
-    language: Option<String>,
-    description: Option<String>,
-    fragments: Option<Vec<SnippetFragmentInput>>,
-    tags: Option<Vec<String>>,
-    folder_id: Option<String>,
-    folder: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct SnippetUpdateArgs {
-    id: String,
-    title: Option<String>,
-    content: Option<String>,
-    language: Option<String>,
-    description: Option<String>,
-    fragments: Option<Vec<SnippetFragmentInput>>,
-    tags: Option<Vec<String>>,
-    folder_id: Option<String>,
-    folder: Option<String>,
-    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
-    expected_updated_at: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct SnippetFragmentInput {
-    id: Option<String>,
-    name: String,
-    content: String,
-    language: Option<String>,
-}
-
-fn normalize_snippet_fragments(
-    fragments: Option<Vec<SnippetFragmentInput>>,
-    legacy_content: Option<String>,
-    legacy_language: Option<String>,
-) -> std::result::Result<Vec<(String, String, String, String)>, McpError> {
-    let Some(fragments) = fragments else {
-        return Ok(vec![(
-            Uuid::new_v4().to_string(),
-            "main".to_string(),
-            legacy_content.unwrap_or_default(),
-            legacy_language.unwrap_or_else(|| "text".to_string()),
-        )]);
-    };
-    if fragments.is_empty() || fragments.len() > 100 {
-        return Err(invalid_argument(
-            "fragments",
-            "A snippet must contain between 1 and 100 fragments",
-            &["Supply at least one fragment and no more than 100"],
-        ));
-    }
-    // A caller may send the IDs it read back, so an update keeps fragment identity. Two
-    // fragments carrying one ID would write a single row and drop the other without a word.
-    let mut seen_ids = std::collections::HashSet::new();
-    fragments
-        .into_iter()
-        .enumerate()
-        .map(|(index, fragment)| {
-            let name = fragment.name.trim().to_string();
-            if name.is_empty() {
-                return Err(invalid_argument(
-                    "fragments",
-                    format!("Fragment {} has an empty name", index + 1),
-                    &["Give every fragment a readable name"],
-                ));
-            }
-            let id = fragment
-                .id
-                .map(|id| id.trim().to_string())
-                .filter(|id| !id.is_empty())
-                .unwrap_or_else(|| Uuid::new_v4().to_string());
-            if !seen_ids.insert(id.clone()) {
-                return Err(invalid_argument(
-                    "fragments",
-                    format!("Fragment {} repeats the id `{id}`", index + 1),
-                    &[
-                        "Give every fragment its own id",
-                        "Omit `id` to have devdrivr assign one",
-                    ],
-                ));
-            }
-            Ok((
-                id,
-                name,
-                fragment.content,
-                fragment.language.unwrap_or_else(|| "text".to_string()),
-            ))
-        })
-        .collect()
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct PromptTemplateCreateArgs {
-    name: String,
-    description: Option<String>,
-    category: Option<String>,
-    tags: Option<Vec<String>>,
-    prompt: String,
-    variables: Option<Value>,
-    optimized_for: Option<String>,
-    version: Option<String>,
-    tips: Option<Vec<String>>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct PromptTemplateUpdateArgs {
-    id: String,
-    name: Option<String>,
-    description: Option<String>,
-    category: Option<String>,
-    tags: Option<Vec<String>>,
-    prompt: Option<String>,
-    variables: Option<Value>,
-    optimized_for: Option<String>,
-    version: Option<String>,
-    tips: Option<Vec<String>>,
-    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
-    expected_updated_at: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct ApiRequestCreateArgs {
-    folder_id: Option<String>,
-    collection_id: Option<String>,
-    name: String,
-    method: String,
-    url: String,
-    headers: Option<Value>,
-    body: Option<String>,
-    body_mode: Option<String>,
-    auth: Option<Value>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct ApiRequestUpdateArgs {
-    id: String,
-    folder_id: Option<String>,
-    collection_id: Option<String>,
-    name: Option<String>,
-    method: Option<String>,
-    url: Option<String>,
-    headers: Option<Value>,
-    body: Option<String>,
-    body_mode: Option<String>,
-    auth: Option<Value>,
-    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
-    expected_updated_at: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct FolderListArgs {
-    kind: Option<String>,
-    /// Case-insensitive substring, matched against the folder name.
-    query: Option<String>,
-    limit: Option<i64>,
-    /// The `nextCursor` of the previous page. Omit for the first page.
-    cursor: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct FolderCreateArgs {
-    name: String,
-    kind: String,
-    parent_id: Option<String>,
-    default_language: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct FolderUpdateArgs {
-    id: String,
-    name: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_string")]
-    default_language: Option<Option<String>>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct FolderMoveArgs {
-    id: String,
-    parent_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct EmptyTrashArgs {
-    kind: String,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct NoteRow {
-    id: String,
-    title: String,
-    content: String,
-    color: String,
-    pinned: i64,
-    popped_out: i64,
-    window_x: Option<f64>,
-    window_y: Option<f64>,
-    window_width: Option<f64>,
-    window_height: Option<f64>,
-    created_at: i64,
-    updated_at: i64,
-    tags: Option<String>,
-    folder_id: Option<String>,
-    deleted_at: Option<i64>,
-    task_status: Option<String>,
-    task_priority: Option<String>,
-    task_due_date: Option<String>,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct SnippetRow {
-    id: String,
-    title: String,
-    content: String,
-    language: String,
-    description: String,
-    tags: String,
-    folder: String,
-    folder_id: Option<String>,
-    created_at: i64,
-    updated_at: i64,
-    deleted_at: Option<i64>,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct SnippetFragmentRow {
-    id: String,
-    name: String,
-    content: String,
-    language: String,
-    sort_order: i64,
-    created_at: i64,
-    updated_at: i64,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct PromptTemplateRow {
-    id: String,
-    name: String,
-    description: String,
-    category: String,
-    tags: String,
-    prompt: String,
-    variables_schema: String,
-    estimated_tokens: i64,
-    optimized_for: String,
-    author: String,
-    version: String,
-    tips: String,
-    created_at: i64,
-    updated_at: i64,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct ApiCollectionRow {
-    id: String,
-    name: String,
-    parent_id: Option<String>,
-    sort_order: f64,
-    created_at: i64,
-    updated_at: i64,
-    deleted_at: Option<i64>,
-}
-
-#[derive(Debug, Serialize, FromRow)]
-struct ApiRequestRow {
-    id: String,
-    collection_id: Option<String>,
-    name: String,
-    method: String,
-    url: String,
-    headers: String,
-    body: String,
-    body_mode: String,
-    auth: String,
-    created_at: i64,
-    updated_at: i64,
-    deleted_at: Option<i64>,
-}
-
-#[derive(Debug, Clone, FromRow)]
-struct ResourceFolderRow {
-    id: String,
-    name: String,
-    parent_id: Option<String>,
-    kind: String,
-    sort_order: f64,
-    default_language: Option<String>,
-    created_at: i64,
-    updated_at: i64,
-    deleted_at: Option<i64>,
-}
-
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -545,22 +135,6 @@ where
 
 fn parse_json(value: &str, fallback: Value) -> Value {
     serde_json::from_str(value).unwrap_or(fallback)
-}
-
-/// Return one payload twice: as the text block every client can read, and as
-/// `structuredContent` for a client that would otherwise parse the text back into JSON.
-///
-/// Only an object becomes structured content. The protocol allows nothing else there.
-fn to_json_text(value: Value) -> McpResult {
-    let structured_content = value.is_object().then(|| value.clone());
-    serde_json::to_string_pretty(&value)
-        .map(|text| CallToolResult {
-            content: vec![Content::text(text)],
-            structured_content,
-            is_error: Some(false),
-            meta: None,
-        })
-        .map_err(|err| McpError::internal_error(err.to_string(), None))
 }
 
 fn error_data(
@@ -592,23 +166,6 @@ fn error_data(
     data
 }
 
-fn db_error(err: sqlx::Error) -> McpError {
-    McpError::internal_error(
-        format!("Database error: {err}"),
-        Some(error_data(
-            "DATABASE_ERROR",
-            None,
-            None,
-            None,
-            None,
-            &[
-                "Verify devdrivr can open its local database",
-                "Restart the devdrivr app and retry the MCP request",
-            ],
-        )),
-    )
-}
-
 fn resource_display_name(resource: &str) -> &str {
     match resource {
         "notes" => "note",
@@ -617,86 +174,6 @@ fn resource_display_name(resource: &str) -> &str {
         "apiRequests" => "API request",
         other => other,
     }
-}
-
-fn not_found(resource: &str, id: &str) -> McpError {
-    McpError::resource_not_found(
-        format!("{} not found", resource_display_name(resource)),
-        Some(error_data(
-            "RESOURCE_NOT_FOUND",
-            Some(resource),
-            Some("read"),
-            Some(id),
-            None,
-            &[
-                "Check the resource ID and type",
-                "Use search or the matching list tool to find current resource IDs",
-            ],
-        )),
-    )
-}
-
-fn permission_denied(resource: &str, action: &str) -> McpError {
-    McpError::invalid_request(
-        format!("Permission denied: {resource}.{action}"),
-        Some(error_data(
-            "PERMISSION_DENIED",
-            Some(resource),
-            Some(action),
-            None,
-            None,
-            &[
-                "Enable the matching permission in Settings > MCP > Permissions",
-                "Restart or apply MCP settings after changing permissions",
-                "Check that the agent is using the current devdrivr MCP API key",
-            ],
-        )),
-    )
-}
-
-fn invalid_argument(argument: &str, message: impl Into<String>, suggestions: &[&str]) -> McpError {
-    McpError::invalid_request(
-        message.into(),
-        Some(error_data(
-            "INVALID_ARGUMENT",
-            None,
-            None,
-            None,
-            Some(argument),
-            suggestions,
-        )),
-    )
-}
-
-fn batch_too_large(argument: &str, count: usize, max: usize) -> McpError {
-    McpError::invalid_request(
-        format!("{argument} contains {count} items; maximum is {max}"),
-        Some(error_data(
-            "BATCH_TOO_LARGE",
-            None,
-            None,
-            None,
-            Some(argument),
-            &[
-                "Split the request into smaller batches",
-                "Use search filters to narrow the resource set before fetching details",
-            ],
-        )),
-    )
-}
-
-fn resource_limit(message: impl Into<String>, suggestions: &[&str]) -> McpError {
-    McpError::invalid_request(
-        message.into(),
-        Some(error_data(
-            "RESOURCE_LIMIT",
-            None,
-            None,
-            None,
-            None,
-            suggestions,
-        )),
-    )
 }
 
 /// Reject a tool argument that is too large to process.
@@ -747,44 +224,6 @@ fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(),
     }
 }
 
-fn tool_timed_out(name: &str) -> McpError {
-    McpError::internal_error(
-        format!(
-            "Tool `{name}` did not finish within {}s",
-            TOOL_TIMEOUT.as_secs()
-        ),
-        Some(error_data(
-            "TIMEOUT",
-            None,
-            None,
-            None,
-            None,
-            &[
-                "Retry with a smaller limit or a narrower filter",
-                "Check that no other process is holding the devdrivr database open",
-            ],
-        )),
-    )
-}
-
-/// Report that a record moved under the caller.
-fn version_conflict(resource: &str, id: &str, expected: i64, actual: i64) -> McpError {
-    McpError::invalid_request(
-        format!("{resource} `{id}` was updated at {actual}, not at the expected {expected}"),
-        Some(error_data(
-            "CONFLICT",
-            Some(resource),
-            None,
-            Some(id),
-            Some("expectedUpdatedAt"),
-            &[
-                "Read the record again and retry against its current `updatedAt`",
-                "Omit `expectedUpdatedAt` to write regardless of concurrent edits",
-            ],
-        )),
-    )
-}
-
 /// Guard a write against a record that changed since the caller read it.
 ///
 /// Two agents editing one note both read, both wrote, and the second silently discarded the
@@ -805,23 +244,6 @@ fn check_expected_updated_at(
     }
 }
 
-fn builtin_template_delete_denied(id: &str) -> McpError {
-    McpError::invalid_request(
-        "Prompt template was not found or is built-in",
-        Some(error_data(
-            "BUILTIN_TEMPLATE_DELETE_DENIED",
-            Some("promptTemplates"),
-            Some("delete"),
-            Some(id),
-            None,
-            &[
-                "Only user-owned prompt templates can be deleted",
-                "Use prompt_templates_update to create a user copy from a built-in template",
-            ],
-        )),
-    )
-}
-
 /// The table a trashed record of this type lives in.
 ///
 /// WARNING: the returned name is interpolated into SQL. It is a literal from this module.
@@ -838,23 +260,6 @@ fn trash_table(resource_type: ResourceType) -> std::result::Result<&'static str,
     }
 }
 
-fn unsupported_resource_type(resource_type: &str) -> McpError {
-    McpError::invalid_request(
-        format!("Unsupported resource type: {resource_type}"),
-        Some(error_data(
-            "UNSUPPORTED_RESOURCE_TYPE",
-            Some(resource_type),
-            None,
-            None,
-            Some("type"),
-            &[
-                "Use one of: notes, snippets, promptTemplates, apiRequests",
-                "Call introspect to discover supported MCP resource types",
-            ],
-        )),
-    )
-}
-
 fn parse_folder_kind(kind: &str) -> std::result::Result<&'static str, McpError> {
     match kind.trim() {
         "notes" => Ok("notes"),
@@ -868,78 +273,8 @@ fn parse_folder_kind(kind: &str) -> std::result::Result<&'static str, McpError> 
     }
 }
 
-fn invalid_folder_parent(message: impl Into<String>) -> McpError {
-    invalid_argument(
-        "parentId",
-        message,
-        &[
-            "Choose a folder of the same resource kind",
-            "Do not move a folder into itself or one of its descendants",
-        ],
-    )
-}
-
 fn is_system_inbox(id: &str) -> bool {
     SYSTEM_INBOX_IDS.contains(&id)
-}
-
-fn system_inbox_update_denied(id: &str) -> McpError {
-    invalid_argument(
-        "id",
-        format!("The system Inbox folder {id} cannot be renamed or moved"),
-        &[
-            "Create a child folder under Inbox instead",
-            "Use a non-system folder ID",
-        ],
-    )
-}
-
-fn validate_default_language(kind: &str, supplied: bool) -> std::result::Result<(), McpError> {
-    if kind != "snippets" && supplied {
-        return Err(invalid_argument(
-            "defaultLanguage",
-            "defaultLanguage is supported only for snippet folders",
-            &["Omit defaultLanguage for notes and apiRequests folders"],
-        ));
-    }
-    Ok(())
-}
-
-fn validate_task_status(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "todo" | "in_progress" | "done" | "blocked" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "taskStatus",
-            format!("Unsupported task status: {value}"),
-            &["Use one of: todo, in_progress, done, blocked"],
-        )),
-    }
-}
-
-fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "low" | "medium" | "high" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "taskPriority",
-            format!("Unsupported task priority: {value}"),
-            &["Use one of: low, medium, high"],
-        )),
-    }
-}
-
-/// WARNING: Notes skips any row whose colour falls outside this set, so an unchecked write makes
-/// an import look successful while the note never appears in the tool.
-fn validate_note_color(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "yellow" | "green" | "blue" | "pink" | "purple" | "orange" | "red" | "gray" => {
-            Ok(value.to_string())
-        }
-        _ => Err(invalid_argument(
-            "color",
-            format!("Unsupported note color: {value}"),
-            &["Use one of: yellow, green, blue, pink, purple, orange, red, gray"],
-        )),
-    }
 }
 
 /// Repairs a stored value an earlier import left invalid.
@@ -964,66 +299,6 @@ fn heal_template_category(value: &str) -> String {
 
 fn heal_template_optimized_for(value: &str) -> String {
     heal_stored(value, "Generic", validate_template_optimized_for)
-}
-
-/// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
-/// write makes an import look successful while the template never appears in the tool.
-fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "code-review" | "refactoring" | "testing" | "docs" | "debugging" | "learning"
-        | "productivity" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "category",
-            format!("Unsupported template category: {value}"),
-            &[
-                "Use one of: code-review, refactoring, testing, docs, debugging, learning, productivity",
-            ],
-        )),
-    }
-}
-
-/// WARNING: Prompt Templates skips any row whose target falls outside this set. See
-/// [`validate_template_category`].
-fn validate_template_optimized_for(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "Claude" | "ChatGPT" | "Cursor" | "Generic" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "optimizedFor",
-            format!("Unsupported template target: {value}"),
-            &["Use one of: Claude, ChatGPT, Cursor, Generic"],
-        )),
-    }
-}
-
-fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> {
-    let parts = value
-        .split('-')
-        .map(str::parse::<u32>)
-        .collect::<std::result::Result<Vec<_>, _>>();
-    let valid = parts.ok().is_some_and(|parts| {
-        if parts.len() != 3 || value.len() != 10 {
-            return false;
-        }
-        let (year, month, day) = (parts[0], parts[1], parts[2]);
-        let leap =
-            year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
-        let days = match month {
-            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-            4 | 6 | 9 | 11 => 30,
-            2 if leap => 29,
-            2 => 28,
-            _ => return false,
-        };
-        day > 0 && day <= days
-    });
-    if !valid {
-        return Err(invalid_argument(
-            "taskDueDate",
-            format!("Invalid local calendar date: {value}"),
-            &["Use a real date in YYYY-MM-DD form"],
-        ));
-    }
-    Ok(value.to_string())
 }
 
 fn stable_note_link_targets(content: &str) -> Vec<(String, String)> {
@@ -1059,92 +334,12 @@ fn stable_note_link_targets(content: &str) -> Vec<(String, String)> {
     targets
 }
 
-fn unknown_help_topic(topic: &str) -> McpError {
-    invalid_argument(
-        "topic",
-        format!("Unknown help topic: {topic}"),
-        &[
-            "Use one of: overview, tools, workflows, permissions, errors, schema, clients",
-            "Omit topic to get the overview help",
-        ],
-    )
-}
-
 fn estimated_tokens(prompt: &str) -> i64 {
     std::cmp::max(1, (prompt.chars().count() as i64 + 3) / 4)
 }
 
 fn string_vec_to_db_json(value: Option<Vec<String>>) -> String {
     serde_json::to_string(&value.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string())
-}
-
-fn note_to_json(row: NoteRow, folder_path: Vec<String>) -> Value {
-    json!({
-        "id": row.id,
-        "title": row.title,
-        "content": row.content,
-        "color": row.color,
-        "pinned": row.pinned == 1,
-        "poppedOut": row.popped_out == 1,
-        "windowBounds": match (row.window_x, row.window_y, row.window_width, row.window_height) {
-            (Some(x), Some(y), Some(width), Some(height)) => json!({ "x": x, "y": y, "width": width, "height": height }),
-            _ => Value::Null,
-        },
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-        "tags": parse_json(row.tags.as_deref().unwrap_or("[]"), json!([])),
-        "folderId": row.folder_id,
-        "folderPath": folder_path,
-        "taskStatus": row.task_status,
-        "taskPriority": row.task_priority,
-        "taskDueDate": row.task_due_date,
-    })
-}
-
-fn snippet_to_json(row: SnippetRow, folder_path: Vec<String>) -> Value {
-    json!({
-        "id": row.id,
-        "title": row.title,
-        "content": row.content,
-        "language": row.language,
-        "description": row.description,
-        "tags": parse_json(&row.tags, json!([])),
-        "folder": row.folder,
-        "folderId": row.folder_id,
-        "folderPath": folder_path,
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
-}
-
-fn prompt_to_json(row: PromptTemplateRow) -> Value {
-    json!({
-        "id": row.id,
-        "name": row.name,
-        "description": row.description,
-        "category": row.category,
-        "tags": parse_json(&row.tags, json!([])),
-        "prompt": row.prompt,
-        "variables": parse_json(&row.variables_schema, json!([])),
-        "estimatedTokens": row.estimated_tokens,
-        "optimizedFor": row.optimized_for,
-        "author": row.author,
-        "version": row.version,
-        "tips": parse_json(&row.tips, json!([])),
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
-}
-
-fn api_collection_to_json(row: ApiCollectionRow) -> Value {
-    json!({
-        "id": row.id,
-        "name": row.name,
-        "parentId": row.parent_id,
-        "sortOrder": row.sort_order,
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
 }
 
 fn redacted_auth(auth: Value, expose: bool) -> Value {
@@ -1196,46 +391,6 @@ fn header_text(value: &Value) -> Option<String> {
     }
 }
 
-fn invalid_api_headers(message: impl Into<String>) -> McpError {
-    invalid_argument(
-        "headers",
-        message,
-        &[
-            "Send an array of {\"key\": \"Accept\", \"value\": \"application/json\", \"enabled\": true} objects",
-            "Or send a flat header map such as {\"Accept\": \"application/json\"}",
-        ],
-    )
-}
-
-fn normalize_api_header_entry(entry: Value) -> std::result::Result<Value, McpError> {
-    let Value::Object(obj) = entry else {
-        return Err(invalid_api_headers(
-            "Every header must be an object with key and value",
-        ));
-    };
-    let key = obj
-        .get("key")
-        .or_else(|| obj.get("name"))
-        .and_then(header_text)
-        .ok_or_else(|| invalid_api_headers("Every header needs a key"))?;
-    let value = obj
-        .get("value")
-        .map_or_else(|| Some(String::new()), header_text)
-        .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
-    // Reject rather than default. A client sending 0 for a disabled header would otherwise have
-    // that header quietly switched on.
-    let enabled = match obj.get("enabled") {
-        None | Some(Value::Null) => true,
-        Some(Value::Bool(flag)) => *flag,
-        Some(_) => {
-            return Err(invalid_api_headers(format!(
-                "Header {key} needs enabled as true or false"
-            )))
-        }
-    };
-    Ok(json!({ "key": key, "value": value, "enabled": enabled }))
-}
-
 /// WARNING: The API Client calls array methods on `headers` while it renders a saved request. A
 /// stored object or string therefore crashes the tool on load, so reject those shapes at the write.
 ///
@@ -1249,34 +404,6 @@ const BODY_METHODS: [&str; 5] = ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 /// `src/lib/api-import.ts`.
 const BODY_MODES: [&str; 5] = ["json", "text", "urlencoded", "formdata", "none"];
 
-/// Accept a method the API Client can send.
-///
-/// A free-text method reached the database and opened a request the tool could not run.
-fn validate_http_method(value: &str) -> std::result::Result<String, McpError> {
-    let method = value.trim().to_uppercase();
-    if HTTP_METHODS.contains(&method.as_str()) {
-        return Ok(method);
-    }
-    Err(invalid_argument(
-        "method",
-        format!("`{value}` is not a supported HTTP method"),
-        &["Use one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS"],
-    ))
-}
-
-/// Accept a body mode the API Client can render.
-fn validate_body_mode(value: &str) -> std::result::Result<String, McpError> {
-    let mode = value.trim().to_lowercase();
-    if BODY_MODES.contains(&mode.as_str()) {
-        return Ok(mode);
-    }
-    Err(invalid_argument(
-        "bodyMode",
-        format!("`{value}` is not a supported body mode"),
-        &["Use one of json, text, urlencoded, formdata, none"],
-    ))
-}
-
 /// Settle the body mode against the method, the way the API Client does when the method changes.
 ///
 /// A GET with `bodyMode: "json"` shows a body editor for a body that is never sent.
@@ -1285,21 +412,6 @@ fn body_mode_for_method(method: &str, mode: Option<String>) -> String {
         return "none".to_string();
     }
     mode.unwrap_or_else(|| "json".to_string())
-}
-
-/// Reject a required string that carries no content.
-///
-/// A record named `"   "` is unreachable in the sidebar, because it renders as an empty row.
-fn require_non_blank(argument: &str, value: &str) -> std::result::Result<String, McpError> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(invalid_argument(
-            argument,
-            format!("`{argument}` must not be blank"),
-            &["Supply a value with at least one non-space character"],
-        ));
-    }
-    Ok(trimmed.to_string())
 }
 
 /// Settle the folder a record belongs to.
@@ -1323,147 +435,6 @@ fn resolve_folder_alias(
     }
 }
 
-fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, McpError> {
-    let entries = match headers {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => items
-            .into_iter()
-            .map(normalize_api_header_entry)
-            .collect::<std::result::Result<Vec<_>, _>>()?,
-        Some(Value::Object(map)) => map
-            .into_iter()
-            .map(|(key, value)| {
-                let value = header_text(&value).ok_or_else(|| {
-                    invalid_api_headers(format!("Header {key} needs a text value"))
-                })?;
-                Ok(json!({ "key": key, "value": value, "enabled": true }))
-            })
-            .collect::<std::result::Result<Vec<_>, McpError>>()?,
-        Some(_) => {
-            return Err(invalid_api_headers(
-                "Headers must be an array of header objects or a header map",
-            ))
-        }
-    };
-    Ok(serde_json::to_string(&Value::Array(entries)).unwrap_or_else(|_| "[]".to_string()))
-}
-
-fn invalid_prompt_variables(message: impl Into<String>) -> McpError {
-    invalid_argument(
-        "variables",
-        message,
-        &[
-            "Send an array of {\"name\": \"code\", \"label\": \"Code\", \"type\": \"text\"} objects",
-            "Use type text, textarea or select",
-            "Give every select variable a non-empty options array",
-        ],
-    )
-}
-
-fn normalize_prompt_variable(variable: Value) -> std::result::Result<Value, McpError> {
-    let Value::Object(obj) = variable else {
-        return Err(invalid_prompt_variables(
-            "Every variable must be an object with a name",
-        ));
-    };
-    let name = obj
-        .get("name")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .ok_or_else(|| invalid_prompt_variables("Every variable needs a non-empty name"))?
-        .to_string();
-    let label = obj
-        .get("label")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|label| !label.is_empty())
-        .map_or_else(|| name.clone(), str::to_string);
-    let variable_type = obj.get("type").and_then(Value::as_str).unwrap_or("text");
-    if !matches!(variable_type, "text" | "textarea" | "select") {
-        return Err(invalid_prompt_variables(format!(
-            "Variable {name} has unsupported type {variable_type}"
-        )));
-    }
-
-    let mut normalized = serde_json::Map::new();
-    normalized.insert("name".to_string(), Value::String(name.clone()));
-    normalized.insert("label".to_string(), Value::String(label));
-    normalized.insert("type".to_string(), Value::String(variable_type.to_string()));
-
-    let options: Vec<Value> = match obj.get("options") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => {
-            // Reject before dropping blanks. Filtering a Result stream would swallow the error a
-            // non-string option raises and store the rest as if the import had been clean.
-            let mut options = Vec::new();
-            for item in items {
-                let option = item.as_str().map(str::trim).ok_or_else(|| {
-                    invalid_prompt_variables(format!("Variable {name} needs text options"))
-                })?;
-                if !option.is_empty() {
-                    options.push(Value::String(option.to_string()));
-                }
-            }
-            options
-        }
-        Some(_) => {
-            return Err(invalid_prompt_variables(format!(
-                "Variable {name} needs options as an array of strings"
-            )))
-        }
-    };
-    if variable_type == "select" && options.is_empty() {
-        return Err(invalid_prompt_variables(format!(
-            "Select variable {name} needs at least one option"
-        )));
-    }
-    if !options.is_empty() {
-        normalized.insert("options".to_string(), Value::Array(options));
-    }
-
-    if let Some(placeholder) = obj.get("placeholder").and_then(Value::as_str) {
-        if !placeholder.is_empty() {
-            normalized.insert(
-                "placeholder".to_string(),
-                Value::String(placeholder.to_string()),
-            );
-        }
-    }
-    if let Some(required) = obj.get("required").and_then(Value::as_bool) {
-        normalized.insert("required".to_string(), Value::Bool(required));
-    }
-    Ok(Value::Object(normalized))
-}
-
-/// WARNING: Prompt Templates drops any stored variable it cannot recognise, so an unchecked write
-/// makes an import look successful while the template loses every field the user must fill.
-///
-/// Apply the rules the tool's own import applies, and reject what it would reject.
-fn normalize_prompt_variables(variables: Option<Value>) -> std::result::Result<String, McpError> {
-    let normalized = match variables {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => items
-            .into_iter()
-            .map(normalize_prompt_variable)
-            .collect::<std::result::Result<Vec<_>, _>>()?,
-        Some(_) => return Err(invalid_prompt_variables("Variables must be an array")),
-    };
-    Ok(serde_json::to_string(&Value::Array(normalized)).unwrap_or_else(|_| "[]".to_string()))
-}
-
-fn invalid_api_auth(message: impl Into<String>) -> McpError {
-    invalid_argument(
-        "auth",
-        message,
-        &[
-            "Send {\"type\": \"none\"}",
-            "Send {\"type\": \"bearer\", \"token\": \"...\"}",
-            "Send {\"type\": \"basic\", \"username\": \"...\", \"password\": \"...\"}",
-        ],
-    )
-}
-
 /// Reject rather than default. Erasing a credential the client did send would report a successful
 /// write for a request that can no longer authenticate.
 fn auth_field(
@@ -1475,28 +446,6 @@ fn auth_field(
         Some(Value::String(text)) => Ok(text.clone()),
         Some(_) => Err(invalid_api_auth(format!("Auth field {field} must be text"))),
     }
-}
-
-/// WARNING: The API Client reads `auth` as a tagged union and sends the named credential on every
-/// request. An unknown shape would silently drop the credential, so reject it at the write.
-fn normalize_api_auth(auth: Value) -> std::result::Result<String, McpError> {
-    let Value::Object(obj) = auth else {
-        return Err(invalid_api_auth("Auth must be an object with a type field"));
-    };
-    let normalized = match obj.get("type").and_then(Value::as_str) {
-        None => return Err(invalid_api_auth("Auth needs a type field")),
-        Some("none") => json!({ "type": "none" }),
-        Some("bearer") => json!({ "type": "bearer", "token": auth_field(&obj, "token")? }),
-        Some("basic") => json!({
-            "type": "basic",
-            "username": auth_field(&obj, "username")?,
-            "password": auth_field(&obj, "password")?,
-        }),
-        Some(other) => {
-            return Err(invalid_api_auth(format!("Unsupported auth type {other}")));
-        }
-    };
-    Ok(serde_json::to_string(&normalized).unwrap_or_else(|_| r#"{"type":"none"}"#.to_string()))
 }
 
 fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
@@ -1539,37 +488,6 @@ fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
     }
 
     serde_json::to_string(&Value::Object(incoming_obj)).unwrap_or_else(|_| current_auth.to_string())
-}
-
-fn api_request_to_json(row: ApiRequestRow, folder_path: Vec<String>, expose_auth: bool) -> Value {
-    json!({
-        "id": row.id,
-        "collectionId": row.collection_id,
-        "folderId": row.collection_id,
-        "folderPath": folder_path,
-        "name": row.name,
-        "method": row.method,
-        "url": row.url,
-        "headers": parse_json(&row.headers, json!([])),
-        "body": row.body,
-        "bodyMode": row.body_mode,
-        "auth": redacted_auth(parse_json(&row.auth, json!({ "type": "none" })), expose_auth),
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
-}
-
-fn resource_folder_to_json(row: ResourceFolderRow) -> Value {
-    json!({
-        "id": row.id,
-        "name": row.name,
-        "parentId": row.parent_id,
-        "kind": row.kind,
-        "sortOrder": row.sort_order,
-        "defaultLanguage": row.default_language,
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
 }
 
 #[derive(Debug)]
@@ -1660,14 +578,6 @@ fn value_tags(value: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-fn normalize_tags(tags: Option<Vec<String>>) -> Vec<String> {
-    tags.unwrap_or_default()
-        .into_iter()
-        .map(|tag| tag.trim().to_lowercase())
-        .filter(|tag| !tag.is_empty())
-        .collect()
 }
 
 fn has_all_tags(value: &Value, required_tags: &[String]) -> bool {
@@ -1839,25 +749,6 @@ fn compare_search_candidates(
         })
 }
 
-/// Resolve the result limit for a search or a list.
-///
-/// WARNING: rejects a non-positive limit instead of clamping it. Answering `limit: 0` with one
-/// record reads as data loss rather than as a bad argument.
-fn normalize_limit(limit: Option<i64>) -> std::result::Result<usize, McpError> {
-    let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
-    if limit <= 0 {
-        return Err(invalid_argument(
-            "limit",
-            "limit must be greater than zero",
-            &[
-                "Use a positive limit value",
-                "Omit limit to use the default of 50 results",
-            ],
-        ));
-    }
-    Ok(limit.min(MAX_RESULT_LIMIT) as usize)
-}
-
 fn unique_resource_types(types: Vec<ResourceType>) -> Vec<ResourceType> {
     let mut unique = Vec::new();
     for resource_type in types {
@@ -1881,19 +772,6 @@ fn parse_resource_types(types: Vec<String>) -> std::result::Result<Vec<ResourceT
 
 fn available_help_topics() -> Vec<&'static str> {
     HELP_TOPICS.to_vec()
-}
-
-fn normalize_help_topic(topic: Option<&str>) -> std::result::Result<&'static str, McpError> {
-    let topic = topic
-        .map(str::trim)
-        .filter(|topic| !topic.is_empty())
-        .unwrap_or("overview")
-        .to_ascii_lowercase();
-    HELP_TOPICS
-        .iter()
-        .copied()
-        .find(|known_topic| *known_topic == topic)
-        .ok_or_else(|| unknown_help_topic(&topic))
 }
 
 fn help_payload(topic: &str, content: String) -> Value {
@@ -2249,156 +1127,6 @@ fn matches_query(value: &Value, query: &Option<String>) -> bool {
     matches_text(&value.to_string(), query.as_deref())
 }
 
-/// Turn a caller query into a `LIKE` pattern that matches a substring.
-///
-/// An absent or blank query becomes `%`, which matches every row. The three `LIKE` metacharacters
-/// are escaped, so a query containing `%` looks for a literal percent sign.
-fn like_pattern(query: Option<&str>) -> String {
-    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
-        return "%".to_string();
-    };
-    let mut pattern = String::with_capacity(query.len() + 2);
-    pattern.push('%');
-    for character in query.chars() {
-        if matches!(character, '\\' | '%' | '_') {
-            pattern.push('\\');
-        }
-        pattern.push(character);
-    }
-    pattern.push('%');
-    pattern
-}
-
-/// Match any of the named columns against the bound `LIKE` pattern.
-///
-/// WARNING: the column names are composed into SQL. Pass literals only.
-///
-/// `COALESCE` keeps a NULL column matchable. `NULL LIKE '%'` is NULL, not true, so a filter over
-/// one nullable column would hide every row that leaves it empty.
-fn like_any(columns: &[&str]) -> String {
-    columns
-        .iter()
-        .map(|column| format!(r"COALESCE({column}, '') LIKE $1 ESCAPE '\'"))
-        .collect::<Vec<_>>()
-        .join(" OR ")
-}
-
-fn json_schema(value: Value) -> Arc<rmcp::model::JsonObject> {
-    Arc::new(
-        value
-            .as_object()
-            .cloned()
-            .expect("a schema is a JSON object"),
-    )
-}
-
-/// The schema of one page of a list, published so a client validates `structuredContent` instead
-/// of inferring the shape from a sample.
-///
-/// `key` names the array of records, which differs per tool.
-fn list_page_schema(key: &str) -> Arc<rmcp::model::JsonObject> {
-    json_schema(json!({
-        "type": "object",
-        "properties": {
-            key: {
-                "type": "array",
-                "items": { "type": "object" },
-                "description": "The records on this page.",
-            },
-            "total": {
-                "type": "integer",
-                "description": "Records the filter matches, across every page.",
-            },
-            "limit": { "type": "integer", "description": "Records this page can hold." },
-            "hasMore": { "type": "boolean", "description": "True when a page follows." },
-            "nextCursor": {
-                "type": ["string", "null"],
-                "description": "Pass back as `cursor` to read the next page. Null on the last page.",
-            },
-        },
-        "required": [key, "total", "limit", "hasMore"],
-    }))
-}
-
-/// The schema of a write receipt.
-///
-/// `record` rides along only when the read permission is granted, so it is not required.
-fn mutation_schema() -> Arc<rmcp::model::JsonObject> {
-    json_schema(json!({
-        "type": "object",
-        "properties": {
-            "id": { "type": "string", "description": "The record written." },
-            "resource": { "type": "string", "description": "The resource type written." },
-            "action": {
-                "type": "string",
-                "enum": ["create", "update"],
-                "description": "The write that was committed.",
-            },
-            "record": {
-                "type": "object",
-                "description": "The record as stored. Absent without the read permission.",
-            },
-        },
-        "required": ["id", "resource", "action"],
-    }))
-}
-
-fn resource_table(resource_type: ResourceType) -> &'static str {
-    match resource_type {
-        ResourceType::Notes => "notes",
-        ResourceType::Snippets => "snippets",
-        ResourceType::PromptTemplates => "user_prompt_templates",
-        ResourceType::ApiRequests => "api_requests",
-    }
-}
-
-/// The SQL filter for one resource type, applied to both a list and a search.
-///
-/// WARNING: names every field `searchable_text` reads. A field added to the score and not here is
-/// a record the score would have matched that the database never returns.
-fn resource_filter(resource_type: ResourceType) -> String {
-    match resource_type {
-        ResourceType::Notes => format!(
-            "deleted_at IS NULL AND ({})",
-            like_any(&["title", "content", "tags"])
-        ),
-        // A fragment holds its own name, content and language, so a snippet matches through one.
-        ResourceType::Snippets => format!(
-            "deleted_at IS NULL AND ({own} OR EXISTS (SELECT 1 FROM snippet_fragments fragment WHERE fragment.snippet_id = snippets.id AND ({fragment})))",
-            own = like_any(&["title", "description", "content", "language", "tags"]),
-            fragment = like_any(&["fragment.name", "fragment.content", "fragment.language"]),
-        ),
-        ResourceType::PromptTemplates => {
-            like_any(&["name", "description", "category", "prompt", "tags"])
-        }
-        ResourceType::ApiRequests => format!(
-            "deleted_at IS NULL AND ({})",
-            like_any(&["name", "method", "url", "body", "headers"])
-        ),
-    }
-}
-
-/// The order of one resource type. Ends in a unique column, so offset paging never repeats a row.
-fn resource_order(resource_type: ResourceType) -> &'static str {
-    match resource_type {
-        ResourceType::Notes => "pinned DESC, updated_at DESC, id ASC",
-        ResourceType::Snippets => "updated_at DESC, id ASC",
-        ResourceType::PromptTemplates => "author ASC, updated_at DESC, id ASC",
-        ResourceType::ApiRequests => "name ASC, id ASC",
-    }
-}
-
-/// One page of a list response.
-///
-/// WARNING: offset paging, not keyset paging. A write that lands between two page reads can repeat
-/// or skip one record. The database serves one desktop user, so pages are read faster than they
-/// are invalidated.
-#[derive(Debug, Clone, Copy)]
-struct PageRequest {
-    limit: usize,
-    offset: usize,
-}
-
 impl PageRequest {
     fn parse(limit: Option<i64>, cursor: Option<&str>) -> std::result::Result<Self, McpError> {
         Ok(Self {
@@ -2416,74 +1144,6 @@ impl PageRequest {
     fn offset(self) -> i64 {
         self.offset as i64
     }
-}
-
-/// Encode the offset of the next page.
-///
-/// The encoding is hex so that a caller treats the value as opaque and passes it back unchanged
-/// instead of doing arithmetic on it.
-fn encode_cursor(offset: usize) -> String {
-    format!("offset:{offset}")
-        .bytes()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-fn decode_cursor(cursor: &str) -> std::result::Result<usize, McpError> {
-    let bad_cursor = || {
-        invalid_argument(
-            "cursor",
-            "cursor is not a cursor returned by this server",
-            &[
-                "Pass back the nextCursor value from the previous page",
-                "Omit cursor to read the first page",
-            ],
-        )
-    };
-    if !cursor.len().is_multiple_of(2) {
-        return Err(bad_cursor());
-    }
-    let bytes = (0..cursor.len())
-        .step_by(2)
-        .map(|start| u8::from_str_radix(&cursor[start..start + 2], 16))
-        .collect::<std::result::Result<Vec<u8>, _>>()
-        .map_err(|_| bad_cursor())?;
-    String::from_utf8(bytes)
-        .ok()
-        .and_then(|decoded| decoded.strip_prefix("offset:")?.parse::<usize>().ok())
-        .ok_or_else(bad_cursor)
-}
-
-/// Bound a list response and say what was cut.
-///
-/// `values` holds up to one row more than the page, the probe row that proves more rows exist.
-///
-/// An absent limit means the default page, not the whole table. Without a default, listing ten
-/// thousand notes serialised every one of them into a single tool response.
-fn page_payload(key: &str, mut values: Vec<Value>, page: PageRequest, total: i64) -> McpResult {
-    let has_more = values.len() > page.limit;
-    values.truncate(page.limit);
-    to_json_text(json!({
-        key: values,
-        "total": total,
-        "limit": page.limit,
-        "hasMore": has_more,
-        "nextCursor": has_more.then(|| encode_cursor(page.offset + page.limit)),
-    }))
-}
-
-/// Page a list the database cannot bound, such as one that merges several tables.
-///
-/// The whole list is already in memory here, so this only cuts the response. Prefer the paged SQL
-/// helpers for anything that grows with user data.
-fn page_in_memory(key: &str, values: Vec<Value>, page: PageRequest) -> McpResult {
-    let total = values.len() as i64;
-    let page_values = values
-        .into_iter()
-        .skip(page.offset)
-        .take(page.limit + 1)
-        .collect();
-    page_payload(key, page_values, page, total)
 }
 
 #[tool_router]
