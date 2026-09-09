@@ -36,7 +36,10 @@ const HELP_TOPICS: [&str; 7] = [
 pub struct DevdrivrMcpService {
     pool: SqlitePool,
     settings: SharedSettings,
-    app: AppHandle,
+    /// None only under test. `mock_app` builds an `AppHandle<MockRuntime>`, which cannot stand in
+    /// for the Wry handle the app runs on, so tests construct the service without one and the
+    /// change event is dropped instead of emitted.
+    app: Option<AppHandle>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -1943,7 +1946,18 @@ impl DevdrivrMcpService {
         Self {
             pool,
             settings,
-            app,
+            app: Some(app),
+            tool_router: Self::tool_router(),
+        }
+    }
+
+    /// WARNING: emits no change events. Use only where no Tauri runtime exists.
+    #[cfg(test)]
+    fn new_detached(pool: SqlitePool, settings: SharedSettings) -> Self {
+        Self {
+            pool,
+            settings,
+            app: None,
             tool_router: Self::tool_router(),
         }
     }
@@ -2084,6 +2098,36 @@ impl DevdrivrMcpService {
         } else {
             Err(permission_denied(resource, action))
         }
+    }
+
+    /// Report a committed write.
+    ///
+    /// WARNING: call only after the transaction has committed. The write has already happened
+    /// when this runs, so this must never return a permission error.
+    ///
+    /// Settings grants create, update, delete and read independently. Returning the record
+    /// through the read-gated getter therefore answered a successful write with
+    /// PERMISSION_DENIED for a write-only client, and an agent that retried wrote the row twice.
+    ///
+    /// The receipt always lands. The record rides along only when `read` is granted.
+    async fn mutation_result(
+        &self,
+        resource_type: ResourceType,
+        action: &str,
+        id: &str,
+    ) -> McpResult {
+        let mut payload = json!({
+            "id": id,
+            "resource": resource_type.key(),
+            "action": action,
+        });
+        if self.permissions_for(resource_type.key()).await.read {
+            let record = self.fetch_resource_value(resource_type, id).await?;
+            if let (Value::Object(obj), Some(record)) = (&mut payload, record) {
+                obj.insert("record".to_string(), record);
+            }
+        }
+        to_json_text(payload)
     }
 
     async fn fetch_resource_value(
@@ -2689,7 +2733,8 @@ impl DevdrivrMcpService {
     }
 
     fn emit_changed(&self, resource: &str, action: &str, id: Option<String>) {
-        let _ = self.app.emit(
+        let Some(app) = &self.app else { return };
+        let _ = app.emit(
             "mcp:data-changed",
             McpDataChangedEvent {
                 resource: resource.to_string(),
@@ -3107,7 +3152,7 @@ impl DevdrivrMcpService {
         Self::replace_note_links(&mut transaction, &id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "create", Some(id.clone()));
-        self.notes_get(Parameters(IdArgs { id })).await
+        self.mutation_result(ResourceType::Notes, "create", &id).await
     }
 
     #[tool(description = "Update a devdrivr note by ID.")]
@@ -3203,7 +3248,8 @@ impl DevdrivrMcpService {
         Self::replace_note_links(&mut transaction, &args.id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "update", Some(args.id.clone()));
-        self.notes_get(Parameters(IdArgs { id: args.id })).await
+        self.mutation_result(ResourceType::Notes, "update", &args.id)
+            .await
     }
 
     #[tool(description = "Move a devdrivr note to durable Trash by ID.")]
@@ -3284,7 +3330,8 @@ impl DevdrivrMcpService {
             self.emit_changed("folders", "create", None);
         }
         self.emit_changed("snippets", "create", Some(id.clone()));
-        self.snippets_get(Parameters(IdArgs { id })).await
+        self.mutation_result(ResourceType::Snippets, "create", &id)
+            .await
     }
 
     #[tool(description = "Update a devdrivr snippet by ID.")]
@@ -3355,7 +3402,8 @@ impl DevdrivrMcpService {
             self.emit_changed("folders", "create", None);
         }
         self.emit_changed("snippets", "update", Some(args.id.clone()));
-        self.snippets_get(Parameters(IdArgs { id: args.id })).await
+        self.mutation_result(ResourceType::Snippets, "update", &args.id)
+            .await
     }
 
     #[tool(description = "Move a devdrivr snippet to durable Trash by ID.")]
@@ -3444,7 +3492,8 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?;
         self.emit_changed("promptTemplates", "create", Some(id.clone()));
-        self.prompt_templates_get(Parameters(IdArgs { id })).await
+        self.mutation_result(ResourceType::PromptTemplates, "create", &id)
+            .await
     }
 
     #[tool(description = "Update a user prompt template. Updating a built-in creates a user copy.")]
@@ -3461,7 +3510,11 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("promptTemplates", &args.id))?;
+        // A built-in is never edited in place: the update becomes a new user-owned record. That
+        // is a create, so it needs the create permission as well. Charging it to `update` alone
+        // let an update-only grant add rows.
         let target_id = if current.author == "builtin" {
+            self.ensure_permission("promptTemplates", "create").await?;
             Uuid::new_v4().to_string()
         } else {
             current.id.clone()
@@ -3511,7 +3564,7 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?;
         self.emit_changed("promptTemplates", "update", Some(target_id.clone()));
-        self.prompt_templates_get(Parameters(IdArgs { id: target_id }))
+        self.mutation_result(ResourceType::PromptTemplates, "update", &target_id)
             .await
     }
 
@@ -3877,7 +3930,8 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?;
         self.emit_changed("apiRequests", "create", Some(id.clone()));
-        self.api_requests_get(Parameters(IdArgs { id })).await
+        self.mutation_result(ResourceType::ApiRequests, "create", &id)
+            .await
     }
 
     #[tool(description = "Update a saved API client request by ID.")]
@@ -3929,7 +3983,7 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?;
         self.emit_changed("apiRequests", "update", Some(args.id.clone()));
-        self.api_requests_get(Parameters(IdArgs { id: args.id }))
+        self.mutation_result(ResourceType::ApiRequests, "update", &args.id)
             .await
     }
 
@@ -3969,6 +4023,237 @@ impl ServerHandler for DevdrivrMcpService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::types::McpPermissions;
+
+    /// The production migrations, in the order `lib.rs` applies them.
+    ///
+    /// Included from the same files the app ships, so a schema change reaches the tests instead
+    /// of leaving them passing against a hand-written schema that no longer exists.
+    const MIGRATIONS: [&str; 16] = [
+        include_str!("../../migrations/001_initial.sql"),
+        include_str!("../../migrations/002_api_client.sql"),
+        include_str!("../../migrations/003_notes_tags.sql"),
+        include_str!("../../migrations/004_history_metadata.sql"),
+        include_str!("../../migrations/005_snippets_folder.sql"),
+        include_str!("../../migrations/006_prompt_templates.sql"),
+        include_str!("../../migrations/007_prompt_template_authors.sql"),
+        include_str!("../../migrations/008_notes_sort_order.sql"),
+        include_str!("../../migrations/009_persistence_backfills.sql"),
+        include_str!("../../migrations/011_api_history_response.sql"),
+        include_str!("../../migrations/012_snippets_favorite.sql"),
+        include_str!("../../migrations/013_resource_folders.sql"),
+        include_str!("../../migrations/014_durable_trash.sql"),
+        include_str!("../../migrations/015_note_tasks.sql"),
+        include_str!("../../migrations/016_note_links.sql"),
+        include_str!("../../migrations/017_snippet_fragments.sql"),
+    ];
+
+    fn resource_permissions(
+        read: bool,
+        create: bool,
+        update: bool,
+        delete: bool,
+    ) -> ResourcePermissions {
+        ResourcePermissions { read, create, update, delete }
+    }
+
+    fn all_permissions(value: ResourcePermissions) -> McpPermissions {
+        McpPermissions {
+            notes: value.clone(),
+            snippets: value.clone(),
+            prompt_templates: value.clone(),
+            api_requests: value,
+        }
+    }
+
+    fn settings_with(permissions: McpPermissions) -> McpSettings {
+        McpSettings {
+            enabled: true,
+            host: "127.0.0.1".to_string(),
+            port: 17347,
+            api_key: "test-key".to_string(),
+            permissions,
+            api_requests_expose_secrets: false,
+        }
+    }
+
+    /// Build a service against an in-memory database carrying the real schema.
+    ///
+    /// WARNING: `sqlite::memory:` gives each connection its own database, so the pool is capped
+    /// at one connection. A larger pool would run the migrations on one connection and the
+    /// queries on an empty one.
+    async fn service_with(permissions: McpPermissions) -> DevdrivrMcpService {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("pool");
+        for migration in MIGRATIONS {
+            // `raw_sql` runs a multi-statement script. Splitting on `;` would cut trigger bodies
+            // in half, because a BEGIN ... END block contains its own statement terminators.
+            sqlx::raw_sql(migration)
+                .execute(&pool)
+                .await
+                .unwrap_or_else(|err| panic!("migration failed: {err}"));
+        }
+        DevdrivrMcpService::new_detached(pool, Arc::new(RwLock::new(settings_with(permissions))))
+    }
+
+    /// The tool handlers return JSON inside a text content block. Parse it back out.
+    fn result_json(result: &CallToolResult) -> Value {
+        let text = result
+            .content
+            .first()
+            .and_then(|content| content.as_text())
+            .map(|text| text.text.clone())
+            .expect("a text content block");
+        serde_json::from_str(&text).expect("valid JSON in the content block")
+    }
+
+    fn note_create_args(title: &str) -> NoteCreateArgs {
+        serde_json::from_value(json!({ "title": title, "content": "body" }))
+            .expect("note create args")
+    }
+
+    /// A committed write must never be reported as a failure.
+    ///
+    /// Settings grants create, update, delete and read independently, so returning the record
+    /// through the read-gated getter answered a successful write with PERMISSION_DENIED, and an
+    /// agent that retried wrote the row twice.
+    mod committed_writes_always_report_success {
+        use super::*;
+
+        async fn write_only_service() -> DevdrivrMcpService {
+            service_with(all_permissions(resource_permissions(false, true, true, true))).await
+        }
+
+        #[tokio::test]
+        async fn create_succeeds_without_read_permission() {
+            let service = write_only_service().await;
+
+            let result = service
+                .notes_create(Parameters(note_create_args("Written blind")))
+                .await
+                .expect("a create granted create must not fail on read");
+
+            let payload = result_json(&result);
+            assert_eq!(payload["action"], "create");
+            assert_eq!(payload["resource"], "notes");
+            assert!(payload["id"].is_string());
+            // Withholding read must withhold the record, not the receipt.
+            assert!(payload.get("record").is_none());
+        }
+
+        #[tokio::test]
+        async fn create_writes_exactly_one_row_without_read_permission() {
+            let service = write_only_service().await;
+
+            service
+                .notes_create(Parameters(note_create_args("Written once")))
+                .await
+                .expect("create");
+
+            let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM notes")
+                .fetch_one(&service.pool)
+                .await
+                .expect("count");
+            assert_eq!(count, 1);
+        }
+
+        #[tokio::test]
+        async fn update_succeeds_without_read_permission() {
+            let service = write_only_service().await;
+            let created = result_json(
+                &service
+                    .notes_create(Parameters(note_create_args("Before")))
+                    .await
+                    .expect("create"),
+            );
+            let id = created["id"].as_str().expect("id").to_string();
+
+            let result = service
+                .notes_update(Parameters(
+                    serde_json::from_value(json!({ "id": id, "title": "After" }))
+                        .expect("update args"),
+                ))
+                .await
+                .expect("an update granted update must not fail on read");
+
+            assert_eq!(result_json(&result)["action"], "update");
+            let title = sqlx::query_scalar::<_, String>("SELECT title FROM notes WHERE id = $1")
+                .bind(&id)
+                .fetch_one(&service.pool)
+                .await
+                .expect("title");
+            assert_eq!(title, "After");
+        }
+
+        #[tokio::test]
+        async fn the_record_rides_along_when_read_is_granted() {
+            let service =
+                service_with(all_permissions(resource_permissions(true, true, true, true))).await;
+
+            let payload = result_json(
+                &service
+                    .notes_create(Parameters(note_create_args("Readable")))
+                    .await
+                    .expect("create"),
+            );
+
+            assert_eq!(payload["record"]["title"], "Readable");
+            assert_eq!(payload["record"]["content"], "body");
+        }
+
+        /// Updating a built-in template inserts a new user-owned row. That is a create, so an
+        /// update-only grant must not be able to do it.
+        #[tokio::test]
+        async fn cloning_a_builtin_template_needs_create_permission() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, false, true, false,
+            )))
+            .await;
+            sqlx::query(
+                "INSERT INTO user_prompt_templates (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at) VALUES ('builtin-1', 'Built in', 'desc', 'general', '[]', 'text', '[]', 1, 'claude', 'builtin', '1', '[]', 1, 1)",
+            )
+            .execute(&service.pool)
+            .await
+            .expect("seed a built-in template");
+
+            let error = service
+                .prompt_templates_update(Parameters(
+                    serde_json::from_value(json!({ "id": "builtin-1", "prompt": "changed" }))
+                        .expect("update args"),
+                ))
+                .await
+                .expect_err("cloning a built-in without create permission must fail");
+
+            assert!(error.message.contains("promptTemplates.create"));
+            let count =
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_prompt_templates")
+                    .fetch_one(&service.pool)
+                    .await
+                    .expect("count");
+            assert_eq!(count, 1, "the clone must not have been written");
+        }
+
+        #[tokio::test]
+        async fn create_is_still_refused_without_create_permission() {
+            let service =
+                service_with(all_permissions(resource_permissions(true, false, true, true))).await;
+
+            let error = service
+                .notes_create(Parameters(note_create_args("Refused")))
+                .await
+                .expect_err("create without the create permission must fail");
+
+            assert!(error.message.contains("notes.create"));
+            let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM notes")
+                .fetch_one(&service.pool)
+                .await
+                .expect("count");
+            assert_eq!(count, 0, "a refused create must not reach the database");
+        }
+    }
 
     /// The two folder tools read `MAX(sort_order)` through this expression. Creating the first
     /// child of a parent leaves no rows to aggregate, so the expression must still decode as f64.
