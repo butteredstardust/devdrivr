@@ -210,6 +210,25 @@ describe('CommandPalette', () => {
       expect(useUiStore.getState().activeTabId).toBe('t1')
     })
 
+    it('survives a click on the search field it is about to be typed into', () => {
+      useUiStore.setState({
+        tabs: [markdown],
+        activeTabId: 't1',
+        activeTool: 'markdown-editor',
+        commandPaletteIntent: 'new-tab',
+      })
+
+      render(<CommandPalette />)
+      fireEvent.pointerDown(screen.getByRole('combobox'))
+
+      expect(useUiStore.getState().commandPaletteIntent).toBe('new-tab')
+
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
+      fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
+
+      expect(useUiStore.getState().tabs).toHaveLength(2)
+    })
+
     it('says which mode it is in', () => {
       useUiStore.setState({ commandPaletteIntent: 'new-tab' })
 

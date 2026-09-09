@@ -557,7 +557,13 @@ export function CommandPalette() {
         // Pointer-down rather than focus (see the input below): clicking anywhere on the bar,
         // including the magnifier and the ⌘K chip, is a deliberate "open the palette". The
         // effect above focuses the input once `isOpen` flips, so this need only set the state.
-        onPointerDown={() => setOpen(true)}
+        //
+        // Guarded on `isOpen`: opening resets the intent, so an unguarded call would demote a
+        // palette opened from the + button back to `switch` the moment the user clicked the
+        // field they were about to type in.
+        onPointerDown={() => {
+          if (!isOpen) setOpen(true)
+        }}
         className={`pointer-events-auto relative flex w-full min-w-0 items-center gap-2 rounded-md border bg-[var(--color-surface-sunken)] px-3 py-1.5 text-xs shadow-sm transition-colors ${
           isOpen
             ? 'z-[51] border-[var(--color-accent)] shadow-[var(--focus-ring)]'
