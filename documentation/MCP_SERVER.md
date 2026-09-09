@@ -160,6 +160,14 @@ introspect()
 | Port range                  | `1024-65535` |
 | Minimum API key length      | 32           |
 
+## Concurrent edits
+
+Every update and delete accepts an optional `expectedUpdatedAt`. Send the `updatedAt` you read.
+The write is refused with a `CONFLICT` error when the record moved on. Omit the field to write
+regardless, which is the previous behaviour.
+
+## Notes on list responses
+
 A list response carries `total`, `limit` and `hasMore` beside the records. Raise `limit` when
 `hasMore` is true. A `limit` of zero or less is rejected.
 

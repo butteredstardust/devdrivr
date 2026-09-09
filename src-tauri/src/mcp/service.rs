@@ -63,6 +63,15 @@ struct IdArgs {
     id: String,
 }
 
+/// WARNING: `expected_updated_at` is optional. Omitting it deletes whatever the record now holds.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct DeleteArgs {
+    id: String,
+    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
+    expected_updated_at: Option<i64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 enum ResourceType {
@@ -176,6 +185,8 @@ struct NoteUpdateArgs {
     clear_task_metadata: Option<bool>,
     clear_task_priority: Option<bool>,
     clear_task_due_date: Option<bool>,
+    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
+    expected_updated_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -203,6 +214,8 @@ struct SnippetUpdateArgs {
     tags: Option<Vec<String>>,
     folder_id: Option<String>,
     folder: Option<String>,
+    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
+    expected_updated_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
@@ -301,6 +314,8 @@ struct PromptTemplateUpdateArgs {
     optimized_for: Option<String>,
     version: Option<String>,
     tips: Option<Vec<String>>,
+    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
+    expected_updated_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -330,6 +345,8 @@ struct ApiRequestUpdateArgs {
     body: Option<String>,
     body_mode: Option<String>,
     auth: Option<Value>,
+    /// The `updatedAt` the caller last read. A different value fails with `CONFLICT`.
+    expected_updated_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -711,6 +728,44 @@ fn tool_timed_out(name: &str) -> McpError {
             ],
         )),
     )
+}
+
+/// Report that a record moved under the caller.
+fn version_conflict(resource: &str, id: &str, expected: i64, actual: i64) -> McpError {
+    McpError::invalid_request(
+        format!("{resource} `{id}` was updated at {actual}, not at the expected {expected}"),
+        Some(error_data(
+            "CONFLICT",
+            Some(resource),
+            None,
+            Some(id),
+            Some("expectedUpdatedAt"),
+            &[
+                "Read the record again and retry against its current `updatedAt`",
+                "Omit `expectedUpdatedAt` to write regardless of concurrent edits",
+            ],
+        )),
+    )
+}
+
+/// Guard a write against a record that changed since the caller read it.
+///
+/// Two agents editing one note both read, both wrote, and the second silently discarded the
+/// first. A caller that passes the `updatedAt` it read is told instead.
+///
+/// Omitting `expectedUpdatedAt` keeps the previous last-writer-wins behaviour.
+fn check_expected_updated_at(
+    resource: &str,
+    id: &str,
+    expected: Option<i64>,
+    actual: i64,
+) -> std::result::Result<(), McpError> {
+    match expected {
+        Some(expected) if expected != actual => {
+            Err(version_conflict(resource, id, expected, actual))
+        }
+        _ => Ok(()),
+    }
 }
 
 fn builtin_template_delete_denied(id: &str) -> McpError {
@@ -2044,6 +2099,7 @@ fn help_errors() -> String {
 - `RESOURCE_NOT_FOUND`: The ID does not exist for that resource type. Use `search`, `multi_get`, or a list tool to find current IDs.
 - `INVALID_ARGUMENT`: A parameter is invalid, such as an empty `types` array or invalid `limit`.
 - `RESOURCE_LIMIT`: An argument is too large. Split the content or send fewer items per call.
+- `CONFLICT`: The record changed since you read it. Read it again and retry against its `updatedAt`.
 - `TIMEOUT`: The tool did not finish in time. Retry with a smaller `limit` or a narrower filter.
 - `UNSUPPORTED_RESOURCE_TYPE`: Use one of `notes`, `snippets`, `promptTemplates`, or `apiRequests`.
 - `BATCH_TOO_LARGE`: Split `multi_get` into batches of 100 IDs or fewer.
@@ -2073,6 +2129,8 @@ Limits:
 - `multi_get` accepts at most `{max_multi_get}` IDs.
 - A request body is capped at 8 MiB. A single text field is capped at 1 MiB.
 - A list field accepts at most `{max_items}` items. A tool call is cancelled after `{tool_timeout}`s.
+- Update and delete accept `expectedUpdatedAt`. Send the `updatedAt` you read to be told about a
+  concurrent edit instead of overwriting it.
 - Supported port range in the UI: 1024-65535.
 - Current endpoint: `{url}`.
 - API request auth supports `none`, `bearer`, and `basic`.
@@ -2805,6 +2863,35 @@ impl DevdrivrMcpService {
         Ok(folder)
     }
 
+    /// Explain why a soft delete matched no row.
+    ///
+    /// WARNING: `table` is interpolated into SQL. Pass only a literal from this module.
+    ///
+    /// A delete guarded by `expectedUpdatedAt` fails the same way whether the record is gone or
+    /// has moved on. The caller needs to tell those apart to decide whether to retry.
+    async fn deletion_failure(
+        &self,
+        table: &'static str,
+        resource: &str,
+        id: &str,
+        expected: Option<i64>,
+    ) -> McpError {
+        let Some(expected) = expected else {
+            return not_found(resource, id);
+        };
+        let actual = sqlx::query_scalar::<_, i64>(&format!(
+            "SELECT updated_at FROM {table} WHERE id = $1 AND deleted_at IS NULL"
+        ))
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await;
+        match actual {
+            Ok(Some(actual)) => version_conflict(resource, id, expected, actual),
+            Ok(None) => not_found(resource, id),
+            Err(err) => db_error(err),
+        }
+    }
+
     async fn save_folder(&self, folder: &ResourceFolderRow) -> std::result::Result<(), McpError> {
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
         Self::save_folder_in(&mut transaction, folder).await?;
@@ -3394,6 +3481,12 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("notes", &args.id))?;
+        check_expected_updated_at(
+            "notes",
+            &args.id,
+            args.expected_updated_at,
+            current.updated_at,
+        )?;
         let title = args.title.unwrap_or_else(|| current.title.clone());
         let content = args.content.unwrap_or_else(|| current.content.clone());
         let color = args
@@ -3481,17 +3574,23 @@ impl DevdrivrMcpService {
     }
 
     #[tool(description = "Move a devdrivr note to durable Trash by ID.")]
-    async fn notes_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+    async fn notes_delete(&self, Parameters(args): Parameters<DeleteArgs>) -> McpResult {
         self.ensure_permission("notes", "delete").await?;
-        let result =
-            sqlx::query("UPDATE notes SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL")
-                .bind(&args.id)
-                .bind(now_ms())
-                .execute(&self.pool)
-                .await
-                .map_err(db_error)?;
+        // The expectation is part of the WHERE clause, so a record that changes between the
+        // check and the write is still refused.
+        let result = sqlx::query(
+            "UPDATE notes SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
+        )
+        .bind(&args.id)
+        .bind(now_ms())
+        .bind(args.expected_updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(db_error)?;
         if result.rows_affected() == 0 {
-            return Err(not_found("notes", &args.id));
+            return Err(self
+                .deletion_failure("notes", "notes", &args.id, args.expected_updated_at)
+                .await);
         }
         self.emit_changed("notes", "delete", Some(args.id));
         to_json_text(json!({ "trashed": true }))
@@ -3578,6 +3677,12 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("snippets", &args.id))?;
+        check_expected_updated_at(
+            "snippets",
+            &args.id,
+            args.expected_updated_at,
+            current.updated_at,
+        )?;
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -3646,17 +3751,21 @@ impl DevdrivrMcpService {
     }
 
     #[tool(description = "Move a devdrivr snippet to durable Trash by ID.")]
-    async fn snippets_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+    async fn snippets_delete(&self, Parameters(args): Parameters<DeleteArgs>) -> McpResult {
         self.ensure_permission("snippets", "delete").await?;
-        let result =
-            sqlx::query("UPDATE snippets SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL")
-                .bind(&args.id)
-                .bind(now_ms())
-                .execute(&self.pool)
-                .await
-                .map_err(db_error)?;
+        let result = sqlx::query(
+            "UPDATE snippets SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
+        )
+        .bind(&args.id)
+        .bind(now_ms())
+        .bind(args.expected_updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(db_error)?;
         if result.rows_affected() == 0 {
-            return Err(not_found("snippets", &args.id));
+            return Err(self
+                .deletion_failure("snippets", "snippets", &args.id, args.expected_updated_at)
+                .await);
         }
         self.emit_changed("snippets", "delete", Some(args.id));
         to_json_text(json!({ "trashed": true }))
@@ -3750,6 +3859,12 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("promptTemplates", &args.id))?;
+        check_expected_updated_at(
+            "promptTemplates",
+            &args.id,
+            args.expected_updated_at,
+            current.updated_at,
+        )?;
         // A built-in is never edited in place: the update becomes a new user-owned record. That
         // is a create, so it needs the create permission as well. Charging it to `update` alone
         // let an update-only grant add rows.
@@ -3815,15 +3930,31 @@ impl DevdrivrMcpService {
     }
 
     #[tool(description = "Delete a user-owned devdrivr prompt template by ID.")]
-    async fn prompt_templates_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+    async fn prompt_templates_delete(&self, Parameters(args): Parameters<DeleteArgs>) -> McpResult {
         self.ensure_permission("promptTemplates", "delete").await?;
-        let result =
-            sqlx::query("DELETE FROM user_prompt_templates WHERE id = $1 AND author = 'user'")
-                .bind(&args.id)
-                .execute(&self.pool)
-                .await
-                .map_err(db_error)?;
+        let result = sqlx::query(
+            "DELETE FROM user_prompt_templates WHERE id = $1 AND author = 'user' AND ($2 IS NULL OR updated_at = $2)",
+        )
+        .bind(&args.id)
+        .bind(args.expected_updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(db_error)?;
         if result.rows_affected() == 0 {
+            // A built-in is refused whatever the expectation, so the conflict check runs first
+            // only for rows that could have been deleted.
+            if let Some(expected) = args.expected_updated_at {
+                if let Some(actual) = sqlx::query_scalar::<_, i64>(
+                    "SELECT updated_at FROM user_prompt_templates WHERE id = $1 AND author = 'user'",
+                )
+                .bind(&args.id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db_error)?
+                {
+                    return Err(version_conflict("promptTemplates", &args.id, expected, actual));
+                }
+            }
             return Err(builtin_template_delete_denied(&args.id));
         }
         self.emit_changed("promptTemplates", "delete", Some(args.id));
@@ -4190,6 +4321,12 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("apiRequests", &args.id))?;
+        check_expected_updated_at(
+            "apiRequests",
+            &args.id,
+            args.expected_updated_at,
+            current.updated_at,
+        )?;
         let auth = match args.auth {
             Some(value) => {
                 // Resolve first: the redaction marker restores the secret the client never saw.
@@ -4246,18 +4383,26 @@ impl DevdrivrMcpService {
     }
 
     #[tool(description = "Move a saved API client request to durable Trash by ID.")]
-    async fn api_requests_delete(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
+    async fn api_requests_delete(&self, Parameters(args): Parameters<DeleteArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "delete").await?;
         let result = sqlx::query(
-            "UPDATE api_requests SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL",
+            "UPDATE api_requests SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
         )
         .bind(&args.id)
         .bind(now_ms())
+        .bind(args.expected_updated_at)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
-            return Err(not_found("apiRequests", &args.id));
+            return Err(self
+                .deletion_failure(
+                    "api_requests",
+                    "apiRequests",
+                    &args.id,
+                    args.expected_updated_at,
+                )
+                .await);
         }
         self.emit_changed("apiRequests", "delete", Some(args.id));
         to_json_text(json!({ "trashed": true }))
@@ -4424,6 +4569,100 @@ mod tests {
     /// itself instead of failing as a bare transport error.
     /// The MCP contract must accept exactly what the API Client accepts. A free-text method or
     /// body mode reached the database and produced a request the tool could not run.
+    /// Two agents editing one note both read, both wrote, and the second discarded the first
+    /// without a word.
+    mod optimistic_concurrency {
+        use super::*;
+
+        async fn service_with_a_note() -> (DevdrivrMcpService, String, i64) {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            let created = result_json(
+                &service
+                    .notes_create(Parameters(note_create_args("first")))
+                    .await
+                    .expect("create"),
+            );
+            let id = created["id"].as_str().expect("id").to_string();
+            let updated_at = created["record"]["updatedAt"].as_i64().expect("updatedAt");
+            (service, id, updated_at)
+        }
+
+        fn note_update(id: &str, expected: Option<i64>) -> NoteUpdateArgs {
+            let mut value = json!({ "id": id, "title": "second" });
+            if let (Value::Object(obj), Some(expected)) = (&mut value, expected) {
+                obj.insert("expectedUpdatedAt".to_string(), json!(expected));
+            }
+            serde_json::from_value(value).expect("update args")
+        }
+
+        #[tokio::test]
+        async fn an_update_against_the_read_version_succeeds() {
+            let (service, id, updated_at) = service_with_a_note().await;
+            assert!(service
+                .notes_update(Parameters(note_update(&id, Some(updated_at))))
+                .await
+                .is_ok());
+        }
+
+        #[tokio::test]
+        async fn an_update_against_a_stale_version_is_refused() {
+            let (service, id, updated_at) = service_with_a_note().await;
+            let error = service
+                .notes_update(Parameters(note_update(&id, Some(updated_at - 1))))
+                .await
+                .expect_err("stale update");
+            assert_eq!(error.data.as_ref().expect("data")["code"], "CONFLICT");
+
+            let title = sqlx::query_scalar::<_, String>("SELECT title FROM notes WHERE id = $1")
+                .bind(&id)
+                .fetch_one(&service.pool)
+                .await
+                .expect("title");
+            assert_eq!(title, "first", "the refused update must not have written");
+        }
+
+        #[tokio::test]
+        async fn an_update_without_an_expectation_still_writes() {
+            let (service, id, _) = service_with_a_note().await;
+            assert!(service
+                .notes_update(Parameters(note_update(&id, None)))
+                .await
+                .is_ok());
+        }
+
+        #[tokio::test]
+        async fn a_delete_against_a_stale_version_is_refused() {
+            let (service, id, updated_at) = service_with_a_note().await;
+            let args: DeleteArgs =
+                serde_json::from_value(json!({ "id": &id, "expectedUpdatedAt": updated_at - 1 }))
+                    .expect("delete args");
+            let error = service
+                .notes_delete(Parameters(args))
+                .await
+                .expect_err("stale delete");
+            assert_eq!(error.data.as_ref().expect("data")["code"], "CONFLICT");
+        }
+
+        #[tokio::test]
+        async fn a_delete_of_a_missing_record_still_reports_not_found() {
+            let (service, _, updated_at) = service_with_a_note().await;
+            let args: DeleteArgs =
+                serde_json::from_value(json!({ "id": "missing", "expectedUpdatedAt": updated_at }))
+                    .expect("delete args");
+            let error = service
+                .notes_delete(Parameters(args))
+                .await
+                .expect_err("missing record");
+            assert_eq!(
+                error.data.as_ref().expect("data")["code"],
+                "RESOURCE_NOT_FOUND"
+            );
+        }
+    }
+
     mod api_request_contract {
         use super::*;
 
