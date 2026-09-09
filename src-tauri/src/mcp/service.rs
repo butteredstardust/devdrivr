@@ -3277,8 +3277,11 @@ impl DevdrivrMcpService {
         validate_default_language(kind, args.default_language.is_some())?;
         self.validate_folder_parent(kind, None, args.parent_id.as_deref())
             .await?;
+        // CAST keeps the result SQLITE_FLOAT. SQLite gives an expression no column affinity, so
+        // the literal 0 that COALESCE returns for an empty parent stays an INTEGER and sqlx
+        // refuses to decode it as f64. That is what blocks the first folder under a new parent.
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
+            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
         )
         .bind(kind)
         .bind(&args.parent_id)
@@ -3363,8 +3366,9 @@ impl DevdrivrMcpService {
         }
         self.validate_folder_parent(&folder.kind, Some(&folder.id), args.parent_id.as_deref())
             .await?;
+        // CAST keeps the result SQLITE_FLOAT. See the note in resource_folders_create.
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND id <> $2 AND deleted_at IS NULL AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
+            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND id <> $2 AND deleted_at IS NULL AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
         )
         .bind(&folder.kind)
         .bind(&folder.id)
@@ -3642,6 +3646,45 @@ impl ServerHandler for DevdrivrMcpService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two folder tools read `MAX(sort_order)` through this expression. Creating the first
+    /// child of a parent leaves no rows to aggregate, so the expression must still decode as f64.
+    const MAX_SORT_ORDER_EXPRESSION: &str = "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE parent_id = $1";
+
+    async fn folder_sort_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.expect("pool");
+        sqlx::query("CREATE TABLE resource_folders (id TEXT PRIMARY KEY, parent_id TEXT, sort_order REAL NOT NULL DEFAULT 0)")
+            .execute(&pool)
+            .await
+            .expect("schema");
+        pool
+    }
+
+    #[tokio::test]
+    async fn folder_sort_order_decodes_when_the_parent_has_no_children_yet() {
+        let pool = folder_sort_pool().await;
+        let max_sort = sqlx::query_scalar::<_, f64>(MAX_SORT_ORDER_EXPRESSION)
+            .bind("empty-parent")
+            .fetch_one(&pool)
+            .await
+            .expect("an empty parent must not fail to decode");
+        assert_eq!(max_sort, 0.0);
+    }
+
+    #[tokio::test]
+    async fn folder_sort_order_reads_the_highest_existing_sibling() {
+        let pool = folder_sort_pool().await;
+        sqlx::query("INSERT INTO resource_folders (id, parent_id, sort_order) VALUES ('a', 'parent', 1000.0), ('b', 'parent', 2000.0)")
+            .execute(&pool)
+            .await
+            .expect("seed");
+        let max_sort = sqlx::query_scalar::<_, f64>(MAX_SORT_ORDER_EXPRESSION)
+            .bind("parent")
+            .fetch_one(&pool)
+            .await
+            .expect("decode");
+        assert_eq!(max_sort + FOLDER_SORT_STEP, 3000.0);
+    }
 
     fn api_request_with_auth(auth: Value) -> ApiRequestRow {
         ApiRequestRow {
