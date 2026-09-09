@@ -147,12 +147,16 @@ introspect()
 
 ## Limits
 
-| Limit                   | Value        |
-| ----------------------- | ------------ |
-| Search/list max results | 500          |
-| `multi_get` max IDs     | 100          |
-| MCP host                | `127.0.0.1`  |
-| UI port range           | `1024-65535` |
+| Limit                       | Value        |
+| --------------------------- | ------------ |
+| Search/list default results | 50           |
+| Search/list max results     | 500          |
+| `multi_get` max IDs         | 100          |
+| MCP host                    | `127.0.0.1`  |
+| UI port range               | `1024-65535` |
+
+A list response carries `total`, `limit` and `hasMore` beside the records. Raise `limit` when
+`hasMore` is true. A `limit` of zero or less is rejected.
 
 ## Troubleshooting
 

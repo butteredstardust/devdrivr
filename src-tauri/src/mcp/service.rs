@@ -17,8 +17,8 @@ use super::types::{McpDataChangedEvent, McpSettings, ResourcePermissions};
 type SharedSettings = Arc<RwLock<McpSettings>>;
 type McpResult = std::result::Result<CallToolResult, McpError>;
 const REDACTED_AUTH_VALUE: &str = "***REDACTED***";
-const DEFAULT_SEARCH_LIMIT: i64 = 50;
-const MAX_SEARCH_LIMIT: i64 = 500;
+const DEFAULT_RESULT_LIMIT: i64 = 50;
+const MAX_RESULT_LIMIT: i64 = 500;
 const MAX_MULTI_GET: usize = 100;
 const FOLDER_SORT_STEP: f64 = 1000.0;
 const SYSTEM_INBOX_IDS: [&str; 3] = ["notes-inbox", "snippets-inbox", "api-requests-inbox"];
@@ -1542,8 +1542,12 @@ fn compare_search_candidates(
         })
 }
 
-fn normalize_search_limit(limit: Option<i64>) -> std::result::Result<usize, McpError> {
-    let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
+/// Resolve the result limit for a search or a list.
+///
+/// WARNING: rejects a non-positive limit instead of clamping it. Answering `limit: 0` with one
+/// record reads as data loss rather than as a bad argument.
+fn normalize_limit(limit: Option<i64>) -> std::result::Result<usize, McpError> {
+    let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
     if limit <= 0 {
         return Err(invalid_argument(
             "limit",
@@ -1554,7 +1558,7 @@ fn normalize_search_limit(limit: Option<i64>) -> std::result::Result<usize, McpE
             ],
         ));
     }
-    Ok(limit.min(MAX_SEARCH_LIMIT) as usize)
+    Ok(limit.min(MAX_RESULT_LIMIT) as usize)
 }
 
 fn unique_resource_types(types: Vec<ResourceType>) -> Vec<ResourceType> {
@@ -1691,7 +1695,7 @@ fn permission_for_tool(name: &str) -> &'static str {
 
 fn tool_pitfall(name: &str) -> &'static str {
     match name {
-        "search" => "Use `types` and `tags` to reduce result volume; `limit` is capped at 500.",
+        "search" => "Use `types` and `tags` to reduce result volume; `limit` defaults to 50 and is capped at 500.",
         "multi_get" => "Maximum 100 IDs per call; missing IDs are returned per item instead of failing the whole call.",
         "introspect" => "Use this for machine-readable schemas; use `help` for workflow guidance.",
         "counts" => "Counts only returns resources allowed by current read permissions unless a denied type is explicitly requested.",
@@ -1873,14 +1877,16 @@ Primary resource types:
 - `apiRequests`: fields include `id`, `folderId`, `folderPath`, legacy `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
 
 Limits:
-- Search/list limit is capped at `{max_results}`.
+- Search and list default to `{default_results}` results and cap at `{max_results}`.
+- List responses carry `total`, `limit` and `hasMore`. Raise `limit` when `hasMore` is true.
 - `multi_get` accepts at most `{max_multi_get}` IDs.
 - Supported port range in the UI: 1024-65535.
 - Current endpoint: `{url}`.
 - API request auth supports `none`, `bearer`, and `basic`.
 - Prompt estimated tokens are approximately `ceil(chars / 4)`.
 "#,
-        max_results = MAX_SEARCH_LIMIT,
+        default_results = DEFAULT_RESULT_LIMIT,
+        max_results = MAX_RESULT_LIMIT,
         max_multi_get = MAX_MULTI_GET,
         url = mcp_url(settings)
     )
@@ -1933,11 +1939,22 @@ fn matches_query(value: &Value, query: &Option<String>) -> bool {
     value.to_string().to_lowercase().contains(&query)
 }
 
-fn apply_limit(mut values: Vec<Value>, limit: Option<i64>) -> Vec<Value> {
-    if let Some(limit) = limit {
-        values.truncate(limit.clamp(1, 500) as usize);
-    }
-    values
+/// Bound a list response and say what was cut.
+///
+/// An absent limit means the default page, not the whole table. Without a default, listing ten
+/// thousand notes serialised every one of them into a single tool response.
+///
+/// `total` and `hasMore` let a client tell a short page from an exhausted one.
+fn list_payload(key: &str, mut values: Vec<Value>, limit: Option<i64>) -> McpResult {
+    let total = values.len();
+    let limit = normalize_limit(limit)?;
+    values.truncate(limit);
+    to_json_text(json!({
+        key: values,
+        "total": total,
+        "limit": limit,
+        "hasMore": total > limit,
+    }))
 }
 
 #[tool_router]
@@ -2767,7 +2784,7 @@ impl DevdrivrMcpService {
         description = "Search notes, snippets, prompt templates, and saved API requests with type, tag, date, limit, and sort filters."
     )]
     async fn search(&self, Parameters(args): Parameters<SearchArgs>) -> McpResult {
-        let limit = normalize_search_limit(args.limit)?;
+        let limit = normalize_limit(args.limit)?;
         let requested_types = args.types.clone();
         let resource_types = self.readable_resource_types(requested_types).await?;
         let required_tags = normalize_tags(args.tags.clone());
@@ -3072,15 +3089,15 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr notes. Returns compact JSON note records.")]
     async fn notes_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
-        let values = apply_limit(
+        list_payload(
+            "notes",
             self.fetch_resource_values(ResourceType::Notes)
                 .await?
                 .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "notes": values }))
+        )
     }
 
     #[tool(description = "Get one devdrivr note by ID.")]
@@ -3152,7 +3169,8 @@ impl DevdrivrMcpService {
         Self::replace_note_links(&mut transaction, &id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "create", Some(id.clone()));
-        self.mutation_result(ResourceType::Notes, "create", &id).await
+        self.mutation_result(ResourceType::Notes, "create", &id)
+            .await
     }
 
     #[tool(description = "Update a devdrivr note by ID.")]
@@ -3272,15 +3290,15 @@ impl DevdrivrMcpService {
     #[tool(description = "List devdrivr snippets. Returns JSON snippet records.")]
     async fn snippets_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("snippets", "read").await?;
-        let values = apply_limit(
+        list_payload(
+            "snippets",
             self.fetch_resource_values(ResourceType::Snippets)
                 .await?
                 .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "snippets": values }))
+        )
     }
 
     #[tool(description = "Get one devdrivr snippet by ID.")]
@@ -3432,14 +3450,14 @@ impl DevdrivrMcpService {
         .fetch_all(&self.pool)
         .await
         .map_err(db_error)?;
-        let values = apply_limit(
+        list_payload(
+            "promptTemplates",
             rows.into_iter()
                 .map(prompt_to_json)
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "promptTemplates": values }))
+        )
     }
 
     #[tool(description = "Get one devdrivr prompt template by ID.")]
@@ -3618,15 +3636,15 @@ impl DevdrivrMcpService {
         .fetch_all(&self.pool)
         .await
         .map_err(db_error)?;
-        let values = apply_limit(
+        list_payload(
+            "folders",
             rows.into_iter()
                 .filter(|folder| kinds.contains(&folder.kind.as_str()))
                 .map(resource_folder_to_json)
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "folders": values }))
+        )
     }
 
     #[tool(
@@ -3855,14 +3873,14 @@ impl DevdrivrMcpService {
         .fetch_all(&self.pool)
         .await
         .map_err(db_error)?;
-        let values = apply_limit(
+        list_payload(
+            "apiCollections",
             rows.into_iter()
                 .map(api_collection_to_json)
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "apiCollections": values }))
+        )
     }
 
     #[tool(
@@ -3870,15 +3888,15 @@ impl DevdrivrMcpService {
     )]
     async fn api_requests_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
         self.ensure_permission("apiRequests", "read").await?;
-        let values = apply_limit(
+        list_payload(
+            "apiRequests",
             self.fetch_resource_values(ResourceType::ApiRequests)
                 .await?
                 .into_iter()
                 .filter(|value| matches_query(value, &args.query))
                 .collect(),
             args.limit,
-        );
-        to_json_text(json!({ "apiRequests": values }))
+        )
     }
 
     #[tool(description = "Get one saved API client request by ID.")]
@@ -4054,7 +4072,12 @@ mod tests {
         update: bool,
         delete: bool,
     ) -> ResourcePermissions {
-        ResourcePermissions { read, create, update, delete }
+        ResourcePermissions {
+            read,
+            create,
+            update,
+            delete,
+        }
     }
 
     fn all_permissions(value: ResourcePermissions) -> McpPermissions {
@@ -4120,11 +4143,90 @@ mod tests {
     /// Settings grants create, update, delete and read independently, so returning the record
     /// through the read-gated getter answered a successful write with PERMISSION_DENIED, and an
     /// agent that retried wrote the row twice.
+    /// A list without a limit returned every row. `limit: 0` returned one row instead of an error.
+    mod list_bounds {
+        use super::*;
+
+        async fn service_with_notes(count: usize) -> DevdrivrMcpService {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            for index in 0..count {
+                service
+                    .notes_create(Parameters(note_create_args(&format!("note {index}"))))
+                    .await
+                    .expect("create a note");
+            }
+            service
+        }
+
+        fn list_args(limit: Option<i64>) -> ListArgs {
+            let mut value = json!({});
+            if let (Value::Object(obj), Some(limit)) = (&mut value, limit) {
+                obj.insert("limit".to_string(), json!(limit));
+            }
+            serde_json::from_value(value).expect("list args")
+        }
+
+        #[tokio::test]
+        async fn an_absent_limit_returns_the_default_page() {
+            let service = service_with_notes(52).await;
+            let result = service
+                .notes_list(Parameters(list_args(None)))
+                .await
+                .expect("list");
+            let json = result_json(&result);
+            assert_eq!(json["notes"].as_array().expect("notes").len(), 50);
+            assert_eq!(json["total"], 52);
+            assert_eq!(json["limit"], 50);
+            assert_eq!(json["hasMore"], true);
+        }
+
+        #[tokio::test]
+        async fn a_full_page_reports_no_more() {
+            let service = service_with_notes(3).await;
+            let json = result_json(
+                &service
+                    .notes_list(Parameters(list_args(Some(3))))
+                    .await
+                    .expect("list"),
+            );
+            assert_eq!(json["notes"].as_array().expect("notes").len(), 3);
+            assert_eq!(json["hasMore"], false);
+        }
+
+        #[tokio::test]
+        async fn a_limit_above_the_cap_is_clamped() {
+            let service = service_with_notes(1).await;
+            let json = result_json(
+                &service
+                    .notes_list(Parameters(list_args(Some(9_000))))
+                    .await
+                    .expect("list"),
+            );
+            assert_eq!(json["limit"], 500);
+        }
+
+        #[tokio::test]
+        async fn a_non_positive_limit_is_rejected() {
+            let service = service_with_notes(1).await;
+            let error = service
+                .notes_list(Parameters(list_args(Some(0))))
+                .await
+                .expect_err("zero limit must fail");
+            assert!(error.message.contains("greater than zero"));
+        }
+    }
+
     mod committed_writes_always_report_success {
         use super::*;
 
         async fn write_only_service() -> DevdrivrMcpService {
-            service_with(all_permissions(resource_permissions(false, true, true, true))).await
+            service_with(all_permissions(resource_permissions(
+                false, true, true, true,
+            )))
+            .await
         }
 
         #[tokio::test]
@@ -4190,8 +4292,10 @@ mod tests {
 
         #[tokio::test]
         async fn the_record_rides_along_when_read_is_granted() {
-            let service =
-                service_with(all_permissions(resource_permissions(true, true, true, true))).await;
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
 
             let payload = result_json(
                 &service
@@ -4228,18 +4332,19 @@ mod tests {
                 .expect_err("cloning a built-in without create permission must fail");
 
             assert!(error.message.contains("promptTemplates.create"));
-            let count =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_prompt_templates")
-                    .fetch_one(&service.pool)
-                    .await
-                    .expect("count");
+            let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_prompt_templates")
+                .fetch_one(&service.pool)
+                .await
+                .expect("count");
             assert_eq!(count, 1, "the clone must not have been written");
         }
 
         #[tokio::test]
         async fn create_is_still_refused_without_create_permission() {
-            let service =
-                service_with(all_permissions(resource_permissions(true, false, true, true))).await;
+            let service = service_with(all_permissions(resource_permissions(
+                true, false, true, true,
+            )))
+            .await;
 
             let error = service
                 .notes_create(Parameters(note_create_args("Refused")))
@@ -4756,11 +4861,11 @@ mod tests {
     }
 
     #[test]
-    fn search_limit_defaults_clamps_and_rejects_invalid_values() {
-        assert_eq!(normalize_search_limit(None).unwrap(), 50);
-        assert_eq!(normalize_search_limit(Some(999)).unwrap(), 500);
+    fn limit_defaults_clamps_and_rejects_invalid_values() {
+        assert_eq!(normalize_limit(None).unwrap(), 50);
+        assert_eq!(normalize_limit(Some(999)).unwrap(), 500);
 
-        let err = normalize_search_limit(Some(0)).expect_err("zero limit should fail");
+        let err = normalize_limit(Some(0)).expect_err("zero limit should fail");
         let data = err.data.expect("error data");
         assert_eq!(data["code"], "INVALID_ARGUMENT");
         assert_eq!(data["argument"], "limit");
