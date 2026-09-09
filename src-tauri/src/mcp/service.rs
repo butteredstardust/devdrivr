@@ -710,6 +710,35 @@ fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> 
     }
 }
 
+/// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
+/// write makes an import look successful while the template never appears in the tool.
+fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "code-review" | "refactoring" | "testing" | "docs" | "debugging" | "learning"
+        | "productivity" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "category",
+            format!("Unsupported template category: {value}"),
+            &[
+                "Use one of: code-review, refactoring, testing, docs, debugging, learning, productivity",
+            ],
+        )),
+    }
+}
+
+/// WARNING: Prompt Templates skips any row whose target falls outside this set. See
+/// [`validate_template_category`].
+fn validate_template_optimized_for(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "Claude" | "ChatGPT" | "Cursor" | "Generic" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "optimizedFor",
+            format!("Unsupported template target: {value}"),
+            &["Use one of: Claude, ChatGPT, Cursor, Generic"],
+        )),
+    }
+}
+
 fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> {
     let parts = value
         .split('-')
@@ -3327,12 +3356,20 @@ impl DevdrivrMcpService {
         .bind(&id)
         .bind(args.name)
         .bind(args.description.unwrap_or_default())
-        .bind(args.category.unwrap_or_else(|| "productivity".to_string()))
+        .bind(
+            args.category
+                .as_deref()
+                .map_or_else(|| Ok("productivity".to_string()), validate_template_category)?,
+        )
         .bind(string_vec_to_db_json(args.tags))
         .bind(&args.prompt)
         .bind(normalize_prompt_variables(args.variables)?)
         .bind(estimated_tokens(&args.prompt))
-        .bind(args.optimized_for.unwrap_or_else(|| "Generic".to_string()))
+        .bind(
+            args.optimized_for
+                .as_deref()
+                .map_or_else(|| Ok("Generic".to_string()), validate_template_optimized_for)?,
+        )
         .bind(args.version.unwrap_or_else(|| "1.0.0".to_string()))
         .bind(string_vec_to_db_json(args.tips))
         .bind(now)
@@ -3383,12 +3420,20 @@ impl DevdrivrMcpService {
         .bind(&target_id)
         .bind(args.name.unwrap_or(current.name))
         .bind(args.description.unwrap_or(current.description))
-        .bind(args.category.unwrap_or(current.category))
+        .bind(
+            args.category
+                .as_deref()
+                .map_or_else(|| Ok(current.category), validate_template_category)?,
+        )
         .bind(tags)
         .bind(&prompt)
         .bind(variables)
         .bind(estimated_tokens(&prompt))
-        .bind(args.optimized_for.unwrap_or(current.optimized_for))
+        .bind(
+            args.optimized_for
+                .as_deref()
+                .map_or_else(|| Ok(current.optimized_for), validate_template_optimized_for)?,
+        )
         .bind(args.version.unwrap_or(current.version))
         .bind(tips)
         .bind(if current.author == "builtin" { now } else { current.created_at })
@@ -4047,6 +4092,19 @@ mod tests {
 
         assert!(value.get("deletedAt").is_none());
         assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn template_enums_accept_only_values_the_tool_can_load() {
+        assert_eq!(validate_template_category("docs").expect("docs"), "docs");
+        assert_eq!(
+            validate_template_optimized_for("Claude").expect("Claude"),
+            "Claude"
+        );
+        assert!(validate_template_category("general").is_err());
+        assert!(validate_template_category("Docs").is_err());
+        assert!(validate_template_optimized_for("GPT-4").is_err());
+        assert!(validate_template_optimized_for("claude").is_err());
     }
 
     #[test]
