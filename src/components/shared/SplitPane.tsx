@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 
 type SplitPaneProps = {
   /** Exactly two panes. A three-way split is a nested `SplitPane`, not a third child. */
@@ -171,21 +172,40 @@ export function SplitPane({
     [clamp, persistSoon]
   )
 
+  // Container box, measured once per gesture. Null between gestures.
+  const geometryRef = useRef<{ rect: DOMRect; size: number } | null>(null)
+
+  // A pointer can deliver several moves per frame, and each one re-renders SplitPane and
+  // reflows both panes. Only the last of a frame is ever seen, so only the last is applied.
+  const { run: scheduleRatio, flush: flushRatio } = useFrameThrottle((event: PointerEvent) => {
+    const geometry = geometryRef.current
+    if (!geometry || geometry.size === 0) return
+    const offset = isHorizontal
+      ? event.clientX - geometry.rect.left
+      : event.clientY - geometry.rect.top
+    commit(offset / geometry.size)
+  })
+
   // Listeners go on window, not the divider: the pointer routinely outruns a 4px target mid-drag,
   // and a divider-scoped listener drops the drag the moment that happens.
   useEffect(() => {
     if (!dragging) return
 
-    const handleMove = (event: PointerEvent) => {
-      const container = containerRef.current
-      if (!container) return
-      const rect = container.getBoundingClientRect()
-      const size = isHorizontal ? rect.width : rect.height
-      if (size === 0) return
-      const offset = isHorizontal ? event.clientX - rect.left : event.clientY - rect.top
-      commit(offset / size)
+    // Measure once, at the start of the gesture. The container's own box does not move while
+    // the divider travels inside it, and reading it per move forced a synchronous reflow: the
+    // previous move had just written a new pane percentage, so the browser had to lay both
+    // panes out — Monaco editors and all — before it could answer. A window resize ends the
+    // drag, so this measurement cannot go stale.
+    const rect = containerRef.current?.getBoundingClientRect() ?? null
+    geometryRef.current = rect && { rect, size: isHorizontal ? rect.width : rect.height }
+
+    const handleMove = (event: PointerEvent) => scheduleRatio(event)
+    const handleUp = () => {
+      // Land the last position before the gesture ends, or the divider settles a frame behind
+      // the pointer and persists that stale ratio.
+      flushRatio()
+      setDragging(false)
     }
-    const handleUp = () => setDragging(false)
 
     window.addEventListener('pointermove', handleMove)
     window.addEventListener('pointerup', handleUp)
@@ -204,8 +224,9 @@ export function SplitPane({
       window.removeEventListener('blur', handleUp)
       document.body.style.userSelect = previousSelect
       document.body.style.cursor = ''
+      geometryRef.current = null
     }
-  }, [dragging, isHorizontal, commit])
+  }, [dragging, isHorizontal, scheduleRatio, flushRatio])
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
