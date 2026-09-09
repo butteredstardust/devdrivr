@@ -725,6 +725,30 @@ fn validate_note_color(value: &str) -> std::result::Result<String, McpError> {
     }
 }
 
+/// Repairs a stored value an earlier import left invalid.
+///
+/// An update that does not touch the field must not write the bad value back, or the row stays
+/// invisible in the tool. Reject what a client sends, but heal what the database already holds.
+fn heal_stored(
+    value: &str,
+    default: &str,
+    validate: fn(&str) -> std::result::Result<String, McpError>,
+) -> String {
+    validate(value).unwrap_or_else(|_| default.to_string())
+}
+
+fn heal_note_color(value: &str) -> String {
+    heal_stored(value, "yellow", validate_note_color)
+}
+
+fn heal_template_category(value: &str) -> String {
+    heal_stored(value, "productivity", validate_template_category)
+}
+
+fn heal_template_optimized_for(value: &str) -> String {
+    heal_stored(value, "Generic", validate_template_optimized_for)
+}
+
 /// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
 /// write makes an import look successful while the template never appears in the tool.
 fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
@@ -1009,8 +1033,9 @@ fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, 
         Some(Value::Object(map)) => map
             .into_iter()
             .map(|(key, value)| {
-                let value = header_text(&value)
-                    .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
+                let value = header_text(&value).ok_or_else(|| {
+                    invalid_api_headers(format!("Header {key} needs a text value"))
+                })?;
                 Ok(json!({ "key": key, "value": value, "enabled": true }))
             })
             .collect::<std::result::Result<Vec<_>, McpError>>()?,
@@ -3101,7 +3126,7 @@ impl DevdrivrMcpService {
         let color = args
             .color
             .as_deref()
-            .map_or_else(|| Ok(current.color.clone()), validate_note_color)?;
+            .map_or_else(|| Ok(heal_note_color(&current.color)), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(current.pinned == 1);
         let tags = args
             .tags
@@ -3464,7 +3489,7 @@ impl DevdrivrMcpService {
         .bind(
             args.category
                 .as_deref()
-                .map_or_else(|| Ok(current.category), validate_template_category)?,
+                .map_or_else(|| Ok(heal_template_category(&current.category)), validate_template_category)?,
         )
         .bind(tags)
         .bind(&prompt)
@@ -3473,7 +3498,10 @@ impl DevdrivrMcpService {
         .bind(
             args.optimized_for
                 .as_deref()
-                .map_or_else(|| Ok(current.optimized_for), validate_template_optimized_for)?,
+                .map_or_else(
+                    || Ok(heal_template_optimized_for(&current.optimized_for)),
+                    validate_template_optimized_for,
+                )?,
         )
         .bind(args.version.unwrap_or(current.version))
         .bind(tips)
@@ -4136,6 +4164,16 @@ mod tests {
     }
 
     #[test]
+    fn an_update_heals_a_stored_value_an_earlier_import_left_invalid() {
+        assert_eq!(heal_note_color("teal"), "yellow");
+        assert_eq!(heal_note_color("purple"), "purple");
+        assert_eq!(heal_template_category("general"), "productivity");
+        assert_eq!(heal_template_category("docs"), "docs");
+        assert_eq!(heal_template_optimized_for("GPT-4"), "Generic");
+        assert_eq!(heal_template_optimized_for("Cursor"), "Cursor");
+    }
+
+    #[test]
     fn note_color_accepts_only_values_the_tool_can_load() {
         assert_eq!(validate_note_color("purple").expect("purple"), "purple");
         assert!(validate_note_color("teal").is_err());
@@ -4178,7 +4216,9 @@ mod tests {
     fn prompt_variables_reject_what_the_tool_would_discard() {
         assert!(normalize_prompt_variables(Some(json!({ "code": "text" }))).is_err());
         assert!(normalize_prompt_variables(Some(json!([{ "label": "No name" }]))).is_err());
-        assert!(normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err());
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err()
+        );
         assert!(
             normalize_prompt_variables(Some(json!([{ "name": "x", "type": "select" }]))).is_err()
         );
@@ -4228,7 +4268,10 @@ mod tests {
     #[test]
     fn api_auth_normalizes_each_supported_type_and_rejects_the_rest() {
         assert_eq!(
-            parse_json(&normalize_api_auth(json!({ "type": "none" })).expect("none"), json!({})),
+            parse_json(
+                &normalize_api_auth(json!({ "type": "none" })).expect("none"),
+                json!({})
+            ),
             json!({ "type": "none" })
         );
         assert_eq!(
@@ -4241,8 +4284,10 @@ mod tests {
         // Unknown keys are dropped so the stored row matches the ApiRequestAuth union exactly.
         assert_eq!(
             parse_json(
-                &normalize_api_auth(json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" }))
-                    .expect("basic"),
+                &normalize_api_auth(
+                    json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" })
+                )
+                .expect("basic"),
                 json!({})
             ),
             json!({ "type": "basic", "username": "u", "password": "p" })
@@ -4275,10 +4320,10 @@ mod tests {
             normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": 0 }])))
                 .is_err()
         );
-        assert!(
-            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": "false" }])))
-                .is_err()
-        );
+        assert!(normalize_api_headers(Some(
+            json!([{ "key": "A", "value": "b", "enabled": "false" }])
+        ))
+        .is_err());
     }
 
     #[test]
