@@ -152,8 +152,13 @@ introspect()
 | Search/list default results | 50           |
 | Search/list max results     | 500          |
 | `multi_get` max IDs         | 100          |
+| Request body                | 8 MiB        |
+| Single text field           | 1 MiB        |
+| Items in one list field     | 1000         |
+| Tool call duration          | 30 s         |
 | MCP host                    | `127.0.0.1`  |
-| UI port range               | `1024-65535` |
+| Port range                  | `1024-65535` |
+| Minimum API key length      | 32           |
 
 A list response carries `total`, `limit` and `hasMore` beside the records. Raise `limit` when
 `hasMore` is true. A `limit` of zero or less is rejected.

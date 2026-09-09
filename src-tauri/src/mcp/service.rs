@@ -1,9 +1,9 @@
-use std::{cmp::Ordering, sync::Arc};
+use std::{cmp::Ordering, sync::Arc, time::Duration};
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
-    schemars, tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    schemars, tool, tool_router, ErrorData as McpError, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -20,6 +20,15 @@ const REDACTED_AUTH_VALUE: &str = "***REDACTED***";
 const DEFAULT_RESULT_LIMIT: i64 = 50;
 const MAX_RESULT_LIMIT: i64 = 500;
 const MAX_MULTI_GET: usize = 100;
+/// Longest string accepted in any tool argument. A note or a request body fits comfortably.
+const MAX_TEXT_FIELD_BYTES: usize = 1024 * 1024;
+/// Longest array accepted in any tool argument, such as tags, headers or variables.
+const MAX_ARRAY_ITEMS: usize = 1000;
+/// Deepest nesting accepted in any tool argument. Guards the recursive walk itself.
+const MAX_ARGUMENT_DEPTH: usize = 32;
+/// Longest a single tool call may run. Every tool reads a local database, so this only fires
+/// when something is stuck.
+const TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 const FOLDER_SORT_STEP: f64 = 1000.0;
 const SYSTEM_INBOX_IDS: [&str; 3] = ["notes-inbox", "snippets-inbox", "api-requests-inbox"];
 const HELP_TOPICS: [&str; 7] = [
@@ -602,6 +611,88 @@ fn batch_too_large(argument: &str, count: usize, max: usize) -> McpError {
             &[
                 "Split the request into smaller batches",
                 "Use search filters to narrow the resource set before fetching details",
+            ],
+        )),
+    )
+}
+
+fn resource_limit(message: impl Into<String>, suggestions: &[&str]) -> McpError {
+    McpError::invalid_request(
+        message.into(),
+        Some(error_data(
+            "RESOURCE_LIMIT",
+            None,
+            None,
+            None,
+            None,
+            suggestions,
+        )),
+    )
+}
+
+/// Reject a tool argument that is too large to process.
+///
+/// The transport caps a whole request. This caps the parts, so an oversized field is answered
+/// with the field that broke the budget instead of a bare transport error.
+///
+/// Runs before the arguments are deserialised, so it covers every tool at once.
+fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(), McpError> {
+    if depth > MAX_ARGUMENT_DEPTH {
+        return Err(resource_limit(
+            format!("Arguments nest deeper than {MAX_ARGUMENT_DEPTH} levels"),
+            &["Flatten the argument structure"],
+        ));
+    }
+    match value {
+        Value::String(text) if text.len() > MAX_TEXT_FIELD_BYTES => Err(resource_limit(
+            format!(
+                "A text field is {} bytes; maximum is {MAX_TEXT_FIELD_BYTES}",
+                text.len()
+            ),
+            &[
+                "Split the content across several records",
+                "Store large payloads outside devdrivr and keep a reference",
+            ],
+        )),
+        Value::Array(items) if items.len() > MAX_ARRAY_ITEMS => Err(resource_limit(
+            format!(
+                "A list field has {} items; maximum is {MAX_ARRAY_ITEMS}",
+                items.len()
+            ),
+            &["Send fewer items per call"],
+        )),
+        Value::Array(items) => items
+            .iter()
+            .try_for_each(|item| check_argument_budget(item, depth + 1)),
+        Value::Object(entries) if entries.len() > MAX_ARRAY_ITEMS => Err(resource_limit(
+            format!(
+                "An object field has {} keys; maximum is {MAX_ARRAY_ITEMS}",
+                entries.len()
+            ),
+            &["Send fewer keys per call"],
+        )),
+        Value::Object(entries) => entries
+            .values()
+            .try_for_each(|item| check_argument_budget(item, depth + 1)),
+        _ => Ok(()),
+    }
+}
+
+fn tool_timed_out(name: &str) -> McpError {
+    McpError::internal_error(
+        format!(
+            "Tool `{name}` did not finish within {}s",
+            TOOL_TIMEOUT.as_secs()
+        ),
+        Some(error_data(
+            "TIMEOUT",
+            None,
+            None,
+            None,
+            None,
+            &[
+                "Retry with a smaller limit or a narrower filter",
+                "Check that no other process is holding the devdrivr database open",
             ],
         )),
     )
@@ -1854,6 +1945,8 @@ fn help_errors() -> String {
 - `PERMISSION_DENIED`: Current MCP permissions do not allow the action. Enable the permission in Settings > MCP > Permissions.
 - `RESOURCE_NOT_FOUND`: The ID does not exist for that resource type. Use `search`, `multi_get`, or a list tool to find current IDs.
 - `INVALID_ARGUMENT`: A parameter is invalid, such as an empty `types` array or invalid `limit`.
+- `RESOURCE_LIMIT`: An argument is too large. Split the content or send fewer items per call.
+- `TIMEOUT`: The tool did not finish in time. Retry with a smaller `limit` or a narrower filter.
 - `UNSUPPORTED_RESOURCE_TYPE`: Use one of `notes`, `snippets`, `promptTemplates`, or `apiRequests`.
 - `BATCH_TOO_LARGE`: Split `multi_get` into batches of 100 IDs or fewer.
 - `DATABASE_ERROR`: devdrivr could not read or write the local SQLite database. Restart devdrivr and check logs.
@@ -1880,6 +1973,8 @@ Limits:
 - Search and list default to `{default_results}` results and cap at `{max_results}`.
 - List responses carry `total`, `limit` and `hasMore`. Raise `limit` when `hasMore` is true.
 - `multi_get` accepts at most `{max_multi_get}` IDs.
+- A request body is capped at 8 MiB. A single text field is capped at 1 MiB.
+- A list field accepts at most `{max_items}` items. A tool call is cancelled after `{tool_timeout}`s.
 - Supported port range in the UI: 1024-65535.
 - Current endpoint: `{url}`.
 - API request auth supports `none`, `bearer`, and `basic`.
@@ -1888,6 +1983,8 @@ Limits:
         default_results = DEFAULT_RESULT_LIMIT,
         max_results = MAX_RESULT_LIMIT,
         max_multi_get = MAX_MULTI_GET,
+        max_items = MAX_ARRAY_ITEMS,
+        tool_timeout = TOOL_TIMEOUT.as_secs(),
         url = mcp_url(settings)
     )
 }
@@ -4024,8 +4121,44 @@ impl DevdrivrMcpService {
     }
 }
 
-#[tool_handler]
+/// WARNING: written out rather than generated by `#[tool_handler]`. The generated `call_tool`
+/// dispatches straight to the router, which leaves no place to bound argument size or call
+/// duration. `list_tools` and `get_tool` match what the macro generates.
 impl ServerHandler for DevdrivrMcpService {
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let name = request.name.to_string();
+        if let Some(arguments) = &request.arguments {
+            for value in arguments.values() {
+                check_argument_budget(value, 1)?;
+            }
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        match tokio::time::timeout(TOOL_TIMEOUT, self.tool_router.call(call)).await {
+            Ok(result) => result,
+            Err(_) => Err(tool_timed_out(&name)),
+        }
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> std::result::Result<rmcp::model::ListToolsResult, McpError> {
+        Ok(rmcp::model::ListToolsResult {
+            tools: self.tool_router.list_all(),
+            meta: None,
+            next_cursor: None,
+        })
+    }
+
+    fn get_tool(&self, name: &str) -> Option<rmcp::model::Tool> {
+        self.tool_router.get(name).cloned()
+    }
+
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
@@ -4144,6 +4277,48 @@ mod tests {
     /// through the read-gated getter answered a successful write with PERMISSION_DENIED, and an
     /// agent that retried wrote the row twice.
     /// A list without a limit returned every row. `limit: 0` returned one row instead of an error.
+    /// The transport caps a whole request. These cap the parts, so an oversized field names
+    /// itself instead of failing as a bare transport error.
+    mod argument_budget {
+        use super::*;
+
+        #[test]
+        fn ordinary_arguments_pass() {
+            let value = json!({ "title": "note", "tags": ["a", "b"], "nested": { "x": [1, 2] } });
+            assert!(check_argument_budget(&value, 1).is_ok());
+        }
+
+        #[test]
+        fn an_oversized_string_is_rejected() {
+            let value = json!("x".repeat(MAX_TEXT_FIELD_BYTES + 1));
+            let error = check_argument_budget(&value, 1).expect_err("oversized string");
+            assert_eq!(error.data.as_ref().expect("data")["code"], "RESOURCE_LIMIT");
+        }
+
+        #[test]
+        fn an_oversized_string_nested_in_an_array_is_rejected() {
+            let value = json!([{ "content": "x".repeat(MAX_TEXT_FIELD_BYTES + 1) }]);
+            assert!(check_argument_budget(&value, 1).is_err());
+        }
+
+        #[test]
+        fn an_oversized_array_is_rejected() {
+            let value = Value::Array(vec![json!(1); MAX_ARRAY_ITEMS + 1]);
+            let error = check_argument_budget(&value, 1).expect_err("oversized array");
+            assert!(error.message.contains("maximum"));
+        }
+
+        #[test]
+        fn arguments_nested_past_the_depth_cap_are_rejected() {
+            let mut value = json!(1);
+            for _ in 0..MAX_ARGUMENT_DEPTH + 1 {
+                value = json!([value]);
+            }
+            let error = check_argument_budget(&value, 1).expect_err("over-nested arguments");
+            assert!(error.message.contains("nest"));
+        }
+    }
+
     mod list_bounds {
         use super::*;
 
