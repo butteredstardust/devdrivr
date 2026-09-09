@@ -191,6 +191,8 @@ export function CommandPalette() {
   const isOpen = useUiStore((s) => s.commandPaletteOpen)
   const setOpen = useUiStore((s) => s.setCommandPaletteOpen)
   const setActiveTool = useUiStore((s) => s.setActiveTool)
+  const openTabInstance = useUiStore((s) => s.openTabInstance)
+  const intent = useUiStore((s) => s.commandPaletteIntent)
   const activeTool = useUiStore((s) => s.activeTool)
   const tabs = useUiStore((s) => s.tabs)
   const addToast = useUiStore((s) => s.addToast)
@@ -267,6 +269,7 @@ export function CommandPalette() {
   // ─── Results ───────────────────────────────────────────────────
 
   const isActionMode = query.startsWith('>')
+  const isNewTab = isOpen && intent === 'new-tab'
   const searchQuery = isActionMode ? query.slice(1).trim() : query.trim()
 
   const results = useMemo(() => {
@@ -353,7 +356,11 @@ export function CommandPalette() {
   const executeItem = useCallback(
     (item: PaletteItem) => {
       if (item.kind === 'tool') {
-        setActiveTool(item.id)
+        // The new-tab button asks for another instance even when the tool is already open.
+        // `setActiveTool` would return to the open one, which is the opposite of what the
+        // button says. Every other way into the palette keeps switch semantics.
+        if (intent === 'new-tab') openTabInstance(item.id)
+        else setActiveTool(item.id)
         setOpen(false)
         return
       }
@@ -430,6 +437,8 @@ export function CommandPalette() {
       }
     },
     [
+      intent,
+      openTabInstance,
       setActiveTool,
       setOpen,
       toggleTheme,
@@ -575,7 +584,9 @@ export function CommandPalette() {
           onKeyDown={onKeyDown}
           placeholder={
             isOpen
-              ? `Search tools... (${modSymbol}K)  •  Type > for actions`
+              ? isNewTab
+                ? 'Search tools to open in a new tab...  •  Type > for actions'
+                : `Search tools... (${modSymbol}K)  •  Type > for actions`
               : (TOOLS.find((tool) => tool.id === activeTool)?.name ?? 'Search tools and commands')
           }
           aria-label="Search tools and commands"
@@ -593,6 +604,12 @@ export function CommandPalette() {
         {isActionMode && isOpen ? (
           <span className="@max-[200px]:hidden rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
             Actions
+          </span>
+        ) : isNewTab ? (
+          // Picking a tool here always opens another instance. Say so, or a second Markdown
+          // Editor appearing next to the first reads as a bug rather than the point.
+          <span className="@max-[200px]:hidden rounded bg-[var(--color-accent-dim)] px-1.5 py-0.5 text-2xs text-[var(--color-accent)]">
+            New tab
           </span>
         ) : (
           <span className="@max-[200px]:hidden flex shrink-0 items-center">

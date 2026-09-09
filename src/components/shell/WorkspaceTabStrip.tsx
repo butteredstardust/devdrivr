@@ -681,11 +681,15 @@ export function WorkspaceTabStrip() {
 
       {/* + button pinned outside the scroll area. The left border separates
           "tabs" from "action" — flush against the scroll area it read as one
-          more tab. */}
+          more tab.
+
+          Opens the palette with the `new-tab` intent, so picking a tool that is
+          already open gives a second instance instead of moving to the first. A
+          button labelled "New tab" that focuses an existing tab is a bug. */}
       <button
-        onClick={toggleCommandPalette}
-        aria-label={`Open new tool (${formatShortcut('mod+k')})`}
-        title={`Open new tool (${formatShortcut('mod+k')})`}
+        onClick={() => toggleCommandPalette('new-tab')}
+        aria-label={`New tab (${formatShortcut('mod+k')})`}
+        title={`New tab (${formatShortcut('mod+k')})`}
         className="flex h-full w-8 shrink-0 items-center justify-center border-l border-[var(--color-border)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />
