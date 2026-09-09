@@ -535,7 +535,8 @@ function normalizeMethod(value: string | null | undefined): HttpMethod {
   return HTTP_METHODS.find((method) => method === upper) ?? 'GET'
 }
 
-const BODY_MODE_IDS = new Set(['json', 'text', 'urlencoded', 'formdata', 'none'])
+/** Exported so the shared contract test can compare it against the Rust MCP service. */
+export const BODY_MODE_IDS = new Set(['json', 'text', 'urlencoded', 'formdata', 'none'])
 
 function normalizeBodyMode(value: string | null): string {
   return value && BODY_MODE_IDS.has(value) ? value : 'none'

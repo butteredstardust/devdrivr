@@ -234,6 +234,9 @@ fn normalize_snippet_fragments(
             &["Supply at least one fragment and no more than 100"],
         ));
     }
+    // A caller may send the IDs it read back, so an update keeps fragment identity. Two
+    // fragments carrying one ID would write a single row and drop the other without a word.
+    let mut seen_ids = std::collections::HashSet::new();
     fragments
         .into_iter()
         .enumerate()
@@ -246,11 +249,23 @@ fn normalize_snippet_fragments(
                     &["Give every fragment a readable name"],
                 ));
             }
+            let id = fragment
+                .id
+                .map(|id| id.trim().to_string())
+                .filter(|id| !id.is_empty())
+                .unwrap_or_else(|| Uuid::new_v4().to_string());
+            if !seen_ids.insert(id.clone()) {
+                return Err(invalid_argument(
+                    "fragments",
+                    format!("Fragment {} repeats the id `{id}`", index + 1),
+                    &[
+                        "Give every fragment its own id",
+                        "Omit `id` to have devdrivr assign one",
+                    ],
+                ));
+            }
             Ok((
-                fragment
-                    .id
-                    .filter(|id| !id.trim().is_empty())
-                    .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                id,
                 name,
                 fragment.content,
                 fragment.language.unwrap_or_else(|| "text".to_string()),
@@ -1117,6 +1132,89 @@ fn normalize_api_header_entry(entry: Value) -> std::result::Result<Value, McpErr
 /// stored object or string therefore crashes the tool on load, so reject those shapes at the write.
 ///
 /// Accept both shapes an MCP client sends: the stored array, and a flat header map.
+/// The methods the API Client offers. Kept in step with `METHODS` in
+/// `src/tools/api-client/request-model.ts`.
+const HTTP_METHODS: [&str; 7] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+/// The methods that carry a body. Kept in step with `BODY_METHODS` in the same file.
+const BODY_METHODS: [&str; 5] = ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+/// The body modes the API Client offers. Kept in step with `BODY_MODE_IDS` in
+/// `src/lib/api-import.ts`.
+const BODY_MODES: [&str; 5] = ["json", "text", "urlencoded", "formdata", "none"];
+
+/// Accept a method the API Client can send.
+///
+/// A free-text method reached the database and opened a request the tool could not run.
+fn validate_http_method(value: &str) -> std::result::Result<String, McpError> {
+    let method = value.trim().to_uppercase();
+    if HTTP_METHODS.contains(&method.as_str()) {
+        return Ok(method);
+    }
+    Err(invalid_argument(
+        "method",
+        format!("`{value}` is not a supported HTTP method"),
+        &["Use one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS"],
+    ))
+}
+
+/// Accept a body mode the API Client can render.
+fn validate_body_mode(value: &str) -> std::result::Result<String, McpError> {
+    let mode = value.trim().to_lowercase();
+    if BODY_MODES.contains(&mode.as_str()) {
+        return Ok(mode);
+    }
+    Err(invalid_argument(
+        "bodyMode",
+        format!("`{value}` is not a supported body mode"),
+        &["Use one of json, text, urlencoded, formdata, none"],
+    ))
+}
+
+/// Settle the body mode against the method, the way the API Client does when the method changes.
+///
+/// A GET with `bodyMode: "json"` shows a body editor for a body that is never sent.
+fn body_mode_for_method(method: &str, mode: Option<String>) -> String {
+    if !BODY_METHODS.contains(&method) {
+        return "none".to_string();
+    }
+    mode.unwrap_or_else(|| "json".to_string())
+}
+
+/// Reject a required string that carries no content.
+///
+/// A record named `"   "` is unreachable in the sidebar, because it renders as an empty row.
+fn require_non_blank(argument: &str, value: &str) -> std::result::Result<String, McpError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(invalid_argument(
+            argument,
+            format!("`{argument}` must not be blank"),
+            &["Supply a value with at least one non-space character"],
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+/// Settle the folder a record belongs to.
+///
+/// WARNING: `collectionId` is the legacy alias of `folderId`. Two different values meant one of
+/// them was silently dropped, and the caller had no way to tell which.
+fn resolve_folder_alias(
+    folder_id: Option<String>,
+    collection_id: Option<String>,
+) -> std::result::Result<Option<String>, McpError> {
+    match (folder_id, collection_id) {
+        (Some(folder), Some(collection)) if folder.trim() != collection.trim() => {
+            Err(invalid_argument(
+                "folderId",
+                "`folderId` and legacy `collectionId` name different folders",
+                &["Send only `folderId`", "Send the same value in both fields"],
+            ))
+        }
+        (Some(folder), _) => Ok(Some(folder)),
+        (None, collection) => Ok(collection),
+    }
+}
+
 fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, McpError> {
     let entries = match headers {
         None | Some(Value::Null) => Vec::new(),
@@ -2709,6 +2807,19 @@ impl DevdrivrMcpService {
 
     async fn save_folder(&self, folder: &ResourceFolderRow) -> std::result::Result<(), McpError> {
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        Self::save_folder_in(&mut transaction, folder).await?;
+        transaction.commit().await.map_err(db_error)?;
+        Ok(())
+    }
+
+    /// Write a folder inside a caller-owned transaction.
+    ///
+    /// Lets a folder created on the caller's behalf commit with the record that needed it. A
+    /// folder written on its own connection survived a failed record insert as an empty folder.
+    async fn save_folder_in(
+        transaction: &mut Transaction<'_, Sqlite>,
+        folder: &ResourceFolderRow,
+    ) -> std::result::Result<(), McpError> {
         sqlx::query(
             "INSERT INTO resource_folders (id, name, parent_id, kind, sort_order, default_language, created_at, updated_at) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
@@ -2722,7 +2833,7 @@ impl DevdrivrMcpService {
         .bind(&folder.default_language)
         .bind(folder.created_at)
         .bind(folder.updated_at)
-        .execute(&mut *transaction)
+        .execute(&mut **transaction)
         .await
         .map_err(db_error)?;
 
@@ -2739,11 +2850,10 @@ impl DevdrivrMcpService {
             .bind(&folder.default_language)
             .bind(folder.created_at)
             .bind(folder.updated_at)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(db_error)?;
         }
-        transaction.commit().await.map_err(db_error)?;
         Ok(())
     }
 
@@ -2781,19 +2891,23 @@ impl DevdrivrMcpService {
         Ok(())
     }
 
+    /// Settle which folder a snippet belongs to.
+    ///
+    /// WARNING: returns a folder to create rather than creating one. The caller must write it
+    /// inside the snippet transaction, or a failed snippet insert leaves an empty folder behind.
     async fn resolve_snippet_folder(
         &self,
         folder_id: Option<String>,
         legacy_folder: Option<String>,
         current: Option<&SnippetRow>,
-    ) -> std::result::Result<(String, String, bool), McpError> {
+    ) -> std::result::Result<(String, String, Option<ResourceFolderRow>), McpError> {
         if let Some(folder_id) = folder_id {
             let folder = self.require_folder_kind(&folder_id, "snippets").await?;
-            return Ok((folder.id, folder.name, false));
+            return Ok((folder.id, folder.name, None));
         }
         if let Some(folder_name) = legacy_folder {
             if folder_name.is_empty() {
-                return Ok(("snippets-inbox".to_string(), String::new(), false));
+                return Ok(("snippets-inbox".to_string(), String::new(), None));
             }
             if let Some(folder) = sqlx::query_as::<_, ResourceFolderRow>(
                 "SELECT * FROM resource_folders WHERE kind = 'snippets' AND name = $1 AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC LIMIT 1",
@@ -2802,7 +2916,7 @@ impl DevdrivrMcpService {
             .fetch_optional(&self.pool)
             .await
             .map_err(db_error)? {
-                return Ok((folder.id, folder_name, false));
+                return Ok((folder.id, folder_name, None));
             }
             let now = now_ms();
             let folder = ResourceFolderRow {
@@ -2816,15 +2930,14 @@ impl DevdrivrMcpService {
                 updated_at: now,
                 deleted_at: None,
             };
-            self.save_folder(&folder).await?;
-            return Ok((folder.id, folder_name, true));
+            return Ok((folder.id.clone(), folder_name, Some(folder)));
         }
         Ok((
             current
                 .and_then(|row| row.folder_id.clone())
                 .unwrap_or_else(|| "snippets-inbox".to_string()),
             current.map(|row| row.folder.clone()).unwrap_or_default(),
-            false,
+            None,
         ))
     }
 
@@ -3419,15 +3532,20 @@ impl DevdrivrMcpService {
         let now = now_ms();
         let fragments = normalize_snippet_fragments(args.fragments, args.content, args.language)?;
         let primary = &fragments[0];
-        let (folder_id, folder, created_folder) = self
+        let (folder_id, folder, pending_folder) = self
             .resolve_snippet_folder(args.folder_id, args.folder, None)
             .await?;
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        // A folder named by the legacy `folder` field is created here, so it commits with the
+        // snippet that asked for it or not at all.
+        if let Some(folder) = &pending_folder {
+            Self::save_folder_in(&mut transaction, folder).await?;
+        }
         sqlx::query(
             "INSERT INTO snippets (id, title, content, language, description, tags, folder, folder_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(&id)
-        .bind(args.title)
+        .bind(require_non_blank("title", &args.title)?)
         .bind(&primary.2)
         .bind(&primary.3)
         .bind(args.description.unwrap_or_default())
@@ -3441,7 +3559,7 @@ impl DevdrivrMcpService {
         .map_err(db_error)?;
         Self::replace_snippet_fragments(&mut transaction, &id, &fragments, now).await?;
         transaction.commit().await.map_err(db_error)?;
-        if created_folder {
+        if pending_folder.is_some() {
             self.emit_changed("folders", "create", None);
         }
         self.emit_changed("snippets", "create", Some(id.clone()));
@@ -3478,16 +3596,22 @@ impl DevdrivrMcpService {
             .map(|fragments| fragments[0].3.clone())
             .or(args.language)
             .unwrap_or_else(|| current.language.clone());
-        let (folder_id, folder, created_folder) = self
+        let (folder_id, folder, pending_folder) = self
             .resolve_snippet_folder(args.folder_id, args.folder, Some(&current))
             .await?;
         let now = now_ms();
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        if let Some(folder) = &pending_folder {
+            Self::save_folder_in(&mut transaction, folder).await?;
+        }
         sqlx::query(
             "UPDATE snippets SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, updated_at=$9 WHERE id=$1",
         )
         .bind(&args.id)
-        .bind(args.title.unwrap_or(current.title))
+        .bind(match args.title {
+            Some(title) => require_non_blank("title", &title)?,
+            None => current.title,
+        })
         .bind(&content)
         .bind(&language)
         .bind(args.description.unwrap_or(current.description))
@@ -3513,7 +3637,7 @@ impl DevdrivrMcpService {
             .map_err(db_error)?;
         }
         transaction.commit().await.map_err(db_error)?;
-        if created_folder {
+        if pending_folder.is_some() {
             self.emit_changed("folders", "create", None);
         }
         self.emit_changed("snippets", "update", Some(args.id.clone()));
@@ -3579,11 +3703,12 @@ impl DevdrivrMcpService {
         self.ensure_permission("promptTemplates", "create").await?;
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
+        let prompt = require_non_blank("prompt", &args.prompt)?;
         sqlx::query(
             "INSERT INTO user_prompt_templates (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'user', $10, $11, $12, $13)",
         )
         .bind(&id)
-        .bind(args.name)
+        .bind(require_non_blank("name", &args.name)?)
         .bind(args.description.unwrap_or_default())
         .bind(
             args.category
@@ -3591,9 +3716,9 @@ impl DevdrivrMcpService {
                 .map_or_else(|| Ok("productivity".to_string()), validate_template_category)?,
         )
         .bind(string_vec_to_db_json(args.tags))
-        .bind(&args.prompt)
+        .bind(&prompt)
         .bind(normalize_prompt_variables(args.variables)?)
-        .bind(estimated_tokens(&args.prompt))
+        .bind(estimated_tokens(&prompt))
         .bind(
             args.optimized_for
                 .as_deref()
@@ -3635,7 +3760,10 @@ impl DevdrivrMcpService {
             current.id.clone()
         };
         let now = now_ms();
-        let prompt = args.prompt.unwrap_or(current.prompt);
+        let prompt = match args.prompt {
+            Some(prompt) => require_non_blank("prompt", &prompt)?,
+            None => current.prompt,
+        };
         let variables = match args.variables {
             Some(value) => normalize_prompt_variables(Some(value))?,
             None => current.variables_schema,
@@ -3652,7 +3780,10 @@ impl DevdrivrMcpService {
             "INSERT INTO user_prompt_templates (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'user', $10, $11, $12, $13) ON CONFLICT(id) DO UPDATE SET name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7, estimated_tokens=$8, optimized_for=$9, author='user', version=$10, tips=$11, updated_at=$13",
         )
         .bind(&target_id)
-        .bind(args.name.unwrap_or(current.name))
+        .bind(match args.name {
+            Some(name) => require_non_blank("name", &name)?,
+            None => current.name,
+        })
         .bind(args.description.unwrap_or(current.description))
         .bind(
             args.category
@@ -3753,14 +3884,7 @@ impl DevdrivrMcpService {
     ) -> McpResult {
         let kind = parse_folder_kind(&args.kind)?;
         self.ensure_permission(kind, "create").await?;
-        let name = args.name.trim();
-        if name.is_empty() {
-            return Err(invalid_argument(
-                "name",
-                "Folder name cannot be empty",
-                &["Provide a non-empty folder name"],
-            ));
-        }
+        let name = require_non_blank("name", &args.name)?;
         validate_default_language(kind, args.default_language.is_some())?;
         self.validate_folder_parent(kind, None, args.parent_id.as_deref())
             .await?;
@@ -4019,22 +4143,25 @@ impl DevdrivrMcpService {
         self.ensure_permission("apiRequests", "create").await?;
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
-        let folder_id = args
-            .folder_id
-            .or(args.collection_id)
+        let folder_id = resolve_folder_alias(args.folder_id, args.collection_id)?
             .unwrap_or_else(|| "api-requests-inbox".to_string());
         self.require_folder_kind(&folder_id, "apiRequests").await?;
+        let method = validate_http_method(&args.method)?;
+        let body_mode = match args.body_mode {
+            Some(mode) => Some(validate_body_mode(&mode)?),
+            None => None,
+        };
         sqlx::query(
             "INSERT INTO api_requests (id, collection_id, name, method, url, headers, body, body_mode, auth, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         )
         .bind(&id)
         .bind(folder_id)
-        .bind(args.name)
-        .bind(args.method.to_uppercase())
-        .bind(args.url)
+        .bind(require_non_blank("name", &args.name)?)
+        .bind(&method)
+        .bind(require_non_blank("url", &args.url)?)
         .bind(normalize_api_headers(args.headers)?)
         .bind(args.body.unwrap_or_default())
-        .bind(args.body_mode.unwrap_or_else(|| "json".to_string()))
+        .bind(body_mode_for_method(&method, body_mode))
         .bind(match args.auth {
             Some(auth) => normalize_api_auth(strip_redaction_marker(auth))?,
             None => r#"{"type":"none"}"#.to_string(),
@@ -4075,23 +4202,39 @@ impl DevdrivrMcpService {
             Some(value) => normalize_api_headers(Some(value))?,
             None => current.headers,
         };
-        let folder_id = args
-            .folder_id
-            .or(args.collection_id)
+        let folder_id = resolve_folder_alias(args.folder_id, args.collection_id)?
             .or(current.collection_id)
             .unwrap_or_else(|| "api-requests-inbox".to_string());
         self.require_folder_kind(&folder_id, "apiRequests").await?;
+        let name = match args.name {
+            Some(name) => require_non_blank("name", &name)?,
+            None => current.name,
+        };
+        let url = match args.url {
+            Some(url) => require_non_blank("url", &url)?,
+            None => current.url,
+        };
+        let method = match args.method {
+            Some(method) => validate_http_method(&method)?,
+            None => current.method,
+        };
+        // A method that carries no body forces the mode to `none`, so switching GET to POST and
+        // back cannot leave a body editor open on a request that never sends one.
+        let body_mode = match args.body_mode {
+            Some(mode) => Some(validate_body_mode(&mode)?),
+            None => Some(current.body_mode),
+        };
         sqlx::query(
             "UPDATE api_requests SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$10 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(folder_id)
-        .bind(args.name.unwrap_or(current.name))
-        .bind(args.method.unwrap_or(current.method).to_uppercase())
-        .bind(args.url.unwrap_or(current.url))
+        .bind(name)
+        .bind(&method)
+        .bind(url)
         .bind(headers)
         .bind(args.body.unwrap_or(current.body))
-        .bind(args.body_mode.unwrap_or(current.body_mode))
+        .bind(body_mode_for_method(&method, body_mode))
         .bind(auth)
         .bind(now_ms())
         .execute(&self.pool)
@@ -4279,6 +4422,108 @@ mod tests {
     /// A list without a limit returned every row. `limit: 0` returned one row instead of an error.
     /// The transport caps a whole request. These cap the parts, so an oversized field names
     /// itself instead of failing as a bare transport error.
+    /// The MCP contract must accept exactly what the API Client accepts. A free-text method or
+    /// body mode reached the database and produced a request the tool could not run.
+    mod api_request_contract {
+        use super::*;
+
+        /// The contract both sides read. A method added to one side and forgotten on the other
+        /// fails here instead of reaching a user.
+        #[test]
+        fn the_rust_constants_match_the_shared_contract() {
+            let contract: Value =
+                serde_json::from_str(include_str!("../../../shared/api-request-contract.json"))
+                    .expect("shared contract");
+            assert_eq!(contract["methods"], json!(HTTP_METHODS));
+            assert_eq!(contract["bodyMethods"], json!(BODY_METHODS));
+            assert_eq!(contract["bodyModes"], json!(BODY_MODES));
+        }
+
+        #[test]
+        fn methods_are_accepted_case_insensitively() {
+            assert_eq!(validate_http_method("post").expect("post"), "POST");
+            assert_eq!(validate_http_method(" GET ").expect("get"), "GET");
+        }
+
+        #[test]
+        fn an_unknown_method_is_rejected() {
+            let error = validate_http_method("TRACE").expect_err("unknown method");
+            assert_eq!(error.data.as_ref().expect("data")["argument"], "method");
+        }
+
+        #[test]
+        fn an_unknown_body_mode_is_rejected() {
+            assert_eq!(validate_body_mode("JSON").expect("json"), "json");
+            assert!(validate_body_mode("xml").is_err());
+        }
+
+        #[test]
+        fn a_method_without_a_body_forces_the_none_mode() {
+            assert_eq!(
+                body_mode_for_method("GET", Some("json".to_string())),
+                "none"
+            );
+            assert_eq!(body_mode_for_method("HEAD", None), "none");
+            assert_eq!(body_mode_for_method("POST", None), "json");
+            assert_eq!(
+                body_mode_for_method("POST", Some("text".to_string())),
+                "text"
+            );
+        }
+
+        #[test]
+        fn conflicting_folder_aliases_are_rejected() {
+            assert_eq!(
+                resolve_folder_alias(Some("a".to_string()), Some("a".to_string())).expect("same"),
+                Some("a".to_string())
+            );
+            assert_eq!(
+                resolve_folder_alias(None, Some("legacy".to_string())).expect("legacy only"),
+                Some("legacy".to_string())
+            );
+            assert!(resolve_folder_alias(Some("a".to_string()), Some("b".to_string())).is_err());
+        }
+
+        #[test]
+        fn a_blank_required_string_is_rejected() {
+            assert_eq!(require_non_blank("name", "  hi  ").expect("trimmed"), "hi");
+            assert!(require_non_blank("name", "   ").is_err());
+        }
+
+        #[test]
+        fn fragments_repeating_an_id_are_rejected() {
+            let fragments: Vec<SnippetFragmentInput> = serde_json::from_value(json!([
+                { "id": "same", "name": "one", "content": "a" },
+                { "id": "same", "name": "two", "content": "b" },
+            ]))
+            .expect("fragments");
+            let error = normalize_snippet_fragments(Some(fragments), None, None)
+                .expect_err("duplicate fragment ids");
+            assert!(error.message.contains("repeats the id"));
+        }
+
+        #[tokio::test]
+        async fn a_create_with_an_unknown_method_writes_nothing() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            let args: ApiRequestCreateArgs = serde_json::from_value(json!({
+                "name": "probe",
+                "method": "FETCH",
+                "url": "https://example.test",
+            }))
+            .expect("create args");
+
+            assert!(service.api_requests_create(Parameters(args)).await.is_err());
+            let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM api_requests")
+                .fetch_one(&service.pool)
+                .await
+                .expect("count");
+            assert_eq!(count, 0);
+        }
+    }
+
     mod argument_budget {
         use super::*;
 
