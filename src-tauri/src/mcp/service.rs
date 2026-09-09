@@ -905,6 +905,115 @@ fn strip_redaction_marker(auth: Value) -> Value {
     }
 }
 
+/// Reads a header key or value that an MCP client sent as a JSON scalar.
+fn header_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => Some(text.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(flag) => Some(flag.to_string()),
+        _ => None,
+    }
+}
+
+fn invalid_api_headers(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "headers",
+        message,
+        &[
+            "Send an array of {\"key\": \"Accept\", \"value\": \"application/json\", \"enabled\": true} objects",
+            "Or send a flat header map such as {\"Accept\": \"application/json\"}",
+        ],
+    )
+}
+
+fn normalize_api_header_entry(entry: Value) -> std::result::Result<Value, McpError> {
+    let Value::Object(obj) = entry else {
+        return Err(invalid_api_headers(
+            "Every header must be an object with key and value",
+        ));
+    };
+    let key = obj
+        .get("key")
+        .or_else(|| obj.get("name"))
+        .and_then(header_text)
+        .ok_or_else(|| invalid_api_headers("Every header needs a key"))?;
+    let value = obj
+        .get("value")
+        .map_or_else(|| Some(String::new()), header_text)
+        .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
+    let enabled = obj.get("enabled").and_then(Value::as_bool).unwrap_or(true);
+    Ok(json!({ "key": key, "value": value, "enabled": enabled }))
+}
+
+/// WARNING: The API Client calls array methods on `headers` while it renders a saved request. A
+/// stored object or string therefore crashes the tool on load, so reject those shapes at the write.
+///
+/// Accept both shapes an MCP client sends: the stored array, and a flat header map.
+fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, McpError> {
+    let entries = match headers {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .into_iter()
+            .map(normalize_api_header_entry)
+            .collect::<std::result::Result<Vec<_>, _>>()?,
+        Some(Value::Object(map)) => map
+            .into_iter()
+            .map(|(key, value)| {
+                let value = header_text(&value)
+                    .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
+                Ok(json!({ "key": key, "value": value, "enabled": true }))
+            })
+            .collect::<std::result::Result<Vec<_>, McpError>>()?,
+        Some(_) => {
+            return Err(invalid_api_headers(
+                "Headers must be an array of header objects or a header map",
+            ))
+        }
+    };
+    Ok(serde_json::to_string(&Value::Array(entries)).unwrap_or_else(|_| "[]".to_string()))
+}
+
+fn invalid_api_auth(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "auth",
+        message,
+        &[
+            "Send {\"type\": \"none\"}",
+            "Send {\"type\": \"bearer\", \"token\": \"...\"}",
+            "Send {\"type\": \"basic\", \"username\": \"...\", \"password\": \"...\"}",
+        ],
+    )
+}
+
+fn auth_field(obj: &serde_json::Map<String, Value>, field: &str) -> String {
+    obj.get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// WARNING: The API Client reads `auth` as a tagged union and sends the named credential on every
+/// request. An unknown shape would silently drop the credential, so reject it at the write.
+fn normalize_api_auth(auth: Value) -> std::result::Result<String, McpError> {
+    let Value::Object(obj) = auth else {
+        return Err(invalid_api_auth("Auth must be an object with a type field"));
+    };
+    let normalized = match obj.get("type").and_then(Value::as_str) {
+        None => return Err(invalid_api_auth("Auth needs a type field")),
+        Some("none") => json!({ "type": "none" }),
+        Some("bearer") => json!({ "type": "bearer", "token": auth_field(&obj, "token") }),
+        Some("basic") => json!({
+            "type": "basic",
+            "username": auth_field(&obj, "username"),
+            "password": auth_field(&obj, "password"),
+        }),
+        Some(other) => {
+            return Err(invalid_api_auth(format!("Unsupported auth type {other}")));
+        }
+    };
+    Ok(serde_json::to_string(&normalized).unwrap_or_else(|_| r#"{"type":"none"}"#.to_string()))
+}
+
 fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
     let mut incoming_obj = match incoming {
         Value::Object(obj) => obj,
@@ -3545,13 +3654,13 @@ impl DevdrivrMcpService {
         .bind(args.name)
         .bind(args.method.to_uppercase())
         .bind(args.url)
-        .bind(value_to_db_json(args.headers, json!([])))
+        .bind(normalize_api_headers(args.headers)?)
         .bind(args.body.unwrap_or_default())
         .bind(args.body_mode.unwrap_or_else(|| "json".to_string()))
-        .bind(value_to_db_json(
-            args.auth.map(strip_redaction_marker),
-            json!({ "type": "none" }),
-        ))
+        .bind(match args.auth {
+            Some(auth) => normalize_api_auth(strip_redaction_marker(auth))?,
+            None => r#"{"type":"none"}"#.to_string(),
+        })
         .bind(now)
         .bind(now)
         .execute(&self.pool)
@@ -3575,14 +3684,18 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("apiRequests", &args.id))?;
-        let auth = args
-            .auth
-            .map(|value| resolve_auth_update(value, &current.auth))
-            .unwrap_or(current.auth);
-        let headers = args
-            .headers
-            .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
-            .unwrap_or(current.headers);
+        let auth = match args.auth {
+            Some(value) => {
+                // Resolve first: the redaction marker restores the secret the client never saw.
+                let resolved = resolve_auth_update(value, &current.auth);
+                normalize_api_auth(parse_json(&resolved, json!({ "type": "none" })))?
+            }
+            None => current.auth,
+        };
+        let headers = match args.headers {
+            Some(value) => normalize_api_headers(Some(value))?,
+            None => current.headers,
+        };
         let folder_id = args
             .folder_id
             .or(args.collection_id)
@@ -3838,6 +3951,71 @@ mod tests {
 
         assert!(value.get("deletedAt").is_none());
         assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn api_headers_normalize_arrays_maps_and_missing_values() {
+        let from_array = normalize_api_headers(Some(json!([
+            { "key": "Accept", "value": "application/json" },
+            { "key": "X-Trace", "value": "abc", "enabled": false },
+        ])))
+        .expect("array");
+        assert_eq!(
+            parse_json(&from_array, json!([])),
+            json!([
+                { "key": "Accept", "value": "application/json", "enabled": true },
+                { "key": "X-Trace", "value": "abc", "enabled": false },
+            ])
+        );
+
+        let from_map =
+            normalize_api_headers(Some(json!({ "Accept": "application/json" }))).expect("map");
+        assert_eq!(
+            parse_json(&from_map, json!([])),
+            json!([{ "key": "Accept", "value": "application/json", "enabled": true }])
+        );
+
+        assert_eq!(normalize_api_headers(None).expect("absent"), "[]");
+        assert_eq!(
+            normalize_api_headers(Some(json!(null))).expect("null"),
+            "[]"
+        );
+    }
+
+    #[test]
+    fn api_headers_reject_shapes_the_api_client_cannot_render() {
+        assert!(normalize_api_headers(Some(json!("Accept: application/json"))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "value": "no-key" }]))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "key": "Accept", "value": ["a"] }]))).is_err());
+        assert!(normalize_api_headers(Some(json!({ "Accept": { "nested": true } }))).is_err());
+    }
+
+    #[test]
+    fn api_auth_normalizes_each_supported_type_and_rejects_the_rest() {
+        assert_eq!(
+            parse_json(&normalize_api_auth(json!({ "type": "none" })).expect("none"), json!({})),
+            json!({ "type": "none" })
+        );
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer", "token": "t" })).expect("bearer"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "t" })
+        );
+        // Unknown keys are dropped so the stored row matches the ApiRequestAuth union exactly.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" }))
+                    .expect("basic"),
+                json!({})
+            ),
+            json!({ "type": "basic", "username": "u", "password": "p" })
+        );
+
+        assert!(normalize_api_auth(json!("bearer")).is_err());
+        assert!(normalize_api_auth(json!({ "token": "t" })).is_err());
+        assert!(normalize_api_auth(json!({ "type": "oauth2" })).is_err());
     }
 
     #[test]
