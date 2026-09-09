@@ -17,7 +17,7 @@ export function ThemeTab() {
       <div>
         <h4 className="mb-1 text-xs text-[var(--color-text)]">Theme</h4>
         <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
-          Appearance mode for the app — hover or focus a swatch to preview it
+          Appearance mode for the app — each swatch shows its own theme. Select one to apply it.
         </p>
         <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
       </div>

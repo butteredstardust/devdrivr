@@ -1,14 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { CheckIcon, MonitorIcon } from '@phosphor-icons/react'
 import type { Theme } from '@/types/models'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import {
-  ALL_THEMES,
-  THEME_META,
-  getEffectiveTheme,
-  isLightEffectiveTheme,
-  setThemeClass,
-} from '@/lib/theme'
+import { ALL_THEMES, THEME_META, getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import type { EffectiveTheme } from '@/lib/theme'
 
 const COLS = 3
@@ -132,7 +126,6 @@ type ChipProps = {
   tabbable: boolean
   registerRef: (el: HTMLButtonElement | null) => void
   onCommit: () => void
-  onHover: (hovering: boolean) => void
   onFocusChange: (focused: boolean) => void
   onArrow: (key: string) => void
 }
@@ -144,10 +137,11 @@ function ThemeChip({
   tabbable,
   registerRef,
   onCommit,
-  onHover,
   onFocusChange,
   onArrow,
 }: ChipProps) {
+  // The active chip carries the whole answer to "which theme am I on?", so it gets an accent
+  // ring as well as the check badge. One border pixel alone is lost in a grid of twenty swatches.
   return (
     <button
       type="button"
@@ -156,8 +150,6 @@ function ThemeChip({
       aria-selected={selected}
       tabIndex={tabbable ? 0 : -1}
       onClick={onCommit}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
       onFocus={() => onFocusChange(true)}
       onBlur={() => onFocusChange(false)}
       onKeyDown={(e) => {
@@ -178,7 +170,11 @@ function ThemeChip({
           onArrow(e.key)
         }
       }}
-      className="font-ui flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-1.5 text-left outline-none transition-colors duration-[var(--duration-fast)] hover:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)]"
+      className={`font-ui flex flex-col gap-1 rounded-[var(--radius-md)] border bg-[var(--color-surface)] p-1.5 text-left outline-none transition-colors duration-[var(--duration-fast)] hover:border-[var(--color-accent)] focus-visible:shadow-[var(--focus-ring)] ${
+        selected
+          ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent)]'
+          : 'border-[var(--color-border)]'
+      }`}
     >
       <span className="relative">
         {theme === 'system' ? <SystemSwatch /> : <Swatch effective={getEffectiveTheme(theme)} />}
@@ -191,15 +187,15 @@ function ThemeChip({
           </span>
         )}
       </span>
-      <span className="truncate text-2xs text-[var(--color-text)]">{label}</span>
+      <span
+        className={`truncate text-2xs ${
+          selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'
+        }`}
+      >
+        {label}
+      </span>
     </button>
   )
-}
-
-function applyPreviewClass(theme: Theme): void {
-  // Same class swap (and same cross-fade) the committed path uses, minus the
-  // localStorage write — a preview must not survive the window closing.
-  setThemeClass(getEffectiveTheme(theme))
 }
 
 export type ThemePickerProps = {
@@ -207,39 +203,20 @@ export type ThemePickerProps = {
   onChange: (theme: Theme) => void
 }
 
-// role="listbox" + role="option" with manual activation (not "selection
-// follows focus"): arrow keys only move the roving-tabindex focus and update
-// a live class-only preview; aria-selected stays pinned to the committed
-// value until Enter/Space/click explicitly activates a chip. A radiogroup
-// (the pattern this codebase already uses in SegmentedControl) implies
-// native <input type="radio"> semantics where arrow movement itself changes
-// the selection — the opposite of what preview-then-commit needs here, so
+// Hovering a chip changes nothing outside it. Each swatch already renders its own tokens in
+// place, so the whole-app preview bought little and cost a full theme repaint per mousemove —
+// the grid holds twenty of them, and crossing it repainted <html> twenty times. Click, Enter
+// and Space are the only paths that change the theme, and they change it for good.
+//
+// role="listbox" + role="option" with manual activation (not "selection follows focus"): arrow
+// keys only move the roving-tabindex focus, and aria-selected stays pinned to the committed
+// value until a chip is explicitly activated. A radiogroup (the pattern SegmentedControl uses)
+// implies native <input type="radio"> semantics where arrow movement itself selects, so
 // listbox's manual-activation variant is the closer fit.
 export function ThemePicker({ value, onChange }: ThemePickerProps) {
-  const [hovered, setHovered] = useState<Theme | null>(null)
+  // Tracks the roving tabindex only. No theme is applied from focus.
   const [focused, setFocused] = useState<Theme | null>(null)
   const refs = useRef(new Map<Theme, HTMLButtonElement>())
-  const valueRef = useRef(value)
-  valueRef.current = value
-
-  const preview = hovered ?? focused ?? value
-  // Class-only preview: swaps the <html> theme class for a live look without
-  // touching localStorage's theme-cache (read synchronously at boot — see
-  // index.html) or the settings DB. Only onChange (click/Enter/Space) goes
-  // through the store's update(), which is what persists. Runs as an effect
-  // (not inline in render) so it stays a commit-phase side effect rather
-  // than a render-phase DOM mutation.
-  useEffect(() => {
-    applyPreviewClass(preview)
-  }, [preview])
-
-  // On unmount, make sure the committed theme (not a lingering hover/focus
-  // preview) is what's left applied to <html>. Reads valueRef so this always
-  // reverts to the latest committed value even though the effect itself only
-  // runs once.
-  useEffect(() => {
-    return () => applyPreviewClass(valueRef.current)
-  }, [])
 
   const focusTheme = (theme: Theme) => {
     refs.current.get(theme)?.focus()
@@ -282,9 +259,6 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
         else refs.current.delete(theme)
       }}
       onCommit={() => onChange(theme)}
-      onHover={(hovering) =>
-        setHovered((prev) => (hovering ? theme : prev === theme ? null : prev))
-      }
       onFocusChange={(isFocused) =>
         setFocused((prev) => (isFocused ? theme : prev === theme ? null : prev))
       }
