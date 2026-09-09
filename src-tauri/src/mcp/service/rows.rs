@@ -213,3 +213,120 @@ pub(super) fn resource_folder_to_json(row: ResourceFolderRow) -> Value {
         "updatedAt": row.updated_at,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::REDACTED_AUTH_VALUE;
+
+    use super::*;
+
+    fn task_note_row() -> NoteRow {
+        NoteRow {
+            id: "note-task-1".to_string(),
+            title: "Ship release".to_string(),
+            content: "Keep the full note body".to_string(),
+            color: "yellow".to_string(),
+            pinned: 0,
+            popped_out: 0,
+            window_x: None,
+            window_y: None,
+            window_width: None,
+            window_height: None,
+            created_at: 1,
+            updated_at: 2,
+            tags: Some(r#"["release"]"#.to_string()),
+            folder_id: Some("notes-inbox".to_string()),
+            deleted_at: None,
+            task_status: Some("in_progress".to_string()),
+            task_priority: Some("high".to_string()),
+            task_due_date: Some("2026-09-08".to_string()),
+        }
+    }
+
+    #[test]
+    fn note_json_serializes_structured_task_metadata() {
+        let value = note_to_json(task_note_row(), vec!["Inbox".to_string()]);
+
+        assert_eq!(value["taskStatus"], "in_progress");
+        assert_eq!(value["taskPriority"], "high");
+        assert_eq!(value["taskDueDate"], "2026-09-08");
+        assert_eq!(value["content"], "Keep the full note body");
+        assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    fn api_request_with_auth(auth: Value) -> ApiRequestRow {
+        ApiRequestRow {
+            id: "request-1".to_string(),
+            collection_id: Some("collection-1".to_string()),
+            name: "Create user".to_string(),
+            method: "POST".to_string(),
+            url: "{{baseUrl}}/users".to_string(),
+            headers: json!([{ "key": "X-Trace", "value": "{{traceId}}", "enabled": true }])
+                .to_string(),
+            body: r#"{"name":"Ada"}"#.to_string(),
+            body_mode: "json".to_string(),
+            auth: auth.to_string(),
+            created_at: 1,
+            updated_at: 2,
+            deleted_at: None,
+        }
+    }
+
+    #[test]
+    fn api_request_json_redacts_auth_secrets_unless_explicitly_exposed() {
+        let auth = json!({
+            "type": "basic",
+            "username": "ada",
+            "password": "super-secret"
+        });
+
+        let redacted = api_request_to_json(
+            api_request_with_auth(auth.clone()),
+            vec!["Inbox".to_string(), "Users".to_string()],
+            false,
+        );
+        assert_eq!(redacted["collectionId"], "collection-1");
+        assert_eq!(redacted["folderId"], "collection-1");
+        assert_eq!(redacted["folderPath"], json!(["Inbox", "Users"]));
+        assert_eq!(redacted["headers"][0]["key"], "X-Trace");
+        assert_eq!(redacted["bodyMode"], "json");
+        assert_eq!(redacted["auth"]["username"], "ada");
+        assert_eq!(redacted["auth"]["password"], REDACTED_AUTH_VALUE);
+        assert_eq!(redacted["auth"]["__devdrivrRedacted"], true);
+
+        let exposed = api_request_to_json(api_request_with_auth(auth), Vec::new(), true);
+        assert_eq!(exposed["auth"]["password"], "super-secret");
+        assert_eq!(exposed["auth"].get("__devdrivrRedacted"), None);
+    }
+
+    #[test]
+    fn resource_json_does_not_expose_internal_tombstone_metadata() {
+        let mut row = api_request_with_auth(json!({ "type": "none" }));
+        row.deleted_at = Some(123);
+
+        let value = api_request_to_json(row, vec!["Inbox".to_string()], false);
+
+        assert!(value.get("deletedAt").is_none());
+        assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn resource_folder_json_exposes_typed_tree_fields() {
+        let value = resource_folder_to_json(ResourceFolderRow {
+            id: "notes-project".to_string(),
+            name: "Project".to_string(),
+            parent_id: Some("notes-inbox".to_string()),
+            kind: "notes".to_string(),
+            sort_order: 1000.0,
+            default_language: None,
+            created_at: 1,
+            updated_at: 2,
+            deleted_at: None,
+        });
+
+        assert_eq!(value["parentId"], "notes-inbox");
+        assert_eq!(value["kind"], "notes");
+        assert_eq!(value["sortOrder"], 1000.0);
+        assert!(value["defaultLanguage"].is_null());
+    }
+}

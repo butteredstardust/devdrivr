@@ -259,3 +259,21 @@ pub(super) struct FolderMoveArgs {
 pub(super) struct EmptyTrashArgs {
     pub(super) kind: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn folder_update_accepts_an_explicit_null_default_language_to_clear_it() {
+        let args = serde_json::from_value::<FolderUpdateArgs>(json!({
+            "id": "snippets-project",
+            "defaultLanguage": null,
+        }))
+        .expect("valid update arguments");
+
+        assert_eq!(args.default_language, Some(None));
+    }
+}

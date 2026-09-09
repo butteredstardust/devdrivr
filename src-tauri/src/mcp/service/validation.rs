@@ -421,3 +421,220 @@ pub(super) fn normalize_help_topic(
         .find(|known_topic| *known_topic == topic)
         .ok_or_else(|| unknown_help_topic(&topic))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::parse_json;
+
+    use super::*;
+
+    #[test]
+    fn task_metadata_validation_rejects_invalid_values_and_dates() {
+        assert!(validate_task_status("blocked").is_ok());
+        assert!(validate_task_priority("high").is_ok());
+        assert!(validate_task_due_date("2024-02-29").is_ok());
+        assert!(validate_task_status("waiting").is_err());
+        assert!(validate_task_priority("urgent").is_err());
+        assert!(validate_task_due_date("2026-02-29").is_err());
+        assert!(validate_task_due_date("2026-9-8").is_err());
+    }
+
+    #[test]
+    fn snippet_fragments_preserve_order_and_require_readable_names() {
+        let fragments = normalize_snippet_fragments(
+            Some(vec![
+                SnippetFragmentInput {
+                    id: Some("client".to_string()),
+                    name: "client.ts".to_string(),
+                    content: "fetch(url)".to_string(),
+                    language: Some("typescript".to_string()),
+                },
+                SnippetFragmentInput {
+                    id: Some("styles".to_string()),
+                    name: "styles.css".to_string(),
+                    content: ".root {}".to_string(),
+                    language: Some("css".to_string()),
+                },
+            ]),
+            None,
+            None,
+        )
+        .expect("valid fragments");
+
+        assert_eq!(fragments[0].0, "client");
+        assert_eq!(fragments[1].1, "styles.css");
+        assert!(normalize_snippet_fragments(Some(Vec::new()), None, None).is_err());
+        assert!(normalize_snippet_fragments(
+            Some(vec![SnippetFragmentInput {
+                id: None,
+                name: "  ".to_string(),
+                content: String::new(),
+                language: None,
+            }]),
+            None,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn note_color_accepts_only_values_the_tool_can_load() {
+        assert_eq!(validate_note_color("purple").expect("purple"), "purple");
+        assert!(validate_note_color("teal").is_err());
+        assert!(validate_note_color("Yellow").is_err());
+        assert!(validate_note_color("#ffcc00").is_err());
+    }
+
+    #[test]
+    fn template_enums_accept_only_values_the_tool_can_load() {
+        assert_eq!(validate_template_category("docs").expect("docs"), "docs");
+        assert_eq!(
+            validate_template_optimized_for("Claude").expect("Claude"),
+            "Claude"
+        );
+        assert!(validate_template_category("general").is_err());
+        assert!(validate_template_category("Docs").is_err());
+        assert!(validate_template_optimized_for("GPT-4").is_err());
+        assert!(validate_template_optimized_for("claude").is_err());
+    }
+
+    #[test]
+    fn prompt_variables_normalize_to_the_shape_the_tool_renders() {
+        let normalized = normalize_prompt_variables(Some(json!([
+            { "name": " code ", "type": "textarea", "required": true },
+            { "name": "lang", "label": "Language", "type": "select", "options": ["ts", " ", "rs"] },
+        ])))
+        .expect("normalize");
+
+        assert_eq!(
+            parse_json(&normalized, json!([])),
+            json!([
+                { "name": "code", "label": "code", "type": "textarea", "required": true },
+                { "name": "lang", "label": "Language", "type": "select", "options": ["ts", "rs"] },
+            ])
+        );
+        assert_eq!(normalize_prompt_variables(None).expect("absent"), "[]");
+    }
+
+    #[test]
+    fn prompt_variables_reject_what_the_tool_would_discard() {
+        assert!(normalize_prompt_variables(Some(json!({ "code": "text" }))).is_err());
+        assert!(normalize_prompt_variables(Some(json!([{ "label": "No name" }]))).is_err());
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err()
+        );
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "select" }]))).is_err()
+        );
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "x", "type": "select", "options": [" "] }])
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn prompt_variables_reject_a_non_text_option_instead_of_dropping_it() {
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "lang", "type": "select", "options": ["ts", 42] }])
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn api_headers_normalize_arrays_maps_and_missing_values() {
+        let from_array = normalize_api_headers(Some(json!([
+            { "key": "Accept", "value": "application/json" },
+            { "key": "X-Trace", "value": "abc", "enabled": false },
+        ])))
+        .expect("array");
+        assert_eq!(
+            parse_json(&from_array, json!([])),
+            json!([
+                { "key": "Accept", "value": "application/json", "enabled": true },
+                { "key": "X-Trace", "value": "abc", "enabled": false },
+            ])
+        );
+
+        let from_map =
+            normalize_api_headers(Some(json!({ "Accept": "application/json" }))).expect("map");
+        assert_eq!(
+            parse_json(&from_map, json!([])),
+            json!([{ "key": "Accept", "value": "application/json", "enabled": true }])
+        );
+
+        assert_eq!(normalize_api_headers(None).expect("absent"), "[]");
+        assert_eq!(
+            normalize_api_headers(Some(json!(null))).expect("null"),
+            "[]"
+        );
+    }
+
+    #[test]
+    fn api_headers_reject_shapes_the_api_client_cannot_render() {
+        assert!(normalize_api_headers(Some(json!("Accept: application/json"))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "value": "no-key" }]))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "key": "Accept", "value": ["a"] }]))).is_err());
+        assert!(normalize_api_headers(Some(json!({ "Accept": { "nested": true } }))).is_err());
+    }
+
+    #[test]
+    fn api_headers_reject_a_non_boolean_enabled_rather_than_switching_it_on() {
+        assert!(
+            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": 0 }])))
+                .is_err()
+        );
+        assert!(normalize_api_headers(Some(
+            json!([{ "key": "A", "value": "b", "enabled": "false" }])
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn api_auth_normalizes_each_supported_type_and_rejects_the_rest() {
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "none" })).expect("none"),
+                json!({})
+            ),
+            json!({ "type": "none" })
+        );
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer", "token": "t" })).expect("bearer"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "t" })
+        );
+        // Unknown keys are dropped so the stored row matches the ApiRequestAuth union exactly.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(
+                    json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" })
+                )
+                .expect("basic"),
+                json!({})
+            ),
+            json!({ "type": "basic", "username": "u", "password": "p" })
+        );
+
+        assert!(normalize_api_auth(json!("bearer")).is_err());
+        assert!(normalize_api_auth(json!({ "token": "t" })).is_err());
+        assert!(normalize_api_auth(json!({ "type": "oauth2" })).is_err());
+    }
+
+    #[test]
+    fn api_auth_rejects_a_credential_it_would_otherwise_erase() {
+        assert!(normalize_api_auth(json!({ "type": "bearer", "token": 12345 })).is_err());
+        assert!(
+            normalize_api_auth(json!({ "type": "basic", "username": "u", "password": 1 })).is_err()
+        );
+        // An absent credential is still allowed, and reads as empty.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer" })).expect("absent token"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "" })
+        );
+    }
+}

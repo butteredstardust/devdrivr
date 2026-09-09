@@ -241,3 +241,32 @@ pub(super) fn invalid_api_auth(message: impl Into<String>) -> McpError {
         ],
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::MAX_MULTI_GET;
+
+    use super::*;
+
+    #[test]
+    fn structured_permission_error_has_actionable_metadata() {
+        let err = permission_denied("notes", "read");
+        let data = err.data.expect("error data");
+
+        assert_eq!(data["code"], "PERMISSION_DENIED");
+        assert_eq!(data["resource"], "notes");
+        assert_eq!(data["action"], "read");
+        assert!(data["suggestions"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty()));
+    }
+
+    #[test]
+    fn batch_too_large_error_has_stable_code() {
+        let err = batch_too_large("ids", 101, MAX_MULTI_GET);
+        let data = err.data.expect("error data");
+
+        assert_eq!(data["code"], "BATCH_TOO_LARGE");
+        assert_eq!(data["argument"], "ids");
+    }
+}

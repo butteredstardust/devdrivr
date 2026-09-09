@@ -2596,69 +2596,6 @@ mod tests {
         assert_eq!(max_sort + FOLDER_SORT_STEP, 3000.0);
     }
 
-    fn api_request_with_auth(auth: Value) -> ApiRequestRow {
-        ApiRequestRow {
-            id: "request-1".to_string(),
-            collection_id: Some("collection-1".to_string()),
-            name: "Create user".to_string(),
-            method: "POST".to_string(),
-            url: "{{baseUrl}}/users".to_string(),
-            headers: json!([{ "key": "X-Trace", "value": "{{traceId}}", "enabled": true }])
-                .to_string(),
-            body: r#"{"name":"Ada"}"#.to_string(),
-            body_mode: "json".to_string(),
-            auth: auth.to_string(),
-            created_at: 1,
-            updated_at: 2,
-            deleted_at: None,
-        }
-    }
-
-    fn task_note_row() -> NoteRow {
-        NoteRow {
-            id: "note-task-1".to_string(),
-            title: "Ship release".to_string(),
-            content: "Keep the full note body".to_string(),
-            color: "yellow".to_string(),
-            pinned: 0,
-            popped_out: 0,
-            window_x: None,
-            window_y: None,
-            window_width: None,
-            window_height: None,
-            created_at: 1,
-            updated_at: 2,
-            tags: Some(r#"["release"]"#.to_string()),
-            folder_id: Some("notes-inbox".to_string()),
-            deleted_at: None,
-            task_status: Some("in_progress".to_string()),
-            task_priority: Some("high".to_string()),
-            task_due_date: Some("2026-09-08".to_string()),
-        }
-    }
-
-    #[test]
-    fn note_json_serializes_structured_task_metadata() {
-        let value = note_to_json(task_note_row(), vec!["Inbox".to_string()]);
-
-        assert_eq!(value["taskStatus"], "in_progress");
-        assert_eq!(value["taskPriority"], "high");
-        assert_eq!(value["taskDueDate"], "2026-09-08");
-        assert_eq!(value["content"], "Keep the full note body");
-        assert_eq!(value["folderPath"], json!(["Inbox"]));
-    }
-
-    #[test]
-    fn task_metadata_validation_rejects_invalid_values_and_dates() {
-        assert!(validate_task_status("blocked").is_ok());
-        assert!(validate_task_priority("high").is_ok());
-        assert!(validate_task_due_date("2024-02-29").is_ok());
-        assert!(validate_task_status("waiting").is_err());
-        assert!(validate_task_priority("urgent").is_err());
-        assert!(validate_task_due_date("2026-02-29").is_err());
-        assert!(validate_task_due_date("2026-9-8").is_err());
-    }
-
     #[test]
     fn stable_note_links_are_deduplicated_without_guessing_legacy_titles() {
         let targets = stable_note_link_targets(
@@ -2675,82 +2612,6 @@ mod tests {
     }
 
     #[test]
-    fn snippet_fragments_preserve_order_and_require_readable_names() {
-        let fragments = normalize_snippet_fragments(
-            Some(vec![
-                SnippetFragmentInput {
-                    id: Some("client".to_string()),
-                    name: "client.ts".to_string(),
-                    content: "fetch(url)".to_string(),
-                    language: Some("typescript".to_string()),
-                },
-                SnippetFragmentInput {
-                    id: Some("styles".to_string()),
-                    name: "styles.css".to_string(),
-                    content: ".root {}".to_string(),
-                    language: Some("css".to_string()),
-                },
-            ]),
-            None,
-            None,
-        )
-        .expect("valid fragments");
-
-        assert_eq!(fragments[0].0, "client");
-        assert_eq!(fragments[1].1, "styles.css");
-        assert!(normalize_snippet_fragments(Some(Vec::new()), None, None).is_err());
-        assert!(normalize_snippet_fragments(
-            Some(vec![SnippetFragmentInput {
-                id: None,
-                name: "  ".to_string(),
-                content: String::new(),
-                language: None,
-            }]),
-            None,
-            None,
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn api_request_json_redacts_auth_secrets_unless_explicitly_exposed() {
-        let auth = json!({
-            "type": "basic",
-            "username": "ada",
-            "password": "super-secret"
-        });
-
-        let redacted = api_request_to_json(
-            api_request_with_auth(auth.clone()),
-            vec!["Inbox".to_string(), "Users".to_string()],
-            false,
-        );
-        assert_eq!(redacted["collectionId"], "collection-1");
-        assert_eq!(redacted["folderId"], "collection-1");
-        assert_eq!(redacted["folderPath"], json!(["Inbox", "Users"]));
-        assert_eq!(redacted["headers"][0]["key"], "X-Trace");
-        assert_eq!(redacted["bodyMode"], "json");
-        assert_eq!(redacted["auth"]["username"], "ada");
-        assert_eq!(redacted["auth"]["password"], REDACTED_AUTH_VALUE);
-        assert_eq!(redacted["auth"]["__devdrivrRedacted"], true);
-
-        let exposed = api_request_to_json(api_request_with_auth(auth), Vec::new(), true);
-        assert_eq!(exposed["auth"]["password"], "super-secret");
-        assert_eq!(exposed["auth"].get("__devdrivrRedacted"), None);
-    }
-
-    #[test]
-    fn resource_json_does_not_expose_internal_tombstone_metadata() {
-        let mut row = api_request_with_auth(json!({ "type": "none" }));
-        row.deleted_at = Some(123);
-
-        let value = api_request_to_json(row, vec!["Inbox".to_string()], false);
-
-        assert!(value.get("deletedAt").is_none());
-        assert_eq!(value["folderPath"], json!(["Inbox"]));
-    }
-
-    #[test]
     fn an_update_heals_a_stored_value_an_earlier_import_left_invalid() {
         assert_eq!(heal_note_color("teal"), "yellow");
         assert_eq!(heal_note_color("purple"), "purple");
@@ -2758,167 +2619,6 @@ mod tests {
         assert_eq!(heal_template_category("docs"), "docs");
         assert_eq!(heal_template_optimized_for("GPT-4"), "Generic");
         assert_eq!(heal_template_optimized_for("Cursor"), "Cursor");
-    }
-
-    #[test]
-    fn note_color_accepts_only_values_the_tool_can_load() {
-        assert_eq!(validate_note_color("purple").expect("purple"), "purple");
-        assert!(validate_note_color("teal").is_err());
-        assert!(validate_note_color("Yellow").is_err());
-        assert!(validate_note_color("#ffcc00").is_err());
-    }
-
-    #[test]
-    fn template_enums_accept_only_values_the_tool_can_load() {
-        assert_eq!(validate_template_category("docs").expect("docs"), "docs");
-        assert_eq!(
-            validate_template_optimized_for("Claude").expect("Claude"),
-            "Claude"
-        );
-        assert!(validate_template_category("general").is_err());
-        assert!(validate_template_category("Docs").is_err());
-        assert!(validate_template_optimized_for("GPT-4").is_err());
-        assert!(validate_template_optimized_for("claude").is_err());
-    }
-
-    #[test]
-    fn prompt_variables_normalize_to_the_shape_the_tool_renders() {
-        let normalized = normalize_prompt_variables(Some(json!([
-            { "name": " code ", "type": "textarea", "required": true },
-            { "name": "lang", "label": "Language", "type": "select", "options": ["ts", " ", "rs"] },
-        ])))
-        .expect("normalize");
-
-        assert_eq!(
-            parse_json(&normalized, json!([])),
-            json!([
-                { "name": "code", "label": "code", "type": "textarea", "required": true },
-                { "name": "lang", "label": "Language", "type": "select", "options": ["ts", "rs"] },
-            ])
-        );
-        assert_eq!(normalize_prompt_variables(None).expect("absent"), "[]");
-    }
-
-    #[test]
-    fn prompt_variables_reject_what_the_tool_would_discard() {
-        assert!(normalize_prompt_variables(Some(json!({ "code": "text" }))).is_err());
-        assert!(normalize_prompt_variables(Some(json!([{ "label": "No name" }]))).is_err());
-        assert!(
-            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err()
-        );
-        assert!(
-            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "select" }]))).is_err()
-        );
-        assert!(normalize_prompt_variables(Some(
-            json!([{ "name": "x", "type": "select", "options": [" "] }])
-        ))
-        .is_err());
-    }
-
-    #[test]
-    fn api_headers_normalize_arrays_maps_and_missing_values() {
-        let from_array = normalize_api_headers(Some(json!([
-            { "key": "Accept", "value": "application/json" },
-            { "key": "X-Trace", "value": "abc", "enabled": false },
-        ])))
-        .expect("array");
-        assert_eq!(
-            parse_json(&from_array, json!([])),
-            json!([
-                { "key": "Accept", "value": "application/json", "enabled": true },
-                { "key": "X-Trace", "value": "abc", "enabled": false },
-            ])
-        );
-
-        let from_map =
-            normalize_api_headers(Some(json!({ "Accept": "application/json" }))).expect("map");
-        assert_eq!(
-            parse_json(&from_map, json!([])),
-            json!([{ "key": "Accept", "value": "application/json", "enabled": true }])
-        );
-
-        assert_eq!(normalize_api_headers(None).expect("absent"), "[]");
-        assert_eq!(
-            normalize_api_headers(Some(json!(null))).expect("null"),
-            "[]"
-        );
-    }
-
-    #[test]
-    fn api_headers_reject_shapes_the_api_client_cannot_render() {
-        assert!(normalize_api_headers(Some(json!("Accept: application/json"))).is_err());
-        assert!(normalize_api_headers(Some(json!([{ "value": "no-key" }]))).is_err());
-        assert!(normalize_api_headers(Some(json!([{ "key": "Accept", "value": ["a"] }]))).is_err());
-        assert!(normalize_api_headers(Some(json!({ "Accept": { "nested": true } }))).is_err());
-    }
-
-    #[test]
-    fn api_auth_normalizes_each_supported_type_and_rejects_the_rest() {
-        assert_eq!(
-            parse_json(
-                &normalize_api_auth(json!({ "type": "none" })).expect("none"),
-                json!({})
-            ),
-            json!({ "type": "none" })
-        );
-        assert_eq!(
-            parse_json(
-                &normalize_api_auth(json!({ "type": "bearer", "token": "t" })).expect("bearer"),
-                json!({})
-            ),
-            json!({ "type": "bearer", "token": "t" })
-        );
-        // Unknown keys are dropped so the stored row matches the ApiRequestAuth union exactly.
-        assert_eq!(
-            parse_json(
-                &normalize_api_auth(
-                    json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" })
-                )
-                .expect("basic"),
-                json!({})
-            ),
-            json!({ "type": "basic", "username": "u", "password": "p" })
-        );
-
-        assert!(normalize_api_auth(json!("bearer")).is_err());
-        assert!(normalize_api_auth(json!({ "token": "t" })).is_err());
-        assert!(normalize_api_auth(json!({ "type": "oauth2" })).is_err());
-    }
-
-    #[test]
-    fn api_auth_rejects_a_credential_it_would_otherwise_erase() {
-        assert!(normalize_api_auth(json!({ "type": "bearer", "token": 12345 })).is_err());
-        assert!(
-            normalize_api_auth(json!({ "type": "basic", "username": "u", "password": 1 })).is_err()
-        );
-        // An absent credential is still allowed, and reads as empty.
-        assert_eq!(
-            parse_json(
-                &normalize_api_auth(json!({ "type": "bearer" })).expect("absent token"),
-                json!({})
-            ),
-            json!({ "type": "bearer", "token": "" })
-        );
-    }
-
-    #[test]
-    fn api_headers_reject_a_non_boolean_enabled_rather_than_switching_it_on() {
-        assert!(
-            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": 0 }])))
-                .is_err()
-        );
-        assert!(normalize_api_headers(Some(
-            json!([{ "key": "A", "value": "b", "enabled": "false" }])
-        ))
-        .is_err());
-    }
-
-    #[test]
-    fn prompt_variables_reject_a_non_text_option_instead_of_dropping_it() {
-        assert!(normalize_prompt_variables(Some(
-            json!([{ "name": "lang", "type": "select", "options": ["ts", 42] }])
-        ))
-        .is_err());
     }
 
     #[test]
@@ -2962,17 +2662,6 @@ mod tests {
     }
 
     #[test]
-    fn limit_defaults_clamps_and_rejects_invalid_values() {
-        assert_eq!(normalize_limit(None).unwrap(), 50);
-        assert_eq!(normalize_limit(Some(999)).unwrap(), 500);
-
-        let err = normalize_limit(Some(0)).expect_err("zero limit should fail");
-        let data = err.data.expect("error data");
-        assert_eq!(data["code"], "INVALID_ARGUMENT");
-        assert_eq!(data["argument"], "limit");
-    }
-
-    #[test]
     fn resource_type_parser_deduplicates_and_reports_unsupported_types() {
         let parsed = parse_resource_types(vec![
             "notes".to_string(),
@@ -3002,26 +2691,6 @@ mod tests {
     }
 
     #[test]
-    fn resource_folder_json_exposes_typed_tree_fields() {
-        let value = resource_folder_to_json(ResourceFolderRow {
-            id: "notes-project".to_string(),
-            name: "Project".to_string(),
-            parent_id: Some("notes-inbox".to_string()),
-            kind: "notes".to_string(),
-            sort_order: 1000.0,
-            default_language: None,
-            created_at: 1,
-            updated_at: 2,
-            deleted_at: None,
-        });
-
-        assert_eq!(value["parentId"], "notes-inbox");
-        assert_eq!(value["kind"], "notes");
-        assert_eq!(value["sortOrder"], 1000.0);
-        assert!(value["defaultLanguage"].is_null());
-    }
-
-    #[test]
     fn system_inboxes_are_immutable_and_default_language_is_snippets_only() {
         assert!(is_system_inbox("notes-inbox"));
         assert!(is_system_inbox("snippets-inbox"));
@@ -3034,38 +2703,5 @@ mod tests {
             .expect_err("API request folders cannot have a snippet language default");
         let data = err.data.expect("error data");
         assert_eq!(data["argument"], "defaultLanguage");
-    }
-
-    #[test]
-    fn folder_update_accepts_an_explicit_null_default_language_to_clear_it() {
-        let args = serde_json::from_value::<FolderUpdateArgs>(json!({
-            "id": "snippets-project",
-            "defaultLanguage": null,
-        }))
-        .expect("valid update arguments");
-
-        assert_eq!(args.default_language, Some(None));
-    }
-
-    #[test]
-    fn structured_permission_error_has_actionable_metadata() {
-        let err = permission_denied("notes", "read");
-        let data = err.data.expect("error data");
-
-        assert_eq!(data["code"], "PERMISSION_DENIED");
-        assert_eq!(data["resource"], "notes");
-        assert_eq!(data["action"], "read");
-        assert!(data["suggestions"]
-            .as_array()
-            .is_some_and(|items| !items.is_empty()));
-    }
-
-    #[test]
-    fn batch_too_large_error_has_stable_code() {
-        let err = batch_too_large("ids", 101, MAX_MULTI_GET);
-        let data = err.data.expect("error data");
-
-        assert_eq!(data["code"], "BATCH_TOO_LARGE");
-        assert_eq!(data["argument"], "ids");
     }
 }

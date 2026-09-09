@@ -265,3 +265,19 @@ pub(super) fn page_in_memory(key: &str, values: Vec<Value>, page: PageRequest) -
         .collect();
     page_payload(key, page_values, page, total)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn limit_defaults_clamps_and_rejects_invalid_values() {
+        assert_eq!(normalize_limit(None).unwrap(), 50);
+        assert_eq!(normalize_limit(Some(999)).unwrap(), 500);
+
+        let err = normalize_limit(Some(0)).expect_err("zero limit should fail");
+        let data = err.data.expect("error data");
+        assert_eq!(data["code"], "INVALID_ARGUMENT");
+        assert_eq!(data["argument"], "limit");
+    }
+}
