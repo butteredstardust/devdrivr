@@ -4939,22 +4939,22 @@ mod tests {
     /// Included from the same files the app ships, so a schema change reaches the tests instead
     /// of leaving them passing against a hand-written schema that no longer exists.
     const MIGRATIONS: [&str; 16] = [
-        include_str!("../../migrations/001_initial.sql"),
-        include_str!("../../migrations/002_api_client.sql"),
-        include_str!("../../migrations/003_notes_tags.sql"),
-        include_str!("../../migrations/004_history_metadata.sql"),
-        include_str!("../../migrations/005_snippets_folder.sql"),
-        include_str!("../../migrations/006_prompt_templates.sql"),
-        include_str!("../../migrations/007_prompt_template_authors.sql"),
-        include_str!("../../migrations/008_notes_sort_order.sql"),
-        include_str!("../../migrations/009_persistence_backfills.sql"),
-        include_str!("../../migrations/011_api_history_response.sql"),
-        include_str!("../../migrations/012_snippets_favorite.sql"),
-        include_str!("../../migrations/013_resource_folders.sql"),
-        include_str!("../../migrations/014_durable_trash.sql"),
-        include_str!("../../migrations/015_note_tasks.sql"),
-        include_str!("../../migrations/016_note_links.sql"),
-        include_str!("../../migrations/017_snippet_fragments.sql"),
+        include_str!("../../../migrations/001_initial.sql"),
+        include_str!("../../../migrations/002_api_client.sql"),
+        include_str!("../../../migrations/003_notes_tags.sql"),
+        include_str!("../../../migrations/004_history_metadata.sql"),
+        include_str!("../../../migrations/005_snippets_folder.sql"),
+        include_str!("../../../migrations/006_prompt_templates.sql"),
+        include_str!("../../../migrations/007_prompt_template_authors.sql"),
+        include_str!("../../../migrations/008_notes_sort_order.sql"),
+        include_str!("../../../migrations/009_persistence_backfills.sql"),
+        include_str!("../../../migrations/011_api_history_response.sql"),
+        include_str!("../../../migrations/012_snippets_favorite.sql"),
+        include_str!("../../../migrations/013_resource_folders.sql"),
+        include_str!("../../../migrations/014_durable_trash.sql"),
+        include_str!("../../../migrations/015_note_tasks.sql"),
+        include_str!("../../../migrations/016_note_links.sql"),
+        include_str!("../../../migrations/017_snippet_fragments.sql"),
     ];
 
     fn resource_permissions(
@@ -5273,7 +5273,7 @@ mod tests {
         #[test]
         fn the_rust_constants_match_the_shared_contract() {
             let contract: Value =
-                serde_json::from_str(include_str!("../../../shared/api-request-contract.json"))
+                serde_json::from_str(include_str!("../../../../shared/api-request-contract.json"))
                     .expect("shared contract");
             assert_eq!(contract["methods"], json!(HTTP_METHODS));
             assert_eq!(contract["bodyMethods"], json!(BODY_METHODS));
