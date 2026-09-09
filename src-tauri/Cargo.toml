@@ -45,3 +45,9 @@ tauri-remote-ui = { version = "1.1", optional = true }
 # running window — see src/opened_files.rs.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
+
+# `tauri::test::mock_app` supplies the AppHandle the MCP service needs. Without it the service
+# cannot be constructed in a unit test, which is why its permission and validation rules had no
+# direct coverage.
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

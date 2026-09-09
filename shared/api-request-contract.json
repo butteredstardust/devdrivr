@@ -1,0 +1,6 @@
+{
+  "_comment": "The API request contract, shared by the Rust MCP service and the TypeScript API Client. Both sides assert against this file, so a value added on one side and forgotten on the other fails a test instead of reaching a user.",
+  "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+  "bodyMethods": ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  "bodyModes": ["json", "text", "urlencoded", "formdata", "none"]
+}

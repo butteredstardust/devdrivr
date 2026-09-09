@@ -32,6 +32,15 @@ Use the discovery tools to inspect and search available resources:
 | `multi_get`  | Fetch multiple resources by ID in one call                   |
 | `counts`     | Count primary resources without fetching records             |
 
+Use the trash tools to undo a delete:
+
+| Tool            | Purpose                                                        |
+| --------------- | -------------------------------------------------------------- |
+| `trash_list`    | List trashed notes, snippets and saved API requests            |
+| `trash_restore` | Restore one trashed record. Needs the update permission for it |
+
+Deleting a prompt template removes it outright, so prompt templates never enter Trash.
+
 ## Settings
 
 Open **Settings > MCP** before you connect an MCP client.
@@ -147,12 +156,64 @@ introspect()
 
 ## Limits
 
-| Limit                   | Value        |
-| ----------------------- | ------------ |
-| Search/list max results | 500          |
-| `multi_get` max IDs     | 100          |
-| MCP host                | `127.0.0.1`  |
-| UI port range           | `1024-65535` |
+| Limit                       | Value        |
+| --------------------------- | ------------ |
+| Search/list default results | 50           |
+| Search/list max results     | 500          |
+| `multi_get` max IDs         | 100          |
+| Request body                | 8 MiB        |
+| Single text field           | 1 MiB        |
+| Items in one list field     | 1000         |
+| Tool call duration          | 30 s         |
+| MCP host                    | `127.0.0.1`  |
+| Port range                  | `1024-65535` |
+| Minimum API key length      | 32           |
+
+## Concurrent edits
+
+Every update and delete accepts an optional `expectedUpdatedAt`. Send the `updatedAt` you read.
+The write is refused with a `CONFLICT` error when the record moved on. Omit the field to write
+regardless, which is the previous behaviour.
+
+The expectation is part of the write itself, not a check that runs before it. A record edited in
+the desktop app between the read and the write therefore still refuses the write, rather than
+losing the newer edit.
+
+## Notes on list responses
+
+A list response carries `total`, `limit`, `hasMore` and `nextCursor` beside the records:
+
+- `total` counts every record the filter matches, not the records on this page.
+- `hasMore` is true when more pages follow.
+- `nextCursor` is the token for the next page. It is null on the last page.
+- A `limit` of zero or less is rejected.
+
+Read the next page by passing `nextCursor` back as `cursor`. Treat the value as opaque:
+
+```text
+notes_list({ "query": "rust", "limit": 50 })
+notes_list({ "query": "rust", "limit": 50, "cursor": "<nextCursor from the previous page>" })
+```
+
+Keep `query` and `limit` the same across the pages of one walk. A page is read from the database by
+offset, so a write between two pages can repeat or skip one record.
+
+The `query` of a list is a case-insensitive substring, applied by the database to the named fields
+of the record:
+
+| Tool                    | Fields searched                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `notes_list`            | title, content, tags                                                                             |
+| `snippets_list`         | title, description, content, language, tags, and the name, content and language of each fragment |
+| `prompt_templates_list` | name, description, category, prompt, tags                                                        |
+| `api_requests_list`     | name, method, url, body, headers                                                                 |
+| `api_collections_list`  | name                                                                                             |
+| `resource_folders_list` | name                                                                                             |
+
+`search` applies the same field filter before it ranks results across resource types.
+
+Case is ignored for ASCII letters only. A query that differs from the stored text in the case of a
+non-ASCII letter does not match.
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@ mod types;
 use std::{io::ErrorKind, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{HeaderMap, StatusCode},
     middleware::{self, Next},
     response::Response,
@@ -23,6 +23,13 @@ use service::DevdrivrMcpService;
 pub use types::{McpSettings, McpStatus};
 
 type SharedSettings = Arc<RwLock<McpSettings>>;
+
+/// Largest MCP request body accepted. Every tool argument fits well inside it.
+const MAX_REQUEST_BODY_BYTES: usize = 8 * 1024 * 1024;
+/// Lowest port the server binds. Ports below this need privileges on Unix.
+const MIN_MCP_PORT: u16 = 1024;
+/// Shortest API key accepted. `mcp_rotate_key` produces 64 hex characters.
+const MIN_API_KEY_LENGTH: usize = 32;
 
 pub struct McpManager {
     running: Mutex<Option<RunningMcp>>,
@@ -218,6 +225,9 @@ async fn start_server(
     let router = Router::new()
         .route("/health", get(health))
         .nest_service("/mcp", mcp_service)
+        // Bounds the body before it is buffered. Without it a single request could hold as much
+        // memory as the caller cared to send.
+        .layer(DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES))
         .layer(middleware::from_fn_with_state(
             shared_settings.clone(),
             auth_middleware,
@@ -253,12 +263,23 @@ async fn start_server(
     Ok(status)
 }
 
+/// WARNING: the only gate on the bind address and the key. The settings UI checks the same
+/// rules, but a settings file edited by hand reaches this function without passing through it.
 fn validate_server_settings(settings: &McpSettings) -> Result<(), String> {
     if settings.host != "127.0.0.1" {
         return Err("MCP server only supports 127.0.0.1 for the MVP".to_string());
     }
-    if settings.api_key.trim().is_empty() {
+    if settings.port < MIN_MCP_PORT {
+        return Err(format!("MCP port must be between {MIN_MCP_PORT} and 65535"));
+    }
+    let api_key = settings.api_key.trim();
+    if api_key.is_empty() {
         return Err("MCP API key is required".to_string());
+    }
+    if api_key.len() < MIN_API_KEY_LENGTH {
+        return Err(format!(
+            "MCP API key must be at least {MIN_API_KEY_LENGTH} characters. Rotate the key in Settings > MCP."
+        ));
     }
     Ok(())
 }
@@ -427,9 +448,16 @@ mod tests {
         assert!(shared_bearer_is_authorized(&settings, &headers).await);
     }
 
+    /// The key a rotation produces. Short keys are rejected, so the auth fixture key will not do.
+    fn startable_settings() -> McpSettings {
+        let mut settings = test_settings();
+        settings.api_key = mcp_rotate_key();
+        settings
+    }
+
     #[test]
     fn server_settings_require_loopback_and_a_non_empty_key() {
-        let settings = test_settings();
+        let settings = startable_settings();
         assert!(validate_server_settings(&settings).is_ok());
 
         let mut public = settings.clone();
@@ -438,11 +466,29 @@ mod tests {
             .expect_err("public bind should be rejected")
             .contains("127.0.0.1"));
 
-        let mut missing_key = settings;
+        let mut missing_key = settings.clone();
         missing_key.api_key = "   ".to_string();
         assert!(validate_server_settings(&missing_key)
             .expect_err("empty key should be rejected")
             .contains("API key"));
+    }
+
+    /// A settings file edited by hand reaches `start_server` without passing the UI checks.
+    #[test]
+    fn server_settings_reject_a_privileged_port_and_a_short_key() {
+        let settings = startable_settings();
+
+        let mut privileged = settings.clone();
+        privileged.port = 80;
+        assert!(validate_server_settings(&privileged)
+            .expect_err("a privileged port should be rejected")
+            .contains("port"));
+
+        let mut short_key = settings;
+        short_key.api_key = "short".to_string();
+        assert!(validate_server_settings(&short_key)
+            .expect_err("a short key should be rejected")
+            .contains("at least"));
     }
 
     #[tokio::test]
