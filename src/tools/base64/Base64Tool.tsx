@@ -8,6 +8,7 @@ import { PaneHeader } from '@/components/shared/PaneHeader'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { Button } from '@/components/shared/Button'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -198,26 +199,37 @@ export default function Base64Tool() {
     imgPanStart.current = { mouseX: e.clientX, mouseY: e.clientY, originX: x, originY: y }
   }, [])
 
-  const handleImgMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!isImgPanning.current) return
+  // A mouse delivers several moves per frame, and only the last one can paint. Each of the
+  // others re-rendered the tool — including its decoded text output — for nothing.
+  const { run: scheduleImgPan, flush: flushImgPan } = useFrameThrottle(
+    (clientX: number, clientY: number) => {
       const { mouseX, mouseY, originX, originY } = imgPanStart.current
       setImgTransform({
         ...imgTransformRef.current,
-        x: originX + (e.clientX - mouseX),
-        y: originY + (e.clientY - mouseY),
+        x: originX + (clientX - mouseX),
+        y: originY + (clientY - mouseY),
       })
-    },
-    [setImgTransform]
+    }
   )
 
+  const handleImgMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isImgPanning.current) return
+      scheduleImgPan(e.clientX, e.clientY)
+    },
+    [scheduleImgPan]
+  )
+
+  // Land the last position, or the image settles a frame behind where the pointer let go.
   const handleImgMouseUp = useCallback(() => {
     isImgPanning.current = false
-  }, [])
+    flushImgPan()
+  }, [flushImgPan])
 
   const handleImgMouseLeave = useCallback(() => {
     isImgPanning.current = false
-  }, [])
+    flushImgPan()
+  }, [flushImgPan])
 
   const resetImgView = useCallback(() => {
     setImgTransform(DEFAULT_IMG_TRANSFORM)
