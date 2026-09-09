@@ -47,7 +47,9 @@ beforeEach(() => {
     activeTabId: null,
     activeTool: '',
     commandPaletteOpen: true,
+    commandPaletteIntent: 'switch',
     recentToolIds: [],
+    tabMru: [],
     tabs: [],
   })
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
@@ -166,6 +168,85 @@ describe('CommandPalette', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'base64' } })
 
     expect(screen.getByRole('option', { name: /Base64/ }).textContent).not.toMatch(/[1-9]$/)
+  })
+
+  /**
+   * The new-tab button and every other route in share one palette, so the intent decides what
+   * picking a tool means. A button labelled "New tab" that focuses an existing tab is a bug.
+   */
+  describe('new-tab intent', () => {
+    const markdown = { id: 't1', toolId: 'markdown-editor', stateKey: 'markdown-editor' }
+
+    it('opens a second instance of a tool that is already open', () => {
+      useUiStore.setState({
+        tabs: [markdown],
+        activeTabId: 't1',
+        activeTool: 'markdown-editor',
+        commandPaletteIntent: 'new-tab',
+      })
+
+      render(<CommandPalette />)
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
+      fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
+
+      const { tabs, activeTabId } = useUiStore.getState()
+      expect(tabs.filter((tab) => tab.toolId === 'markdown-editor')).toHaveLength(2)
+      expect(activeTabId).not.toBe('t1')
+    })
+
+    it('returns to the open tab under the switch intent', () => {
+      useUiStore.setState({
+        tabs: [markdown, { id: 't2', toolId: 'base64', stateKey: 'base64' }],
+        activeTabId: 't2',
+        activeTool: 'base64',
+        commandPaletteIntent: 'switch',
+      })
+
+      render(<CommandPalette />)
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
+      fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
+
+      expect(useUiStore.getState().tabs).toHaveLength(2)
+      expect(useUiStore.getState().activeTabId).toBe('t1')
+    })
+
+    it('survives a click on the search field it is about to be typed into', () => {
+      useUiStore.setState({
+        tabs: [markdown],
+        activeTabId: 't1',
+        activeTool: 'markdown-editor',
+        commandPaletteIntent: 'new-tab',
+      })
+
+      render(<CommandPalette />)
+      fireEvent.pointerDown(screen.getByRole('combobox'))
+
+      expect(useUiStore.getState().commandPaletteIntent).toBe('new-tab')
+
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
+      fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
+
+      expect(useUiStore.getState().tabs).toHaveLength(2)
+    })
+
+    it('says which mode it is in', () => {
+      useUiStore.setState({ commandPaletteIntent: 'new-tab' })
+
+      render(<CommandPalette />)
+
+      expect(screen.getByText('New tab')).toBeInTheDocument()
+      expect(screen.getByRole('combobox').getAttribute('placeholder')).toContain('new tab')
+    })
+
+    it('gives the action chip precedence over the new-tab chip', () => {
+      useUiStore.setState({ commandPaletteIntent: 'new-tab' })
+
+      render(<CommandPalette />)
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: '>' } })
+
+      expect(screen.getByText('Actions')).toBeInTheDocument()
+      expect(screen.queryByText('New tab')).not.toBeInTheDocument()
+    })
   })
 
   it('does not persist always-on-top when the window pin call fails', async () => {

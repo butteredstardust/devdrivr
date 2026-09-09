@@ -2,13 +2,12 @@
  * Tests for ThemePicker (P3 — Theme picker with swatches):
  * 1. Grouping — Dark/Light derived from lib/theme.ts, System survives
  * 2. Keyboard grid navigation + Enter/Space to commit
- * 3. Hover preview applies live and reverts on mouse-leave without committing
- * 4. Focus preview applies live and reverts on blur without committing
+ * 3. Hover and focus leave the app theme alone — only an explicit commit changes it
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemePicker } from '@/components/shell/ThemePicker'
-import { ALL_THEMES, getEffectiveTheme } from '@/lib/theme'
+import { ALL_THEMES } from '@/lib/theme'
 
 beforeEach(() => {
   document.documentElement.className = 'midnight'
@@ -86,66 +85,66 @@ describe('ThemePicker — keyboard navigation', () => {
   })
 })
 
-describe('ThemePicker — hover preview', () => {
-  it('applies the hovered theme live to <html>', () => {
-    render(<ThemePicker value="midnight" onChange={vi.fn()} />)
-
-    const dracula = screen.getByRole('option', { name: 'Dracula' })
-    fireEvent.mouseEnter(dracula)
-
-    expect(document.documentElement.classList.contains(getEffectiveTheme('dracula'))).toBe(true)
-  })
-
-  it('reverts to the committed theme on mouse-leave without calling onChange', () => {
+describe('ThemePicker — no live preview', () => {
+  // Repainting <html> on every mousemove made the grid feel laggy, so hover now changes
+  // nothing outside the swatch under the cursor.
+  it('leaves the app theme alone while the pointer crosses the grid', () => {
     const onChange = vi.fn()
     render(<ThemePicker value="midnight" onChange={onChange} />)
 
     const dracula = screen.getByRole('option', { name: 'Dracula' })
     fireEvent.mouseEnter(dracula)
-    expect(document.documentElement.classList.contains('dracula')).toBe(true)
-
-    fireEvent.mouseLeave(dracula)
+    fireEvent.mouseOver(dracula)
 
     expect(document.documentElement.classList.contains('midnight')).toBe(true)
     expect(document.documentElement.classList.contains('dracula')).toBe(false)
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('does not write to localStorage theme-cache while hovering', () => {
+  it('leaves the app theme alone while arrow keys move focus', () => {
+    const onChange = vi.fn()
+    render(<ThemePicker value="midnight" onChange={onChange} />)
+
+    const nord = screen.getByRole('option', { name: 'Nord' })
+    nord.focus()
+    fireEvent.focus(nord)
+
+    expect(document.documentElement.classList.contains('midnight')).toBe(true)
+    expect(document.documentElement.classList.contains('nord')).toBe(false)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('commits on click, which is the only path that changes the theme', () => {
+    const onChange = vi.fn()
+    render(<ThemePicker value="midnight" onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('option', { name: 'Dracula' }))
+
+    expect(onChange).toHaveBeenCalledWith('dracula')
+  })
+
+  it('never writes the localStorage theme-cache itself', () => {
     const setItemSpy = vi.spyOn(window.localStorage, 'setItem')
     render(<ThemePicker value="midnight" onChange={vi.fn()} />)
 
-    const dracula = screen.getByRole('option', { name: 'Dracula' })
-    fireEvent.mouseEnter(dracula)
-    fireEvent.mouseLeave(dracula)
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Dracula' }))
 
     expect(setItemSpy).not.toHaveBeenCalledWith('theme-cache', expect.anything())
     setItemSpy.mockRestore()
   })
 })
 
-describe('ThemePicker — focus preview', () => {
-  it('applies the focused theme live to <html>', () => {
-    render(<ThemePicker value="midnight" onChange={vi.fn()} />)
+describe('ThemePicker — active highlight', () => {
+  it('marks the active chip with an accent ring as well as the check badge', () => {
+    render(<ThemePicker value="nord" onChange={vi.fn()} />)
 
-    const nord = screen.getByRole('option', { name: 'Nord' })
-    fireEvent.focus(nord)
+    const active = screen.getByRole('option', { name: 'Nord' })
+    const inactive = screen.getByRole('option', { name: 'Dracula' })
 
-    expect(document.documentElement.classList.contains('nord')).toBe(true)
-  })
-
-  it('reverts to the committed theme on blur without calling onChange', () => {
-    const onChange = vi.fn()
-    render(<ThemePicker value="midnight" onChange={onChange} />)
-
-    const nord = screen.getByRole('option', { name: 'Nord' })
-    fireEvent.focus(nord)
-    expect(document.documentElement.classList.contains('nord')).toBe(true)
-
-    fireEvent.blur(nord)
-
-    expect(document.documentElement.classList.contains('midnight')).toBe(true)
-    expect(onChange).not.toHaveBeenCalled()
+    expect(active.className).toContain('border-[var(--color-accent)]')
+    expect(active.className).toContain('shadow-[0_0_0_1px_var(--color-accent)]')
+    expect(inactive.className).toContain('border-[var(--color-border)]')
+    expect(inactive.className).not.toContain('shadow-[0_0_0_1px_var(--color-accent)]')
   })
 })
 

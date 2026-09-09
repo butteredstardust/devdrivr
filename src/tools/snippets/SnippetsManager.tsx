@@ -472,8 +472,12 @@ export default function SnippetsManager() {
     titleInputRef.current = element
   }, [])
 
+  // Building the index reads every snippet's content and every fragment's content. It depends
+  // on whether a search is active, not on what the search says — keying it on `search` itself
+  // rebuilt the whole corpus on each keystroke, so typing got slower as the library grew.
+  const searching = search.trim().length > 0
   const fuse = useMemo(() => {
-    if (!search.trim()) return null
+    if (!searching) return null
     return new Fuse(deferredSnippets, {
       keys: [
         'title',
@@ -489,7 +493,7 @@ export default function SnippetsManager() {
       threshold: 0.32,
       includeMatches: true,
     })
-  }, [deferredSnippets, search])
+  }, [deferredSnippets, searching])
 
   const fuseResults = useMemo(() => (fuse ? fuse.search(search.trim()) : null), [fuse, search])
 

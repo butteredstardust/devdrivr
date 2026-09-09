@@ -6,6 +6,7 @@ import {
   PushPinIcon,
   PushPinSlashIcon,
 } from '@phosphor-icons/react'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { useUiStore } from '@/stores/ui.store'
 import { getToolById } from '@/app/tool-registry'
 import { formatShortcut } from '@/lib/shortcut-label'
@@ -190,10 +191,46 @@ export function WorkspaceTabStrip() {
     []
   )
 
+  // Hit-testing measures every rendered tab, so it is the whole per-move cost of a drag. The
+  // answer can only change once per frame, and a pointer delivers several moves in that time.
+  const {
+    run: scheduleDropTarget,
+    flush: flushDropTarget,
+    cancel: cancelDropTarget,
+  } = useFrameThrottle((clientX: number, sourceTabId: string) => {
+    // Hit-test the strip rather than relying on the pointer being over a tab: the tab under
+    // the cursor shrinks and shifts as others move out of the way, and a pointer that has run
+    // off the end of the strip still has a meaningful answer — the nearest edge.
+    const strip = scrollRef.current
+    if (!strip) return
+    const nodes = [...strip.querySelectorAll<HTMLElement>('[data-tab-id]')]
+    let target: DropTarget | null = null
+    for (const node of nodes) {
+      const id = node.dataset.tabId
+      if (!id || id === sourceTabId) continue
+      const rect = node.getBoundingClientRect()
+      if (clientX < rect.left + rect.width / 2) {
+        target = { tabId: id, edge: 'before' }
+        break
+      }
+      target = { tabId: id, edge: 'after' }
+    }
+
+    // The pointer spends most of a drag over the same half of the same tab, so the indicator is
+    // usually unchanged. Setting state anyway re-renders the whole strip for a marker that has
+    // not moved.
+    const previous = dropTargetRef.current
+    if (previous?.tabId === target?.tabId && previous?.edge === target?.edge) return
+    dropTargetRef.current = target
+    setDropTarget(target)
+  })
+
   useEffect(() => {
     const DRAG_THRESHOLD = 4
 
     const endGesture = () => {
+      // A pending hit-test would repaint an indicator for a drag that is over.
+      cancelDropTarget()
       dragOrigin.current = null
       draggingRef.current = null
       dropTargetRef.current = null
@@ -233,29 +270,13 @@ export function WorkspaceTabStrip() {
         setDraggingTabId(origin.tabId)
       }
 
-      // Hit-test the strip rather than relying on the pointer being over a tab:
-      // the tab under the cursor shrinks and shifts as others move out of the
-      // way, and a pointer that has run off the end of the strip still has a
-      // meaningful answer — the nearest edge.
-      const strip = scrollRef.current
-      if (!strip) return
-      const nodes = [...strip.querySelectorAll<HTMLElement>('[data-tab-id]')]
-      let target: DropTarget | null = null
-      for (const node of nodes) {
-        const id = node.dataset.tabId
-        if (!id || id === origin.tabId) continue
-        const rect = node.getBoundingClientRect()
-        if (event.clientX < rect.left + rect.width / 2) {
-          target = { tabId: id, edge: 'before' }
-          break
-        }
-        target = { tabId: id, edge: 'after' }
-      }
-      dropTargetRef.current = target
-      setDropTarget(target)
+      scheduleDropTarget(event.clientX, origin.tabId)
     }
 
     const onUp = () => {
+      // The drop reads dropTargetRef, so a frame still pending here holds the answer for the
+      // last move. Without this flush, releasing between frames drops the tab a move behind.
+      flushDropTarget()
       const dragging = draggingRef.current
       const target = dropTargetRef.current
       if (!dragOrigin.current || !dragging) {
@@ -294,7 +315,7 @@ export function WorkspaceTabStrip() {
       window.removeEventListener('blur', endGesture)
       disarmSuppressor()
     }
-  }, [])
+  }, [scheduleDropTarget, flushDropTarget, cancelDropTarget])
 
   // Close context menu on outside mousedown
   useEffect(() => {
@@ -660,11 +681,15 @@ export function WorkspaceTabStrip() {
 
       {/* + button pinned outside the scroll area. The left border separates
           "tabs" from "action" — flush against the scroll area it read as one
-          more tab. */}
+          more tab.
+
+          Opens the palette with the `new-tab` intent, so picking a tool that is
+          already open gives a second instance instead of moving to the first. A
+          button labelled "New tab" that focuses an existing tab is a bug. */}
       <button
-        onClick={toggleCommandPalette}
-        aria-label={`Open new tool (${formatShortcut('mod+k')})`}
-        title={`Open new tool (${formatShortcut('mod+k')})`}
+        onClick={() => toggleCommandPalette('new-tab')}
+        aria-label={`New tab (${formatShortcut('mod+k')})`}
+        title={`New tab (${formatShortcut('mod+k')})`}
         className="flex h-full w-8 shrink-0 items-center justify-center border-l border-[var(--color-border)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />

@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { Spinner } from '@/components/shared/Spinner'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { fitScale, svgSize, type SvgSize } from './mermaid-helpers'
 
@@ -171,22 +172,32 @@ export default function MermaidPreview({
     panOrigin.current = { mouseX: event.clientX, mouseY: event.clientY, x, y }
   }, [])
 
-  const handleMouseMove = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!panning.current) return
+  // A mouse delivers several moves per frame, and only the last one can paint. Each of the
+  // others re-rendered the preview and its toolbar for a transform nothing ever saw.
+  const { run: schedulePan, flush: flushPan } = useFrameThrottle(
+    (clientX: number, clientY: number) => {
       const { mouseX, mouseY, x, y } = panOrigin.current
       setTransform({
         ...transformRef.current,
-        x: x + (event.clientX - mouseX),
-        y: y + (event.clientY - mouseY),
+        x: x + (clientX - mouseX),
+        y: y + (clientY - mouseY),
       })
+    }
+  )
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!panning.current) return
+      schedulePan(event.clientX, event.clientY)
     },
-    [setTransform]
+    [schedulePan]
   )
 
   const stopPanning = useCallback(() => {
     panning.current = false
-  }, [])
+    // Land the last position, or the diagram settles a frame behind where the pointer let go.
+    flushPan()
+  }, [flushPan])
 
   // Zoom and pan used to be reachable only with a wheel and a drag, which left
   // the whole preview unusable from the keyboard.

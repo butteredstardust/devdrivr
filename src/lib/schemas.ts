@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import type {
+  ApiHeader,
+  ApiRequestAuth,
   Note,
   Snippet,
   HistoryEntry,
@@ -357,6 +359,65 @@ export const apiCollectionRowSchema = z
     return collection
   })
 
+const apiHeaderSchema = z.object({
+  key: z.string(),
+  value: z.string().default(''),
+  enabled: z.boolean().default(true),
+})
+
+const apiRequestAuthSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('none') }),
+  z.object({ type: z.literal('bearer'), token: z.string().default('') }),
+  z.object({
+    type: z.literal('basic'),
+    username: z.string().default(''),
+    password: z.string().default(''),
+  }),
+])
+
+/**
+ * WARNING: The API Client calls array methods on `headers` while it renders a request, so this
+ * must return an array for every input.
+ *
+ * Values written before the MCP tools normalised their input hold a flat header map. Recover those
+ * rather than dropping the request's headers.
+ */
+export function coerceApiHeaders(parsed: unknown): ApiHeader[] {
+  const asArray = z.array(apiHeaderSchema).safeParse(parsed)
+  if (asArray.success) return asArray.data
+  const asMap = z.record(z.string(), z.string()).safeParse(parsed)
+  if (asMap.success) {
+    return Object.entries(asMap.data).map(([key, headerValue]) => ({
+      key,
+      value: headerValue,
+      enabled: true,
+    }))
+  }
+  return []
+}
+
+/** Falls back to no auth so an unrecognised shape never sends a malformed credential. */
+export function coerceApiRequestAuth(parsed: unknown): ApiRequestAuth {
+  const result = apiRequestAuthSchema.safeParse(parsed)
+  return result.success ? result.data : { type: 'none' }
+}
+
+function parseApiHeaders(value: string): ApiHeader[] {
+  try {
+    return coerceApiHeaders(JSON.parse(value))
+  } catch {
+    return []
+  }
+}
+
+function parseApiRequestAuth(value: string): ApiRequestAuth {
+  try {
+    return coerceApiRequestAuth(JSON.parse(value))
+  } catch {
+    return { type: 'none' }
+  }
+}
+
 export const apiRequestRowSchema = z
   .object({
     id: z.string(),
@@ -379,22 +440,10 @@ export const apiRequestRowSchema = z
       name: row.name,
       method: row.method,
       url: row.url,
-      headers: (() => {
-        try {
-          return JSON.parse(row.headers)
-        } catch {
-          return []
-        }
-      })(),
+      headers: parseApiHeaders(row.headers),
       body: row.body,
       bodyMode: row.body_mode,
-      auth: (() => {
-        try {
-          return JSON.parse(row.auth)
-        } catch {
-          return { type: 'none' }
-        }
-      })(),
+      auth: parseApiRequestAuth(row.auth),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

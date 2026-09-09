@@ -3,6 +3,7 @@ import { type OnMount } from '@monaco-editor/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useToolState } from '@/hooks/useToolState'
+import { coerceApiHeaders, coerceApiRequestAuth } from '@/lib/schemas'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
 import { TabBar } from '@/components/shared/TabBar'
@@ -157,7 +158,13 @@ export default function ApiClient() {
   })
 
   // Destructure draft for convenience
-  const { method, url, headers, body, bodyMode, auth, name } = state.draft
+  const { method, url, body, bodyMode, name } = state.draft
+
+  // WARNING: Tool state is restored from SQLite without validation, so a draft saved from a
+  // malformed request keeps its shape across restarts. Coerce on read, or the header list below
+  // calls array methods on an object and the tool crashes every time it opens.
+  const headers = useMemo(() => coerceApiHeaders(state.draft.headers), [state.draft.headers])
+  const auth = useMemo(() => coerceApiRequestAuth(state.draft.auth), [state.draft.auth])
 
   const updateDraft = useCallback(
     (patch: Partial<RequestDraft>) => {

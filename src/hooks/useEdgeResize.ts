@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 
 /**
  * The drag gesture behind the shell's two resizable edges (sidebar, notes drawer).
@@ -29,6 +30,8 @@ type Gesture = {
   startX: number
   startWidth: number
   width: number
+  /** Last width handed to the frame throttle. Guards against re-rendering a clamped edge. */
+  scheduled: number
   target: Element
 }
 
@@ -42,6 +45,13 @@ export function useEdgeResize(options: EdgeResizeOptions): {
   const optionsRef = useRef(options)
   optionsRef.current = options
 
+  // The width goes to a top-level flex child, so each call reflows the sidebar, the workspace
+  // and the drawer, and re-renders the whole tool tree or note list with it. Several pointer
+  // moves can arrive in one frame, and every one but the last is overwritten before it paints.
+  const { run: scheduleResize, flush: flushResize } = useFrameThrottle((width: number) => {
+    optionsRef.current.onResize(width)
+  })
+
   const restoreBodyStyles = useCallback(() => {
     const previous = bodyStyleRef.current
     if (!previous) return
@@ -54,6 +64,9 @@ export function useEdgeResize(options: EdgeResizeOptions): {
     (commit: boolean) => {
       const gesture = gestureRef.current
       gestureRef.current = null
+      // Paint the last position before the gesture ends. A frame still pending here holds the
+      // width the pointer actually stopped at, and dropping it would snap the edge backwards.
+      flushResize()
       restoreBodyStyles()
       setResizing(false)
       if (!gesture) return
@@ -64,7 +77,7 @@ export function useEdgeResize(options: EdgeResizeOptions): {
       // rather than released — so an interrupted drag still persists what it left behind.
       if (commit) optionsRef.current.onCommit(gesture.width)
     },
-    [restoreBodyStyles]
+    [restoreBodyStyles, flushResize]
   )
 
   const onPointerDown = useCallback((event: React.PointerEvent) => {
@@ -78,6 +91,7 @@ export function useEdgeResize(options: EdgeResizeOptions): {
       startX: event.clientX,
       startWidth,
       width: startWidth,
+      scheduled: startWidth,
       target,
     }
     bodyStyleRef.current = {
@@ -95,10 +109,16 @@ export function useEdgeResize(options: EdgeResizeOptions): {
     const move = (event: PointerEvent) => {
       const gesture = gestureRef.current
       if (!gesture || event.pointerId !== gesture.pointerId) return
-      const { clamp, onResize, direction } = optionsRef.current
+      const { clamp, direction } = optionsRef.current
       const next = clamp(gesture.startWidth + direction * (event.clientX - gesture.startX))
+      // Record synchronously so an end that arrives before the next frame still commits the
+      // exact width the pointer reached. Only the paint waits for the frame.
       gesture.width = next
-      onResize(next)
+      // Dragging past the clamp keeps producing the same width. Scheduling it again would
+      // re-render the shell once a frame for a pane that is not moving.
+      if (next === gesture.scheduled) return
+      gesture.scheduled = next
+      scheduleResize(next)
     }
     // Captured events still bubble to the document, so one listener pair covers both the captured
     // and the uncaptured case; `end` is idempotent, so a doubled release is harmless.
@@ -119,7 +139,7 @@ export function useEdgeResize(options: EdgeResizeOptions): {
       document.removeEventListener('pointercancel', up)
       window.removeEventListener('blur', blur)
     }
-  }, [resizing, end])
+  }, [resizing, end, scheduleResize])
 
   // Unmounting mid-drag must not leave the body locked. No commit here: the owning component is
   // going away, and its own debounce is being torn down alongside it.

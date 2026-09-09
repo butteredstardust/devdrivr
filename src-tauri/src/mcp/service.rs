@@ -710,6 +710,74 @@ fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> 
     }
 }
 
+/// WARNING: Notes skips any row whose colour falls outside this set, so an unchecked write makes
+/// an import look successful while the note never appears in the tool.
+fn validate_note_color(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "yellow" | "green" | "blue" | "pink" | "purple" | "orange" | "red" | "gray" => {
+            Ok(value.to_string())
+        }
+        _ => Err(invalid_argument(
+            "color",
+            format!("Unsupported note color: {value}"),
+            &["Use one of: yellow, green, blue, pink, purple, orange, red, gray"],
+        )),
+    }
+}
+
+/// Repairs a stored value an earlier import left invalid.
+///
+/// An update that does not touch the field must not write the bad value back, or the row stays
+/// invisible in the tool. Reject what a client sends, but heal what the database already holds.
+fn heal_stored(
+    value: &str,
+    default: &str,
+    validate: fn(&str) -> std::result::Result<String, McpError>,
+) -> String {
+    validate(value).unwrap_or_else(|_| default.to_string())
+}
+
+fn heal_note_color(value: &str) -> String {
+    heal_stored(value, "yellow", validate_note_color)
+}
+
+fn heal_template_category(value: &str) -> String {
+    heal_stored(value, "productivity", validate_template_category)
+}
+
+fn heal_template_optimized_for(value: &str) -> String {
+    heal_stored(value, "Generic", validate_template_optimized_for)
+}
+
+/// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
+/// write makes an import look successful while the template never appears in the tool.
+fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "code-review" | "refactoring" | "testing" | "docs" | "debugging" | "learning"
+        | "productivity" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "category",
+            format!("Unsupported template category: {value}"),
+            &[
+                "Use one of: code-review, refactoring, testing, docs, debugging, learning, productivity",
+            ],
+        )),
+    }
+}
+
+/// WARNING: Prompt Templates skips any row whose target falls outside this set. See
+/// [`validate_template_category`].
+fn validate_template_optimized_for(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "Claude" | "ChatGPT" | "Cursor" | "Generic" => Ok(value.to_string()),
+        _ => Err(invalid_argument(
+            "optimizedFor",
+            format!("Unsupported template target: {value}"),
+            &["Use one of: Claude, ChatGPT, Cursor, Generic"],
+        )),
+    }
+}
+
 fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> {
     let parts = value
         .split('-')
@@ -787,10 +855,6 @@ fn unknown_help_topic(topic: &str) -> McpError {
 
 fn estimated_tokens(prompt: &str) -> i64 {
     std::cmp::max(1, (prompt.chars().count() as i64 + 3) / 4)
-}
-
-fn value_to_db_json(value: Option<Value>, fallback: Value) -> String {
-    serde_json::to_string(&value.unwrap_or(fallback)).unwrap_or_else(|_| "[]".to_string())
 }
 
 fn string_vec_to_db_json(value: Option<Vec<String>>) -> String {
@@ -903,6 +967,236 @@ fn strip_redaction_marker(auth: Value) -> Value {
         }
         other => other,
     }
+}
+
+/// Reads a header key or value that an MCP client sent as a JSON scalar.
+fn header_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => Some(text.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(flag) => Some(flag.to_string()),
+        _ => None,
+    }
+}
+
+fn invalid_api_headers(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "headers",
+        message,
+        &[
+            "Send an array of {\"key\": \"Accept\", \"value\": \"application/json\", \"enabled\": true} objects",
+            "Or send a flat header map such as {\"Accept\": \"application/json\"}",
+        ],
+    )
+}
+
+fn normalize_api_header_entry(entry: Value) -> std::result::Result<Value, McpError> {
+    let Value::Object(obj) = entry else {
+        return Err(invalid_api_headers(
+            "Every header must be an object with key and value",
+        ));
+    };
+    let key = obj
+        .get("key")
+        .or_else(|| obj.get("name"))
+        .and_then(header_text)
+        .ok_or_else(|| invalid_api_headers("Every header needs a key"))?;
+    let value = obj
+        .get("value")
+        .map_or_else(|| Some(String::new()), header_text)
+        .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
+    // Reject rather than default. A client sending 0 for a disabled header would otherwise have
+    // that header quietly switched on.
+    let enabled = match obj.get("enabled") {
+        None | Some(Value::Null) => true,
+        Some(Value::Bool(flag)) => *flag,
+        Some(_) => {
+            return Err(invalid_api_headers(format!(
+                "Header {key} needs enabled as true or false"
+            )))
+        }
+    };
+    Ok(json!({ "key": key, "value": value, "enabled": enabled }))
+}
+
+/// WARNING: The API Client calls array methods on `headers` while it renders a saved request. A
+/// stored object or string therefore crashes the tool on load, so reject those shapes at the write.
+///
+/// Accept both shapes an MCP client sends: the stored array, and a flat header map.
+fn normalize_api_headers(headers: Option<Value>) -> std::result::Result<String, McpError> {
+    let entries = match headers {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .into_iter()
+            .map(normalize_api_header_entry)
+            .collect::<std::result::Result<Vec<_>, _>>()?,
+        Some(Value::Object(map)) => map
+            .into_iter()
+            .map(|(key, value)| {
+                let value = header_text(&value).ok_or_else(|| {
+                    invalid_api_headers(format!("Header {key} needs a text value"))
+                })?;
+                Ok(json!({ "key": key, "value": value, "enabled": true }))
+            })
+            .collect::<std::result::Result<Vec<_>, McpError>>()?,
+        Some(_) => {
+            return Err(invalid_api_headers(
+                "Headers must be an array of header objects or a header map",
+            ))
+        }
+    };
+    Ok(serde_json::to_string(&Value::Array(entries)).unwrap_or_else(|_| "[]".to_string()))
+}
+
+fn invalid_prompt_variables(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "variables",
+        message,
+        &[
+            "Send an array of {\"name\": \"code\", \"label\": \"Code\", \"type\": \"text\"} objects",
+            "Use type text, textarea or select",
+            "Give every select variable a non-empty options array",
+        ],
+    )
+}
+
+fn normalize_prompt_variable(variable: Value) -> std::result::Result<Value, McpError> {
+    let Value::Object(obj) = variable else {
+        return Err(invalid_prompt_variables(
+            "Every variable must be an object with a name",
+        ));
+    };
+    let name = obj
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| invalid_prompt_variables("Every variable needs a non-empty name"))?
+        .to_string();
+    let label = obj
+        .get("label")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .map_or_else(|| name.clone(), str::to_string);
+    let variable_type = obj.get("type").and_then(Value::as_str).unwrap_or("text");
+    if !matches!(variable_type, "text" | "textarea" | "select") {
+        return Err(invalid_prompt_variables(format!(
+            "Variable {name} has unsupported type {variable_type}"
+        )));
+    }
+
+    let mut normalized = serde_json::Map::new();
+    normalized.insert("name".to_string(), Value::String(name.clone()));
+    normalized.insert("label".to_string(), Value::String(label));
+    normalized.insert("type".to_string(), Value::String(variable_type.to_string()));
+
+    let options: Vec<Value> = match obj.get("options") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => {
+            // Reject before dropping blanks. Filtering a Result stream would swallow the error a
+            // non-string option raises and store the rest as if the import had been clean.
+            let mut options = Vec::new();
+            for item in items {
+                let option = item.as_str().map(str::trim).ok_or_else(|| {
+                    invalid_prompt_variables(format!("Variable {name} needs text options"))
+                })?;
+                if !option.is_empty() {
+                    options.push(Value::String(option.to_string()));
+                }
+            }
+            options
+        }
+        Some(_) => {
+            return Err(invalid_prompt_variables(format!(
+                "Variable {name} needs options as an array of strings"
+            )))
+        }
+    };
+    if variable_type == "select" && options.is_empty() {
+        return Err(invalid_prompt_variables(format!(
+            "Select variable {name} needs at least one option"
+        )));
+    }
+    if !options.is_empty() {
+        normalized.insert("options".to_string(), Value::Array(options));
+    }
+
+    if let Some(placeholder) = obj.get("placeholder").and_then(Value::as_str) {
+        if !placeholder.is_empty() {
+            normalized.insert(
+                "placeholder".to_string(),
+                Value::String(placeholder.to_string()),
+            );
+        }
+    }
+    if let Some(required) = obj.get("required").and_then(Value::as_bool) {
+        normalized.insert("required".to_string(), Value::Bool(required));
+    }
+    Ok(Value::Object(normalized))
+}
+
+/// WARNING: Prompt Templates drops any stored variable it cannot recognise, so an unchecked write
+/// makes an import look successful while the template loses every field the user must fill.
+///
+/// Apply the rules the tool's own import applies, and reject what it would reject.
+fn normalize_prompt_variables(variables: Option<Value>) -> std::result::Result<String, McpError> {
+    let normalized = match variables {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .into_iter()
+            .map(normalize_prompt_variable)
+            .collect::<std::result::Result<Vec<_>, _>>()?,
+        Some(_) => return Err(invalid_prompt_variables("Variables must be an array")),
+    };
+    Ok(serde_json::to_string(&Value::Array(normalized)).unwrap_or_else(|_| "[]".to_string()))
+}
+
+fn invalid_api_auth(message: impl Into<String>) -> McpError {
+    invalid_argument(
+        "auth",
+        message,
+        &[
+            "Send {\"type\": \"none\"}",
+            "Send {\"type\": \"bearer\", \"token\": \"...\"}",
+            "Send {\"type\": \"basic\", \"username\": \"...\", \"password\": \"...\"}",
+        ],
+    )
+}
+
+/// Reject rather than default. Erasing a credential the client did send would report a successful
+/// write for a request that can no longer authenticate.
+fn auth_field(
+    obj: &serde_json::Map<String, Value>,
+    field: &str,
+) -> std::result::Result<String, McpError> {
+    match obj.get(field) {
+        None | Some(Value::Null) => Ok(String::new()),
+        Some(Value::String(text)) => Ok(text.clone()),
+        Some(_) => Err(invalid_api_auth(format!("Auth field {field} must be text"))),
+    }
+}
+
+/// WARNING: The API Client reads `auth` as a tagged union and sends the named credential on every
+/// request. An unknown shape would silently drop the credential, so reject it at the write.
+fn normalize_api_auth(auth: Value) -> std::result::Result<String, McpError> {
+    let Value::Object(obj) = auth else {
+        return Err(invalid_api_auth("Auth must be an object with a type field"));
+    };
+    let normalized = match obj.get("type").and_then(Value::as_str) {
+        None => return Err(invalid_api_auth("Auth needs a type field")),
+        Some("none") => json!({ "type": "none" }),
+        Some("bearer") => json!({ "type": "bearer", "token": auth_field(&obj, "token")? }),
+        Some("basic") => json!({
+            "type": "basic",
+            "username": auth_field(&obj, "username")?,
+            "password": auth_field(&obj, "password")?,
+        }),
+        Some(other) => {
+            return Err(invalid_api_auth(format!("Unsupported auth type {other}")));
+        }
+    };
+    Ok(serde_json::to_string(&normalized).unwrap_or_else(|_| r#"{"type":"none"}"#.to_string()))
 }
 
 fn resolve_auth_update(incoming: Value, current_auth: &str) -> String {
@@ -2535,7 +2829,7 @@ impl DevdrivrMcpService {
                         "id": "string",
                         "title": "string",
                         "content": "string",
-                        "color": "string",
+                        "color": "yellow|green|blue|pink|purple|orange|red|gray",
                         "pinned": "boolean",
                         "poppedOut": "boolean",
                         "windowBounds": "object|null",
@@ -2595,12 +2889,12 @@ impl DevdrivrMcpService {
                         "id": "string",
                         "name": "string",
                         "description": "string",
-                        "category": "string",
+                        "category": "code-review|refactoring|testing|docs|debugging|learning|productivity",
                         "tags": "string[]",
                         "prompt": "string",
-                        "variables": "array|object",
+                        "variables": "{ name, label, type: text|textarea|select, placeholder?, options?: string[], required? }[]",
                         "estimatedTokens": "number",
-                        "optimizedFor": "string",
+                        "optimizedFor": "Claude|ChatGPT|Cursor|Generic",
                         "author": "builtin|user",
                         "version": "string",
                         "tips": "string[]",
@@ -2629,10 +2923,10 @@ impl DevdrivrMcpService {
                         "name": "string",
                         "method": "string",
                         "url": "string",
-                        "headers": "array|object",
+                        "headers": "{ key, value, enabled }[] (a flat header map is converted on write)",
                         "body": "string",
                         "bodyMode": "string",
-                        "auth": "object",
+                        "auth": "{ type: none } | { type: bearer, token } | { type: basic, username, password }",
                         "createdAt": "number (Unix milliseconds)",
                         "updatedAt": "number (Unix milliseconds)"
                     },
@@ -2765,7 +3059,10 @@ impl DevdrivrMcpService {
         let now = now_ms();
         let title = args.title.unwrap_or_default();
         let content = args.content.unwrap_or_default();
-        let color = args.color.unwrap_or_else(|| "yellow".to_string());
+        let color = args
+            .color
+            .as_deref()
+            .map_or_else(|| Ok("yellow".to_string()), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(false);
         let tags = string_vec_to_db_json(args.tags);
         let folder_id = args.folder_id.unwrap_or_else(|| "notes-inbox".to_string());
@@ -2826,7 +3123,10 @@ impl DevdrivrMcpService {
         .ok_or_else(|| not_found("notes", &args.id))?;
         let title = args.title.unwrap_or_else(|| current.title.clone());
         let content = args.content.unwrap_or_else(|| current.content.clone());
-        let color = args.color.unwrap_or_else(|| current.color.clone());
+        let color = args
+            .color
+            .as_deref()
+            .map_or_else(|| Ok(heal_note_color(&current.color)), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(current.pinned == 1);
         let tags = args
             .tags
@@ -3122,12 +3422,20 @@ impl DevdrivrMcpService {
         .bind(&id)
         .bind(args.name)
         .bind(args.description.unwrap_or_default())
-        .bind(args.category.unwrap_or_else(|| "productivity".to_string()))
+        .bind(
+            args.category
+                .as_deref()
+                .map_or_else(|| Ok("productivity".to_string()), validate_template_category)?,
+        )
         .bind(string_vec_to_db_json(args.tags))
         .bind(&args.prompt)
-        .bind(value_to_db_json(args.variables, json!([])))
+        .bind(normalize_prompt_variables(args.variables)?)
         .bind(estimated_tokens(&args.prompt))
-        .bind(args.optimized_for.unwrap_or_else(|| "Generic".to_string()))
+        .bind(
+            args.optimized_for
+                .as_deref()
+                .map_or_else(|| Ok("Generic".to_string()), validate_template_optimized_for)?,
+        )
         .bind(args.version.unwrap_or_else(|| "1.0.0".to_string()))
         .bind(string_vec_to_db_json(args.tips))
         .bind(now)
@@ -3160,10 +3468,10 @@ impl DevdrivrMcpService {
         };
         let now = now_ms();
         let prompt = args.prompt.unwrap_or(current.prompt);
-        let variables = args
-            .variables
-            .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
-            .unwrap_or(current.variables_schema);
+        let variables = match args.variables {
+            Some(value) => normalize_prompt_variables(Some(value))?,
+            None => current.variables_schema,
+        };
         let tags = args
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
@@ -3178,12 +3486,23 @@ impl DevdrivrMcpService {
         .bind(&target_id)
         .bind(args.name.unwrap_or(current.name))
         .bind(args.description.unwrap_or(current.description))
-        .bind(args.category.unwrap_or(current.category))
+        .bind(
+            args.category
+                .as_deref()
+                .map_or_else(|| Ok(heal_template_category(&current.category)), validate_template_category)?,
+        )
         .bind(tags)
         .bind(&prompt)
         .bind(variables)
         .bind(estimated_tokens(&prompt))
-        .bind(args.optimized_for.unwrap_or(current.optimized_for))
+        .bind(
+            args.optimized_for
+                .as_deref()
+                .map_or_else(
+                    || Ok(heal_template_optimized_for(&current.optimized_for)),
+                    validate_template_optimized_for,
+                )?,
+        )
         .bind(args.version.unwrap_or(current.version))
         .bind(tips)
         .bind(if current.author == "builtin" { now } else { current.created_at })
@@ -3277,8 +3596,11 @@ impl DevdrivrMcpService {
         validate_default_language(kind, args.default_language.is_some())?;
         self.validate_folder_parent(kind, None, args.parent_id.as_deref())
             .await?;
+        // CAST keeps the result SQLITE_FLOAT. SQLite gives an expression no column affinity, so
+        // the literal 0 that COALESCE returns for an empty parent stays an INTEGER and sqlx
+        // refuses to decode it as f64. That is what blocks the first folder under a new parent.
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
+            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
         )
         .bind(kind)
         .bind(&args.parent_id)
@@ -3363,8 +3685,9 @@ impl DevdrivrMcpService {
         }
         self.validate_folder_parent(&folder.kind, Some(&folder.id), args.parent_id.as_deref())
             .await?;
+        // CAST keeps the result SQLITE_FLOAT. See the note in resource_folders_create.
         let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT COALESCE(MAX(sort_order), 0) FROM resource_folders WHERE kind = $1 AND id <> $2 AND deleted_at IS NULL AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
+            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND id <> $2 AND deleted_at IS NULL AND ((parent_id IS NULL AND $3 IS NULL) OR parent_id = $3)",
         )
         .bind(&folder.kind)
         .bind(&folder.id)
@@ -3541,13 +3864,13 @@ impl DevdrivrMcpService {
         .bind(args.name)
         .bind(args.method.to_uppercase())
         .bind(args.url)
-        .bind(value_to_db_json(args.headers, json!([])))
+        .bind(normalize_api_headers(args.headers)?)
         .bind(args.body.unwrap_or_default())
         .bind(args.body_mode.unwrap_or_else(|| "json".to_string()))
-        .bind(value_to_db_json(
-            args.auth.map(strip_redaction_marker),
-            json!({ "type": "none" }),
-        ))
+        .bind(match args.auth {
+            Some(auth) => normalize_api_auth(strip_redaction_marker(auth))?,
+            None => r#"{"type":"none"}"#.to_string(),
+        })
         .bind(now)
         .bind(now)
         .execute(&self.pool)
@@ -3571,14 +3894,18 @@ impl DevdrivrMcpService {
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("apiRequests", &args.id))?;
-        let auth = args
-            .auth
-            .map(|value| resolve_auth_update(value, &current.auth))
-            .unwrap_or(current.auth);
-        let headers = args
-            .headers
-            .map(|value| serde_json::to_string(&value).unwrap_or_else(|_| "[]".to_string()))
-            .unwrap_or(current.headers);
+        let auth = match args.auth {
+            Some(value) => {
+                // Resolve first: the redaction marker restores the secret the client never saw.
+                let resolved = resolve_auth_update(value, &current.auth);
+                normalize_api_auth(parse_json(&resolved, json!({ "type": "none" })))?
+            }
+            None => current.auth,
+        };
+        let headers = match args.headers {
+            Some(value) => normalize_api_headers(Some(value))?,
+            None => current.headers,
+        };
         let folder_id = args
             .folder_id
             .or(args.collection_id)
@@ -3642,6 +3969,45 @@ impl ServerHandler for DevdrivrMcpService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two folder tools read `MAX(sort_order)` through this expression. Creating the first
+    /// child of a parent leaves no rows to aggregate, so the expression must still decode as f64.
+    const MAX_SORT_ORDER_EXPRESSION: &str = "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE parent_id = $1";
+
+    async fn folder_sort_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.expect("pool");
+        sqlx::query("CREATE TABLE resource_folders (id TEXT PRIMARY KEY, parent_id TEXT, sort_order REAL NOT NULL DEFAULT 0)")
+            .execute(&pool)
+            .await
+            .expect("schema");
+        pool
+    }
+
+    #[tokio::test]
+    async fn folder_sort_order_decodes_when_the_parent_has_no_children_yet() {
+        let pool = folder_sort_pool().await;
+        let max_sort = sqlx::query_scalar::<_, f64>(MAX_SORT_ORDER_EXPRESSION)
+            .bind("empty-parent")
+            .fetch_one(&pool)
+            .await
+            .expect("an empty parent must not fail to decode");
+        assert_eq!(max_sort, 0.0);
+    }
+
+    #[tokio::test]
+    async fn folder_sort_order_reads_the_highest_existing_sibling() {
+        let pool = folder_sort_pool().await;
+        sqlx::query("INSERT INTO resource_folders (id, parent_id, sort_order) VALUES ('a', 'parent', 1000.0), ('b', 'parent', 2000.0)")
+            .execute(&pool)
+            .await
+            .expect("seed");
+        let max_sort = sqlx::query_scalar::<_, f64>(MAX_SORT_ORDER_EXPRESSION)
+            .bind("parent")
+            .fetch_one(&pool)
+            .await
+            .expect("decode");
+        assert_eq!(max_sort + FOLDER_SORT_STEP, 3000.0);
+    }
 
     fn api_request_with_auth(auth: Value) -> ApiRequestRow {
         ApiRequestRow {
@@ -3795,6 +4161,177 @@ mod tests {
 
         assert!(value.get("deletedAt").is_none());
         assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn an_update_heals_a_stored_value_an_earlier_import_left_invalid() {
+        assert_eq!(heal_note_color("teal"), "yellow");
+        assert_eq!(heal_note_color("purple"), "purple");
+        assert_eq!(heal_template_category("general"), "productivity");
+        assert_eq!(heal_template_category("docs"), "docs");
+        assert_eq!(heal_template_optimized_for("GPT-4"), "Generic");
+        assert_eq!(heal_template_optimized_for("Cursor"), "Cursor");
+    }
+
+    #[test]
+    fn note_color_accepts_only_values_the_tool_can_load() {
+        assert_eq!(validate_note_color("purple").expect("purple"), "purple");
+        assert!(validate_note_color("teal").is_err());
+        assert!(validate_note_color("Yellow").is_err());
+        assert!(validate_note_color("#ffcc00").is_err());
+    }
+
+    #[test]
+    fn template_enums_accept_only_values_the_tool_can_load() {
+        assert_eq!(validate_template_category("docs").expect("docs"), "docs");
+        assert_eq!(
+            validate_template_optimized_for("Claude").expect("Claude"),
+            "Claude"
+        );
+        assert!(validate_template_category("general").is_err());
+        assert!(validate_template_category("Docs").is_err());
+        assert!(validate_template_optimized_for("GPT-4").is_err());
+        assert!(validate_template_optimized_for("claude").is_err());
+    }
+
+    #[test]
+    fn prompt_variables_normalize_to_the_shape_the_tool_renders() {
+        let normalized = normalize_prompt_variables(Some(json!([
+            { "name": " code ", "type": "textarea", "required": true },
+            { "name": "lang", "label": "Language", "type": "select", "options": ["ts", " ", "rs"] },
+        ])))
+        .expect("normalize");
+
+        assert_eq!(
+            parse_json(&normalized, json!([])),
+            json!([
+                { "name": "code", "label": "code", "type": "textarea", "required": true },
+                { "name": "lang", "label": "Language", "type": "select", "options": ["ts", "rs"] },
+            ])
+        );
+        assert_eq!(normalize_prompt_variables(None).expect("absent"), "[]");
+    }
+
+    #[test]
+    fn prompt_variables_reject_what_the_tool_would_discard() {
+        assert!(normalize_prompt_variables(Some(json!({ "code": "text" }))).is_err());
+        assert!(normalize_prompt_variables(Some(json!([{ "label": "No name" }]))).is_err());
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "date" }]))).is_err()
+        );
+        assert!(
+            normalize_prompt_variables(Some(json!([{ "name": "x", "type": "select" }]))).is_err()
+        );
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "x", "type": "select", "options": [" "] }])
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn api_headers_normalize_arrays_maps_and_missing_values() {
+        let from_array = normalize_api_headers(Some(json!([
+            { "key": "Accept", "value": "application/json" },
+            { "key": "X-Trace", "value": "abc", "enabled": false },
+        ])))
+        .expect("array");
+        assert_eq!(
+            parse_json(&from_array, json!([])),
+            json!([
+                { "key": "Accept", "value": "application/json", "enabled": true },
+                { "key": "X-Trace", "value": "abc", "enabled": false },
+            ])
+        );
+
+        let from_map =
+            normalize_api_headers(Some(json!({ "Accept": "application/json" }))).expect("map");
+        assert_eq!(
+            parse_json(&from_map, json!([])),
+            json!([{ "key": "Accept", "value": "application/json", "enabled": true }])
+        );
+
+        assert_eq!(normalize_api_headers(None).expect("absent"), "[]");
+        assert_eq!(
+            normalize_api_headers(Some(json!(null))).expect("null"),
+            "[]"
+        );
+    }
+
+    #[test]
+    fn api_headers_reject_shapes_the_api_client_cannot_render() {
+        assert!(normalize_api_headers(Some(json!("Accept: application/json"))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "value": "no-key" }]))).is_err());
+        assert!(normalize_api_headers(Some(json!([{ "key": "Accept", "value": ["a"] }]))).is_err());
+        assert!(normalize_api_headers(Some(json!({ "Accept": { "nested": true } }))).is_err());
+    }
+
+    #[test]
+    fn api_auth_normalizes_each_supported_type_and_rejects_the_rest() {
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "none" })).expect("none"),
+                json!({})
+            ),
+            json!({ "type": "none" })
+        );
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer", "token": "t" })).expect("bearer"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "t" })
+        );
+        // Unknown keys are dropped so the stored row matches the ApiRequestAuth union exactly.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(
+                    json!({ "type": "basic", "username": "u", "password": "p", "realm": "x" })
+                )
+                .expect("basic"),
+                json!({})
+            ),
+            json!({ "type": "basic", "username": "u", "password": "p" })
+        );
+
+        assert!(normalize_api_auth(json!("bearer")).is_err());
+        assert!(normalize_api_auth(json!({ "token": "t" })).is_err());
+        assert!(normalize_api_auth(json!({ "type": "oauth2" })).is_err());
+    }
+
+    #[test]
+    fn api_auth_rejects_a_credential_it_would_otherwise_erase() {
+        assert!(normalize_api_auth(json!({ "type": "bearer", "token": 12345 })).is_err());
+        assert!(
+            normalize_api_auth(json!({ "type": "basic", "username": "u", "password": 1 })).is_err()
+        );
+        // An absent credential is still allowed, and reads as empty.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer" })).expect("absent token"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "" })
+        );
+    }
+
+    #[test]
+    fn api_headers_reject_a_non_boolean_enabled_rather_than_switching_it_on() {
+        assert!(
+            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": 0 }])))
+                .is_err()
+        );
+        assert!(normalize_api_headers(Some(
+            json!([{ "key": "A", "value": "b", "enabled": "false" }])
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn prompt_variables_reject_a_non_text_option_instead_of_dropping_it() {
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "lang", "type": "select", "options": ["ts", 42] }])
+        ))
+        .is_err());
     }
 
     #[test]

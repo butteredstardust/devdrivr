@@ -854,3 +854,27 @@ describe('WorkspaceTabStrip — reveal on resize', () => {
     })
   })
 })
+
+/**
+ * The + button and mod+K share one palette. Only the button asks for a new instance, so only
+ * the button sets the `new-tab` intent.
+ */
+describe('new tab button', () => {
+  it('opens the palette with the new-tab intent', () => {
+    useUiStore.setState({ commandPaletteOpen: false, commandPaletteIntent: 'switch' })
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.click(screen.getByRole('button', { name: /New tab/ }))
+
+    expect(useUiStore.getState().commandPaletteOpen).toBe(true)
+    expect(useUiStore.getState().commandPaletteIntent).toBe('new-tab')
+  })
+
+  it('drops the intent when the palette closes', () => {
+    useUiStore.setState({ commandPaletteOpen: true, commandPaletteIntent: 'new-tab' })
+
+    act(() => useUiStore.getState().setCommandPaletteOpen(false))
+
+    expect(useUiStore.getState().commandPaletteIntent).toBe('switch')
+  })
+})

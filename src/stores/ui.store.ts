@@ -19,6 +19,8 @@ type ToastItem = {
   type: 'success' | 'error' | 'info'
 }
 
+export type CommandPaletteIntent = 'switch' | 'new-tab'
+
 type PendingTabClose = {
   tabIds: string[]
   nextActiveTabId: string | null
@@ -90,14 +92,20 @@ type UiStore = {
 
   // --- UI overlays ---
   commandPaletteOpen: boolean
+  /**
+   * What picking a tool in the palette means. `switch` returns to an open tab, which is what a
+   * shortcut or a sidebar click asks for. `new-tab` always opens another instance, which is what
+   * the new-tab button asks for. Reset to `switch` whenever the palette closes.
+   */
+  commandPaletteIntent: CommandPaletteIntent
   lastAction: LastAction | null
   toasts: ToastItem[]
   settingsPanelOpen: boolean
   pendingSendTo: string | null
   shortcutsModalOpen: boolean
 
-  setCommandPaletteOpen: (open: boolean) => void
-  toggleCommandPalette: () => void
+  setCommandPaletteOpen: (open: boolean, intent?: CommandPaletteIntent) => void
+  toggleCommandPalette: (intent?: CommandPaletteIntent) => void
   setLastAction: (message: string, type?: LastAction['type']) => void
   clearLastAction: () => void
   addToast: (message: string, type?: ToastItem['type']) => void
@@ -459,8 +467,15 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   pendingSendTo: null,
   shortcutsModalOpen: false,
 
-  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+  commandPaletteIntent: 'switch',
+
+  setCommandPaletteOpen: (open, intent = 'switch') =>
+    set({ commandPaletteOpen: open, commandPaletteIntent: open ? intent : 'switch' }),
+  toggleCommandPalette: (intent = 'switch') =>
+    set((s) => {
+      const open = !s.commandPaletteOpen
+      return { commandPaletteOpen: open, commandPaletteIntent: open ? intent : 'switch' }
+    }),
   setLastAction: (message, type = 'info') =>
     set({ lastAction: { message, type, timestamp: Date.now() } }),
   clearLastAction: () => set({ lastAction: null }),

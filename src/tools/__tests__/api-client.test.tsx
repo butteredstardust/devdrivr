@@ -662,6 +662,38 @@ describe('ApiClient', () => {
     expect(screen.getByRole('button', { name: 'Back to note' })).toBeInTheDocument()
   })
 
+  it('opens when restored tool state holds a header map instead of a header array', () => {
+    // A request imported through MCP stored headers as a flat map. Loading it into the draft
+    // persisted that shape into tool state, and every later launch crashed on headers.filter.
+    // Seed the cache the way a restart does, then mount. renderTool clears the cache, so this
+    // test drives the mount directly.
+    useToolStateCache.setState({
+      cache: new Map([
+        [
+          'api-client',
+          {
+            draft: {
+              name: 'Imported',
+              method: 'GET',
+              url: 'https://example.com/imported',
+              headers: { Accept: 'application/json' },
+              body: '',
+              bodyMode: 'json',
+              auth: 'bearer',
+            },
+          },
+        ],
+      ]),
+    })
+
+    render(<ApiClient />)
+
+    expect(screen.getByDisplayValue('https://example.com/imported')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /Headers/ }))
+    expect(screen.getByDisplayValue('Accept')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('application/json')).toBeInTheDocument()
+  })
+
   it('opens a saved request without prompting when the draft is untouched', () => {
     useApiStore.setState({ requests: [savedRequest] })
     renderTool(ApiClient)
