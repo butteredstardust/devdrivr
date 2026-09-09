@@ -150,6 +150,25 @@ struct CountsArgs {
     types: Option<Vec<String>>,
 }
 
+/// WARNING: prompt templates are deleted outright and never appear in trash.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct TrashListArgs {
+    /// Resource types to include. Omit for every readable type that supports trash.
+    types: Option<Vec<String>>,
+    query: Option<String>,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct TrashRestoreArgs {
+    /// One of `notes`, `snippets`, `apiRequests`.
+    #[serde(rename = "type")]
+    resource_type: String,
+    id: String,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct HelpArgs {
     topic: Option<String>,
@@ -783,6 +802,22 @@ fn builtin_template_delete_denied(id: &str) -> McpError {
             ],
         )),
     )
+}
+
+/// The table a trashed record of this type lives in.
+///
+/// WARNING: the returned name is interpolated into SQL. It is a literal from this module.
+fn trash_table(resource_type: ResourceType) -> std::result::Result<&'static str, McpError> {
+    match resource_type {
+        ResourceType::Notes => Ok("notes"),
+        ResourceType::Snippets => Ok("snippets"),
+        ResourceType::ApiRequests => Ok("api_requests"),
+        ResourceType::PromptTemplates => Err(invalid_argument(
+            "type",
+            "Prompt templates are deleted outright and never enter Trash",
+            &["Restore notes, snippets or apiRequests"],
+        )),
+    }
 }
 
 fn unsupported_resource_type(resource_type: &str) -> McpError {
@@ -1883,6 +1918,7 @@ Quick start:
 - Count resources: `counts()`
 - Fetch selected records: `multi_get({{"ids":[{{"type":"notes","id":"..."}}]}})`
 - Browse folders: `resource_folders_list({{"kind":"notes"}})`
+- Undo a delete: `trash_list({{}})` then `trash_restore({{"type":"notes","id":"..."}})`
 
 Use `help({{"topic":"tools"}})` for the tool reference and `help({{"topic":"clients"}})` for CLI setup examples.
 "#,
@@ -1945,6 +1981,8 @@ fn tool_pitfall(name: &str) -> &'static str {
         "counts" => "Counts only returns resources allowed by current read permissions unless a denied type is explicitly requested.",
         "help" => "The API key is never returned; copy it from Settings > MCP.",
         "prompt_templates_delete" => "Built-in templates cannot be deleted. Update a built-in to create a user-owned copy.",
+        "trash_list" => "Prompt templates are deleted outright and never appear in Trash.",
+        "trash_restore" => "Restoring is charged to the update permission, not to delete.",
         "api_requests_list" | "api_requests_get" => {
             "Auth secrets are redacted unless API request secret exposure is enabled in MCP settings."
         }
@@ -2454,6 +2492,57 @@ impl DevdrivrMcpService {
                     None => Ok(None),
                 }
             }
+        }
+    }
+
+    /// Read the trashed records of one type, newest first.
+    async fn fetch_trashed_values(
+        &self,
+        resource_type: ResourceType,
+        expose_auth: bool,
+    ) -> std::result::Result<Vec<Value>, McpError> {
+        match resource_type {
+            ResourceType::Notes => {
+                let rows = sqlx::query_as::<_, NoteRow>(
+                    "SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.note_value(row).await?);
+                }
+                Ok(values)
+            }
+            ResourceType::Snippets => {
+                let rows = sqlx::query_as::<_, SnippetRow>(
+                    "SELECT * FROM snippets WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.snippet_value(row).await?);
+                }
+                Ok(values)
+            }
+            ResourceType::ApiRequests => {
+                let rows = sqlx::query_as::<_, ApiRequestRow>(
+                    "SELECT * FROM api_requests WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_error)?;
+                let mut values = Vec::with_capacity(rows.len());
+                for row in rows {
+                    values.push(self.api_request_value(row, expose_auth).await?);
+                }
+                Ok(values)
+            }
+            // Deleting a prompt template removes the row, so there is nothing to list.
+            ResourceType::PromptTemplates => Ok(Vec::new()),
         }
     }
 
@@ -4131,6 +4220,62 @@ impl DevdrivrMcpService {
     }
 
     #[tool(
+        description = "List records in devdrivr Trash. Prompt templates are deleted outright and never appear here."
+    )]
+    async fn trash_list(&self, Parameters(args): Parameters<TrashListArgs>) -> McpResult {
+        let resource_types = self.readable_resource_types(args.types).await?;
+        let expose_auth = self.settings.read().await.api_requests_expose_secrets;
+        let mut values = Vec::new();
+        for resource_type in resource_types {
+            for mut value in self
+                .fetch_trashed_values(resource_type, expose_auth)
+                .await?
+            {
+                // Says which tool restores it, so the caller does not have to guess the type
+                // back from the record shape.
+                if let Value::Object(obj) = &mut value {
+                    obj.insert(
+                        "resource".to_string(),
+                        Value::String(resource_type.key().to_string()),
+                    );
+                }
+                values.push(value);
+            }
+        }
+        values.retain(|value| matches_query(value, &args.query));
+        list_payload("trashed", values, args.limit)
+    }
+
+    #[tool(
+        description = "Restore one record from devdrivr Trash. Requires the update permission for its resource type."
+    )]
+    async fn trash_restore(&self, Parameters(args): Parameters<TrashRestoreArgs>) -> McpResult {
+        let resource_type = ResourceType::from_key(&args.resource_type)
+            .ok_or_else(|| unsupported_resource_type(&args.resource_type))?;
+        // Restoring puts a record back where other tools can change it, so it is charged to
+        // `update` rather than to `delete`.
+        self.ensure_permission(resource_type.key(), "update")
+            .await?;
+        let table = trash_table(resource_type)?;
+        let result = sqlx::query(&format!(
+            "UPDATE {table} SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL"
+        ))
+        .bind(&args.id)
+        .execute(&self.pool)
+        .await
+        .map_err(db_error)?;
+        if result.rows_affected() == 0 {
+            return Err(not_found(resource_type.key(), &args.id));
+        }
+        self.emit_changed(resource_type.key(), "update", Some(args.id.clone()));
+        to_json_text(json!({
+            "restored": true,
+            "id": args.id,
+            "resource": resource_type.key(),
+        }))
+    }
+
+    #[tool(
         description = "Move a folder subtree and its contained resources to trash. This never executes or exports saved API requests."
     )]
     async fn resource_folders_trash(&self, Parameters(args): Parameters<IdArgs>) -> McpResult {
@@ -4571,6 +4716,108 @@ mod tests {
     /// body mode reached the database and produced a request the tool could not run.
     /// Two agents editing one note both read, both wrote, and the second discarded the first
     /// without a word.
+    /// A record deleted through MCP had no way back through MCP.
+    mod trash {
+        use super::*;
+
+        async fn service_with_a_trashed_note() -> (DevdrivrMcpService, String) {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            let created = result_json(
+                &service
+                    .notes_create(Parameters(note_create_args("gone")))
+                    .await
+                    .expect("create"),
+            );
+            let id = created["id"].as_str().expect("id").to_string();
+            let args: DeleteArgs =
+                serde_json::from_value(json!({ "id": &id })).expect("delete args");
+            service
+                .notes_delete(Parameters(args))
+                .await
+                .expect("delete");
+            (service, id)
+        }
+
+        fn trash_list_args() -> TrashListArgs {
+            serde_json::from_value(json!({})).expect("trash list args")
+        }
+
+        #[tokio::test]
+        async fn a_trashed_record_is_listed_with_its_resource_type() {
+            let (service, id) = service_with_a_trashed_note().await;
+            let json = result_json(
+                &service
+                    .trash_list(Parameters(trash_list_args()))
+                    .await
+                    .expect("trash list"),
+            );
+            let items = json["trashed"].as_array().expect("trashed");
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0]["id"], json!(id));
+            assert_eq!(items[0]["resource"], "notes");
+        }
+
+        #[tokio::test]
+        async fn restoring_puts_the_record_back_in_the_list() {
+            let (service, id) = service_with_a_trashed_note().await;
+            let args: TrashRestoreArgs =
+                serde_json::from_value(json!({ "type": "notes", "id": &id }))
+                    .expect("restore args");
+            service
+                .trash_restore(Parameters(args))
+                .await
+                .expect("restore");
+
+            let listed = result_json(
+                &service
+                    .notes_list(Parameters(
+                        serde_json::from_value(json!({})).expect("list args"),
+                    ))
+                    .await
+                    .expect("list"),
+            );
+            assert_eq!(listed["total"], 1);
+        }
+
+        #[tokio::test]
+        async fn restoring_needs_the_update_permission() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, false, true,
+            )))
+            .await;
+            let args: TrashRestoreArgs =
+                serde_json::from_value(json!({ "type": "notes", "id": "any" }))
+                    .expect("restore args");
+            let error = service
+                .trash_restore(Parameters(args))
+                .await
+                .expect_err("restore without update permission");
+            assert_eq!(
+                error.data.as_ref().expect("data")["code"],
+                "PERMISSION_DENIED"
+            );
+        }
+
+        #[tokio::test]
+        async fn prompt_templates_cannot_be_restored() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            let args: TrashRestoreArgs =
+                serde_json::from_value(json!({ "type": "promptTemplates", "id": "any" }))
+                    .expect("restore args");
+            let error = service
+                .trash_restore(Parameters(args))
+                .await
+                .expect_err("prompt templates never enter trash");
+            assert!(error.message.contains("Trash"));
+        }
+    }
+
     mod optimistic_concurrency {
         use super::*;
 

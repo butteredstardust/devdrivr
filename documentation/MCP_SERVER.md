@@ -32,6 +32,15 @@ Use the discovery tools to inspect and search available resources:
 | `multi_get`  | Fetch multiple resources by ID in one call                   |
 | `counts`     | Count primary resources without fetching records             |
 
+Use the trash tools to undo a delete:
+
+| Tool            | Purpose                                                        |
+| --------------- | -------------------------------------------------------------- |
+| `trash_list`    | List trashed notes, snippets and saved API requests            |
+| `trash_restore` | Restore one trashed record. Needs the update permission for it |
+
+Deleting a prompt template removes it outright, so prompt templates never enter Trash.
+
 ## Settings
 
 Open **Settings > MCP** before you connect an MCP client.
