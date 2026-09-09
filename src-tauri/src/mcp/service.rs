@@ -981,7 +981,17 @@ fn normalize_api_header_entry(entry: Value) -> std::result::Result<Value, McpErr
         .get("value")
         .map_or_else(|| Some(String::new()), header_text)
         .ok_or_else(|| invalid_api_headers(format!("Header {key} needs a text value")))?;
-    let enabled = obj.get("enabled").and_then(Value::as_bool).unwrap_or(true);
+    // Reject rather than default. A client sending 0 for a disabled header would otherwise have
+    // that header quietly switched on.
+    let enabled = match obj.get("enabled") {
+        None | Some(Value::Null) => true,
+        Some(Value::Bool(flag)) => *flag,
+        Some(_) => {
+            return Err(invalid_api_headers(format!(
+                "Header {key} needs enabled as true or false"
+            )))
+        }
+    };
     Ok(json!({ "key": key, "value": value, "enabled": enabled }))
 }
 
@@ -1058,16 +1068,20 @@ fn normalize_prompt_variable(variable: Value) -> std::result::Result<Value, McpE
 
     let options: Vec<Value> = match obj.get("options") {
         None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|item| {
-                item.as_str().map(str::trim).map(str::to_string).ok_or_else(|| {
+        Some(Value::Array(items)) => {
+            // Reject before dropping blanks. Filtering a Result stream would swallow the error a
+            // non-string option raises and store the rest as if the import had been clean.
+            let mut options = Vec::new();
+            for item in items {
+                let option = item.as_str().map(str::trim).ok_or_else(|| {
                     invalid_prompt_variables(format!("Variable {name} needs text options"))
-                })
-            })
-            .filter(|option| option.as_ref().is_ok_and(|option| !option.is_empty()))
-            .map(|option| option.map(Value::String))
-            .collect::<std::result::Result<Vec<_>, _>>()?,
+                })?;
+                if !option.is_empty() {
+                    options.push(Value::String(option.to_string()));
+                }
+            }
+            options
+        }
         Some(_) => {
             return Err(invalid_prompt_variables(format!(
                 "Variable {name} needs options as an array of strings"
@@ -1125,11 +1139,17 @@ fn invalid_api_auth(message: impl Into<String>) -> McpError {
     )
 }
 
-fn auth_field(obj: &serde_json::Map<String, Value>, field: &str) -> String {
-    obj.get(field)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
+/// Reject rather than default. Erasing a credential the client did send would report a successful
+/// write for a request that can no longer authenticate.
+fn auth_field(
+    obj: &serde_json::Map<String, Value>,
+    field: &str,
+) -> std::result::Result<String, McpError> {
+    match obj.get(field) {
+        None | Some(Value::Null) => Ok(String::new()),
+        Some(Value::String(text)) => Ok(text.clone()),
+        Some(_) => Err(invalid_api_auth(format!("Auth field {field} must be text"))),
+    }
 }
 
 /// WARNING: The API Client reads `auth` as a tagged union and sends the named credential on every
@@ -1141,11 +1161,11 @@ fn normalize_api_auth(auth: Value) -> std::result::Result<String, McpError> {
     let normalized = match obj.get("type").and_then(Value::as_str) {
         None => return Err(invalid_api_auth("Auth needs a type field")),
         Some("none") => json!({ "type": "none" }),
-        Some("bearer") => json!({ "type": "bearer", "token": auth_field(&obj, "token") }),
+        Some("bearer") => json!({ "type": "bearer", "token": auth_field(&obj, "token")? }),
         Some("basic") => json!({
             "type": "basic",
-            "username": auth_field(&obj, "username"),
-            "password": auth_field(&obj, "password"),
+            "username": auth_field(&obj, "username")?,
+            "password": auth_field(&obj, "password")?,
         }),
         Some(other) => {
             return Err(invalid_api_auth(format!("Unsupported auth type {other}")));
@@ -4231,6 +4251,42 @@ mod tests {
         assert!(normalize_api_auth(json!("bearer")).is_err());
         assert!(normalize_api_auth(json!({ "token": "t" })).is_err());
         assert!(normalize_api_auth(json!({ "type": "oauth2" })).is_err());
+    }
+
+    #[test]
+    fn api_auth_rejects_a_credential_it_would_otherwise_erase() {
+        assert!(normalize_api_auth(json!({ "type": "bearer", "token": 12345 })).is_err());
+        assert!(
+            normalize_api_auth(json!({ "type": "basic", "username": "u", "password": 1 })).is_err()
+        );
+        // An absent credential is still allowed, and reads as empty.
+        assert_eq!(
+            parse_json(
+                &normalize_api_auth(json!({ "type": "bearer" })).expect("absent token"),
+                json!({})
+            ),
+            json!({ "type": "bearer", "token": "" })
+        );
+    }
+
+    #[test]
+    fn api_headers_reject_a_non_boolean_enabled_rather_than_switching_it_on() {
+        assert!(
+            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": 0 }])))
+                .is_err()
+        );
+        assert!(
+            normalize_api_headers(Some(json!([{ "key": "A", "value": "b", "enabled": "false" }])))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn prompt_variables_reject_a_non_text_option_instead_of_dropping_it() {
+        assert!(normalize_prompt_variables(Some(
+            json!([{ "name": "lang", "type": "select", "options": ["ts", 42] }])
+        ))
+        .is_err());
     }
 
     #[test]
