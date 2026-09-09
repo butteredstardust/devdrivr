@@ -16,6 +16,7 @@ import {
   TrashIcon,
   XIcon,
 } from '@phosphor-icons/react'
+import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { Button } from '@/components/shared/Button'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
@@ -567,6 +568,45 @@ export function NotesDrawer() {
   // the release coincide, default to 'before' and appear to do nothing at all.
   const dropTargetRef = useRef<DragOverNote | null>(null)
 
+  // Hit-testing walks every rendered card and measures it, so it is the whole per-move cost of
+  // a drag. The answer can only change once per frame, and a pointer delivers several moves in
+  // that time, so it runs at most once per frame.
+  const {
+    run: scheduleDropTarget,
+    flush: flushDropTarget,
+    cancel: cancelDropTarget,
+  } = useFrameThrottle((clientY: number, sourceNoteId: string) => {
+    // Hit-test the rendered cards rather than relying on the pointer being over one: the list
+    // shifts as the placeholder moves, and a pointer that has run past the end of a section
+    // still has a meaningful answer.
+    const list = noteListRef.current
+    if (!list) return
+    const nodes = [...list.querySelectorAll<HTMLElement>('[data-note-id]')]
+    const sourcePinned = nodes.find((node) => node.dataset.noteId === sourceNoteId)?.dataset.pinned
+    let target: DragOverNote | null = null
+    for (const node of nodes) {
+      const id = node.dataset.noteId
+      // Pinned and unpinned notes are separate ordering groups — `reorder` refuses to move a
+      // note across the boundary, so offering it as a drop target would only draw an indicator
+      // that does nothing.
+      if (!id || id === sourceNoteId || node.dataset.pinned !== sourcePinned) continue
+      const rect = node.getBoundingClientRect()
+      if (clientY < rect.top + rect.height / 2) {
+        target = { id, position: 'before' }
+        break
+      }
+      target = { id, position: 'after' }
+    }
+
+    // The pointer spends most of a drag over the same half of the same card, so the indicator
+    // is usually unchanged. Setting state anyway re-renders an unvirtualized note list for a
+    // drop marker that has not moved.
+    const previous = dropTargetRef.current
+    if (previous?.id === target?.id && previous?.position === target?.position) return
+    dropTargetRef.current = target
+    setDragOverNote(target)
+  })
+
   const handleNotePointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>, noteId: string) => {
       if (event.button !== 0) return
@@ -579,6 +619,8 @@ export function NotesDrawer() {
     const DRAG_THRESHOLD = 4
 
     const endGesture = () => {
+      // A pending hit-test would repaint an indicator for a drag that is over.
+      cancelDropTarget()
       dragOrigin.current = null
       draggedNoteIdRef.current = null
       dropTargetRef.current = null
@@ -615,33 +657,14 @@ export function NotesDrawer() {
         setDraggedNoteId(origin.noteId)
       }
 
-      // Hit-test the rendered cards rather than relying on the pointer being
-      // over one: the list shifts as the placeholder moves, and a pointer that
-      // has run past the end of a section still has a meaningful answer.
-      const list = noteListRef.current
-      if (!list) return
-      const nodes = [...list.querySelectorAll<HTMLElement>('[data-note-id]')]
-      const sourcePinned = nodes.find((node) => node.dataset.noteId === origin.noteId)?.dataset
-        .pinned
-      let target: DragOverNote | null = null
-      for (const node of nodes) {
-        const id = node.dataset.noteId
-        // Pinned and unpinned notes are separate ordering groups — `reorder`
-        // refuses to move a note across the boundary, so offering it as a drop
-        // target would only draw an indicator that does nothing.
-        if (!id || id === origin.noteId || node.dataset.pinned !== sourcePinned) continue
-        const rect = node.getBoundingClientRect()
-        if (event.clientY < rect.top + rect.height / 2) {
-          target = { id, position: 'before' }
-          break
-        }
-        target = { id, position: 'after' }
-      }
-      dropTargetRef.current = target
-      setDragOverNote(target)
+      scheduleDropTarget(event.clientY, origin.noteId)
     }
 
     const onUp = () => {
+      // The drop reads dropTargetRef, so a frame still pending here holds the answer for the
+      // last move. Without this flush, releasing between frames drops the note where it was a
+      // move ago.
+      flushDropTarget()
       const dragging = draggedNoteIdRef.current
       const target = dropTargetRef.current
       if (!dragOrigin.current || !dragging) {
@@ -678,7 +701,7 @@ export function NotesDrawer() {
       window.removeEventListener('blur', endGesture)
       disarmSuppressor()
     }
-  }, [])
+  }, [scheduleDropTarget, flushDropTarget, cancelDropTarget])
 
   const moveNote = useCallback(
     (source: NoteType, target: NoteType | undefined, position: DropPosition) => {
