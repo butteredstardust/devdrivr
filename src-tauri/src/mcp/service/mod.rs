@@ -724,13 +724,15 @@ impl DevdrivrMcpService {
     /// Report a committed write.
     ///
     /// WARNING: call only after the transaction has committed. The write has already happened
-    /// when this runs, so this must never return a permission error.
+    /// when this runs, so this must never return an error of any kind.
     ///
     /// Settings grants create, update, delete and read independently. Returning the record
     /// through the read-gated getter therefore answered a successful write with
     /// PERMISSION_DENIED for a write-only client, and an agent that retried wrote the row twice.
+    /// A failed read of the record does the same damage, so it is dropped rather than reported.
     ///
-    /// The receipt always lands. The record rides along only when `read` is granted.
+    /// The receipt always lands. The record rides along only when `read` is granted and the
+    /// read succeeds.
     async fn mutation_result(
         &self,
         resource_type: ResourceType,
@@ -743,9 +745,12 @@ impl DevdrivrMcpService {
             "action": action,
         });
         if self.permissions_for(resource_type.key()).await.read {
-            let record = self.fetch_resource_value(resource_type, id).await?;
-            if let (Value::Object(obj), Some(record)) = (&mut payload, record) {
-                obj.insert("record".to_string(), record);
+            // WARNING: the write has already committed. A failed read must not turn it into an
+            // error, or the client retries and writes a second time.
+            if let Ok(Some(record)) = self.fetch_resource_value(resource_type, id).await {
+                if let Value::Object(obj) = &mut payload {
+                    obj.insert("record".to_string(), record);
+                }
             }
         }
         to_json_text(payload)
@@ -1315,24 +1320,32 @@ impl DevdrivrMcpService {
         Ok(folder)
     }
 
-    /// Explain why a soft delete matched no row.
+    /// Explain why a guarded write matched no row.
     ///
-    /// WARNING: `table` is interpolated into SQL. Pass only a literal from this module.
+    /// WARNING: the table name is interpolated into SQL. It comes from `resource_table`, which
+    /// returns a literal.
     ///
-    /// A delete guarded by `expectedUpdatedAt` fails the same way whether the record is gone or
+    /// A write guarded by `expectedUpdatedAt` fails the same way whether the record is gone or
     /// has moved on. The caller needs to tell those apart to decide whether to retry.
-    async fn deletion_failure(
+    async fn stale_write_failure(
         &self,
-        table: &'static str,
-        resource: &str,
+        resource_type: ResourceType,
         id: &str,
         expected: Option<i64>,
     ) -> McpError {
+        let resource = resource_type.key();
         let Some(expected) = expected else {
             return not_found(resource, id);
         };
+        let table = resource_table(resource_type);
+        // A prompt template is deleted outright, so its table carries no tombstone column.
+        let alive = if trash_table(resource_type).is_ok() {
+            " AND deleted_at IS NULL"
+        } else {
+            ""
+        };
         let actual = sqlx::query_scalar::<_, i64>(&format!(
-            "SELECT updated_at FROM {table} WHERE id = $1 AND deleted_at IS NULL"
+            "SELECT updated_at FROM {table} WHERE id = $1{alive}"
         ))
         .bind(id)
         .fetch_optional(&self.pool)
@@ -1865,6 +1878,84 @@ mod tests {
                 .notes_update(Parameters(note_update(&id, None)))
                 .await
                 .is_ok());
+        }
+
+        /// The guard rides on the last parameter of each `UPDATE`. A misnumbered one would
+        /// compare against the wrong column value and refuse a write the caller is entitled to
+        /// make, so every guarded resource needs a passing case, not only notes.
+        #[tokio::test]
+        async fn a_guarded_update_of_every_resource_writes_against_its_read_version() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+
+            let snippet = result_json(
+                &service
+                    .snippets_create(Parameters(
+                        serde_json::from_value(json!({ "title": "first", "content": "body" }))
+                            .expect("snippet create args"),
+                    ))
+                    .await
+                    .expect("create snippet"),
+            );
+            service
+                .snippets_update(Parameters(
+                    serde_json::from_value(json!({
+                        "id": snippet["id"],
+                        "title": "second",
+                        "expectedUpdatedAt": snippet["record"]["updatedAt"],
+                    }))
+                    .expect("snippet update args"),
+                ))
+                .await
+                .expect("guarded snippet update");
+
+            let request = result_json(
+                &service
+                    .api_requests_create(Parameters(
+                        serde_json::from_value(json!({
+                            "name": "first",
+                            "method": "GET",
+                            "url": "https://example.test",
+                        }))
+                        .expect("api request create args"),
+                    ))
+                    .await
+                    .expect("create api request"),
+            );
+            service
+                .api_requests_update(Parameters(
+                    serde_json::from_value(json!({
+                        "id": request["id"],
+                        "name": "second",
+                        "expectedUpdatedAt": request["record"]["updatedAt"],
+                    }))
+                    .expect("api request update args"),
+                ))
+                .await
+                .expect("guarded api request update");
+
+            let template = result_json(
+                &service
+                    .prompt_templates_create(Parameters(
+                        serde_json::from_value(json!({ "name": "first", "prompt": "body" }))
+                            .expect("template create args"),
+                    ))
+                    .await
+                    .expect("create template"),
+            );
+            service
+                .prompt_templates_update(Parameters(
+                    serde_json::from_value(json!({
+                        "id": template["id"],
+                        "name": "second",
+                        "expectedUpdatedAt": template["record"]["updatedAt"],
+                    }))
+                    .expect("template update args"),
+                ))
+                .await
+                .expect("guarded template update");
         }
 
         #[tokio::test]

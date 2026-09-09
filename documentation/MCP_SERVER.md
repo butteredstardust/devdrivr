@@ -175,6 +175,10 @@ Every update and delete accepts an optional `expectedUpdatedAt`. Send the `updat
 The write is refused with a `CONFLICT` error when the record moved on. Omit the field to write
 regardless, which is the previous behaviour.
 
+The expectation is part of the write itself, not a check that runs before it. A record edited in
+the desktop app between the read and the write therefore still refuses the write, rather than
+losing the newer edit.
+
 ## Notes on list responses
 
 A list response carries `total`, `limit`, `hasMore` and `nextCursor` beside the records:

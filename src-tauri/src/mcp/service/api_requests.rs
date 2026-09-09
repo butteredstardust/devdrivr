@@ -167,8 +167,8 @@ impl DevdrivrMcpService {
             Some(mode) => Some(validate_body_mode(&mode)?),
             None => Some(current.body_mode),
         };
-        sqlx::query(
-            "UPDATE api_requests SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$10 WHERE id=$1",
+        let updated = sqlx::query(
+            "UPDATE api_requests SET collection_id=$2, name=$3, method=$4, url=$5, headers=$6, body=$7, body_mode=$8, auth=$9, updated_at=$10 WHERE id=$1 AND deleted_at IS NULL AND ($11 IS NULL OR updated_at = $11)",
         )
         .bind(&args.id)
         .bind(folder_id)
@@ -180,9 +180,19 @@ impl DevdrivrMcpService {
         .bind(body_mode_for_method(&method, body_mode))
         .bind(auth)
         .bind(now_ms())
+        .bind(args.expected_updated_at)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
+        if updated.rows_affected() == 0 {
+            return Err(self
+                .stale_write_failure(
+                    ResourceType::ApiRequests,
+                    &args.id,
+                    args.expected_updated_at,
+                )
+                .await);
+        }
         self.emit_changed("apiRequests", "update", Some(args.id.clone()));
         self.mutation_result(ResourceType::ApiRequests, "update", &args.id)
             .await
@@ -205,9 +215,8 @@ impl DevdrivrMcpService {
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(self
-                .deletion_failure(
-                    "api_requests",
-                    "apiRequests",
+                .stale_write_failure(
+                    ResourceType::ApiRequests,
                     &args.id,
                     args.expected_updated_at,
                 )

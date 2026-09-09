@@ -180,8 +180,8 @@ impl DevdrivrMcpService {
         };
         self.require_folder_kind(&folder_id, "notes").await?;
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
-        sqlx::query(
-            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1",
+        let updated = sqlx::query(
+            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1 AND deleted_at IS NULL AND ($12 IS NULL OR updated_at = $12)",
         )
         .bind(&args.id)
         .bind(title)
@@ -194,9 +194,15 @@ impl DevdrivrMcpService {
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
+        .bind(args.expected_updated_at)
         .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        if updated.rows_affected() == 0 {
+            return Err(self
+                .stale_write_failure(ResourceType::Notes, &args.id, args.expected_updated_at)
+                .await);
+        }
         Self::replace_note_links(&mut transaction, &args.id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "update", Some(args.id.clone()));
@@ -220,7 +226,7 @@ impl DevdrivrMcpService {
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(self
-                .deletion_failure("notes", "notes", &args.id, args.expected_updated_at)
+                .stale_write_failure(ResourceType::Notes, &args.id, args.expected_updated_at)
                 .await);
         }
         self.emit_changed("notes", "delete", Some(args.id));

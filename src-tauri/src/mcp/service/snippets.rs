@@ -127,8 +127,8 @@ impl DevdrivrMcpService {
         if let Some(folder) = &pending_folder {
             Self::save_folder_in(&mut transaction, folder).await?;
         }
-        sqlx::query(
-            "UPDATE snippets SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, updated_at=$9 WHERE id=$1",
+        let updated = sqlx::query(
+            "UPDATE snippets SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, updated_at=$9 WHERE id=$1 AND deleted_at IS NULL AND ($10 IS NULL OR updated_at = $10)",
         )
         .bind(&args.id)
         .bind(match args.title {
@@ -142,9 +142,15 @@ impl DevdrivrMcpService {
         .bind(folder)
         .bind(folder_id)
         .bind(now)
+        .bind(args.expected_updated_at)
         .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
+        if updated.rows_affected() == 0 {
+            return Err(self
+                .stale_write_failure(ResourceType::Snippets, &args.id, args.expected_updated_at)
+                .await);
+        }
         if let Some(fragments) = replacement_fragments {
             Self::replace_snippet_fragments(&mut transaction, &args.id, &fragments, now).await?;
         } else {
@@ -185,7 +191,7 @@ impl DevdrivrMcpService {
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(self
-                .deletion_failure("snippets", "snippets", &args.id, args.expected_updated_at)
+                .stale_write_failure(ResourceType::Snippets, &args.id, args.expected_updated_at)
                 .await);
         }
         self.emit_changed("snippets", "delete", Some(args.id));

@@ -130,8 +130,8 @@ impl DevdrivrMcpService {
             .tips
             .map(|tips| serde_json::to_string(&tips).unwrap_or_else(|_| "[]".to_string()))
             .unwrap_or(current.tips);
-        sqlx::query(
-            "INSERT INTO user_prompt_templates (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'user', $10, $11, $12, $13) ON CONFLICT(id) DO UPDATE SET name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7, estimated_tokens=$8, optimized_for=$9, author='user', version=$10, tips=$11, updated_at=$13",
+        let updated = sqlx::query(
+            "INSERT INTO user_prompt_templates (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'user', $10, $11, $12, $13) ON CONFLICT(id) DO UPDATE SET name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7, estimated_tokens=$8, optimized_for=$9, author='user', version=$10, tips=$11, updated_at=$13 WHERE ($14 IS NULL OR user_prompt_templates.updated_at = $14)",
         )
         .bind(&target_id)
         .bind(match args.name {
@@ -160,9 +160,19 @@ impl DevdrivrMcpService {
         .bind(tips)
         .bind(if current.author == "builtin" { now } else { current.created_at })
         .bind(now)
+        .bind(args.expected_updated_at)
         .execute(&self.pool)
         .await
         .map_err(db_error)?;
+        if updated.rows_affected() == 0 {
+            return Err(self
+                .stale_write_failure(
+                    ResourceType::PromptTemplates,
+                    &target_id,
+                    args.expected_updated_at,
+                )
+                .await);
+        }
         self.emit_changed("promptTemplates", "update", Some(target_id.clone()));
         self.mutation_result(ResourceType::PromptTemplates, "update", &target_id)
             .await
