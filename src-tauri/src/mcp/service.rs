@@ -539,9 +539,19 @@ fn parse_json(value: &str, fallback: Value) -> Value {
     serde_json::from_str(value).unwrap_or(fallback)
 }
 
+/// Return one payload twice: as the text block every client can read, and as
+/// `structuredContent` for a client that would otherwise parse the text back into JSON.
+///
+/// Only an object becomes structured content. The protocol allows nothing else there.
 fn to_json_text(value: Value) -> McpResult {
+    let structured_content = value.is_object().then(|| value.clone());
     serde_json::to_string_pretty(&value)
-        .map(|text| CallToolResult::success(vec![Content::text(text)]))
+        .map(|text| CallToolResult {
+            content: vec![Content::text(text)],
+            structured_content,
+            is_error: Some(false),
+            meta: None,
+        })
         .map_err(|err| McpError::internal_error(err.to_string(), None))
 }
 
@@ -4717,6 +4727,36 @@ mod tests {
     /// Two agents editing one note both read, both wrote, and the second discarded the first
     /// without a word.
     /// A record deleted through MCP had no way back through MCP.
+    /// A client that parses results should not have to parse the text block back into JSON.
+    mod structured_results {
+        use super::*;
+
+        #[tokio::test]
+        async fn a_list_carries_the_same_payload_as_structured_content() {
+            let service = service_with(all_permissions(resource_permissions(
+                true, true, true, true,
+            )))
+            .await;
+            service
+                .notes_create(Parameters(note_create_args("one")))
+                .await
+                .expect("create");
+            let result = service
+                .notes_list(Parameters(
+                    serde_json::from_value(json!({})).expect("list args"),
+                ))
+                .await
+                .expect("list");
+
+            let structured = result
+                .structured_content
+                .as_ref()
+                .expect("structured content");
+            assert_eq!(structured, &result_json(&result));
+            assert_eq!(structured["total"], 1);
+        }
+    }
+
     mod trash {
         use super::*;
 
