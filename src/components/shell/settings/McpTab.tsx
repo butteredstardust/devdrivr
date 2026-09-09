@@ -118,7 +118,9 @@ export function McpTab() {
 
   const envCommand = `export DEVDRIVR_MCP_KEY=${settings.apiKey}`
   const codexCommand = `codex mcp add devdrivr --url ${status.url} --bearer-token-env-var DEVDRIVR_MCP_KEY`
-  const claudeCommand = `claude mcp add --transport http devdrivr ${status.url} --header "Authorization: Bearer ${settings.apiKey}"`
+  // Reads the key from the environment, like the codex command above. Inlining it wrote the key
+  // into the shell history of anyone who ran the copied command.
+  const claudeCommand = `claude mcp add --transport http devdrivr ${status.url} --header "Authorization: Bearer $DEVDRIVR_MCP_KEY"`
   const genericJson = JSON.stringify(
     {
       mcpServers: {
