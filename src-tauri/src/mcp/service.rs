@@ -710,6 +710,21 @@ fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> 
     }
 }
 
+/// WARNING: Notes skips any row whose colour falls outside this set, so an unchecked write makes
+/// an import look successful while the note never appears in the tool.
+fn validate_note_color(value: &str) -> std::result::Result<String, McpError> {
+    match value {
+        "yellow" | "green" | "blue" | "pink" | "purple" | "orange" | "red" | "gray" => {
+            Ok(value.to_string())
+        }
+        _ => Err(invalid_argument(
+            "color",
+            format!("Unsupported note color: {value}"),
+            &["Use one of: yellow, green, blue, pink, purple, orange, red, gray"],
+        )),
+    }
+}
+
 /// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
 /// write makes an import look successful while the template never appears in the tool.
 fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
@@ -2999,7 +3014,10 @@ impl DevdrivrMcpService {
         let now = now_ms();
         let title = args.title.unwrap_or_default();
         let content = args.content.unwrap_or_default();
-        let color = args.color.unwrap_or_else(|| "yellow".to_string());
+        let color = args
+            .color
+            .as_deref()
+            .map_or_else(|| Ok("yellow".to_string()), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(false);
         let tags = string_vec_to_db_json(args.tags);
         let folder_id = args.folder_id.unwrap_or_else(|| "notes-inbox".to_string());
@@ -3060,7 +3078,10 @@ impl DevdrivrMcpService {
         .ok_or_else(|| not_found("notes", &args.id))?;
         let title = args.title.unwrap_or_else(|| current.title.clone());
         let content = args.content.unwrap_or_else(|| current.content.clone());
-        let color = args.color.unwrap_or_else(|| current.color.clone());
+        let color = args
+            .color
+            .as_deref()
+            .map_or_else(|| Ok(current.color.clone()), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(current.pinned == 1);
         let tags = args
             .tags
@@ -4092,6 +4113,14 @@ mod tests {
 
         assert!(value.get("deletedAt").is_none());
         assert_eq!(value["folderPath"], json!(["Inbox"]));
+    }
+
+    #[test]
+    fn note_color_accepts_only_values_the_tool_can_load() {
+        assert_eq!(validate_note_color("purple").expect("purple"), "purple");
+        assert!(validate_note_color("teal").is_err());
+        assert!(validate_note_color("Yellow").is_err());
+        assert!(validate_note_color("#ffcc00").is_err());
     }
 
     #[test]
