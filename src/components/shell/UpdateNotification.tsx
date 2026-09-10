@@ -43,7 +43,7 @@ export function UpdateNotification() {
       className="flex items-center gap-3 border-b border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-2"
     >
       <ArrowCircleUpIcon size={14} className="shrink-0 text-[var(--color-accent)]" />
-      <span className="flex-1 text-xs text-[var(--color-text)]">
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text)]">
         <span className="font-medium text-[var(--color-accent)]">
           devdrivr v{updateInfo.version}
         </span>{' '}

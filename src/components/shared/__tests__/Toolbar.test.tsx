@@ -3,6 +3,8 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { Button } from '@/components/shared/Button'
 import { Popover } from '@/components/shared/Popover'
+import { InlineInput } from '@/components/shared/InlineInput'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import {
   DocumentIdentity,
   DocumentToolbar,
@@ -10,6 +12,7 @@ import {
   Toolbar,
   ToolbarGroup,
   ToolbarSpacer,
+  TwoLineDocumentIdentity,
 } from '@/components/shared/Toolbar'
 
 describe('Toolbar', () => {
@@ -97,6 +100,39 @@ describe('Toolbar', () => {
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByText('~/notes.md')).toBeInTheDocument()
+  })
+
+  it('renders a two-line string identity with its badge and full status tooltip', () => {
+    render(
+      <TwoLineDocumentIdentity
+        title="Deploy helper"
+        badge={<StatusBadge variant="info">Custom</StatusBadge>}
+        status="Saving a detailed deployment description"
+        statusTitle="Saving a detailed deployment description"
+        statusLive
+      />
+    )
+
+    expect(screen.getByText('Deploy helper')).toBeInTheDocument()
+    expect(screen.getByText('Custom')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Saving a detailed deployment description')
+    expect(screen.getByRole('status')).toHaveAttribute(
+      'title',
+      'Saving a detailed deployment description'
+    )
+  })
+
+  it('accepts an editable node as the two-line title', () => {
+    render(
+      <TwoLineDocumentIdentity
+        title={<InlineInput aria-label="Editable title" defaultValue="Request name" />}
+        status="Unsaved changes"
+        statusTitle="Unsaved changes"
+      />
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Editable title' })).toHaveValue('Request name')
+    expect(screen.getByText('Unsaved changes')).toHaveAttribute('title', 'Unsaved changes')
   })
 })
 

@@ -64,6 +64,7 @@ import type { FormatterWorker } from '@/workers/formatter.worker'
 import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/tools/code-formatter/languages'
 import { buildWebPreviewDocument, previewKindFor } from '@/tools/snippets/snippet-preview'
 import { SnippetWebPreview } from '@/tools/snippets/SnippetWebPreview'
+import { DocumentToolbar, ToolbarGroup, TwoLineDocumentIdentity } from '@/components/shared/Toolbar'
 
 const FAVORITE_TAG = '⭐'
 
@@ -1642,7 +1643,7 @@ export default function SnippetsManager() {
           {selected ? (
             <>
               <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-                <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
+                <DocumentToolbar aria-label="Snippet actions">
                   <Button
                     type="button"
                     variant="icon"
@@ -1670,146 +1671,178 @@ export default function SnippetsManager() {
                       aria-hidden="true"
                     />
                   </Button>
-                  <div className="min-w-0 flex-1 max-[1000px]:basis-[calc(100%-2.5rem)]">
-                    <InlineInput
-                      ref={setTitleInputRef}
-                      value={selected.title}
-                      onChange={(event) =>
-                        void updateSnippet(selected.id, { title: event.target.value })
-                      }
-                      placeholder="Snippet title"
-                      aria-label="Snippet title"
-                      className="w-full"
-                    />
-                    <p className="text-2xs text-[var(--color-text-muted)]" aria-live="polite">
-                      {saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`}
-                    </p>
-                  </div>
-                  {handoffState.backlinkNoteId && (
+                  <TwoLineDocumentIdentity
+                    title={
+                      <InlineInput
+                        ref={setTitleInputRef}
+                        value={selected.title}
+                        onChange={(event) =>
+                          void updateSnippet(selected.id, { title: event.target.value })
+                        }
+                        placeholder="Snippet title"
+                        aria-label="Snippet title"
+                        className="w-full"
+                      />
+                    }
+                    status={
+                      saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`
+                    }
+                    statusTitle={
+                      saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`
+                    }
+                    statusLive
+                  />
+                  <ToolbarGroup label="Snippet editing">
+                    {handoffState.backlinkNoteId && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          sendToTool('notes', {
+                            selectedId: handoffState.backlinkNoteId,
+                            selectedFolderId: null,
+                            taskView: 'notes',
+                          })
+                        }
+                      >
+                        Back to note
+                      </Button>
+                    )}
+                    <Select
+                      value={activeFragment?.language ?? 'text'}
+                      onChange={(event) => updateActiveFragment({ language: event.target.value })}
+                      aria-label="Snippet language"
+                      title="Snippet language"
+                      className="w-32"
+                      disabled={!activeFragment}
+                    >
+                      {LANGUAGES.map((language) => (
+                        <option key={language} value={language}>
+                          {language}
+                        </option>
+                      ))}
+                    </Select>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="icon"
                       size="sm"
-                      onClick={() =>
-                        sendToTool('notes', {
-                          selectedId: handoffState.backlinkNoteId,
-                          selectedFolderId: null,
-                          taskView: 'notes',
-                        })
+                      onClick={() => void handleFormat()}
+                      disabled={!canFormat || formatting}
+                      title={formatDisabledReason}
+                      aria-label={
+                        formatting ? 'Formatting snippet fragment' : 'Format snippet fragment'
                       }
                     >
-                      Back to note
+                      <BroomIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">Format</span>
                     </Button>
-                  )}
-                  <Select
-                    value={activeFragment?.language ?? 'text'}
-                    onChange={(event) => updateActiveFragment({ language: event.target.value })}
-                    aria-label="Snippet language"
-                    title="Snippet language"
-                    className="w-32"
-                    disabled={!activeFragment}
-                  >
-                    {LANGUAGES.map((language) => (
-                      <option key={language} value={language}>
-                        {language}
-                      </option>
-                    ))}
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => void handleFormat()}
-                    disabled={!canFormat || formatting}
-                    title={formatDisabledReason}
-                    aria-label={
-                      formatting ? 'Formatting snippet fragment' : 'Format snippet fragment'
-                    }
-                  >
-                    <BroomIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={handlePreview}
-                    disabled={!previewKind}
-                    title={previewDisabledReason}
-                    aria-label={
-                      previewKind === 'json'
-                        ? 'Preview JSON fragment'
-                        : 'Preview HTML and CSS fragments'
-                    }
-                    aria-pressed={previewKind === 'web' ? previewOpen : undefined}
-                  >
-                    <EyeIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => void handleCopy()}
-                    title="Copy snippet"
-                    aria-label="Copy snippet"
-                  >
-                    <ClipboardTextIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={handleSendToPromptTemplate}
-                    title="Send snippet to Prompt Templates"
-                    aria-label="Send snippet to Prompt Templates"
-                  >
-                    <ArrowRightIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => void handleDuplicate()}
-                    title={`Duplicate snippet (${formatShortcut('mod+shift+d')})`}
-                    aria-label="Duplicate snippet"
-                  >
-                    <CopyIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => void handleDownload()}
-                    title="Save snippet as file"
-                    aria-label="Save snippet as file"
-                  >
-                    <DownloadSimpleIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => setDetailsOpen((current) => !current)}
-                    title={detailsOpen ? 'Hide details' : 'Show details'}
-                    aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
-                    aria-expanded={detailsOpen}
-                    className={
-                      detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-                    }
-                  >
-                    <SidebarIcon size={14} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    title="Move snippet to Trash"
-                    aria-label="Move snippet to Trash"
-                    className="hover:text-[var(--color-error)]"
-                  >
-                    <TrashIcon size={14} aria-hidden="true" />
-                  </Button>
-                </div>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={handlePreview}
+                      disabled={!previewKind}
+                      title={previewDisabledReason}
+                      aria-label={
+                        previewKind === 'json'
+                          ? 'Preview JSON fragment'
+                          : 'Preview HTML and CSS fragments'
+                      }
+                      aria-pressed={previewKind === 'web' ? previewOpen : undefined}
+                    >
+                      <EyeIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">Preview</span>
+                    </Button>
+                  </ToolbarGroup>
+                  <ToolbarGroup label="Snippet sharing" separated>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => void handleCopy()}
+                      title="Copy snippet"
+                      aria-label="Copy snippet"
+                    >
+                      <ClipboardTextIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Copy snippet
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={handleSendToPromptTemplate}
+                      title="Send snippet to Prompt Templates"
+                      aria-label="Send snippet to Prompt Templates"
+                    >
+                      <ArrowRightIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Send to Prompt Templates
+                      </span>
+                    </Button>
+                  </ToolbarGroup>
+                  <ToolbarGroup label="Snippet management" separated>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => void handleDuplicate()}
+                      title={`Duplicate snippet (${formatShortcut('mod+shift+d')})`}
+                      aria-label="Duplicate snippet"
+                    >
+                      <CopyIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Duplicate snippet
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => void handleDownload()}
+                      title="Save snippet as file"
+                      aria-label="Save snippet as file"
+                    >
+                      <DownloadSimpleIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Save as file
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => setDetailsOpen((current) => !current)}
+                      title={detailsOpen ? 'Hide details' : 'Show details'}
+                      aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
+                      aria-expanded={detailsOpen}
+                      className={
+                        detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                      }
+                    >
+                      <SidebarIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        {detailsOpen ? 'Hide details' : 'Show details'}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      title="Move snippet to Trash"
+                      aria-label="Move snippet to Trash"
+                      className="hover:text-[var(--color-error)]"
+                    >
+                      <TrashIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Move to Trash
+                      </span>
+                    </Button>
+                  </ToolbarGroup>
+                </DocumentToolbar>
               </header>
 
               {formatError && (

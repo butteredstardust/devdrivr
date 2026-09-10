@@ -269,7 +269,7 @@ export default function TimestampConverter() {
                   )}
                 </div>
                 <div
-                  className={`font-mono text-sm ${f.muted ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}
+                  className={`truncate font-mono text-sm ${f.muted ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}
                 >
                   {f.value}
                 </div>
