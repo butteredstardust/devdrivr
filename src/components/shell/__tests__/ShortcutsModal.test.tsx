@@ -19,6 +19,7 @@ describe('ShortcutsModal — filter', () => {
     expect(screen.getByRole('heading', { name: 'Navigation' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Tabs' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Window' })).toBeInTheDocument()
+    expect(screen.getByText('New tab')).toBeInTheDocument()
   })
 
   it('narrows to matching rows and drops categories that end up empty', () => {

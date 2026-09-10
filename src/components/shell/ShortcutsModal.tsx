@@ -40,6 +40,7 @@ function getCategories(): ShortcutCategory[] {
     {
       label: 'Tabs',
       shortcuts: [
+        { keys: 'mod+t', action: 'New tab' },
         { keys: 'mod+1 / 2 / 3', action: 'Switch to tab by position' },
         { keys: 'ctrl+tab', action: 'Switch to recently used tab' },
         { keys: 'ctrl+shift+tab', action: 'Switch back through recent tabs' },

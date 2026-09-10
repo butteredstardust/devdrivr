@@ -14,6 +14,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CopyIcon,
   FloppyDiskIcon,
   FolderOpenIcon,
   GearSixIcon,
@@ -63,6 +64,7 @@ function themeLabel(theme: Theme): string {
 
 type ActionState = {
   alwaysOnTop: boolean
+  hasActiveTool: boolean
   notesDrawerOpen: boolean
   sidebarCollapsed: boolean
   theme: Theme
@@ -130,6 +132,27 @@ function buildActions(modSymbol: string, state: ActionState): PaletteItem[] {
       shortcut: `${modSymbol}⇧P`,
       searchTerms: ['pin', 'unpin', 'always on top', 'window', 'float'],
     },
+    ...(state.hasActiveTool
+      ? [
+          {
+            id: 'action:duplicate-tab',
+            kind: 'action' as const,
+            name: 'Duplicate Tab',
+            description: 'Open a second instance of the active tool',
+            icon: actionIcon(CopyIcon),
+            searchTerms: [
+              'duplicate',
+              'copy',
+              'second',
+              'another',
+              'instance',
+              'clone',
+              'two',
+              'side by side',
+            ],
+          },
+        ]
+      : []),
     {
       id: 'action:open-file',
       kind: 'action',
@@ -216,8 +239,15 @@ export function CommandPalette() {
   // ─── Palette items ─────────────────────────────────────────────
 
   const actions = useMemo(
-    () => buildActions(modSymbol, { alwaysOnTop, notesDrawerOpen, sidebarCollapsed, theme }),
-    [modSymbol, alwaysOnTop, notesDrawerOpen, sidebarCollapsed, theme]
+    () =>
+      buildActions(modSymbol, {
+        alwaysOnTop,
+        hasActiveTool: Boolean(activeTool),
+        notesDrawerOpen,
+        sidebarCollapsed,
+        theme,
+      }),
+    [modSymbol, alwaysOnTop, activeTool, notesDrawerOpen, sidebarCollapsed, theme]
   )
 
   const toolItems: PaletteItem[] = useMemo(
@@ -382,6 +412,9 @@ export function CommandPalette() {
           break
         case 'action:shortcuts':
           toggleShortcutsModal()
+          break
+        case 'action:duplicate-tab':
+          if (activeTool) openTabInstance(activeTool)
           break
         case 'action:pin': {
           const win = getCurrentWindow()

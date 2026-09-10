@@ -4,6 +4,8 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { MatchText } from '@/components/shared/MatchText'
 import type { MatchRange } from '@/hooks/useFuseSearch'
+import { useOpenInstanceCount, useOpenTool } from '@/hooks/useToolOpen'
+import { detectPlatform, getModKeySymbol } from '@/lib/platform'
 
 type SidebarItemProps = {
   id: string
@@ -16,11 +18,17 @@ type SidebarItemProps = {
 
 export function SidebarItem({ id, name, icon, tabIndex, matchRanges }: SidebarItemProps) {
   const activeTool = useUiStore((s) => s.activeTool)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
   const update = useSettingsStore((s) => s.update)
+  const openTool = useOpenTool()
+  const openInstanceCount = useOpenInstanceCount(id)
   const isActive = activeTool === id
   const isPinned = pinnedToolIds.includes(id)
+  const accessibleName = openInstanceCount >= 2 ? `${name} (${openInstanceCount} tabs open)` : name
+  const openHint =
+    openInstanceCount >= 1
+      ? `Open — ${getModKeySymbol(detectPlatform())}-click for a new instance`
+      : undefined
 
   // The row is a fixed width at all times it's mounted (SidebarItem only
   // renders in the 218px expanded tree; the collapsed tree uses
@@ -42,9 +50,15 @@ export function SidebarItem({ id, name, icon, tabIndex, matchRanges }: SidebarIt
   return (
     <div className="group flex h-8 w-full items-center gap-1">
       <button
-        onClick={() => setActiveTool(id)}
-        aria-label={name}
+        onClick={(event) => openTool(id, event)}
+        onAuxClick={(event) => {
+          if (event.button !== 1) return
+          event.preventDefault()
+          openTool(id, event)
+        }}
+        aria-label={accessibleName}
         aria-current={isActive ? 'page' : undefined}
+        title={openHint}
         tabIndex={tabIndex}
         data-sidebar-item={id}
         // The accent left border plus the dim accent fill is already a
@@ -64,6 +78,14 @@ export function SidebarItem({ id, name, icon, tabIndex, matchRanges }: SidebarIt
         <span ref={labelRef} className="truncate" title={isTruncated ? name : undefined}>
           {matchRanges?.length ? <MatchText text={name} ranges={matchRanges} /> : name}
         </span>
+        {openInstanceCount >= 2 && (
+          <span
+            aria-hidden="true"
+            className="text-2xs min-w-4 shrink-0 rounded-full bg-[var(--color-accent-dim)] px-1 text-center leading-4 text-[var(--color-accent)]"
+          >
+            {openInstanceCount}
+          </span>
+        )}
       </button>
       <button
         onClick={togglePinned}

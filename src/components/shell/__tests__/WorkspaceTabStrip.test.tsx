@@ -4,12 +4,13 @@
  * 2. Separators between adjacent inactive tabs
  * 3. Unsaved-work indicator
  * 4. Drag reordering
- * 5. Right-click context menu: Close / Duplicate / Close Others / Close to Right
+ * 5. Tab context menu: Close / Duplicate Tab / Close Others / Close to Right
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useUiStore } from '@/stores/ui.store'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 // ── Mocks ──────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ const realTabActions = {
   closeTab: useUiStore.getState().closeTab,
   closeOtherTabs: useUiStore.getState().closeOtherTabs,
   closeTabsToRight: useUiStore.getState().closeTabsToRight,
+  openTabInstance: useUiStore.getState().openTabInstance,
 }
 
 beforeEach(() => {
@@ -420,13 +422,91 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
 // ── Context menu ───────────────────────────────────────────────────
 
 describe('WorkspaceTabStrip — context menu', () => {
+  it('shows the menu button only on the active, unpinned tab', () => {
+    const tabs = seedTabs(['json-tools', 'base64'])
+    const { rerender } = render(<WorkspaceTabStrip />)
+
+    expect(screen.getByRole('button', { name: 'More options for json-tools' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'More options for base64' })
+    ).not.toBeInTheDocument()
+
+    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    rerender(<WorkspaceTabStrip />)
+
+    expect(
+      screen.queryByRole('button', { name: 'More options for json-tools' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens and closes the context menu from the active tab button', () => {
+    seedTabs(['json-tools'])
+    render(<WorkspaceTabStrip />)
+    const trigger = screen.getByRole('button', { name: 'More options for json-tools' })
+
+    fireEvent.mouseDown(trigger)
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.mouseDown(trigger)
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('duplicates the active tool from the menu button', () => {
+    seedTabs(['json-tools'])
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options for json-tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate Tab' }))
+
+    expect(useUiStore.getState().tabs.filter((tab) => tab.toolId === 'json-tools')).toHaveLength(2)
+  })
+
+  it('closes the menu when its tab closes', () => {
+    const [tab] = seedTabs(['json-tools', 'base64'])
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options for json-tools' }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    // Every command in the menu names this tab, so the menu has to go with it.
+    act(() => useUiStore.getState().closeTab(tab!.id))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('moves focus into the menu and walks it with the arrow keys', () => {
+    seedTabs(['json-tools', 'base64'])
+    render(<WorkspaceTabStrip />)
+    const trigger = screen.getByRole('button', { name: 'More options for json-tools' })
+
+    fireEvent.click(trigger)
+    const items = screen.getAllByRole('menuitem')
+    expect(items[0]).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
+    expect(items[1]).toHaveFocus()
+
+    // Up from the first item wraps to the last, so the menu never dead-ends.
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    expect(items[items.length - 1]).toHaveFocus()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
   it('shows the context menu on right-click', () => {
     const [tab] = seedTabs(['json-tools'])
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
     expect(screen.getByText('Close')).toBeInTheDocument()
-    expect(screen.getByText('Duplicate')).toBeInTheDocument()
+    expect(screen.getByText('Duplicate Tab')).toBeInTheDocument()
     expect(screen.getByText('Close Others')).toBeInTheDocument()
     expect(screen.getByText('Close to Right')).toBeInTheDocument()
   })
@@ -453,14 +533,14 @@ describe('WorkspaceTabStrip — context menu', () => {
     expect(closeTab).toHaveBeenCalledWith(tab!.id)
   })
 
-  it('Duplicate opens another instance of the selected tool', () => {
+  it('Duplicate Tab opens another instance of the selected tool', () => {
     const openTabInstance = vi.fn()
     const [tab] = seedTabs(['json-tools'])
     useUiStore.setState({ openTabInstance } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
-    fireEvent.click(screen.getByText('Duplicate'))
+    fireEvent.click(screen.getByText('Duplicate Tab'))
 
     expect(openTabInstance).toHaveBeenCalledWith('json-tools')
   })
@@ -856,10 +936,20 @@ describe('WorkspaceTabStrip — reveal on resize', () => {
 })
 
 /**
- * The + button and mod+K share one palette. Only the button asks for a new instance, so only
- * the button sets the `new-tab` intent.
+ * The + button and mod+T share one palette. mod+K opens the same palette to switch tabs, so the
+ * button must not advertise it — a label naming the switch shortcut sends users to the tab they
+ * already have.
  */
 describe('new tab button', () => {
+  it('advertises the new-tab shortcut, not the palette switch shortcut', () => {
+    render(<WorkspaceTabStrip />)
+
+    const button = screen.getByRole('button', { name: /New tab/ })
+
+    expect(button.getAttribute('aria-label')).toContain(formatShortcut('mod+t'))
+    expect(button.getAttribute('aria-label')).not.toContain(formatShortcut('mod+k'))
+  })
+
   it('opens the palette with the new-tab intent', () => {
     useUiStore.setState({ commandPaletteOpen: false, commandPaletteIntent: 'switch' })
     render(<WorkspaceTabStrip />)

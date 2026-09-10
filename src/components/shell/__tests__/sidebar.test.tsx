@@ -61,6 +61,7 @@ const TOOLS: ToolDefinition[] = [
 // spy. Without restoring it here, every later test that clicks a tool is asserting
 // against the previous test's mock, which silently does nothing.
 const realSetActiveTool = useUiStore.getState().setActiveTool
+const realOpenTabInstance = useUiStore.getState().openTabInstance
 
 beforeEach(() => {
   cleanup()
@@ -71,6 +72,7 @@ beforeEach(() => {
   useUiStore.setState({
     activeTool: '',
     setActiveTool: realSetActiveTool,
+    openTabInstance: realOpenTabInstance,
     recentToolIds: [],
     tabs: [],
     tabMru: [],
@@ -138,6 +140,58 @@ describe('SidebarItem — active indicator', () => {
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Tool A' }))
     expect(setActiveTool).toHaveBeenCalledWith('tool-a')
+  })
+
+  it('keeps the existing aria-label and hides the badge with one open tab', () => {
+    useUiStore.setState({ tabs: [{ id: 'tab-a-1', toolId: 'tool-a' }] })
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+
+    expect(screen.getByRole('button', { name: 'Tool A' })).toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+  })
+
+  it('shows an accessible count when two tabs of the tool are open', () => {
+    useUiStore.setState({
+      tabs: [
+        { id: 'tab-a-1', toolId: 'tool-a' },
+        { id: 'tab-a-2', toolId: 'tool-a' },
+      ],
+    })
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+
+    expect(screen.getByRole('button', { name: 'Tool A (2 tabs open)' })).toBeInTheDocument()
+    expect(screen.getByText('2')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('opens another tab instead of switching on a platform modifier click', () => {
+    const setActiveTool = vi.fn()
+    const openTabInstance = vi.fn()
+    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tool A' }), {
+      metaKey: true,
+      ctrlKey: true,
+    })
+
+    expect(openTabInstance).toHaveBeenCalledWith('tool-a')
+    expect(setActiveTool).not.toHaveBeenCalled()
+  })
+
+  it('opens another tab and prevents the default action on middle click', () => {
+    const setActiveTool = vi.fn()
+    const openTabInstance = vi.fn()
+    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
+
+    const defaultAllowed = fireEvent(
+      screen.getByRole('button', { name: 'Tool A' }),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })
+    )
+
+    expect(defaultAllowed).toBe(false)
+    expect(openTabInstance).toHaveBeenCalledWith('tool-a')
+    expect(setActiveTool).not.toHaveBeenCalled()
   })
 
   it('toggles pinned state from the row pin button', () => {
