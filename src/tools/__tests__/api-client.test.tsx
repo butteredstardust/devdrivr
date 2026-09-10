@@ -611,7 +611,8 @@ describe('ApiClient', () => {
 
     const urlInput = screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i)
     fireEvent.change(urlInput, { target: { value: 'https://draft.example.com' } })
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes')
+    expect(screen.getByRole('status')).toHaveAttribute('title', 'Unsaved changes')
 
     fireEvent.click(screen.getByRole('button', { name: 'Get User' }))
 

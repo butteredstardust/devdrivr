@@ -15,7 +15,12 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Spinner } from '@/components/shared/Spinner'
 import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+import {
+  Toolbar,
+  ToolbarGroup,
+  ToolbarSpacer,
+  TwoLineDocumentIdentity,
+} from '@/components/shared/Toolbar'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { Alert } from '@/components/shared/Alert'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -1261,23 +1266,24 @@ export default function ApiClient() {
                   <SidebarIcon size={16} aria-hidden="true" />
                 </Button>
 
-                <div className="min-w-0 flex-1 basis-40">
-                  <InlineInput
-                    value={name}
-                    onChange={(e) => updateDraft({ name: e.target.value })}
-                    placeholder={DEFAULT_REQUEST_NAME}
-                    aria-label="Request name"
-                    className="w-full truncate"
-                  />
-                  <p
-                    className={`text-2xs ${
-                      dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
-                    }`}
-                    aria-live="polite"
-                  >
-                    {statusLine}
-                  </p>
-                </div>
+                <TwoLineDocumentIdentity
+                  className="basis-40"
+                  title={
+                    <InlineInput
+                      value={name}
+                      onChange={(e) => updateDraft({ name: e.target.value })}
+                      placeholder={DEFAULT_REQUEST_NAME}
+                      aria-label="Request name"
+                      className="w-full"
+                    />
+                  }
+                  status={statusLine}
+                  statusTitle={statusLine}
+                  statusLive
+                  statusClassName={
+                    dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
+                  }
+                />
 
                 {state.backlinkNoteId && (
                   <Button

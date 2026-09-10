@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { renderTool } from './test-utils'
+import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
@@ -107,6 +107,21 @@ describe('prompt template utilities', () => {
 })
 
 describe('PromptTemplates', () => {
+  it('keeps snippet handoff reachable through the toolbar overflow menu', () => {
+    const restoreLayout = installNarrowToolbarLayout()
+    try {
+      renderTool(PromptTemplates)
+
+      const toolbar = screen.getByRole('toolbar', { name: 'Prompt template actions' })
+      fireEvent.click(within(toolbar).getByRole('button', { name: 'More actions' }))
+      const menu = screen.getByRole('dialog', { name: 'More actions' })
+
+      expect(within(menu).getByRole('button', { name: 'Send to snippet' })).toBeInTheDocument()
+    } finally {
+      restoreLayout()
+    }
+  })
+
   it('renders the template library and switches between fill and preview workspaces', () => {
     renderTool(PromptTemplates)
 

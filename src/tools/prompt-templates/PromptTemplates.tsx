@@ -68,6 +68,7 @@ import { sendToTool } from '@/lib/tool-handoff'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { Checkbox } from '@/components/shared/Checkbox'
+import { DocumentToolbar, ToolbarGroup, TwoLineDocumentIdentity } from '@/components/shared/Toolbar'
 
 type CategoryFilter = PromptTemplateCategory | 'all'
 
@@ -1178,109 +1179,127 @@ export default function PromptTemplates() {
       >
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-            <div className="flex min-h-14 items-center gap-2 px-4 max-[1000px]:flex-wrap max-[1000px]:py-2">
-              <div className="min-w-0 flex-1 max-[1000px]:basis-full">
-                <div className="flex items-center gap-2">
-                  <h2 className="truncate text-sm font-semibold text-[var(--color-text)]">
-                    {selectedTemplate.name}
-                  </h2>
-                  <StatusBadge variant="info" className="shrink-0 uppercase">
+            <DocumentToolbar aria-label="Prompt template actions">
+              <TwoLineDocumentIdentity
+                title={selectedTemplate.name}
+                badge={
+                  <StatusBadge variant="info" className="uppercase">
                     {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
                   </StatusBadge>
-                </div>
-                <p className="mt-0.5 truncate text-2xs text-[var(--color-text-muted)]">
-                  {selectedTemplate.description}
-                </p>
-              </div>
-              <Button type="button" variant="ghost" size="sm" onClick={clearVariables}>
-                Clear fields
-              </Button>
-              <Button
-                type="button"
-                variant="icon"
-                size="sm"
-                onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-                title="Duplicate template"
-                aria-label="Duplicate template"
-              >
-                <CopyIcon size={14} aria-hidden="true" />
-              </Button>
-              {selectedTemplate.author === 'builtin' && state.overrides[selectedTemplate.id] && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetSelectedOverride}
-                  title="Reset this built-in template"
-                >
-                  Reset
+                }
+                status={selectedTemplate.description}
+                statusTitle={selectedTemplate.description}
+                statusClassName="mt-0.5"
+              />
+              <ToolbarGroup label="Template fields">
+                <Button type="button" variant="ghost" size="sm" onClick={clearVariables}>
+                  Clear fields
                 </Button>
-              )}
-              {selectedTemplate.author === 'builtin' ? (
+              </ToolbarGroup>
+              <ToolbarGroup label="Template actions" separated>
                 <Button
                   type="button"
                   variant="icon"
                   size="sm"
-                  onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-                  title="Customize built-in template"
-                  aria-label="Customize built-in template"
+                  onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
+                  title="Duplicate template"
+                  aria-label="Duplicate template"
                 >
-                  <PencilSimpleIcon size={14} aria-hidden="true" />
+                  <CopyIcon size={14} aria-hidden="true" />
+                  <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                    Duplicate template
+                  </span>
                 </Button>
-              ) : null}
-              {selectedTemplate.author === 'user' && (
-                <>
+                {selectedTemplate.author === 'builtin' && state.overrides[selectedTemplate.id] && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetSelectedOverride}
+                    title="Reset this built-in template"
+                  >
+                    Reset
+                  </Button>
+                )}
+                {selectedTemplate.author === 'builtin' ? (
                   <Button
                     type="button"
                     variant="icon"
                     size="sm"
                     onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-                    title="Edit template"
-                    aria-label="Edit template"
+                    title="Customize built-in template"
+                    aria-label="Customize built-in template"
                   >
                     <PencilSimpleIcon size={14} aria-hidden="true" />
+                    <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                      Customize template
+                    </span>
                   </Button>
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => setConfirmDeleteId(selectedTemplate.id)}
-                    title="Delete template"
-                    aria-label="Delete template"
-                    className="hover:text-[var(--color-error)]"
-                  >
-                    <TrashIcon size={14} aria-hidden="true" />
-                  </Button>
-                </>
-              )}
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setModalOpen(true)}
-                className="gap-1.5"
-              >
-                <SparkleIcon size={14} aria-hidden="true" /> Focus mode
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => void copyRenderedPrompt()}
-                className="gap-1.5"
-              >
-                <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={sendRenderedToSnippet}
-                className="gap-1.5"
-              >
-                <ChatCircleTextIcon size={14} aria-hidden="true" /> Send to snippet
-              </Button>
-            </div>
+                ) : null}
+                {selectedTemplate.author === 'user' && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
+                      title="Edit template"
+                      aria-label="Edit template"
+                    >
+                      <PencilSimpleIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Edit template
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="sm"
+                      onClick={() => setConfirmDeleteId(selectedTemplate.id)}
+                      title="Delete template"
+                      aria-label="Delete template"
+                      className="hover:text-[var(--color-error)]"
+                    >
+                      <TrashIcon size={14} aria-hidden="true" />
+                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
+                        Delete template
+                      </span>
+                    </Button>
+                  </>
+                )}
+              </ToolbarGroup>
+              <ToolbarGroup label="Prompt actions" separated>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setModalOpen(true)}
+                  className="gap-1.5"
+                >
+                  <SparkleIcon size={14} aria-hidden="true" /> Focus mode
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void copyRenderedPrompt()}
+                  className="gap-1.5"
+                >
+                  <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
+                </Button>
+              </ToolbarGroup>
+              <ToolbarGroup label="Prompt handoff" separated>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={sendRenderedToSnippet}
+                  className="gap-1.5"
+                >
+                  <ChatCircleTextIcon size={14} aria-hidden="true" /> Send to snippet
+                </Button>
+              </ToolbarGroup>
+            </DocumentToolbar>
             <div className="flex items-center border-t border-[var(--color-border)] pr-4">
               <TabBar
                 noBorder

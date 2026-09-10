@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { renderTool } from '@/tools/__tests__/test-utils'
+import { installNarrowToolbarLayout, renderTool } from '@/tools/__tests__/test-utils'
 import { exportFile, openFileDialog } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -437,6 +437,23 @@ describe('SnippetsManager — editor and details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add to favorites' }))
 
     expect(update).toHaveBeenCalledWith('snippet-1', { tags: ['api'], favorite: true })
+  })
+
+  it('keeps Trash reachable through the toolbar overflow menu', async () => {
+    const restoreLayout = installNarrowToolbarLayout()
+    try {
+      renderTool(SnippetsManager)
+      await screen.findByDisplayValue('API helper')
+
+      const toolbar = screen.getByRole('toolbar', { name: 'Snippet actions' })
+      fireEvent.click(within(toolbar).getByRole('button', { name: 'More actions' }))
+      const menu = screen.getByRole('dialog', { name: 'More actions' })
+      fireEvent.click(within(menu).getByRole('button', { name: 'Move snippet to Trash' }))
+
+      expect(screen.getByRole('dialog', { name: 'Move snippet to Trash?' })).toBeInTheDocument()
+    } finally {
+      restoreLayout()
+    }
   })
 
   it('uses an explicit, focus-safe confirmation dialog for deletion', async () => {

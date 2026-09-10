@@ -309,7 +309,10 @@ function OverflowSection({ element }: OverflowSectionProps) {
   return (
     <section aria-label={label} className="px-2 py-2">
       {label && <SectionLabel className="mb-1.5">{label}</SectionLabel>}
-      <div className="flex flex-col items-stretch gap-0.5 [&_>_button]:w-full [&_>_button]:justify-start [&_>_button]:text-left">
+      <div
+        data-toolbar-overflow=""
+        className="flex flex-col items-stretch gap-0.5 [&_>_button]:w-full [&_>_button]:justify-start [&_>_button]:text-left"
+      >
         {children}
       </div>
     </section>
@@ -498,6 +501,57 @@ export function DocumentIdentity({
           <span className="truncate">{status}</span>
         </span>
       )}
+    </div>
+  )
+}
+
+type TwoLineDocumentIdentityProps = {
+  title: ReactNode
+  status: ReactNode
+  statusTitle: string
+  badge?: ReactNode
+  statusClassName?: string
+  statusLive?: boolean
+  className?: string
+}
+
+/**
+ * Two-line identity used at the leading edge of a document toolbar.
+ *
+ * The floor keeps its measured width honest, so the toolbar continues to fold trailing groups.
+ * The clip contains the final pixels after every group folds. Each text row truncates to preserve one line.
+ */
+export function TwoLineDocumentIdentity({
+  title,
+  status,
+  statusTitle,
+  badge,
+  statusClassName = '',
+  statusLive = false,
+  className = '',
+}: TwoLineDocumentIdentityProps) {
+  return (
+    <div className={cn(`min-w-32 flex-1 overflow-hidden`, className)}>
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+        <div className="min-w-0 flex-1 truncate">
+          {typeof title === 'string' ? (
+            <span className="block truncate text-sm font-semibold text-[var(--color-text)]">
+              {title}
+            </span>
+          ) : (
+            title
+          )}
+        </div>
+        {badge && <div className="shrink-0">{badge}</div>}
+      </div>
+      <p
+        role={statusLive ? 'status' : undefined}
+        aria-live={statusLive ? 'polite' : undefined}
+        title={statusTitle}
+        className={cn(`truncate text-2xs text-[var(--color-text-muted)]`, statusClassName)}
+      >
+        {status}
+      </p>
     </div>
   )
 }
