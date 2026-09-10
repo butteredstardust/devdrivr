@@ -1261,7 +1261,13 @@ export default function ApiClient() {
                   <SidebarIcon size={16} aria-hidden="true" />
                 </Button>
 
-                <div className="min-w-0 flex-1 basis-40">
+                {/* The floor and the clip carry the same rule `DocumentIdentity` states: a
+                    `min-w-0` identity absorbs every pixel the row is short, so `planCollapse` reads
+                    a crushed box as "the row fits" and stops folding groups into the overflow menu.
+                    The status line then wraps to three lines and paints over the file-action icons
+                    beside it. The floor reports an honest width, `overflow-hidden` keeps the last
+                    few pixels inside the box, and `truncate` keeps the row one line tall. */}
+                <div className="min-w-32 flex-1 basis-40 overflow-hidden">
                   <InlineInput
                     value={name}
                     onChange={(e) => updateDraft({ name: e.target.value })}
@@ -1270,10 +1276,11 @@ export default function ApiClient() {
                     className="w-full truncate"
                   />
                   <p
-                    className={`text-2xs ${
+                    className={`truncate text-2xs ${
                       dirty ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'
                     }`}
                     aria-live="polite"
+                    title={statusLine}
                   >
                     {statusLine}
                   </p>
