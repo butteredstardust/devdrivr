@@ -10,6 +10,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useUiStore } from '@/stores/ui.store'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
+import { formatShortcut } from '@/lib/shortcut-label'
 
 // ── Mocks ──────────────────────────────────────────────────────────
 
@@ -464,6 +465,41 @@ describe('WorkspaceTabStrip — context menu', () => {
     expect(useUiStore.getState().tabs.filter((tab) => tab.toolId === 'json-tools')).toHaveLength(2)
   })
 
+  it('closes the menu when its tab closes', () => {
+    const [tab] = seedTabs(['json-tools', 'base64'])
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options for json-tools' }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    // Every command in the menu names this tab, so the menu has to go with it.
+    act(() => useUiStore.getState().closeTab(tab!.id))
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('moves focus into the menu and walks it with the arrow keys', () => {
+    seedTabs(['json-tools', 'base64'])
+    render(<WorkspaceTabStrip />)
+    const trigger = screen.getByRole('button', { name: 'More options for json-tools' })
+
+    fireEvent.click(trigger)
+    const items = screen.getAllByRole('menuitem')
+    expect(items[0]).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
+    expect(items[1]).toHaveFocus()
+
+    // Up from the first item wraps to the last, so the menu never dead-ends.
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    expect(items[items.length - 1]).toHaveFocus()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
   it('shows the context menu on right-click', () => {
     const [tab] = seedTabs(['json-tools'])
     render(<WorkspaceTabStrip />)
@@ -900,10 +936,20 @@ describe('WorkspaceTabStrip — reveal on resize', () => {
 })
 
 /**
- * The + button and mod+K share one palette. Only the button asks for a new instance, so only
- * the button sets the `new-tab` intent.
+ * The + button and mod+T share one palette. mod+K opens the same palette to switch tabs, so the
+ * button must not advertise it — a label naming the switch shortcut sends users to the tab they
+ * already have.
  */
 describe('new tab button', () => {
+  it('advertises the new-tab shortcut, not the palette switch shortcut', () => {
+    render(<WorkspaceTabStrip />)
+
+    const button = screen.getByRole('button', { name: /New tab/ })
+
+    expect(button.getAttribute('aria-label')).toContain(formatShortcut('mod+t'))
+    expect(button.getAttribute('aria-label')).not.toContain(formatShortcut('mod+k'))
+  })
+
   it('opens the palette with the new-tab intent', () => {
     useUiStore.setState({ commandPaletteOpen: false, commandPaletteIntent: 'switch' })
     render(<WorkspaceTabStrip />)

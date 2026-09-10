@@ -356,15 +356,69 @@ export function WorkspaceTabStrip() {
     }
   }, [overflowMenuOpen])
 
-  // Close context menu on Escape
+  // Close context menu on Escape, and return focus to whatever opened it. A menu opened from the
+  // ⋯ trigger otherwise dumps focus at the top of the document.
   useEffect(() => {
     if (!contextMenu) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null)
+      if (e.key !== 'Escape') return
+      setContextMenu(null)
+      contextMenuTriggerRef.current?.focus()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [contextMenu])
+
+  // The menu names one tab, so it cannot outlive it. Closing that tab from anywhere else — mod+W,
+  // a middle click, the confirm dialog — would otherwise leave a menu whose every command is a
+  // no-op sitting on screen.
+  useEffect(() => {
+    if (!contextMenu) return
+    if (!tabs.some((tab) => tab.id === contextMenu.tabId)) setContextMenu(null)
+  }, [contextMenu, tabs])
+
+  // A menu opened from a button has to be operable from the keyboard that opened it, so focus
+  // moves into the menu and the arrow keys walk it. Disabled commands are skipped rather than
+  // focused, since landing on one says the menu is stuck.
+  const menuItems = useCallback(
+    () =>
+      Array.from(
+        menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])') ??
+          []
+      ),
+    []
+  )
+
+  useEffect(() => {
+    if (!contextMenu) return
+    menuItems()[0]?.focus()
+  }, [contextMenu, menuItems])
+
+  const handleMenuKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End')
+        return
+      const items = menuItems()
+      if (items.length === 0) return
+      e.preventDefault()
+      const current = items.findIndex((item) => item === document.activeElement)
+      const last = items.length - 1
+      const next =
+        e.key === 'Home'
+          ? 0
+          : e.key === 'End'
+            ? last
+            : e.key === 'ArrowDown'
+              ? current >= last
+                ? 0
+                : current + 1
+              : current <= 0
+                ? last
+                : current - 1
+      items[next]?.focus()
+    },
+    [menuItems]
+  )
 
   const openContextMenu = useCallback((tabId: string, clientX: number, clientY: number) => {
     // Clamp so the menu doesn't overflow the viewport edges
@@ -724,8 +778,8 @@ export function WorkspaceTabStrip() {
           button labelled "New tab" that focuses an existing tab is a bug. */}
       <button
         onClick={() => toggleCommandPalette('new-tab')}
-        aria-label={`New tab (${formatShortcut('mod+k')})`}
-        title={`New tab (${formatShortcut('mod+k')})`}
+        aria-label={`New tab (${formatShortcut('mod+t')})`}
+        title={`New tab (${formatShortcut('mod+t')})`}
         className="flex h-full w-8 shrink-0 items-center justify-center border-l border-[var(--color-border)] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
       >
         <PlusIcon size={12} />
@@ -736,6 +790,8 @@ export function WorkspaceTabStrip() {
         <div
           ref={menuRef}
           role="menu"
+          aria-label="Tab options"
+          onKeyDown={handleMenuKeyDown}
           style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}
           className="z-[var(--z-popover)] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
         >
