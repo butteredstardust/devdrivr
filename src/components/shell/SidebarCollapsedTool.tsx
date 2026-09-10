@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ToolDefinition } from '@/types/tools'
 import { useUiStore } from '@/stores/ui.store'
+import { useOpenInstanceCount, useOpenTool } from '@/hooks/useToolOpen'
 
 type Props = {
   tool: ToolDefinition
@@ -20,10 +21,17 @@ export function SidebarCollapsedTool({ tool }: Props) {
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
   const activeTool = useUiStore((s) => s.activeTool)
+  const openTool = useOpenTool()
+  const openInstanceCount = useOpenInstanceCount(tool.id)
 
   const isActive = tool.id === activeTool
+  const accessibleName =
+    openInstanceCount >= 2
+      ? `${tool.name} (pinned, ${openInstanceCount} tabs open)`
+      : `${tool.name} (pinned)`
+  const tooltipText =
+    openInstanceCount >= 2 ? `${tool.name} (${openInstanceCount} tabs open)` : tool.name
 
   const handleMouseEnter = useCallback(() => {
     if (!triggerRef.current) return
@@ -50,19 +58,32 @@ export function SidebarCollapsedTool({ tool }: Props) {
     <>
       <button
         ref={triggerRef}
-        onClick={() => setActiveTool(tool.id)}
+        onClick={(event) => openTool(tool.id, event)}
+        onAuxClick={(event) => {
+          if (event.button !== 1) return
+          event.preventDefault()
+          openTool(tool.id, event)
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+        className={`relative flex h-8 w-8 items-center justify-center rounded-sm border-l-2 transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
           isActive
             ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
             : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
         }`}
-        aria-label={`${tool.name} (pinned)`}
+        aria-label={accessibleName}
         aria-current={isActive ? 'true' : undefined}
         data-sidebar-collapsed-tool={tool.id}
       >
         <span className="flex w-5 shrink-0 items-center justify-center">{tool.icon}</span>
+        {openInstanceCount >= 2 && (
+          <span
+            aria-hidden="true"
+            className="text-2xs absolute -right-0.5 -top-0.5 min-w-3.5 rounded-full bg-[var(--color-accent)] px-0.5 text-center leading-3.5 text-[var(--color-bg)]"
+          >
+            {openInstanceCount}
+          </span>
+        )}
       </button>
 
       {tooltipVisible &&
@@ -71,7 +92,7 @@ export function SidebarCollapsedTool({ tool }: Props) {
             style={tooltipStyle}
             className="font-ui animate-pop-in pointer-events-none rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md"
           >
-            {tool.name}
+            {tooltipText}
           </div>,
           document.body
         )}

@@ -3,6 +3,7 @@ import {
   XIcon,
   PlusIcon,
   CaretDownIcon,
+  DotsThreeIcon,
   PushPinIcon,
   PushPinSlashIcon,
 } from '@phosphor-icons/react'
@@ -48,6 +49,7 @@ export function WorkspaceTabStrip() {
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const contextMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const overflowRef = useRef<HTMLDivElement>(null)
   const cancelCloseRef = useRef<HTMLButtonElement>(null)
 
@@ -321,7 +323,13 @@ export function WorkspaceTabStrip() {
   useEffect(() => {
     if (!contextMenu) return
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // Preserve trigger mousedown so its following click can toggle the menu closed.
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        !contextMenuTriggerRef.current?.contains(target)
+      ) {
         setContextMenu(null)
       }
     }
@@ -358,16 +366,23 @@ export function WorkspaceTabStrip() {
     return () => document.removeEventListener('keydown', handler)
   }, [contextMenu])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, tabId: string) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const openContextMenu = useCallback((tabId: string, clientX: number, clientY: number) => {
     // Clamp so the menu doesn't overflow the viewport edges
     const menuWidth = 160
     const menuHeight = 160 // five items at ~32px
-    const x = Math.min(e.clientX, window.innerWidth - menuWidth - 4)
-    const y = Math.min(e.clientY, window.innerHeight - menuHeight - 4)
+    const x = Math.min(clientX, window.innerWidth - menuWidth - 4)
+    const y = Math.min(clientY, window.innerHeight - menuHeight - 4)
     setContextMenu({ tabId, x, y })
   }, [])
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      openContextMenu(tabId, e.clientX, e.clientY)
+    },
+    [openContextMenu]
+  )
 
   // Derived helpers for context menu item availability. Both counts skip
   // pinned tabs, which now survive either command — enabling an item that
@@ -530,6 +545,27 @@ export function WorkspaceTabStrip() {
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
                   )}
                 </span>
+              )}
+              {isActive && !isPinned && (
+                <button
+                  ref={contextMenuTriggerRef}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (contextMenu?.tabId === tab.id) {
+                      setContextMenu(null)
+                      return
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    openContextMenu(tab.id, rect.left, rect.bottom)
+                  }}
+                  aria-label={`More options for ${title}`}
+                  aria-haspopup="menu"
+                  aria-expanded={contextMenu?.tabId === tab.id}
+                  className="relative z-[2] flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:!opacity-100 hover:bg-[var(--color-surface-hover)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] group-hover:opacity-60 group-focus-within:opacity-60"
+                >
+                  <DotsThreeIcon size={12} />
+                </button>
               )}
               {/* No close button on a pinned tab — the pin exists to make the
                   tab hard to lose, and a one-click × beside it says otherwise.
@@ -699,10 +735,12 @@ export function WorkspaceTabStrip() {
       {contextMenu && (
         <div
           ref={menuRef}
+          role="menu"
           style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}
           className="z-[var(--z-popover)] min-w-[160px] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] py-1 shadow-lg"
         >
           <button
+            role="menuitem"
             onClick={() => {
               closeTab(contextMenu.tabId)
               setContextMenu(null)
@@ -712,6 +750,7 @@ export function WorkspaceTabStrip() {
             Close
           </button>
           <button
+            role="menuitem"
             onClick={() => {
               toggleTabPinned(contextMenu.tabId)
               setContextMenu(null)
@@ -722,6 +761,7 @@ export function WorkspaceTabStrip() {
             {contextTabPinned ? 'Unpin Tab' : 'Pin Tab'}
           </button>
           <button
+            role="menuitem"
             onClick={() => {
               const tab = tabs.find((t) => t.id === contextMenu.tabId)
               if (tab) openTabInstance(tab.toolId)
@@ -729,9 +769,10 @@ export function WorkspaceTabStrip() {
             }}
             className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           >
-            Duplicate
+            Duplicate Tab
           </button>
           <button
+            role="menuitem"
             onClick={() => {
               closeOtherTabs(contextMenu.tabId)
               setContextMenu(null)
@@ -742,6 +783,7 @@ export function WorkspaceTabStrip() {
             Close Others
           </button>
           <button
+            role="menuitem"
             onClick={() => {
               closeTabsToRight(contextMenu.tabId)
               setContextMenu(null)

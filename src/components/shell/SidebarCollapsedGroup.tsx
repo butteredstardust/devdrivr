@@ -4,6 +4,7 @@ import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
 import { useUiStore } from '@/stores/ui.store'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Popover } from '@/components/shared/Popover'
+import { useOpenTool } from '@/hooks/useToolOpen'
 
 type Props = {
   group: ToolGroupMeta
@@ -17,15 +18,15 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
   const activeTool = useUiStore((s) => s.activeTool)
+  const openTool = useOpenTool()
 
   const handleSelect = useCallback(
-    (toolId: string) => {
-      setActiveTool(toolId)
+    (toolId: string, event: React.MouseEvent) => {
+      openTool(toolId, event)
       setFlyoutOpen(false)
     },
-    [setActiveTool]
+    [openTool]
   )
 
   // Tooltip positioning — shown on hover when flyout is closed.
@@ -121,7 +122,12 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
             return (
               <button
                 key={tool.id}
-                onClick={() => handleSelect(tool.id)}
+                onClick={(event) => handleSelect(tool.id, event)}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) return
+                  event.preventDefault()
+                  handleSelect(tool.id, event)
+                }}
                 className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
                   isActive
                     ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'

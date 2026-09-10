@@ -4,7 +4,7 @@
  * 2. Separators between adjacent inactive tabs
  * 3. Unsaved-work indicator
  * 4. Drag reordering
- * 5. Right-click context menu: Close / Duplicate / Close Others / Close to Right
+ * 5. Tab context menu: Close / Duplicate Tab / Close Others / Close to Right
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -50,6 +50,7 @@ const realTabActions = {
   closeTab: useUiStore.getState().closeTab,
   closeOtherTabs: useUiStore.getState().closeOtherTabs,
   closeTabsToRight: useUiStore.getState().closeTabsToRight,
+  openTabInstance: useUiStore.getState().openTabInstance,
 }
 
 beforeEach(() => {
@@ -420,13 +421,56 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
 // ── Context menu ───────────────────────────────────────────────────
 
 describe('WorkspaceTabStrip — context menu', () => {
+  it('shows the menu button only on the active, unpinned tab', () => {
+    const tabs = seedTabs(['json-tools', 'base64'])
+    const { rerender } = render(<WorkspaceTabStrip />)
+
+    expect(screen.getByRole('button', { name: 'More options for json-tools' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'More options for base64' })
+    ).not.toBeInTheDocument()
+
+    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    rerender(<WorkspaceTabStrip />)
+
+    expect(
+      screen.queryByRole('button', { name: 'More options for json-tools' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens and closes the context menu from the active tab button', () => {
+    seedTabs(['json-tools'])
+    render(<WorkspaceTabStrip />)
+    const trigger = screen.getByRole('button', { name: 'More options for json-tools' })
+
+    fireEvent.mouseDown(trigger)
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.mouseDown(trigger)
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('duplicates the active tool from the menu button', () => {
+    seedTabs(['json-tools'])
+    render(<WorkspaceTabStrip />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options for json-tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate Tab' }))
+
+    expect(useUiStore.getState().tabs.filter((tab) => tab.toolId === 'json-tools')).toHaveLength(2)
+  })
+
   it('shows the context menu on right-click', () => {
     const [tab] = seedTabs(['json-tools'])
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
     expect(screen.getByText('Close')).toBeInTheDocument()
-    expect(screen.getByText('Duplicate')).toBeInTheDocument()
+    expect(screen.getByText('Duplicate Tab')).toBeInTheDocument()
     expect(screen.getByText('Close Others')).toBeInTheDocument()
     expect(screen.getByText('Close to Right')).toBeInTheDocument()
   })
@@ -453,14 +497,14 @@ describe('WorkspaceTabStrip — context menu', () => {
     expect(closeTab).toHaveBeenCalledWith(tab!.id)
   })
 
-  it('Duplicate opens another instance of the selected tool', () => {
+  it('Duplicate Tab opens another instance of the selected tool', () => {
     const openTabInstance = vi.fn()
     const [tab] = seedTabs(['json-tools'])
     useUiStore.setState({ openTabInstance } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
-    fireEvent.click(screen.getByText('Duplicate'))
+    fireEvent.click(screen.getByText('Duplicate Tab'))
 
     expect(openTabInstance).toHaveBeenCalledWith('json-tools')
   })

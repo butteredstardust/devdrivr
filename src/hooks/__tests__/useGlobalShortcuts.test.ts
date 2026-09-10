@@ -149,6 +149,16 @@ describe('useGlobalShortcuts', () => {
     expect(mocks.update).toHaveBeenCalledWith('alwaysOnTop', true)
   })
 
+  it('opens the command palette with the new-tab intent on mod+T', () => {
+    renderShortcuts()
+
+    act(() => {
+      findShortcut('t').handler()
+    })
+
+    expect(mocks.toggleCommandPalette).toHaveBeenCalledWith('new-tab')
+  })
+
   it('toggles full screen through the native command bridge', async () => {
     renderShortcuts()
 

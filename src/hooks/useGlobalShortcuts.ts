@@ -29,6 +29,7 @@ export function useGlobalShortcuts(): void {
   const closeTab = useUiStore((s) => s.closeTab)
 
   const comboK = useMemo(() => ({ key: 'k', mod: true }) as const, [])
+  const comboT = useMemo(() => ({ key: 't', mod: true }) as const, [])
   const comboB = useMemo(() => ({ key: 'b', mod: true }) as const, [])
   const comboShiftN = useMemo(() => ({ key: 'n', mod: true, shift: true }) as const, [])
   const comboShiftT = useMemo(() => ({ key: 't', mod: true, shift: true }) as const, [])
@@ -54,6 +55,10 @@ export function useGlobalShortcuts(): void {
         : { key: 'F11', allowInEditable: true },
     []
   )
+
+  const openNewTabPalette = useCallback(() => {
+    toggleCommandPalette('new-tab')
+  }, [toggleCommandPalette])
 
   const toggleSidebar = useCallback(async () => {
     await update('sidebarCollapsed', !sidebarCollapsed)
@@ -146,6 +151,7 @@ export function useGlobalShortcuts(): void {
   }, [alwaysOnTop, update, addToast])
 
   useKeyboardShortcut(comboK, toggleCommandPalette)
+  useKeyboardShortcut(comboT, openNewTabPalette)
   useKeyboardShortcut(comboB, toggleSidebar)
   useKeyboardShortcut(comboShiftN, toggleDrawer)
   useKeyboardShortcut(comboShiftT, toggleTheme)

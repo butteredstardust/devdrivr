@@ -249,6 +249,33 @@ describe('CommandPalette', () => {
     })
   })
 
+  describe('duplicate tab action', () => {
+    const markdown = { id: 't1', toolId: 'markdown-editor', stateKey: 'markdown-editor' }
+
+    it('finds the command and opens a second instance of the active tool', () => {
+      useUiStore.setState({
+        tabs: [markdown],
+        activeTabId: 't1',
+        activeTool: 'markdown-editor',
+      })
+
+      render(<CommandPalette />)
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'duplicate' } })
+      fireEvent.click(screen.getByRole('option', { name: /Duplicate Tab/ }))
+
+      expect(
+        useUiStore.getState().tabs.filter((tab) => tab.toolId === 'markdown-editor')
+      ).toHaveLength(2)
+    })
+
+    it('omits the command when no tool is active', () => {
+      render(<CommandPalette />)
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'duplicate' } })
+
+      expect(screen.queryByRole('option', { name: /Duplicate Tab/ })).not.toBeInTheDocument()
+    })
+  })
+
   it('does not persist always-on-top when the window pin call fails', async () => {
     windowApi.setAlwaysOnTop.mockRejectedValueOnce(new Error('blocked'))
     useSettingsStore.setState({ alwaysOnTop: false })
