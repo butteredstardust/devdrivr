@@ -252,6 +252,7 @@ function highlightMatches(
  */
 const MAX_IMPORT_BYTES = 20 * 1024 * 1024
 const MAX_IMPORT_SNIPPETS = 5000
+const MAX_IMPORT_FOLDERS = 5000
 /** Per-field caps, applied while mapping so one huge string cannot dominate the import. */
 const MAX_SNIPPET_TITLE_CHARS = 2_000
 const MAX_SNIPPET_CONTENT_CHARS = 500_000
@@ -276,21 +277,42 @@ function importedSnippet(item: unknown): {
   if (typeof candidate['title'] !== 'string' || typeof candidate['content'] !== 'string') {
     return null
   }
+  if (candidate['title'].length > MAX_SNIPPET_TITLE_CHARS)
+    throw new Error('A snippet title exceeds the import limit')
+  if (candidate['content'].length > MAX_SNIPPET_CONTENT_CHARS)
+    throw new Error('A snippet body exceeds the import limit')
+  if (
+    typeof candidate['description'] === 'string' &&
+    candidate['description'].length > MAX_SNIPPET_DESCRIPTION_CHARS
+  ) {
+    throw new Error('A snippet description exceeds the import limit')
+  }
+  if (
+    Array.isArray(candidate['fragments']) &&
+    candidate['fragments'].length > MAX_SNIPPET_FRAGMENTS
+  )
+    throw new Error('A snippet has too many fragments')
+  if (Array.isArray(candidate['tags']) && candidate['tags'].length > MAX_SNIPPET_TAGS)
+    throw new Error('A snippet has too many tags')
 
   const now = Date.now()
   const fragments = Array.isArray(candidate['fragments'])
-    ? candidate['fragments'].slice(0, MAX_SNIPPET_FRAGMENTS).flatMap((value, index) => {
+    ? candidate['fragments'].flatMap((value, index) => {
         if (!value || typeof value !== 'object') return []
         const fragment = value as Record<string, unknown>
         if (typeof fragment['content'] !== 'string') return []
+        if (fragment['content'].length > MAX_SNIPPET_CONTENT_CHARS)
+          throw new Error('A snippet fragment body exceeds the import limit')
+        if (
+          typeof fragment['name'] === 'string' &&
+          fragment['name'].length > MAX_SNIPPET_FRAGMENT_NAME_CHARS
+        )
+          throw new Error('A snippet fragment name exceeds the import limit')
         return [
           {
             id: crypto.randomUUID(),
-            name:
-              typeof fragment['name'] === 'string'
-                ? fragment['name'].slice(0, MAX_SNIPPET_FRAGMENT_NAME_CHARS)
-                : 'fragment',
-            content: fragment['content'].slice(0, MAX_SNIPPET_CONTENT_CHARS),
+            name: typeof fragment['name'] === 'string' ? fragment['name'] : 'fragment',
+            content: fragment['content'],
             language: typeof fragment['language'] === 'string' ? fragment['language'] : 'text',
             sortOrder: index,
             createdAt: now,
@@ -301,13 +323,11 @@ function importedSnippet(item: unknown): {
     : []
 
   return {
-    title: candidate['title'].slice(0, MAX_SNIPPET_TITLE_CHARS),
-    content: candidate['content'].slice(0, MAX_SNIPPET_CONTENT_CHARS),
+    title: candidate['title'],
+    content: candidate['content'],
     language: typeof candidate['language'] === 'string' ? candidate['language'] : 'text',
     tags: Array.isArray(candidate['tags'])
-      ? candidate['tags']
-          .filter((tag): tag is string => typeof tag === 'string')
-          .slice(0, MAX_SNIPPET_TAGS)
+      ? candidate['tags'].filter((tag): tag is string => typeof tag === 'string')
       : [],
     folder: typeof candidate['folder'] === 'string' ? candidate['folder'] : '',
     folderId: typeof candidate['folderId'] === 'string' ? candidate['folderId'] : null,
@@ -315,10 +335,7 @@ function importedSnippet(item: unknown): {
       candidate['favorite'] === true ||
       candidate['favorite'] === 1 ||
       (Array.isArray(candidate['tags']) && candidate['tags'].includes('⭐')),
-    description:
-      typeof candidate['description'] === 'string'
-        ? candidate['description'].slice(0, MAX_SNIPPET_DESCRIPTION_CHARS)
-        : '',
+    description: typeof candidate['description'] === 'string' ? candidate['description'] : '',
     fragments:
       fragments.length > 0
         ? fragments
@@ -326,7 +343,7 @@ function importedSnippet(item: unknown): {
             {
               id: crypto.randomUUID(),
               name: 'main',
-              content: candidate['content'].slice(0, MAX_SNIPPET_CONTENT_CHARS),
+              content: candidate['content'],
               language: typeof candidate['language'] === 'string' ? candidate['language'] : 'text',
               sortOrder: 0,
               createdAt: now,
@@ -382,6 +399,7 @@ export default function SnippetsManager() {
   const restoreSnippet = useSnippetsStore((state) => state.restore)
   const permanentlyDeleteSnippet = useSnippetsStore((state) => state.permanentlyDelete)
   const refreshSnippets = useSnippetsStore((state) => state.refresh)
+  const importSnippets = useSnippetsStore((state) => state.importBatch)
   const folders = useFoldersStore((state) => state.folders)
   const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
@@ -1031,11 +1049,29 @@ export default function SnippetsManager() {
       const signature = (snippet: {
         title: string
         content: string
-        fragments?: Array<{ content: string }>
+        language?: string
+        description?: string
+        tags?: string[]
+        favorite?: boolean
+        folder?: string
+        fragments?: Array<{ name?: string; content: string; language?: string }>
       }) =>
-        `${snippet.title}\u0000${(snippet.fragments ?? [{ content: snippet.content }])
-          .map((fragment) => fragment.content)
-          .join('\u0001')}`
+        JSON.stringify({
+          title: snippet.title,
+          description: snippet.description ?? '',
+          tags: [...(snippet.tags ?? [])].sort(),
+          favorite: !!snippet.favorite,
+          folder: snippet.folder ?? '',
+          fragments: (
+            snippet.fragments ?? [
+              { name: 'main', content: snippet.content, language: snippet.language ?? 'text' },
+            ]
+          ).map((fragment) => ({
+            name: fragment.name ?? 'fragment',
+            content: fragment.content,
+            language: fragment.language ?? 'text',
+          })),
+        })
       const existing = new Set(snippets.map(signature))
       const uniqueSnippets = validSnippets.filter((item) => {
         const key = signature(item)
@@ -1048,13 +1084,9 @@ export default function SnippetsManager() {
         return
       }
 
-      // Writes are not atomic, so a failure part-way leaves earlier snippets committed.
-      // Report what actually landed instead of a bare "failed".
-      let firstImported: Snippet | null = null
-      let imported = 0
-      let writeError: unknown = null
       const folderIdMap = new Map<string, string>()
       const availableFolders = foldersForKind(useFoldersStore.getState().folders, 'snippets')
+      const foldersToCreate: ResourceFolder[] = []
       const folderDrafts = Array.isArray(envelope?.['folders'])
         ? envelope['folders']
             .map((value) =>
@@ -1062,6 +1094,18 @@ export default function SnippetsManager() {
             )
             .filter((value): value is Record<string, unknown> => value !== null)
         : []
+      if (folderDrafts.length > MAX_IMPORT_FOLDERS) {
+        throw new Error(`Backup has more than ${MAX_IMPORT_FOLDERS} folders`)
+      }
+      const seenFolderIds = new Set<string>()
+      for (const draft of folderDrafts) {
+        const id = typeof draft['id'] === 'string' ? draft['id'] : ''
+        const name = typeof draft['name'] === 'string' ? draft['name'].trim() : ''
+        if (!id || seenFolderIds.has(id) || !name || name.length > MAX_SNIPPET_TITLE_CHARS) {
+          throw new Error('Backup contains an invalid snippet folder')
+        }
+        seenFolderIds.add(id)
+      }
       // Walk the exported tree order (parents before children) while still splicing safely.
       const unresolved = [...folderDrafts].reverse()
       while (unresolved.length > 0) {
@@ -1077,76 +1121,83 @@ export default function SnippetsManager() {
           const existing = availableFolders.find(
             (folder) => folder.name === name && folder.parentId === parentId
           )
-          const resolved =
-            existing ??
-            (await createFolder({
-              name,
-              kind: 'snippets',
-              parentId,
-              ...(typeof draft['defaultLanguage'] === 'string'
-                ? { defaultLanguage: draft['defaultLanguage'] }
-                : {}),
-            }))
-          if (!existing) availableFolders.push(resolved)
+          const now = Date.now()
+          const resolved: ResourceFolder = existing ?? {
+            id: crypto.randomUUID(),
+            name,
+            kind: 'snippets',
+            parentId,
+            sortOrder: typeof draft['sortOrder'] === 'number' ? draft['sortOrder'] : now,
+            createdAt: now,
+            updatedAt: now,
+            ...(typeof draft['defaultLanguage'] === 'string'
+              ? { defaultLanguage: draft['defaultLanguage'] }
+              : {}),
+          }
+          if (!existing) {
+            availableFolders.push(resolved)
+            foldersToCreate.push(resolved)
+          }
           folderIdMap.set(oldId, resolved.id)
           unresolved.splice(index, 1)
         }
         if (unresolved.length === before) break
       }
-      for (const item of uniqueSnippets) {
-        try {
-          let folderId = item.folderId ? folderIdMap.get(item.folderId) : undefined
-          if (!folderId && item.folder) {
-            let folder = availableFolders.find(
-              (candidate) => candidate.parentId === null && candidate.name === item.folder
-            )
-            if (!folder) {
-              folder = await createFolder({
-                name: item.folder,
-                kind: 'snippets',
-                parentId: null,
-              })
-              availableFolders.push(folder)
-            }
-            folderId = folder.id
-          }
-          const created = await addSnippet(
-            item.title,
-            item.content,
-            item.language,
-            item.tags,
-            item.folder,
-            item.favorite,
-            folderId ?? 'snippets-inbox',
-            item.description,
-            item.fragments
-          )
-          firstImported ??= created
-          imported += 1
-        } catch (err) {
-          writeError = err
-          break
+      if (unresolved.length > 0) throw new Error('Backup contains an invalid folder hierarchy')
+      const hasFolderManifest = Array.isArray(envelope?.['folders'])
+      const importedSnippets = uniqueSnippets.map((item): Snippet => {
+        let folderId = item.folderId ? folderIdMap.get(item.folderId) : undefined
+        if (hasFolderManifest && item.folderId && !folderId) {
+          throw new Error('Backup contains a snippet with a missing folder')
         }
-      }
-      setSelectedId(firstImported?.id ?? null)
-
-      if (writeError) {
-        setLastAction(
-          `Import stopped after ${imported} of ${uniqueSnippets.length} snippet${uniqueSnippets.length === 1 ? '' : 's'} — the rest were not saved`,
-          'error'
-        )
-        return
-      }
+        if (!folderId && item.folder) {
+          let folder = availableFolders.find(
+            (candidate) => candidate.parentId === null && candidate.name === item.folder
+          )
+          if (!folder) {
+            const now = Date.now()
+            folder = {
+              id: crypto.randomUUID(),
+              name: item.folder,
+              kind: 'snippets',
+              parentId: null,
+              sortOrder: now,
+              createdAt: now,
+              updatedAt: now,
+            }
+            availableFolders.push(folder)
+            foldersToCreate.push(folder)
+          }
+          folderId = folder.id
+        }
+        const now = Date.now()
+        return {
+          id: crypto.randomUUID(),
+          title: item.title,
+          content: item.content,
+          language: item.language,
+          tags: item.tags,
+          folder: item.folder,
+          favorite: item.favorite,
+          folderId: folderId ?? 'snippets-inbox',
+          description: item.description,
+          fragments: item.fragments,
+          createdAt: now,
+          updatedAt: now,
+        }
+      })
+      await importSnippets(foldersToCreate, importedSnippets)
+      setSelectedId(importedSnippets[0]?.id ?? null)
 
       const skipped = validSnippets.length - uniqueSnippets.length
       setLastAction(
-        `Imported ${imported} snippet${imported === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
+        `Imported ${importedSnippets.length} snippet${importedSnippets.length === 1 ? '' : 's'}${skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}`,
         'success'
       )
     } catch {
       setLastAction('Import failed — choose a valid snippets JSON file', 'error')
     }
-  }, [addSnippet, createFolder, setLastAction, snippets])
+  }, [importSnippets, setLastAction, snippets])
 
   const handleDownload = useCallback(async () => {
     if (!selected || !activeFragment) return

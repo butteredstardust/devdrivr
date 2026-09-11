@@ -55,8 +55,25 @@ type NotesBackupV2 = {
 }
 
 export type RestoredNotesBackup =
-  | { version: 1; notes: LegacyNoteBackupEntry[]; folders: [] }
-  | { version: 2; notes: Note[]; folders: ResourceFolder[] }
+  | {
+      version: 1
+      notes: LegacyNoteBackupEntry[]
+      folders: []
+      restoredAssetIds: string[]
+      restoreToken: string | null
+    }
+  | {
+      version: 2
+      notes: Note[]
+      folders: ResourceFolder[]
+      restoredAssetIds: string[]
+      restoreToken: string | null
+    }
+
+type NoteAssetRestore = {
+  restoredAssetIds: string[]
+  restoreToken: string | null
+}
 
 const VALID_NOTE_COLORS = new Set<string>(NOTE_COLORS)
 const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'done', 'blocked'])
@@ -346,8 +363,12 @@ export async function restoreNotesBackup(content: string): Promise<RestoredNotes
   const assets = parseAssets(value.assets)
   if (version === 1) {
     const notes = value.notes.map(parseLegacyNote)
-    await invoke<number>('note_assets_restore', { assets })
-    return { version, notes, folders: [] }
+    validateAssetReferences(
+      notes.map((note) => note.content),
+      assets
+    )
+    const restored = await restoreAssets(assets)
+    return { version, notes, folders: [], ...restored }
   }
   if (!Array.isArray(value.folders)) throw new Error('Unsupported notes backup')
   const notes = value.notes.map(parseVersion2Note)
@@ -360,8 +381,33 @@ export async function restoreNotesBackup(content: string): Promise<RestoredNotes
       throw new Error('Backup contains a note with a missing folder')
     }
   }
-  await invoke<number>('note_assets_restore', { assets })
-  return { version, notes, folders }
+  validateAssetReferences(
+    notes.map((note) => note.content),
+    assets
+  )
+  const restored = await restoreAssets(assets)
+  return { version, notes, folders, ...restored }
+}
+
+function validateAssetReferences(contents: string[], assets: NoteAssetBackup[]): void {
+  const referenced = new Set(collectNoteAssetIds(contents))
+  const included = new Set(assets.map((asset) => asset.id))
+  const missing = [...referenced].filter((id) => !included.has(id))
+  const unused = [...included].filter((id) => !referenced.has(id))
+  if (missing.length > 0) throw new Error('Backup is missing a referenced note asset')
+  if (unused.length > 0) throw new Error('Backup contains an unreferenced note asset')
+}
+
+async function restoreAssets(assets: NoteAssetBackup[]): Promise<NoteAssetRestore> {
+  return invoke<NoteAssetRestore>('note_assets_restore', { assets })
+}
+
+export async function rollbackRestoredNoteAssets(restoreToken: string): Promise<void> {
+  await invoke<number>('note_assets_rollback_restore', { restoreToken })
+}
+
+export async function finalizeRestoredNoteAssets(restoreToken: string): Promise<void> {
+  await invoke<void>('note_assets_finalize_restore', { restoreToken })
 }
 
 export async function findOrphanNoteAssets(referencedIds: string[]): Promise<NoteAsset[]> {

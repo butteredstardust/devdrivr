@@ -1,5 +1,5 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readFile, readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 export function isLikelyBinaryText(content: string): boolean {
   if (content.includes('\0')) return true
@@ -66,7 +66,7 @@ export async function readSupportedTextFile(filePath: string): Promise<string> {
   return content
 }
 
-export async function openFileDialog(): Promise<{
+export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
   content: string
   filename: string
   path: string
@@ -106,6 +106,14 @@ export async function openFileDialog(): Promise<{
   if (!path) return null
   const filePath = typeof path === 'string' ? path : path[0]
   if (!filePath) return null
+  if (options?.maxBytes !== undefined) {
+    const metadata = await stat(filePath)
+    if (metadata.size > options.maxBytes) {
+      throw new Error(
+        `File is larger than the ${Math.round(options.maxBytes / 1024 / 1024)} MB import limit`
+      )
+    }
+  }
   const content = await readSupportedTextFile(filePath)
   return { content, filename: filenameFromPath(filePath), path: filePath }
 }

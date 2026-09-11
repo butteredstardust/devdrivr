@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Snippet } from '@/types/models'
+import type { ResourceFolder, Snippet } from '@/types/models'
 
 const sqlMock = vi.hoisted(() => ({ execute: vi.fn(), select: vi.fn(), load: vi.fn() }))
 const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
@@ -77,6 +77,31 @@ describe('snippet fragment persistence', () => {
       ['fragment-1', 'snippet-1', 'client.ts', 'fetch(url)', 'typescript', 0],
       ['fragment-2', 'snippet-1', 'styles.css', '.root {}', 'css', 1],
     ])
+  })
+
+  it('imports folders and snippets in one immediate transaction', async () => {
+    const folder: ResourceFolder = {
+      id: 'folder-1',
+      name: 'Work',
+      parentId: null,
+      kind: 'snippets',
+      sortOrder: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const imported = { ...snippet(), folderId: folder.id, folder: folder.name }
+    const { saveSnippetImport } = await import('@/lib/db')
+
+    await saveSnippetImport([folder], [imported])
+
+    expect(coreMock.invoke).toHaveBeenCalledOnce()
+    const [, payload] = coreMock.invoke.mock.calls[0] as [
+      string,
+      { immediate: boolean; statements: Array<{ sql: string; params: unknown[] }> },
+    ]
+    expect(payload.immediate).toBe(true)
+    expect(payload.statements[0]?.sql).toContain('INSERT INTO resource_folders')
+    expect(payload.statements[1]?.sql).toContain('INSERT INTO snippets')
   })
 
   it('loads fragments in persisted order and mirrors the first for legacy consumers', async () => {

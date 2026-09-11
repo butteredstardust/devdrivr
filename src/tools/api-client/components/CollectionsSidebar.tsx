@@ -710,8 +710,8 @@ export function CollectionsSidebar({
                   variant="icon"
                   size="xs"
                   onClick={onImport}
-                  title="Import requests from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
-                  aria-label="Import requests"
+                  title="Import API data from Postman, OpenAPI, AsyncAPI, protobuf, GraphQL, or JSON"
+                  aria-label="Import API data"
                 >
                   <UploadSimpleIcon size={14} aria-hidden="true" />
                 </Button>
@@ -720,9 +720,8 @@ export function CollectionsSidebar({
                   variant="icon"
                   size="xs"
                   onClick={onExport}
-                  title="Copy all saved requests to the clipboard as JSON"
-                  aria-label="Export requests"
-                  disabled={requests.length === 0}
+                  title="Copy the API library to the clipboard as JSON"
+                  aria-label="Export API library"
                 >
                   <DownloadSimpleIcon size={14} aria-hidden="true" />
                 </Button>

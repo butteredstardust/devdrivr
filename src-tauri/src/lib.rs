@@ -178,6 +178,7 @@ pub fn run() {
         .manage(opened_files::OpenedFiles::default())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())
+        .manage(note_assets::PendingNoteAssetRestores::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
             window_commands::window_close,
@@ -199,7 +200,9 @@ pub fn run() {
             note_assets::note_assets_delete_orphans,
             note_assets::note_assets_export,
             note_assets::note_assets_find_orphans,
+            note_assets::note_assets_finalize_restore,
             note_assets::note_assets_restore,
+            note_assets::note_assets_rollback_restore,
             opened_files::opened_file_read,
             opened_files::opened_files_take,
         ])

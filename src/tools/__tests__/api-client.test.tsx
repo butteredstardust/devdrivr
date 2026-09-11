@@ -203,12 +203,22 @@ describe('ApiClient', () => {
 
   it('renders import and export controls in the library footer', () => {
     renderTool(ApiClient)
-    expect(screen.getByRole('button', { name: 'Import requests' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export requests' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import API data' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export API library' })).toBeInTheDocument()
   })
 
   it('exports requests in a format that preserves collections and request metadata on import', async () => {
     useApiStore.setState({
+      activeEnvironmentId: 'environment-1',
+      environments: [
+        {
+          id: 'environment-1',
+          name: 'Production',
+          variables: { baseUrl: 'https://example.com', token: 'secret' },
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
       collections: [
         {
           id: 'collection-1',
@@ -235,13 +245,17 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export requests' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export API library' }))
+    expect(screen.getByText(/Treat the clipboard contents as sensitive data/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy full backup' }))
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const exported = clipboardWriteText.mock.calls[0]?.[0]
     expect(exported).toBeTypeOf('string')
     expect(JSON.parse(exported as string)).toEqual({
-      version: 2,
+      format: 'devdrivr-api',
+      version: 3,
+      exportedAt: expect.any(String),
       folders: [{ key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 }],
       requests: [
         {
@@ -256,6 +270,14 @@ describe('ApiClient', () => {
           collectionName: 'Accounts',
         },
       ],
+      environments: [
+        {
+          key: 'environment-1',
+          name: 'Production',
+          variables: { baseUrl: 'https://example.com', token: 'secret' },
+        },
+      ],
+      activeEnvironmentKey: 'environment-1',
     })
 
     const imported = importApiSpec({ content: exported as string })
@@ -308,7 +330,8 @@ describe('ApiClient', () => {
     })
     renderTool(ApiClient)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export requests' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export API library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy full backup' }))
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
     const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })

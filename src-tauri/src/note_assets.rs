@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 const ASSET_DIRECTORY: &str = "note-assets";
@@ -35,6 +36,16 @@ pub struct NoteAssetBackup {
     file_name: String,
     mime_type: String,
     bytes: Vec<u8>,
+}
+
+#[derive(Default)]
+pub struct PendingNoteAssetRestores(Mutex<HashMap<String, Vec<String>>>);
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteAssetRestore {
+    restored_asset_ids: Vec<String>,
+    restore_token: Option<String>,
 }
 
 fn image_format(bytes: &[u8]) -> Option<ImageFormat> {
@@ -298,7 +309,11 @@ pub fn note_assets_export(
 }
 
 #[tauri::command]
-pub fn note_assets_restore(app: AppHandle, assets: Vec<NoteAssetBackup>) -> Result<usize, String> {
+pub fn note_assets_restore(
+    app: AppHandle,
+    pending: State<'_, PendingNoteAssetRestores>,
+    assets: Vec<NoteAssetBackup>,
+) -> Result<NoteAssetRestore, String> {
     if assets.len() > MAX_RESTORE_ASSETS {
         return Err("Backup contains too many note assets".into());
     }
@@ -335,17 +350,101 @@ pub fn note_assets_restore(app: AppHandle, assets: Vec<NoteAssetBackup>) -> Resu
             Err(error) if error == "Note asset is missing" => {}
             Err(error) => return Err(error),
         }
-        validated.push((path, asset.bytes));
+        validated.push((asset.id, path, asset.bytes));
     }
-    let mut restored = 0;
-    for (path, bytes) in validated {
+    let restored_asset_ids = write_restored_assets(validated)?;
+    let restore_token = if restored_asset_ids.is_empty() {
+        None
+    } else {
+        let token = Uuid::new_v4().to_string();
+        pending
+            .0
+            .lock()
+            .map_err(|_| "Unable to track restored note assets".to_string())?
+            .insert(token.clone(), restored_asset_ids.clone());
+        Some(token)
+    };
+    Ok(NoteAssetRestore {
+        restored_asset_ids,
+        restore_token,
+    })
+}
+
+fn write_restored_assets(
+    validated: Vec<(String, PathBuf, Vec<u8>)>,
+) -> Result<Vec<String>, String> {
+    let mut restored_paths = Vec::new();
+    let mut restored_ids = Vec::new();
+    for (id, path, bytes) in validated {
         if path.exists() {
             continue;
         }
-        write_new_asset(&path, &bytes)?;
-        restored += 1;
+        if let Err(error) = write_new_asset(&path, &bytes) {
+            for restored_path in restored_paths {
+                let _ = fs::remove_file(restored_path);
+            }
+            return Err(error);
+        }
+        restored_paths.push(path);
+        restored_ids.push(id);
     }
-    Ok(restored)
+    Ok(restored_ids)
+}
+
+#[tauri::command]
+pub fn note_assets_rollback_restore(
+    app: AppHandle,
+    pending: State<'_, PendingNoteAssetRestores>,
+    restore_token: String,
+) -> Result<usize, String> {
+    let directory = asset_directory(&app)?;
+    let mut restores = pending
+        .0
+        .lock()
+        .map_err(|_| "Unable to access restored note assets".to_string())?;
+    let ids = restores
+        .get(&restore_token)
+        .cloned()
+        .ok_or_else(|| "Unknown note asset restore token".to_string())?;
+    let deleted = rollback_asset_ids(&directory, ids)?;
+    restores.remove(&restore_token);
+    Ok(deleted)
+}
+
+#[tauri::command]
+pub fn note_assets_finalize_restore(
+    pending: State<'_, PendingNoteAssetRestores>,
+    restore_token: String,
+) -> Result<(), String> {
+    let removed = pending
+        .0
+        .lock()
+        .map_err(|_| "Unable to access restored note assets".to_string())?
+        .remove(&restore_token);
+    if removed.is_none() {
+        return Err("Unknown note asset restore token".into());
+    }
+    Ok(())
+}
+
+fn rollback_asset_ids(directory: &Path, ids: Vec<String>) -> Result<usize, String> {
+    if ids.len() > MAX_RESTORE_ASSETS {
+        return Err("Too many note assets to roll back".into());
+    }
+    let mut paths = Vec::with_capacity(ids.len());
+    for id in ids {
+        validate_id(&id)?;
+        match find_asset(directory, &id) {
+            Ok((path, _)) => paths.push(path),
+            Err(error) if error == "Note asset is missing" => {}
+            Err(error) => return Err(error),
+        }
+    }
+    for path in &paths {
+        fs::remove_file(path)
+            .map_err(|error| format!("Unable to roll back restored note asset: {error}"))?;
+    }
+    Ok(paths.len())
 }
 
 #[cfg(test)]
@@ -391,5 +490,44 @@ mod tests {
         );
         assert!(path_for(directory, "../../secret", "png").is_err());
         assert!(path_for(directory, "550e8400-e29b-41d4-a716-446655440000", "../png").is_err());
+    }
+
+    #[test]
+    fn a_partial_restore_removes_files_written_by_that_attempt() {
+        let directory = std::env::temp_dir().join(format!("devdrivr-restore-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let first = directory.join("first.png");
+        let blocked_parent = directory.join("blocked");
+        fs::write(&blocked_parent, b"not a directory").unwrap();
+
+        let error = write_restored_assets(vec![
+            ("first".into(), first.clone(), b"first".to_vec()),
+            (
+                "second".into(),
+                blocked_parent.join("second.png"),
+                b"second".to_vec(),
+            ),
+        ])
+        .unwrap_err();
+
+        assert!(error.contains("Unable to create"));
+        assert!(!first.exists());
+        fs::remove_file(blocked_parent).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn rollback_validates_all_ids_before_removing_existing_assets() {
+        let directory = std::env::temp_dir().join(format!("devdrivr-rollback-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let id = "550e8400-e29b-41d4-a716-446655440000";
+        let path = directory.join(format!("{id}.png"));
+        fs::write(&path, b"\x89PNG\r\n\x1a\nrest").unwrap();
+
+        assert!(rollback_asset_ids(&directory, vec![id.into(), "../../bad".into()]).is_err());
+        assert!(path.exists());
+        assert_eq!(rollback_asset_ids(&directory, vec![id.into()]).unwrap(), 1);
+        assert!(!path.exists());
+        fs::remove_dir(directory).unwrap();
     }
 }

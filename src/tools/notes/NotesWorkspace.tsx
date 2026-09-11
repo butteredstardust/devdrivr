@@ -54,6 +54,8 @@ import {
   findOrphanNoteAssets,
   resolveNoteAssetMarkdown,
   restoreNotesBackup,
+  rollbackRestoredNoteAssets,
+  finalizeRestoredNoteAssets,
   type NoteAsset,
 } from '@/lib/note-assets'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
@@ -79,6 +81,8 @@ import {
   TASK_VIEWS,
   type TaskView,
 } from '@/tools/notes/task-model'
+
+const MAX_NOTES_BACKUP_FILE_BYTES = 512 * 1024 * 1024
 
 type NotesWorkspaceState = {
   selectedId: string | null
@@ -412,37 +416,56 @@ export default function NotesWorkspace() {
   }, [flushPending, folders, setLastAction])
 
   const handleImportBackup = useCallback(async () => {
+    let restoreToken: string | null = null
     try {
-      const file = await openFileDialog()
+      const file = await openFileDialog({ maxBytes: MAX_NOTES_BACKUP_FILE_BYTES })
       if (!file) return
       const backup = await restoreNotesBackup(file.content)
+      restoreToken = backup.restoreToken
       if (backup.version === 2) {
         await restoreNotesFromBackup(backup.folders, backup.notes)
-        await Promise.all([refreshFolders(), refreshNotes()])
       } else {
-        for (const entry of backup.notes) {
-          const task = entry.taskStatus
-            ? {
-                status: entry.taskStatus,
-                ...(entry.taskPriority ? { priority: entry.taskPriority } : {}),
-                ...(entry.taskDueDate ? { dueDate: entry.taskDueDate } : {}),
-              }
-            : undefined
-          const note = await addNote(entry.title, entry.content, entry.color, 'notes-inbox', task)
-          await updateNote(note.id, {
+        const now = Date.now()
+        const notes = backup.notes.map(
+          (entry, index): Note => ({
+            id: crypto.randomUUID(),
+            title: entry.title,
+            content: entry.content,
+            color: entry.color,
             pinned: entry.pinned,
+            poppedOut: false,
             tags: entry.tags,
+            sortOrder: index,
+            folderId: 'notes-inbox',
+            createdAt: now,
+            updatedAt: now,
+            ...(entry.taskStatus ? { taskStatus: entry.taskStatus } : {}),
+            ...(entry.taskPriority ? { taskPriority: entry.taskPriority } : {}),
+            ...(entry.taskDueDate ? { taskDueDate: entry.taskDueDate } : {}),
           })
-        }
+        )
+        await restoreNotesFromBackup([], notes)
       }
+      // The database now durably references these files. Refresh failures must not roll them back.
+      const committedRestoreToken = restoreToken
+      restoreToken = null
+      if (committedRestoreToken) await finalizeRestoredNoteAssets(committedRestoreToken)
+      await Promise.all([refreshFolders(), refreshNotes()])
       setLastAction(`${backup.notes.length} notes restored with attachments`, 'success')
     } catch (error) {
+      if (restoreToken) {
+        try {
+          await rollbackRestoredNoteAssets(restoreToken)
+        } catch {
+          // Preserve the primary restore failure; orphan cleanup can find these files later.
+        }
+      }
       setLastAction(
         `Failed to restore notes: ${error instanceof Error ? error.message : String(error)}`,
         'error'
       )
     }
-  }, [addNote, refreshFolders, refreshNotes, setLastAction, updateNote])
+  }, [refreshFolders, refreshNotes, setLastAction])
 
   const referencedAssetIds = useCallback(() => {
     const current = useNotesStore.getState()

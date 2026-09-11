@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import {
   buildExportFilename,
   exportFile,
@@ -20,6 +20,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readTextFile: vi.fn(),
+  stat: vi.fn(),
   writeTextFile: vi.fn(),
   writeFile: vi.fn(),
 }))
@@ -28,6 +29,7 @@ describe('file I/O', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(readTextFile).mockResolvedValue('hello')
+    vi.mocked(stat).mockResolvedValue({ size: 5 } as Awaited<ReturnType<typeof stat>>)
     vi.mocked(writeTextFile).mockResolvedValue()
     vi.mocked(writeFile).mockResolvedValue()
   })
@@ -48,6 +50,14 @@ describe('file I/O', () => {
       filename: 'example.json',
       path: '/tmp/example.json',
     })
+  })
+
+  it('rejects oversized imports before reading them', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/huge.json')
+    vi.mocked(stat).mockResolvedValue({ size: 101 } as Awaited<ReturnType<typeof stat>>)
+
+    await expect(openFileDialog({ maxBytes: 100 })).rejects.toThrow('import limit')
+    expect(readTextFile).not.toHaveBeenCalled()
   })
 
   // TSX and JSX were missing, so React sources were invisible in the picker
