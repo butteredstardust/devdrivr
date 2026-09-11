@@ -252,6 +252,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(BinaryIcon),
     description: 'Encode/decode Base64 with URL-safe, line wrap, image preview, data URIs',
     component: Base64Tool,
+    // Encodes any dropped file, so the shell must not read it as text.
+    ownsFileDrop: true,
   },
   {
     id: 'url-codec',
@@ -287,6 +289,8 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(HashIcon),
     description: 'Hash text or streamed files with MD5, SHA, SHA-3, BLAKE2b, and HMAC',
     component: HashGenerator,
+    // Hashes any dropped file, so the shell must not read it as text.
+    ownsFileDrop: true,
   },
   {
     id: 'image-tool',
@@ -358,6 +362,9 @@ export const TOOLS: ToolDefinition[] = [
     component: MarkdownEditor,
     supportsOpenFile: true,
     supportsSaveFile: true,
+    // One drop has two meanings here: an image is embedded, a text file is opened. The tool's own
+    // hook decides which, because the shell would read a dropped image as text and fail.
+    ownsFileDrop: true,
     usesMonaco: true,
   },
   {

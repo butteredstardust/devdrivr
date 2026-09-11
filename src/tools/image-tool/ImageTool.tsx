@@ -9,7 +9,7 @@ import {
   filenameFromPath,
   openImageFileDialog,
 } from '@/lib/file-io'
-import { subscribeToolAction } from '@/lib/tool-actions'
+import { useToolAction } from '@/hooks/useToolAction'
 import { useImageFileDrop } from '@/tools/image-tool/useImageFileDrop'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { Button } from '@/components/shared/Button'
@@ -459,6 +459,11 @@ export default function ImageTool() {
   }, [originalImg, persistState, setLastAction, state.cropH, state.cropW, state.sourcePath])
 
   // ── Drag & drop ────────────────────────────────────────────────
+  //
+  // Two paths, because the tool runs in two windows. `useImageFileDrop` handles the desktop, where
+  // Tauri claims the OS drop. The React handlers below are the only path in the remote-UI browser,
+  // where no Tauri listener exists.
+  /* tool-contract-ignore: html-drop-is-dead the remote-UI browser has no Tauri drop event */
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -1039,14 +1044,11 @@ export default function ImageTool() {
     }
   }, [outputError, setLastAction])
 
-  useEffect(() => {
-    if (!isInstanceActive) return
-    return subscribeToolAction((action) => {
-      if (action.type === 'open-file-dialog') void handleOpenImage()
-      if (action.type === 'save-file') void handleDownload()
-      if (action.type === 'copy-output') void handleCopyImage()
-    })
-  }, [handleCopyImage, handleDownload, handleOpenImage, isInstanceActive])
+  useToolAction((action) => {
+    if (action.type === 'open-file-dialog') void handleOpenImage()
+    if (action.type === 'save-file') void handleDownload()
+    if (action.type === 'copy-output') void handleCopyImage()
+  })
 
   const handleResetAll = useCallback(() => {
     if (!originalImg) return

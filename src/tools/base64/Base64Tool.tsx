@@ -26,7 +26,9 @@ import {
   DownloadSimpleIcon,
 } from '@phosphor-icons/react'
 import { formatBytes } from '@/lib/format'
-import { exportFile } from '@/lib/file-io'
+import { exportFile, filenameFromPath } from '@/lib/file-io'
+import { useNativeFileDrop } from '@/hooks/useNativeFileDrop'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { useWorker } from '@/hooks/useWorker'
 import type { Base64Worker } from '@/workers/base64.worker'
 import Base64WorkerFactory from '@/workers/base64.worker?worker'
@@ -139,6 +141,10 @@ export default function Base64Tool() {
   const [droppedFile, setDroppedFile] = useState<DroppedFile | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The native drop is hit-tested against this pane, so a drop replaces the file whether the text
+  // area or the loaded-file view is showing.
+  const inputPaneRef = useRef<HTMLDivElement>(null)
+  const isInstanceActive = useIsInstanceActive()
 
   // Clear file when switching to decode
   useEffect(() => {
@@ -264,6 +270,27 @@ export default function Base64Tool() {
     [setImgTransform, setLastAction, record]
   )
 
+  // ── Drag & drop ────────────────────────────────────────────────
+  //
+  // Two paths, because the tool runs in two windows. `useNativeFileDrop` handles the desktop, where
+  // Tauri claims the operating-system drop. The React handlers below are the only path in the
+  // remote-UI browser, where no Tauri drop event exists.
+  const { isDragging: isNativeDragOver } = useNativeFileDrop(
+    inputPaneRef,
+    {
+      onFile: (file) => processFile(file),
+      onError: (message) => setLastAction(message, 'error'),
+      maxBytes: MAX_FILE_BYTES,
+      onTooLarge: (path, size) =>
+        setLastAction(
+          `"${filenameFromPath(path)}" is ${formatBytes(size)} — the limit is ${formatBytes(MAX_FILE_BYTES)}`,
+          'error'
+        ),
+    },
+    isInstanceActive && state.mode === 'encode'
+  )
+
+  /* tool-contract-ignore: html-drop-is-dead the remote-UI browser has no Tauri drop event */
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       if (state.mode !== 'encode') return
@@ -501,7 +528,7 @@ export default function Base64Tool() {
       {/* ── Panels ────────────────────────────────────────────────── */}
       <SplitPane storageKey="base64" aria-label="Resize input and output">
         {/* ── Input panel ─────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div ref={inputPaneRef} className="relative flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Input"
             hint={state.mode === 'encode' ? 'Text' : 'Base64'}
@@ -591,14 +618,15 @@ export default function Base64Tool() {
                 size="md"
                 className="flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
               />
-              {isDragOver && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[var(--color-surface)]/90 backdrop-blur-sm">
-                  <UploadSimpleIcon size={28} className="text-[var(--color-accent)]" />
-                  <span className="text-sm font-medium text-[var(--color-accent)]">
-                    Drop to encode as Base64
-                  </span>
-                </div>
-              )}
+            </div>
+          )}
+
+          {(isDragOver || isNativeDragOver) && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[var(--color-surface)]/90 backdrop-blur-sm">
+              <UploadSimpleIcon size={28} className="text-[var(--color-accent)]" />
+              <span className="text-sm font-medium text-[var(--color-accent)]">
+                Drop to encode as Base64
+              </span>
             </div>
           )}
         </div>

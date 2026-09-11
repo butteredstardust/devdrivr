@@ -338,7 +338,13 @@ describe('CsvTools', () => {
     fireEvent.change(filter, { target: { value: 'Alice' } })
 
     const table = screen.getByRole('region', { name: 'Table view' })
-    await waitFor(() => expect(within(table).queryByText('Bob')).not.toBeInTheDocument())
+    // Wait on the live count rather than on a row leaving. The parse is debounced by 250 ms, so a
+    // loaded runner can still be rendering every row when a plain "Bob is gone" check runs, and the
+    // count says whether the filter applied at all.
+    await waitFor(() => expect(within(table).getByText(/1 of 2 rows match/)).toBeInTheDocument(), {
+      timeout: 3000,
+    })
+    expect(within(table).queryByText('Bob')).not.toBeInTheDocument()
     expect(within(table).getByText('Alice')).toBeInTheDocument()
     expect(editor()).toHaveValue(SAMPLE)
   })

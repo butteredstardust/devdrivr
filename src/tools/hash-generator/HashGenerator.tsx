@@ -29,6 +29,17 @@ import {
   type Hashes,
 } from '@/tools/hash-generator/hash-utils'
 import { formatBytes } from '@/lib/format'
+import { filenameFromPath } from '@/lib/file-io'
+import { useNativeFileDrop } from '@/hooks/useNativeFileDrop'
+import { useIsInstanceActive } from '@/app/tool-instance'
+
+/**
+ * The largest file a drop accepts.
+ *
+ * A native drop delivers bytes, not a stream, so the whole file sits in memory. The file picker
+ * keeps the chunked path and stays unlimited.
+ */
+const MAX_DROP_BYTES = 512 * 1024 * 1024
 
 type HashSource = 'text' | 'file'
 
@@ -73,6 +84,8 @@ export default function HashGenerator() {
   const [fileProgress, setFileProgress] = useState<number | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
+  const isInstanceActive = useIsInstanceActive()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -134,6 +147,29 @@ export default function HashGenerator() {
     setIsComputing(false)
   }, [])
 
+  // ── Drag & drop ────────────────────────────────────────────────
+  //
+  // Two paths, because the tool runs in two windows. `useNativeFileDrop` handles the desktop, where
+  // Tauri claims the operating-system drop. The React handlers below are the only path in the
+  // remote-UI browser, where no Tauri drop event exists.
+  //
+  // A dropped file arrives as bytes, so the drop is capped. The file picker keeps the streaming
+  // path and has no limit.
+  const { isDragging: isNativeDragOver } = useNativeFileDrop(
+    dropZoneRef,
+    {
+      onFile: (dropped) => processFile(dropped),
+      onError: (message) => setFileError(message),
+      maxBytes: MAX_DROP_BYTES,
+      onTooLarge: (path, size) =>
+        setFileError(
+          `"${filenameFromPath(path)}" is ${formatBytes(size)}. Drops are capped at ${formatBytes(MAX_DROP_BYTES)} — use Choose File instead.`
+        ),
+    },
+    isInstanceActive
+  )
+
+  /* tool-contract-ignore: html-drop-is-dead the remote-UI browser has no Tauri drop event */
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
@@ -286,6 +322,7 @@ export default function HashGenerator() {
             }
           >
             <div
+              ref={dropZoneRef}
               onDragOver={(e) => {
                 e.preventDefault()
                 setIsDragOver(true)
@@ -293,7 +330,7 @@ export default function HashGenerator() {
               onDragLeave={() => setIsDragOver(false)}
               onDrop={handleDrop}
               className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed p-6 transition-colors duration-[var(--duration-fast)] ${
-                isDragOver
+                isDragOver || isNativeDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/30'
                   : 'border-[var(--color-border)]'
               }`}
