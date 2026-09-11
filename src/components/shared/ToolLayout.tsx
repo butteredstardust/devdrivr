@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { cn } from '@/lib/cn'
 
 type ToolLayoutProps = {
+  /** The root element. A tool takes this to tell its own subtree from the rest of the shell. */
+  ref?: Ref<HTMLDivElement>
   /** Rendered as-is above the body. Tools own their toolbar's internal
    *  layout (single row, wrapped rows, stacked rows) — ToolLayout only positions the slot. */
   toolbar?: ReactNode
@@ -25,6 +27,7 @@ type ToolLayoutProps = {
  * zero consumers, while two tools hand-rolled the sidebar heading it couldn't express.
  */
 export function ToolLayout({
+  ref,
   toolbar,
   children,
   fullBleed = false,
@@ -32,7 +35,7 @@ export function ToolLayout({
   className = '',
 }: ToolLayoutProps) {
   return (
-    <div className={cn(`flex h-full flex-col`, className)}>
+    <div ref={ref} className={cn(`flex h-full flex-col`, className)}>
       {toolbar && <div className="shrink-0 bg-[var(--color-surface)]">{toolbar}</div>}
       {fullBleed ? (
         <div className="flex flex-1 flex-col overflow-hidden">{children}</div>

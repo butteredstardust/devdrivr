@@ -22,6 +22,40 @@ import type { WorkspaceTab } from '@/types/tools'
  */
 export const KEEP_ALIVE_LIMIT = 4
 
+function WorkspaceFileDrop({ activeTool }: { activeTool: string }) {
+  const addToast = useUiStore((s) => s.addToast)
+  const supportsFileDrop = supportsToolFileAction(activeTool, 'open-file')
+
+  const handleFileDrop = useCallback(
+    (content: string, filename: string, path: string) => {
+      if (!supportsToolFileAction(activeTool, 'open-file')) {
+        addToast('File drop is not supported by the active tool', 'error')
+        return
+      }
+      // Keep the path so Save writes to the file that the user dropped.
+      dispatchToolAction({ type: 'open-file', content, filename, path })
+      addToast(`Loaded ${filename}`, 'success')
+    },
+    [activeTool, addToast]
+  )
+  const handleFileDropError = useCallback(
+    (message: string) => {
+      addToast(message, 'error')
+    },
+    [addToast]
+  )
+  const { isDragging } = useFileDropZone(handleFileDrop, handleFileDropError, supportsFileDrop)
+
+  if (!isDragging) return null
+  return (
+    <div className="absolute inset-0 z-[var(--z-scrim)] flex items-center justify-center bg-[var(--color-bg)]/80 backdrop-blur-sm">
+      <div className="rounded border-2 border-dashed border-[var(--color-accent)] px-8 py-4 text-sm text-[var(--color-accent)]">
+        Drop file here
+      </div>
+    </div>
+  )
+}
+
 function ToolPane({ tab, isActive }: { tab: WorkspaceTab; isActive: boolean }) {
   const tool = getToolById(tab.toolId)
   const instance = useMemo<ToolInstance>(
@@ -76,9 +110,7 @@ export function Workspace() {
   const activeTabId = useUiStore((s) => s.activeTabId)
   const tabMru = useUiStore((s) => s.tabMru)
   const activeTool = useUiStore((s) => s.activeTool)
-  const addToast = useUiStore((s) => s.addToast)
-
-  const supportsFileDrop = supportsToolFileAction(activeTool, 'open-file')
+  const ownsFileDrop = getToolById(activeTool)?.ownsFileDrop === true
 
   // The most recently used tabs, plus the active one in case it somehow is not
   // among them. Order follows `tabs` so the DOM does not reshuffle on switch.
@@ -90,36 +122,9 @@ export function Workspace() {
 
   const hasActivePane = mountedTabs.some((tab) => tab.id === activeTabId && getToolById(tab.toolId))
 
-  const handleFileDrop = useCallback(
-    (content: string, filename: string, path: string) => {
-      if (!supportsToolFileAction(activeTool, 'open-file')) {
-        addToast('File drop is not supported by the active tool', 'error')
-        return
-      }
-      // The path travels with the drop so the first ⌘S overwrites the dropped
-      // file instead of reopening a Save As dialog for a file we already know.
-      dispatchToolAction({ type: 'open-file', content, filename, path })
-      addToast(`Loaded ${filename}`, 'success')
-    },
-    [activeTool, addToast]
-  )
-  const handleFileDropError = useCallback(
-    (message: string) => {
-      addToast(message, 'error')
-    },
-    [addToast]
-  )
-  const { isDragging } = useFileDropZone(handleFileDrop, handleFileDropError, supportsFileDrop)
-
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">
-      {isDragging && (
-        <div className="absolute inset-0 z-[var(--z-scrim)] flex items-center justify-center bg-[var(--color-bg)]/80 backdrop-blur-sm">
-          <div className="rounded border-2 border-dashed border-[var(--color-accent)] px-8 py-4 text-sm text-[var(--color-accent)]">
-            Drop file here
-          </div>
-        </div>
-      )}
+      {!ownsFileDrop && <WorkspaceFileDrop activeTool={activeTool} />}
       <WorkspaceTabStrip />
       {/* No tabs, or an active tab pointing at a tool that no longer exists. */}
       {!hasActivePane && (

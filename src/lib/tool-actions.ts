@@ -1,4 +1,8 @@
-import { OPEN_FILE_TOOL_IDS, SAVE_FILE_TOOL_IDS } from '@/app/tool-registry'
+import {
+  OPEN_FILE_TOOL_IDS,
+  OWNS_OPEN_FILE_TOOL_IDS,
+  SAVE_FILE_TOOL_IDS,
+} from '@/app/tool-registry'
 
 /**
  * Lightweight pub/sub for shell→tool communication.
@@ -10,6 +14,9 @@ export type ToolAction =
   | { type: 'copy-output' }
   | { type: 'switch-tab'; tab: number }
   | { type: 'open-file'; content: string; filename: string; path?: string }
+  // Tells a tool to run its own file dialog. The shell reads text, so a tool
+  // that needs bytes takes this instead of `open-file`.
+  | { type: 'open-file-dialog' }
   | { type: 'save-file' }
   | { type: 'send-to'; content: string }
 
@@ -17,6 +24,11 @@ type Listener = (action: ToolAction) => void
 
 export function supportsToolFileAction(toolId: string, action: 'open-file' | 'save-file'): boolean {
   return (action === 'open-file' ? OPEN_FILE_TOOL_IDS : SAVE_FILE_TOOL_IDS).has(toolId)
+}
+
+/** True when the tool opens its own file dialog instead of taking text from the shell. */
+export function toolOwnsOpenFile(toolId: string): boolean {
+  return OWNS_OPEN_FILE_TOOL_IDS.has(toolId)
 }
 
 const listeners = new Set<Listener>()

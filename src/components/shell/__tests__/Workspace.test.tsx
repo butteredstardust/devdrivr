@@ -8,8 +8,9 @@ vi.mock('@/lib/db', () => ({
   getSetting: vi.fn(),
 }))
 
+const useFileDropZone = vi.fn(() => ({ isDragging: false }))
 vi.mock('@/hooks/useFileDropZone', () => ({
-  useFileDropZone: () => ({ isDragging: false }),
+  useFileDropZone: (...args: unknown[]) => useFileDropZone(...(args as [])),
 }))
 
 vi.mock('@/components/shell/WorkspaceTabStrip', () => ({
@@ -28,6 +29,8 @@ vi.mock('@/app/tool-registry', () => ({
       icon: '•',
       description: '',
       component: MockTool,
+      // The image tool and Notes run their own native drop listener.
+      ownsFileDrop: id === 'image-tool' || id === 'notes',
     }
   },
   // Mirrors the real registry's derived sets for the two tool ids these tests use.
@@ -78,6 +81,27 @@ describe('Workspace overflow behavior', () => {
     const host = screen.getByTestId('tool-hash-generator').parentElement
     expect(host?.className).toContain('overflow-auto')
     expect(host?.className).not.toContain('overflow-hidden')
+  })
+})
+
+describe('file drop ownership', () => {
+  // A tool that owns its drop reads binary data through its own Tauri listener.
+  // The shell listener only reads text, so it must not claim the drop and must
+  // not answer with "File drop is not supported by the active tool".
+  it('leaves the drop to a tool that owns it', () => {
+    openTabs('image-tool')
+
+    render(<Workspace />)
+
+    expect(useFileDropZone).not.toHaveBeenCalled()
+  })
+
+  it('keeps the shell listener for every other tool', () => {
+    openTabs('json-tools')
+
+    render(<Workspace />)
+
+    expect(useFileDropZone).toHaveBeenCalled()
   })
 })
 

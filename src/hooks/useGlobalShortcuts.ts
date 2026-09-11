@@ -5,7 +5,7 @@ import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
-import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { detectPlatform } from '@/lib/platform'
@@ -102,6 +102,12 @@ export function useGlobalShortcuts(): void {
   }, [])
 
   const openFile = useCallback(async () => {
+    // A tool that needs bytes runs its own dialog. Reading the file as text
+    // here would reject a PNG before the tool ever sees it.
+    if (toolOwnsOpenFile(activeTool)) {
+      dispatchToolAction({ type: 'open-file-dialog' })
+      return
+    }
     if (!supportsToolFileAction(activeTool, 'open-file')) {
       addToast('Open File is not supported by the active tool', 'error')
       return
