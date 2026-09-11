@@ -112,10 +112,17 @@ export function useImageDrop(
       )
     }
 
+    // The hit test awaits, so an `over` that started first can finish last and switch the overlay
+    // back on after a `leave` already cleared it. The counter keeps the newest event in charge.
+    let eventId = 0
+
     webview
       .onDragDropEvent(async (event) => {
+        const thisEvent = ++eventId
+        const isCurrentEvent = () => !cancelled && thisEvent === eventId
         if (event.payload.type === 'over') {
-          setIsDraggingImage(await isInside(event.payload))
+          const inside = await isInside(event.payload)
+          if (isCurrentEvent()) setIsDraggingImage(inside)
         } else if (event.payload.type === 'leave') {
           setIsDraggingImage(false)
         } else if (event.payload.type === 'drop') {
@@ -124,9 +131,6 @@ export function useImageDrop(
           if (cancelled) return
           const paths = event.payload.paths
           if (paths.length === 0) return
-
-          const editor = editorRefLocal.current.current
-          if (!editor) return
 
           const insertions: string[] = []
           const textPaths: string[] = []
@@ -164,6 +168,11 @@ export function useImageDrop(
           }
 
           if (insertions.length === 0) return
+
+          // Only an image needs the editor. A document opens through `onTextFile` above, which
+          // works in preview-only mode where no editor is focused.
+          const editor = editorRefLocal.current.current
+          if (!editor) return
 
           const model = editor.getModel()
           const position = editor.getPosition()

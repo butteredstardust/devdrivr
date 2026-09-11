@@ -58,14 +58,23 @@ export function useNativeFileDrop(
     let unlisten: (() => void) | undefined
     const webview = getCurrentWebviewWindow()
 
-    // Read the scale factor once, when the listener starts. Asking for it inside
-    // the handler lets a later `leave` finish before an earlier `over`, which
-    // leaves the overlay on after the pointer goes. Fall back to 1 if the window
-    // cannot report it; the hit test then uses physical pixels.
+    // Every handler awaits, so two events can finish in the order their reads complete rather than
+    // the order the pointer produced them. Two counters keep the newest event in charge: `eventId`
+    // for the overlay, so a slow `over` cannot switch it back on after a `leave`, and `dropId` for
+    // the file, so a slow big file cannot replace a small one dropped after it. The overlay needs
+    // its own counter because a drag that starts while a drop is still reading must not cancel
+    // that read.
+    let eventId = 0
+    let dropId = 0
+
+    // Read the scale factor once, when the listener starts. Fall back to 1 if the window cannot
+    // report it; the hit test then uses physical pixels.
     const scaleFactor = webview.scaleFactor().catch(() => 1)
 
     webview
       .onDragDropEvent(async (event) => {
+        const thisEvent = ++eventId
+        const isCurrentEvent = () => !cancelled && thisEvent === eventId
         try {
           if (cancelled) return
           if (event.payload.type === 'leave') {
@@ -76,7 +85,6 @@ export function useNativeFileDrop(
           const container = containerRef.current
           const position = 'position' in event.payload ? event.payload.position : null
           const factor = await scaleFactor
-          if (cancelled) return
           const logicalPosition = position
             ? { x: position.x / factor, y: position.y / factor }
             : null
@@ -85,13 +93,14 @@ export function useNativeFileDrop(
           )
 
           if (event.payload.type === 'over') {
-            setIsDragging(withinContainer)
+            if (isCurrentEvent()) setIsDragging(withinContainer)
             return
           }
 
-          setIsDragging(false)
-          if (!withinContainer || event.payload.type !== 'drop') return
+          if (isCurrentEvent()) setIsDragging(false)
+          if (cancelled || !withinContainer || event.payload.type !== 'drop') return
 
+          const thisDrop = ++dropId
           // Take only the first accepted file in one drop.
           const { accept, maxBytes, onTooLarge } = callbacksRef.current
           const path = event.payload.paths.find((candidate) => accept?.(candidate) ?? true)
@@ -99,7 +108,7 @@ export function useNativeFileDrop(
 
           if (maxBytes !== undefined) {
             const size = (await stat(path)).size
-            if (cancelled) return
+            if (cancelled || thisDrop !== dropId) return
             if (size > maxBytes) {
               onTooLarge?.(path, size)
               return
@@ -107,7 +116,7 @@ export function useNativeFileDrop(
           }
 
           const bytes = await readFile(path)
-          if (cancelled) return
+          if (cancelled || thisDrop !== dropId) return
           const file = new File([bytes], filenameFromPath(path), { type: mimeTypeFromPath(path) })
           callbacksRef.current.onFile(file, path)
         } catch (error) {

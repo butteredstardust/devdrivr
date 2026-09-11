@@ -48,7 +48,12 @@ export const SIGNALS = {
   rawSubscribe: /\bsubscribeToolAction\s*[<(]/,
   // The raw Tauri listener, or either hook that wraps it. Detection is textual, so a new wrapper
   // must be named here or every tool using it reports as having no drop handler.
-  nativeDrop: /\b(?:onDragDropEvent|useNativeFileDrop|useImageFileDrop)\b/,
+  //
+  // The trailing `(` demands a call. A bare name matches an import, a prose mention or the hook's
+  // own declaration, so without it `owns-drop-unhandled` stays silent after a handler is deleted
+  // and only its import is left behind. The lookbehind drops the declaration of a wrapper that
+  // lives inside a tool directory.
+  nativeDrop: /(?<!function\s)\b(?:onDragDropEvent|useNativeFileDrop|useImageFileDrop)\s*\(/,
   htmlDrop: /\bonDrop\s*[=:]/,
   // Only the events another region competes for. A `mousedown` click-outside handler that
   // hit-tests its own ref is correct and must not be reported, or the report becomes noise.

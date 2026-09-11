@@ -87,6 +87,15 @@ describe('tool contract rules', () => {
     it('flags a flag with no listener', () => {
       expect(rulesFor({ ownsFileDrop: true }, 'const x = 1')).toContain('owns-drop-unhandled')
     })
+
+    // Deleting the handler usually leaves the import behind. A signal that accepts a bare name
+    // stays green through exactly the change the rule exists to catch.
+    it('does not take an import or a prose mention for a handler', () => {
+      const source = `import { useNativeFileDrop } from '@/hooks/useNativeFileDrop'
+        // useNativeFileDrop answers the drop.
+        const x = 1`
+      expect(rulesFor({ ownsFileDrop: true }, source)).toContain('owns-drop-unhandled')
+    })
   })
 
   describe('ungated-global-listener', () => {

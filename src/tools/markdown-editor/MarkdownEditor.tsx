@@ -102,7 +102,9 @@ export default function MarkdownEditor() {
   const pendingCaretOffsetRef = useRef<number | null>(null)
   const [mountedEditor, setMountedEditor] = useState<EditorInstance | null>(null)
   const [activeSourceLine, setActiveSourceLine] = useState<number | null>(null)
-  const editorContainerRef = useRef<HTMLDivElement>(null)
+  // The tool owns every drop inside it, so the hit test covers the whole tool, not the editor half.
+  // In preview-only mode there is no editor pane under the pointer at all.
+  const toolRootRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
@@ -263,7 +265,7 @@ export default function MarkdownEditor() {
   )
   const { isDraggingImage } = useImageDrop(
     editorRef,
-    editorContainerRef,
+    toolRootRef,
     handleDroppedTextFile,
     handleDropError
   )
@@ -665,7 +667,7 @@ export default function MarkdownEditor() {
   // Each pane renders identically whether it's alone or beside the other, so it's defined once
   // here and placed by the layout below rather than written out under both branches.
   const editorPane = (
-    <div ref={editorContainerRef} className="relative min-h-0 flex-1 overflow-hidden">
+    <div className="min-h-0 flex-1 overflow-hidden">
       <Editor
         theme={monacoTheme}
         language="markdown"
@@ -674,14 +676,6 @@ export default function MarkdownEditor() {
         onMount={handleEditorMount}
         options={monacoOptions}
       />
-      {/* Image drop overlay */}
-      {isDraggingImage && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-surface)]/80 backdrop-blur-sm">
-          <div className="rounded-lg border-2 border-dashed border-[var(--color-accent)] px-6 py-4 text-sm text-[var(--color-accent)]">
-            Drop image to embed
-          </div>
-        </div>
-      )}
     </div>
   )
 
@@ -706,7 +700,7 @@ export default function MarkdownEditor() {
   )
 
   return (
-    <ToolLayout fullBleed>
+    <ToolLayout fullBleed ref={toolRootRef} className="relative">
       {/* No seam: nothing stacks under the toolbar inside this header, so a border here would be
           the single-row divider the toolbar primitive dropped, just re-expressed on the wrapper. */}
       <header className="bg-[var(--color-surface)]">
@@ -1053,6 +1047,16 @@ export default function MarkdownEditor() {
         )}
         <span className="ml-auto capitalize">{state.mode} view</span>
       </footer>
+
+      {/* One drop has two meanings, and the `over` event names no path, so the overlay states both.
+          It covers the whole tool because the tool answers a drop on either pane. */}
+      {isDraggingImage && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-surface)]/80 backdrop-blur-sm">
+          <div className="rounded-lg border-2 border-dashed border-[var(--color-accent)] px-6 py-4 text-sm text-[var(--color-accent)]">
+            Drop an image to embed it, or a document to open it
+          </div>
+        </div>
+      )}
 
       {pendingDocument && (
         <Dialog

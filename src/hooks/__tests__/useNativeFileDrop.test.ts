@@ -122,6 +122,33 @@ describe('useNativeFileDrop', () => {
     expect(onFile).not.toHaveBeenCalled()
   })
 
+  // Two drops in quick succession finish in the order their reads complete. Without the counter a
+  // slow first file replaces the file the user dropped second.
+  it('keeps the newest drop when an earlier read finishes last', async () => {
+    type Bytes = Awaited<ReturnType<typeof readFile>>
+    const resolvers: Array<(bytes: Bytes) => void> = []
+    vi.mocked(readFile).mockImplementation(
+      () => new Promise<Bytes>((resolve) => resolvers.push(resolve))
+    )
+    const onFile = vi.fn()
+    render({ onFile, onError: vi.fn() })
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    drop({ type: 'drop', paths: ['/tmp/slow.png'], position: { x: 20, y: 20 } })
+    drop({ type: 'drop', paths: ['/tmp/fast.png'], position: { x: 20, y: 20 } })
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+
+    // The second drop lands first, then the first drop's read finally returns.
+    await act(async () => {
+      resolvers[1]?.(new Uint8Array([1]))
+      resolvers[0]?.(new Uint8Array([2]))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(onFile).toHaveBeenCalledOnce())
+    expect((onFile.mock.calls[0] as [File, string])[1]).toBe('/tmp/fast.png')
+  })
+
   it('reports a read failure', async () => {
     vi.mocked(readFile).mockRejectedValue(new Error('Permission denied'))
     const onError = vi.fn()

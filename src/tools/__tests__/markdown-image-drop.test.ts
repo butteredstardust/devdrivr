@@ -64,8 +64,11 @@ describe('markdown editor file drop', () => {
     } as unknown as ReturnType<typeof getCurrentWebviewWindow>)
   })
 
-  const render = (onTextFile = vi.fn(), onError = vi.fn()) => {
-    const editorRef = makeEditorRef()
+  const render = (
+    onTextFile = vi.fn(),
+    onError = vi.fn(),
+    editorRef: { current: unknown } = makeEditorRef()
+  ) => {
     const containerRef = makeContainerRef()
     renderHook(() =>
       useImageDrop(
@@ -112,6 +115,43 @@ describe('markdown editor file drop', () => {
     drop(['/tmp/archive.zip'])
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith('Unsupported binary file'))
+  })
+
+  // The tool owns every drop inside it, including one on the preview half where no editor is
+  // focused. Requiring an editor there dropped the document on the floor.
+  it('opens a text file with no editor attached', async () => {
+    vi.mocked(readSupportedTextFile).mockResolvedValue('# Notes')
+    const { onTextFile } = render(vi.fn(), vi.fn(), { current: null })
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    drop(['/tmp/notes.md'])
+
+    await waitFor(() =>
+      expect(onTextFile).toHaveBeenCalledWith('# Notes', 'notes.md', '/tmp/notes.md')
+    )
+  })
+
+  // The hit test awaits, so an `over` that started first can finish last. Without the counter it
+  // switches the overlay back on over a window the pointer has already left.
+  it('does not let a late over event undo a leave', async () => {
+    const containerRef = makeContainerRef()
+    const { result } = renderHook(() =>
+      useImageDrop(
+        makeEditorRef() as unknown as Parameters<typeof useImageDrop>[0],
+        containerRef,
+        vi.fn(),
+        vi.fn()
+      )
+    )
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    await act(async () => {
+      mocks.eventHandler?.({ payload: { type: 'over', position: { x: 20, y: 20 } } })
+      mocks.eventHandler?.({ payload: { type: 'leave' } })
+      await Promise.resolve()
+    })
+
+    expect(result.current.isDraggingImage).toBe(false)
   })
 
   // One drop of both kinds is an image drop. Opening a document would throw the images away.
