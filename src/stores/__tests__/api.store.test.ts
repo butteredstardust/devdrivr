@@ -277,7 +277,7 @@ describe('API store persistence', () => {
       warnings: [],
     })
 
-    expect(result).toEqual({ collections: 2, requests: 2 })
+    expect(result).toEqual({ environments: 0, collections: 2, requests: 2 })
     expect(saveApiImport).toHaveBeenCalledOnce()
     const [collections, requests] = vi.mocked(saveApiImport).mock.calls[0]!
     expect(collections.map(({ id, name }) => ({ id, name }))).toEqual([
@@ -343,7 +343,7 @@ describe('API store persistence', () => {
       warnings: [],
     })
 
-    expect(result).toEqual({ collections: 2, requests: 1 })
+    expect(result).toEqual({ environments: 0, collections: 2, requests: 1 })
     const [collections, requests] = vi.mocked(saveApiImport).mock.calls[0]!
     expect(collections).toEqual([
       expect.objectContaining({
@@ -363,6 +363,37 @@ describe('API store persistence', () => {
         collectionId: 'api-requests-inbox',
       }),
     ])
+  })
+
+  it('imports environments and maps the active environment in the same batch', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValueOnce('00000000-0000-4000-8000-000000000031')
+
+    const result = await useApiStore.getState().importApiData({
+      format: 'devdrivr-json',
+      sourceTitle: 'Environment round trip',
+      collections: [],
+      requests: [],
+      environments: [
+        { key: 'production', name: 'Production', variables: { baseUrl: 'https://example.com' } },
+      ],
+      activeEnvironmentKey: 'production',
+      warnings: [],
+    })
+
+    expect(result).toEqual({ environments: 1, collections: 0, requests: 0 })
+    expect(saveApiImport).toHaveBeenCalledWith(
+      [],
+      [],
+      [
+        expect.objectContaining({
+          id: '00000000-0000-4000-8000-000000000031',
+          name: 'Production',
+          variables: { baseUrl: 'https://example.com' },
+        }),
+      ],
+      '00000000-0000-4000-8000-000000000031'
+    )
+    expect(useApiStore.getState().activeEnvironmentId).toBe('00000000-0000-4000-8000-000000000031')
   })
 })
 

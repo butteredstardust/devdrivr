@@ -7,8 +7,9 @@ import {
   permanentlyDeleteSnippet,
   restoreSnippet,
   saveSnippet,
+  saveSnippetImport,
 } from '@/lib/db'
-import type { Snippet } from '@/types/models'
+import type { ResourceFolder, Snippet } from '@/types/models'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 // This file did not exist before — it covers only the init-rejection-recovery path
@@ -22,6 +23,12 @@ vi.mock('@/lib/db', () => ({
   restoreSnippet: vi.fn(),
   permanentlyDeleteSnippet: vi.fn(),
   clearAllSnippets: vi.fn(),
+  saveSnippetImport: vi.fn(),
+}))
+
+const refreshFolders = vi.hoisted(() => vi.fn())
+vi.mock('@/stores/folders.store', () => ({
+  useFoldersStore: { getState: () => ({ refresh: refreshFolders }) },
 }))
 
 vi.mock('@/stores/ui.store', () => ({
@@ -39,6 +46,8 @@ describe('snippets store initialization', () => {
     vi.mocked(restoreSnippet).mockResolvedValue(undefined)
     vi.mocked(permanentlyDeleteSnippet).mockResolvedValue(undefined)
     vi.mocked(clearAllSnippets).mockResolvedValue(undefined)
+    vi.mocked(saveSnippetImport).mockResolvedValue(undefined)
+    refreshFolders.mockResolvedValue(undefined)
   })
 
   it('init() clears the cached promise on rejection so a later call retries', async () => {
@@ -72,6 +81,36 @@ describe('snippets store initialization', () => {
     await Promise.all([p1, p2])
 
     expect(loadSnippets).toHaveBeenCalledOnce()
+  })
+
+  it('imports snippets and folders atomically through the store before refreshing', async () => {
+    const { useSnippetsStore } = await import('../snippets.store')
+    const folder = {
+      id: 'folder-1',
+      name: 'Imported',
+      parentId: null,
+      kind: 'snippets',
+      sortOrder: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    } satisfies ResourceFolder
+    const snippet = {
+      id: 'snippet-1',
+      title: 'Imported',
+      content: 'value',
+      language: 'text',
+      tags: [],
+      folder: 'Imported',
+      folderId: folder.id,
+      createdAt: 1,
+      updatedAt: 1,
+    } satisfies Snippet
+
+    await useSnippetsStore.getState().importBatch([folder], [snippet])
+
+    expect(saveSnippetImport).toHaveBeenCalledWith([folder], [snippet])
+    expect(loadSnippets).toHaveBeenCalled()
+    expect(refreshFolders).toHaveBeenCalledOnce()
   })
 
   it('flushes the latest edit before moving a snippet to durable Trash', async () => {

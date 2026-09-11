@@ -5,7 +5,10 @@ import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
 import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
-import { parsePromptTemplateImport } from '@/tools/prompt-templates/template-import'
+import {
+  parsePromptTemplateImport,
+  serializePromptTemplateExport,
+} from '@/tools/prompt-templates/template-import'
 import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
 
 const originalClipboard = navigator.clipboard
@@ -75,6 +78,30 @@ describe('prompt template utilities', () => {
     expect(drafts).toHaveLength(1)
     expect(drafts[0]!.variables.map((variable) => variable.name)).toEqual(['code', 'context'])
     expect(drafts[0]!.variables[0]!.type).toBe('textarea')
+  })
+
+  it('round-trips the versioned export envelope and accepts legacy arrays', () => {
+    const draft = {
+      name: 'Portable prompt',
+      description: '',
+      category: 'testing' as const,
+      tags: [],
+      prompt: 'Test {{code}}',
+      variables: [],
+      estimatedTokens: 3,
+      optimizedFor: 'Generic' as const,
+      version: '1.0.0',
+      tips: [],
+    }
+    const serialized = serializePromptTemplateExport([draft])
+    expect(JSON.parse(serialized)).toMatchObject({
+      format: 'devdrivr-prompt-templates',
+      version: 1,
+      exportedAt: expect.any(String),
+      templates: [draft],
+    })
+    expect(parsePromptTemplateImport(serialized)).toHaveLength(1)
+    expect(parsePromptTemplateImport(JSON.stringify([draft]))).toHaveLength(1)
   })
 
   it('rejects invalid import JSON', () => {

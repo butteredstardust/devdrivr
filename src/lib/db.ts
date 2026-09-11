@@ -115,6 +115,13 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
   )
 }
 
+function buildSettingStatement<T>(key: string, value: T): BatchStatement {
+  return {
+    sql: 'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2',
+    params: [key, JSON.stringify(value)],
+  }
+}
+
 // --- Tool State ---
 
 export async function loadToolState(toolId: string): Promise<Record<string, unknown> | null> {
@@ -385,46 +392,57 @@ async function loadSnippetsByTrash(trashed: boolean): Promise<Snippet[]> {
     })
 }
 
-export async function saveSnippet(snippet: Snippet): Promise<void> {
+function buildSaveSnippetStatements(snippet: Snippet): BatchStatement[] {
   const normalized = normalizeSnippet(snippet)
-  await runBatch(
-    [
-      {
-        sql: `INSERT INTO snippets (id, title, content, language, description, tags, folder, folder_id, favorite, created_at, updated_at, deleted_at)
+  return [
+    {
+      sql: `INSERT INTO snippets (id, title, content, language, description, tags, folder, folder_id, favorite, created_at, updated_at, deleted_at)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           ON CONFLICT(id) DO UPDATE SET title=$2, content=$3, language=$4, description=$5, tags=$6, folder=$7, folder_id=$8, favorite=$9, updated_at=$11`,
-        params: [
-          normalized.id,
-          normalized.title,
-          normalized.content,
-          normalized.language,
-          normalized.description ?? '',
-          JSON.stringify(normalized.tags),
-          normalized.folder,
-          normalized.folderId ?? 'snippets-inbox',
-          normalized.favorite ? 1 : 0,
-          normalized.createdAt,
-          normalized.updatedAt,
-          normalized.deletedAt ?? null,
-        ],
-      },
-      { sql: 'DELETE FROM snippet_fragments WHERE snippet_id = $1', params: [normalized.id] },
-      ...normalized.fragments.map((fragment) => ({
-        sql: `INSERT INTO snippet_fragments
+      params: [
+        normalized.id,
+        normalized.title,
+        normalized.content,
+        normalized.language,
+        normalized.description ?? '',
+        JSON.stringify(normalized.tags),
+        normalized.folder,
+        normalized.folderId ?? 'snippets-inbox',
+        normalized.favorite ? 1 : 0,
+        normalized.createdAt,
+        normalized.updatedAt,
+        normalized.deletedAt ?? null,
+      ],
+    },
+    { sql: 'DELETE FROM snippet_fragments WHERE snippet_id = $1', params: [normalized.id] },
+    ...normalized.fragments.map((fragment) => ({
+      sql: `INSERT INTO snippet_fragments
           (id, snippet_id, name, content, language, sort_order, created_at, updated_at)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        params: [
-          fragment.id,
-          normalized.id,
-          fragment.name,
-          fragment.content,
-          fragment.language,
-          fragment.sortOrder,
-          fragment.createdAt,
-          fragment.updatedAt,
-        ],
-      })),
-    ],
+      params: [
+        fragment.id,
+        normalized.id,
+        fragment.name,
+        fragment.content,
+        fragment.language,
+        fragment.sortOrder,
+        fragment.createdAt,
+        fragment.updatedAt,
+      ],
+    })),
+  ]
+}
+
+export async function saveSnippet(snippet: Snippet): Promise<void> {
+  await runBatch(buildSaveSnippetStatements(snippet), true)
+}
+
+export async function saveSnippetImport(
+  folders: ResourceFolder[],
+  snippets: Snippet[]
+): Promise<void> {
+  await runBatch(
+    [...folders.map(buildSaveResourceFolder), ...snippets.flatMap(buildSaveSnippetStatements)],
     true
   )
 }
@@ -1038,15 +1056,18 @@ export async function loadApiEnvironments(): Promise<ApiEnvironment[]> {
     .filter((x): x is ApiEnvironment => x !== null)
 }
 
-export async function saveApiEnvironment(env: ApiEnvironment): Promise<void> {
-  await enqueueWrite((conn) =>
-    conn.execute(
-      `INSERT INTO api_environments (id, name, variables, created_at, updated_at)
+function buildSaveApiEnvironment(env: ApiEnvironment): BatchStatement {
+  return {
+    sql: `INSERT INTO api_environments (id, name, variables, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT(id) DO UPDATE SET name=$2, variables=$3, updated_at=$5`,
-      [env.id, env.name, JSON.stringify(env.variables), env.createdAt, env.updatedAt]
-    )
-  )
+    params: [env.id, env.name, JSON.stringify(env.variables), env.createdAt, env.updatedAt],
+  }
+}
+
+export async function saveApiEnvironment(env: ApiEnvironment): Promise<void> {
+  const statement = buildSaveApiEnvironment(env)
+  await enqueueWrite((conn) => conn.execute(statement.sql, statement.params))
 }
 
 export async function deleteApiEnvironment(id: string): Promise<void> {
@@ -1184,13 +1205,19 @@ export async function saveApiRequest(req: ApiRequest): Promise<void> {
 
 export async function saveApiImport(
   collections: ApiCollection[],
-  requests: ApiRequest[]
+  requests: ApiRequest[],
+  environments: ApiEnvironment[] = [],
+  activeEnvironmentId?: string | null
 ): Promise<void> {
   // Collections first: api_requests.collection_id references them.
   await runBatch([
+    ...environments.map(buildSaveApiEnvironment),
     ...collections.map(buildApiCollectionFolder),
     ...collections.map(buildSaveApiCollection),
     ...requests.map(buildSaveApiRequest),
+    ...(activeEnvironmentId !== undefined
+      ? [buildSettingStatement('apiActiveEnvironmentId', activeEnvironmentId)]
+      : []),
   ])
 }
 

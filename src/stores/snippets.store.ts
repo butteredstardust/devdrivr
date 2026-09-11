@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type { Snippet, SnippetFragment } from '@/types/models'
+import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
 import {
   loadSnippets,
   loadTrashedSnippets,
@@ -9,8 +9,10 @@ import {
   restoreSnippet,
   permanentlyDeleteSnippet,
   clearAllSnippets,
+  saveSnippetImport,
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
+import { useFoldersStore } from '@/stores/folders.store'
 import { normalizeSnippet } from '@/lib/snippet-fragments'
 
 type SnippetsStore = {
@@ -55,6 +57,7 @@ type SnippetsStore = {
   restore: (id: string) => Promise<void>
   permanentlyDelete: (id: string) => Promise<void>
   clearAll: () => Promise<void>
+  importBatch: (folders: ResourceFolder[], snippets: Snippet[]) => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -333,5 +336,10 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       flushingForClear = false
       clearing = false
     }
+  },
+
+  importBatch: async (folders, snippets) => {
+    await saveSnippetImport(folders, snippets)
+    await Promise.all([get().refresh(), useFoldersStore.getState().refresh()])
   },
 }))

@@ -340,6 +340,43 @@ type User {
     })
   })
 
+  it('round-trips version 3 environments and active environment identity', () => {
+    const result = importApiSpec({
+      content: JSON.stringify({
+        format: 'devdrivr-api',
+        version: 3,
+        folders: [],
+        requests: [],
+        environments: [
+          { key: 'env-1', name: 'Production', variables: { baseUrl: 'https://example.com' } },
+        ],
+        activeEnvironmentKey: 'env-1',
+      }),
+    })
+
+    expect(result.environments).toEqual([
+      { key: 'env-1', name: 'Production', variables: { baseUrl: 'https://example.com' } },
+    ])
+    expect(result.activeEnvironmentKey).toBe('env-1')
+  })
+
+  it('caps version 3 environment imports', () => {
+    expect(() =>
+      importApiSpec({
+        content: JSON.stringify({
+          version: 3,
+          folders: [],
+          requests: [],
+          environments: Array.from({ length: 1001 }, (_, index) => ({
+            key: `env-${index}`,
+            name: `Environment ${index}`,
+            variables: {},
+          })),
+        }),
+      })
+    ).toThrow('more than 1000 environments')
+  })
+
   it('groups devdrivr exports into multiple collections without trusting persisted IDs', () => {
     const result = importApiSpec({
       content: JSON.stringify([

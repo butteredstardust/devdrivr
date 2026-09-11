@@ -90,6 +90,24 @@ describe('settings store initialization', () => {
 })
 
 describe('settings store updates', () => {
+  it('imports a validated patch with one write and leaves state unchanged on failure', async () => {
+    ;(setSetting as any).mockRejectedValueOnce(new Error('disk full'))
+
+    await expect(
+      useSettingsStore.getState().importSettings({ theme: 'midnight', editorFontSize: 18 })
+    ).rejects.toThrow('disk full')
+    expect(useSettingsStore.getState().theme).toBe(DEFAULT_SETTINGS.theme)
+    expect(useSettingsStore.getState().editorFontSize).toBe(DEFAULT_SETTINGS.editorFontSize)
+    ;(setSetting as any).mockResolvedValueOnce(undefined)
+    await useSettingsStore.getState().importSettings({ theme: 'midnight', editorFontSize: 18 })
+    expect(setSetting).toHaveBeenLastCalledWith('appSettings', {
+      ...DEFAULT_SETTINGS,
+      theme: 'midnight',
+      editorFontSize: 18,
+    })
+    expect(useSettingsStore.getState().theme).toBe('midnight')
+  })
+
   it('update() applies the change to store state immediately (optimistic)', async () => {
     ;(setSetting as any).mockResolvedValue(undefined)
 

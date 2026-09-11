@@ -8,6 +8,7 @@ type SettingsStore = AppSettings & {
   initialized: boolean
   init: () => Promise<void>
   update: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<boolean>
+  importSettings: (settings: Partial<AppSettings>) => Promise<void>
   toggleTheme: () => Promise<void>
 }
 
@@ -121,6 +122,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       useUiStore.getState().addToast('Failed to save setting: ' + msg, 'error')
       return false
     }
+  },
+
+  importSettings: async (imported) => {
+    const merged = { ...pickAppSettings(get()), ...imported }
+    await setSetting('appSettings', merged)
+    set(merged)
+    applyTheme(merged.theme)
   },
 
   toggleTheme: async () => {

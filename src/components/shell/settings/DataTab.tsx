@@ -6,8 +6,7 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { type AppSettings, DEFAULT_SETTINGS, type Theme } from '@/types/models'
-import { TOOLS } from '@/app/tool-registry'
+import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
 import {
   ArrowCounterClockwiseIcon,
   DownloadSimpleIcon,
@@ -17,30 +16,14 @@ import {
   UploadSimpleIcon,
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { ALL_THEMES } from '@/lib/theme'
 import { Input } from '@/components/shared/Input'
-import { clampSidebarWidth } from '@/lib/shell-layout'
+import { parseSettingsImport } from '@/lib/settings-transfer'
 import {
   SettingRow,
   SelectInput,
   DangerButton,
   StatCard,
 } from '@/components/shell/settings/SettingControls'
-
-/**
- * Editor toggles the settings import validates as a group. They are all plain
- * booleans with no further constraint, so listing them beats another nine
- * near-identical `if (typeof obj[...] === 'boolean')` lines.
- */
-const BOOLEAN_EDITOR_SETTINGS = [
-  'editorWordWrap',
-  'editorMinimap',
-  'editorLineNumbers',
-  'editorFolding',
-  'editorStickyScroll',
-  'editorInsertSpaces',
-  'editorBracketPairColorization',
-] as const satisfies readonly (keyof AppSettings)[]
 
 const POPULAR_TIMEZONES = [
   'UTC',
@@ -128,133 +111,21 @@ export function DataTab() {
   }, [addToast])
 
   const handleImportSettings = useCallback(async () => {
-    const validThemes = new Set<Theme>(['system', ...ALL_THEMES])
-    const validKeybindings = new Set<AppSettings['editorKeybindingMode']>(['standard'])
-    const validGroups = new Set<AppSettings['collapsedSidebarGroups'][number]>([
-      'code',
-      'data',
-      'web',
-      'convert',
-      'test',
-      'network',
-      'write',
-    ])
-    const validToolIds = new Set(TOOLS.map((tool) => tool.id))
-    const isToolGroup = (id: unknown): id is AppSettings['collapsedSidebarGroups'][number] =>
-      typeof id === 'string' && validGroups.has(id as AppSettings['collapsedSidebarGroups'][number])
-
     try {
       const text = await navigator.clipboard.readText()
-      const parsed: unknown = JSON.parse(text)
-      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        addToast('Invalid settings JSON', 'error')
-        return
-      }
-      const obj = parsed as Record<string, unknown>
-      const su = useSettingsStore.getState().update
-      // Validated enum fields
-      if (typeof obj['theme'] === 'string' && validThemes.has(obj['theme'] as Theme))
-        await su('theme', obj['theme'] as Theme)
-      if (
-        typeof obj['editorKeybindingMode'] === 'string' &&
-        validKeybindings.has(obj['editorKeybindingMode'] as AppSettings['editorKeybindingMode'])
-      )
-        await su(
-          'editorKeybindingMode',
-          obj['editorKeybindingMode'] as AppSettings['editorKeybindingMode']
-        )
-      if (
-        typeof obj['editorTheme'] === 'string' &&
-        ['devdrivr-dark', 'devdrivr-light', 'match-app'].includes(obj['editorTheme'])
-      )
-        await su('editorTheme', obj['editorTheme'] as AppSettings['editorTheme'])
-      if (
-        typeof obj['editorRenderWhitespace'] === 'string' &&
-        ['none', 'boundary', 'all'].includes(obj['editorRenderWhitespace'])
-      )
-        await su(
-          'editorRenderWhitespace',
-          obj['editorRenderWhitespace'] as AppSettings['editorRenderWhitespace']
-        )
-      if (
-        typeof obj['editorCursorStyle'] === 'string' &&
-        ['line', 'block', 'underline'].includes(obj['editorCursorStyle'])
-      )
-        await su('editorCursorStyle', obj['editorCursorStyle'] as AppSettings['editorCursorStyle'])
-      // Boolean fields
-      if (typeof obj['alwaysOnTop'] === 'boolean') await su('alwaysOnTop', obj['alwaysOnTop'])
-      if (obj['shellStyle'] === 'flush' || obj['shellStyle'] === 'floating') {
-        await su('shellStyle', obj['shellStyle'])
-      }
-      if (typeof obj['formatOnPaste'] === 'boolean') await su('formatOnPaste', obj['formatOnPaste'])
-      for (const key of BOOLEAN_EDITOR_SETTINGS) {
-        if (typeof obj[key] === 'boolean') await su(key, obj[key])
-      }
-      if (typeof obj['checkForUpdatesAutomatically'] === 'boolean')
-        await su('checkForUpdatesAutomatically', obj['checkForUpdatesAutomatically'])
-      if (typeof obj['downloadUpdatesAutomatically'] === 'boolean')
-        await su('downloadUpdatesAutomatically', obj['downloadUpdatesAutomatically'])
-      if (typeof obj['notifyWhenUpdateAvailable'] === 'boolean')
-        await su('notifyWhenUpdateAvailable', obj['notifyWhenUpdateAvailable'])
-      if (typeof obj['sidebarCollapsed'] === 'boolean')
-        await su('sidebarCollapsed', obj['sidebarCollapsed'])
-      if (typeof obj['notesDrawerOpen'] === 'boolean')
-        await su('notesDrawerOpen', obj['notesDrawerOpen'])
-      // Number fields
-      if (typeof obj['defaultIndentSize'] === 'number')
-        await su('defaultIndentSize', obj['defaultIndentSize'])
-      if (typeof obj['editorFontSize'] === 'number')
-        await su('editorFontSize', obj['editorFontSize'])
-      if (typeof obj['historyRetentionPerTool'] === 'number')
-        await su('historyRetentionPerTool', obj['historyRetentionPerTool'])
-      if (typeof obj['notesDrawerWidth'] === 'number')
-        await su('notesDrawerWidth', obj['notesDrawerWidth'])
-      if (typeof obj['sidebarWidth'] === 'number' && Number.isFinite(obj['sidebarWidth'])) {
-        await su('sidebarWidth', clampSidebarWidth(obj['sidebarWidth']))
-      }
-      // String fields
-      const validFonts = new Set<AppSettings['editorFont']>([
-        'JetBrains Mono',
-        'Fira Code',
-        'Cascadia Code',
-        'Source Code Pro',
-      ])
-      if (
-        typeof obj['editorFont'] === 'string' &&
-        validFonts.has(obj['editorFont'] as AppSettings['editorFont'])
-      )
-        await su('editorFont', obj['editorFont'] as AppSettings['editorFont'])
-      if (typeof obj['defaultTimezone'] === 'string')
-        await su('defaultTimezone', obj['defaultTimezone'])
-      if (Array.isArray(obj['collapsedSidebarGroups'])) {
-        await su('collapsedSidebarGroups', obj['collapsedSidebarGroups'].filter(isToolGroup))
-      }
-      if (Array.isArray(obj['openedSidebarGroups'])) {
-        await su('openedSidebarGroups', obj['openedSidebarGroups'].filter(isToolGroup))
-      }
-      if (Array.isArray(obj['pinnedToolIds'])) {
-        await su(
-          'pinnedToolIds',
-          obj['pinnedToolIds'].filter(
-            (id): id is string => typeof id === 'string' && validToolIds.has(id)
-          )
-        )
-      }
+      const imported = parseSettingsImport(text)
+      await useSettingsStore.getState().importSettings(imported)
       // Apply alwaysOnTop to the live Tauri window
       const finalOnTop = useSettingsStore.getState().alwaysOnTop
       await getCurrentWindow().setAlwaysOnTop(finalOnTop)
       addToast('Settings imported', 'success')
-    } catch {
-      addToast('Failed to import settings', 'error')
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to import settings', 'error')
     }
   }, [addToast])
 
   const handleResetDefaults = useCallback(async () => {
-    const settingsUpdate = useSettingsStore.getState().update
-    const keys = Object.keys(DEFAULT_SETTINGS) as Array<keyof AppSettings>
-    for (const key of keys) {
-      await settingsUpdate(key, DEFAULT_SETTINGS[key])
-    }
+    await useSettingsStore.getState().importSettings(DEFAULT_SETTINGS)
     await getCurrentWindow().setAlwaysOnTop(false)
   }, [])
 

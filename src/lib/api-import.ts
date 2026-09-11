@@ -23,6 +23,10 @@ import type {
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
+export const MAX_API_IMPORT_BYTES = 20 * 1024 * 1024
+const MAX_API_IMPORT_REQUESTS = 10_000
+const MAX_API_IMPORT_COLLECTIONS = 5_000
+const MAX_API_IMPORT_ENVIRONMENTS = 1_000
 
 type HttpMethod = (typeof HTTP_METHODS)[number]
 type PlainRecord = Record<string, unknown>
@@ -48,6 +52,9 @@ const DEFAULT_HEADER: ApiHeader = {
 }
 
 export function importApiSpec(input: SourceInput): ApiImportResult {
+  if (new TextEncoder().encode(input.content).length > MAX_API_IMPORT_BYTES) {
+    throw new Error('Import failed - input exceeds the 20 MB limit')
+  }
   const content = input.content.trim()
   if (!content) {
     throw new Error('Import failed - input is empty')
@@ -81,7 +88,8 @@ export function detectApiImportFormat(content: string, filename?: string): ApiIm
   if (Array.isArray(parsed)) return 'devdrivr-json'
   const root = asRecord(parsed)
   if (root) {
-    if (root['version'] === 2 && Array.isArray(root['requests'])) return 'devdrivr-json'
+    if ((root['version'] === 2 || root['version'] === 3) && Array.isArray(root['requests']))
+      return 'devdrivr-json'
     if (isPostmanCollection(root)) return 'postman'
     if (typeof root['openapi'] === 'string' || typeof root['swagger'] === 'string') return 'openapi'
     if (typeof root['asyncapi'] === 'string') return 'asyncapi'
@@ -106,11 +114,14 @@ function importDevdrivrJson(content: string): ApiImportResult {
   const builder = createBuilder('devdrivr-json', 'devdrivr Import')
   const envelope = asRecord(parsed)
   const items = Array.isArray(parsed) ? parsed : asArray(envelope?.['requests'])
-  if (!Array.isArray(parsed) && (!envelope || envelope['version'] !== 2)) {
-    throw new Error('Import failed - devdrivr JSON must be an array or version 2 library')
+  if (
+    !Array.isArray(parsed) &&
+    (!envelope || (envelope['version'] !== 2 && envelope['version'] !== 3))
+  ) {
+    throw new Error('Import failed - devdrivr JSON must be an array or version 2/3 library')
   }
 
-  if (envelope?.['version'] === 2) {
+  if (envelope?.['version'] === 2 || envelope?.['version'] === 3) {
     for (const item of asArray(envelope['folders'])) {
       const folder = asRecord(item)
       const key = asString(folder?.['key'])
@@ -156,7 +167,37 @@ function importDevdrivrJson(content: string): ApiImportResult {
     })
   }
 
-  return finishBuilder(builder)
+  const result = finishBuilder(builder)
+  if (envelope?.['version'] !== 3) return result
+
+  const environments = asArray(envelope['environments']).flatMap((item) => {
+    const environment = asRecord(item)
+    const key = asString(environment?.['key'])
+    const name = asString(environment?.['name'])
+    const rawVariables = asRecord(environment?.['variables'])
+    if (!key || !name || !rawVariables) {
+      builder.warnings.push('Skipped an invalid API environment')
+      return []
+    }
+    const variables = Object.fromEntries(
+      Object.entries(rawVariables).filter((entry): entry is [string, string] => {
+        return typeof entry[1] === 'string'
+      })
+    )
+    return [{ key, name, variables }]
+  })
+  if (environments.length > MAX_API_IMPORT_ENVIRONMENTS) {
+    throw new Error(`Import failed - more than ${MAX_API_IMPORT_ENVIRONMENTS} environments`)
+  }
+  if (new Set(environments.map((environment) => environment.key)).size !== environments.length) {
+    throw new Error('Import failed - duplicate API environment keys')
+  }
+  return {
+    ...result,
+    environments,
+    activeEnvironmentKey: asString(envelope['activeEnvironmentKey']),
+    warnings: builder.warnings,
+  }
 }
 
 function importPostman(content: string): ApiImportResult {
@@ -463,6 +504,12 @@ function createBuilder(format: ApiImportFormat, sourceTitle: string): ImportBuil
 }
 
 function finishBuilder(builder: ImportBuilder): ApiImportResult {
+  if (builder.requests.length > MAX_API_IMPORT_REQUESTS) {
+    throw new Error(`Import failed - more than ${MAX_API_IMPORT_REQUESTS} requests`)
+  }
+  if (builder.collections.size > MAX_API_IMPORT_COLLECTIONS) {
+    throw new Error(`Import failed - more than ${MAX_API_IMPORT_COLLECTIONS} collections`)
+  }
   return {
     format: builder.format,
     sourceTitle: builder.sourceTitle,

@@ -5,7 +5,7 @@ import { Dialog } from '@/components/shared/Dialog'
 import { Alert } from '@/components/shared/Alert'
 import { TextArea } from '@/components/shared/TextArea'
 import { openFileDialog } from '@/lib/file-io'
-import { importApiSpec } from '@/lib/api-import'
+import { importApiSpec, MAX_API_IMPORT_BYTES } from '@/lib/api-import'
 import type { ApiImportFormat, ApiImportResult } from '@/types/models'
 
 type Props = {
@@ -46,7 +46,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
 
   const handleOpenFile = useCallback(async () => {
     try {
-      const file = await openFileDialog()
+      const file = await openFileDialog({ maxBytes: MAX_API_IMPORT_BYTES })
       if (!file) return
       setContent(file.content)
       setFilename(file.filename)
@@ -62,7 +62,13 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
   }, [content, filename, parseContent])
 
   const handleImport = useCallback(async () => {
-    if (!preview || preview.requests.length === 0) return
+    if (
+      !preview ||
+      (preview.requests.length === 0 &&
+        preview.collections.length === 0 &&
+        (preview.environments?.length ?? 0) === 0)
+    )
+      return
     setImporting(true)
     setError(null)
     try {
@@ -96,9 +102,17 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
             onClick={() => {
               void handleImport()
             }}
-            disabled={!preview || preview.requests.length === 0 || importing}
+            disabled={
+              !preview ||
+              (preview.requests.length === 0 &&
+                preview.collections.length === 0 &&
+                (preview.environments?.length ?? 0) === 0) ||
+              importing
+            }
           >
-            {importing ? 'Importing...' : `Import ${preview?.requests.length ?? 0} Requests`}
+            {importing
+              ? 'Importing...'
+              : `Import ${preview?.requests.length ?? 0} Requests, ${preview?.collections.length ?? 0} Collections, and ${preview?.environments?.length ?? 0} Environments`}
           </Button>
         </>
       }
@@ -149,8 +163,8 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
               <span className="font-bold text-[var(--color-text)]">{preview.sourceTitle}</span>
             </div>
             <div className="text-xs text-[var(--color-text)]">
-              {preview.collections.length} collections, {preview.requests.length} requests ready to
-              import
+              {preview.collections.length} collections, {preview.requests.length} requests, and{' '}
+              {preview.environments?.length ?? 0} environments ready to import
             </div>
             {preview.warnings.length > 0 && (
               <div className="mt-3 max-h-32 overflow-y-auto rounded border border-[var(--color-border)] p-2">

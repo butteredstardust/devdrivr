@@ -51,7 +51,9 @@ type ApiStore = {
   deleteRequest: (id: string) => Promise<void>
   restoreRequest: (id: string) => Promise<void>
   permanentlyDeleteRequest: (id: string) => Promise<void>
-  importApiData: (data: ApiImportResult) => Promise<{ collections: number; requests: number }>
+  importApiData: (
+    data: ApiImportResult
+  ) => Promise<{ environments: number; collections: number; requests: number }>
 
   addRequestHistory: (entry: Omit<HistoryEntry, 'id' | 'tool' | 'timestamp'>) => Promise<void>
 }
@@ -250,6 +252,21 @@ export const useApiStore = create<ApiStore>((set) => ({
 
   importApiData: async (data) => {
     const now = Date.now()
+    const environmentIdByKey = new Map<string, string>()
+    const importedEnvironments: ApiEnvironment[] = (data.environments ?? []).map((environment) => {
+      const id = crypto.randomUUID()
+      environmentIdByKey.set(environment.key, id)
+      return {
+        id,
+        name: environment.name,
+        variables: environment.variables,
+        createdAt: now,
+        updatedAt: now,
+      }
+    })
+    const activeEnvironmentId = data.activeEnvironmentKey
+      ? environmentIdByKey.get(data.activeEnvironmentKey)
+      : undefined
     const collectionIdByKey = new Map<string, string>()
     for (const collection of data.collections) {
       collectionIdByKey.set(
@@ -316,16 +333,29 @@ export const useApiStore = create<ApiStore>((set) => ({
       updatedAt: now,
     }))
 
-    await saveApiImport(orderedCollections, importedRequests)
+    await saveApiImport(
+      orderedCollections,
+      importedRequests,
+      importedEnvironments,
+      activeEnvironmentId
+    )
     set((state) => ({
+      environments: [...state.environments, ...importedEnvironments].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      ),
       collections: [...state.collections, ...orderedCollections].sort((a, b) =>
         a.name.localeCompare(b.name)
       ),
       requests: [...state.requests, ...importedRequests].sort((a, b) =>
         a.name.localeCompare(b.name)
       ),
+      ...(activeEnvironmentId !== undefined ? { activeEnvironmentId } : {}),
     }))
-    return { collections: orderedCollections.length, requests: importedRequests.length }
+    return {
+      environments: importedEnvironments.length,
+      collections: orderedCollections.length,
+      requests: importedRequests.length,
+    }
   },
 
   addRequestHistory: async (entryData) => {

@@ -190,6 +190,7 @@ export default function ApiClient() {
   const [showEnvModal, setShowEnvModal] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showExportConfirm, setShowExportConfirm] = useState(false)
   const [saveMode, setSaveMode] = useState<'save' | 'save-as'>('save-as')
   const [responseCollapsed, setResponseCollapsed] = useState(true)
   const [responsePaneUserToggled, setResponsePaneUserToggled] = useState(false)
@@ -1026,7 +1027,7 @@ export default function ApiClient() {
     async (data: ApiImportResult) => {
       const result = await importApiData(data)
       setLastAction(
-        `Imported ${result.requests} requests into ${result.collections} collections`,
+        `Imported ${result.requests} requests, ${result.collections} collections, and ${result.environments} environments`,
         'success'
       )
     },
@@ -1037,8 +1038,12 @@ export default function ApiClient() {
     async (content: string, filename: string) => {
       try {
         const parsed = importApiSpec({ content, filename })
-        if (parsed.requests.length === 0) {
-          setLastAction('Import found no executable HTTP requests', 'error')
+        if (
+          parsed.requests.length === 0 &&
+          parsed.collections.length === 0 &&
+          (parsed.environments?.length ?? 0) === 0
+        ) {
+          setLastAction('Import found no API requests, collections, or environments', 'error')
           return
         }
         await handleImportData(parsed)
@@ -1133,7 +1138,9 @@ export default function ApiClient() {
       }
     })
     const exportData = {
-      version: 2,
+      format: 'devdrivr-api',
+      version: 3,
+      exportedAt: new Date().toISOString(),
       folders: collections.map((collection) => ({
         key: collection.id,
         name: collection.name,
@@ -1141,12 +1148,19 @@ export default function ApiClient() {
         sortOrder: collection.sortOrder ?? 0,
       })),
       requests: exportRequests,
+      environments: environments.map((environment) => ({
+        key: environment.id,
+        name: environment.name,
+        variables: environment.variables,
+      })),
+      activeEnvironmentKey: activeEnvironmentId,
     }
     await copy(JSON.stringify(exportData, null, 2), {
-      success: `Exported ${exportRequests.length} requests to clipboard`,
+      success: 'API library backup copied to clipboard',
       failure: 'Export failed — clipboard unavailable',
     })
-  }, [collections, requests, copy])
+    setShowExportConfirm(false)
+  }, [activeEnvironmentId, collections, environments, requests, copy])
 
   // ---------------------------------------------------------------------------
   // Header management
@@ -1243,7 +1257,7 @@ export default function ApiClient() {
         onCancelCollection={cancelCollection}
         collectionRun={collectionRun}
         onImport={() => setShowImportModal(true)}
-        onExport={() => void handleExport()}
+        onExport={() => setShowExportConfirm(true)}
       >
         <ToolLayout
           fullBleed
@@ -1917,6 +1931,18 @@ export default function ApiClient() {
       )}
       {showImportModal && (
         <ImportSpecModal onImport={handleImportData} onClose={() => setShowImportModal(false)} />
+      )}
+      {showExportConfirm && (
+        <ConfirmDialog
+          title="Export API library?"
+          confirmLabel="Copy full backup"
+          tone="default"
+          onClose={() => setShowExportConfirm(false)}
+          onConfirm={() => void handleExport()}
+        >
+          This backup includes request authentication values, headers, bodies, and every API
+          environment variable. Treat the clipboard contents as sensitive data.
+        </ConfirmDialog>
       )}
       {pendingNavigation && (
         <ConfirmDialog

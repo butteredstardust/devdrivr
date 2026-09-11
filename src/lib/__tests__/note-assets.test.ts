@@ -3,8 +3,10 @@ import {
   collectNoteAssetIds,
   createNotesBackup,
   importNoteImage,
+  finalizeRestoredNoteAssets,
   resolveNoteAssetMarkdown,
   restoreNotesBackup,
+  rollbackRestoredNoteAssets,
 } from '@/lib/note-assets'
 import type { Note, ResourceFolder } from '@/types/models'
 
@@ -123,15 +125,31 @@ describe('managed note assets', () => {
     expect(backup.notes).toHaveLength(1)
     expect(backup.assets).toEqual([asset])
 
-    core.invoke.mockResolvedValueOnce(1)
+    core.invoke.mockResolvedValueOnce({ restoredAssetIds: [ID], restoreToken: 'restore-token' })
     const restored = await restoreNotesBackup(json)
     expect(core.invoke).toHaveBeenLastCalledWith('note_assets_restore', { assets: [asset] })
     expect(restored.version).toBe(2)
+    expect(restored.restoredAssetIds).toEqual([ID])
+    expect(restored.restoreToken).toBe('restore-token')
     expect(restored.notes[0]).toMatchObject({
       id: 'note-1',
       title: 'Reference',
       color: 'orange',
       pinned: true,
+    })
+  })
+
+  it('finalizes and rolls back restores using the server-issued token', async () => {
+    core.invoke.mockResolvedValue(undefined)
+
+    await finalizeRestoredNoteAssets('restore-token')
+    expect(core.invoke).toHaveBeenLastCalledWith('note_assets_finalize_restore', {
+      restoreToken: 'restore-token',
+    })
+
+    await rollbackRestoredNoteAssets('restore-token')
+    expect(core.invoke).toHaveBeenLastCalledWith('note_assets_rollback_restore', {
+      restoreToken: 'restore-token',
     })
   })
 
@@ -145,7 +163,7 @@ describe('managed note assets', () => {
     core.invoke.mockResolvedValueOnce([])
     const json = await createNotesBackup([source, target], [childFolder, parentFolder])
 
-    core.invoke.mockResolvedValueOnce(0)
+    core.invoke.mockResolvedValueOnce({ restoredAssetIds: [], restoreToken: null })
     const restored = await restoreNotesBackup(json)
 
     expect(restored.version).toBe(2)
@@ -173,6 +191,27 @@ describe('managed note assets', () => {
         })
       )
     ).rejects.toThrow('invalid note')
+    expect(core.invoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing and unreferenced assets before writing files', async () => {
+    const missing = JSON.stringify({
+      format: 'devdrivr-notes',
+      version: 2,
+      notes: [note(`![missing](devdrivr-asset:${ID})`)],
+      folders: [],
+      assets: [],
+    })
+    await expect(restoreNotesBackup(missing)).rejects.toThrow('missing a referenced')
+
+    const unused = JSON.stringify({
+      format: 'devdrivr-notes',
+      version: 2,
+      notes: [note('No image')],
+      folders: [],
+      assets: [{ id: ID, fileName: `${ID}.png`, mimeType: 'image/png', bytes: [137, 80, 78, 71] }],
+    })
+    await expect(restoreNotesBackup(unused)).rejects.toThrow('unreferenced')
     expect(core.invoke).not.toHaveBeenCalled()
   })
 })

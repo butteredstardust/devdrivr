@@ -85,6 +85,7 @@ beforeEach(() => {
     restore: vi.fn().mockResolvedValue(undefined),
     permanentlyDelete: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
+    importBatch: vi.fn().mockResolvedValue(undefined),
   })
   useFoldersStore.setState({
     folders: snippetFolders,
@@ -516,8 +517,9 @@ describe('SnippetsManager — native import and export', () => {
   })
 
   it('imports valid snippets from a JSON file and preserves metadata', async () => {
-    const add = vi.fn().mockResolvedValue(snippet({ id: 'created', title: 'Imported' }))
-    useSnippetsStore.setState({ add })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    useSnippetsStore.setState({ refresh })
+    useFoldersStore.setState({ refresh })
     vi.mocked(openFileDialog).mockResolvedValue({
       path: '/tmp/snippets.json',
       filename: 'snippets.json',
@@ -536,24 +538,29 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith(
-        'Imported',
-        'SELECT 1;',
-        'sql',
-        ['database'],
-        'work',
-        false,
-        'folder-work',
-        '',
-        [expect.objectContaining({ name: 'main', content: 'SELECT 1;', language: 'sql' })]
+      expect(useSnippetsStore.getState().importBatch).toHaveBeenCalledWith(
+        [],
+        [
+          expect.objectContaining({
+            title: 'Imported',
+            content: 'SELECT 1;',
+            language: 'sql',
+            tags: ['database'],
+            folderId: 'folder-work',
+            fragments: [
+              expect.objectContaining({ name: 'main', content: 'SELECT 1;', language: 'sql' }),
+            ],
+          }),
+        ]
       )
     )
     expect(useUiStore.getState().lastAction?.message).toBe('Imported 1 snippet')
   })
 
   it('round-trips version 3 descriptions and ordered fragments', async () => {
-    const add = vi.fn().mockResolvedValue(snippet({ id: 'created', title: 'Bundle' }))
-    useSnippetsStore.setState({ add })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    useSnippetsStore.setState({ refresh })
+    useFoldersStore.setState({ refresh })
     vi.mocked(openFileDialog).mockResolvedValue({
       path: '/tmp/snippets-v3.json',
       filename: 'snippets-v3.json',
@@ -581,22 +588,21 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(add).toHaveBeenCalledWith(
-        'Bundle',
-        'fetch(url)',
-        'typescript',
+      expect(useSnippetsStore.getState().importBatch).toHaveBeenCalledWith(
         [],
-        '',
-        false,
-        'snippets-inbox',
-        'Use these together.',
         [
           expect.objectContaining({
-            name: 'client.ts',
-            content: 'fetch(url)',
-            language: 'typescript',
+            title: 'Bundle',
+            description: 'Use these together.',
+            fragments: [
+              expect.objectContaining({
+                name: 'client.ts',
+                content: 'fetch(url)',
+                language: 'typescript',
+              }),
+              expect.objectContaining({ name: 'styles.css', content: '.root {}', language: 'css' }),
+            ],
           }),
-          expect.objectContaining({ name: 'styles.css', content: '.root {}', language: 'css' }),
         ]
       )
     )

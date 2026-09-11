@@ -79,7 +79,17 @@ export function parsePromptTemplateImport(
     throw new Error(`Import failed: ${sourceLabel} does not contain valid JSON`)
   }
 
-  const payload = Array.isArray(parsed) ? parsed : [parsed]
+  const envelope =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  const payload = Array.isArray(parsed)
+    ? parsed
+    : envelope?.['format'] === 'devdrivr-prompt-templates' &&
+        envelope['version'] === 1 &&
+        Array.isArray(envelope['templates'])
+      ? envelope['templates']
+      : [parsed]
   if (payload.length > MAX_IMPORT_TEMPLATES) {
     throw new Error(
       `Import failed: ${payload.length} templates exceeds the ${MAX_IMPORT_TEMPLATES} template limit`
@@ -130,5 +140,14 @@ export function parsePromptTemplateImport(
 }
 
 export function serializePromptTemplateExport(templates: PromptTemplateDraft[]): string {
-  return JSON.stringify(templates, null, 2)
+  return JSON.stringify(
+    {
+      format: 'devdrivr-prompt-templates',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      templates,
+    },
+    null,
+    2
+  )
 }

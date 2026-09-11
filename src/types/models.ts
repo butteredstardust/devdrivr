@@ -352,12 +352,20 @@ export type ApiImportRequestDraft = Omit<
   collectionKey: string | null
 }
 
+export type ApiImportEnvironmentDraft = {
+  key: string
+  name: string
+  variables: Record<string, string>
+}
+
 export type ApiImportResult = {
   format: ApiImportFormat
   sourceTitle: string
   collections: ApiImportCollectionDraft[]
   requests: ApiImportRequestDraft[]
   warnings: string[]
+  environments?: ApiImportEnvironmentDraft[]
+  activeEnvironmentKey?: string | null
 }
 
 export type McpResource = 'notes' | 'snippets' | 'promptTemplates' | 'apiRequests'
