@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ALL_THEMES,
+  SYSTEM_DARK_THEME,
+  SYSTEM_LIGHT_THEME,
   THEME_TRANSITION_CLASS,
   THEME_TRANSITION_MS,
   getEffectiveTheme,
+  isLightEffectiveTheme,
   setThemeClass,
 } from '../theme'
 
@@ -16,20 +20,34 @@ describe('getEffectiveTheme', () => {
     expect(getEffectiveTheme('soft-focus')).toBe('soft-focus')
   })
 
-  it('returns midnight when theme is system and prefers dark', () => {
+  it('returns the dark default when theme is system and prefers dark', () => {
     vi.stubGlobal('window', {
       matchMedia: vi.fn().mockReturnValue({ matches: true }),
     })
-    expect(getEffectiveTheme('system')).toBe('midnight')
+    expect(getEffectiveTheme('system')).toBe('tomorrow-night')
     vi.unstubAllGlobals()
   })
 
-  it('returns soft-focus when theme is system and prefers light', () => {
+  it('returns the light default when theme is system and prefers light', () => {
     vi.stubGlobal('window', {
       matchMedia: vi.fn().mockReturnValue({ matches: false }),
     })
-    expect(getEffectiveTheme('system')).toBe('soft-focus')
+    expect(getEffectiveTheme('system')).toBe('tokyo-night-light')
     vi.unstubAllGlobals()
+  })
+
+  // The window paints the class on <html> before it reads the theme cache. A disagreement shows
+  // as a flash on a first launch, which no test that reads only the module would catch.
+  it('matches the class index.html paints first', () => {
+    const html = readFileSync(new URL('../../../index.html', import.meta.url), 'utf8')
+    expect(html).toContain(`<html lang="en" class="${SYSTEM_DARK_THEME}">`)
+  })
+
+  it('resolves both defaults to real themes', () => {
+    expect(ALL_THEMES).toContain(SYSTEM_DARK_THEME)
+    expect(ALL_THEMES).toContain(SYSTEM_LIGHT_THEME)
+    expect(isLightEffectiveTheme(SYSTEM_LIGHT_THEME)).toBe(true)
+    expect(isLightEffectiveTheme(SYSTEM_DARK_THEME)).toBe(false)
   })
 })
 

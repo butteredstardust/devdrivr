@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="midnight">
+<html lang="en" class="tomorrow-night">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/dodecastar.svg" />
@@ -16,8 +16,8 @@
       // Shape-checked rather than checked against a list of theme names: this
       // script cannot import ALL_THEMES, and the hardcoded list it used to
       // carry had gone stale at six entries. Every theme added since fell
-      // through to the `midnight` class in <html>, so launching in any of them
-      // painted Midnight first and then snapped to the real theme once React
+      // through to the class on <html>, so launching in any of them painted
+      // the default first and then snapped to the real theme once React
       // hydrated — the exact flash this script exists to prevent. Only this
       // app writes the key, and the value only ever reaches a class attribute.
       try {
