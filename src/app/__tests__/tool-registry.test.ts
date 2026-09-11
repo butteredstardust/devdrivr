@@ -7,6 +7,7 @@ import {
   SAVE_FILE_TOOL_IDS,
   MONACO_TOOL_IDS,
   OWNS_FILE_DROP_TOOL_IDS,
+  OWNS_OPEN_FILE_TOOL_IDS,
 } from '@/app/tool-registry'
 
 const TOOL_SMOKE_TEST_MODULES = import.meta.glob('../../tools/__tests__/*.test.tsx')
@@ -60,9 +61,10 @@ describe('tool capability flags', () => {
     for (const id of SAVE_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of OWNS_FILE_DROP_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
+    for (const id of OWNS_OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 17', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 16', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -73,7 +75,6 @@ describe('tool capability flags', () => {
         'curl-to-fetch',
         'diff-viewer',
         'html-validator',
-        'image-tool',
         'json-schema-validator',
         'json-tools',
         'markdown-editor',
@@ -115,6 +116,12 @@ describe('tool capability flags', () => {
   // supported" toast with no type error, so pin the exact set.
   it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 2', () => {
     expect(OWNS_FILE_DROP_TOOL_IDS).toEqual(new Set(['image-tool', 'notes']))
+  })
+
+  // A tool with this flag runs its own file dialog, because the shell reads text
+  // only. Dropping the flag makes ⌘O reject a PNG before the tool sees it.
+  it('OWNS_OPEN_FILE_TOOL_IDS matches the audited set of 1', () => {
+    expect(OWNS_OPEN_FILE_TOOL_IDS).toEqual(new Set(['image-tool']))
   })
 
   it('MONACO_TOOL_IDS matches the audited set of 18', () => {

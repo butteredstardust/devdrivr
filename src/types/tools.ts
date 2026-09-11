@@ -19,6 +19,8 @@ export type ToolDefinition = {
   supportsSaveFile?: boolean
   /** Handles native file drops without the shell. */
   ownsFileDrop?: boolean
+  /** Runs its own file dialog, because the shell's "open file" reads text only. */
+  ownsOpenFile?: boolean
   /** Renders inside a Monaco editor, which needs the workspace's overflow mode. */
   usesMonaco?: boolean
 }

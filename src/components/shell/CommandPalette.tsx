@@ -5,7 +5,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
-import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
+import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
 import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { GROUP_LABELS, searchTermsForTool } from '@/lib/tool-search'
@@ -426,6 +426,12 @@ export function CommandPalette() {
           break
         }
         case 'action:open-file':
+          // A tool that needs bytes runs its own dialog. See `openFile` in
+          // `useGlobalShortcuts`.
+          if (toolOwnsOpenFile(activeTool)) {
+            dispatchToolAction({ type: 'open-file-dialog' })
+            break
+          }
           if (!supportsToolFileAction(activeTool, 'open-file')) {
             addToast('Open File is not supported by the active tool', 'error')
             break

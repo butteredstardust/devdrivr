@@ -45,6 +45,12 @@ export function useImageFileDrop(
     let unlisten: (() => void) | undefined
     const webview = getCurrentWebviewWindow()
 
+    // Read the scale factor once, when the listener starts. Asking for it inside
+    // the handler lets a later `leave` finish before an earlier `over`, which
+    // leaves the overlay on after the pointer goes. Fall back to 1 if the window
+    // cannot report it; the hit test then uses physical pixels.
+    const scaleFactor = webview.scaleFactor().catch(() => 1)
+
     webview
       .onDragDropEvent(async (event) => {
         try {
@@ -56,7 +62,7 @@ export function useImageFileDrop(
 
           const container = containerRef.current
           const position = 'position' in event.payload ? event.payload.position : null
-          const factor = await webview.scaleFactor()
+          const factor = await scaleFactor
           if (cancelled) return
           const logicalPosition = position
             ? { x: position.x / factor, y: position.y / factor }

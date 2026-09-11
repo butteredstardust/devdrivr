@@ -295,9 +295,9 @@ export const TOOLS: ToolDefinition[] = [
     icon: toolIcon(ImageSquareIcon),
     description: 'Resize, crop, rotate, flip, compress and convert images (JPEG, PNG, WebP)',
     component: ImageTool,
-    supportsOpenFile: true,
     supportsSaveFile: true,
     ownsFileDrop: true,
+    ownsOpenFile: true,
   },
   // --- Test ---
   {
@@ -403,4 +403,5 @@ export function getToolsByGroup(group: string): ToolDefinition[] {
 export const OPEN_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsOpenFile).map((t) => t.id))
 export const SAVE_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsSaveFile).map((t) => t.id))
 export const OWNS_FILE_DROP_TOOL_IDS = new Set(TOOLS.filter((t) => t.ownsFileDrop).map((t) => t.id))
+export const OWNS_OPEN_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.ownsOpenFile).map((t) => t.id))
 export const MONACO_TOOL_IDS = new Set(TOOLS.filter((t) => t.usesMonaco).map((t) => t.id))

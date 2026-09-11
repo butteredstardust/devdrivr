@@ -137,9 +137,14 @@ function installImageMocks() {
   })
   Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
+    // `fillRect` records the `fillStyle` in force at call time, so a test can
+    // assert the matte colour and not only the rectangle.
     value: () => ({
+      fillStyle: '#000000',
       clearRect: vi.fn(),
-      fillRect: mocks.canvasFillRect,
+      fillRect(this: { fillStyle: string }, x: number, y: number, w: number, h: number) {
+        mocks.canvasFillRect(x, y, w, h, this.fillStyle)
+      },
       drawImage: mocks.canvasDrawImage,
       save: vi.fn(),
       translate: vi.fn(),
@@ -743,7 +748,7 @@ describe('ImageTool', () => {
     fireEvent.click(screen.getByText('Export'))
     fireEvent.click(screen.getByRole('tab', { name: 'JPEG' }))
 
-    await waitFor(() => expect(mocks.canvasFillRect).toHaveBeenCalledWith(0, 0, 100, 80))
+    await waitFor(() => expect(mocks.canvasFillRect).toHaveBeenCalledWith(0, 0, 100, 80, '#ffffff'))
     expect(mocks.canvasFillRect.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.canvasDrawImage.mock.invocationCallOrder.at(-1)!
     )

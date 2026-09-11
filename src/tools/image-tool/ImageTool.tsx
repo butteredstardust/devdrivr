@@ -235,6 +235,11 @@ export default function ImageTool() {
   const undoRef = useRef<ImageParameters | null>(null)
   const [canUndo, setCanUndo] = useState(false)
 
+  // A restore decode finishes long after it starts. It reads the saved crop
+  // here, so `loadImageFile` does not have to depend on the whole state.
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const updateParameters = useCallback(
     (patch: Partial<ImageParameters>) => {
       undoRef.current = getImageParameters(state)
@@ -329,6 +334,24 @@ export default function ImageTool() {
               flipX: false,
               flipY: false,
             })
+          } else {
+            // The file on disk can differ from the one the crop was saved for.
+            // Clamp the saved rectangle, so `drawImage` never reads outside it.
+            const savedState = stateRef.current
+            const saved = {
+              x: savedState.cropX,
+              y: savedState.cropY,
+              w: savedState.cropW ?? naturalWidth,
+              h: savedState.cropH ?? naturalHeight,
+            }
+            const fitted = clampCropRect(saved, { maxW: naturalWidth, maxH: naturalHeight })
+            persistState({
+              sourcePath,
+              cropX: fitted.x,
+              cropY: fitted.y,
+              cropW: fitted.w,
+              cropH: fitted.h,
+            })
           }
           const action = `${restore ? 'Restored' : 'Opened'} "${file.name}"`
           const message = /(?:^image\/gif$|\.gif$)/i.test(file.type || file.name)
@@ -380,13 +403,17 @@ export default function ImageTool() {
     const sourcePath = state.sourcePath
     let cancelled = false
     restorePathRef.current = sourcePath
+    // A restore read is slow. Drop it when the user opens another image while
+    // it runs, otherwise the restore replaces the image the user chose.
+    const generation = loadGenerationRef.current
+    const superseded = () => cancelled || generation !== loadGenerationRef.current
     void readFile(sourcePath)
       .then((bytes) => {
-        if (cancelled) return
+        if (superseded()) return
         loadImageFile(new File([bytes], filenameFromPath(sourcePath)), sourcePath, true)
       })
       .catch(() => {
-        if (cancelled) return
+        if (superseded()) return
         const message = 'Open the image again.'
         setLoadMessage(message)
         persistState({
@@ -1004,7 +1031,7 @@ export default function ImageTool() {
   useEffect(() => {
     if (!isInstanceActive) return
     return subscribeToolAction((action) => {
-      if (action.type === 'open-file') void handleOpenImage()
+      if (action.type === 'open-file-dialog') void handleOpenImage()
       if (action.type === 'save-file') void handleDownload()
       if (action.type === 'copy-output') void handleCopyImage()
     })

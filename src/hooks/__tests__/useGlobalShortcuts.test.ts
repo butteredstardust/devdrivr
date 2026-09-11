@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   dispatchToolAction: vi.fn(),
   supportsToolFileAction: vi.fn(),
+  toolOwnsOpenFile: vi.fn(),
   openFileDialog: vi.fn(),
   setAlwaysOnTop: vi.fn(),
   toggleFullscreen: vi.fn(),
@@ -76,6 +77,7 @@ vi.mock('@/app/tool-registry', () => ({
 vi.mock('@/lib/tool-actions', () => ({
   dispatchToolAction: mocks.dispatchToolAction,
   supportsToolFileAction: mocks.supportsToolFileAction,
+  toolOwnsOpenFile: mocks.toolOwnsOpenFile,
 }))
 
 vi.mock('@/lib/file-io', () => ({
@@ -120,6 +122,7 @@ describe('useGlobalShortcuts', () => {
     mocks.toggleFullscreen.mockResolvedValue({ isMaximized: false, isFullscreen: true })
     mocks.openFileDialog.mockResolvedValue(null)
     mocks.supportsToolFileAction.mockReturnValue(true)
+    mocks.toolOwnsOpenFile.mockReturnValue(false)
   })
 
   function renderShortcuts() {
@@ -264,6 +267,21 @@ describe('useGlobalShortcuts', () => {
       path: '/tmp/example.json',
     })
     expect(mocks.addToast).toHaveBeenCalledWith('Opened example.json', 'success')
+  })
+
+  // The shell dialog reads text. A tool that needs bytes must get the action
+  // instead, or ⌘O rejects a PNG before the tool ever sees it.
+  it('asks a tool that owns open file to run its own dialog', async () => {
+    mocks.toolOwnsOpenFile.mockReturnValue(true)
+    renderShortcuts()
+
+    await act(async () => {
+      await findShortcut('o').handler()
+    })
+
+    expect(mocks.dispatchToolAction).toHaveBeenCalledWith({ type: 'open-file-dialog' })
+    expect(mocks.openFileDialog).not.toHaveBeenCalled()
+    expect(mocks.addToast).not.toHaveBeenCalled()
   })
 
   it('does not dispatch an open-file action when selection is cancelled', async () => {
