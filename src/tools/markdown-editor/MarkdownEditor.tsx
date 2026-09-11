@@ -266,6 +266,7 @@ export default function MarkdownEditor() {
   const { isDraggingImage } = useImageDrop(
     editorRef,
     toolRootRef,
+    isInstanceActive,
     handleDroppedTextFile,
     handleDropError
   )

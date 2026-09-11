@@ -2,7 +2,14 @@ import { useRef, useState } from 'react'
 import { CheckIcon, MonitorIcon } from '@phosphor-icons/react'
 import type { Theme } from '@/types/models'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { ALL_THEMES, THEME_META, getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import {
+  ALL_THEMES,
+  SYSTEM_DARK_THEME,
+  SYSTEM_LIGHT_THEME,
+  THEME_META,
+  getEffectiveTheme,
+  isLightEffectiveTheme,
+} from '@/lib/theme'
 import type { EffectiveTheme } from '@/lib/theme'
 
 const COLS = 3
@@ -110,8 +117,9 @@ function SystemSwatch() {
       aria-hidden="true"
       className="relative flex h-12 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)]"
     >
-      <Swatch effective="midnight" className="h-full w-1/2 rounded-none border-0" />
-      <Swatch effective="soft-focus" className="h-full w-1/2 rounded-none border-0" />
+      {/* The swatch previews what `system` resolves to, so it reads the same two constants. */}
+      <Swatch effective={SYSTEM_DARK_THEME} className="h-full w-1/2 rounded-none border-0" />
+      <Swatch effective={SYSTEM_LIGHT_THEME} className="h-full w-1/2 rounded-none border-0" />
       <span className="absolute inset-0 flex items-center justify-center bg-[var(--color-scrim)]">
         <MonitorIcon size={12} weight="bold" className="text-[var(--color-text)] drop-shadow" />
       </span>

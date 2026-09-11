@@ -174,8 +174,7 @@ src/tools/
 ├── url-codec/             UrlCodec.tsx
 ├── uuid-generator/        UuidGenerator.tsx
 ├── xml-tools/             XmlTools.tsx             ← uses xml.worker
-├── yaml-tools/            YamlTools.tsx
-└── placeholder/            Placeholder.tsx          ← fallback/empty-state component, not a registered tool
+└── yaml-tools/            YamlTools.tsx
 ```
 
 Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx`. Do not locate them with tool components.

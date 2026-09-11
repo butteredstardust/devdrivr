@@ -88,9 +88,21 @@ export const THEME_META: Record<EffectiveTheme, { shortLabel: string; fullLabel:
   dodecastar: { shortLabel: 'Dodec', fullLabel: 'Dodecastar' },
 }
 
+/**
+ * The two themes `system` resolves to.
+ *
+ * Keep `SYSTEM_DARK_THEME` and the `class` on `<html>` in index.html the same. That class is what
+ * the window paints before the theme cache is read, so a disagreement shows as a flash on a first
+ * launch.
+ */
+export const SYSTEM_DARK_THEME: EffectiveTheme = 'tomorrow-night'
+export const SYSTEM_LIGHT_THEME: EffectiveTheme = 'tokyo-night-light'
+
 export function getEffectiveTheme(theme: Theme): EffectiveTheme {
   if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'soft-focus'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? SYSTEM_DARK_THEME
+      : SYSTEM_LIGHT_THEME
   }
   return theme
 }

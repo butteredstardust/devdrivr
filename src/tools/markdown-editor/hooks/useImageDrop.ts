@@ -74,6 +74,10 @@ type TextFileHandler = (content: string, filename: string, path: string) => void
 /**
  * Take every file dropped on the editor.
  *
+ * WARNING: pass `enabled: false` while the tab is in the background. Every mounted tab keeps its
+ * listener, and every listener sees every drop, so an ungated tab answers a drop meant for the tab
+ * in front of it. A background tab would replace its own document with the dropped file.
+ *
  * The tool carries `ownsFileDrop`, so the shell does not listen and this hook answers the whole
  * drop. An image is embedded at the cursor. Anything else is read as text and passed to
  * `onTextFile`, which is what the shell used to do.
@@ -81,6 +85,7 @@ type TextFileHandler = (content: string, filename: string, path: string) => void
 export function useImageDrop(
   editorRef: RefObject<EditorInstance | null>,
   containerRef: RefObject<HTMLDivElement | null>,
+  enabled: boolean,
   onTextFile?: TextFileHandler,
   onError?: (message: string) => void
 ): { isDraggingImage: boolean } {
@@ -93,6 +98,11 @@ export function useImageDrop(
   onErrorRef.current = onError
 
   useEffect(() => {
+    if (!enabled) {
+      setIsDraggingImage(false)
+      return
+    }
+
     let cancelled = false
     let unlisten: (() => void) | undefined
     const webview = getCurrentWebviewWindow()
@@ -169,6 +179,10 @@ export function useImageDrop(
 
           if (insertions.length === 0) return
 
+          // Each image read awaits, so the tab can go to the background before the last one
+          // resolves. Stop here rather than write into an editor the user no longer looks at.
+          if (cancelled) return
+
           // Only an image needs the editor. A document opens through `onTextFile` above, which
           // works in preview-only mode where no editor is focused.
           const editor = editorRefLocal.current.current
@@ -206,7 +220,7 @@ export function useImageDrop(
       cancelled = true
       unlisten?.()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, intentionally omitted
+  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, intentionally omitted
 
   return { isDraggingImage }
 }

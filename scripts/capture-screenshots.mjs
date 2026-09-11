@@ -34,11 +34,19 @@ const URL = process.env.SCREENSHOT_URL ?? 'http://localhost:1420'
 const VIEWPORT = { width: 1200, height: 766 }
 
 /**
- * Screenshots are taken at the app's default theme — `system` — rather than a picked one, so the
- * README shows what a first launch actually looks like. `system` follows the OS, which would
- * otherwise make the output depend on whoever ran this, so the context pins `colorScheme` instead
- * of reaching into the DOM. Forcing a class on `<html>` would also leave the status bar reading
- * "System" while the palette said otherwise.
+ * The theme every screenshot is taken in, named as the picker labels it.
+ *
+ * The theme is picked through Settings rather than forced onto `<html>`. A class on the element
+ * leaves the status bar reading "System" while the palette says otherwise, and the picked theme is
+ * what a reader can reproduce. `SCREENSHOT_THEME` overrides it, so a new default needs no edit
+ * here to preview.
+ */
+const THEME = process.env.SCREENSHOT_THEME ?? 'Catppuccin Frappé'
+
+/**
+ * The `prefers-color-scheme` the page reports. It no longer decides the palette, because the theme
+ * is picked. It still has to be pinned: an unpinned scheme follows whoever runs this, and the few
+ * places that read the media query would differ between machines.
  */
 const COLOR_SCHEME = 'dark'
 
@@ -181,6 +189,21 @@ async function click(page, name, role = 'button') {
   await target.click()
 }
 
+/**
+ * Picks `THEME` through Settings → Theme.
+ *
+ * WARNING: run this after every page load. The browser harness stubs the database and answers every
+ * read with an empty row, so the picked theme lasts one session and no longer.
+ */
+async function pickTheme(page) {
+  await click(page, 'Open settings')
+  await click(page, 'Theme', 'tab')
+  await click(page, THEME, 'option')
+  await click(page, 'Close settings')
+  // The whole-window cross-fade runs for --duration-theme. The shutter must not open mid-fade.
+  await settle(page)
+}
+
 /** Lets debounced work, editor layout and any animation land before the shutter. */
 async function settle(page, ms = 600) {
   await page.waitForTimeout(ms)
@@ -211,6 +234,8 @@ async function main() {
     try {
       await page.goto(URL, { waitUntil: 'domcontentloaded' })
       await page.getByRole('button', { name: TABS[0], exact: true }).waitFor({ timeout: 15000 })
+
+      await pickTheme(page)
 
       // Opening a tool that already has a tab just re-selects it, so this both builds the tab bar
       // and lands on the scene's tool whether or not it is one of the standing tabs.
