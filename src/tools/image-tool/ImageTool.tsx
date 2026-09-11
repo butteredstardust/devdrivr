@@ -222,6 +222,7 @@ export default function ImageTool() {
   // ── Refs ────────────────────────────────────────────────────────
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const toolRootRef = useRef<HTMLDivElement>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const outputCanvasRef = useRef<HTMLCanvasElement>(null)
   const cropDragRef = useRef<CropDragState | null>(null)
@@ -500,6 +501,16 @@ export default function ImageTool() {
   useEffect(() => {
     if (!isInstanceActive) return
     const onPaste = (event: ClipboardEvent) => {
+      // The notes drawer and the command palette render beside the workspace and
+      // paste images of their own. Claim only what lands on this tool or on
+      // nothing, or one paste is handled twice.
+      const target = event.target
+      const owned =
+        target === document ||
+        target === document.body ||
+        (target instanceof Node && toolRootRef.current?.contains(target) === true)
+      if (!owned) return
+
       const file = [...(event.clipboardData?.files ?? [])].find(isSupportedImageFile)
       if (!file) return
       event.preventDefault()
@@ -1090,6 +1101,7 @@ export default function ImageTool() {
 
   return (
     <ToolLayout
+      ref={toolRootRef}
       fullBleed
       toolbar={
         <>

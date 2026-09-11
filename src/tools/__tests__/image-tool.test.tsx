@@ -313,6 +313,25 @@ describe('ImageTool', () => {
     await waitFor(() => expect(screen.getByText('clipboard.png')).toBeInTheDocument())
   })
 
+  // The notes drawer renders beside the workspace and pastes images of its own.
+  // A document listener that claimed every paste would handle that one twice.
+  it('ignores a paste aimed at another region of the shell', async () => {
+    installImageMocks()
+    renderTool(ImageTool)
+    const outsider = document.createElement('textarea')
+    document.body.appendChild(outsider)
+
+    fireEvent.paste(outsider, {
+      clipboardData: {
+        files: [new File(['image'], 'drawer.png', { type: 'image/png' })],
+      },
+    })
+
+    await act(async () => {})
+    expect(screen.queryByText('drawer.png')).not.toBeInTheDocument()
+    outsider.remove()
+  })
+
   it('loads a PNG file with no MIME type', async () => {
     installImageMocks()
     renderTool(ImageTool)
