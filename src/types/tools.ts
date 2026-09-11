@@ -17,6 +17,8 @@ export type ToolDefinition = {
   supportsOpenFile?: boolean
   /** Can receive the global "save file" shortcut. */
   supportsSaveFile?: boolean
+  /** Handles native file drops without the shell. */
+  ownsFileDrop?: boolean
   /** Renders inside a Monaco editor, which needs the workspace's overflow mode. */
   usesMonaco?: boolean
 }

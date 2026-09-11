@@ -1,5 +1,5 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readFile, readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 export function isLikelyBinaryText(content: string): boolean {
   if (content.includes('\0')) return true
@@ -73,6 +73,27 @@ export async function openFileDialog(): Promise<{
   if (!filePath) return null
   const content = await readSupportedTextFile(filePath)
   return { content, filename: filenameFromPath(filePath), path: filePath }
+}
+
+export async function openImageFileDialog(): Promise<{
+  bytes: Uint8Array
+  filename: string
+  path: string
+} | null> {
+  const path = await open({
+    multiple: false,
+    filters: [
+      {
+        name: 'Images',
+        extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+      },
+    ],
+  })
+  if (!path) return null
+  const filePath = typeof path === 'string' ? path : path[0]
+  if (!filePath) return null
+  const bytes = await readFile(filePath)
+  return { bytes, filename: filenameFromPath(filePath), path: filePath }
 }
 
 /** Writes content directly to a known absolute path — no dialog shown. */

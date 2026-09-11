@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { useToolState } from '@/hooks/useToolState'
 import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { useUiStore } from '@/stores/ui.store'
-import { buildExportFilename, exportFile } from '@/lib/file-io'
+import {
+  buildExportFilename,
+  exportFile,
+  filenameFromPath,
+  openImageFileDialog,
+} from '@/lib/file-io'
+import { subscribeToolAction } from '@/lib/tool-actions'
+import { useImageFileDrop } from '@/tools/image-tool/useImageFileDrop'
+import { readFile } from '@tauri-apps/plugin-fs'
 import { Button } from '@/components/shared/Button'
 import { Field } from '@/components/shared/Field'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Input } from '@/components/shared/Input'
-import { TabBar } from '@/components/shared/TabBar'
-import { Toggle } from '@/components/shared/Toggle'
+import { TabBar, TabPanel } from '@/components/shared/TabBar'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarSpacer } from '@/components/shared/Toolbar'
 import {
@@ -29,12 +37,12 @@ import { formatBytes } from '@/lib/format'
 
 type ImageToolState = {
   activeTab: string
+  sourcePath: string | null
   // Resize
   resizeW: number | null
   resizeH: number | null
   lockAspect: boolean
   // Crop
-  cropEnabled: boolean
   cropX: number
   cropY: number
   cropW: number | null
@@ -67,6 +75,13 @@ type CropDragState = {
   origH: number
 }
 
+type LoadedImage = {
+  drawable: CanvasImageSource
+  naturalWidth: number
+  naturalHeight: number
+  src: string
+}
+
 // ── Constants ──────────────────────────────────────────────────────
 
 const TABS = [
@@ -85,6 +100,9 @@ const FORMAT_TABS = [
 const MAX_IMAGE_FILE_BYTES = 50 * 1024 * 1024
 const MAX_IMAGE_DIMENSION = 16_384
 const MAX_IMAGE_PIXELS = 64_000_000
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'])
+// JPEG has no alpha channel. Transparent pixels take this colour on export.
+const JPEG_BACKGROUND = '#ffffff'
 
 // The resize/crop dimension fields. `Input` owns the border, background, radius
 // and focus ring; only the monospace digits and the full-width fill are local.
@@ -97,6 +115,13 @@ const PRESET_SIZES = [
   { label: '3:2', w: 3, h: 2 },
 ]
 
+const CROP_HANDLE_LABELS = {
+  nw: 'Northwest crop handle',
+  ne: 'Northeast crop handle',
+  sw: 'Southwest crop handle',
+  se: 'Southeast crop handle',
+} as const
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 type CropRect = {
@@ -104,6 +129,25 @@ type CropRect = {
   y: number
   w: number
   h: number
+}
+
+type ImageParameters = Omit<ImageToolState, 'activeTab' | 'sourcePath'>
+
+function getImageParameters(state: ImageToolState): ImageParameters {
+  return {
+    resizeW: state.resizeW,
+    resizeH: state.resizeH,
+    lockAspect: state.lockAspect,
+    cropX: state.cropX,
+    cropY: state.cropY,
+    cropW: state.cropW,
+    cropH: state.cropH,
+    rotation: state.rotation,
+    flipX: state.flipX,
+    flipY: state.flipY,
+    format: state.format,
+    quality: state.quality,
+  }
 }
 
 export function clampCropRect(rect: CropRect, bounds: { maxW: number; maxH: number }): CropRect {
@@ -122,15 +166,33 @@ export function clampCropRect(rect: CropRect, bounds: { maxW: number; maxH: numb
   return { x, y, w, h }
 }
 
+function cropRectsMatch(first: CropRect, second: CropRect): boolean {
+  return (
+    first.x === second.x && first.y === second.y && first.w === second.w && first.h === second.h
+  )
+}
+
+function hasSupportedImageExtension(name: string): boolean {
+  const extension = name.split('.').pop()?.toLowerCase()
+  return extension !== undefined && IMAGE_EXTENSIONS.has(extension)
+}
+
+function isSupportedImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true
+  const typeNeedsExtension = file.type === '' || file.type === 'application/octet-stream'
+  return typeNeedsExtension && hasSupportedImageExtension(file.name)
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 export default function ImageTool() {
-  const [state, updateState] = useToolState<ImageToolState>('image-tool', {
+  const isInstanceActive = useIsInstanceActive()
+  const [state, persistState] = useToolState<ImageToolState>('image-tool', {
     activeTab: 'resize',
+    sourcePath: null,
     resizeW: null,
     resizeH: null,
     lockAspect: true,
-    cropEnabled: false,
     cropX: 0,
     cropY: 0,
     cropW: null,
@@ -146,13 +208,16 @@ export default function ImageTool() {
 
   // ── Local state ────────────────────────────────────────────────
 
-  const [originalImg, setOriginalImg] = useState<HTMLImageElement | null>(null)
+  const [originalImg, setOriginalImg] = useState<LoadedImage | null>(null)
   const [originalFileSize, setOriginalFileSize] = useState<number>(0)
   const [fileName, setFileName] = useState<string>('image')
   const [isDragOver, setIsDragOver] = useState(false)
   const [displayMetrics, setDisplayMetrics] = useState<DisplayMetrics | null>(null)
   const [outputBlobSize, setOutputBlobSize] = useState(0)
   const [outputSize, setOutputSize] = useState<{ w: number; h: number } | null>(null)
+  const [outputError, setOutputError] = useState<string | null>('Output is not ready')
+  const [isExporting, setIsExporting] = useState(false)
+  const [loadMessage, setLoadMessage] = useState<string | null>(null)
 
   // ── Refs ────────────────────────────────────────────────────────
 
@@ -160,12 +225,31 @@ export default function ImageTool() {
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const outputCanvasRef = useRef<HTMLCanvasElement>(null)
   const cropDragRef = useRef<CropDragState | null>(null)
+  const cropDragUndoRef = useRef<ImageParameters | null>(null)
+  const loadGenerationRef = useRef(0)
+  const objectUrlRef = useRef<string | null>(null)
+  const bitmapRef = useRef<ImageBitmap | null>(null)
+  const restorePathRef = useRef<string | null>(null)
+  const missingSourceNoticeRef = useRef(false)
+  const exportInFlightRef = useRef(false)
+  const undoRef = useRef<ImageParameters | null>(null)
+  const [canUndo, setCanUndo] = useState(false)
+
+  const updateParameters = useCallback(
+    (patch: Partial<ImageParameters>) => {
+      undoRef.current = getImageParameters(state)
+      setCanUndo(true)
+      persistState(patch)
+    },
+    [persistState, state]
+  )
 
   // ── Image loading ──────────────────────────────────────────────
 
   const loadImageFile = useCallback(
-    (file: File) => {
-      if (!file.type.startsWith('image/')) {
+    (file: File, sourcePath: string | null = null, restore = false) => {
+      const generation = ++loadGenerationRef.current
+      if (!isSupportedImageFile(file)) {
         setLastAction('File is not an image', 'error')
         return
       }
@@ -173,56 +257,178 @@ export default function ImageTool() {
         setLastAction(`Image exceeds the ${formatBytes(MAX_IMAGE_FILE_BYTES)} file limit`, 'error')
         return
       }
-      const reader = new FileReader()
-      reader.onerror = () => setLastAction('Failed to read image file', 'error')
-      reader.onabort = () => setLastAction('Image open cancelled', 'info')
-      reader.onload = (e) => {
-        const src = e.target?.result as string
-        const img = new Image()
-        img.onload = () => {
-          const decodedPixels = img.naturalWidth * img.naturalHeight
+      const objectUrl = URL.createObjectURL(file)
+      void (async () => {
+        let bitmap: ImageBitmap | null = null
+        try {
+          let drawable: CanvasImageSource
+          let naturalWidth: number
+          let naturalHeight: number
+
+          if (typeof globalThis.createImageBitmap === 'function') {
+            bitmap = await globalThis.createImageBitmap(file, { imageOrientation: 'from-image' })
+            drawable = bitmap
+            naturalWidth = bitmap.width
+            naturalHeight = bitmap.height
+          } else {
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const candidate = new Image()
+              candidate.onload = () => resolve(candidate)
+              candidate.onerror = () => reject(new Error('Image decode failed'))
+              candidate.src = objectUrl
+            })
+            drawable = img
+            naturalWidth = img.naturalWidth
+            naturalHeight = img.naturalHeight
+          }
+
+          if (generation !== loadGenerationRef.current) {
+            bitmap?.close()
+            URL.revokeObjectURL(objectUrl)
+            return
+          }
+
+          const decodedPixels = naturalWidth * naturalHeight
           if (
-            img.naturalWidth > MAX_IMAGE_DIMENSION ||
-            img.naturalHeight > MAX_IMAGE_DIMENSION ||
+            naturalWidth > MAX_IMAGE_DIMENSION ||
+            naturalHeight > MAX_IMAGE_DIMENSION ||
             decodedPixels > MAX_IMAGE_PIXELS
           ) {
+            bitmap?.close()
+            URL.revokeObjectURL(objectUrl)
             setLastAction(
               `Image dimensions exceed the ${MAX_IMAGE_DIMENSION.toLocaleString()}px / ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`,
               'error'
             )
             return
           }
-          // Reset display metrics before setting the new image so one stale render
-          // of the crop overlay with the previous image's metrics doesn't occur.
+
+          bitmapRef.current?.close()
+          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
+          bitmapRef.current = bitmap
+          objectUrlRef.current = objectUrl
           setDisplayMetrics(null)
-          setOriginalImg(img)
+          setOutputError('Output is not ready')
+          setOriginalImg({ drawable, naturalWidth, naturalHeight, src: objectUrl })
           setFileName(file.name)
           setOriginalFileSize(file.size)
-          updateState({
-            resizeW: img.naturalWidth,
-            resizeH: img.naturalHeight,
-            cropX: 0,
-            cropY: 0,
-            cropW: img.naturalWidth,
-            cropH: img.naturalHeight,
-            cropEnabled: false,
-            rotation: 0,
-            flipX: false,
-            flipY: false,
-          })
-          setLastAction(`Opened "${file.name}"`, 'success')
+          setLoadMessage(null)
+          missingSourceNoticeRef.current = false
+          undoRef.current = null
+          setCanUndo(false)
+          if (!restore) {
+            persistState({
+              sourcePath,
+              resizeW: null,
+              resizeH: null,
+              cropX: 0,
+              cropY: 0,
+              cropW: naturalWidth,
+              cropH: naturalHeight,
+              rotation: 0,
+              flipX: false,
+              flipY: false,
+            })
+          }
+          const action = `${restore ? 'Restored' : 'Opened'} "${file.name}"`
+          const message = /(?:^image\/gif$|\.gif$)/i.test(file.type || file.name)
+            ? `${action}. GIF import uses the first frame only.`
+            : action
+          setLastAction(message, 'success')
+        } catch {
+          bitmap?.close()
+          URL.revokeObjectURL(objectUrl)
+          if (generation !== loadGenerationRef.current) return
+          if (restore) {
+            const message = 'Open the image again.'
+            setLoadMessage(message)
+            persistState({
+              sourcePath: null,
+              resizeW: null,
+              resizeH: null,
+              cropX: 0,
+              cropY: 0,
+              cropW: null,
+              cropH: null,
+              rotation: 0,
+              flipX: false,
+              flipY: false,
+            })
+            setLastAction(message, 'error')
+          } else {
+            setLastAction('Failed to load image', 'error')
+          }
         }
-        img.onerror = () => setLastAction('Failed to load image', 'error')
-        img.src = src
-      }
-      try {
-        reader.readAsDataURL(file)
-      } catch {
-        setLastAction('Failed to read image file', 'error')
-      }
+      })()
     },
-    [updateState, setLastAction]
+    [persistState, setLastAction]
   )
+
+  useEffect(() => {
+    const loadGeneration = loadGenerationRef
+    const bitmap = bitmapRef
+    const objectUrl = objectUrlRef
+    return () => {
+      loadGeneration.current++
+      bitmap.current?.close()
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (originalImg || !state.sourcePath || restorePathRef.current === state.sourcePath) return
+    const sourcePath = state.sourcePath
+    let cancelled = false
+    restorePathRef.current = sourcePath
+    void readFile(sourcePath)
+      .then((bytes) => {
+        if (cancelled) return
+        loadImageFile(new File([bytes], filenameFromPath(sourcePath)), sourcePath, true)
+      })
+      .catch(() => {
+        if (cancelled) return
+        const message = 'Open the image again.'
+        setLoadMessage(message)
+        persistState({
+          sourcePath: null,
+          resizeW: null,
+          resizeH: null,
+          cropX: 0,
+          cropY: 0,
+          cropW: null,
+          cropH: null,
+          rotation: 0,
+          flipX: false,
+          flipY: false,
+        })
+        setLastAction(message, 'error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [loadImageFile, originalImg, persistState, setLastAction, state.sourcePath])
+
+  useEffect(() => {
+    const hasStaleImageState = state.cropW !== null || state.cropH !== null
+    if (originalImg || state.sourcePath || !hasStaleImageState || missingSourceNoticeRef.current) {
+      return
+    }
+    missingSourceNoticeRef.current = true
+    const message = 'Open the image again.'
+    setLoadMessage(message)
+    persistState({
+      resizeW: null,
+      resizeH: null,
+      cropX: 0,
+      cropY: 0,
+      cropW: null,
+      cropH: null,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+    })
+    setLastAction(message, 'info')
+  }, [originalImg, persistState, setLastAction, state.cropH, state.cropW, state.sourcePath])
 
   // ── Drag & drop ────────────────────────────────────────────────
 
@@ -250,6 +456,42 @@ export default function ImageTool() {
       e.target.value = ''
     },
     [loadImageFile]
+  )
+
+  const handleOpenImage = useCallback(async () => {
+    try {
+      const selected = await openImageFileDialog()
+      if (!selected) return
+      loadImageFile(new File([new Uint8Array(selected.bytes)], selected.filename), selected.path)
+    } catch {
+      fileInputRef.current?.click()
+    }
+  }, [loadImageFile])
+
+  // The tool has no focusable root, so a paste lands on the document. Listen
+  // there, and only while this instance is the visible one.
+  useEffect(() => {
+    if (!isInstanceActive) return
+    const onPaste = (event: ClipboardEvent) => {
+      const file = [...(event.clipboardData?.files ?? [])].find(isSupportedImageFile)
+      if (!file) return
+      event.preventDefault()
+      const namedFile = file.name
+        ? file
+        : new File([file], 'pasted-image.png', { type: file.type || 'image/png' })
+      loadImageFile(namedFile)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [isInstanceActive, loadImageFile])
+
+  const { isDraggingImage } = useImageFileDrop(
+    previewContainerRef,
+    {
+      onFile: (file, path) => loadImageFile(file, path),
+      onError: (message) => setLastAction(message, 'error'),
+    },
+    isInstanceActive
   )
 
   // ── Display metrics (for crop overlay positioning) ─────────────
@@ -295,14 +537,10 @@ export default function ImageTool() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const srcX = state.cropEnabled ? state.cropX : 0
-    const srcY = state.cropEnabled ? state.cropY : 0
-    const srcW = state.cropEnabled
-      ? (state.cropW ?? originalImg.naturalWidth)
-      : originalImg.naturalWidth
-    const srcH = state.cropEnabled
-      ? (state.cropH ?? originalImg.naturalHeight)
-      : originalImg.naturalHeight
+    const srcX = state.cropX
+    const srcY = state.cropY
+    const srcW = state.cropW ?? originalImg.naturalWidth
+    const srcH = state.cropH ?? originalImg.naturalHeight
 
     const sourceOutW = Math.round(state.resizeW ?? srcW)
     const sourceOutH = Math.round(state.resizeH ?? srcH)
@@ -319,26 +557,31 @@ export default function ImageTool() {
       outH > MAX_IMAGE_DIMENSION ||
       outW * outH > MAX_IMAGE_PIXELS
     ) {
-      canvas.width = 1
-      canvas.height = 1
+      const reason = `Output exceeds the ${MAX_IMAGE_DIMENSION.toLocaleString()}px per side or ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`
+      if (canvas.width !== 1) canvas.width = 1
+      if (canvas.height !== 1) canvas.height = 1
       setOutputSize(null)
       setOutputBlobSize(0)
-      setLastAction(
-        `Output exceeds the ${MAX_IMAGE_DIMENSION.toLocaleString()}px / ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`,
-        'error'
-      )
+      setOutputError(reason)
+      setLastAction(reason, 'error')
       return
     }
 
-    canvas.width = outW
-    canvas.height = outH
+    if (canvas.width !== outW) canvas.width = outW
+    if (canvas.height !== outH) canvas.height = outH
     ctx.clearRect(0, 0, outW, outH)
+    // JPEG carries no alpha. Fill a fixed white matte so a transparent source
+    // exports the same file in every theme.
+    if (state.format === 'jpeg') {
+      ctx.fillStyle = JPEG_BACKGROUND
+      ctx.fillRect(0, 0, outW, outH)
+    }
     ctx.save()
     ctx.translate(outW / 2, outH / 2)
     ctx.rotate((state.rotation * Math.PI) / 180)
     ctx.scale(state.flipX ? -1 : 1, state.flipY ? -1 : 1)
     ctx.drawImage(
-      originalImg,
+      originalImg.drawable,
       srcX,
       srcY,
       srcW,
@@ -351,6 +594,7 @@ export default function ImageTool() {
     ctx.restore()
 
     setOutputSize({ w: outW, h: outH })
+    setOutputError(null)
 
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
@@ -373,7 +617,6 @@ export default function ImageTool() {
     // restarted the encode for an output that could not have changed.
   }, [
     originalImg,
-    state.cropEnabled,
     state.cropX,
     state.cropY,
     state.cropW,
@@ -390,42 +633,38 @@ export default function ImageTool() {
 
   // ── Resize helpers ─────────────────────────────────────────────
 
-  const sourceW = state.cropEnabled
-    ? (state.cropW ?? originalImg?.naturalWidth ?? 0)
-    : (originalImg?.naturalWidth ?? 0)
-  const sourceH = state.cropEnabled
-    ? (state.cropH ?? originalImg?.naturalHeight ?? 0)
-    : (originalImg?.naturalHeight ?? 0)
+  const sourceW = state.cropW ?? originalImg?.naturalWidth ?? 0
+  const sourceH = state.cropH ?? originalImg?.naturalHeight ?? 0
   const aspect = sourceW > 0 && sourceH > 0 ? sourceW / sourceH : 1
 
   const handleResizeW = useCallback(
     (w: number) => {
       if (!w || w < 1) return
       if (state.lockAspect) {
-        updateState({ resizeW: w, resizeH: Math.max(1, Math.round(w / aspect)) })
+        updateParameters({ resizeW: w, resizeH: Math.max(1, Math.round(w / aspect)) })
       } else {
-        updateState({ resizeW: w })
+        updateParameters({ resizeW: w })
       }
     },
-    [state.lockAspect, aspect, updateState]
+    [state.lockAspect, aspect, updateParameters]
   )
 
   const handleResizeH = useCallback(
     (h: number) => {
       if (!h || h < 1) return
       if (state.lockAspect) {
-        updateState({ resizeH: h, resizeW: Math.max(1, Math.round(h * aspect)) })
+        updateParameters({ resizeH: h, resizeW: Math.max(1, Math.round(h * aspect)) })
       } else {
-        updateState({ resizeH: h })
+        updateParameters({ resizeH: h })
       }
     },
-    [state.lockAspect, aspect, updateState]
+    [state.lockAspect, aspect, updateParameters]
   )
 
   const handleResetResize = useCallback(() => {
     if (!originalImg) return
-    updateState({ resizeW: originalImg.naturalWidth, resizeH: originalImg.naturalHeight })
-  }, [originalImg, updateState])
+    updateParameters({ resizeW: null, resizeH: null })
+  }, [originalImg, updateParameters])
 
   const handleApplyPreset = useCallback(
     (pw: number, ph: number) => {
@@ -439,9 +678,9 @@ export default function ImageTool() {
         h = originalImg.naturalHeight
         w = Math.round(h * targetAspect)
       }
-      updateState({ resizeW: w, resizeH: h })
+      updateParameters({ resizeW: w, resizeH: h })
     },
-    [originalImg, updateState]
+    [originalImg, updateParameters]
   )
 
   // ── Crop interaction ────────────────────────────────────────────
@@ -451,6 +690,7 @@ export default function ImageTool() {
       e.preventDefault()
       e.stopPropagation()
       if (!displayMetrics || !originalImg) return
+      cropDragUndoRef.current = getImageParameters(state)
       cropDragRef.current = {
         handle,
         startMouseX: e.clientX,
@@ -466,7 +706,7 @@ export default function ImageTool() {
         origH: originalImg.naturalHeight,
       }
     },
-    [displayMetrics, originalImg, state.cropX, state.cropY, state.cropW, state.cropH]
+    [displayMetrics, originalImg, state]
   )
 
   /** Last rect handed to updateState. Guards a redraw for a crop that has not moved. */
@@ -536,18 +776,22 @@ export default function ImageTool() {
       // Dragging past the image edge keeps producing the same clamped rect. Committing it again
       // would redraw the canvas once a frame for a crop that is standing still.
       const previous = committedCropRef.current
+      const comparison = previous ?? drag.startCrop
       if (
-        previous &&
-        previous.x === next.x &&
-        previous.y === next.y &&
-        previous.w === next.w &&
-        previous.h === next.h
+        comparison.x === next.x &&
+        comparison.y === next.y &&
+        comparison.w === next.w &&
+        comparison.h === next.h
       ) {
         return
       }
+      if (!previous && cropDragUndoRef.current) {
+        undoRef.current = cropDragUndoRef.current
+        setCanUndo(true)
+      }
       committedCropRef.current = next
 
-      updateState({
+      persistState({
         cropX: next.x,
         cropY: next.y,
         cropW: next.w,
@@ -569,6 +813,7 @@ export default function ImageTool() {
     // where the pointer let go.
     flushCrop()
     cropDragRef.current = null
+    cropDragUndoRef.current = null
     committedCropRef.current = null
   }, [flushCrop])
 
@@ -593,32 +838,91 @@ export default function ImageTool() {
         },
         { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
       )
-      updateState({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
+      const current = {
+        x: state.cropX,
+        y: state.cropY,
+        w: state.cropW ?? originalImg.naturalWidth,
+        h: state.cropH ?? originalImg.naturalHeight,
+      }
+      if (cropRectsMatch(next, current)) return
+      updateParameters({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
     },
-    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateState]
+    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateParameters]
+  )
+
+  const handleCropHandleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, handle: Exclude<CropHandle, 'body'>) => {
+      if (!originalImg) return
+      const step = event.shiftKey ? 10 : 1
+      let dx = 0
+      let dy = 0
+      if (event.key === 'ArrowLeft') dx = -step
+      if (event.key === 'ArrowRight') dx = step
+      if (event.key === 'ArrowUp') dy = -step
+      if (event.key === 'ArrowDown') dy = step
+      if (!dx && !dy) return
+      event.preventDefault()
+      event.stopPropagation()
+
+      let x = state.cropX
+      let y = state.cropY
+      let w = state.cropW ?? originalImg.naturalWidth
+      let h = state.cropH ?? originalImg.naturalHeight
+
+      if (handle === 'nw' || handle === 'sw') {
+        const nextX = Math.max(0, x + dx)
+        w -= nextX - x
+        x = nextX
+      } else {
+        w += dx
+      }
+      if (handle === 'nw' || handle === 'ne') {
+        const nextY = Math.max(0, y + dy)
+        h -= nextY - y
+        y = nextY
+      } else {
+        h += dy
+      }
+
+      const next = clampCropRect(
+        { x, y, w, h },
+        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
+      )
+      const current = {
+        x: state.cropX,
+        y: state.cropY,
+        w: state.cropW ?? originalImg.naturalWidth,
+        h: state.cropH ?? originalImg.naturalHeight,
+      }
+      if (cropRectsMatch(next, current)) return
+      updateParameters({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
+    },
+    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateParameters]
   )
 
   useEffect(() => {
     if (state.activeTab !== 'crop') {
       cropDragRef.current = null
+      cropDragUndoRef.current = null
       return
     }
     window.addEventListener('mouseup', handleCropMouseUp)
     return () => {
       window.removeEventListener('mouseup', handleCropMouseUp)
       cropDragRef.current = null
+      cropDragUndoRef.current = null
     }
   }, [handleCropMouseUp, state.activeTab])
 
   const handleResetCrop = useCallback(() => {
     if (!originalImg) return
-    updateState({
+    updateParameters({
       cropX: 0,
       cropY: 0,
       cropW: originalImg.naturalWidth,
       cropH: originalImg.naturalHeight,
     })
-  }, [originalImg, updateState])
+  }, [originalImg, updateParameters])
 
   const handleCropChange = useCallback(
     (x: number, y: number, w: number, h: number) => {
@@ -627,21 +931,23 @@ export default function ImageTool() {
         { x, y, w, h },
         { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
       )
-      updateState({
+      updateParameters({
         cropX: next.x,
         cropY: next.y,
         cropW: next.w,
         cropH: next.h,
       })
     },
-    [originalImg, updateState]
+    [originalImg, updateParameters]
   )
 
   // ── Export ─────────────────────────────────────────────────────
 
   const handleDownload = useCallback(async () => {
     const canvas = outputCanvasRef.current
-    if (!canvas) return
+    if (!canvas || outputError || exportInFlightRef.current) return
+    exportInFlightRef.current = true
+    setIsExporting(true)
     const mimeType =
       state.format === 'jpeg' ? 'image/jpeg' : state.format === 'webp' ? 'image/webp' : 'image/png'
     const ext = state.format
@@ -655,16 +961,25 @@ export default function ImageTool() {
       }
       const filename = buildExportFilename(fileName.replace(/\.[^.]+$/, ''), ext)
       const path = await exportFile(blob, filename)
-      if (path)
-        setLastAction(`Saved as ${ext.toUpperCase()} (${formatBytes(blob.size)})`, 'success')
+      if (path) {
+        setLastAction(
+          `Saved ${ext.toUpperCase()} to "${path}" (${formatBytes(blob.size)})`,
+          'success'
+        )
+      } else {
+        setLastAction('Save cancelled', 'info')
+      }
     } catch {
       setLastAction('Image export failed', 'error')
+    } finally {
+      exportInFlightRef.current = false
+      setIsExporting(false)
     }
-  }, [state.format, state.quality, fileName, setLastAction])
+  }, [state.format, state.quality, fileName, outputError, setLastAction])
 
   const handleCopyImage = useCallback(async () => {
     const canvas = outputCanvasRef.current
-    if (!canvas) return
+    if (!canvas || outputError || exportInFlightRef.current) return
     try {
       await new Promise<void>((resolve, reject) => {
         canvas.toBlob(async (blob) => {
@@ -684,15 +999,23 @@ export default function ImageTool() {
     } catch {
       setLastAction('Clipboard write failed', 'error')
     }
-  }, [setLastAction])
+  }, [outputError, setLastAction])
+
+  useEffect(() => {
+    if (!isInstanceActive) return
+    return subscribeToolAction((action) => {
+      if (action.type === 'open-file') void handleOpenImage()
+      if (action.type === 'save-file') void handleDownload()
+      if (action.type === 'copy-output') void handleCopyImage()
+    })
+  }, [handleCopyImage, handleDownload, handleOpenImage, isInstanceActive])
 
   const handleResetAll = useCallback(() => {
     if (!originalImg) return
-    updateState({
-      resizeW: originalImg.naturalWidth,
-      resizeH: originalImg.naturalHeight,
+    updateParameters({
+      resizeW: null,
+      resizeH: null,
       lockAspect: true,
-      cropEnabled: false,
       cropX: 0,
       cropY: 0,
       cropW: originalImg.naturalWidth,
@@ -704,7 +1027,16 @@ export default function ImageTool() {
       quality: 85,
     })
     setLastAction('Reset all settings', 'info')
-  }, [originalImg, updateState, setLastAction])
+  }, [originalImg, updateParameters, setLastAction])
+
+  const handleUndo = useCallback(() => {
+    const previous = undoRef.current
+    if (!previous) return
+    undoRef.current = null
+    setCanUndo(false)
+    persistState(previous)
+    setLastAction('Restored previous parameters', 'info')
+  }, [persistState, setLastAction])
 
   // ── Crop box display rect (image coords → screen coords) ────────
 
@@ -718,7 +1050,14 @@ export default function ImageTool() {
         }
       : null
 
+  const cropActive = Boolean(
+    originalImg &&
+    ((state.cropW ?? originalImg.naturalWidth) < originalImg.naturalWidth ||
+      (state.cropH ?? originalImg.naturalHeight) < originalImg.naturalHeight)
+  )
+
   const estimatedBytes = outputBlobSize
+  const exportFilename = buildExportFilename(fileName.replace(/\.[^.]+$/, ''), state.format)
 
   // ── Render ─────────────────────────────────────────────────────
 
@@ -733,7 +1072,7 @@ export default function ImageTool() {
             <Button
               variant={originalImg ? 'secondary' : 'primary'}
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => void handleOpenImage()}
             >
               <UploadSimpleIcon size={14} />
               Open Image
@@ -765,13 +1104,25 @@ export default function ImageTool() {
               </>
             ) : (
               <span className="text-xs text-[var(--color-text-muted)]">
-                Open an image or drop it anywhere
+                {loadMessage ?? 'Open an image or drop it on the preview'}
               </span>
             )}
 
             {originalImg && (
               <>
                 <ToolbarSpacer />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  aria-label="Undo last parameter change"
+                  title="Undo last parameter change"
+                  className="gap-1"
+                >
+                  <ArrowCounterClockwiseIcon size={14} />
+                  Undo
+                </Button>
                 <Button
                   variant="ghost"
                   size="xs"
@@ -788,9 +1139,10 @@ export default function ImageTool() {
 
           <div className="border-b border-[var(--color-border)]">
             <TabBar
+              baseId="image-tool-sections"
               tabs={TABS}
               activeTab={state.activeTab}
-              onTabChange={(id) => updateState({ activeTab: id })}
+              onTabChange={(id) => persistState({ activeTab: id })}
             />
           </div>
         </>
@@ -828,14 +1180,19 @@ export default function ImageTool() {
                 />
               )}
 
-              {/* Output canvas — always rendered; visible only outside crop tab */}
+              {/* Output canvas */}
               <canvas
                 ref={outputCanvasRef}
-                className={`max-h-full max-w-full object-contain ${state.activeTab === 'crop' ? 'hidden' : ''}`}
+                aria-label="Image result"
+                className={
+                  state.activeTab === 'crop'
+                    ? 'pointer-events-none absolute bottom-4 right-4 z-20 max-h-40 max-w-40 border border-[var(--color-border)] bg-[var(--color-surface)] object-contain shadow-[var(--color-shadow)]'
+                    : 'max-h-full max-w-full object-contain'
+                }
               />
 
               {/* Crop selection overlay */}
-              {state.activeTab === 'crop' && state.cropEnabled && cropDisplayRect && (
+              {state.activeTab === 'crop' && cropDisplayRect && (
                 <>
                   {/* Dimming strips around the crop area */}
                   <div
@@ -893,7 +1250,7 @@ export default function ImageTool() {
                     role="group"
                     aria-label="Crop selection. Use arrow keys to nudge; hold Shift for larger steps."
                     onKeyDown={handleCropKeyDown}
-                    className="absolute"
+                    className="absolute focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                     style={{
                       left: cropDisplayRect.left,
                       top: cropDisplayRect.top,
@@ -917,9 +1274,14 @@ export default function ImageTool() {
 
                     {/* Corner handles */}
                     {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => (
-                      <div
+                      // eslint-disable-next-line no-restricted-syntax -- The crop handle needs exact size and position.
+                      <button
                         key={handle}
+                        type="button"
+                        aria-label={CROP_HANDLE_LABELS[handle]}
                         onMouseDown={(e) => handleCropHandleMouseDown(e, handle)}
+                        onKeyDown={(e) => handleCropHandleKeyDown(e, handle)}
+                        className="focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
                         style={{
                           position: 'absolute',
                           width: 12,
@@ -964,15 +1326,16 @@ export default function ImageTool() {
                 <div className="mt-0.5 text-2xs opacity-60">
                   JPEG · PNG · WebP · GIF · BMP · SVG
                 </div>
+                {loadMessage && <div className="mt-1 text-xs">{loadMessage}</div>}
               </div>
-              <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Button variant="secondary" size="sm" onClick={() => void handleOpenImage()}>
                 Browse files
               </Button>
             </div>
           )}
 
           {/* Drag-over overlay */}
-          {isDragOver && (
+          {(isDragOver || isDraggingImage) && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[var(--color-surface)]/90 backdrop-blur-sm">
               <UploadSimpleIcon size={32} className="text-[var(--color-accent)]" />
               <span className="text-sm font-medium text-[var(--color-accent)]">
@@ -984,62 +1347,71 @@ export default function ImageTool() {
 
         {/* ── Controls panel ──────────────────────────────────────── */}
         <div className="w-64 shrink-0 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          {!originalImg ? (
-            <p className="text-xs text-[var(--color-text-muted)]">Open an image to get started.</p>
-          ) : state.activeTab === 'resize' ? (
-            <ResizePanel
-              resizeW={state.resizeW}
-              resizeH={state.resizeH}
-              lockAspect={state.lockAspect}
-              originalW={originalImg.naturalWidth}
-              originalH={originalImg.naturalHeight}
-              onResizeW={handleResizeW}
-              onResizeH={handleResizeH}
-              onLockToggle={() => updateState({ lockAspect: !state.lockAspect })}
-              onReset={handleResetResize}
-              onPreset={handleApplyPreset}
-            />
-          ) : state.activeTab === 'crop' ? (
-            <CropPanel
-              enabled={state.cropEnabled}
-              x={state.cropX}
-              y={state.cropY}
-              w={state.cropW ?? originalImg.naturalWidth}
-              h={state.cropH ?? originalImg.naturalHeight}
-              maxW={originalImg.naturalWidth}
-              maxH={originalImg.naturalHeight}
-              onToggle={() => updateState({ cropEnabled: !state.cropEnabled })}
-              onChange={handleCropChange}
-              onReset={handleResetCrop}
-            />
-          ) : state.activeTab === 'transform' ? (
-            <TransformPanel
-              rotation={state.rotation}
-              flipX={state.flipX}
-              flipY={state.flipY}
-              onRotate={() =>
-                updateState({
-                  rotation: ((state.rotation + 90) % 360) as ImageToolState['rotation'],
-                })
-              }
-              onFlipX={() => updateState({ flipX: !state.flipX })}
-              onFlipY={() => updateState({ flipY: !state.flipY })}
-              onReset={() => updateState({ rotation: 0, flipX: false, flipY: false })}
-            />
-          ) : (
-            <ExportPanel
-              format={state.format}
-              quality={state.quality}
-              outputW={outputSize?.w ?? 0}
-              outputH={outputSize?.h ?? 0}
-              originalBytes={originalFileSize}
-              estimatedBytes={estimatedBytes}
-              onFormatChange={(f) => updateState({ format: f as ImageToolState['format'] })}
-              onQualityChange={(q) => updateState({ quality: q })}
-              onDownload={() => void handleDownload()}
-              onCopy={() => void handleCopyImage()}
-            />
-          )}
+          <TabPanel baseId="image-tool-sections" tabId={state.activeTab}>
+            <p className="mb-4 text-2xs text-[var(--color-text-muted)]">
+              Order: crop, resize, rotate, flip, encode.
+            </p>
+            {!originalImg ? (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Open an image to get started.
+              </p>
+            ) : state.activeTab === 'resize' ? (
+              <ResizePanel
+                resizeW={state.resizeW}
+                resizeH={state.resizeH}
+                lockAspect={state.lockAspect}
+                sourceW={sourceW}
+                sourceH={sourceH}
+                onResizeW={handleResizeW}
+                onResizeH={handleResizeH}
+                onLockToggle={() => updateParameters({ lockAspect: !state.lockAspect })}
+                onReset={handleResetResize}
+                onPreset={handleApplyPreset}
+              />
+            ) : state.activeTab === 'crop' ? (
+              <CropPanel
+                active={cropActive}
+                x={state.cropX}
+                y={state.cropY}
+                w={state.cropW ?? originalImg.naturalWidth}
+                h={state.cropH ?? originalImg.naturalHeight}
+                maxW={originalImg.naturalWidth}
+                maxH={originalImg.naturalHeight}
+                onChange={handleCropChange}
+                onReset={handleResetCrop}
+              />
+            ) : state.activeTab === 'transform' ? (
+              <TransformPanel
+                rotation={state.rotation}
+                flipX={state.flipX}
+                flipY={state.flipY}
+                onRotate={() =>
+                  updateParameters({
+                    rotation: ((state.rotation + 90) % 360) as ImageToolState['rotation'],
+                  })
+                }
+                onFlipX={() => updateParameters({ flipX: !state.flipX })}
+                onFlipY={() => updateParameters({ flipY: !state.flipY })}
+                onReset={() => updateParameters({ rotation: 0, flipX: false, flipY: false })}
+              />
+            ) : (
+              <ExportPanel
+                format={state.format}
+                quality={state.quality}
+                outputW={outputSize?.w ?? 0}
+                outputH={outputSize?.h ?? 0}
+                originalBytes={originalFileSize}
+                estimatedBytes={estimatedBytes}
+                filename={exportFilename}
+                outputError={outputError}
+                isExporting={isExporting}
+                onFormatChange={(f) => updateParameters({ format: f as ImageToolState['format'] })}
+                onQualityChange={(q) => updateParameters({ quality: q })}
+                onDownload={() => void handleDownload()}
+                onCopy={() => void handleCopyImage()}
+              />
+            )}
+          </TabPanel>
         </div>
       </div>
     </ToolLayout>
@@ -1102,8 +1474,8 @@ function ResizePanel({
   resizeW,
   resizeH,
   lockAspect,
-  originalW,
-  originalH,
+  sourceW,
+  sourceH,
   onResizeW,
   onResizeH,
   onLockToggle,
@@ -1113,8 +1485,8 @@ function ResizePanel({
   resizeW: number | null
   resizeH: number | null
   lockAspect: boolean
-  originalW: number
-  originalH: number
+  sourceW: number
+  sourceH: number
   onResizeW: (w: number) => void
   onResizeH: (h: number) => void
   onLockToggle: () => void
@@ -1132,9 +1504,10 @@ function ResizePanel({
             <Input
               type="number"
               min={1}
+              max={MAX_IMAGE_DIMENSION}
               value={resizeW ?? ''}
               onChange={(e) => onResizeW(Number(e.target.value))}
-              placeholder="Width"
+              placeholder={String(sourceW)}
               className={NUMBER_FIELD_CLASS}
             />
           </Field>
@@ -1154,9 +1527,10 @@ function ResizePanel({
             <Input
               type="number"
               min={1}
+              max={MAX_IMAGE_DIMENSION}
               value={resizeH ?? ''}
               onChange={(e) => onResizeH(Number(e.target.value))}
-              placeholder="Height"
+              placeholder={String(sourceH)}
               className={NUMBER_FIELD_CLASS}
             />
           </Field>
@@ -1168,10 +1542,14 @@ function ResizePanel({
         <button
           type="button"
           onClick={onReset}
-          className="mt-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
+          disabled={resizeW === null && resizeH === null}
+          className="mt-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
         >
-          Reset to original ({originalW} × {originalH})
+          Clear resize
         </button>
+        <p className="mt-2 text-2xs text-[var(--color-text-muted)]">
+          The output follows the crop when resize is empty.
+        </p>
       </div>
 
       <div>
@@ -1193,10 +1571,10 @@ function ResizePanel({
         </div>
       </div>
 
-      {resizeW && resizeH && (resizeW !== originalW || resizeH !== originalH) && (
+      {resizeW && resizeH && (resizeW !== sourceW || resizeH !== sourceH) && (
         <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-2xs text-[var(--color-accent)]">
-          Output: {resizeW} × {resizeH}px (
-          {((resizeW * resizeH) / (originalW * originalH)).toFixed(2)}× pixels)
+          Output: {resizeW} × {resizeH}px ({((resizeW * resizeH) / (sourceW * sourceH)).toFixed(2)}×
+          crop pixels)
         </div>
       )}
     </div>
@@ -1206,34 +1584,30 @@ function ResizePanel({
 // ── CropPanel ──────────────────────────────────────────────────────
 
 function CropPanel({
-  enabled,
+  active,
   x,
   y,
   w,
   h,
   maxW,
   maxH,
-  onToggle,
   onChange,
   onReset,
 }: {
-  enabled: boolean
+  active: boolean
   x: number
   y: number
   w: number
   h: number
   maxW: number
   maxH: number
-  onToggle: () => void
   onChange: (x: number, y: number, w: number, h: number) => void
   onReset: () => void
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <Toggle checked={enabled} onChange={onToggle} label="Enable crop" />
-
       {/* Crop coordinates */}
-      <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
+      <div>
         <SectionLabel as="div" className="mb-2">
           Offset
         </SectionLabel>
@@ -1244,7 +1618,6 @@ function CropPanel({
               min={0}
               max={maxW - 1}
               value={x}
-              disabled={!enabled}
               onChange={(e) => onChange(Number(e.target.value), y, w, h)}
               className={NUMBER_FIELD_CLASS}
             />
@@ -1255,7 +1628,6 @@ function CropPanel({
               min={0}
               max={maxH - 1}
               value={y}
-              disabled={!enabled}
               onChange={(e) => onChange(x, Number(e.target.value), w, h)}
               className={NUMBER_FIELD_CLASS}
             />
@@ -1272,7 +1644,6 @@ function CropPanel({
               min={1}
               max={maxW}
               value={w}
-              disabled={!enabled}
               onChange={(e) => onChange(x, y, Number(e.target.value), h)}
               className={NUMBER_FIELD_CLASS}
             />
@@ -1283,7 +1654,6 @@ function CropPanel({
               min={1}
               max={maxH}
               value={h}
-              disabled={!enabled}
               onChange={(e) => onChange(x, y, w, Number(e.target.value))}
               className={NUMBER_FIELD_CLASS}
             />
@@ -1296,14 +1666,14 @@ function CropPanel({
         <button
           type="button"
           onClick={onReset}
-          disabled={!enabled}
+          disabled={!active}
           className="mt-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] text-2xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
         >
           Reset to full image
         </button>
       </div>
 
-      {enabled && (
+      {active && (
         <div className="rounded bg-[var(--color-accent)]/10 px-3 py-2 text-2xs text-[var(--color-accent)]">
           Crop: {w} × {h}px at ({x}, {y})
         </div>
@@ -1325,6 +1695,9 @@ function ExportPanel({
   outputH,
   originalBytes,
   estimatedBytes,
+  filename,
+  outputError,
+  isExporting,
   onFormatChange,
   onQualityChange,
   onDownload,
@@ -1336,6 +1709,9 @@ function ExportPanel({
   outputH: number
   originalBytes: number
   estimatedBytes: number
+  filename: string
+  outputError: string | null
+  isExporting: boolean
   onFormatChange: (f: string) => void
   onQualityChange: (q: number) => void
   onDownload: () => void
@@ -1356,8 +1732,8 @@ function ExportPanel({
         <TabBar tabs={FORMAT_TABS} activeTab={format} onTabChange={onFormatChange} />
         <div className="mt-1.5 text-2xs text-[var(--color-text-muted)]">
           {format === 'png' && 'Lossless · Supports transparency'}
-          {format === 'jpeg' && 'Lossy · Best for photos · No transparency'}
-          {format === 'webp' && 'Lossy/lossless · Modern · Smallest size'}
+          {format === 'jpeg' && 'Lossy · Best for photos · White replaces transparency'}
+          {format === 'webp' && 'Lossy · Modern · Small file size'}
         </div>
       </div>
 
@@ -1372,6 +1748,8 @@ function ExportPanel({
             min={1}
             max={100}
             value={quality}
+            aria-label="Image quality"
+            aria-valuetext={`${quality}%`}
             onChange={(e) => onQualityChange(Number(e.target.value))}
             className="w-full accent-[var(--color-accent)]"
           />
@@ -1387,6 +1765,9 @@ function ExportPanel({
           Output Info
         </SectionLabel>
         <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
+          <div>
+            Filename: <span className="font-mono text-[var(--color-text)]">{filename}</span>
+          </div>
           <div>
             Dimensions:{' '}
             <span className="font-mono text-[var(--color-text)]">
@@ -1409,12 +1790,20 @@ function ExportPanel({
       </div>
 
       <div className="flex flex-col gap-2">
+        {outputError && (
+          <p id="image-export-disabled-reason" className="text-2xs text-[var(--color-error)]">
+            Export is disabled. {outputError}.
+          </p>
+        )}
         <Button
           variant="primary"
           size="sm"
           onClick={() => {
             void onDownload()
           }}
+          loading={isExporting}
+          disabled={outputError !== null}
+          aria-describedby={outputError ? 'image-export-disabled-reason' : undefined}
         >
           <DownloadSimpleIcon size={14} />
           Download {format.toUpperCase()}
@@ -1425,6 +1814,8 @@ function ExportPanel({
           onClick={() => {
             void onCopy()
           }}
+          disabled={outputError !== null || isExporting}
+          aria-describedby={outputError ? 'image-export-disabled-reason' : undefined}
         >
           <CopyIcon size={14} />
           Copy as PNG

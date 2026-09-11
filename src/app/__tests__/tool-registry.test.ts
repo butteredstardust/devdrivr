@@ -6,6 +6,7 @@ import {
   OPEN_FILE_TOOL_IDS,
   SAVE_FILE_TOOL_IDS,
   MONACO_TOOL_IDS,
+  OWNS_FILE_DROP_TOOL_IDS,
 } from '@/app/tool-registry'
 
 const TOOL_SMOKE_TEST_MODULES = import.meta.glob('../../tools/__tests__/*.test.tsx')
@@ -58,9 +59,10 @@ describe('tool capability flags', () => {
     for (const id of OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of SAVE_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
     for (const id of MONACO_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
+    for (const id of OWNS_FILE_DROP_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 16', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 17', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -71,6 +73,7 @@ describe('tool capability flags', () => {
         'curl-to-fetch',
         'diff-viewer',
         'html-validator',
+        'image-tool',
         'json-schema-validator',
         'json-tools',
         'markdown-editor',
@@ -83,7 +86,7 @@ describe('tool capability flags', () => {
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 16', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 17', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -93,6 +96,7 @@ describe('tool capability flags', () => {
         'csv-tools',
         'curl-to-fetch',
         'html-validator',
+        'image-tool',
         'json-schema-validator',
         'json-tools',
         'markdown-editor',
@@ -104,6 +108,13 @@ describe('tool capability flags', () => {
         'yaml-tools',
       ])
     )
+  })
+
+  // A tool with this flag runs its own native drop listener. The shell must stay
+  // silent for it. Dropping the flag by accident returns the "file drop is not
+  // supported" toast with no type error, so pin the exact set.
+  it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 2', () => {
+    expect(OWNS_FILE_DROP_TOOL_IDS).toEqual(new Set(['image-tool', 'notes']))
   })
 
   it('MONACO_TOOL_IDS matches the audited set of 18', () => {
