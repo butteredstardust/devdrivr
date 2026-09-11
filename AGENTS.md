@@ -535,6 +535,8 @@ const { isDragging } = useNativeFileDrop(
 
 Both halves are needed. `ownsFileDrop` without a listener leaves the drop unanswered; a listener without the flag makes the shell answer "File drop is not supported by the active tool" over the top of it.
 
+Always pass the instance gate, as the example does. A background tab stays mounted and its listener still sees every drop, so an ungated second tab answers a drop meant for the tab in front of it.
+
 Keep a React `onDrop` for the browser, and mark it: `/* tool-contract-ignore: html-drop-is-dead ... */`. `bun run audit:tools` reports every tool where the two halves disagree.
 
 ### 29. Test file location

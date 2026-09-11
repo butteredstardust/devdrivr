@@ -67,13 +67,15 @@ describe('markdown editor file drop', () => {
   const render = (
     onTextFile = vi.fn(),
     onError = vi.fn(),
-    editorRef: { current: unknown } = makeEditorRef()
+    editorRef: { current: unknown } = makeEditorRef(),
+    enabled = true
   ) => {
     const containerRef = makeContainerRef()
     renderHook(() =>
       useImageDrop(
         editorRef as unknown as Parameters<typeof useImageDrop>[0],
         containerRef,
+        enabled,
         onTextFile,
         onError
       )
@@ -139,6 +141,7 @@ describe('markdown editor file drop', () => {
       useImageDrop(
         makeEditorRef() as unknown as Parameters<typeof useImageDrop>[0],
         containerRef,
+        true,
         vi.fn(),
         vi.fn()
       )
@@ -152,6 +155,14 @@ describe('markdown editor file drop', () => {
     })
 
     expect(result.current.isDraggingImage).toBe(false)
+  })
+
+  // Every mounted tab keeps its listener, and every listener sees every drop. An ungated
+  // background tab replaced its own document with a file dropped on the tab in front of it.
+  it('does not listen while the tab is in the background', async () => {
+    render(vi.fn(), vi.fn(), makeEditorRef(), false)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(mocks.eventHandler).toBeNull()
   })
 
   // One drop of both kinds is an image drop. Opening a document would throw the images away.

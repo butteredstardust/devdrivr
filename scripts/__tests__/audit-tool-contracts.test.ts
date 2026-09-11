@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { auditTool, parseRegistry, readSignals } from '../audit-tool-contracts.mjs'
+import { auditRegistry, auditTool, factsForFile, parseRegistry } from '../audit-tool-contracts.mjs'
 
-type Finding = { tool: string; rule: string; detail: string }
+type Finding = { tool: string; rule: string; detail: string; file?: string; line?: number }
 type Tool = Record<string, unknown>
+type Fact = { kind: string; name: string; line: number }
+
+const parseFacts = (source: string) =>
+  (factsForFile as (f: string, s: string) => Fact[])('sample.tsx', source)
+
+/** Registry ids a handoff may name. Tests that do not care pass a tool id through. */
+const REGISTERED = { ids: new Set(['sample', 'json-tools']) }
 
 const audit = (tool: Tool, source: string): Finding[] =>
-  (auditTool as (t: Tool, s: string) => Finding[])({ id: 'sample', ...tool }, source)
+  (auditTool as (t: Tool, f: Fact[], s: string, r: unknown) => Finding[])(
+    { id: 'sample', ...tool },
+    parseFacts(source),
+    source,
+    REGISTERED
+  )
 
 const rulesFor = (tool: Tool, source: string) => audit(tool, source).map((f) => f.rule)
-
-const signals = (source: string) => (readSignals as (s: string) => Record<string, boolean>)(source)
 
 describe('tool contract rules', () => {
   // Each rule below reproduces a defect that reached a user. The comment states which, because a
@@ -55,7 +65,8 @@ describe('tool contract rules', () => {
     // A tool that runs its own binary dialog does not carry `supportsOpenFile`, and saying it
     // lacks a registration would be wrong.
     it('accepts ownsOpenFile in place of supportsOpenFile', () => {
-      expect(rulesFor({ ownsOpenFile: true }, `case 'open-file-dialog': dialog()`)).toEqual([])
+      const source = `switch (action.type) { case 'open-file-dialog': dialog() }`
+      expect(rulesFor({ ownsOpenFile: true }, source)).toEqual([])
     })
 
     it('flags a save handler the shortcut can never reach', () => {
@@ -72,12 +83,13 @@ describe('tool contract rules', () => {
       expect(rulesFor({}, 'webview.onDragDropEvent(handler)')).toContain('native-drop-unregistered')
     })
 
-    // Most tools reach the drop through a hook rather than the Tauri call. Detection is textual,
-    // so a wrapper the signal does not name reports every tool using it as having no handler.
+    // Most tools reach the drop through a hook rather than the Tauri call. Detection reads the
+    // callee name, so a wrapper that `DROP_REGISTRARS` does not list reports every tool using it
+    // as having no handler.
     it('sees the drop through a wrapper hook', () => {
-      expect(rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, true)')).toEqual(
-        []
-      )
+      expect(
+        rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, isInstanceActive)')
+      ).toEqual([])
     })
 
     it('stays quiet once the flag is set', () => {
@@ -133,11 +145,129 @@ describe('tool contract rules', () => {
   })
 })
 
-describe('signal detection', () => {
+describe('fact extraction', () => {
   // An explicit type argument is the normal call style for these hooks. A pattern requiring `(`
   // reported every tool as stateless, which is how this was found.
   it('sees a hook called with a type argument', () => {
-    expect(signals(`useToolState<JsonToolsState>('json-tools', {})`).toolState).toBe(true)
+    const facts = parseFacts(`useToolState<JsonToolsState>('json-tools', {})`)
+    expect(facts.some((f) => f.kind === 'call' && f.name === 'useToolState')).toBe(true)
+  })
+
+  // A tool that ships a sample document is describing HTML, not writing a handler. The text
+  // search read three `<h1>` in the HTML validator's sample templates as headings it rendered.
+  it('does not read code out of a comment or a string', () => {
+    const source = `// useNativeFileDrop answers the drop
+      const sample = '<div onDrop={x} />'`
+    expect(parseFacts(source).filter((f) => f.kind !== 'call')).toEqual([])
+  })
+
+  it('carries the line a fact sits on', () => {
+    const facts = parseFacts(`const a = 1\nconst b = 2\nuseMonaco()`)
+    expect(facts.find((f) => f.name === 'useMonaco')?.line).toBe(3)
+  })
+
+  // Half the tools answer an action with an early return rather than a positive branch.
+  it('reads a negated comparison as a handler', () => {
+    expect(rulesFor({ supportsSaveFile: true }, `if (action.type !== 'save-file') return`)).toEqual(
+      []
+    )
+  })
+
+  // A tool that dispatches an action does not handle it. The text search could not tell the two
+  // apart, so a tool that only sent `open-file` read as one that answered it.
+  it('does not read a dispatch as a handler', () => {
+    expect(
+      rulesFor({ supportsOpenFile: true }, `dispatchToolAction({ type: 'open-file' })`)
+    ).toContain('open-file-flag-dead')
+  })
+})
+
+describe('native-drop-not-instance-gated', () => {
+  // Every mounted tab keeps its listener and every listener sees every drop. The Markdown Editor
+  // shipped ungated, so a drop could replace a background tab's document.
+  it('flags a drop registered with no instance gate', () => {
+    expect(
+      rulesFor({ ownsFileDrop: true }, 'useImageDrop(editorRef, ref, onText, onError)')
+    ).toContain('native-drop-not-instance-gated')
+  })
+
+  it('stays quiet when the gate is passed', () => {
+    expect(
+      rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, isInstanceActive)')
+    ).toEqual([])
+  })
+
+  // A wrapper forwards its own `enabled` parameter. Its caller is checked at the caller's line.
+  it('accepts a forwarded enabled parameter', () => {
+    expect(rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, enabled)')).toEqual(
+      []
+    )
+  })
+
+  // The gate is checked at the call. A directory-wide boolean let one gated listener bless every
+  // ungated one beside it, which is how the Markdown Editor stayed green.
+  it('does not let one gated call bless another', () => {
+    const source = `const isInstanceActive = useIsInstanceActive()
+      useNativeFileDrop(ref, callbacks, isInstanceActive)
+      useImageDrop(editorRef, ref, onText, onError)`
+    const findings = audit({ ownsFileDrop: true }, source)
+    const gate = findings.filter((f) => f.rule === 'native-drop-not-instance-gated')
+    expect(gate).toHaveLength(1)
+    expect(gate[0]?.line).toBe(3)
+  })
+})
+
+describe('flags that steer the shell', () => {
+  it('flags a Monaco tool that does not declare it', () => {
+    expect(rulesFor({}, 'const monaco = useMonaco()')).toContain('monaco-flag-missing')
+  })
+
+  it('flags a declared Monaco tool that never calls it', () => {
+    expect(rulesFor({ usesMonaco: true }, 'const x = 1')).toContain('monaco-flag-dead')
+  })
+
+  // The key names the SQLite row. A typo reads another tool's state, which looks like a reset.
+  it('flags a tool state key that is not the tool id', () => {
+    expect(rulesFor({}, `useToolState<S>('json-tool', {})`)).toContain('tool-state-id-mismatch')
+  })
+
+  it('accepts the matching key', () => {
+    expect(rulesFor({}, `useToolState<S>('sample', {})`)).toEqual([])
+  })
+
+  it('flags a handoff to a tool that is not registered', () => {
+    expect(rulesFor({}, `sendToTool('jsn-tools', patch)`)).toContain('handoff-target-unregistered')
+  })
+
+  it('accepts a handoff to a registered tool', () => {
+    expect(rulesFor({}, `sendToTool('json-tools', patch)`)).toEqual([])
+  })
+})
+
+describe('auditRegistry', () => {
+  const registryFindings = (tools: Tool[], dirs: string[]) =>
+    (auditRegistry as (t: Tool[], d: string[]) => Finding[])(tools, dirs).map((f) => f.rule)
+
+  it('flags two entries sharing one id', () => {
+    const tools = [
+      { id: 'base64', component: 'A', dir: 'base64' },
+      { id: 'base64', component: 'B', dir: 'base64' },
+    ]
+    expect(registryFindings(tools, ['base64'])).toContain('duplicate-tool-id')
+  })
+
+  it('flags two entries sharing one component', () => {
+    const tools = [
+      { id: 'base64', component: 'A', dir: 'base64' },
+      { id: 'url-codec', component: 'A', dir: 'base64' },
+    ]
+    expect(registryFindings(tools, ['base64'])).toContain('duplicate-tool-component')
+  })
+
+  // Source nothing imports ships in no build and cannot be opened.
+  it('flags a tool directory the registry never names', () => {
+    const tools = [{ id: 'base64', component: 'A', dir: 'base64' }]
+    expect(registryFindings(tools, ['base64', 'placeholder'])).toContain('orphan-tool-directory')
   })
 })
 
@@ -166,6 +296,7 @@ export const TOOLS: ToolDefinition[] = [
     expect(parse(REGISTRY)).toEqual([
       {
         id: 'json-tools',
+        component: 'JsonTools',
         dir: 'json-tools',
         supportsOpenFile: true,
         supportsSaveFile: true,
@@ -175,6 +306,7 @@ export const TOOLS: ToolDefinition[] = [
       },
       {
         id: 'base64',
+        component: 'Base64Tool',
         dir: 'base64',
         supportsOpenFile: false,
         supportsSaveFile: false,
