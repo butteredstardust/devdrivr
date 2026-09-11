@@ -124,7 +124,6 @@ export default function MarkdownEditor() {
     syncPreviewWithEditor && state.mode === 'split',
     syncEditorWithPreview && state.mode === 'split'
   )
-  const { isDraggingImage } = useImageDrop(editorRef, editorContainerRef)
   useMarkdownListEditing(mountedEditor)
   useMarkdownSmartPaste(mountedEditor)
   const editorSelectionToolbar = useMonacoSelectionToolbar(mountedEditor, showEditor, state.content)
@@ -244,6 +243,30 @@ export default function MarkdownEditor() {
       successMessage: 'New document created',
     })
   }, [requestDocument])
+
+  // The tool owns the whole drop: an image is embedded, any other file opens as a document.
+  const handleDroppedTextFile = useCallback(
+    (content: string, filename: string, path: string) => {
+      requestDocument({
+        content,
+        fileName: filename,
+        filePath: path,
+        savedContent: content,
+        successMessage: `Opened ${filename}`,
+      })
+    },
+    [requestDocument]
+  )
+  const handleDropError = useCallback(
+    (message: string) => setLastAction(message, 'error'),
+    [setLastAction]
+  )
+  const { isDraggingImage } = useImageDrop(
+    editorRef,
+    editorContainerRef,
+    handleDroppedTextFile,
+    handleDropError
+  )
 
   // ─── TOC ─────────────────────────────────────────────────────────
 

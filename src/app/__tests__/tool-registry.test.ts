@@ -114,8 +114,10 @@ describe('tool capability flags', () => {
   // A tool with this flag runs its own native drop listener. The shell must stay
   // silent for it. Dropping the flag by accident returns the "file drop is not
   // supported" toast with no type error, so pin the exact set.
-  it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 2', () => {
-    expect(OWNS_FILE_DROP_TOOL_IDS).toEqual(new Set(['image-tool', 'notes']))
+  it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 5', () => {
+    expect(OWNS_FILE_DROP_TOOL_IDS).toEqual(
+      new Set(['base64', 'hash-generator', 'image-tool', 'markdown-editor', 'notes'])
+    )
   })
 
   // A tool with this flag runs its own file dialog, because the shell reads text

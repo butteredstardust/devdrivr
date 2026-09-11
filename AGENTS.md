@@ -515,7 +515,29 @@ Use browser and web platform APIs before you add a dependency:
 
 Use a browser API when it handles the task. Add a package only when the platform API is insufficient.
 
-### 28. Test file location
+### 28. File drop — a React `onDrop` never fires on the desktop
+
+The window runs with Tauri's `dragDropEnabled`. Tauri claims the operating-system drop, so the webview fires no HTML5 `drop` event. A React `onDrop` handler in a tool is dead code on the desktop and works only in the remote-UI browser.
+
+Take a drop one of two ways:
+
+- **The shell reads it.** Set `supportsOpenFile` in the registry. The shell reads the file as text and dispatches `open-file`. Text only.
+- **The tool reads it.** Call `useNativeFileDrop` and set `ownsFileDrop` in the registry. Use this for bytes, or when one drop has more than one meaning.
+
+```typescript
+// ✅ The tool takes the drop and the registry says so
+const { isDragging } = useNativeFileDrop(
+  paneRef,
+  { onFile: (file) => load(file), onError: (m) => setLastAction(m, 'error') },
+  isInstanceActive
+)
+```
+
+Both halves are needed. `ownsFileDrop` without a listener leaves the drop unanswered; a listener without the flag makes the shell answer "File drop is not supported by the active tool" over the top of it.
+
+Keep a React `onDrop` for the browser, and mark it: `/* tool-contract-ignore: html-drop-is-dead ... */`. `bun run audit:tools` reports every tool where the two halves disagree.
+
+### 29. Test file location
 
 Put tool tests in `src/tools/__tests__/<tool-id>.test.tsx`. Do not colocate them with the component. `src/tools/my-tool/MyTool.test.tsx` works but breaks the project pattern.
 

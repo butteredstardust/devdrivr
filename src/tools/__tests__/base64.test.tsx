@@ -1,7 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, screen, fireEvent, waitFor } from '@testing-library/react'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
 import { renderTool } from './test-utils'
 import Base64Tool from '../base64/Base64Tool'
+
+const mocks = vi.hoisted(() => ({
+  eventHandler: null as ((event: { payload: Record<string, unknown> }) => void) | null,
+}))
+
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: vi.fn(),
+}))
+
+vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn(), stat: vi.fn() }))
 
 describe('Base64Tool', () => {
   beforeEach(() => {
@@ -9,6 +21,19 @@ describe('Base64Tool', () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     })
+    vi.clearAllMocks()
+    mocks.eventHandler = null
+    vi.mocked(readFile).mockResolvedValue(new Uint8Array([1, 2, 3]))
+    vi.mocked(stat).mockResolvedValue({ size: 3 } as Awaited<ReturnType<typeof stat>>)
+    vi.mocked(getCurrentWebviewWindow).mockReturnValue({
+      scaleFactor: vi.fn().mockResolvedValue(1),
+      onDragDropEvent: vi.fn(async (handler) => {
+        mocks.eventHandler = handler as typeof mocks.eventHandler
+        return () => {
+          mocks.eventHandler = null
+        }
+      }),
+    } as unknown as ReturnType<typeof getCurrentWebviewWindow>)
   })
 
   it('renders encode mode by default', () => {
@@ -69,6 +94,45 @@ describe('Base64Tool', () => {
     expect(screen.getByTitle('Encode a file to Base64')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Encode' })) // switch to decode
     expect(screen.queryByTitle('Encode a file to Base64')).not.toBeInTheDocument()
+  })
+
+  // Tauri claims the operating-system drop, so the React `onDrop` handler never fires on the
+  // desktop. The tool answered "File drop is not supported by the active tool" without this path.
+  it('encodes a file dropped on the desktop window', async () => {
+    // The test environment has no `FileReader`. Only the data URL matters here.
+    const originalFileReader = globalThis.FileReader
+    class StubFileReader {
+      result = 'data:image/png;base64,AQID'
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      readAsDataURL() {
+        setTimeout(() => this.onload?.(), 0)
+      }
+    }
+    globalThis.FileReader = StubFileReader as unknown as typeof FileReader
+
+    try {
+      renderTool(Base64Tool)
+      await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+      act(() => {
+        mocks.eventHandler?.({
+          payload: { type: 'drop', paths: ['/tmp/photo.png'], position: { x: 0, y: 0 } },
+        })
+      })
+
+      await waitFor(() => expect(screen.getByText('photo.png')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: /drop another file/i })).toBeInTheDocument()
+    } finally {
+      globalThis.FileReader = originalFileReader
+    }
+  })
+
+  it('ignores a dropped file in decode mode', async () => {
+    renderTool(Base64Tool)
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Encode' })) // switch to decode
+    await waitFor(() => expect(mocks.eventHandler).toBeNull())
   })
 
   it('copies standard base64 in data URIs when URL-safe mode is enabled', async () => {

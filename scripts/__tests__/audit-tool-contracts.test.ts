@@ -72,6 +72,14 @@ describe('tool contract rules', () => {
       expect(rulesFor({}, 'webview.onDragDropEvent(handler)')).toContain('native-drop-unregistered')
     })
 
+    // Most tools reach the drop through a hook rather than the Tauri call. Detection is textual,
+    // so a wrapper the signal does not name reports every tool using it as having no handler.
+    it('sees the drop through a wrapper hook', () => {
+      expect(rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, true)')).toEqual(
+        []
+      )
+    })
+
     it('stays quiet once the flag is set', () => {
       expect(rulesFor({ ownsFileDrop: true }, 'webview.onDragDropEvent(handler)')).toEqual([])
     })

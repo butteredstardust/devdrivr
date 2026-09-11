@@ -18,6 +18,41 @@ export function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath
 }
 
+/**
+ * The media types a file drop can produce.
+ *
+ * A `File` built from bytes has no type of its own, and a data URI with an empty type shows
+ * nothing. The list covers what the tools preview or label; anything else reads as unknown.
+ */
+const MIME_TYPES: Record<string, string> = {
+  bmp: 'image/bmp',
+  css: 'text/css',
+  csv: 'text/csv',
+  gif: 'image/gif',
+  html: 'text/html',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  js: 'text/javascript',
+  json: 'application/json',
+  md: 'text/markdown',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  txt: 'text/plain',
+  webp: 'image/webp',
+  xml: 'application/xml',
+  yaml: 'application/yaml',
+  yml: 'application/yaml',
+  zip: 'application/zip',
+}
+
+/** Returns the media type for a path, or an empty string when the extension is unknown. */
+export function mimeTypeFromPath(filePath: string): string {
+  const extension = filenameFromPath(filePath).split('.').pop()?.toLowerCase()
+  if (extension === undefined) return ''
+  return MIME_TYPES[extension] ?? ''
+}
+
 export async function readSupportedTextFile(filePath: string): Promise<string> {
   let content: string
   try {

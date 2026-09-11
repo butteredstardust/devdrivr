@@ -46,7 +46,9 @@ export const SIGNALS = {
   handlesCopyOutput: /['"]copy-output['"]/,
   usesToolAction: /\buseToolAction\s*[<(]/,
   rawSubscribe: /\bsubscribeToolAction\s*[<(]/,
-  nativeDrop: /\bonDragDropEvent\b/,
+  // The raw Tauri listener, or either hook that wraps it. Detection is textual, so a new wrapper
+  // must be named here or every tool using it reports as having no drop handler.
+  nativeDrop: /\b(?:onDragDropEvent|useNativeFileDrop|useImageFileDrop)\b/,
   htmlDrop: /\bonDrop\s*[=:]/,
   // Only the events another region competes for. A `mousedown` click-outside handler that
   // hit-tests its own ref is correct and must not be reported, or the report becomes noise.
