@@ -695,19 +695,19 @@ export default function ImageTool() {
 
   const handleApplyPreset = useCallback(
     (pw: number, ph: number) => {
-      if (!originalImg) return
-      const baseW = originalImg.naturalWidth
-      // Fit the preset ratio within the original dimensions
+      if (!originalImg || sourceW < 1 || sourceH < 1) return
+      // Fit the preset ratio within the crop. Resize reads the crop as its
+      // source, so measuring the original here would scale the output.
       const targetAspect = pw / ph
-      let w = baseW
-      let h = Math.round(baseW / targetAspect)
-      if (h > originalImg.naturalHeight) {
-        h = originalImg.naturalHeight
-        w = Math.round(h * targetAspect)
+      let w = sourceW
+      let h = Math.round(sourceW / targetAspect)
+      if (h > sourceH) {
+        h = sourceH
+        w = Math.round(sourceH * targetAspect)
       }
-      updateParameters({ resizeW: w, resizeH: h })
+      updateParameters({ resizeW: Math.max(1, w), resizeH: Math.max(1, h) })
     },
-    [originalImg, updateParameters]
+    [originalImg, sourceW, sourceH, updateParameters]
   )
 
   // ── Crop interaction ────────────────────────────────────────────

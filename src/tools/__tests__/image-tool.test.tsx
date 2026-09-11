@@ -685,6 +685,25 @@ describe('ImageTool', () => {
     expect(screen.getByText(/0\.25× crop pixels/)).toBeInTheDocument()
   })
 
+  // Resize reads the crop as its source. A preset measured against the original
+  // image would scale the output instead of only changing its ratio.
+  it('fits an aspect preset inside the crop', async () => {
+    await loadMockImage()
+    fireEvent.click(screen.getByText('Crop'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Width (px)' }), {
+      target: { value: '40' },
+    })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Height (px)' }), {
+      target: { value: '40' },
+    })
+    fireEvent.click(screen.getByText('Resize'))
+
+    fireEvent.click(screen.getByRole('button', { name: '16:9' }))
+
+    expect(screen.getByRole('spinbutton', { name: 'Width (px)' })).toHaveValue(40)
+    expect(screen.getByRole('spinbutton', { name: 'Height (px)' })).toHaveValue(23)
+  })
+
   it('restores state that contains the removed crop key', () => {
     installImageMocks()
     useToolStateCache.setState({
