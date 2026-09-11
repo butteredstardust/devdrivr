@@ -93,7 +93,11 @@ describe('tool contract rules', () => {
     })
 
     it('stays quiet once the flag is set', () => {
-      expect(rulesFor({ ownsFileDrop: true }, 'webview.onDragDropEvent(handler)')).toEqual([])
+      const source = `useEffect(() => {
+          if (!enabled) return
+          webview.onDragDropEvent(handler)
+        }, [enabled])`
+      expect(rulesFor({ ownsFileDrop: true }, source)).toEqual([])
     })
 
     it('flags a flag with no listener', () => {
@@ -173,6 +177,25 @@ describe('fact extraction', () => {
     )
   })
 
+  // A construction is its own node. Reading calls alone left `raw-worker-construction` unable to
+  // see the syntax it forbids.
+  it('sees a Worker construction', () => {
+    const facts = (factsForFile as (f: string, s: string) => Fact[])(
+      'sample.ts',
+      `new Worker(new URL('./x.worker.ts', import.meta.url), { type: 'module' })`
+    )
+    expect(facts.some((f) => f.kind === 'new' && f.name === 'Worker')).toBe(true)
+  })
+
+  // TSX reads `<Foo>value` as an unterminated JSX element and drops every fact after it.
+  it('parses an angle-bracket assertion in a .ts file', () => {
+    const facts = (factsForFile as (f: string, s: string) => Fact[])(
+      'sample.ts',
+      `const value = <Foo>input\nuseMonaco()`
+    )
+    expect(facts.some((f) => f.kind === 'call' && f.name === 'useMonaco')).toBe(true)
+  })
+
   // A tool that dispatches an action does not handle it. The text search could not tell the two
   // apart, so a tool that only sent `open-file` read as one that answered it.
   it('does not read a dispatch as a handler', () => {
@@ -202,6 +225,36 @@ describe('native-drop-not-instance-gated', () => {
     expect(rulesFor({ ownsFileDrop: true }, 'useNativeFileDrop(ref, callbacks, enabled)')).toEqual(
       []
     )
+  })
+
+  // A name that only looks like the gate is worse than no check, because it certifies.
+  it.each([
+    ['an inverted flag', 'useNativeFileDrop(ref, callbacks, isNotActive)'],
+    ['an object property', 'useNativeFileDrop(ref, callbacks, { active: false })'],
+    ['a string', `useNativeFileDrop(ref, callbacks, () => false, 'active')`],
+  ])('rejects %s', (_name, source) => {
+    expect(rulesFor({ ownsFileDrop: true }, source)).toContain('native-drop-not-instance-gated')
+  })
+
+  it('accepts the gate narrowed further', () => {
+    const source = `useNativeFileDrop(ref, callbacks, isInstanceActive && state.mode === 'encode')`
+    expect(rulesFor({ ownsFileDrop: true }, source)).toEqual([])
+  })
+
+  // The raw Tauri listener takes no gate argument, so its gate is a guard around it.
+  it('flags a raw listener with no guard', () => {
+    const source = `useEffect(() => {
+        getCurrentWebviewWindow().onDragDropEvent(handler)
+      }, [])`
+    expect(rulesFor({ ownsFileDrop: true }, source)).toContain('native-drop-not-instance-gated')
+  })
+
+  it('accepts a raw listener the enclosing effect guards', () => {
+    const source = `useEffect(() => {
+        if (!enabled) return
+        getCurrentWebviewWindow().onDragDropEvent(handler)
+      }, [enabled])`
+    expect(rulesFor({ ownsFileDrop: true }, source)).toEqual([])
   })
 
   // The gate is checked at the call. A directory-wide boolean let one gated listener bless every
@@ -315,6 +368,21 @@ export const TOOLS: ToolDefinition[] = [
         usesMonaco: false,
       },
     ])
+  })
+
+  // A phantom entry makes an orphan directory look registered, and adds a handoff target that
+  // opens nothing.
+  it('reads entries from TOOLS only', () => {
+    const text = `const Orphan = lazy(() => import('@/tools/orphan/Orphan'))
+const metadata = { id: 'not-a-tool', component: Orphan }
+${REGISTRY}`
+    expect(parse(text).map((tool) => tool.id)).toEqual(['json-tools', 'base64'])
+  })
+
+  // A short list reads exactly like a clean one, so an unreadable entry stops the run.
+  it('refuses an entry it cannot read', () => {
+    const text = REGISTRY.replace(`    id: 'base64',\n`, '    ...base,\n')
+    expect(() => parse(text)).toThrow(/read 1 of 2/)
   })
 
   // The directory comes from the import, not the id. A tool whose source cannot be found is

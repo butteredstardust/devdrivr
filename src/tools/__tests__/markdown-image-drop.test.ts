@@ -165,6 +165,41 @@ describe('markdown editor file drop', () => {
     expect(mocks.eventHandler).toBeNull()
   })
 
+  // Each image read awaits. A drop on the active tab can resolve after the user moves on, and
+  // without the check it writes into an editor nobody is looking at.
+  it('does not insert an image that resolves after the tab leaves', async () => {
+    let resolveRead: (bytes: Uint8Array) => void = () => {}
+    vi.mocked(readFile).mockReturnValue(
+      new Promise<Awaited<ReturnType<typeof readFile>>>((resolve) => {
+        resolveRead = resolve as (bytes: Uint8Array) => void
+      })
+    )
+    const containerRef = makeContainerRef()
+    const { unmount } = renderHook(() =>
+      useImageDrop(
+        makeEditorRef() as unknown as Parameters<typeof useImageDrop>[0],
+        containerRef,
+        true,
+        vi.fn(),
+        vi.fn()
+      )
+    )
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    // Wait for the read to start. Unmounting before it does stops the drop at the earlier check
+    // and never reaches the line under test.
+    drop(['/tmp/diagram.png'])
+    await waitFor(() => expect(readFile).toHaveBeenCalled())
+
+    unmount()
+    await act(async () => {
+      resolveRead(new Uint8Array([1, 2, 3]))
+      await Promise.resolve()
+    })
+
+    expect(mocks.executeEdits).not.toHaveBeenCalled()
+  })
+
   // One drop of both kinds is an image drop. Opening a document would throw the images away.
   it('prefers the images when a drop mixes both kinds', async () => {
     const { onTextFile } = render()

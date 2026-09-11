@@ -22,6 +22,12 @@
  * signals were per-directory booleans, one correctly gated listener hid every ungated one beside
  * it.
  *
+ * What this cannot see. Detection reads names and literals, not types, so four forms pass:
+ * an import renamed on the way in (`import { useMonaco as editorHook }`), a value reached through
+ * a constant or a template string, a call behind an `as` assertion, and an entry built from a
+ * spread. Closing these needs the type checker, and a whole-program check is a different tool.
+ * `parseRegistry` stops the run rather than report on the entries it managed to read.
+ *
  * A tool that reaches a contract through a wrapper this cannot see is a false positive — annotate
  * it with `/* tool-contract-ignore: <rule> <reason> *​/` anywhere in the tool's source. The reason
  * is mandatory.
@@ -60,12 +66,28 @@ const DROP_REGISTRARS = new Set([
 const CONTESTED_EVENTS = new Set(['paste', 'copy', 'cut', 'keydown', 'keyup', 'keypress', 'drop'])
 
 /**
- * An argument that carries the instance gate.
+ * An expression that carries the instance gate.
  *
- * Either an activity expression, or a bare `enabled` — a wrapper hook forwards its own parameter,
- * and the caller passing that parameter is checked at its own call site.
+ * The list is closed, and the match is anchored at the start. A gate reads either as the flag on
+ * its own, or as the flag narrowed further: `isInstanceActive && state.mode === 'encode'`. A bare
+ * `enabled` is a wrapper hook forwarding its own parameter, and the caller passing that parameter
+ * is checked at its own call site.
+ *
+ * An open pattern certified its own opposite. `\bis\w*Active\b` accepted `isNotActive` and
+ * `isInactive`, and `\bactive\b` accepted `{ active: false }` and the string `'active'`.
  */
-const ACTIVITY = /\bis\w*Active\b|\bactive\b|^enabled$/i
+const ACTIVITY = /^(isInstanceActive|isActive|enabled)\b(\s*&&|$)/
+
+/** The same gate, named anywhere inside an enclosing function. A raw listener guards itself. */
+const ACTIVITY_IN_SCOPE = /\b(isInstanceActive|isActive|enabled)\b/
+
+/** True when a function around this node names the gate. */
+function inGatedScope(node, source) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current) && ACTIVITY_IN_SCOPE.test(current.getText(source))) return true
+  }
+  return false
+}
 
 /** Both forms of an equality test. A tool answers an action with either one. */
 const COMPARISONS = new Set([
@@ -101,7 +123,10 @@ function literalOf(node) {
  * document containing `onDrop` or `<h1>` is describing HTML, not writing a handler.
  */
 export function factsForFile(file, text) {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  // Parse a `.ts` file as TS, not as TSX. TSX reads the angle-bracket assertion `<Foo>value` as an
+  // unterminated JSX element and drops every fact after it.
+  const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind)
   const facts = []
 
   const at = (node) => ({
@@ -114,7 +139,15 @@ export function factsForFile(file, text) {
       const name = calleeName(node)
       if (name) {
         const args = node.arguments.map((argument) => argument.getText(source))
-        facts.push({ kind: 'call', name, target: calleeTarget(node), args, ...at(node) })
+        facts.push({
+          kind: 'call',
+          name,
+          target: calleeTarget(node),
+          args,
+          // A raw listener takes no gate argument, so its gate is the guard around it.
+          gated: name === 'onDragDropEvent' ? inGatedScope(node, source) : undefined,
+          ...at(node),
+        })
 
         if (name === 'addEventListener') {
           const target = calleeTarget(node)
@@ -124,6 +157,11 @@ export function factsForFile(file, text) {
           }
         }
       }
+    }
+
+    // `new Worker(...)` — a construction is a node of its own, not a call expression.
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+      facts.push({ kind: 'new', name: node.expression.text, ...at(node) })
     }
 
     // `action.type === 'open-file'` — the tool answering an action from the shared bus. The
@@ -243,12 +281,14 @@ export const RULES = [
       'Registers a native drop without passing the instance-active flag. Every mounted tab keeps its listener and every listener sees every drop, so a background tab answers a drop meant for the tab in front of it.',
     // The gate is checked at the call, not across the directory. A tool that gates one listener
     // correctly must still gate the others, and a per-directory boolean said otherwise.
+    //
+    // A wrapper hook takes the gate as an argument. The raw Tauri listener takes none, so its gate
+    // is a guard in a function around it.
     check: (_tool, facts) =>
-      facts.filter(
-        (f) =>
-          f.kind === 'call' &&
-          DROP_REGISTRARS.has(f.name) &&
-          !f.args.some((argument) => ACTIVITY.test(argument))
+      dropRegistrations(facts).filter((f) =>
+        f.name === 'onDragDropEvent'
+          ? !f.gated
+          : !f.args.some((argument) => ACTIVITY.test(argument))
       ),
   },
   {
@@ -334,7 +374,7 @@ const OWNERSHIP = [
   },
   {
     id: 'raw-worker-construction',
-    call: 'Worker',
+    construct: 'Worker',
     owners: [],
     detail:
       'Constructs a Worker directly. WKWebView needs the `?worker` import form; a hand-built module worker never becomes usable.',
@@ -375,10 +415,21 @@ function sourceFiles(dir, out = []) {
  * component names, not from the tool id. The two match today, and a tool whose directory cannot be
  * resolved is reported rather than skipped — a silently skipped tool is the hole this closes.
  */
+/** True when a node sits inside the `TOOLS` array declaration. */
+function inToolsArray(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) {
+      return current.name.text === 'TOOLS'
+    }
+  }
+  return false
+}
+
 export function parseRegistry(text) {
   const source = ts.createSourceFile('tool-registry.ts', text, ts.ScriptTarget.Latest, true)
   const dirs = new Map()
   const tools = []
+  let entryCount
 
   const visit = (node) => {
     // `const CodeFormatter = lazy(() => import('@/tools/code-formatter/CodeFormatter'))`
@@ -387,10 +438,15 @@ export function parseRegistry(text) {
       if (dir && node.initializer.getText(source).startsWith('lazy(')) {
         dirs.set(node.name.text, dir[1])
       }
+      if (node.name.text === 'TOOLS' && ts.isArrayLiteralExpression(node.initializer)) {
+        entryCount = node.initializer.elements.length
+      }
     }
 
-    // A registry entry is an object literal carrying both an `id` and a `component`.
-    if (ts.isObjectLiteralExpression(node)) {
+    // A registry entry is an object literal inside `TOOLS`, carrying both an `id` and a
+    // `component`. The scope matters: any other object with those two keys would otherwise enter
+    // the registry model, and a phantom id certifies an orphan directory as registered.
+    if (ts.isObjectLiteralExpression(node) && inToolsArray(node)) {
       const read = (name) =>
         node.properties.find(
           (property) => property.name && property.name.getText(source) === name
@@ -414,6 +470,18 @@ export function parseRegistry(text) {
   }
 
   visit(source)
+
+  // WARNING: stop rather than report on a partial registry. An entry this cannot read is a tool
+  // nothing checks, and a short list reads exactly like a clean one.
+  if (entryCount === undefined) {
+    throw new Error('tool-contracts: no `TOOLS` array literal in src/app/tool-registry.ts')
+  }
+  if (entryCount !== tools.length) {
+    throw new Error(
+      `tool-contracts: read ${tools.length} of ${entryCount} registry entries. An entry needs a literal \`id\` and a \`component\`.`
+    )
+  }
+
   for (const tool of tools) tool.dir = dirs.get(tool.component)
   return tools
 }
@@ -484,13 +552,15 @@ export function auditOwnership(files) {
 
     for (const rule of OWNERSHIP) {
       if (rule.owners.includes(relativePath)) continue
-      const hits = facts.filter((fact) =>
-        rule.import
-          ? fact.kind === 'import' && fact.name === rule.import
-          : fact.kind === 'call' &&
-            fact.name === rule.call &&
-            (rule.target === undefined || fact.target === rule.target)
-      )
+      const hits = facts.filter((fact) => {
+        if (rule.import) return fact.kind === 'import' && fact.name === rule.import
+        if (rule.construct) return fact.kind === 'new' && fact.name === rule.construct
+        return (
+          fact.kind === 'call' &&
+          fact.name === rule.call &&
+          (rule.target === undefined || fact.target === rule.target)
+        )
+      })
       for (const hit of hits) {
         findings.push({ tool: relativePath, rule: rule.id, detail: rule.detail, ...hit })
       }
@@ -503,7 +573,7 @@ export function auditOwnership(files) {
 /** Findings for worker entry points, which answer the RPC protocol or answer nothing. */
 export function auditWorkers(files) {
   return files
-    .filter((file) => file.endsWith('.worker.ts'))
+    .filter((file) => /\.worker\.tsx?$/.test(file))
     .filter((file) => !anyCall(factsForFile(file, readFileSync(file, 'utf8')), 'handleRpc'))
     .map((file) => ({
       tool: relative(ROOT, file),

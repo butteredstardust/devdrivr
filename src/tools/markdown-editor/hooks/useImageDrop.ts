@@ -179,6 +179,10 @@ export function useImageDrop(
 
           if (insertions.length === 0) return
 
+          // Each image read awaits, so the tab can go to the background before the last one
+          // resolves. Stop here rather than write into an editor the user no longer looks at.
+          if (cancelled) return
+
           // Only an image needs the editor. A document opens through `onTextFile` above, which
           // works in preview-only mode where no editor is focused.
           const editor = editorRefLocal.current.current
