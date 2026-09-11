@@ -104,6 +104,10 @@ bunx vitest            # watch mode
 # Lint
 bun run lint
 
+# Tool contract audit — where a registry capability and its implementation disagree.
+# Reports only; `--gate` exits 1. Run it after you add a tool or change a capability flag.
+bun run audit:tools
+
 # Dev server (Vite + Tauri hot-reload) — this is what opens the desktop app
 bun run tauri dev
 
@@ -653,6 +657,7 @@ Before you open a PR, validate every item:
 - [ ] `npx tsc --noEmit` — zero errors
 - [ ] `bunx vitest run` — all passing (zero failures)
 - [ ] `bun run lint` — zero errors (warnings tolerated up to threshold)
+- [ ] `bun run audit:tools` — no new finding, if you touched a tool or a capability flag
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`
