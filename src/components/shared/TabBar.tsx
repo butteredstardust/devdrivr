@@ -57,8 +57,8 @@ type TabBarProps = {
   /** Pass true when the parent container already provides the bottom border. */
   noBorder?: boolean
   /**
-   * Links each tab to the panel it controls. Pass it together with a `TabPanel` per tab;
-   * omitted, the tabs carry no `aria-controls` rather than pointing at ids that don't exist.
+   * Links the selected tab to the panel it controls. Pass it together with a `TabPanel` for the
+   * active tab; omitted, the tabs carry no `aria-controls` at all.
    */
   baseId?: string
   'aria-label'?: string
@@ -126,7 +126,13 @@ export function TabBar({
           type="button"
           role="tab"
           {...(baseId
-            ? { id: tabButtonId(baseId, tab.id), 'aria-controls': tabPanelId(baseId, tab.id) }
+            ? {
+                id: tabButtonId(baseId, tab.id),
+                // Only the selected tab names its panel. Consumers render one `TabPanel` — the
+                // active one — so an unselected tab's `aria-controls` would point at an id that
+                // does not exist, which drops the relationship instead of describing it.
+                ...(activeTab === tab.id ? { 'aria-controls': tabPanelId(baseId, tab.id) } : {}),
+              }
             : {})}
           aria-selected={activeTab === tab.id}
           tabIndex={activeTab === tab.id ? 0 : -1}

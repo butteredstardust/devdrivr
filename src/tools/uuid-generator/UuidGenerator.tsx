@@ -324,6 +324,7 @@ export default function UuidGenerator() {
         <Panel title="Generate">
           <div className="flex flex-wrap items-center gap-3">
             <Select
+              aria-label="UUID version"
               value={state.version}
               onChange={(e) => updateState({ version: e.target.value as UuidVersion })}
             >
@@ -399,6 +400,7 @@ export default function UuidGenerator() {
           <div className="flex flex-wrap items-center gap-3">
             <Input
               type="number"
+              aria-label="How many UUIDs to generate"
               min={1}
               max={100}
               value={state.bulkCount}
@@ -407,6 +409,7 @@ export default function UuidGenerator() {
               className="w-20"
             />
             <Select
+              aria-label="Bulk output format"
               value={state.bulkFormat}
               onChange={(e) => updateState({ bulkFormat: e.target.value as BulkFormat })}
             >

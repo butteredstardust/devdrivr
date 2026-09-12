@@ -1479,7 +1479,9 @@ export default function ApiClient() {
                     size="sm"
                     onClick={toggleResponsePane}
                     aria-expanded={responseVisible}
-                    aria-controls={responsePaneId}
+                    // The response pane only exists while visible, so naming it when hidden points
+                    // at nothing. `aria-expanded` alone carries the collapsed state.
+                    {...(responseVisible ? { 'aria-controls': responsePaneId } : {})}
                   >
                     {responseVisible ? 'Hide Response' : 'Show Response'}
                   </Button>

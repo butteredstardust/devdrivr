@@ -636,6 +636,7 @@ function ContrastInputs({
           />
           <input
             type="color"
+            aria-label="Pick a foreground color"
             value={fgHex}
             onChange={(e) => onFgChange(e.target.value)}
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
@@ -664,6 +665,7 @@ function ContrastInputs({
           />
           <input
             type="color"
+            aria-label="Pick a background color"
             value={bgHex}
             onChange={(e) => onBgChange(e.target.value)}
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"

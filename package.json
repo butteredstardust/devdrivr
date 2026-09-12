@@ -16,6 +16,7 @@
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx --max-warnings 0 && bun run lint:ds",
     "lint:ds": "bun scripts/lint-design-system.mjs",
     "audit:tools": "bun scripts/audit-tool-contracts.mjs --matrix",
+    "audit:rendered": "bun scripts/audit-rendered.mjs",
     "smoke:report": "bun scripts/create-smoke-report.mjs",
     "clean": "rm -rf node_modules dist src-tauri/target",
     "clean-js": "bun scripts/clean-js.mjs",

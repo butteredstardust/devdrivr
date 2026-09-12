@@ -210,6 +210,7 @@ export default function UrlCodec() {
           </ToolbarGroup>
           <ToolbarGroup label="Encoding options" separated>
             <Select
+              aria-label="Encode scope"
               value={state.encodeMode}
               onChange={(e) =>
                 updateState({ encodeMode: e.target.value as UrlCodecState['encodeMode'] })
