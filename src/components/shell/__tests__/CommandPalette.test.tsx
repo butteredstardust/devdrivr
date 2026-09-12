@@ -277,8 +277,10 @@ describe('CommandPalette', () => {
   })
 
   it('does not persist always-on-top when the window pin call fails', async () => {
+    const addToast = vi.fn()
     windowApi.setAlwaysOnTop.mockRejectedValueOnce(new Error('blocked'))
     useSettingsStore.setState({ alwaysOnTop: false })
+    useUiStore.setState({ addToast })
 
     render(<CommandPalette />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '>pin' } })
@@ -286,5 +288,6 @@ describe('CommandPalette', () => {
 
     await waitFor(() => expect(windowApi.setAlwaysOnTop).toHaveBeenCalledWith(true))
     expect(useSettingsStore.getState().alwaysOnTop).toBe(false)
+    expect(addToast).toHaveBeenCalledWith('Failed to update window pin state', 'error')
   })
 })

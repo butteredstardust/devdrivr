@@ -52,6 +52,24 @@ describe('settings store initialization', () => {
     expect(applyTheme).toHaveBeenCalledWith(DEFAULT_SETTINGS.theme)
   })
 
+  it('keeps valid stored settings and defaults each invalid key without throwing', async () => {
+    const { useSettingsStore } = await import('../settings.store')
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: false })
+    ;(getSetting as any).mockResolvedValue({
+      theme: 'midnight',
+      editorFontSize: 'huge',
+      historyRetentionPerTool: -1,
+    })
+
+    await expect(useSettingsStore.getState().init()).resolves.toBeUndefined()
+
+    expect(useSettingsStore.getState().theme).toBe('midnight')
+    expect(useSettingsStore.getState().editorFontSize).toBe(DEFAULT_SETTINGS.editorFontSize)
+    expect(useSettingsStore.getState().historyRetentionPerTool).toBe(
+      DEFAULT_SETTINGS.historyRetentionPerTool
+    )
+  })
+
   it('init() is idempotent — calling it twice only calls getSetting once', async () => {
     const { useSettingsStore } = await import('../settings.store')
     useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: false })
@@ -149,14 +167,18 @@ describe('settings store updates', () => {
       sidebarCollapsed: true,
       collapsedSidebarGroups: ['code'],
       openedSidebarGroups: ['data'],
-      pinnedToolIds: ['json-formatter'],
+      pinnedToolIds: ['json-tools'],
+      recentToolsLimit: 5,
+      sidebarWidth: 320,
       notesDrawerOpen: true,
       notesDrawerWidth: 400,
+      restoreWorkspaceOnLaunch: false,
       defaultIndentSize: 4,
       defaultTimezone: 'America/New_York',
       editorFont: 'Fira Code',
       editorFontSize: 20,
       editorTheme: 'devdrivr-light',
+      editorScrollBeyondLastLine: true,
       historyRetentionPerTool: 100,
       formatOnPaste: true,
       checkForUpdatesAutomatically: false,

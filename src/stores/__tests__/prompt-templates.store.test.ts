@@ -2,9 +2,8 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { loadUserPromptTemplates, seedBuiltinPromptTemplates } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
-// This file did not exist before — it covers only the init-rejection-recovery path
-// (see documentation/TODO.md "Cover init-rejection recovery for the other six
-// stores"). Broader prompt-templates.store coverage is out of scope for this pass.
+// Covers the init-rejection-recovery path only. Broader prompt-templates.store coverage lives
+// elsewhere.
 vi.mock('@/lib/db', () => ({
   deleteUserPromptTemplate: vi.fn(),
   loadUserPromptTemplates: vi.fn(),

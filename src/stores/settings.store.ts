@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { type AppSettings, DEFAULT_SETTINGS, type Theme } from '@/types/models'
 import { getSetting, setSetting } from '@/lib/db'
 import { applyTheme, ALL_THEMES } from '@/lib/theme'
+import { sanitizeStoredSettings } from '@/lib/settings-transfer'
 import { useUiStore } from '@/stores/ui.store'
 
 type SettingsStore = AppSettings & {
@@ -24,9 +25,11 @@ const APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true> = {
   collapsedSidebarGroups: true,
   openedSidebarGroups: true,
   pinnedToolIds: true,
+  recentToolsLimit: true,
   sidebarWidth: true,
   notesDrawerOpen: true,
   notesDrawerWidth: true,
+  restoreWorkspaceOnLaunch: true,
   defaultIndentSize: true,
   defaultTimezone: true,
   editorFont: true,
@@ -42,6 +45,7 @@ const APP_SETTINGS_KEY_MAP: Record<keyof AppSettings, true> = {
   editorInsertSpaces: true,
   editorBracketPairColorization: true,
   editorCursorStyle: true,
+  editorScrollBeyondLastLine: true,
   historyRetentionPerTool: true,
   formatOnPaste: true,
   checkForUpdatesAutomatically: true,
@@ -81,13 +85,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const saved = await getSetting<Partial<AppSettings>>('appSettings', {})
-        const merged = { ...DEFAULT_SETTINGS, ...saved }
-        // Stored-value migration: `vim`/`emacs` were selectable in an earlier build but never
-        // implemented, so anything other than `standard` is a value the app cannot honour.
-        if (merged.editorKeybindingMode !== 'standard') {
-          merged.editorKeybindingMode = 'standard'
-        }
+        const saved = await getSetting<unknown>('appSettings', {})
+        const merged = { ...DEFAULT_SETTINGS, ...sanitizeStoredSettings(saved) }
         set({ ...merged, initialized: true })
         applyTheme(merged.theme)
       })().catch((err: unknown) => {

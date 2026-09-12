@@ -405,8 +405,8 @@ export function getToolsByGroup(group: string): ToolDefinition[] {
   return TOOLS.filter((t) => t.group === group)
 }
 
-// Derived from each tool's capability flags rather than hand-maintained lists —
-// see documentation/TODO.md "Move tool capability flags into the tool registry".
+// Derived from each tool's capability flags rather than hand-maintained lists. A hand-maintained
+// list drifts from the flag it duplicates, and nothing fails when it does.
 export const OPEN_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsOpenFile).map((t) => t.id))
 export const SAVE_FILE_TOOL_IDS = new Set(TOOLS.filter((t) => t.supportsSaveFile).map((t) => t.id))
 export const OWNS_FILE_DROP_TOOL_IDS = new Set(TOOLS.filter((t) => t.ownsFileDrop).map((t) => t.id))

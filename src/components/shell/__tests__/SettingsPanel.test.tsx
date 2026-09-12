@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsPanel } from '@/components/shell/SettingsPanel'
 import { useHistoryStore } from '@/stores/history.store'
@@ -9,6 +9,8 @@ import { DEFAULT_MCP_PERMISSIONS, useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
+
+const windowApi = vi.hoisted(() => ({ setAlwaysOnTop: vi.fn() }))
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue({
@@ -25,9 +27,7 @@ vi.mock('@tauri-apps/api/app', () => ({
 }))
 
 vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({
-    setAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
-  }),
+  getCurrentWindow: () => windowApi,
 }))
 
 // The store is a module singleton and one test below swaps `update` for a spy. Without
@@ -36,6 +36,7 @@ const realSettingsUpdate = useSettingsStore.getState().update
 
 beforeEach(() => {
   vi.clearAllMocks()
+  windowApi.setAlwaysOnTop.mockResolvedValue(undefined)
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true, update: realSettingsUpdate })
   // Also a module singleton: without this the staged-update test below leaks into the others.
   useUpdaterStore.setState({
@@ -118,7 +119,8 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'MCP' }))
-    const portInput = screen.getByRole('spinbutton')
+    const portInput = screen.getByRole('spinbutton', { name: 'Port' })
+    expect(portInput).toHaveAccessibleDescription('Localhost port for Streamable HTTP')
     fireEvent.change(portInput, { target: { value: 'abc' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
@@ -214,6 +216,108 @@ describe('SettingsPanel', () => {
 
     // Same problem, same fix, for the bare <select> beside a row label.
     expect(screen.getByRole('combobox', { name: 'Render Whitespace' })).toBeInTheDocument()
+    expect(wrap).toHaveAccessibleDescription('Wrap long lines instead of scrolling sideways')
+  })
+
+  it('commits history retention on blur or Enter and reverts its draft on Escape', async () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+
+    const input = screen.getByRole('spinbutton', { name: 'History per Tool' })
+    expect(input).toHaveAccessibleDescription('Max entries retained per tool')
+    expect(screen.getByText('entries per tool')).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.change(input, { target: { value: '50' } })
+    expect(update).not.toHaveBeenCalledWith('historyRetentionPerTool', expect.anything())
+    fireEvent.blur(input)
+    expect(update).toHaveBeenCalledWith('historyRetentionPerTool', 50)
+
+    fireEvent.change(input, { target: { value: '72' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(update).toHaveBeenCalledWith('historyRetentionPerTool', 72)
+
+    act(() => useSettingsStore.setState({ historyRetentionPerTool: 80 }))
+    expect(input).toHaveValue(80)
+    fireEvent.change(input, { target: { value: '999' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).toHaveValue(80)
+  })
+
+  it('restores the stored value when a numeric setting is left empty', () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update, historyRetentionPerTool: 120 })
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+
+    const input = screen.getByRole('spinbutton', { name: 'History per Tool' })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+
+    // A cleared field must not read as 0 and commit the minimum.
+    expect(update).toHaveBeenCalledWith('historyRetentionPerTool', 120)
+    expect(input).toHaveValue(120)
+  })
+
+  it('shows exact panel widths and clamps them only when committed', () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+    render(<SettingsPanel />)
+
+    const sidebarWidth = screen.getByRole('spinbutton', { name: 'Sidebar Width' })
+    const notesWidth = screen.getByRole('spinbutton', { name: 'Notes Drawer Width' })
+    expect(screen.getAllByText('px')).toHaveLength(2)
+
+    act(() => useSettingsStore.setState({ sidebarWidth: 300, notesDrawerWidth: 360 }))
+    expect(sidebarWidth).toHaveValue(300)
+    expect(notesWidth).toHaveValue(360)
+
+    fireEvent.change(sidebarWidth, { target: { value: '999' } })
+    expect(update).not.toHaveBeenCalledWith('sidebarWidth', expect.anything())
+    fireEvent.blur(sidebarWidth)
+    expect(update).toHaveBeenCalledWith('sidebarWidth', 420)
+
+    fireEvent.change(notesWidth, { target: { value: '1' } })
+    fireEvent.keyDown(notesWidth, { key: 'Enter' })
+    expect(update).toHaveBeenCalledWith('notesDrawerWidth', 280)
+  })
+
+  it('groups general settings and disables inert automatic downloads with a visible reason', () => {
+    useSettingsStore.setState({ checkForUpdatesAutomatically: false })
+    render(<SettingsPanel />)
+
+    for (const section of ['Appearance', 'Window', 'Startup', 'Updates', 'Tool defaults']) {
+      expect(screen.getByRole('heading', { name: section })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('switch', { name: 'Download update automatically' })).toBeDisabled()
+    expect(screen.getByText('Turn on automatic update checks to enable downloads')).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Default Timezone' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    expect(screen.queryByRole('combobox', { name: 'Default Timezone' })).not.toBeInTheDocument()
+  })
+
+  it('persists the new startup, appearance, and editor behavior settings', async () => {
+    const update = vi.fn().mockResolvedValue(true)
+    useSettingsStore.setState({ update })
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Restore Workspace on Launch' }))
+    const recentLimit = screen.getByRole('spinbutton', { name: 'Recent Tools Limit' })
+    fireEvent.change(recentLimit, { target: { value: '5' } })
+    fireEvent.blur(recentLimit)
+    fireEvent.click(screen.getByRole('tab', { name: 'Editor' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Scroll Beyond Last Line' }))
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith('restoreWorkspaceOnLaunch', false)
+      expect(update).toHaveBeenCalledWith('recentToolsLimit', 5)
+      expect(update).toHaveBeenCalledWith('editorScrollBeyondLastLine', true)
+    })
+    expect(screen.getByRole('heading', { name: 'Font and theme' })).toBeInTheDocument()
   })
 
   // The permission grid is a div grid, not a table: the resource row and the action column name
@@ -237,7 +341,9 @@ describe('SettingsPanel', () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
-        readText: vi.fn().mockResolvedValue(JSON.stringify({ theme: 'github-light' })),
+        readText: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ theme: 'github-light', alwaysOnTop: true })),
         writeText: vi.fn(),
       },
     })
@@ -248,7 +354,18 @@ describe('SettingsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import from Clipboard' }))
 
     await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))
+    expect(useSettingsStore.getState().alwaysOnTop).toBe(true)
+    expect(windowApi.setAlwaysOnTop).toHaveBeenCalledWith(true)
     expect(addToast).toHaveBeenCalledWith('Settings imported', 'success')
+  })
+
+  it('routes the General pin control through the shared native and persistence update', async () => {
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Always on Top' }))
+
+    await waitFor(() => expect(windowApi.setAlwaysOnTop).toHaveBeenCalledWith(true))
+    expect(useSettingsStore.getState().alwaysOnTop).toBe(true)
   })
 
   // The banner is dismissible and can be switched off, so Settings has to keep a way to install a

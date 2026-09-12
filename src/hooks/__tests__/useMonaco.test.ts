@@ -239,6 +239,7 @@ describe('buildEditorOptions', () => {
     editorInsertSpaces: DEFAULT_SETTINGS.editorInsertSpaces,
     editorBracketPairColorization: DEFAULT_SETTINGS.editorBracketPairColorization,
     editorCursorStyle: DEFAULT_SETTINGS.editorCursorStyle,
+    editorScrollBeyondLastLine: DEFAULT_SETTINGS.editorScrollBeyondLastLine,
   }
 
   it('maps each preference onto its Monaco option', () => {
@@ -255,6 +256,7 @@ describe('buildEditorOptions', () => {
       editorInsertSpaces: false,
       editorBracketPairColorization: false,
       editorCursorStyle: 'block',
+      editorScrollBeyondLastLine: true,
     })
     expect(options).toMatchObject({
       fontSize: 16,
@@ -268,6 +270,7 @@ describe('buildEditorOptions', () => {
       renderWhitespace: 'all',
       bracketPairColorization: { enabled: false },
       cursorStyle: 'block',
+      scrollBeyondLastLine: true,
     })
   })
 

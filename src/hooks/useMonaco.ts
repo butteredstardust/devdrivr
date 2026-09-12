@@ -388,6 +388,7 @@ export type MonacoPreferences = Pick<
   | 'editorInsertSpaces'
   | 'editorBracketPairColorization'
   | 'editorCursorStyle'
+  | 'editorScrollBeyondLastLine'
 >
 
 /**
@@ -431,6 +432,7 @@ export function buildEditorOptions(prefs: MonacoPreferences) {
     renderWhitespace: prefs.editorRenderWhitespace,
     bracketPairColorization: { enabled: prefs.editorBracketPairColorization },
     cursorStyle: prefs.editorCursorStyle,
+    scrollBeyondLastLine: prefs.editorScrollBeyondLastLine,
   } satisfies editor.IStandaloneEditorConstructionOptions
 }
 
@@ -453,6 +455,7 @@ export function useMonacoSettings() {
   const editorInsertSpaces = useSettingsStore((s) => s.editorInsertSpaces)
   const editorBracketPairColorization = useSettingsStore((s) => s.editorBracketPairColorization)
   const editorCursorStyle = useSettingsStore((s) => s.editorCursorStyle)
+  const editorScrollBeyondLastLine = useSettingsStore((s) => s.editorScrollBeyondLastLine)
 
   const effective = getEffectiveTheme(theme)
   const resolvedTheme = resolveMonacoTheme(effective, editorTheme)
@@ -521,6 +524,7 @@ export function useMonacoSettings() {
       editorInsertSpaces,
       editorBracketPairColorization,
       editorCursorStyle,
+      editorScrollBeyondLastLine,
     }),
     [
       editorFontSize,
@@ -536,6 +540,7 @@ export function useMonacoSettings() {
       editorInsertSpaces,
       editorBracketPairColorization,
       editorCursorStyle,
+      editorScrollBeyondLastLine,
     ]
   )
 
@@ -573,7 +578,6 @@ export function useMonaco() {
  */
 export const EDITOR_OPTIONS = {
   minimap: { enabled: false },
-  scrollBeyondLastLine: false,
   automaticLayout: true,
   wordWrap: 'on' as const,
   padding: { top: 12, bottom: 12 },

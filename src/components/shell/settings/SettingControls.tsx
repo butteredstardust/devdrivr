@@ -1,6 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { CheckCircleIcon, SpinnerIcon, WarningIcon } from '@phosphor-icons/react'
-import { ControlLabelProvider, useControlLabelId } from '@/components/shared/ControlLabel'
+import {
+  ControlLabelProvider,
+  useControlDescriptionId,
+  useControlLabelId,
+} from '@/components/shared/ControlLabel'
+import { Input } from '@/components/shared/Input'
 import { Select } from '@/components/shared/Select'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -22,20 +27,25 @@ export function SettingRow({
   children: React.ReactNode
 }) {
   const labelId = useId()
+  const hintId = useId()
   return (
     <div className="flex items-center justify-between py-2">
       <div className="flex flex-col">
         <span id={labelId} className="text-xs text-[var(--color-text)]">
           {label}
         </span>
-        {hint && <span className="text-2xs text-[var(--color-text-muted)]">{hint}</span>}
+        {hint && (
+          <span id={hintId} className="text-2xs text-[var(--color-text-muted)]">
+            {hint}
+          </span>
+        )}
       </div>
       {/* The row's label names its control. Without this every switch here is a
           `<button role="switch">` sitting next to unrelated text — announced as
           an unnamed button, so arrowing through Settings reads as "switch, on"
           over and over. Toggle and SelectInput pick the id up from context, so
           no call site below repeats the label as an aria-label. */}
-      <ControlLabelProvider id={labelId}>
+      <ControlLabelProvider id={labelId} descriptionId={hint ? hintId : undefined}>
         <div className="flex items-center">{children}</div>
       </ControlLabelProvider>
     </div>
@@ -52,11 +62,13 @@ export function SelectInput({
   options: { value: string | number; label: string }[]
 }) {
   const labelId = useControlLabelId()
+  const descriptionId = useControlDescriptionId()
   return (
     <Select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-labelledby={labelId}
+      aria-describedby={descriptionId}
       className="bg-[var(--color-bg)]"
     >
       {options.map((o) => (
@@ -65,6 +77,65 @@ export function SelectInput({
         </option>
       ))}
     </Select>
+  )
+}
+
+export function NumericSettingInput({
+  value,
+  min,
+  max,
+  clamp,
+  unit,
+  onCommit,
+}: {
+  value: number
+  min: number
+  max: number
+  clamp: (value: number) => number
+  unit: string
+  onCommit: (value: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+
+  // A change from elsewhere — a resize handle, an import, a reset — refreshes the draft. Writing
+  // to the DOM node here is `Input`'s job, and it skips the write while the field has focus:
+  // retargeting a focused input drops WKWebView's first responder mid-entry.
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  // An empty or non-numeric field restores the stored value. Clamping it instead would read a
+  // cleared field as `0` and commit the minimum.
+  const commit = () => {
+    const trimmed = draft.trim()
+    const parsed = Number(trimmed)
+    const next = trimmed !== '' && Number.isFinite(parsed) ? clamp(parsed) : value
+    setDraft(String(next))
+    onCommit(next)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        value={draft}
+        min={min}
+        max={max}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          // Escape discards the draft. The field still holds focus, so `Input` will not sync the
+          // DOM node for us — this one write has to be direct.
+          if (event.key === 'Escape') {
+            setDraft(String(value))
+            event.currentTarget.value = String(value)
+          }
+        }}
+        className="w-20 text-right"
+      />
+      <span className="text-2xs text-[var(--color-text-muted)]">{unit}</span>
+    </div>
   )
 }
 

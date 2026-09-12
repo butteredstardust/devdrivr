@@ -1,11 +1,10 @@
 /** Settings → Data: defaults, stored-data counts, settings export/import and destructive resets. */
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { useUiStore } from '@/stores/ui.store'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
 import {
   ArrowCounterClockwiseIcon,
@@ -16,46 +15,18 @@ import {
   UploadSimpleIcon,
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { Input } from '@/components/shared/Input'
 import { parseSettingsImport } from '@/lib/settings-transfer'
+import { setAlwaysOnTop } from '@/lib/always-on-top'
 import {
   SettingRow,
-  SelectInput,
+  NumericSettingInput,
   DangerButton,
   StatCard,
 } from '@/components/shell/settings/SettingControls'
 
-const POPULAR_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Anchorage',
-  'Pacific/Honolulu',
-  'America/Toronto',
-  'America/Vancouver',
-  'America/Sao_Paulo',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Amsterdam',
-  'Europe/Moscow',
-  'Asia/Dubai',
-  'Asia/Kolkata',
-  'Asia/Singapore',
-  'Asia/Shanghai',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Australia/Sydney',
-  'Australia/Melbourne',
-  'Pacific/Auckland',
-] as const
-
 export function DataTab() {
   const update = useSettingsStore((s) => s.update)
   const historyRetentionPerTool = useSettingsStore((s) => s.historyRetentionPerTool)
-  const defaultTimezone = useSettingsStore((s) => s.defaultTimezone)
   const addToast = useUiStore((s) => s.addToast)
 
   // Storage stats
@@ -78,9 +49,11 @@ export function DataTab() {
         collapsedSidebarGroups: state.collapsedSidebarGroups,
         openedSidebarGroups: state.openedSidebarGroups,
         pinnedToolIds: state.pinnedToolIds,
+        recentToolsLimit: state.recentToolsLimit,
         sidebarWidth: state.sidebarWidth,
         notesDrawerOpen: state.notesDrawerOpen,
         notesDrawerWidth: state.notesDrawerWidth,
+        restoreWorkspaceOnLaunch: state.restoreWorkspaceOnLaunch,
         defaultIndentSize: state.defaultIndentSize,
         defaultTimezone: state.defaultTimezone,
         editorFont: state.editorFont,
@@ -96,6 +69,7 @@ export function DataTab() {
         editorInsertSpaces: state.editorInsertSpaces,
         editorBracketPairColorization: state.editorBracketPairColorization,
         editorCursorStyle: state.editorCursorStyle,
+        editorScrollBeyondLastLine: state.editorScrollBeyondLastLine,
         historyRetentionPerTool: state.historyRetentionPerTool,
         formatOnPaste: state.formatOnPaste,
         checkForUpdatesAutomatically: state.checkForUpdatesAutomatically,
@@ -114,10 +88,9 @@ export function DataTab() {
     try {
       const text = await navigator.clipboard.readText()
       const imported = parseSettingsImport(text)
-      await useSettingsStore.getState().importSettings(imported)
-      // Apply alwaysOnTop to the live Tauri window
-      const finalOnTop = useSettingsStore.getState().alwaysOnTop
-      await getCurrentWindow().setAlwaysOnTop(finalOnTop)
+      const { alwaysOnTop, ...otherSettings } = imported
+      await useSettingsStore.getState().importSettings(otherSettings)
+      if (alwaysOnTop !== undefined) await setAlwaysOnTop(alwaysOnTop)
       addToast('Settings imported', 'success')
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Failed to import settings', 'error')
@@ -125,47 +98,13 @@ export function DataTab() {
   }, [addToast])
 
   const handleResetDefaults = useCallback(async () => {
-    await useSettingsStore.getState().importSettings(DEFAULT_SETTINGS)
-    await getCurrentWindow().setAlwaysOnTop(false)
-  }, [])
-
-  // Build timezone options: user's local TZ first, then popular list (deduped)
-  const tzOptions = useMemo(() => {
-    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    return [localTz, ...POPULAR_TIMEZONES.filter((tz) => tz !== localTz)].map((tz) => ({
-      value: tz,
-      label: tz.replace(/_/g, ' '),
-    }))
+    const { alwaysOnTop, ...otherDefaults } = DEFAULT_SETTINGS
+    await useSettingsStore.getState().importSettings(otherDefaults)
+    await setAlwaysOnTop(alwaysOnTop)
   }, [])
 
   return (
     <div className="space-y-4">
-      {/* Retention & Timezone */}
-      <div className="space-y-1">
-        <SettingRow label="History per Tool" hint={`Max entries retained per tool`}>
-          <Input
-            type="number"
-            value={historyRetentionPerTool}
-            onChange={(e) =>
-              void update(
-                'historyRetentionPerTool',
-                Math.min(5000, Math.max(10, Number(e.target.value)))
-              ).catch(() => {})
-            }
-            min={10}
-            max={5000}
-            className="w-20 text-right"
-          />
-        </SettingRow>
-        <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
-          <SelectInput
-            value={defaultTimezone}
-            onChange={(v) => void update('defaultTimezone', v).catch(() => {})}
-            options={tzOptions}
-          />
-        </SettingRow>
-      </div>
-
       {/* Storage Stats */}
       <div>
         <SectionLabel as="h4" className="mb-2">
@@ -176,6 +115,18 @@ export function DataTab() {
           <StatCard label="Notes" count={noteCount} />
           <StatCard label="Snippets" count={snippetCount} />
           <StatCard label="History" count={historyCount} />
+        </div>
+        <div className="mt-2">
+          <SettingRow label="History per Tool" hint="Max entries retained per tool">
+            <NumericSettingInput
+              value={historyRetentionPerTool}
+              min={10}
+              max={5000}
+              clamp={(value) => Math.max(10, Math.min(5000, Math.round(value)))}
+              unit="entries per tool"
+              onCommit={(value) => void update('historyRetentionPerTool', value).catch(() => {})}
+            />
+          </SettingRow>
         </div>
       </div>
 

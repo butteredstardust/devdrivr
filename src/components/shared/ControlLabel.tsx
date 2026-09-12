@@ -16,13 +16,35 @@ import { createContext, useContext, type ReactNode } from 'react'
  * `aria-labelledby` on the control still wins, and a control rendered outside a
  * provider is unaffected — the context default is `undefined`.
  */
-const ControlLabelContext = createContext<string | undefined>(undefined)
+type ControlLabel = {
+  labelId: string
+  descriptionId: string | undefined
+}
 
-export function ControlLabelProvider({ id, children }: { id: string; children: ReactNode }) {
-  return <ControlLabelContext.Provider value={id}>{children}</ControlLabelContext.Provider>
+const ControlLabelContext = createContext<ControlLabel | undefined>(undefined)
+
+export function ControlLabelProvider({
+  id,
+  descriptionId,
+  children,
+}: {
+  id: string
+  descriptionId: string | undefined
+  children: ReactNode
+}) {
+  return (
+    <ControlLabelContext.Provider value={{ labelId: id, descriptionId }}>
+      {children}
+    </ControlLabelContext.Provider>
+  )
 }
 
 /** Id of the surrounding row's label element, or undefined outside a row. */
 export function useControlLabelId(): string | undefined {
-  return useContext(ControlLabelContext)
+  return useContext(ControlLabelContext)?.labelId
+}
+
+/** Id of the surrounding row's hint element, or undefined when it has no hint. */
+export function useControlDescriptionId(): string | undefined {
+  return useContext(ControlLabelContext)?.descriptionId
 }

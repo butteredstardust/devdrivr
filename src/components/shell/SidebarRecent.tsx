@@ -18,6 +18,7 @@ export function SidebarRecent({ filterToolIds = null, matchRanges = null }: Side
   const recentToolIds = useUiStore((s) => s.recentToolIds)
   const activeTool = useUiStore((s) => s.activeTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
+  const recentToolsLimit = useSettingsStore((s) => s.recentToolsLimit)
 
   const recentTools = useMemo(
     () =>
@@ -27,8 +28,8 @@ export function SidebarRecent({ filterToolIds = null, matchRanges = null }: Side
         .map((id) => TOOLS.find((t) => t.id === id))
         .filter((t): t is (typeof TOOLS)[number] => t != null)
         .filter((t) => !filterToolIds || filterToolIds.has(t.id))
-        .slice(0, 3),
-    [recentToolIds, activeTool, pinnedToolIds, filterToolIds]
+        .slice(0, recentToolsLimit),
+    [recentToolIds, activeTool, pinnedToolIds, filterToolIds, recentToolsLimit]
   )
 
   if (recentTools.length === 0) return null

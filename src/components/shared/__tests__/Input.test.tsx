@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Input } from '../Input'
+import { ControlLabelProvider } from '@/components/shared/ControlLabel'
 
 describe('Input', () => {
   it('reports value changes', () => {
@@ -22,6 +23,32 @@ describe('Input', () => {
 
     fireEvent.blur(input)
     expect(input.value).toBe('reset')
+  })
+
+  it('uses row label and hint ids unless explicit aria attributes override them', () => {
+    const { rerender } = render(
+      <ControlLabelProvider id="row-label" descriptionId="row-hint">
+        <Input type="number" value={1} onChange={() => {}} />
+      </ControlLabelProvider>
+    )
+    const contextual = screen.getByRole('spinbutton')
+    expect(contextual).toHaveAttribute('aria-labelledby', 'row-label')
+    expect(contextual).toHaveAttribute('aria-describedby', 'row-hint')
+
+    rerender(
+      <ControlLabelProvider id="row-label" descriptionId="row-hint">
+        <Input
+          type="number"
+          value={1}
+          onChange={() => {}}
+          aria-label="Explicit label"
+          aria-describedby="explicit-hint"
+        />
+      </ControlLabelProvider>
+    )
+    const explicit = screen.getByRole('spinbutton', { name: 'Explicit label' })
+    expect(explicit).not.toHaveAttribute('aria-labelledby')
+    expect(explicit).toHaveAttribute('aria-describedby', 'explicit-hint')
   })
 
   it('keeps the always-visible click focus border alongside the keyboard focus-visible ring', () => {

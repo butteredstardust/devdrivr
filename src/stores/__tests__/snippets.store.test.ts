@@ -12,9 +12,7 @@ import {
 import type { ResourceFolder, Snippet } from '@/types/models'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
-// This file did not exist before — it covers only the init-rejection-recovery path
-// (see documentation/TODO.md "Cover init-rejection recovery for the other six
-// stores"). Broader snippets.store coverage is out of scope for this pass.
+// Covers the init-rejection-recovery path only. Broader snippets.store coverage lives elsewhere.
 vi.mock('@/lib/db', () => ({
   loadSnippets: vi.fn(),
   loadTrashedSnippets: vi.fn().mockResolvedValue([]),

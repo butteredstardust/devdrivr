@@ -1,4 +1,4 @@
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Providers } from '@/app/providers'
 
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   settingsState: {
     initialized: false,
     alwaysOnTop: false,
+    restoreWorkspaceOnLaunch: true,
     checkForUpdatesAutomatically: false,
     downloadUpdatesAutomatically: false,
   },
@@ -39,6 +40,9 @@ const mocks = vi.hoisted(() => ({
   onMoved: vi.fn(),
   onResized: vi.fn(),
   setAlwaysOnTop: vi.fn(),
+  restoreTabs: vi.fn(),
+  restoreActiveTool: vi.fn(),
+  addToast: vi.fn(),
   checkForUpdate: vi.fn(),
   getNativeWindowState: vi.fn(),
 }))
@@ -84,7 +88,13 @@ vi.mock('@/stores/mcp.store', () => ({
 }))
 
 vi.mock('@/stores/ui.store', () => ({
-  useUiStore: { getState: () => ({ restoreTabs: vi.fn(), restoreActiveTool: vi.fn() }) },
+  useUiStore: {
+    getState: () => ({
+      restoreTabs: mocks.restoreTabs,
+      restoreActiveTool: mocks.restoreActiveTool,
+      addToast: mocks.addToast,
+    }),
+  },
 }))
 
 vi.mock('@/stores/updater.store', () => ({
@@ -131,6 +141,8 @@ describe('Providers bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.settingsState.initialized = false
+    mocks.settingsState.alwaysOnTop = false
+    mocks.settingsState.restoreWorkspaceOnLaunch = true
     mocks.getSetting.mockResolvedValue(null)
     mocks.setSetting.mockResolvedValue(undefined)
     mocks.getToolById.mockReturnValue(undefined)
@@ -146,6 +158,7 @@ describe('Providers bootstrap', () => {
     // timing override these with a gate.
     mocks.onMoved.mockResolvedValue(vi.fn())
     mocks.onResized.mockResolvedValue(vi.fn())
+    mocks.listen.mockResolvedValue(vi.fn())
     mocks.settingsInit.mockImplementation(async () => {
       mocks.settingsState.initialized = true
     })
@@ -230,6 +243,33 @@ describe('Providers bootstrap', () => {
     })
 
     await waitFor(() => expect(mocks.settingsInit).toHaveBeenCalledTimes(2))
+  })
+
+  it('continues startup and reports a rejected always-on-top restore', async () => {
+    mocks.settingsState.alwaysOnTop = true
+    mocks.setAlwaysOnTop.mockRejectedValueOnce(new Error('not allowed'))
+
+    render(<Providers>content</Providers>)
+
+    await waitFor(() =>
+      expect(mocks.addToast).toHaveBeenCalledWith('Failed to restore window pin state', 'error')
+    )
+    expect(mocks.setAlwaysOnTop).toHaveBeenCalledWith(true)
+    expect(await screen.findByText('content')).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to initialize/)).not.toBeInTheDocument()
+  })
+
+  it('leaves saved workspace data untouched when restore is disabled', async () => {
+    mocks.settingsState.restoreWorkspaceOnLaunch = false
+
+    render(<Providers>content</Providers>)
+
+    expect(await screen.findByText('content')).toBeInTheDocument()
+    expect(mocks.getSetting).not.toHaveBeenCalledWith('openTabs', null)
+    expect(mocks.getSetting).not.toHaveBeenCalledWith('activeTabId', null)
+    expect(mocks.getSetting).not.toHaveBeenCalledWith('activeTool', null)
+    expect(mocks.restoreTabs).not.toHaveBeenCalled()
+    expect(mocks.restoreActiveTool).not.toHaveBeenCalled()
   })
 
   it('does not persist transient fullscreen display bounds', async () => {

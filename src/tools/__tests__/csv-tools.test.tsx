@@ -335,15 +335,18 @@ describe('CsvTools', () => {
     typeCsv(SAMPLE)
 
     const filter = await screen.findByLabelText('Filter rows')
+    const table = screen.getByRole('region', { name: 'Table view' })
+
+    // Let the debounced parse land before filtering. Filtering is synchronous, so waiting on the
+    // unfiltered count first removes the race — asserting the filtered count while the 250 ms parse
+    // is still pending measures the debounce, not the filter.
+    await waitFor(() => expect(within(table).getByText(/2 rows · 2 columns/)).toBeInTheDocument())
+
     fireEvent.change(filter, { target: { value: 'Alice' } })
 
-    const table = screen.getByRole('region', { name: 'Table view' })
-    // Wait on the live count rather than on a row leaving. The parse is debounced by 250 ms, so a
-    // loaded runner can still be rendering every row when a plain "Bob is gone" check runs, and the
-    // count says whether the filter applied at all.
-    await waitFor(() => expect(within(table).getByText(/1 of 2 rows match/)).toBeInTheDocument(), {
-      timeout: 3000,
-    })
+    // The live count says whether the filter applied at all; a bare "Bob is gone" check passes
+    // while the table is still empty.
+    await waitFor(() => expect(within(table).getByText(/1 of 2 rows match/)).toBeInTheDocument())
     expect(within(table).queryByText('Bob')).not.toBeInTheDocument()
     expect(within(table).getByText('Alice')).toBeInTheDocument()
     expect(editor()).toHaveValue(SAMPLE)
