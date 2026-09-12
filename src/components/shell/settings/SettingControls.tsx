@@ -9,13 +9,7 @@ import { Input } from '@/components/shared/Input'
 import { Select } from '@/components/shared/Select'
 import { useUiStore } from '@/stores/ui.store'
 
-/**
- * The controls the four settings tabs are built out of.
- *
- * Extracted from `SettingsPanel` when that file reached 1,285 lines and held pure helpers,
- * persistence, four unrelated tab bodies and the panel shell in one module. Nothing here changed
- * shape in the move.
- */
+/** Shared controls keep all settings tabs consistent and accessible. */
 
 export function SettingRow({
   label,
@@ -141,6 +135,7 @@ export function NumericSettingInput({
 
 export function DangerButton({
   label,
+  accessibleLabel,
   confirmLabel,
   onConfirm,
   icon,
@@ -149,6 +144,7 @@ export function DangerButton({
   disabled = false,
 }: {
   label: string
+  accessibleLabel?: string
   confirmLabel: string
   onConfirm: () => Promise<void>
   icon: React.ReactNode
@@ -191,8 +187,11 @@ export function DangerButton({
   if (done) {
     return (
       <button
+        type="button"
+        aria-label={accessibleLabel}
         disabled
-        className="flex items-center gap-1.5 rounded border border-[var(--color-success)] px-2.5 py-1.5 text-xs text-[var(--color-success)]"
+        data-action-slot=""
+        className="flex min-w-[6.5rem] items-center justify-center gap-1.5 rounded border border-[var(--color-success)] px-2.5 py-1.5 text-xs text-[var(--color-success)]"
       >
         <CheckCircleIcon size={12} />
         Done
@@ -203,11 +202,13 @@ export function DangerButton({
   return (
     <button
       type="button"
+      aria-label={accessibleLabel}
+      data-action-slot=""
       onClick={() => {
         void handleClick()
       }}
       disabled={pending || disabled}
-      className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
+      className={`flex min-w-[6.5rem] items-center justify-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
         confirming
           ? 'border-[var(--color-error)] bg-[var(--color-error)]/10 text-[var(--color-error)]'
           : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)]'
@@ -268,11 +269,12 @@ export function TransferButton({
     <button
       type="button"
       aria-label={accessibleLabel}
+      data-action-slot=""
       onClick={() => {
         void handleClick()
       }}
       disabled={pending || disabled}
-      className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
+      className="flex min-w-[6.5rem] items-center justify-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
     >
       {pending ? <SpinnerIcon size={12} className="animate-spin" aria-hidden="true" /> : icon}
       {pending ? 'Working…' : label}
@@ -296,16 +298,18 @@ export function DatasetRow({
         <span className="text-xs text-[var(--color-text)]">{label}</span>
         <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">{count} stored</span>
       </div>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      <div
+        role="group"
+        aria-label={`${label} actions`}
+        className="flex flex-wrap items-center gap-2"
+      >
+        {children}
+      </div>
     </div>
   )
 }
 
-export function StatCard({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-center">
-      <div className="text-sm font-bold tabular-nums text-[var(--color-text)]">{count}</div>
-      <div className="text-xs text-[var(--color-text-muted)]">{label}</div>
-    </div>
-  )
+/** Reserves one unavailable dataset action without adding an interactive control. */
+export function ActionSlotSpacer() {
+  return <div aria-hidden="true" data-action-slot="" className="min-w-[6.5rem]" />
 }

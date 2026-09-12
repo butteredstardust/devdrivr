@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { parseSettingsImport, sanitizeStoredSettings } from '@/lib/settings-transfer'
+import {
+  parseSettingsImport,
+  sanitizeStoredSettings,
+  serializeSettingsExport,
+} from '@/lib/settings-transfer'
+import { DEFAULT_SETTINGS } from '@/types/models'
 
 describe('settings transfer', () => {
+  it('serializes all settings as readable JSON', () => {
+    expect(JSON.parse(serializeSettingsExport(DEFAULT_SETTINGS))).toEqual(DEFAULT_SETTINGS)
+    expect(serializeSettingsExport(DEFAULT_SETTINGS)).toContain('\n  "theme":')
+  })
+
   it('validates ranges, clamps panel widths, and removes duplicate navigation entries', () => {
     expect(
       parseSettingsImport(
