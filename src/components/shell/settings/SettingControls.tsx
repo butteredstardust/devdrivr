@@ -223,6 +223,80 @@ export function DangerButton({
   )
 }
 
+/**
+ * A non-destructive data action — export or import.
+ *
+ * Pass `accessibleLabel` whenever the visible text repeats across rows. "Export" on its own names
+ * three different buttons in Settings → Data, which reads as one control announced three times.
+ */
+export function TransferButton({
+  label,
+  accessibleLabel,
+  icon,
+  onClick,
+}: {
+  label: string
+  accessibleLabel?: string
+  icon: React.ReactNode
+  onClick: () => Promise<void>
+}) {
+  const [pending, setPending] = useState(false)
+  const mountedRef = useRef(true)
+
+  // The file dialog outlives a tab switch, so the resolve can land after this button unmounts.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const handleClick = async () => {
+    setPending(true)
+    try {
+      await onClick()
+    } finally {
+      if (mountedRef.current) setPending(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={accessibleLabel}
+      onClick={() => {
+        void handleClick()
+      }}
+      disabled={pending}
+      className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
+    >
+      {pending ? <SpinnerIcon size={12} className="animate-spin" aria-hidden="true" /> : icon}
+      {pending ? 'Working…' : label}
+    </button>
+  )
+}
+
+/** One stored dataset with its item count and the actions that move or remove it. */
+export function DatasetRow({
+  label,
+  count,
+  children,
+}: {
+  label: string
+  count: number
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2">
+      <div className="flex items-baseline gap-2">
+        <span className="text-xs text-[var(--color-text)]">{label}</span>
+        <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">{count} stored</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  )
+}
+
 export function StatCard({ label, count }: { label: string; count: number }) {
   return (
     <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-center">

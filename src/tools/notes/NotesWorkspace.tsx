@@ -46,20 +46,15 @@ import {
 import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 import type { Note, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
-import { exportFile, openFileDialog } from '@/lib/file-io'
 import {
   collectNoteAssetIds,
-  createNotesBackup,
   deleteOrphanNoteAssets,
   findOrphanNoteAssets,
   resolveNoteAssetMarkdown,
-  restoreNotesBackup,
-  rollbackRestoredNoteAssets,
-  finalizeRestoredNoteAssets,
   type NoteAsset,
 } from '@/lib/note-assets'
+import { useNotesBackup } from '@/hooks/useNotesBackup'
 import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
-import { restoreNotesFromBackup } from '@/lib/db'
 import { sendToTool } from '@/lib/tool-handoff'
 import {
   backlinksForResource,
@@ -81,8 +76,6 @@ import {
   TASK_VIEWS,
   type TaskView,
 } from '@/tools/notes/task-model'
-
-const MAX_NOTES_BACKUP_FILE_BYTES = 512 * 1024 * 1024
 
 type NotesWorkspaceState = {
   selectedId: string | null
@@ -167,7 +160,6 @@ export default function NotesWorkspace() {
   const apiInitialized = useApiStore((state) => state.initialized)
   const refreshNotes = useNotesStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
-  const refreshFolders = useFoldersStore((state) => state.refresh)
   const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
   const updateFolder = useFoldersStore((state) => state.update)
@@ -400,72 +392,8 @@ export default function NotesWorkspace() {
     }
   }, [selected?.content, wikiResources])
 
-  const handleExportBackup = useCallback(async () => {
-    try {
-      await flushPending()
-      const currentNotes = useNotesStore.getState().notes
-      const content = await createNotesBackup(currentNotes, foldersForKind(folders, 'notes'))
-      const path = await exportFile(content, 'devdrivr-notes-backup.json')
-      if (path) setLastAction(`${currentNotes.length} notes exported with attachments`, 'success')
-    } catch (error) {
-      setLastAction(
-        `Failed to export notes: ${error instanceof Error ? error.message : String(error)}`,
-        'error'
-      )
-    }
-  }, [flushPending, folders, setLastAction])
-
-  const handleImportBackup = useCallback(async () => {
-    let restoreToken: string | null = null
-    try {
-      const file = await openFileDialog({ maxBytes: MAX_NOTES_BACKUP_FILE_BYTES })
-      if (!file) return
-      const backup = await restoreNotesBackup(file.content)
-      restoreToken = backup.restoreToken
-      if (backup.version === 2) {
-        await restoreNotesFromBackup(backup.folders, backup.notes)
-      } else {
-        const now = Date.now()
-        const notes = backup.notes.map(
-          (entry, index): Note => ({
-            id: crypto.randomUUID(),
-            title: entry.title,
-            content: entry.content,
-            color: entry.color,
-            pinned: entry.pinned,
-            poppedOut: false,
-            tags: entry.tags,
-            sortOrder: index,
-            folderId: 'notes-inbox',
-            createdAt: now,
-            updatedAt: now,
-            ...(entry.taskStatus ? { taskStatus: entry.taskStatus } : {}),
-            ...(entry.taskPriority ? { taskPriority: entry.taskPriority } : {}),
-            ...(entry.taskDueDate ? { taskDueDate: entry.taskDueDate } : {}),
-          })
-        )
-        await restoreNotesFromBackup([], notes)
-      }
-      // The database now durably references these files. Refresh failures must not roll them back.
-      const committedRestoreToken = restoreToken
-      restoreToken = null
-      if (committedRestoreToken) await finalizeRestoredNoteAssets(committedRestoreToken)
-      await Promise.all([refreshFolders(), refreshNotes()])
-      setLastAction(`${backup.notes.length} notes restored with attachments`, 'success')
-    } catch (error) {
-      if (restoreToken) {
-        try {
-          await rollbackRestoredNoteAssets(restoreToken)
-        } catch {
-          // Preserve the primary restore failure; orphan cleanup can find these files later.
-        }
-      }
-      setLastAction(
-        `Failed to restore notes: ${error instanceof Error ? error.message : String(error)}`,
-        'error'
-      )
-    }
-  }, [refreshFolders, refreshNotes, setLastAction])
+  const { exportBackup: handleExportBackup, importBackup: handleImportBackup } =
+    useNotesBackup(setLastAction)
 
   const referencedAssetIds = useCallback(() => {
     const current = useNotesStore.getState()

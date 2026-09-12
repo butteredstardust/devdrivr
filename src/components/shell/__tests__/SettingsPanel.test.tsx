@@ -5,6 +5,9 @@ import { useHistoryStore } from '@/stores/history.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
+import { useApiStore } from '@/stores/api.store'
+import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
+import { exportFile, openFileDialog } from '@/lib/file-io'
 import { DEFAULT_MCP_PERMISSIONS, useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
@@ -20,6 +23,12 @@ vi.mock('@tauri-apps/api/core', () => ({
     url: 'http://127.0.0.1:17347/mcp',
     lastError: null,
   }),
+}))
+
+vi.mock('@/lib/file-io', () => ({
+  exportFile: vi.fn(),
+  openFileDialog: vi.fn(),
+  buildExportFilename: (base: string, extension: string) => `${base}.${extension}`,
 }))
 
 vi.mock('@tauri-apps/api/app', () => ({
@@ -65,6 +74,22 @@ beforeEach(() => {
     clearAll: vi.fn().mockResolvedValue(undefined),
   })
   useSnippetsStore.setState({ snippets: [], clearAll: vi.fn().mockResolvedValue(undefined) })
+  // Settings → Data initialises both lazily loaded tools, so every path here needs a stub.
+  useApiStore.setState({
+    requests: [],
+    collections: [],
+    environments: [],
+    activeEnvironmentId: null,
+    init: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+    importApiData: vi.fn().mockResolvedValue({ requests: 2, collections: 1, environments: 0 }),
+  })
+  usePromptTemplatesStore.setState({
+    userTemplates: [],
+    init: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+    importMany: vi.fn().mockResolvedValue([]),
+  })
   useHistoryStore.setState({ entries: [], clearAll: vi.fn().mockResolvedValue(undefined) })
   useUiStore.setState({
     settingsPanelOpen: true,
@@ -105,11 +130,70 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Trash Notes (1)' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Move all to Trash?' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Trash notes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move notes to Trash?' }))
 
     await waitFor(() => expect(clearNotes).toHaveBeenCalledTimes(1))
     expect(addToast).toHaveBeenCalledWith('Notes moved to Trash', 'success')
+  })
+
+  it('exports API requests to a file', async () => {
+    const addToast = useUiStore.getState().addToast
+    vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-api-backup.json')
+    useApiStore.setState({
+      requests: [
+        {
+          id: 'req-1',
+          name: 'List users',
+          method: 'GET',
+          url: 'https://example.test/users',
+          headers: [],
+          body: '',
+          bodyMode: 'none',
+          auth: { type: 'none' },
+          collectionId: null,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export API requests to a file' }))
+
+    await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
+    const [json, filename] = vi.mocked(exportFile).mock.calls[0]!
+    expect(filename).toBe('devdrivr-api-backup.json')
+    expect(String(json)).toContain('List users')
+    expect(addToast).toHaveBeenCalledWith('1 API requests exported', 'success')
+  })
+
+  it('leaves the store untouched when the import dialog is dismissed', async () => {
+    // A cancelled dialog resolves null. Treating that as an empty import would wipe the library.
+    vi.mocked(openFileDialog).mockResolvedValue(null)
+    const importApiData = useApiStore.getState().importApiData
+    const addToast = useUiStore.getState().addToast
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import API requests from a file' }))
+
+    await waitFor(() => expect(openFileDialog).toHaveBeenCalledOnce())
+    expect(importApiData).not.toHaveBeenCalled()
+    expect(addToast).not.toHaveBeenCalled()
+  })
+
+  it('deletes custom prompt templates only after a confirm', async () => {
+    const clearTemplates = usePromptTemplatesStore.getState().clearAll
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete templates' }))
+    expect(clearTemplates).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently?' }))
+    await waitFor(() => expect(clearTemplates).toHaveBeenCalledOnce())
   })
 
   it('rejects invalid MCP port input with feedback', async () => {

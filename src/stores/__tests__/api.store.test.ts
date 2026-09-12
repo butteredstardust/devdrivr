@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addHistoryEntry,
+  clearAllApiRequests,
   deleteApiCollection,
   deleteApiEnvironment,
   deleteApiRequest,
@@ -22,6 +23,7 @@ import { expectInitRejectionRecovers } from './init-rejection-helper'
 
 vi.mock('@/lib/db', () => ({
   addHistoryEntry: vi.fn(),
+  clearAllApiRequests: vi.fn(),
   deleteApiCollection: vi.fn(),
   deleteApiEnvironment: vi.fn(),
   deleteApiRequest: vi.fn(),
@@ -92,6 +94,7 @@ describe('API store persistence', () => {
     vi.mocked(deleteApiRequest).mockResolvedValue()
     vi.mocked(restoreApiRequest).mockResolvedValue()
     vi.mocked(permanentlyDeleteApiRequest).mockResolvedValue()
+    vi.mocked(clearAllApiRequests).mockResolvedValue()
     vi.mocked(addHistoryEntry).mockResolvedValue()
     useApiStore.setState({
       initialized: false,
@@ -394,6 +397,34 @@ describe('API store persistence', () => {
       '00000000-0000-4000-8000-000000000031'
     )
     expect(useApiStore.getState().activeEnvironmentId).toBe('00000000-0000-4000-8000-000000000031')
+  })
+
+  it('clearAll() trashes every request and reloads both lists', async () => {
+    useApiStore.setState({ requests: [persistedRequest], trashedRequests: [] })
+    vi.mocked(loadApiRequests).mockResolvedValue([])
+    vi.mocked(loadTrashedApiRequests).mockResolvedValue([persistedRequest])
+
+    await useApiStore.getState().clearAll()
+
+    expect(clearAllApiRequests).toHaveBeenCalledOnce()
+    expect(useApiStore.getState().requests).toEqual([])
+    expect(useApiStore.getState().trashedRequests).toEqual([persistedRequest])
+  })
+
+  it('clearAll() leaves collections and environments in place', async () => {
+    // Trashing requests must not strand the containers the user built to hold them.
+    useApiStore.setState({
+      requests: [persistedRequest],
+      collections: [persistedCollection],
+      environments: [persistedEnvironment],
+    })
+    vi.mocked(loadApiRequests).mockResolvedValue([])
+    vi.mocked(loadTrashedApiRequests).mockResolvedValue([persistedRequest])
+
+    await useApiStore.getState().clearAll()
+
+    expect(useApiStore.getState().collections).toEqual([persistedCollection])
+    expect(useApiStore.getState().environments).toEqual([persistedEnvironment])
   })
 })
 

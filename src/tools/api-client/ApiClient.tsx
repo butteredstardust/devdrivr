@@ -38,6 +38,7 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
 import { importApiSpec } from '@/lib/api-import'
+import { serializeApiExport } from '@/lib/api-transfer'
 import {
   blankFormRows,
   buildMultipartBody,
@@ -1117,45 +1118,8 @@ export default function ApiClient() {
   })
 
   const handleExport = useCallback(async () => {
-    const exportCollectionById = new Map(
-      collections.map((collection) => [
-        collection.id,
-        { key: collection.id, name: collection.name },
-      ])
-    )
-    const exportRequests = requests.map((r) => {
-      const collection = r.collectionId ? exportCollectionById.get(r.collectionId) : undefined
-      return {
-        name: r.name,
-        method: r.method,
-        url: r.url,
-        headers: r.headers,
-        body: r.body,
-        bodyMode: r.bodyMode,
-        auth: r.auth,
-        collectionKey: collection?.key ?? null,
-        collectionName: collection?.name ?? null,
-      }
-    })
-    const exportData = {
-      format: 'devdrivr-api',
-      version: 3,
-      exportedAt: new Date().toISOString(),
-      folders: collections.map((collection) => ({
-        key: collection.id,
-        name: collection.name,
-        parentKey: collection.parentId ?? null,
-        sortOrder: collection.sortOrder ?? 0,
-      })),
-      requests: exportRequests,
-      environments: environments.map((environment) => ({
-        key: environment.id,
-        name: environment.name,
-        variables: environment.variables,
-      })),
-      activeEnvironmentKey: activeEnvironmentId,
-    }
-    await copy(JSON.stringify(exportData, null, 2), {
+    const json = serializeApiExport({ collections, requests, environments, activeEnvironmentId })
+    await copy(json, {
       success: 'API library backup copied to clipboard',
       failure: 'Export failed — clipboard unavailable',
     })

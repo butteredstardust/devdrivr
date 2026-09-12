@@ -13,6 +13,7 @@ import {
   deleteApiRequest,
   restoreApiRequest,
   permanentlyDeleteApiRequest,
+  clearAllApiRequests,
   loadHistory,
   addHistoryEntry,
   getSetting,
@@ -51,6 +52,8 @@ type ApiStore = {
   deleteRequest: (id: string) => Promise<void>
   restoreRequest: (id: string) => Promise<void>
   permanentlyDeleteRequest: (id: string) => Promise<void>
+  /** Moves every saved request to the Trash. Collections and environments stay. */
+  clearAll: () => Promise<void>
   importApiData: (
     data: ApiImportResult
   ) => Promise<{ environments: number; collections: number; requests: number }>
@@ -248,6 +251,15 @@ export const useApiStore = create<ApiStore>((set) => ({
     set((state) => ({
       trashedRequests: state.trashedRequests.filter((request) => request.id !== id),
     }))
+  },
+
+  clearAll: async () => {
+    await clearAllApiRequests()
+    const [requests, trashedRequests] = await Promise.all([
+      loadApiRequests(),
+      loadTrashedApiRequests(),
+    ])
+    set({ requests, trashedRequests })
   },
 
   importApiData: async (data) => {

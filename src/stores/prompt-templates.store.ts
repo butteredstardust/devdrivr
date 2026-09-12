@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import {
+  clearAllUserPromptTemplates,
   deleteUserPromptTemplate,
   loadUserPromptTemplates,
   saveUserPromptTemplate,
@@ -31,6 +32,11 @@ type PromptTemplatesStore = {
   update: (id: string, draft: PromptTemplateDraft) => Promise<PromptTemplate | null>
   remove: (id: string) => Promise<void>
   importMany: (drafts: PromptTemplateDraft[]) => Promise<PromptTemplate[]>
+  /**
+   * WARNING: removes every custom template permanently. There is no Trash for this table.
+   * Built-in templates are untouched.
+   */
+  clearAll: () => Promise<void>
 }
 
 let initPromise: Promise<void> | null = null
@@ -161,6 +167,19 @@ export const usePromptTemplatesStore = create<PromptTemplatesStore>()((set, get)
       set((state) => endSaving(state))
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to delete prompt template: ' + msg, 'error')
+      throw err
+    }
+  },
+
+  clearAll: async () => {
+    set((state) => ({ savingCount: state.savingCount + 1, saving: true }))
+    try {
+      await clearAllUserPromptTemplates()
+      set((state) => ({ userTemplates: [], ...endSaving(state) }))
+    } catch (err) {
+      set((state) => endSaving(state))
+      const msg = err instanceof Error ? err.message : String(err)
+      useUiStore.getState().addToast('Failed to clear prompt templates: ' + msg, 'error')
       throw err
     }
   },
