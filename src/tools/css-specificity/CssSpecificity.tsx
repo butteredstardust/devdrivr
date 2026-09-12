@@ -224,8 +224,13 @@ export default function CssSpecificity() {
       <div className="flex flex-1 overflow-hidden">
         {/* Input */}
         <div className="flex w-2/5 flex-col border-r border-[var(--color-border)]">
-          <PaneHeader title="Selectors" hint="one per line" />
+          <PaneHeader
+            title="Selectors"
+            titleId="css-specificity-selectors-label"
+            hint="one per line"
+          />
           <TextArea
+            aria-labelledby="css-specificity-selectors-label"
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder={

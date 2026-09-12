@@ -4,6 +4,8 @@ import { cn } from '@/lib/cn'
 
 type PaneHeaderProps = {
   title: ReactNode
+  /** Lets a control below the header reference the visible title with `aria-labelledby`. */
+  titleId?: string
   /** Muted detail beside the title — a line count, a byte size, a language. */
   hint?: ReactNode
   /**
@@ -24,7 +26,14 @@ type PaneHeaderProps = {
  * placement wandered pane to pane — some tools put it in the tool toolbar, some floated it over
  * the pane, some left it out.
  */
-export function PaneHeader({ title, hint, status, actions, className = '' }: PaneHeaderProps) {
+export function PaneHeader({
+  title,
+  titleId,
+  hint,
+  status,
+  actions,
+  className = '',
+}: PaneHeaderProps) {
   return (
     <div
       className={cn(
@@ -33,7 +42,9 @@ export function PaneHeader({ title, hint, status, actions, className = '' }: Pan
       )}
     >
       <SectionLabel className="min-w-0 flex-1" hint={hint}>
-        <span className="truncate">{title}</span>
+        <span id={titleId} className="truncate">
+          {title}
+        </span>
       </SectionLabel>
       {status && (
         <span

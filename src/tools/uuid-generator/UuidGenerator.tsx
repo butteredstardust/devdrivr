@@ -434,6 +434,7 @@ export default function UuidGenerator() {
         {/* ── Validate & Parse ─────────────────────────────── */}
         <Panel title="Validate & Parse">
           <Input
+            aria-label="UUID to validate"
             type="text"
             value={state.validateInput}
             onChange={(e) => {

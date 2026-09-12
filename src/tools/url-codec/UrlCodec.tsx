@@ -251,8 +251,13 @@ export default function UrlCodec() {
       {/* Input / Output panels */}
       <SplitPane storageKey="url-codec" aria-label="Resize input and output">
         <div className="flex min-h-0 flex-1 flex-col">
-          <PaneHeader title="Input" hint={state.mode === 'encode' ? 'Text' : 'Encoded'} />
+          <PaneHeader
+            title="Input"
+            titleId="url-codec-input-label"
+            hint={state.mode === 'encode' ? 'Text' : 'Encoded'}
+          />
           <TextArea
+            aria-labelledby="url-codec-input-label"
             value={state.input}
             onChange={(e) => {
               markUserEdit()

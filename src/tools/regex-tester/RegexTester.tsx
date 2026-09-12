@@ -474,8 +474,9 @@ export default function RegexTester() {
           {/* Main panels */}
           <SplitPane storageKey="regex-tester" aria-label="Resize test string and matches">
             <div className="flex min-h-0 flex-1 flex-col">
-              <PaneHeader title="Test String" />
+              <PaneHeader title="Test String" titleId="regex-tester-test-string-label" />
               <TextArea
+                aria-labelledby="regex-tester-test-string-label"
                 ref={testStringRef}
                 value={state.testString}
                 onChange={(e) => updateState({ testString: e.target.value })}

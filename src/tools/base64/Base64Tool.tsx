@@ -531,6 +531,7 @@ export default function Base64Tool() {
         <div ref={inputPaneRef} className="relative flex min-h-0 flex-1 flex-col">
           <PaneHeader
             title="Input"
+            titleId="base64-input-label"
             hint={state.mode === 'encode' ? 'Text' : 'Base64'}
             actions={
               <>
@@ -607,6 +608,7 @@ export default function Base64Tool() {
               onDrop={handleDrop}
             >
               <TextArea
+                aria-labelledby="base64-input-label"
                 value={state.input}
                 onChange={(e) => updateState({ input: e.target.value })}
                 placeholder={
