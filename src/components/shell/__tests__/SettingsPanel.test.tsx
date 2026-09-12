@@ -74,8 +74,14 @@ beforeEach(() => {
     ],
     clearAll: vi.fn().mockResolvedValue(undefined),
   })
-  useSnippetsStore.setState({ snippets: [], clearAll: vi.fn().mockResolvedValue(undefined) })
-  // Settings → Data initialises both lazily loaded tools, so every path here needs a stub.
+  useSnippetsStore.setState({
+    initialized: true,
+    snippets: [],
+    init: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+    importBatch: vi.fn().mockResolvedValue(undefined),
+  })
+  // Settings → Data initializes each lazy dataset, so every path here needs a stub.
   useApiStore.setState({
     initialized: true,
     requests: [],
@@ -142,7 +148,7 @@ describe('SettingsPanel', () => {
 
   it('exports API requests to a file', async () => {
     const addToast = useUiStore.getState().addToast
-    vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-api-backup.json')
+    vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-api-requests-backup.json')
     useApiStore.setState({
       requests: [
         {
@@ -167,7 +173,7 @@ describe('SettingsPanel', () => {
 
     await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
     const [json, filename] = vi.mocked(exportFile).mock.calls[0]!
-    expect(filename).toBe('devdrivr-api-backup.json')
+    expect(filename).toBe('devdrivr-api-requests-backup.json')
     expect(String(json)).toContain('List users')
     expect(addToast).toHaveBeenCalledWith('1 API requests exported', 'success')
   })
@@ -202,12 +208,15 @@ describe('SettingsPanel', () => {
   it('disables dataset actions until the store has loaded', () => {
     // Exporting from an unloaded store writes an empty backup over the user's real data.
     useApiStore.setState({ initialized: false })
+    useSnippetsStore.setState({ initialized: false })
 
     render(<SettingsPanel />)
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
 
     expect(screen.getByRole('button', { name: 'Export API requests to a file' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Trash requests' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export snippets to a file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Trash snippets' })).toBeDisabled()
     // Notes load at app start, so that row stays usable.
     expect(screen.getByRole('button', { name: 'Export notes to a file' })).toBeEnabled()
   })

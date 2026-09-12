@@ -13,6 +13,7 @@ import {
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { exportFile } from '@/lib/file-io'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const clipboardWriteText = vi.fn()
@@ -20,6 +21,11 @@ const clipboardWriteText = vi.fn()
 vi.mock('@tauri-apps/plugin-http', () => ({
   fetch: fetchMock,
 }))
+
+vi.mock('@/lib/file-io', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
+  return { ...actual, exportFile: vi.fn() }
+})
 
 function base64EncodeUtf8(text: string): string {
   const bytes = new TextEncoder().encode(text)
@@ -64,6 +70,7 @@ describe('ApiClient', () => {
       value: { writeText: clipboardWriteText },
     })
     fetchMock.mockResolvedValue(new Response('ok', { status: 200, statusText: 'OK' }))
+    vi.mocked(exportFile).mockReset().mockResolvedValue('/tmp/api-backup.json')
     useApiStore.setState({
       environments: [],
       collections: [],
@@ -246,11 +253,12 @@ describe('ApiClient', () => {
     renderTool(ApiClient)
 
     fireEvent.click(screen.getByRole('button', { name: 'Export API library' }))
-    expect(screen.getByText(/Treat the clipboard contents as sensitive data/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Copy full backup' }))
+    expect(screen.getByText(/Store the exported file as sensitive data/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export full backup' }))
 
-    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
-    const exported = clipboardWriteText.mock.calls[0]?.[0]
+    await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
+    const [exported, filename] = vi.mocked(exportFile).mock.calls[0]!
+    expect(filename).toBe('devdrivr-api-requests-backup.json')
     expect(exported).toBeTypeOf('string')
     expect(JSON.parse(exported as string)).toEqual({
       format: 'devdrivr-api',
@@ -331,10 +339,10 @@ describe('ApiClient', () => {
     renderTool(ApiClient)
 
     fireEvent.click(screen.getByRole('button', { name: 'Export API library' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Copy full backup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export full backup' }))
 
-    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledOnce())
-    const imported = importApiSpec({ content: clipboardWriteText.mock.calls[0]?.[0] as string })
+    await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
+    const imported = importApiSpec({ content: vi.mocked(exportFile).mock.calls[0]?.[0] as string })
     expect(imported.collections).toEqual([
       { key: 'collection-1', name: 'Users', parentKey: null, sortOrder: 0 },
       { key: 'collection-2', name: 'users', parentKey: null, sortOrder: 0 },

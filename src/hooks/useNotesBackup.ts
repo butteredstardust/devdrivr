@@ -8,7 +8,7 @@
  * still typing carries the current text.
  */
 import { useCallback } from 'react'
-import { exportFile, openFileDialog } from '@/lib/file-io'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { restoreNotesFromBackup } from '@/lib/db'
 import {
   createNotesBackup,
@@ -24,8 +24,11 @@ import type { Note } from '@/types/models'
 /** Attachments make a notes backup large. This cap still admits several thousand images. */
 const MAX_NOTES_BACKUP_FILE_BYTES = 512 * 1024 * 1024
 
-/** Reports the outcome of a backup operation to the user. */
-export type BackupReporter = (message: string, tone: 'success' | 'error') => void
+/**
+ * Reports the outcome of a backup operation to the user. Use `info` when the operation completed
+ * but changed nothing, so a no-op does not read as a success.
+ */
+export type BackupReporter = (message: string, tone: 'success' | 'error' | 'info') => void
 
 export type NotesBackupActions = {
   /** Writes every note and notes folder to a file the user picks. */
@@ -41,7 +44,7 @@ export function useNotesBackup(report: BackupReporter): NotesBackupActions {
       const currentNotes = useNotesStore.getState().notes
       const folders = foldersForKind(useFoldersStore.getState().folders, 'notes')
       const content = await createNotesBackup(currentNotes, folders)
-      const path = await exportFile(content, 'devdrivr-notes-backup.json')
+      const path = await exportFile(content, buildExportFilename('devdrivr-notes-backup', 'json'))
       if (path) report(`${currentNotes.length} notes exported with attachments`, 'success')
     } catch (error) {
       report(

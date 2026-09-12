@@ -34,7 +34,7 @@ import { TabBar } from '@/components/shared/TabBar'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { useIsInstanceActive } from '@/app/tool-instance'
-import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
+import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import {
@@ -42,20 +42,15 @@ import {
   CATEGORY_LABELS,
 } from '@/tools/prompt-templates/builtin-templates'
 import {
-  parsePromptTemplateImport,
-  serializePromptTemplateExport,
-} from '@/tools/prompt-templates/template-import'
-import {
   estimateTokens,
   mergeDefaultValues,
   missingRequiredVariables,
   renderPrompt,
   syncVariablesToPrompt,
   templateSearchText,
-  templateToDraft,
   tokenTone,
-  type PromptTemplateDraft,
 } from '@/tools/prompt-templates/template-utils'
+import { templateToDraft, type PromptTemplateDraft } from '@/lib/prompt-template-transfer'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
@@ -720,8 +715,8 @@ export default function PromptTemplates() {
   const createTemplate = usePromptTemplatesStore((s) => s.create)
   const updateTemplate = usePromptTemplatesStore((s) => s.update)
   const removeTemplate = usePromptTemplatesStore((s) => s.remove)
-  const importTemplates = usePromptTemplatesStore((s) => s.importMany)
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const { exportBackup: handleExport, importBackup } = usePromptTemplatesBackup(setLastAction)
   const copy = useCopyToClipboard()
   const [modalOpen, setModalOpen] = useState(false)
   const [editorState, setEditorState] = useState<{
@@ -731,6 +726,11 @@ export default function PromptTemplates() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [workspaceTab, setWorkspaceTab] = useState<'fill' | 'preview'>('fill')
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const handleImport = useCallback(async () => {
+    const importedId = await importBackup()
+    if (importedId) updateState({ selectedId: importedId })
+  }, [importBackup, updateState])
 
   const allTemplates = useMemo(
     () => [
@@ -917,34 +917,6 @@ export default function PromptTemplates() {
       setLastAction('Failed to delete prompt template', 'error')
     }
   }, [confirmDeleteId, removeTemplate, selectedTemplate, setLastAction, updateState])
-
-  const handleExport = useCallback(async () => {
-    try {
-      const exportDrafts = userTemplates.map((template) => templateToDraft(template))
-      const path = await exportFile(
-        serializePromptTemplateExport(exportDrafts),
-        buildExportFilename('prompt-templates-backup', 'json')
-      )
-      if (path) setLastAction(`Exported ${exportDrafts.length} prompt templates`, 'success')
-    } catch {
-      setLastAction('Failed to export prompt templates', 'error')
-    }
-  }, [setLastAction, userTemplates])
-
-  const handleImport = useCallback(async () => {
-    try {
-      const file = await openFileDialog()
-      if (!file) return
-      const drafts = parsePromptTemplateImport(file.content, 'file')
-      const imported = await importTemplates(drafts)
-      if (imported[0]) {
-        updateState({ selectedId: imported[0].id })
-      }
-      setLastAction(`Imported ${imported.length} prompt template(s)`, 'success')
-    } catch (err) {
-      setLastAction(err instanceof Error ? err.message : 'Import failed', 'error')
-    }
-  }, [importTemplates, setLastAction, updateState])
 
   const clearFilters = useCallback(() => {
     updateState({ search: '', category: 'all' })

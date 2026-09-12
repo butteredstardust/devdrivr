@@ -8,7 +8,7 @@ import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templ
 import {
   parsePromptTemplateImport,
   serializePromptTemplateExport,
-} from '@/tools/prompt-templates/template-import'
+} from '@/lib/prompt-template-transfer'
 import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
 
 const originalClipboard = navigator.clipboard
@@ -36,7 +36,7 @@ beforeEach(() => {
   useUiStore.setState({ lastAction: null, toasts: [] })
   usePromptTemplatesStore.setState({ userTemplates: [], initialized: true, saving: false })
   fileIoMocks.openFileDialog.mockReset().mockResolvedValue(null)
-  fileIoMocks.exportFile.mockReset().mockResolvedValue('/tmp/prompt-templates-backup.json')
+  fileIoMocks.exportFile.mockReset().mockResolvedValue('/tmp/devdrivr-prompt-templates-backup.json')
 })
 
 afterEach(() => {
@@ -389,7 +389,7 @@ describe('PromptTemplates', () => {
     await waitFor(() => expect(fileIoMocks.exportFile).toHaveBeenCalledTimes(1))
     expect(fileIoMocks.exportFile).toHaveBeenCalledWith(
       expect.stringContaining('Imported Prompt'),
-      'prompt-templates-backup.json'
+      'devdrivr-prompt-templates-backup.json'
     )
   })
 })

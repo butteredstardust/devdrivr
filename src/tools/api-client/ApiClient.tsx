@@ -30,6 +30,7 @@ import { sendToTool } from '@/lib/tool-handoff'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useApiStore } from '@/stores/api.store'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
+import { importApiBackupContent, importApiBackupData, useApiBackup } from '@/hooks/useApiBackup'
 import { EnvironmentModal } from './components/EnvironmentModal'
 import { AuthTab } from './components/AuthTab'
 import { CollectionsSidebar } from './components/CollectionsSidebar'
@@ -37,8 +38,6 @@ import { httpMethodTextClass } from '@/lib/http-method'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { SaveRequestModal } from './components/SaveRequestModal'
 import { ImportSpecModal } from './components/ImportSpecModal'
-import { importApiSpec } from '@/lib/api-import'
-import { serializeApiExport } from '@/lib/api-transfer'
 import {
   blankFormRows,
   buildMultipartBody,
@@ -141,7 +140,6 @@ export default function ApiClient() {
   const createRequest = useApiStore((s) => s.createRequest)
   const createCollection = useApiStore((s) => s.createCollection)
   const updateRequest = useApiStore((s) => s.updateRequest)
-  const importApiData = useApiStore((s) => s.importApiData)
   const addRequestHistory = useApiStore((s) => s.addRequestHistory)
   const [apiInitialized, setApiInitialized] = useState(false)
   useEffect(() => {
@@ -180,6 +178,7 @@ export default function ApiClient() {
   )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const { exportBackup } = useApiBackup(setLastAction)
   const copy = useCopyToClipboard()
   const [response, setResponse] = useState<ResponseData | null>(null)
   const [responseEditor, setResponseEditor] = useState<EditorInstance | null>(null)
@@ -1026,33 +1025,16 @@ export default function ApiClient() {
 
   const handleImportData = useCallback(
     async (data: ApiImportResult) => {
-      const result = await importApiData(data)
-      setLastAction(
-        `Imported ${result.requests} requests, ${result.collections} collections, and ${result.environments} environments`,
-        'success'
-      )
+      await importApiBackupData(data, setLastAction)
     },
-    [importApiData, setLastAction]
+    [setLastAction]
   )
 
   const handleImportContent = useCallback(
     async (content: string, filename: string) => {
-      try {
-        const parsed = importApiSpec({ content, filename })
-        if (
-          parsed.requests.length === 0 &&
-          parsed.collections.length === 0 &&
-          (parsed.environments?.length ?? 0) === 0
-        ) {
-          setLastAction('Import found no API requests, collections, or environments', 'error')
-          return
-        }
-        await handleImportData(parsed)
-      } catch (err) {
-        setLastAction((err as Error).message, 'error')
-      }
+      await importApiBackupContent(content, filename, setLastAction)
     },
-    [handleImportData, setLastAction]
+    [setLastAction]
   )
 
   const responseLanguage = useMemo(() => {
@@ -1118,13 +1100,9 @@ export default function ApiClient() {
   })
 
   const handleExport = useCallback(async () => {
-    const json = serializeApiExport({ collections, requests, environments, activeEnvironmentId })
-    await copy(json, {
-      success: 'API library backup copied to clipboard',
-      failure: 'Export failed — clipboard unavailable',
-    })
+    await exportBackup()
     setShowExportConfirm(false)
-  }, [activeEnvironmentId, collections, environments, requests, copy])
+  }, [exportBackup])
 
   // ---------------------------------------------------------------------------
   // Header management
@@ -1901,13 +1879,13 @@ export default function ApiClient() {
       {showExportConfirm && (
         <ConfirmDialog
           title="Export API library?"
-          confirmLabel="Copy full backup"
+          confirmLabel="Export full backup"
           tone="default"
           onClose={() => setShowExportConfirm(false)}
           onConfirm={() => void handleExport()}
         >
           This backup includes request authentication values, headers, bodies, and every API
-          environment variable. Treat the clipboard contents as sensitive data.
+          environment variable. Store the exported file as sensitive data.
         </ConfirmDialog>
       )}
       {pendingNavigation && (

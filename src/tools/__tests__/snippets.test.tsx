@@ -502,7 +502,7 @@ describe('SnippetsManager — native import and export', () => {
   it('exports the complete library to a JSON file', async () => {
     const items = [snippet({ id: 'one', title: 'One' })]
     useSnippetsStore.setState({ snippets: items })
-    vi.mocked(exportFile).mockResolvedValue('/tmp/snippets-backup.json')
+    vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-snippets-backup.json')
     renderTool(SnippetsManager)
 
     fireEvent.click(screen.getByRole('button', { name: 'Export snippets as JSON' }))
@@ -510,7 +510,7 @@ describe('SnippetsManager — native import and export', () => {
     await waitFor(() =>
       expect(exportFile).toHaveBeenCalledWith(
         JSON.stringify({ version: 3, folders: snippetFolders, snippets: items }, null, 2),
-        'snippets-backup.json'
+        'devdrivr-snippets-backup.json'
       )
     )
     expect(useUiStore.getState().lastAction?.message).toBe('Exported 1 snippet')
