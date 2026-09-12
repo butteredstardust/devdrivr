@@ -146,6 +146,7 @@ export function DangerButton({
   icon,
   successMessage,
   errorMessage,
+  disabled = false,
 }: {
   label: string
   confirmLabel: string
@@ -153,6 +154,7 @@ export function DangerButton({
   icon: React.ReactNode
   successMessage: string
   errorMessage: string
+  disabled?: boolean
 }) {
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState(false)
@@ -204,7 +206,7 @@ export function DangerButton({
       onClick={() => {
         void handleClick()
       }}
-      disabled={pending}
+      disabled={pending || disabled}
       className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${
         confirming
           ? 'border-[var(--color-error)] bg-[var(--color-error)]/10 text-[var(--color-error)]'
@@ -234,11 +236,13 @@ export function TransferButton({
   accessibleLabel,
   icon,
   onClick,
+  disabled = false,
 }: {
   label: string
   accessibleLabel?: string
   icon: React.ReactNode
   onClick: () => Promise<void>
+  disabled?: boolean
 }) {
   const [pending, setPending] = useState(false)
   const mountedRef = useRef(true)
@@ -267,7 +271,7 @@ export function TransferButton({
       onClick={() => {
         void handleClick()
       }}
-      disabled={pending}
+      disabled={pending || disabled}
       className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
     >
       {pending ? <SpinnerIcon size={12} className="animate-spin" aria-hidden="true" /> : icon}

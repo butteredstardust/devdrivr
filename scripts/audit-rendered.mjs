@@ -288,13 +288,17 @@ async function auditTabOrder(page, scope) {
   await page.keyboard.press('Tab')
 
   const findings = []
-  const seen = new Set()
   let truncated = false
 
   for (let i = 0; i < MAX_TAB_STOPS; i += 1) {
     const stop = await page.evaluate((scopeArg) => {
       const el = document.activeElement
       if (!el || el === document.body) return null
+      // Mark the node itself rather than a string built from its name. Two id-less controls named
+      // through `aria-labelledby` produce identical strings, and stopping on the second would end
+      // the walk before it reached the rest of the panel.
+      if (el.hasAttribute('data-audit-tab-seen')) return { wrapped: true }
+      el.setAttribute('data-audit-tab-seen', '')
       const panel = Array.from(document.querySelectorAll('[role="tabpanel"]')).find(
         (p) => p.offsetParent !== null || p.getClientRects().length > 0
       )
@@ -303,7 +307,6 @@ async function auditTabOrder(page, scope) {
       const tag = el.tagName.toLowerCase()
       const label = el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 30) || ''
       return {
-        key: `${tag}#${el.id}|${label}`,
         inScope: scopeArg === 'panel' ? insidePanel : !insidePanel,
         element: `${tag}${el.id ? `#${el.id}` : ''}${label ? ` "${label}"` : ''}`,
         // `outline-style: none` and a `0px` width both mean no outline is painted.
@@ -314,8 +317,7 @@ async function auditTabOrder(page, scope) {
     }, scope)
 
     if (!stop) break
-    if (seen.has(stop.key)) break
-    seen.add(stop.key)
+    if (stop.wrapped) break
 
     if (stop.inScope && stop.matchesFocusVisible && !stop.hasOutline && !stop.hasShadow) {
       findings.push({ rule: 'focus-not-visible', element: stop.element })
@@ -324,6 +326,13 @@ async function auditTabOrder(page, scope) {
     await page.keyboard.press('Tab')
     if (i === MAX_TAB_STOPS - 1) truncated = true
   }
+
+  // The marker must not leak into a later pass on the same page.
+  await page.evaluate(() => {
+    document
+      .querySelectorAll('[data-audit-tab-seen]')
+      .forEach((el) => el.removeAttribute('data-audit-tab-seen'))
+  })
 
   return { findings, truncated }
 }

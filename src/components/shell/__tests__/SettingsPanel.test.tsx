@@ -57,6 +57,7 @@ beforeEach(() => {
     progress: null,
   })
   useNotesStore.setState({
+    initialized: true,
     notes: [
       {
         id: 'note-1',
@@ -76,6 +77,7 @@ beforeEach(() => {
   useSnippetsStore.setState({ snippets: [], clearAll: vi.fn().mockResolvedValue(undefined) })
   // Settings → Data initialises both lazily loaded tools, so every path here needs a stub.
   useApiStore.setState({
+    initialized: true,
     requests: [],
     collections: [],
     environments: [],
@@ -85,6 +87,7 @@ beforeEach(() => {
     importApiData: vi.fn().mockResolvedValue({ requests: 2, collections: 1, environments: 0 }),
   })
   usePromptTemplatesStore.setState({
+    initialized: true,
     userTemplates: [],
     init: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
@@ -194,6 +197,59 @@ describe('SettingsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently?' }))
     await waitFor(() => expect(clearTemplates).toHaveBeenCalledOnce())
+  })
+
+  it('disables dataset actions until the store has loaded', () => {
+    // Exporting from an unloaded store writes an empty backup over the user's real data.
+    useApiStore.setState({ initialized: false })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+
+    expect(screen.getByRole('button', { name: 'Export API requests to a file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Trash requests' })).toBeDisabled()
+    // Notes load at app start, so that row stays usable.
+    expect(screen.getByRole('button', { name: 'Export notes to a file' })).toBeEnabled()
+  })
+
+  it('reports a failure to load a lazily initialised store', async () => {
+    const addToast = useUiStore.getState().addToast
+    useApiStore.setState({
+      initialized: false,
+      init: vi.fn().mockRejectedValue(new Error('db locked')),
+    })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+
+    await waitFor(() =>
+      expect(addToast).toHaveBeenCalledWith('Failed to load API requests', 'error')
+    )
+  })
+
+  it('runs one dataset action at a time', async () => {
+    // A clear reloads from the database while an import appends to whatever state it finds.
+    // Interleaving them duplicates or drops the imported rows.
+    let release: (() => void) | undefined
+    vi.mocked(exportFile).mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve('/tmp/x.json')))
+    )
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export API requests to a file' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Trash requests' })).toBeDisabled()
+    )
+    expect(screen.getByRole('button', { name: 'Export notes to a file' })).toBeDisabled()
+
+    await act(async () => {
+      release?.()
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Trash requests' })).toBeEnabled()
+    )
   })
 
   it('rejects invalid MCP port input with feedback', async () => {

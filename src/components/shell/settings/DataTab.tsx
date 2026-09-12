@@ -1,5 +1,5 @@
 /** Settings → Data: stored-data counts, per-dataset transfer, settings transfer and resets. */
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
@@ -56,12 +56,44 @@ export function DataTab() {
   const clearRequests = useApiStore((s) => s.clearAll)
   const clearTemplates = usePromptTemplatesStore((s) => s.clearAll)
 
-  // Both tools load lazily. Without this the counts read zero — and an export would write an
-  // empty backup over the user's real data — until they open the tool at least once.
+  // Notes load at app start. These two load lazily, so opening this tab is the first read for a
+  // session that never opened the tool.
+  const notesReady = useNotesStore((s) => s.initialized)
+  const requestsReady = useApiStore((s) => s.initialized)
+  const templatesReady = usePromptTemplatesStore((s) => s.initialized)
+
   useEffect(() => {
-    void useApiStore.getState().init()
-    void usePromptTemplatesStore.getState().init()
-  }, [])
+    void useApiStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load API requests', 'error'))
+    void usePromptTemplatesStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load prompt templates', 'error'))
+  }, [addToast])
+
+  /**
+   * True while a dataset action runs. Every dataset button reads it.
+   *
+   * One action at a time, because a clear and an import touch the same rows: the clear reloads
+   * from the database while the import appends to whatever state it finds, so interleaving them
+   * duplicates or drops the imported rows.
+   */
+  const [busy, setBusy] = useState(false)
+
+  const runExclusive = useCallback(
+    (action: () => Promise<void>) => async () => {
+      if (busy) return
+      setBusy(true)
+      try {
+        await action()
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy]
+  )
 
   const { exportBackup: exportNotes, importBackup: importNotes } = useNotesBackup(addToast)
 
@@ -226,19 +258,22 @@ export function DataTab() {
               label="Export"
               accessibleLabel="Export notes to a file"
               icon={<DownloadSimpleIcon size={12} />}
-              onClick={exportNotes}
+              disabled={busy || !notesReady}
+              onClick={runExclusive(exportNotes)}
             />
             <TransferButton
               label="Import"
               accessibleLabel="Import notes from a file"
               icon={<UploadSimpleIcon size={12} />}
-              onClick={importNotes}
+              disabled={busy || !notesReady}
+              onClick={runExclusive(importNotes)}
             />
             <DangerButton
               label="Trash notes"
               confirmLabel="Move notes to Trash?"
-              onConfirm={clearNotes}
+              onConfirm={runExclusive(clearNotes)}
               icon={<TrashIcon size={12} />}
+              disabled={busy || !notesReady}
               successMessage="Notes moved to Trash"
               errorMessage="Failed to move notes to Trash"
             />
@@ -249,19 +284,22 @@ export function DataTab() {
               label="Export"
               accessibleLabel="Export API requests to a file"
               icon={<DownloadSimpleIcon size={12} />}
-              onClick={handleExportRequests}
+              disabled={busy || !requestsReady}
+              onClick={runExclusive(handleExportRequests)}
             />
             <TransferButton
               label="Import"
               accessibleLabel="Import API requests from a file"
               icon={<UploadSimpleIcon size={12} />}
-              onClick={handleImportRequests}
+              disabled={busy || !requestsReady}
+              onClick={runExclusive(handleImportRequests)}
             />
             <DangerButton
               label="Trash requests"
               confirmLabel="Move requests to Trash?"
-              onConfirm={clearRequests}
+              onConfirm={runExclusive(clearRequests)}
               icon={<TrashIcon size={12} />}
+              disabled={busy || !requestsReady}
               successMessage="API requests moved to Trash"
               errorMessage="Failed to move API requests to Trash"
             />
@@ -273,19 +311,22 @@ export function DataTab() {
               label="Export"
               accessibleLabel="Export prompt templates to a file"
               icon={<DownloadSimpleIcon size={12} />}
-              onClick={handleExportTemplates}
+              disabled={busy || !templatesReady}
+              onClick={runExclusive(handleExportTemplates)}
             />
             <TransferButton
               label="Import"
               accessibleLabel="Import prompt templates from a file"
               icon={<UploadSimpleIcon size={12} />}
-              onClick={handleImportTemplates}
+              disabled={busy || !templatesReady}
+              onClick={runExclusive(handleImportTemplates)}
             />
             <DangerButton
               label="Delete templates"
               confirmLabel="Delete permanently?"
-              onConfirm={clearTemplates}
+              onConfirm={runExclusive(clearTemplates)}
               icon={<TrashIcon size={12} />}
+              disabled={busy || !templatesReady}
               successMessage="Custom prompt templates deleted"
               errorMessage="Failed to delete prompt templates"
             />
