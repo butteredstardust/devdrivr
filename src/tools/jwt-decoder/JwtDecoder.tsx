@@ -12,7 +12,6 @@ import { Alert } from '@/components/shared/Alert'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TextArea } from '@/components/shared/TextArea'
 import { Input } from '@/components/shared/Input'
-import { PaneHeader } from '@/components/shared/PaneHeader'
 import { Field } from '@/components/shared/Field'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Toggle } from '@/components/shared/Toggle'
@@ -323,7 +322,9 @@ export default function JwtDecoder() {
       {/* Token input */}
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
-          <span className="text-xs text-[var(--color-text-muted)]">JWT Token</span>
+          <span id="jwt-decoder-token-label" className="text-xs text-[var(--color-text-muted)]">
+            JWT Token
+          </span>
           {claimWindow && (
             <StatusBadge variant={claimWindowVariant(claimWindow.state)}>
               {WINDOW_LABELS[claimWindow.state]} · {claimWindow.relative}
@@ -358,7 +359,6 @@ export default function JwtDecoder() {
             </Button>
           </div>
         </div>
-        <PaneHeader title="Token" titleId="jwt-decoder-token-label" className="-mx-4 mb-2" />
         <TextArea
           aria-labelledby="jwt-decoder-token-label"
           value={token}
