@@ -19,16 +19,11 @@ import {
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { parseSettingsImport } from '@/lib/settings-transfer'
-import { serializeApiExport } from '@/lib/api-transfer'
-import { importApiSpec } from '@/lib/api-import'
-import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
 import { useNotesBackup } from '@/hooks/useNotesBackup'
-import {
-  parsePromptTemplateImport,
-  serializePromptTemplateExport,
-} from '@/tools/prompt-templates/template-import'
-import { templateToDraft } from '@/tools/prompt-templates/template-utils'
+import { useSnippetsBackup } from '@/hooks/useSnippetsBackup'
+import { useApiBackup } from '@/hooks/useApiBackup'
+import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
 import {
   SettingRow,
   NumericSettingInput,
@@ -56,13 +51,17 @@ export function DataTab() {
   const clearRequests = useApiStore((s) => s.clearAll)
   const clearTemplates = usePromptTemplatesStore((s) => s.clearAll)
 
-  // Notes load at app start. These two load lazily, so opening this tab is the first read for a
-  // session that never opened the tool.
+  // Notes load at app start. Initialize each lazy dataset before enabling its actions.
   const notesReady = useNotesStore((s) => s.initialized)
+  const snippetsReady = useSnippetsStore((s) => s.initialized)
   const requestsReady = useApiStore((s) => s.initialized)
   const templatesReady = usePromptTemplatesStore((s) => s.initialized)
 
   useEffect(() => {
+    void useSnippetsStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load snippets', 'error'))
     void useApiStore
       .getState()
       .init()
@@ -83,7 +82,7 @@ export function DataTab() {
   const [busy, setBusy] = useState(false)
 
   const runExclusive = useCallback(
-    (action: () => Promise<void>) => async () => {
+    (action: () => Promise<unknown>) => async () => {
       if (busy) return
       setBusy(true)
       try {
@@ -96,61 +95,10 @@ export function DataTab() {
   )
 
   const { exportBackup: exportNotes, importBackup: importNotes } = useNotesBackup(addToast)
-
-  const handleExportRequests = useCallback(async () => {
-    try {
-      const { collections, requests, environments, activeEnvironmentId } = useApiStore.getState()
-      const json = serializeApiExport({ collections, requests, environments, activeEnvironmentId })
-      const path = await exportFile(json, buildExportFilename('devdrivr-api-backup', 'json'))
-      if (path) addToast(`${requests.length} API requests exported`, 'success')
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to export API requests', 'error')
-    }
-  }, [addToast])
-
-  const handleImportRequests = useCallback(async () => {
-    try {
-      const file = await openFileDialog()
-      if (!file) return
-      const parsed = importApiSpec({ content: file.content, filename: file.filename })
-      const result = await useApiStore.getState().importApiData(parsed)
-      addToast(
-        `Imported ${result.requests} requests, ${result.collections} collections, and ${result.environments} environments`,
-        'success'
-      )
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to import API requests', 'error')
-    }
-  }, [addToast])
-
-  const handleExportTemplates = useCallback(async () => {
-    try {
-      const { userTemplates } = usePromptTemplatesStore.getState()
-      const json = serializePromptTemplateExport(userTemplates.map(templateToDraft))
-      const path = await exportFile(json, buildExportFilename('prompt-templates-backup', 'json'))
-      if (path) addToast(`${userTemplates.length} prompt templates exported`, 'success')
-    } catch (error) {
-      addToast(
-        error instanceof Error ? error.message : 'Failed to export prompt templates',
-        'error'
-      )
-    }
-  }, [addToast])
-
-  const handleImportTemplates = useCallback(async () => {
-    try {
-      const file = await openFileDialog()
-      if (!file) return
-      const drafts = parsePromptTemplateImport(file.content, 'file')
-      const imported = await usePromptTemplatesStore.getState().importMany(drafts)
-      addToast(`Imported ${imported.length} prompt template(s)`, 'success')
-    } catch (error) {
-      addToast(
-        error instanceof Error ? error.message : 'Failed to import prompt templates',
-        'error'
-      )
-    }
-  }, [addToast])
+  const { exportBackup: exportSnippets, importBackup: importSnippets } = useSnippetsBackup(addToast)
+  const { exportBackup: exportRequests, importBackup: importRequests } = useApiBackup(addToast)
+  const { exportBackup: exportTemplates, importBackup: importTemplates } =
+    usePromptTemplatesBackup(addToast)
 
   const handleExportSettings = useCallback(async () => {
     try {
@@ -279,20 +227,46 @@ export function DataTab() {
             />
           </DatasetRow>
 
+          <DatasetRow label="Snippets" count={snippetCount}>
+            <TransferButton
+              label="Export"
+              accessibleLabel="Export snippets to a file"
+              icon={<DownloadSimpleIcon size={12} />}
+              disabled={busy || !snippetsReady}
+              onClick={runExclusive(exportSnippets)}
+            />
+            <TransferButton
+              label="Import"
+              accessibleLabel="Import snippets from a file"
+              icon={<UploadSimpleIcon size={12} />}
+              disabled={busy || !snippetsReady}
+              onClick={runExclusive(importSnippets)}
+            />
+            <DangerButton
+              label="Trash snippets"
+              confirmLabel="Move snippets to Trash?"
+              onConfirm={runExclusive(clearSnippets)}
+              icon={<TrashIcon size={12} />}
+              disabled={busy || !snippetsReady}
+              successMessage="Snippets moved to Trash"
+              errorMessage="Failed to move snippets to Trash"
+            />
+          </DatasetRow>
+
           <DatasetRow label="API Requests" count={requestCount}>
             <TransferButton
               label="Export"
               accessibleLabel="Export API requests to a file"
               icon={<DownloadSimpleIcon size={12} />}
               disabled={busy || !requestsReady}
-              onClick={runExclusive(handleExportRequests)}
+              onClick={runExclusive(exportRequests)}
             />
             <TransferButton
               label="Import"
               accessibleLabel="Import API requests from a file"
               icon={<UploadSimpleIcon size={12} />}
               disabled={busy || !requestsReady}
-              onClick={runExclusive(handleImportRequests)}
+              onClick={runExclusive(importRequests)}
             />
             <DangerButton
               label="Trash requests"
@@ -312,14 +286,14 @@ export function DataTab() {
               accessibleLabel="Export prompt templates to a file"
               icon={<DownloadSimpleIcon size={12} />}
               disabled={busy || !templatesReady}
-              onClick={runExclusive(handleExportTemplates)}
+              onClick={runExclusive(exportTemplates)}
             />
             <TransferButton
               label="Import"
               accessibleLabel="Import prompt templates from a file"
               icon={<UploadSimpleIcon size={12} />}
               disabled={busy || !templatesReady}
-              onClick={runExclusive(handleImportTemplates)}
+              onClick={runExclusive(importTemplates)}
             />
             <DangerButton
               label="Delete templates"
@@ -334,21 +308,13 @@ export function DataTab() {
         </div>
       </div>
 
-      {/* Datasets without a transfer format of their own */}
+      {/* Data without a transfer format */}
       <div>
         <SectionLabel as="h4" className="mb-2">
           <TrashIcon size={12} />
           Clear Data
         </SectionLabel>
         <div className="flex flex-wrap gap-2">
-          <DangerButton
-            label={`Trash Snippets (${snippetCount})`}
-            confirmLabel="Move all to Trash?"
-            onConfirm={clearSnippets}
-            icon={<TrashIcon size={12} />}
-            successMessage="Snippets moved to Trash"
-            errorMessage="Failed to move snippets to Trash"
-          />
           <DangerButton
             label={`Clear History (${historyCount})`}
             confirmLabel="Confirm clear?"

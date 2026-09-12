@@ -1,6 +1,10 @@
 import { z } from 'zod'
-import { estimateTokens, syncVariablesToPrompt, type PromptTemplateDraft } from './template-utils'
-import type { PromptTemplateVariable } from './types'
+import type {
+  PromptTemplate,
+  PromptTemplateCategory,
+  PromptTemplateVariable,
+  PromptTemplateVariableType,
+} from '@/types/models'
 
 const PROMPT_TEMPLATE_CATEGORY_VALUES = [
   'code-review',
@@ -32,13 +36,9 @@ const importVariableSchema = z
     }
   })
 
-/**
- * Import limits. An import file is arbitrary local data mapped into renderer memory and then
- * written to the database in one batch, so the budget is enforced before parsing rather than
- * after a memory spike or a database rejection.
- */
-export const MAX_IMPORT_BYTES = 5 * 1024 * 1024
-export const MAX_IMPORT_TEMPLATES = 1000
+/** Apply each limit before database writes start. */
+export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
+export const MAX_PROMPT_TEMPLATE_IMPORT_ITEMS = 1000
 const MAX_PROMPT_CHARS = 100_000
 const MAX_FIELD_CHARS = 2_000
 const MAX_LIST_ITEMS = 100
@@ -56,19 +56,120 @@ const importTemplateSchema = z.object({
   tips: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
 })
 
-/** Where the payload came from, so a failure sends the user to the right recovery path. */
-export type ImportSource = 'clipboard' | 'file'
+export type PromptTemplateDraft = {
+  name: string
+  description: string
+  category: PromptTemplateCategory
+  tags: string[]
+  prompt: string
+  variables: PromptTemplateVariable[]
+  estimatedTokens: number
+  optimizedFor: PromptTemplate['optimizedFor']
+  version: string
+  tips: string[]
+}
+
+export type PromptTemplateImportSource = 'clipboard' | 'file'
+
+function estimateTokens(text: string): number {
+  const normalized = text.trim()
+  if (!normalized) return 0
+  return Math.max(1, Math.ceil(normalized.length / 4))
+}
+
+function variableLabel(name: string): string {
+  return name
+    .split(/[-_.\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function createVariableFromName(name: string): PromptTemplateVariable {
+  const lower = name.toLowerCase()
+  const type: PromptTemplateVariableType =
+    lower.includes('code') ||
+    lower.includes('context') ||
+    lower.includes('logs') ||
+    lower.includes('json') ||
+    lower.includes('trace')
+      ? 'textarea'
+      : 'text'
+  return { name, label: variableLabel(name), type, required: true }
+}
+
+function syncVariablesToPrompt(
+  prompt: string,
+  existingVariables: PromptTemplateVariable[]
+): PromptTemplateVariable[] {
+  const names = new Set<string>()
+  for (const match of prompt.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)) {
+    const name = match[1]?.trim()
+    if (name) names.add(name)
+  }
+  const existingByName = new Map(existingVariables.map((variable) => [variable.name, variable]))
+  return [...names].map((name) => {
+    const existing = existingByName.get(name)
+    if (!existing) return createVariableFromName(name)
+    if (existing.type === 'select') {
+      const options = existing.options?.map((option) => option.trim()).filter(Boolean) ?? []
+      return { ...existing, options: options.length > 0 ? options : ['Option'] }
+    }
+    return {
+      name: existing.name,
+      label: existing.label,
+      type: existing.type,
+      ...(existing.placeholder ? { placeholder: existing.placeholder } : {}),
+      ...(existing.required !== undefined ? { required: existing.required } : {}),
+    }
+  })
+}
+
+export function templateToDraft(template?: PromptTemplate): PromptTemplateDraft {
+  if (!template) {
+    return {
+      name: '',
+      description: '',
+      category: 'productivity',
+      tags: [],
+      prompt: 'Use the following context to help with {{task}}:\n\n{{context}}',
+      variables: [
+        { name: 'task', label: 'Task', type: 'text', required: true },
+        { name: 'context', label: 'Context', type: 'textarea', required: true },
+      ],
+      estimatedTokens: 14,
+      optimizedFor: 'Generic',
+      version: '1.0.0',
+      tips: [],
+    }
+  }
+
+  return {
+    name: template.author === 'builtin' ? `${template.name} (custom)` : template.name,
+    description: template.description,
+    category: template.category,
+    tags: [...template.tags],
+    prompt: template.prompt,
+    variables: template.variables.map((variable) => ({
+      ...variable,
+      ...(variable.options ? { options: [...variable.options] } : {}),
+    })),
+    estimatedTokens: template.estimatedTokens,
+    optimizedFor: template.optimizedFor,
+    version: template.version,
+    tips: [...(template.tips ?? [])],
+  }
+}
 
 export function parsePromptTemplateImport(
   text: string,
-  source: ImportSource = 'clipboard'
+  source: PromptTemplateImportSource = 'clipboard'
 ): PromptTemplateDraft[] {
   const sourceLabel = source === 'file' ? 'the selected file' : 'the clipboard'
-
   const bytes = new TextEncoder().encode(text).length
-  if (bytes > MAX_IMPORT_BYTES) {
+  if (bytes > MAX_PROMPT_TEMPLATE_IMPORT_BYTES) {
     throw new Error(
-      `Import failed: ${sourceLabel} is larger than the ${Math.round(MAX_IMPORT_BYTES / 1024 / 1024)} MB limit`
+      `Import failed: ${sourceLabel} is larger than the ${Math.round(MAX_PROMPT_TEMPLATE_IMPORT_BYTES / 1024 / 1024)} MB limit`
     )
   }
 
@@ -90,9 +191,9 @@ export function parsePromptTemplateImport(
         Array.isArray(envelope['templates'])
       ? envelope['templates']
       : [parsed]
-  if (payload.length > MAX_IMPORT_TEMPLATES) {
+  if (payload.length > MAX_PROMPT_TEMPLATE_IMPORT_ITEMS) {
     throw new Error(
-      `Import failed: ${payload.length} templates exceeds the ${MAX_IMPORT_TEMPLATES} template limit`
+      `Import failed: ${payload.length} templates exceeds the ${MAX_PROMPT_TEMPLATE_IMPORT_ITEMS} template limit`
     )
   }
 
@@ -123,7 +224,6 @@ export function parsePromptTemplateImport(
         return nextVariable
       })
     )
-
     return {
       name: template.name.trim(),
       description: template.description?.trim() ?? '',

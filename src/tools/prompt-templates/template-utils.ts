@@ -1,6 +1,5 @@
 import type {
   PromptTemplate,
-  PromptTemplateCategory,
   PromptTemplateValues,
   PromptTemplateVariable,
   PromptTemplateVariableType,
@@ -121,54 +120,4 @@ export function syncVariablesToPrompt(
       ...(existing.required !== undefined ? { required: existing.required } : {}),
     }
   })
-}
-
-export type PromptTemplateDraft = {
-  name: string
-  description: string
-  category: PromptTemplateCategory
-  tags: string[]
-  prompt: string
-  variables: PromptTemplateVariable[]
-  estimatedTokens: number
-  optimizedFor: PromptTemplate['optimizedFor']
-  version: string
-  tips: string[]
-}
-
-export function templateToDraft(template?: PromptTemplate): PromptTemplateDraft {
-  if (!template) {
-    return {
-      name: '',
-      description: '',
-      category: 'productivity',
-      tags: [],
-      prompt: 'Use the following context to help with {{task}}:\n\n{{context}}',
-      variables: [
-        { name: 'task', label: 'Task', type: 'text', required: true },
-        { name: 'context', label: 'Context', type: 'textarea', required: true },
-      ],
-      estimatedTokens: 14,
-      optimizedFor: 'Generic',
-      version: '1.0.0',
-      tips: [],
-    }
-  }
-
-  return {
-    name: template.author === 'builtin' ? `${template.name} (custom)` : template.name,
-    description: template.description,
-    category: template.category,
-    tags: [...template.tags],
-    prompt: template.prompt,
-    variables: template.variables.map((variable) => {
-      const draftVariable: PromptTemplateVariable = { ...variable }
-      if (variable.options) draftVariable.options = [...variable.options]
-      return draftVariable
-    }),
-    estimatedTokens: template.estimatedTokens,
-    optimizedFor: template.optimizedFor,
-    version: template.version,
-    tips: [...(template.tips ?? [])],
-  }
 }
