@@ -17,22 +17,30 @@ export function ProblemsList({
   onSelect,
   emptyMessage = 'No problems found.',
   className = '',
+  id,
 }: {
   items: ProblemItem[]
   onSelect?: (item: ProblemItem) => void
   emptyMessage?: string
   className?: string
+  /**
+   * Names the list for a disclosure button's `aria-controls`.
+   *
+   * Both branches below carry it. The empty branch renders a different element, and a reference
+   * that resolves only when there are problems is the case a reader is least likely to test.
+   */
+  id?: string
 }) {
   if (items.length === 0) {
     return (
-      <p className={cn(`px-3 py-2 text-xs text-[var(--color-text-muted)]`, className)}>
+      <p id={id} className={cn(`px-3 py-2 text-xs text-[var(--color-text-muted)]`, className)}>
         {emptyMessage}
       </p>
     )
   }
 
   return (
-    <ul className={className}>
+    <ul id={id} className={className}>
       {items.map((item) => {
         const Icon =
           item.severity === 'error'

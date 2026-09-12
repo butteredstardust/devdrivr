@@ -7,9 +7,9 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
 import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
 import { openFileDialog } from '@/lib/file-io'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { detectPlatform } from '@/lib/platform'
 import { toggleNativeWindowFullscreen } from '@/lib/native-window'
+import { setAlwaysOnTop } from '@/lib/always-on-top'
 
 export function useGlobalShortcuts(): void {
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
@@ -137,24 +137,13 @@ export function useGlobalShortcuts(): void {
   }, [activeTool, addToast])
 
   const toggleAlwaysOnTop = useCallback(async () => {
-    const win = getCurrentWindow()
     const next = !alwaysOnTop
     try {
-      await win.setAlwaysOnTop(next)
+      await setAlwaysOnTop(next)
     } catch {
       addToast('Failed to update window pin state', 'error')
-      return
     }
-
-    const persisted = await update('alwaysOnTop', next)
-    if (!persisted) {
-      try {
-        await win.setAlwaysOnTop(alwaysOnTop)
-      } catch {
-        // Best-effort rollback; the settings store already reports the persistence failure.
-      }
-    }
-  }, [alwaysOnTop, update, addToast])
+  }, [alwaysOnTop, addToast])
 
   useKeyboardShortcut(comboK, toggleCommandPalette)
   useKeyboardShortcut(comboT, openNewTabPalette)

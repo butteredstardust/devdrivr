@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import type { HistoryEntry } from '@/types/models'
 import { loadHistory, addHistoryEntry, pruneHistory, clearAllHistory, getDb } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
+import { useSettingsStore } from '@/stores/settings.store'
 
 type HistoryStore = {
   entries: HistoryEntry[]
@@ -24,6 +25,16 @@ type HistoryStore = {
   unstarEntry: (id: string) => Promise<void>
 }
 
+/**
+ * Size of the in-memory `entries` list, which spans every tool.
+ *
+ * This is not `historyRetentionPerTool`. That setting caps the rows kept in the database for one
+ * tool; this caps the combined list the shell renders from. Deriving one from the other shrinks
+ * the whole list to a single tool's allowance, and disagrees with the two `loadHistory` calls
+ * below that read this same cap.
+ */
+const MEMORY_ENTRY_CAP = 200
+
 let initPromise: Promise<void> | null = null
 
 export const useHistoryStore = create<HistoryStore>()((set) => ({
@@ -33,7 +44,7 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
   init: async () => {
     if (!initPromise) {
       initPromise = (async () => {
-        const entries = await loadHistory(undefined, 200)
+        const entries = await loadHistory(undefined, MEMORY_ENTRY_CAP)
         set({ entries, initialized: true })
       })().catch((err: unknown) => {
         // Clear the cached promise on failure so a later call retries
@@ -60,14 +71,14 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
     }
     try {
       await addHistoryEntry(entry)
-      // Prune to keep max 500 per tool
-      await pruneHistory(tool, 500)
+      const { historyRetentionPerTool } = useSettingsStore.getState()
+      await pruneHistory(tool, historyRetentionPerTool)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       useUiStore.getState().addToast('Failed to save history: ' + msg, 'error')
     }
     // Always update local state — history is ephemeral
-    set((s) => ({ entries: [entry, ...s.entries].slice(0, 200) }))
+    set((s) => ({ entries: [entry, ...s.entries].slice(0, MEMORY_ENTRY_CAP) }))
   },
 
   loadForTool: async (tool) => {
@@ -75,7 +86,7 @@ export const useHistoryStore = create<HistoryStore>()((set) => ({
   },
 
   reload: async () => {
-    const entries = await loadHistory(undefined, 200)
+    const entries = await loadHistory(undefined, MEMORY_ENTRY_CAP)
     set({ entries })
   },
 

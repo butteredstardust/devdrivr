@@ -57,10 +57,15 @@ export type AppSettings = {
    */
   openedSidebarGroups: ToolGroup[]
   pinnedToolIds: string[]
+  /** Limits visible recent-tool shortcuts so the shell matches the user's preferred density. */
+  recentToolsLimit: number
   /** Expanded-sidebar width in px. Ignored while collapsed, which is a fixed rail. */
   sidebarWidth: number
   notesDrawerOpen: boolean
+  /** Notes drawer width in px so resize-handle changes can also be edited exactly. */
   notesDrawerWidth: number
+  /** Keeps saved tabs available while letting users start with an empty workspace. */
+  restoreWorkspaceOnLaunch: boolean
   defaultIndentSize: number
   defaultTimezone: string
   editorFont: 'JetBrains Mono' | 'Fira Code' | 'Cascadia Code' | 'Source Code Pro'
@@ -92,6 +97,8 @@ export type AppSettings = {
   editorInsertSpaces: boolean
   editorBracketPairColorization: boolean
   editorCursorStyle: 'line' | 'block' | 'underline'
+  /** Lets editors stop at the final line or leave scrolling space below it. */
+  editorScrollBeyondLastLine: boolean
   historyRetentionPerTool: number
   formatOnPaste: boolean
   checkForUpdatesAutomatically: boolean
@@ -107,9 +114,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   collapsedSidebarGroups: [],
   openedSidebarGroups: [],
   pinnedToolIds: [],
+  recentToolsLimit: 3,
   sidebarWidth: 218,
   notesDrawerOpen: false,
   notesDrawerWidth: 288,
+  restoreWorkspaceOnLaunch: true,
   defaultIndentSize: 2,
   defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   editorFont: 'JetBrains Mono',
@@ -129,6 +138,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   editorInsertSpaces: true,
   editorBracketPairColorization: true,
   editorCursorStyle: 'line',
+  editorScrollBeyondLastLine: false,
   historyRetentionPerTool: 500,
   formatOnPaste: false,
   checkForUpdatesAutomatically: true,

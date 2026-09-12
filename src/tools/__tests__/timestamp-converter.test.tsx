@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, fireEvent, act } from '@testing-library/react'
+import { screen, fireEvent, act, render } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import TimestampConverter from '../timestamp-converter/TimestampConverter'
+import { useSettingsStore } from '@/stores/settings.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
+import { DEFAULT_SETTINGS } from '@/types/models'
+import { LOCAL_ZONE } from '@/tools/timestamp-converter/timestamp-formats'
 
 const recordMock = vi.hoisted(() => vi.fn())
 
@@ -17,6 +21,7 @@ describe('TimestampConverter', () => {
   beforeEach(() => {
     recordMock.mockClear()
     vi.useRealTimers()
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS })
   })
 
   afterEach(() => {
@@ -48,6 +53,32 @@ describe('TimestampConverter', () => {
       target: { value: 'Europe/Bucharest' },
     })
     expect(screen.getByText('2021-06-01 15:00:00')).toBeInTheDocument()
+  })
+
+  it('uses the configured timezone only for fresh tool state', () => {
+    useSettingsStore.setState({ defaultTimezone: 'Europe/Bucharest' })
+    renderTool(TimestampConverter)
+    expect(screen.getByLabelText('Output timezone')).toHaveValue('Europe/Bucharest')
+  })
+
+  it('keeps a valid saved zone and falls back from an invalid saved zone', () => {
+    useSettingsStore.setState({ defaultTimezone: 'Europe/Bucharest' })
+    useToolStateCache.setState({
+      cache: new Map([
+        ['timestamp-converter', { input: '', zone: 'America/New_York', epochUnit: 'auto' }],
+      ]),
+    })
+    const first = render(<TimestampConverter />)
+    expect(screen.getByLabelText('Output timezone')).toHaveValue('America/New_York')
+    first.unmount()
+
+    useToolStateCache.setState({
+      cache: new Map([
+        ['timestamp-converter', { input: '', zone: 'Mars/Olympus', epochUnit: 'auto' }],
+      ]),
+    })
+    render(<TimestampConverter />)
+    expect(screen.getByLabelText('Output timezone')).toHaveValue(LOCAL_ZONE)
   })
 
   it('parses a unix timestamp', () => {

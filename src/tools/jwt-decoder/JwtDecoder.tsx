@@ -322,7 +322,9 @@ export default function JwtDecoder() {
       {/* Token input */}
       <div className="border-b border-[var(--color-border)] p-4">
         <div className="mb-2 flex items-center gap-3">
-          <span className="text-xs text-[var(--color-text-muted)]">JWT Token</span>
+          <span id="jwt-decoder-token-label" className="text-xs text-[var(--color-text-muted)]">
+            JWT Token
+          </span>
           {claimWindow && (
             <StatusBadge variant={claimWindowVariant(claimWindow.state)}>
               {WINDOW_LABELS[claimWindow.state]} · {claimWindow.relative}
@@ -358,6 +360,7 @@ export default function JwtDecoder() {
           </div>
         </div>
         <TextArea
+          aria-labelledby="jwt-decoder-token-label"
           value={token}
           onChange={(e) => {
             markUserEdit()

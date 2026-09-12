@@ -10,7 +10,7 @@ import { openFileDialog } from '@/lib/file-io'
 import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { GROUP_LABELS, searchTermsForTool } from '@/lib/tool-search'
 import { focusNativeWindow } from '@/lib/native-window'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { setAlwaysOnTop } from '@/lib/always-on-top'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -417,12 +417,8 @@ export function CommandPalette() {
           if (activeTool) openTabInstance(activeTool)
           break
         case 'action:pin': {
-          const win = getCurrentWindow()
           const next = !alwaysOnTop
-          win
-            .setAlwaysOnTop(next)
-            .then(() => settingsUpdate('alwaysOnTop', next))
-            .catch(() => addToast('Failed to update window pin state', 'error'))
+          setAlwaysOnTop(next).catch(() => addToast('Failed to update window pin state', 'error'))
           break
         }
         case 'action:open-file':

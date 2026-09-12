@@ -565,6 +565,7 @@ export default function TsPlayground() {
         </div>
         {state.problemsOpen && (
           <ProblemsList
+            id={problemsId}
             items={sorted.map((diagnostic, index) => ({
               id: `${diagnostic.code}-${diagnostic.line ?? 0}-${diagnostic.column ?? 0}-${index}`,
               message: diagnostic.message,

@@ -48,6 +48,18 @@ describe('WorkspaceEmptyState', () => {
     expect(screen.getAllByRole('button', { name: 'Open JSON Tools' })).toHaveLength(1)
   })
 
+  it('applies the recent-tool limit and hides Recent when the limit is zero', () => {
+    useSettingsStore.setState({ recentToolsLimit: 1 })
+    useUiStore.setState({ recentToolIds: ['jwt-decoder', 'base64'] })
+    const view = render(<WorkspaceEmptyState />)
+    expect(screen.getByRole('button', { name: 'Open JWT Decoder' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open Base64' })).not.toBeInTheDocument()
+
+    useSettingsStore.setState({ recentToolsLimit: 0 })
+    view.rerender(<WorkspaceEmptyState />)
+    expect(screen.queryByText('Recent')).not.toBeInTheDocument()
+  })
+
   it('opens the tool when a chip is clicked', () => {
     useSettingsStore.setState({ pinnedToolIds: ['jwt-decoder'] })
     render(<WorkspaceEmptyState />)

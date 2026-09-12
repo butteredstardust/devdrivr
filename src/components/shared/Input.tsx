@@ -9,6 +9,7 @@ import {
   type InputHTMLAttributes,
 } from 'react'
 import { cn } from '@/lib/cn'
+import { useControlDescriptionId, useControlLabelId } from '@/components/shared/ControlLabel'
 
 // Select now lives in its own primitive file — re-exported here so the many
 // existing `import { Input, Select } from '@/components/shared/Input'` call
@@ -55,11 +56,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       defaultValue,
       onChange,
       onBlur,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledBy,
+      'aria-describedby': ariaDescribedBy,
       ...props
     },
     forwardedRef
   ) => {
     const fieldRef = useRef<HTMLInputElement | null>(null)
+    const rowLabelId = useControlLabelId()
+    const rowDescriptionId = useControlDescriptionId()
+    const labelledBy = ariaLabelledBy ?? (ariaLabel ? undefined : rowLabelId)
+    const describedBy = ariaDescribedBy ?? rowDescriptionId
     const initialValueRef = useRef(value ?? defaultValue)
     const valueRef = useRef(value)
     valueRef.current = value
@@ -103,6 +111,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         elementRef={setRef}
         onChange={handleChange}
         onBlur={handleBlur}
+        aria-label={ariaLabel}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         className={cn(
           `${BASE_CLASSES} ${SIZE_CLASSES[size]} ${monospace ? 'font-mono' : ''}`,
           className

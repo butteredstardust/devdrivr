@@ -5,7 +5,7 @@
  * Written to settle a specific question during the 2026-08-21 audit: whether stacking an opacity
  * utility on --color-text-muted was a real accessibility failure or just a style nit. It is a
  * failure, on all 23 themes, and the numbers this prints are the ones quoted in
- * DESIGN_SYSTEM.md § Text and borders and in TODO.md § C1.
+ * DESIGN_SYSTEM.md § Text and borders.
  *
  * Kept in the repo so those numbers stay checkable rather than becoming folklore. It is not wired
  * into `bun run lint` — it reports, it does not gate, because the muted token is legitimately

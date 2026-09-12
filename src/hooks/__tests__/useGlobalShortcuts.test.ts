@@ -62,12 +62,17 @@ vi.mock('@/stores/ui.store', () => ({
 }))
 
 vi.mock('@/stores/settings.store', () => ({
-  useSettingsStore: (selector: (state: unknown) => unknown) =>
-    selector({
-      ...mocks.settingsState,
-      toggleTheme: mocks.toggleTheme,
-      update: mocks.update,
-    }),
+  useSettingsStore: Object.assign(
+    (selector: (state: unknown) => unknown) =>
+      selector({
+        ...mocks.settingsState,
+        toggleTheme: mocks.toggleTheme,
+        update: mocks.update,
+      }),
+    {
+      getState: () => ({ ...mocks.settingsState, update: mocks.update }),
+    }
+  ),
 }))
 
 vi.mock('@/app/tool-registry', () => ({
@@ -194,7 +199,7 @@ describe('useGlobalShortcuts', () => {
 
     expect(mocks.setAlwaysOnTop).toHaveBeenNthCalledWith(1, true)
     expect(mocks.setAlwaysOnTop).toHaveBeenNthCalledWith(2, false)
-    expect(mocks.addToast).not.toHaveBeenCalled()
+    expect(mocks.addToast).toHaveBeenCalledWith('Failed to update window pin state', 'error')
   })
 
   it('navigates tools forward and backward with wraparound support', () => {

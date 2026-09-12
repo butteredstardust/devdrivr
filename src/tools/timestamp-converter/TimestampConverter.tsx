@@ -8,6 +8,8 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
+import { useSettingsStore } from '@/stores/settings.store'
+import { isTimezone } from '@/lib/settings-transfer'
 import {
   computeFormats,
   listTimeZones,
@@ -104,11 +106,13 @@ const PRESETS: Preset[] = [
 // ── Component ──────────────────────────────────────────────────────
 
 export default function TimestampConverter() {
+  const configuredTimezone = useSettingsStore.getState().defaultTimezone
   const [state, updateState] = useToolState<TimestampState>('timestamp-converter', {
     input: '',
-    zone: LOCAL_ZONE,
+    zone: isTimezone(configuredTimezone) ? configuredTimezone : LOCAL_ZONE,
     epochUnit: 'auto',
   })
+  const zone = state.zone === LOCAL_ZONE || isTimezone(state.zone) ? state.zone : LOCAL_ZONE
   // Enumerated once. `Intl.supportedValuesOf('timeZone')` returns ~400 strings and the list cannot
   // change while the app is running.
   const zones = useMemo(() => listTimeZones(), [])
@@ -130,9 +134,9 @@ export default function TimestampConverter() {
 
   const formats = useMemo(() => {
     if (!parsed) return []
-    return computeFormats(parsed.date, state.zone)
+    return computeFormats(parsed.date, zone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed, state.zone, tick])
+  }, [parsed, zone, tick])
 
   // Generated values are written in whatever unit the input is currently read as, so a preset
   // or picker selection round-trips instead of landing 1000× away.
@@ -154,19 +158,19 @@ export default function TimestampConverter() {
   // meant a different zone from the list below it would be exactly the confusion this feature
   // exists to remove.
   const dateTimeValue = useMemo(
-    () => (parsed ? toZonedWallClock(parsed.date, state.zone) : ''),
-    [parsed, state.zone]
+    () => (parsed ? toZonedWallClock(parsed.date, zone) : ''),
+    [parsed, zone]
   )
 
   const handleDateTimeChange = useCallback(
     (value: string) => {
-      const d = fromZonedWallClock(value, state.zone)
+      const d = fromZonedWallClock(value, zone)
       if (d) {
         markUserEdit()
         updateState({ input: writeEpoch(d.getTime()) })
       }
     },
-    [markUserEdit, updateState, state.zone, writeEpoch]
+    [markUserEdit, updateState, zone, writeEpoch]
   )
 
   // Record history when timestamp is successfully converted
@@ -207,7 +211,7 @@ export default function TimestampConverter() {
             {/* A native select: ~400 zones with OS type-ahead beats anything hand-rolled, and the
                 two entries above the separator cover the cases that aren't a lookup. */}
             <Select
-              value={state.zone}
+              value={zone}
               onChange={(e) => updateState({ zone: e.target.value })}
               aria-label="Output timezone"
               className="max-w-[14rem] font-mono"
@@ -222,7 +226,7 @@ export default function TimestampConverter() {
               ))}
             </Select>
             <span className="text-2xs tabular-nums text-[var(--color-text-muted)]">
-              {zoneOffset(new Date(), state.zone)}
+              {zoneOffset(new Date(), zone)}
             </span>
           </Toolbar>
 

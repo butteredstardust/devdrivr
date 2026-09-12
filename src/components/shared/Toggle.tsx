@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { useControlLabelId } from '@/components/shared/ControlLabel'
+import { useControlDescriptionId, useControlLabelId } from '@/components/shared/ControlLabel'
 
 type ToggleProps = {
   checked: boolean
@@ -16,6 +16,7 @@ type ToggleProps = {
    */
   'aria-labelledby'?: string
   'aria-label'?: string
+  'aria-describedby'?: string
 }
 
 export function Toggle({
@@ -25,9 +26,11 @@ export function Toggle({
   disabled = false,
   'aria-labelledby': ariaLabelledBy,
   'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
 }: ToggleProps) {
   const id = useId()
   const rowLabelId = useControlLabelId()
+  const rowDescriptionId = useControlDescriptionId()
   // `label` renders its own <label htmlFor>, and an explicit aria-* always wins;
   // the row's label is the fallback for a switch that would otherwise be unnamed.
   const labelledBy = ariaLabelledBy ?? (label || ariaLabel ? undefined : rowLabelId)
@@ -40,6 +43,7 @@ export function Toggle({
         aria-checked={checked}
         aria-labelledby={labelledBy}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy ?? rowDescriptionId}
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--duration-panel)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${

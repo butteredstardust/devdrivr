@@ -24,6 +24,21 @@ describe('TabBar', () => {
     }
   })
 
+  it('names the panel from the selected tab only', () => {
+    // Consumers render one `TabPanel` — the active one. An unselected tab that kept its
+    // `aria-controls` would point at an id no element carries, which drops the relationship
+    // rather than describing it.
+    render(<TabBar tabs={TABS} activeTab="a" onTabChange={() => {}} baseId="demo" />)
+
+    expect(screen.getByRole('tab', { name: 'A' })).toHaveAttribute('aria-controls', 'demo-panel-a')
+    expect(screen.getByRole('tab', { name: 'B' })).not.toHaveAttribute('aria-controls')
+  })
+
+  it('omits aria-controls entirely without a baseId', () => {
+    render(<TabBar tabs={TABS} activeTab="a" onTabChange={() => {}} />)
+    expect(screen.getByRole('tab', { name: 'A' })).not.toHaveAttribute('aria-controls')
+  })
+
   it('exposes selection and supports arrow-key navigation', () => {
     const onTabChange = vi.fn()
     render(<TabBar tabs={TABS} activeTab="a" onTabChange={onTabChange} />)

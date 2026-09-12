@@ -3,6 +3,7 @@ import { useHistoryStore } from '../history.store'
 import { loadHistory, addHistoryEntry, pruneHistory, clearAllHistory } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
+import { useSettingsStore } from '@/stores/settings.store'
 
 vi.mock('@/lib/db', () => ({
   loadHistory: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@/stores/ui.store', () => {
 
 beforeEach(() => {
   useHistoryStore.setState({ entries: [], initialized: false })
+  useSettingsStore.setState({ historyRetentionPerTool: 500 })
   ;(loadHistory as ReturnType<typeof vi.fn>).mockResolvedValue([])
   ;(addHistoryEntry as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
   ;(pruneHistory as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
@@ -35,6 +37,7 @@ describe('history store', () => {
   })
 
   it('add() creates entry with correct fields (id, tool, input, output, timestamp), calls addHistoryEntry and pruneHistory', async () => {
+    useSettingsStore.setState({ historyRetentionPerTool: 75 })
     await useHistoryStore.getState().add('tool-A', 'input-A', 'output-A')
 
     const { entries } = useHistoryStore.getState()
@@ -49,11 +52,13 @@ describe('history store', () => {
     expect(entry.subTab).toBeUndefined()
 
     expect(addHistoryEntry).toHaveBeenCalledWith(entry)
-    expect(pruneHistory).toHaveBeenCalledWith('tool-A', 500)
+    expect(pruneHistory).toHaveBeenCalledWith('tool-A', 75)
   })
 
-  it('add() prepends entry to local state (newest first), caps local state at 200', async () => {
-    const initialEntries = Array.from({ length: 200 }, (_, i) => ({
+  // The in-memory list spans every tool, so a small per-tool retention must not truncate it.
+  it('add() prepends entries and leaves the cross-tool list at its own cap', async () => {
+    useSettingsStore.setState({ historyRetentionPerTool: 25 })
+    const initialEntries = Array.from({ length: 30 }, (_, i) => ({
       id: `id-${i}`,
       tool: 'test',
       input: 'in',
@@ -65,10 +70,29 @@ describe('history store', () => {
     await useHistoryStore.getState().add('new-tool', 'new-in', 'new-out')
 
     const { entries } = useHistoryStore.getState()
-    expect(entries).toHaveLength(200)
+    expect(entries).toHaveLength(31)
     expect(entries[0]!.tool).toBe('new-tool')
     expect(entries[0]!.input).toBe('new-in')
     expect(entries[1]!.id).toBe('id-0')
+  })
+
+  it('add() caps the cross-tool list at 200 entries', async () => {
+    useSettingsStore.setState({ historyRetentionPerTool: 5000 })
+    useHistoryStore.setState({
+      entries: Array.from({ length: 200 }, (_, i) => ({
+        id: `id-${i}`,
+        tool: 'test',
+        input: 'in',
+        output: 'out',
+        timestamp: Date.now() - i * 1000,
+      })),
+    })
+
+    await useHistoryStore.getState().add('new-tool', 'new-in', 'new-out')
+
+    const { entries } = useHistoryStore.getState()
+    expect(entries).toHaveLength(200)
+    expect(entries[0]!.tool).toBe('new-tool')
   })
 
   it('add() includes subTab in entry only when provided', async () => {

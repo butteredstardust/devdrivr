@@ -1,14 +1,16 @@
-/** Settings → Data: defaults, stored-data counts, settings export/import and destructive resets. */
-import { useCallback, useMemo } from 'react'
+/** Settings → Data: stored-data counts, per-dataset transfer, settings transfer and resets. */
+import { useCallback, useEffect, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useHistoryStore } from '@/stores/history.store'
+import { useApiStore } from '@/stores/api.store'
+import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
 import {
   ArrowCounterClockwiseIcon,
+  DatabaseIcon,
   DownloadSimpleIcon,
   ExportIcon,
   InfoIcon,
@@ -16,56 +18,139 @@ import {
   UploadSimpleIcon,
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { Input } from '@/components/shared/Input'
 import { parseSettingsImport } from '@/lib/settings-transfer'
+import { serializeApiExport } from '@/lib/api-transfer'
+import { importApiSpec } from '@/lib/api-import'
+import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
+import { setAlwaysOnTop } from '@/lib/always-on-top'
+import { useNotesBackup } from '@/hooks/useNotesBackup'
+import {
+  parsePromptTemplateImport,
+  serializePromptTemplateExport,
+} from '@/tools/prompt-templates/template-import'
+import { templateToDraft } from '@/tools/prompt-templates/template-utils'
 import {
   SettingRow,
-  SelectInput,
+  NumericSettingInput,
   DangerButton,
+  DatasetRow,
   StatCard,
+  TransferButton,
 } from '@/components/shell/settings/SettingControls'
-
-const POPULAR_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Anchorage',
-  'Pacific/Honolulu',
-  'America/Toronto',
-  'America/Vancouver',
-  'America/Sao_Paulo',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Amsterdam',
-  'Europe/Moscow',
-  'Asia/Dubai',
-  'Asia/Kolkata',
-  'Asia/Singapore',
-  'Asia/Shanghai',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Australia/Sydney',
-  'Australia/Melbourne',
-  'Pacific/Auckland',
-] as const
 
 export function DataTab() {
   const update = useSettingsStore((s) => s.update)
   const historyRetentionPerTool = useSettingsStore((s) => s.historyRetentionPerTool)
-  const defaultTimezone = useSettingsStore((s) => s.defaultTimezone)
   const addToast = useUiStore((s) => s.addToast)
 
   // Storage stats
   const noteCount = useNotesStore((s) => s.notes.length)
   const snippetCount = useSnippetsStore((s) => s.snippets.length)
   const historyCount = useHistoryStore((s) => s.entries.length)
+  const requestCount = useApiStore((s) => s.requests.length)
+  const templateCount = usePromptTemplatesStore((s) => s.userTemplates.length)
 
   const clearHistory = useHistoryStore((s) => s.clearAll)
   const clearSnippets = useSnippetsStore((s) => s.clearAll)
   const clearNotes = useNotesStore((s) => s.clearAll)
+  const clearRequests = useApiStore((s) => s.clearAll)
+  const clearTemplates = usePromptTemplatesStore((s) => s.clearAll)
+
+  // Notes load at app start. These two load lazily, so opening this tab is the first read for a
+  // session that never opened the tool.
+  const notesReady = useNotesStore((s) => s.initialized)
+  const requestsReady = useApiStore((s) => s.initialized)
+  const templatesReady = usePromptTemplatesStore((s) => s.initialized)
+
+  useEffect(() => {
+    void useApiStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load API requests', 'error'))
+    void usePromptTemplatesStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load prompt templates', 'error'))
+  }, [addToast])
+
+  /**
+   * True while a dataset action runs. Every dataset button reads it.
+   *
+   * One action at a time, because a clear and an import touch the same rows: the clear reloads
+   * from the database while the import appends to whatever state it finds, so interleaving them
+   * duplicates or drops the imported rows.
+   */
+  const [busy, setBusy] = useState(false)
+
+  const runExclusive = useCallback(
+    (action: () => Promise<void>) => async () => {
+      if (busy) return
+      setBusy(true)
+      try {
+        await action()
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy]
+  )
+
+  const { exportBackup: exportNotes, importBackup: importNotes } = useNotesBackup(addToast)
+
+  const handleExportRequests = useCallback(async () => {
+    try {
+      const { collections, requests, environments, activeEnvironmentId } = useApiStore.getState()
+      const json = serializeApiExport({ collections, requests, environments, activeEnvironmentId })
+      const path = await exportFile(json, buildExportFilename('devdrivr-api-backup', 'json'))
+      if (path) addToast(`${requests.length} API requests exported`, 'success')
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to export API requests', 'error')
+    }
+  }, [addToast])
+
+  const handleImportRequests = useCallback(async () => {
+    try {
+      const file = await openFileDialog()
+      if (!file) return
+      const parsed = importApiSpec({ content: file.content, filename: file.filename })
+      const result = await useApiStore.getState().importApiData(parsed)
+      addToast(
+        `Imported ${result.requests} requests, ${result.collections} collections, and ${result.environments} environments`,
+        'success'
+      )
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to import API requests', 'error')
+    }
+  }, [addToast])
+
+  const handleExportTemplates = useCallback(async () => {
+    try {
+      const { userTemplates } = usePromptTemplatesStore.getState()
+      const json = serializePromptTemplateExport(userTemplates.map(templateToDraft))
+      const path = await exportFile(json, buildExportFilename('prompt-templates-backup', 'json'))
+      if (path) addToast(`${userTemplates.length} prompt templates exported`, 'success')
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : 'Failed to export prompt templates',
+        'error'
+      )
+    }
+  }, [addToast])
+
+  const handleImportTemplates = useCallback(async () => {
+    try {
+      const file = await openFileDialog()
+      if (!file) return
+      const drafts = parsePromptTemplateImport(file.content, 'file')
+      const imported = await usePromptTemplatesStore.getState().importMany(drafts)
+      addToast(`Imported ${imported.length} prompt template(s)`, 'success')
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : 'Failed to import prompt templates',
+        'error'
+      )
+    }
+  }, [addToast])
 
   const handleExportSettings = useCallback(async () => {
     try {
@@ -78,9 +163,11 @@ export function DataTab() {
         collapsedSidebarGroups: state.collapsedSidebarGroups,
         openedSidebarGroups: state.openedSidebarGroups,
         pinnedToolIds: state.pinnedToolIds,
+        recentToolsLimit: state.recentToolsLimit,
         sidebarWidth: state.sidebarWidth,
         notesDrawerOpen: state.notesDrawerOpen,
         notesDrawerWidth: state.notesDrawerWidth,
+        restoreWorkspaceOnLaunch: state.restoreWorkspaceOnLaunch,
         defaultIndentSize: state.defaultIndentSize,
         defaultTimezone: state.defaultTimezone,
         editorFont: state.editorFont,
@@ -96,6 +183,7 @@ export function DataTab() {
         editorInsertSpaces: state.editorInsertSpaces,
         editorBracketPairColorization: state.editorBracketPairColorization,
         editorCursorStyle: state.editorCursorStyle,
+        editorScrollBeyondLastLine: state.editorScrollBeyondLastLine,
         historyRetentionPerTool: state.historyRetentionPerTool,
         formatOnPaste: state.formatOnPaste,
         checkForUpdatesAutomatically: state.checkForUpdatesAutomatically,
@@ -114,10 +202,9 @@ export function DataTab() {
     try {
       const text = await navigator.clipboard.readText()
       const imported = parseSettingsImport(text)
-      await useSettingsStore.getState().importSettings(imported)
-      // Apply alwaysOnTop to the live Tauri window
-      const finalOnTop = useSettingsStore.getState().alwaysOnTop
-      await getCurrentWindow().setAlwaysOnTop(finalOnTop)
+      const { alwaysOnTop, ...otherSettings } = imported
+      await useSettingsStore.getState().importSettings(otherSettings)
+      if (alwaysOnTop !== undefined) await setAlwaysOnTop(alwaysOnTop)
       addToast('Settings imported', 'success')
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Failed to import settings', 'error')
@@ -125,47 +212,13 @@ export function DataTab() {
   }, [addToast])
 
   const handleResetDefaults = useCallback(async () => {
-    await useSettingsStore.getState().importSettings(DEFAULT_SETTINGS)
-    await getCurrentWindow().setAlwaysOnTop(false)
-  }, [])
-
-  // Build timezone options: user's local TZ first, then popular list (deduped)
-  const tzOptions = useMemo(() => {
-    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    return [localTz, ...POPULAR_TIMEZONES.filter((tz) => tz !== localTz)].map((tz) => ({
-      value: tz,
-      label: tz.replace(/_/g, ' '),
-    }))
+    const { alwaysOnTop, ...otherDefaults } = DEFAULT_SETTINGS
+    await useSettingsStore.getState().importSettings(otherDefaults)
+    await setAlwaysOnTop(alwaysOnTop)
   }, [])
 
   return (
     <div className="space-y-4">
-      {/* Retention & Timezone */}
-      <div className="space-y-1">
-        <SettingRow label="History per Tool" hint={`Max entries retained per tool`}>
-          <Input
-            type="number"
-            value={historyRetentionPerTool}
-            onChange={(e) =>
-              void update(
-                'historyRetentionPerTool',
-                Math.min(5000, Math.max(10, Number(e.target.value)))
-              ).catch(() => {})
-            }
-            min={10}
-            max={5000}
-            className="w-20 text-right"
-          />
-        </SettingRow>
-        <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
-          <SelectInput
-            value={defaultTimezone}
-            onChange={(v) => void update('defaultTimezone', v).catch(() => {})}
-            options={tzOptions}
-          />
-        </SettingRow>
-      </div>
-
       {/* Storage Stats */}
       <div>
         <SectionLabel as="h4" className="mb-2">
@@ -176,24 +229,118 @@ export function DataTab() {
           <StatCard label="Notes" count={noteCount} />
           <StatCard label="Snippets" count={snippetCount} />
           <StatCard label="History" count={historyCount} />
+          <StatCard label="API Requests" count={requestCount} />
+          <StatCard label="Prompt Templates" count={templateCount} />
+        </div>
+        <div className="mt-2">
+          <SettingRow label="History per Tool" hint="Max entries retained per tool">
+            <NumericSettingInput
+              value={historyRetentionPerTool}
+              min={10}
+              max={5000}
+              clamp={(value) => Math.max(10, Math.min(5000, Math.round(value)))}
+              unit="entries per tool"
+              onCommit={(value) => void update('historyRetentionPerTool', value).catch(() => {})}
+            />
+          </SettingRow>
         </div>
       </div>
 
-      {/* Data Management */}
+      {/* Per-dataset transfer */}
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          <DatabaseIcon size={12} />
+          Datasets
+        </SectionLabel>
+        <div className="space-y-2">
+          <DatasetRow label="Notes" count={noteCount}>
+            <TransferButton
+              label="Export"
+              accessibleLabel="Export notes to a file"
+              icon={<DownloadSimpleIcon size={12} />}
+              disabled={busy || !notesReady}
+              onClick={runExclusive(exportNotes)}
+            />
+            <TransferButton
+              label="Import"
+              accessibleLabel="Import notes from a file"
+              icon={<UploadSimpleIcon size={12} />}
+              disabled={busy || !notesReady}
+              onClick={runExclusive(importNotes)}
+            />
+            <DangerButton
+              label="Trash notes"
+              confirmLabel="Move notes to Trash?"
+              onConfirm={runExclusive(clearNotes)}
+              icon={<TrashIcon size={12} />}
+              disabled={busy || !notesReady}
+              successMessage="Notes moved to Trash"
+              errorMessage="Failed to move notes to Trash"
+            />
+          </DatasetRow>
+
+          <DatasetRow label="API Requests" count={requestCount}>
+            <TransferButton
+              label="Export"
+              accessibleLabel="Export API requests to a file"
+              icon={<DownloadSimpleIcon size={12} />}
+              disabled={busy || !requestsReady}
+              onClick={runExclusive(handleExportRequests)}
+            />
+            <TransferButton
+              label="Import"
+              accessibleLabel="Import API requests from a file"
+              icon={<UploadSimpleIcon size={12} />}
+              disabled={busy || !requestsReady}
+              onClick={runExclusive(handleImportRequests)}
+            />
+            <DangerButton
+              label="Trash requests"
+              confirmLabel="Move requests to Trash?"
+              onConfirm={runExclusive(clearRequests)}
+              icon={<TrashIcon size={12} />}
+              disabled={busy || !requestsReady}
+              successMessage="API requests moved to Trash"
+              errorMessage="Failed to move API requests to Trash"
+            />
+          </DatasetRow>
+
+          {/* Custom templates have no Trash table, so this one deletes. The button says so. */}
+          <DatasetRow label="Prompt Templates" count={templateCount}>
+            <TransferButton
+              label="Export"
+              accessibleLabel="Export prompt templates to a file"
+              icon={<DownloadSimpleIcon size={12} />}
+              disabled={busy || !templatesReady}
+              onClick={runExclusive(handleExportTemplates)}
+            />
+            <TransferButton
+              label="Import"
+              accessibleLabel="Import prompt templates from a file"
+              icon={<UploadSimpleIcon size={12} />}
+              disabled={busy || !templatesReady}
+              onClick={runExclusive(handleImportTemplates)}
+            />
+            <DangerButton
+              label="Delete templates"
+              confirmLabel="Delete permanently?"
+              onConfirm={runExclusive(clearTemplates)}
+              icon={<TrashIcon size={12} />}
+              disabled={busy || !templatesReady}
+              successMessage="Custom prompt templates deleted"
+              errorMessage="Failed to delete prompt templates"
+            />
+          </DatasetRow>
+        </div>
+      </div>
+
+      {/* Datasets without a transfer format of their own */}
       <div>
         <SectionLabel as="h4" className="mb-2">
           <TrashIcon size={12} />
           Clear Data
         </SectionLabel>
         <div className="flex flex-wrap gap-2">
-          <DangerButton
-            label={`Trash Notes (${noteCount})`}
-            confirmLabel="Move all to Trash?"
-            onConfirm={clearNotes}
-            icon={<TrashIcon size={12} />}
-            successMessage="Notes moved to Trash"
-            errorMessage="Failed to move notes to Trash"
-          />
           <DangerButton
             label={`Trash Snippets (${snippetCount})`}
             confirmLabel="Move all to Trash?"
@@ -220,26 +367,16 @@ export function DataTab() {
           Settings Transfer
         </SectionLabel>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void handleExportSettings()
-            }}
-            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-          >
-            <DownloadSimpleIcon size={12} />
-            Export to Clipboard
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void handleImportSettings()
-            }}
-            className="flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-          >
-            <UploadSimpleIcon size={12} />
-            Import from Clipboard
-          </button>
+          <TransferButton
+            label="Export to Clipboard"
+            icon={<DownloadSimpleIcon size={12} />}
+            onClick={handleExportSettings}
+          />
+          <TransferButton
+            label="Import from Clipboard"
+            icon={<UploadSimpleIcon size={12} />}
+            onClick={handleImportSettings}
+          />
           <DangerButton
             label="Reset to Defaults"
             confirmLabel="Confirm reset?"

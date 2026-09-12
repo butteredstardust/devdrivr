@@ -636,6 +636,7 @@ function ContrastInputs({
           />
           <input
             type="color"
+            aria-label="Pick a foreground color"
             value={fgHex}
             onChange={(e) => onFgChange(e.target.value)}
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
@@ -664,6 +665,7 @@ function ContrastInputs({
           />
           <input
             type="color"
+            aria-label="Pick a background color"
             value={bgHex}
             onChange={(e) => onBgChange(e.target.value)}
             className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5"
@@ -825,9 +827,10 @@ export default function ColorConverter() {
     >
       <div className="flex flex-col gap-4">
         {/* ── Input ──────────────────────────────────────── */}
-        <Panel title="Color Input">
+        <Panel title="Color Input" titleId="color-converter-input-label">
           <div className="flex items-center gap-3">
             <Input
+              aria-labelledby="color-converter-input-label"
               value={state.input}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="#39ff14, rgb(255,0,0), hsl(120,100%,50%), oklch(87% 0.35 145), red"

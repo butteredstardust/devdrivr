@@ -421,7 +421,9 @@ export default function YamlTools() {
                 size="sm"
                 onClick={() => updateState({ queryOpen: !state.queryOpen })}
                 aria-expanded={state.queryOpen}
-                aria-controls={queryId}
+                // The query row only exists while open, so naming it when closed points at
+                // nothing. `aria-expanded` alone carries the collapsed state.
+                {...(state.queryOpen ? { 'aria-controls': queryId } : {})}
                 className="gap-1"
               >
                 <MagnifyingGlassIcon size={14} aria-hidden="true" />

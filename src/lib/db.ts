@@ -702,6 +702,23 @@ export async function clearAllHistory(): Promise<void> {
   await enqueueWrite((conn) => conn.execute('DELETE FROM history'))
 }
 
+/** Moves every saved request to the Trash. Collections and environments stay. */
+export async function clearAllApiRequests(): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute('UPDATE api_requests SET deleted_at = $1 WHERE deleted_at IS NULL', [Date.now()])
+  )
+}
+
+/**
+ * WARNING: removes user prompt templates permanently. This table has no Trash column, so there is
+ * no restore path. Built-in templates are untouched.
+ */
+export async function clearAllUserPromptTemplates(): Promise<void> {
+  await enqueueWrite((conn) =>
+    conn.execute("DELETE FROM user_prompt_templates WHERE author = 'user'")
+  )
+}
+
 // --- API Client ---
 
 // --- Resource folders ---

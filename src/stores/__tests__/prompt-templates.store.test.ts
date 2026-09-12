@@ -1,11 +1,15 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { loadUserPromptTemplates, seedBuiltinPromptTemplates } from '@/lib/db'
+import {
+  clearAllUserPromptTemplates,
+  loadUserPromptTemplates,
+  seedBuiltinPromptTemplates,
+} from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
-// This file did not exist before — it covers only the init-rejection-recovery path
-// (see documentation/TODO.md "Cover init-rejection recovery for the other six
-// stores"). Broader prompt-templates.store coverage is out of scope for this pass.
+// Covers the init-rejection-recovery path only. Broader prompt-templates.store coverage lives
+// elsewhere.
 vi.mock('@/lib/db', () => ({
+  clearAllUserPromptTemplates: vi.fn(),
   deleteUserPromptTemplate: vi.fn(),
   loadUserPromptTemplates: vi.fn(),
   saveUserPromptTemplate: vi.fn(),
@@ -56,5 +60,28 @@ describe('prompt-templates store initialization', () => {
 
     expect(loadUserPromptTemplates).toHaveBeenCalledOnce()
     expect(seedBuiltinPromptTemplates).toHaveBeenCalledOnce()
+  })
+
+  it('clearAll() empties the custom templates and settles the saving flag', async () => {
+    const { usePromptTemplatesStore } = await import('../prompt-templates.store')
+    ;(clearAllUserPromptTemplates as any).mockResolvedValue(undefined)
+    usePromptTemplatesStore.setState({ userTemplates: [{ id: 't1' } as any] })
+
+    await usePromptTemplatesStore.getState().clearAll()
+
+    expect(clearAllUserPromptTemplates).toHaveBeenCalledOnce()
+    expect(usePromptTemplatesStore.getState().userTemplates).toEqual([])
+    expect(usePromptTemplatesStore.getState().saving).toBe(false)
+  })
+
+  it('clearAll() keeps the templates when the write fails', async () => {
+    const { usePromptTemplatesStore } = await import('../prompt-templates.store')
+    ;(clearAllUserPromptTemplates as any).mockRejectedValueOnce(new Error('db locked'))
+    usePromptTemplatesStore.setState({ userTemplates: [{ id: 't1' } as any] })
+
+    await expect(usePromptTemplatesStore.getState().clearAll()).rejects.toThrow('db locked')
+
+    expect(usePromptTemplatesStore.getState().userTemplates).toHaveLength(1)
+    expect(usePromptTemplatesStore.getState().saving).toBe(false)
   })
 })

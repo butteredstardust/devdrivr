@@ -49,48 +49,54 @@ export function EditorTab() {
   const editorInsertSpaces = useSettingsStore((s) => s.editorInsertSpaces)
   const editorBracketPairColorization = useSettingsStore((s) => s.editorBracketPairColorization)
   const editorCursorStyle = useSettingsStore((s) => s.editorCursorStyle)
+  const editorScrollBeyondLastLine = useSettingsStore((s) => s.editorScrollBeyondLastLine)
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1">
-        <SettingRow label="Font Family" hint="Monaco editor font family">
-          <SelectInput
-            value={editorFont}
-            onChange={(v) =>
-              void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
-            }
-            options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
-          />
-        </SettingRow>
-        <SettingRow label="Font Size" hint="Monaco editor font size">
-          <SelectInput
-            value={editorFontSize}
-            onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
-            options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
-          />
-        </SettingRow>
-        <SettingRow label="Indent Size" hint="Spaces per indent level">
-          <SelectInput
-            value={defaultIndentSize}
-            onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
-            options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
-          />
-        </SettingRow>
-        <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
-          <SelectInput
-            value={editorTheme}
-            onChange={(v) =>
-              void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
-            }
-            options={EDITOR_THEME_OPTIONS}
-          />
-        </SettingRow>
-        <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
-          <Toggle
-            checked={formatOnPaste}
-            onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
-          />
-        </SettingRow>
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          Font and theme
+        </SectionLabel>
+        <div className="space-y-1">
+          <SettingRow label="Font Family" hint="Monaco editor font family">
+            <SelectInput
+              value={editorFont}
+              onChange={(v) =>
+                void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
+              }
+              options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
+            />
+          </SettingRow>
+          <SettingRow label="Font Size" hint="Monaco editor font size">
+            <SelectInput
+              value={editorFontSize}
+              onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
+              options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
+            />
+          </SettingRow>
+          <SettingRow label="Indent Size" hint="Spaces per indent level">
+            <SelectInput
+              value={defaultIndentSize}
+              onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
+              options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
+            />
+          </SettingRow>
+          <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
+            <SelectInput
+              value={editorTheme}
+              onChange={(v) =>
+                void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
+              }
+              options={EDITOR_THEME_OPTIONS}
+            />
+          </SettingRow>
+          <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
+            <Toggle
+              checked={formatOnPaste}
+              onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
+            />
+          </SettingRow>
+        </div>
       </div>
 
       {/* Applies to every tool that embeds Monaco — the JSON, YAML, XML, diff
@@ -142,6 +148,12 @@ export function EditorTab() {
             <Toggle
               checked={editorStickyScroll}
               onChange={(v) => void update('editorStickyScroll', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Scroll Beyond Last Line" hint="Leave scrolling space below content">
+            <Toggle
+              checked={editorScrollBeyondLastLine}
+              onChange={(value) => void update('editorScrollBeyondLastLine', value).catch(() => {})}
             />
           </SettingRow>
           <SettingRow label="Bracket Pair Colors" hint="Tint matching brackets by depth">

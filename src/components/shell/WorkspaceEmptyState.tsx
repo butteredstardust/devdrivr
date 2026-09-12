@@ -48,13 +48,19 @@ function ChipRow({ label, tools, onSelect }: ChipRowProps) {
  * as clickable chips alongside the ⌘K hint, instead of static grey text. */
 export function WorkspaceEmptyState() {
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
+  const recentToolsLimit = useSettingsStore((s) => s.recentToolsLimit)
   const recentToolIds = useUiStore((s) => s.recentToolIds)
   const openTab = useUiStore((s) => s.openTab)
 
   const pinnedTools = useMemo(() => resolveTools(pinnedToolIds), [pinnedToolIds])
   const recentTools = useMemo(
-    () => resolveTools(recentToolIds.filter((id) => !pinnedToolIds.includes(id))),
-    [recentToolIds, pinnedToolIds]
+    // Honor the shell-wide limit here too. Both Recent surfaces should reflect one preference.
+    () =>
+      resolveTools(recentToolIds.filter((id) => !pinnedToolIds.includes(id))).slice(
+        0,
+        recentToolsLimit
+      ),
+    [recentToolIds, pinnedToolIds, recentToolsLimit]
   )
 
   const hasChips = pinnedTools.length > 0 || recentTools.length > 0

@@ -1,9 +1,8 @@
 /** Settings → General: shell layout, window behaviour and the updater. */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useUpdaterStore } from '@/stores/updater.store'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   ArrowCircleUpIcon,
   ArrowClockwiseIcon,
@@ -14,13 +13,58 @@ import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Toggle } from '@/components/shared/Toggle'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { getVersion } from '@tauri-apps/api/app'
-import { SettingRow } from '@/components/shell/settings/SettingControls'
+import {
+  NumericSettingInput,
+  SettingRow,
+  SelectInput,
+} from '@/components/shell/settings/SettingControls'
+import {
+  clampNotesDrawerWidth,
+  clampSidebarWidth,
+  MAX_NOTES_DRAWER_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_NOTES_DRAWER_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from '@/lib/shell-layout'
+import { setAlwaysOnTop } from '@/lib/always-on-top'
+
+const POPULAR_TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'America/Toronto',
+  'America/Vancouver',
+  'America/Sao_Paulo',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Amsterdam',
+  'Europe/Moscow',
+  'Asia/Dubai',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Australia/Sydney',
+  'Australia/Melbourne',
+  'Pacific/Auckland',
+] as const
 
 export function GeneralTab() {
   const update = useSettingsStore((s) => s.update)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
   const shellStyle = useSettingsStore((s) => s.shellStyle)
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
+  const sidebarWidth = useSettingsStore((s) => s.sidebarWidth)
+  const notesDrawerWidth = useSettingsStore((s) => s.notesDrawerWidth)
+  const recentToolsLimit = useSettingsStore((s) => s.recentToolsLimit)
+  const restoreWorkspaceOnLaunch = useSettingsStore((s) => s.restoreWorkspaceOnLaunch)
+  const defaultTimezone = useSettingsStore((s) => s.defaultTimezone)
   const checkForUpdatesAutomatically = useSettingsStore((s) => s.checkForUpdatesAutomatically)
   const downloadUpdatesAutomatically = useSettingsStore((s) => s.downloadUpdatesAutomatically)
   const notifyWhenUpdateAvailable = useSettingsStore((s) => s.notifyWhenUpdateAvailable)
@@ -46,13 +90,18 @@ export function GeneralTab() {
 
   const handleAlwaysOnTop = useCallback(
     (checked: boolean) => {
-      getCurrentWindow()
-        .setAlwaysOnTop(checked)
-        .then(() => update('alwaysOnTop', checked))
-        .catch(() => addToast('Failed to update window pin state', 'error'))
+      setAlwaysOnTop(checked).catch(() => addToast('Failed to update window pin state', 'error'))
     },
-    [addToast, update]
+    [addToast]
   )
+
+  const timezoneOptions = useMemo(() => {
+    const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return [
+      localTimezone,
+      ...POPULAR_TIMEZONES.filter((timezone) => timezone !== localTimezone),
+    ].map((timezone) => ({ value: timezone, label: timezone.replace(/_/g, ' ') }))
+  }, [])
 
   const lastCheckedLabel = lastCheckedAt
     ? `Last checked ${new Date(lastCheckedAt).toLocaleTimeString()}`
@@ -61,6 +110,9 @@ export function GeneralTab() {
   return (
     <div className="space-y-4">
       <div>
+        <SectionLabel as="h4" className="mb-2">
+          Appearance
+        </SectionLabel>
         <h4 className="mb-1 text-xs text-[var(--color-text)]">Shell layout</h4>
         <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
           Floating insets the panels into cards; flush packs them edge to edge and gives you back
@@ -75,16 +127,83 @@ export function GeneralTab() {
           ]}
           onChange={(v) => void update('shellStyle', v).catch(() => {})}
         />
+        <div className="mt-2 space-y-1">
+          <SettingRow label="Recent Tools Limit" hint="Visible shortcuts in recent tool lists">
+            <NumericSettingInput
+              value={recentToolsLimit}
+              min={0}
+              max={5}
+              clamp={(value) => Math.max(0, Math.min(5, Math.round(value)))}
+              unit="tools"
+              onCommit={(value) => void update('recentToolsLimit', value).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Sidebar Width" hint="Expanded sidebar width">
+            <NumericSettingInput
+              value={sidebarWidth}
+              min={MIN_SIDEBAR_WIDTH}
+              max={MAX_SIDEBAR_WIDTH}
+              clamp={clampSidebarWidth}
+              unit="px"
+              onCommit={(value) => void update('sidebarWidth', value).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow label="Notes Drawer Width" hint="Open notes drawer width">
+            <NumericSettingInput
+              value={notesDrawerWidth}
+              min={MIN_NOTES_DRAWER_WIDTH}
+              max={MAX_NOTES_DRAWER_WIDTH}
+              clamp={clampNotesDrawerWidth}
+              unit="px"
+              onCommit={(value) => void update('notesDrawerWidth', value).catch(() => {})}
+            />
+          </SettingRow>
+        </div>
       </div>
 
-      <div className="space-y-1">
-        <SettingRow label="Always on Top" hint="Keep window above all others">
-          <Toggle checked={alwaysOnTop} onChange={handleAlwaysOnTop} />
-        </SettingRow>
-        <SettingRow label="Sidebar Collapsed" hint="Start with sidebar collapsed">
-          <Toggle
-            checked={sidebarCollapsed}
-            onChange={(v) => void update('sidebarCollapsed', v).catch(() => {})}
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          Window
+        </SectionLabel>
+        <div className="space-y-1">
+          <SettingRow label="Always on Top" hint="Keep window above all others">
+            <Toggle checked={alwaysOnTop} onChange={handleAlwaysOnTop} />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          Startup
+        </SectionLabel>
+        <div className="space-y-1">
+          <SettingRow label="Sidebar Collapsed" hint="Start with sidebar collapsed">
+            <Toggle
+              checked={sidebarCollapsed}
+              onChange={(v) => void update('sidebarCollapsed', v).catch(() => {})}
+            />
+          </SettingRow>
+          <SettingRow
+            label="Restore Workspace on Launch"
+            hint="Reopen saved tabs when devdrivr starts"
+          >
+            <Toggle
+              checked={restoreWorkspaceOnLaunch}
+              onChange={(value) => void update('restoreWorkspaceOnLaunch', value).catch(() => {})}
+            />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div>
+        <SectionLabel as="h4" className="mb-2">
+          Tool defaults
+        </SectionLabel>
+        <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
+          <SelectInput
+            value={defaultTimezone}
+            onChange={(value) => void update('defaultTimezone', value).catch(() => {})}
+            options={timezoneOptions}
           />
         </SettingRow>
       </div>
@@ -92,7 +211,6 @@ export function GeneralTab() {
       {/* Updates */}
       <div>
         <SectionLabel as="h4" className="mb-2">
-          <ArrowCircleUpIcon size={12} />
           Updates
         </SectionLabel>
         <div className="space-y-1">
@@ -104,10 +222,15 @@ export function GeneralTab() {
           </SettingRow>
           <SettingRow
             label="Download update automatically"
-            hint="Download in the background, then offer a restart"
+            hint={
+              checkForUpdatesAutomatically
+                ? 'Download in the background, then offer a restart'
+                : 'Turn on automatic update checks to enable downloads'
+            }
           >
             <Toggle
               checked={downloadUpdatesAutomatically}
+              disabled={!checkForUpdatesAutomatically}
               onChange={(v) => void update('downloadUpdatesAutomatically', v).catch(() => {})}
             />
           </SettingRow>

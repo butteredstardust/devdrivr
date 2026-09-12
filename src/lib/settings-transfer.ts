@@ -18,7 +18,7 @@ const TOOL_GROUP_MAP: Record<ToolGroup, true> = {
 
 const EDITOR_FONTS = ['JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro'] as const
 
-function isTimezone(value: string): boolean {
+export function isTimezone(value: string): boolean {
   try {
     new Intl.DateTimeFormat(undefined, { timeZone: value }).format()
     return true
@@ -32,10 +32,9 @@ function unique<T>(values: T[]): T[] {
 }
 
 const validThemes = new Set<string>(['system', ...ALL_THEMES])
-const validToolIds = new Set(TOOLS.map((tool) => tool.id))
 const validToolGroups = new Set<string>(Object.keys(TOOL_GROUP_MAP))
 
-const settingsImportShape = {
+export const settingsImportShape = {
   theme: z
     .string()
     .refine((value) => validThemes.has(value))
@@ -51,12 +50,17 @@ const settingsImportShape = {
     .array(z.string())
     .transform((groups) => unique(groups.filter((group) => validToolGroups.has(group))))
     .transform((groups) => groups as AppSettings['openedSidebarGroups']),
+  // WARNING: read `TOOLS` inside the transform, not at module load. `settings.store` imports this
+  // module, so building a lookup Set here would touch the tool registry while that store is still
+  // initializing. A scan of 31 tools over a handful of pinned ids costs nothing.
   pinnedToolIds: z
     .array(z.string())
-    .transform((ids) => unique(ids.filter((id) => validToolIds.has(id)))),
+    .transform((ids) => unique(ids.filter((id) => TOOLS.some((tool) => tool.id === id)))),
+  recentToolsLimit: z.number().int().min(0).max(5),
   sidebarWidth: z.number().finite().transform(clampSidebarWidth),
   notesDrawerOpen: z.boolean(),
   notesDrawerWidth: z.number().finite().transform(clampNotesDrawerWidth),
+  restoreWorkspaceOnLaunch: z.boolean(),
   defaultIndentSize: z.number().int().min(1).max(8),
   defaultTimezone: z.string().refine(isTimezone, 'Invalid IANA timezone'),
   editorFont: z.enum(EDITOR_FONTS),
@@ -72,6 +76,7 @@ const settingsImportShape = {
   editorInsertSpaces: z.boolean(),
   editorBracketPairColorization: z.boolean(),
   editorCursorStyle: z.enum(['line', 'block', 'underline']),
+  editorScrollBeyondLastLine: z.boolean(),
   historyRetentionPerTool: z.number().int().min(10).max(5000),
   formatOnPaste: z.boolean(),
   checkForUpdatesAutomatically: z.boolean(),
@@ -102,4 +107,33 @@ export function parseSettingsImport(text: string): Partial<AppSettings> {
     throw new Error('Settings import contains no recognized settings')
   }
   return result.data as Partial<AppSettings>
+}
+
+function sanitizeStoredKey<K extends keyof AppSettings>(
+  target: Partial<AppSettings>,
+  source: Record<string, unknown>,
+  key: K
+): void {
+  if (!(key in source)) return
+  const schema = settingsImportShape[key] as unknown as z.ZodType<AppSettings[K]>
+  const parsed = schema.safeParse(source[key])
+  if (parsed.success) target[key] = parsed.data
+}
+
+/**
+ * Keep each valid stored setting while dropping invalid or unknown values.
+ *
+ * The caller merges the result over `DEFAULT_SETTINGS`, so a dropped key falls back to its default
+ * and its valid neighbours survive. This also normalizes `editorKeybindingMode`: a stored `vim` or
+ * `emacs` fails the `standard` literal, gets dropped, and reverts to the only mode the app
+ * implements.
+ */
+export function sanitizeStoredSettings(value: unknown): Partial<AppSettings> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const source = value as Record<string, unknown>
+  const result: Partial<AppSettings> = {}
+  for (const key of Object.keys(settingsImportShape) as (keyof AppSettings)[]) {
+    sanitizeStoredKey(result, source, key)
+  }
+  return result
 }

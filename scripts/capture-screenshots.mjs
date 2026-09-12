@@ -19,12 +19,29 @@
  */
 import { chromium } from 'playwright-core'
 import { mkdir } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'screenshots')
 const URL = process.env.SCREENSHOT_URL ?? 'http://localhost:1420'
+
+/**
+ * Where the drawn traffic lights sit, read from the macOS window config so the shot follows the
+ * shipped window rather than a second copy of the numbers.
+ *
+ * `trafficLightPosition.y` is the inset AppKit applies, not the button centre. Measured on the
+ * 44px bar, the centre lands 2.25pt above it.
+ */
+const TRAFFIC_LIGHT_CENTRE_OFFSET = 2.25
+const macWindow = JSON.parse(
+  readFileSync(join(ROOT, 'src-tauri/tauri.macos.conf.json'), 'utf8')
+).app.windows[0]
+const TRAFFIC_LIGHTS = {
+  x: macWindow.trafficLightPosition.x,
+  centreY: macWindow.trafficLightPosition.y - TRAFFIC_LIGHT_CENTRE_OFFSET,
+}
 
 /**
  * Matches the existing set. Not arbitrary: the README renders these at full width on a page whose
@@ -209,6 +226,43 @@ async function settle(page, ms = 600) {
   await page.waitForTimeout(ms)
 }
 
+/**
+ * Paints the macOS traffic lights onto the title bar.
+ *
+ * WARNING: presentation only, and only for the shutter. Nothing here belongs in the app.
+ *
+ * On macOS the app keeps its AppKit frame and hides the title bar, so AppKit draws the real buttons
+ * over the app's own bar; `TitleBar` only reserves the 76px they land in. Chromium has no AppKit,
+ * so that reserved space photographs as an empty gap. Drawing the buttons here makes the shot match
+ * the shipped window instead of the harness.
+ *
+ * One node carries all three circles: the element is the close button, and two box-shadows offset
+ * the others. Colours are the macOS system values.
+ */
+async function paintTrafficLights(page) {
+  await page.evaluate(
+    ({ x, centreY }) => {
+      const bar = document.querySelector('[data-testid="titlebar-drag-region"]')?.parentElement
+      if (!bar) throw new Error('Title bar not found — the drag region moved')
+      const lights = document.createElement('div')
+      lights.dataset.screenshotChrome = 'traffic-lights'
+      Object.assign(lights.style, {
+        position: 'absolute',
+        left: `${x}px`,
+        top: `${centreY - 6}px`,
+        width: '12px',
+        height: '12px',
+        borderRadius: '50%',
+        background: '#ff5f57',
+        boxShadow: '20px 0 0 #febc2e, 40px 0 0 #28c840',
+        zIndex: '20',
+      })
+      bar.appendChild(lights)
+    },
+    { x: TRAFFIC_LIGHTS.x, centreY: TRAFFIC_LIGHTS.centreY }
+  )
+}
+
 async function main() {
   const only = process.argv.slice(2)
   const wanted = only.length
@@ -244,6 +298,9 @@ async function main() {
       await settle(page)
 
       await scene.setup?.(page)
+
+      // Last, and after every reload: a scene that navigates would drop the node.
+      await paintTrafficLights(page)
 
       await page.screenshot({ path: join(OUT, `${scene.name}.png`) })
       console.log(`✓ ${scene.name}`)

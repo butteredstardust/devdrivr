@@ -505,8 +505,9 @@ export default function CurlToFetch() {
       >
         {/* Input */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <PaneHeader title="cURL Command" />
+          <PaneHeader title="cURL Command" titleId="curl-to-fetch-command-label" />
           <TextArea
+            aria-labelledby="curl-to-fetch-command-label"
             value={state.input}
             onChange={(e) => updateState({ input: e.target.value })}
             placeholder={

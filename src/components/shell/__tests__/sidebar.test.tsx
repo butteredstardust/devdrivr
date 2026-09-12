@@ -823,6 +823,20 @@ describe('SidebarItem — truncation tooltip', () => {
 })
 
 describe('Sidebar — match highlighting', () => {
+  it('limits recent rows and hides the section when the limit is zero', () => {
+    useUiStore.setState({ recentToolIds: ['uuid-generator', 'jwt-decoder'] })
+    useSettingsStore.setState({ recentToolsLimit: 1 })
+    const view = render(<Sidebar />)
+
+    expect(screen.getByRole('heading', { name: 'Recent' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'UUID Generator' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'JWT Decoder' })).toHaveLength(1)
+
+    useSettingsStore.setState({ recentToolsLimit: 0 })
+    view.rerender(<Sidebar />)
+    expect(screen.queryByRole('heading', { name: 'Recent' })).not.toBeInTheDocument()
+  })
+
   it('emphasises the matched characters in a filtered row', () => {
     render(<Sidebar />)
 

@@ -108,6 +108,12 @@ bun run lint
 # Reports only; `--gate` exits 1. Run it after you add a tool or change a capability flag.
 bun run audit:tools
 
+# Rendered invariant audit — opens every tool in the browser harness and checks the real DOM for
+# unnamed controls, dangling ARIA references and invisible focus. Needs `bun run dev` already
+# running, and Chromium installed once with `npx playwright install chromium`.
+# Reports only; `--gate` exits 1.
+bun run audit:rendered
+
 # Dev server (Vite + Tauri hot-reload) — this is what opens the desktop app
 bun run tauri dev
 
@@ -682,6 +688,7 @@ Before you open a PR, validate every item:
 - [ ] `bunx vitest run` — all passing (zero failures)
 - [ ] `bun run lint` — zero errors (warnings tolerated up to threshold)
 - [ ] `bun run audit:tools` — no new finding, if you touched a tool or a capability flag
+- [ ] `bun run audit:rendered` — no new finding, if you changed a control, a label or an ARIA reference
 - [ ] No `Database.load()` outside `src/lib/db.ts`
 - [ ] No hardcoded colors (`#hex`, `rgb()`, Tailwind palette classes like `bg-zinc-900`)
 - [ ] No `React.StrictMode`

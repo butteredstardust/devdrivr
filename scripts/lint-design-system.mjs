@@ -3,9 +3,8 @@
  * Design-system lint gate.
  *
  * ESLint can only see `className="literal"`; roughly a third of the styling in this app is built
- * in template literals or ternaries, which is exactly where the drift documented in
- * documentation/TODO.md § F1/F8/F10/F12 accumulated. This walks the raw source text instead, so a
- * violation cannot hide inside an interpolation.
+ * in template literals or ternaries, which is exactly where style drift accumulates. This walks the
+ * raw source text instead, so a violation cannot hide inside an interpolation.
  *
  * Every rule here encodes a decision recorded in documentation/DESIGN_SYSTEM.md. If you need to
  * change a rule, change the doc in the same commit — a gate that disagrees with the doc teaches

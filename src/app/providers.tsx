@@ -158,33 +158,39 @@ export function Providers({ children }: { children: ReactNode }) {
 
       await useMcpStore.getState().init()
 
-      // Restore workspace tabs (with backward-compat fallback for legacy activeTool key)
-      const savedTabs = await getSetting<WorkspaceTab[] | null>('openTabs', null)
-      const savedActiveTabId = await getSetting<string | null>('activeTabId', null)
+      const settings = useSettingsStore.getState()
+      if (settings.restoreWorkspaceOnLaunch) {
+        // Restore workspace tabs (with backward-compat fallback for legacy activeTool key).
+        const savedTabs = await getSetting<WorkspaceTab[] | null>('openTabs', null)
+        const savedActiveTabId = await getSetting<string | null>('activeTabId', null)
 
-      if (savedTabs && savedTabs.length > 0) {
-        // Filter out any tabs whose tool no longer exists in the registry
-        const validTabs = savedTabs.filter((t) => getToolById(t.toolId) !== undefined)
-        if (validTabs.length > 0) {
-          const activeIdValid =
-            savedActiveTabId !== null && validTabs.some((t) => t.id === savedActiveTabId)
-          const resolvedActiveId = activeIdValid ? savedActiveTabId : (validTabs[0]?.id ?? null)
-          useUiStore.getState().restoreTabs(validTabs, resolvedActiveId)
-        }
-      } else {
-        // Backward compat: migrate legacy single-tool session
-        const lastTool = await getSetting<string | null>('activeTool', null)
-        if (lastTool && getToolById(lastTool) !== undefined) {
-          useUiStore.getState().restoreActiveTool(lastTool)
+        if (savedTabs && savedTabs.length > 0) {
+          // Filter out any tabs whose tool no longer exists in the registry
+          const validTabs = savedTabs.filter((t) => getToolById(t.toolId) !== undefined)
+          if (validTabs.length > 0) {
+            const activeIdValid =
+              savedActiveTabId !== null && validTabs.some((t) => t.id === savedActiveTabId)
+            const resolvedActiveId = activeIdValid ? savedActiveTabId : (validTabs[0]?.id ?? null)
+            useUiStore.getState().restoreTabs(validTabs, resolvedActiveId)
+          }
+        } else {
+          // Backward compat: migrate legacy single-tool session
+          const lastTool = await getSetting<string | null>('activeTool', null)
+          if (lastTool && getToolById(lastTool) !== undefined) {
+            useUiStore.getState().restoreActiveTool(lastTool)
+          }
         }
       }
 
       if (cancelled) return
 
       // Apply always-on-top after settings are loaded
-      const settings = useSettingsStore.getState()
       if (settings.alwaysOnTop) {
-        await win.setAlwaysOnTop(true)
+        try {
+          await win.setAlwaysOnTop(true)
+        } catch {
+          useUiStore.getState().addToast('Failed to restore window pin state', 'error')
+        }
       }
 
       if (cancelled) return
