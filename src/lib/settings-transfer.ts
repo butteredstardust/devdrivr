@@ -86,6 +86,11 @@ export const settingsImportShape = {
 
 const settingsImportSchema = z.object(settingsImportShape).partial()
 
+/** Creates a readable settings file for backup and transfer. */
+export function serializeSettingsExport(settings: AppSettings): string {
+  return JSON.stringify(settings, null, 2)
+}
+
 export function parseSettingsImport(text: string): Partial<AppSettings> {
   let value: unknown
   try {

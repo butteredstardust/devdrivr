@@ -7,29 +7,28 @@ import { useHistoryStore } from '@/stores/history.store'
 import { useApiStore } from '@/stores/api.store'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import { type AppSettings, DEFAULT_SETTINGS } from '@/types/models'
+import { DEFAULT_SETTINGS } from '@/types/models'
 import {
   ArrowCounterClockwiseIcon,
   DatabaseIcon,
   DownloadSimpleIcon,
   ExportIcon,
-  InfoIcon,
   TrashIcon,
   UploadSimpleIcon,
 } from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import { parseSettingsImport } from '@/lib/settings-transfer'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
 import { useNotesBackup } from '@/hooks/useNotesBackup'
 import { useSnippetsBackup } from '@/hooks/useSnippetsBackup'
 import { useApiBackup } from '@/hooks/useApiBackup'
 import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
+import { useSettingsBackup } from '@/hooks/useSettingsBackup'
 import {
+  ActionSlotSpacer,
   SettingRow,
   NumericSettingInput,
   DangerButton,
   DatasetRow,
-  StatCard,
   TransferButton,
 } from '@/components/shell/settings/SettingControls'
 
@@ -38,7 +37,6 @@ export function DataTab() {
   const historyRetentionPerTool = useSettingsStore((s) => s.historyRetentionPerTool)
   const addToast = useUiStore((s) => s.addToast)
 
-  // Storage stats
   const noteCount = useNotesStore((s) => s.notes.length)
   const snippetCount = useSnippetsStore((s) => s.snippets.length)
   const historyCount = useHistoryStore((s) => s.entries.length)
@@ -56,6 +54,7 @@ export function DataTab() {
   const snippetsReady = useSnippetsStore((s) => s.initialized)
   const requestsReady = useApiStore((s) => s.initialized)
   const templatesReady = usePromptTemplatesStore((s) => s.initialized)
+  const historyReady = useHistoryStore((s) => s.initialized)
 
   useEffect(() => {
     void useSnippetsStore
@@ -70,6 +69,10 @@ export function DataTab() {
       .getState()
       .init()
       .catch(() => addToast('Failed to load prompt templates', 'error'))
+    void useHistoryStore
+      .getState()
+      .init()
+      .catch(() => addToast('Failed to load history', 'error'))
   }, [addToast])
 
   /**
@@ -99,65 +102,7 @@ export function DataTab() {
   const { exportBackup: exportRequests, importBackup: importRequests } = useApiBackup(addToast)
   const { exportBackup: exportTemplates, importBackup: importTemplates } =
     usePromptTemplatesBackup(addToast)
-
-  const handleExportSettings = useCallback(async () => {
-    try {
-      const state = useSettingsStore.getState()
-      const data: AppSettings = {
-        theme: state.theme,
-        shellStyle: state.shellStyle,
-        alwaysOnTop: state.alwaysOnTop,
-        sidebarCollapsed: state.sidebarCollapsed,
-        collapsedSidebarGroups: state.collapsedSidebarGroups,
-        openedSidebarGroups: state.openedSidebarGroups,
-        pinnedToolIds: state.pinnedToolIds,
-        recentToolsLimit: state.recentToolsLimit,
-        sidebarWidth: state.sidebarWidth,
-        notesDrawerOpen: state.notesDrawerOpen,
-        notesDrawerWidth: state.notesDrawerWidth,
-        restoreWorkspaceOnLaunch: state.restoreWorkspaceOnLaunch,
-        defaultIndentSize: state.defaultIndentSize,
-        defaultTimezone: state.defaultTimezone,
-        editorFont: state.editorFont,
-        editorFontSize: state.editorFontSize,
-        editorTheme: state.editorTheme,
-        editorKeybindingMode: state.editorKeybindingMode,
-        editorWordWrap: state.editorWordWrap,
-        editorMinimap: state.editorMinimap,
-        editorLineNumbers: state.editorLineNumbers,
-        editorFolding: state.editorFolding,
-        editorStickyScroll: state.editorStickyScroll,
-        editorRenderWhitespace: state.editorRenderWhitespace,
-        editorInsertSpaces: state.editorInsertSpaces,
-        editorBracketPairColorization: state.editorBracketPairColorization,
-        editorCursorStyle: state.editorCursorStyle,
-        editorScrollBeyondLastLine: state.editorScrollBeyondLastLine,
-        historyRetentionPerTool: state.historyRetentionPerTool,
-        formatOnPaste: state.formatOnPaste,
-        checkForUpdatesAutomatically: state.checkForUpdatesAutomatically,
-        downloadUpdatesAutomatically: state.downloadUpdatesAutomatically,
-        notifyWhenUpdateAvailable: state.notifyWhenUpdateAvailable,
-      }
-      const json = JSON.stringify(data, null, 2)
-      await navigator.clipboard.writeText(json)
-      addToast('Settings copied to clipboard', 'success')
-    } catch {
-      addToast('Failed to copy settings', 'error')
-    }
-  }, [addToast])
-
-  const handleImportSettings = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      const imported = parseSettingsImport(text)
-      const { alwaysOnTop, ...otherSettings } = imported
-      await useSettingsStore.getState().importSettings(otherSettings)
-      if (alwaysOnTop !== undefined) await setAlwaysOnTop(alwaysOnTop)
-      addToast('Settings imported', 'success')
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to import settings', 'error')
-    }
-  }, [addToast])
+  const { exportBackup: exportSettings, importBackup: importSettings } = useSettingsBackup(addToast)
 
   const handleResetDefaults = useCallback(async () => {
     const { alwaysOnTop, ...otherDefaults } = DEFAULT_SETTINGS
@@ -167,39 +112,14 @@ export function DataTab() {
 
   return (
     <div className="space-y-4">
-      {/* Storage Stats */}
       <div>
-        <SectionLabel as="h4" className="mb-2">
-          <InfoIcon size={12} />
-          Storage
-        </SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard label="Notes" count={noteCount} />
-          <StatCard label="Snippets" count={snippetCount} />
-          <StatCard label="History" count={historyCount} />
-          <StatCard label="API Requests" count={requestCount} />
-          <StatCard label="Prompt Templates" count={templateCount} />
-        </div>
-        <div className="mt-2">
-          <SettingRow label="History per Tool" hint="Max entries retained per tool">
-            <NumericSettingInput
-              value={historyRetentionPerTool}
-              min={10}
-              max={5000}
-              clamp={(value) => Math.max(10, Math.min(5000, Math.round(value)))}
-              unit="entries per tool"
-              onCommit={(value) => void update('historyRetentionPerTool', value).catch(() => {})}
-            />
-          </SettingRow>
-        </div>
-      </div>
-
-      {/* Per-dataset transfer */}
-      <div>
-        <SectionLabel as="h4" className="mb-2">
+        <SectionLabel as="h4" className="mb-1">
           <DatabaseIcon size={12} />
           Datasets
         </SectionLabel>
+        <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
+          Trash keeps items and can be restored. Delete is permanent.
+        </p>
         <div className="space-y-2">
           <DatasetRow label="Notes" count={noteCount}>
             <TransferButton
@@ -217,8 +137,9 @@ export function DataTab() {
               onClick={runExclusive(importNotes)}
             />
             <DangerButton
-              label="Trash notes"
-              confirmLabel="Move notes to Trash?"
+              label="Trash"
+              accessibleLabel="Move notes to Trash"
+              confirmLabel="Confirm?"
               onConfirm={runExclusive(clearNotes)}
               icon={<TrashIcon size={12} />}
               disabled={busy || !notesReady}
@@ -243,8 +164,9 @@ export function DataTab() {
               onClick={runExclusive(importSnippets)}
             />
             <DangerButton
-              label="Trash snippets"
-              confirmLabel="Move snippets to Trash?"
+              label="Trash"
+              accessibleLabel="Move snippets to Trash"
+              confirmLabel="Confirm?"
               onConfirm={runExclusive(clearSnippets)}
               icon={<TrashIcon size={12} />}
               disabled={busy || !snippetsReady}
@@ -269,8 +191,9 @@ export function DataTab() {
               onClick={runExclusive(importRequests)}
             />
             <DangerButton
-              label="Trash requests"
-              confirmLabel="Move requests to Trash?"
+              label="Trash"
+              accessibleLabel="Move API requests to Trash"
+              confirmLabel="Confirm?"
               onConfirm={runExclusive(clearRequests)}
               icon={<TrashIcon size={12} />}
               disabled={busy || !requestsReady}
@@ -279,7 +202,6 @@ export function DataTab() {
             />
           </DatasetRow>
 
-          {/* Custom templates have no Trash table, so this one deletes. The button says so. */}
           <DatasetRow label="Prompt Templates" count={templateCount}>
             <TransferButton
               label="Export"
@@ -296,8 +218,9 @@ export function DataTab() {
               onClick={runExclusive(importTemplates)}
             />
             <DangerButton
-              label="Delete templates"
-              confirmLabel="Delete permanently?"
+              label="Delete"
+              accessibleLabel="Delete prompt templates permanently"
+              confirmLabel="Confirm?"
               onConfirm={runExclusive(clearTemplates)}
               icon={<TrashIcon size={12} />}
               disabled={busy || !templatesReady}
@@ -305,46 +228,55 @@ export function DataTab() {
               errorMessage="Failed to delete prompt templates"
             />
           </DatasetRow>
+          <DatasetRow label="History" count={historyCount}>
+            <ActionSlotSpacer />
+            <ActionSlotSpacer />
+            <DangerButton
+              label="Delete"
+              accessibleLabel="Delete history permanently"
+              confirmLabel="Confirm?"
+              onConfirm={runExclusive(clearHistory)}
+              icon={<TrashIcon size={12} />}
+              disabled={busy || !historyReady}
+              successMessage="History deleted"
+              errorMessage="Failed to delete history"
+            />
+          </DatasetRow>
+        </div>
+        <div className="mt-2">
+          <SettingRow label="History per Tool" hint="Max entries retained per tool">
+            <NumericSettingInput
+              value={historyRetentionPerTool}
+              min={10}
+              max={5000}
+              clamp={(value) => Math.max(10, Math.min(5000, Math.round(value)))}
+              unit="entries per tool"
+              onCommit={(value) => void update('historyRetentionPerTool', value).catch(() => {})}
+            />
+          </SettingRow>
         </div>
       </div>
 
-      {/* Data without a transfer format */}
-      <div>
-        <SectionLabel as="h4" className="mb-2">
-          <TrashIcon size={12} />
-          Clear Data
-        </SectionLabel>
-        <div className="flex flex-wrap gap-2">
-          <DangerButton
-            label={`Clear History (${historyCount})`}
-            confirmLabel="Confirm clear?"
-            onConfirm={clearHistory}
-            icon={<TrashIcon size={12} />}
-            successMessage="History cleared"
-            errorMessage="Failed to clear history"
-          />
-        </div>
-      </div>
-
-      {/* Export / Import / Reset */}
       <div>
         <SectionLabel as="h4" className="mb-2">
           <ExportIcon size={12} />
-          Settings Transfer
+          Settings
         </SectionLabel>
         <div className="flex flex-wrap gap-2">
           <TransferButton
-            label="Export to Clipboard"
+            label="Export"
+            accessibleLabel="Export settings to a file"
             icon={<DownloadSimpleIcon size={12} />}
-            onClick={handleExportSettings}
+            onClick={exportSettings}
           />
           <TransferButton
-            label="Import from Clipboard"
+            label="Import"
+            accessibleLabel="Import settings from a file"
             icon={<UploadSimpleIcon size={12} />}
-            onClick={handleImportSettings}
+            onClick={importSettings}
           />
           <DangerButton
-            label="Reset to Defaults"
+            label="Reset to defaults"
             confirmLabel="Confirm reset?"
             onConfirm={handleResetDefaults}
             icon={<ArrowCounterClockwiseIcon size={12} />}

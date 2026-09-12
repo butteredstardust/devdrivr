@@ -4,12 +4,15 @@ import { useApiBackup } from '@/hooks/useApiBackup'
 import { useNotesBackup, type BackupReporter } from '@/hooks/useNotesBackup'
 import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
 import { useSnippetsBackup } from '@/hooks/useSnippetsBackup'
+import { useSettingsBackup } from '@/hooks/useSettingsBackup'
 import { exportFile, openFileDialog } from '@/lib/file-io'
 import { useApiStore } from '@/stores/api.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useSnippetsStore } from '@/stores/snippets.store'
+import { useSettingsStore } from '@/stores/settings.store'
+import { DEFAULT_SETTINGS } from '@/types/models'
 
 vi.mock('@/lib/file-io', () => ({
   buildExportFilename: (base: string, extension: string) => `${base}.${extension}`,
@@ -91,6 +94,44 @@ describe('shared dataset backup hooks', () => {
       expect(usePromptTemplatesStore.getState().importMany).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('useSettingsBackup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-settings-backup.json')
+    vi.mocked(openFileDialog).mockResolvedValue(null)
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
+  })
+
+  it('exports settings to the agreed file', async () => {
+    const report = vi.fn()
+    const { result } = renderHook(() => useSettingsBackup(report))
+
+    await act(async () => {
+      await result.current.exportBackup()
+    })
+
+    expect(exportFile).toHaveBeenCalledWith(
+      expect.stringContaining('"historyRetentionPerTool"'),
+      'devdrivr-settings-backup.json'
+    )
+    expect(report).toHaveBeenCalledWith('Settings exported', 'success')
+  })
+
+  it('changes nothing and reports nothing when import is cancelled', async () => {
+    const importSettings = vi.fn().mockResolvedValue(undefined)
+    useSettingsStore.setState({ importSettings })
+    const report = vi.fn()
+    const { result } = renderHook(() => useSettingsBackup(report))
+
+    await act(async () => {
+      await result.current.importBackup()
+    })
+
+    expect(importSettings).not.toHaveBeenCalled()
+    expect(report).not.toHaveBeenCalled()
+  })
 })
 
 describe('useSnippetsBackup validation', () => {

@@ -66,7 +66,13 @@ function assignAppSettingsKey<K extends keyof AppSettings>(
   target[key] = source[key]
 }
 
-function pickAppSettings(state: AppSettings): AppSettings {
+/**
+ * Copies only the persisted settings out of a wider state object.
+ *
+ * `APP_SETTINGS_KEY_MAP` is the single list of persisted keys. Read it through this function
+ * rather than repeating the key list, so a new setting is added in one place.
+ */
+export function pickAppSettings(state: AppSettings): AppSettings {
   const result = {} as AppSettings
   for (const key of APP_SETTINGS_KEYS) {
     assignAppSettingsKey(result, state, key)

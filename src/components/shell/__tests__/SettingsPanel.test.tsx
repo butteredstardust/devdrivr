@@ -99,7 +99,12 @@ beforeEach(() => {
     clearAll: vi.fn().mockResolvedValue(undefined),
     importMany: vi.fn().mockResolvedValue([]),
   })
-  useHistoryStore.setState({ entries: [], clearAll: vi.fn().mockResolvedValue(undefined) })
+  useHistoryStore.setState({
+    initialized: true,
+    entries: [],
+    init: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+  })
   useUiStore.setState({
     settingsPanelOpen: true,
     addToast: vi.fn(),
@@ -139,11 +144,41 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Trash notes' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Move notes to Trash?' }))
+    const trashNotes = screen.getByRole('button', { name: 'Move notes to Trash' })
+    fireEvent.click(trashNotes)
+    expect(trashNotes).toHaveTextContent('Confirm?')
+    fireEvent.click(trashNotes)
 
     await waitFor(() => expect(clearNotes).toHaveBeenCalledTimes(1))
     expect(addToast).toHaveBeenCalledWith('Notes moved to Trash', 'success')
+  })
+
+  it('renders three aligned action slots for every dataset', () => {
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+
+    for (const dataset of ['Notes', 'Snippets', 'API Requests', 'Prompt Templates', 'History']) {
+      const actions = screen.getByRole('group', { name: `${dataset} actions` })
+      expect(actions.children).toHaveLength(3)
+      expect([...actions.children].every((slot) => slot.hasAttribute('data-action-slot'))).toBe(
+        true
+      )
+    }
+
+    const historyActions = screen.getByRole('group', { name: 'History actions' })
+    expect(
+      within(historyActions).queryByRole('button', { name: /export/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(historyActions).queryByRole('button', { name: /import/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(historyActions).getByRole('button', { name: 'Delete history permanently' })
+    ).toBeInTheDocument()
+
+    expect(screen.queryByRole('heading', { name: 'Storage' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Clear Data' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: 'Settings' })).toBeInTheDocument()
   })
 
   it('exports API requests to a file', async () => {
@@ -198,10 +233,14 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete templates' }))
+    const deleteTemplates = screen.getByRole('button', {
+      name: 'Delete prompt templates permanently',
+    })
+    fireEvent.click(deleteTemplates)
     expect(clearTemplates).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently?' }))
+    expect(deleteTemplates).toHaveTextContent('Confirm?')
+    fireEvent.click(deleteTemplates)
     await waitFor(() => expect(clearTemplates).toHaveBeenCalledOnce())
   })
 
@@ -209,14 +248,16 @@ describe('SettingsPanel', () => {
     // Exporting from an unloaded store writes an empty backup over the user's real data.
     useApiStore.setState({ initialized: false })
     useSnippetsStore.setState({ initialized: false })
+    useHistoryStore.setState({ initialized: false })
 
     render(<SettingsPanel />)
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
 
     expect(screen.getByRole('button', { name: 'Export API requests to a file' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Trash requests' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move API requests to Trash' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Export snippets to a file' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Trash snippets' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move snippets to Trash' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete history permanently' })).toBeDisabled()
     // Notes load at app start, so that row stays usable.
     expect(screen.getByRole('button', { name: 'Export notes to a file' })).toBeEnabled()
   })
@@ -249,15 +290,16 @@ describe('SettingsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export API requests to a file' }))
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Trash requests' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Move API requests to Trash' })).toBeDisabled()
     )
     expect(screen.getByRole('button', { name: 'Export notes to a file' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete history permanently' })).toBeDisabled()
 
     await act(async () => {
       release?.()
     })
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Trash requests' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Move API requests to Trash' })).toBeEnabled()
     )
   })
 
@@ -487,20 +529,16 @@ describe('SettingsPanel', () => {
 
   it('imports settings that use newer registered themes', async () => {
     const addToast = useUiStore.getState().addToast
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        readText: vi
-          .fn()
-          .mockResolvedValue(JSON.stringify({ theme: 'github-light', alwaysOnTop: true })),
-        writeText: vi.fn(),
-      },
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: JSON.stringify({ theme: 'github-light', alwaysOnTop: true }),
+      filename: 'settings.json',
+      path: '/tmp/settings.json',
     })
 
     render(<SettingsPanel />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Import from Clipboard' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import settings from a file' }))
 
     await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))
     expect(useSettingsStore.getState().alwaysOnTop).toBe(true)
