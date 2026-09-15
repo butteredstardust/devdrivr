@@ -179,6 +179,11 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
               aria-label={variable.label}
             />
           )}
+          {variable.description && (
+            <span className="mt-1 block text-2xs leading-4 text-[var(--color-text-muted)]">
+              {variable.description}
+            </span>
+          )}
         </label>
       ))}
     </div>
@@ -744,6 +749,10 @@ export default function PromptTemplates() {
     ],
     [state.overrides, userTemplates]
   )
+  const activeCategory: CategoryFilter =
+    state.category === 'all' || Object.hasOwn(CATEGORY_LABELS, state.category)
+      ? state.category
+      : 'all'
   const selectedTemplate = getTemplateById(state.selectedId, allTemplates)
   const selectedValues = useMemo(
     () => mergeDefaultValues(selectedTemplate, state.inputsByTemplate[selectedTemplate.id]),
@@ -762,11 +771,11 @@ export default function PromptTemplates() {
   const filteredTemplates = useMemo(() => {
     const query = state.search.trim().toLowerCase()
     return allTemplates.filter((template) => {
-      const matchesCategory = state.category === 'all' || template.category === state.category
+      const matchesCategory = activeCategory === 'all' || template.category === activeCategory
       const matchesSearch = !query || templateSearchText(template).includes(query)
       return matchesCategory && matchesSearch
     })
-  }, [allTemplates, state.category, state.search])
+  }, [activeCategory, allTemplates, state.search])
 
   const selectTemplate = useCallback(
     (template: PromptTemplate) => {
@@ -1034,7 +1043,7 @@ export default function PromptTemplates() {
                 clearLabel="Clear template search"
               />
               <Select
-                value={state.category}
+                value={activeCategory}
                 onChange={(event) =>
                   updateState({ category: event.target.value as CategoryFilter })
                 }
@@ -1304,6 +1313,21 @@ export default function PromptTemplates() {
                     </span>
                   ))}
                 </div>
+                {selectedTemplate.source && (
+                  <p className="mb-5 text-xs leading-5 text-[var(--color-text-muted)]">
+                    Source:{' '}
+                    <a
+                      href={selectedTemplate.source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--color-accent)] underline-offset-2 hover:underline"
+                    >
+                      {selectedTemplate.source.library}
+                    </a>{' '}
+                    by {selectedTemplate.source.authors.map((author) => `@${author}`).join(', ')} ·{' '}
+                    {selectedTemplate.source.license}
+                  </p>
+                )}
                 <VariableForm
                   template={selectedTemplate}
                   values={selectedValues}

@@ -8,6 +8,7 @@ import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.s
 import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
 import noteLinksMigration from '@/../src-tauri/migrations/016_note_links.sql?raw'
 import snippetFragmentsMigration from '@/../src-tauri/migrations/017_snippet_fragments.sql?raw'
+import promptTemplateProvenanceMigration from '@/../src-tauri/migrations/018_prompt_template_provenance.sql?raw'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -134,5 +135,46 @@ describe('persistence migrations', () => {
   it('registers the snippet fragments migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*17/)
     expect(tauriLib).toContain('include_str!("../migrations/017_snippet_fragments.sql")')
+  })
+
+  it('adds every prompt template provenance column as nullable', () => {
+    for (const column of ['language', 'engine', 'example_json', 'source_json']) {
+      expect(promptTemplateProvenanceMigration).toMatch(
+        new RegExp(
+          `ALTER\\s+TABLE\\s+user_prompt_templates\\s+ADD\\s+COLUMN\\s+${column}\\s+TEXT;`,
+          'i'
+        )
+      )
+      // Each column is nullable and carries no default, so ADD COLUMN already leaves existing rows
+      // at NULL. A backfill UPDATE here would be a no-op.
+      expect(promptTemplateProvenanceMigration).not.toMatch(
+        new RegExp(`ADD\\s+COLUMN\\s+${column}\\s+TEXT\\s+NOT\\s+NULL`, 'i')
+      )
+    }
+  })
+
+  it('remaps every retired user category without changing productivity', () => {
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'code-review' THEN 'engineering'")
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'refactoring' THEN 'engineering'")
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'testing' THEN 'engineering'")
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'debugging' THEN 'engineering'")
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'docs' THEN 'content-creation'")
+    expect(promptTemplateProvenanceMigration).toContain("WHEN 'learning' THEN 'productivity'")
+    expect(promptTemplateProvenanceMigration).toMatch(/WHERE\s+author\s*=\s*'user'/i)
+    expect(promptTemplateProvenanceMigration).not.toContain("WHEN 'productivity'")
+  })
+
+  it('removes stale built-ins without removing user templates', () => {
+    expect(promptTemplateProvenanceMigration).toMatch(
+      /DELETE\s+FROM\s+user_prompt_templates\s+WHERE\s+author\s*=\s*'builtin'/i
+    )
+    expect(promptTemplateProvenanceMigration).not.toMatch(
+      /DELETE\s+FROM\s+user_prompt_templates\s+WHERE\s+author\s*=\s*'user'/i
+    )
+  })
+
+  it('registers the prompt template provenance migration with the Tauri SQL plugin', () => {
+    expect(tauriLib).toMatch(/version:\s*18/)
+    expect(tauriLib).toContain('include_str!("../migrations/018_prompt_template_provenance.sql")')
   })
 })

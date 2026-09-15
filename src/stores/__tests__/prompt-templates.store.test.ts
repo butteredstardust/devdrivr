@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import {
   clearAllUserPromptTemplates,
   loadUserPromptTemplates,
+  saveUserPromptTemplate,
   seedBuiltinPromptTemplates,
 } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
@@ -83,5 +84,45 @@ describe('prompt-templates store initialization', () => {
 
     expect(usePromptTemplatesStore.getState().userTemplates).toHaveLength(1)
     expect(usePromptTemplatesStore.getState().saving).toBe(false)
+  })
+
+  it('preserves imported metadata when it creates a custom template', async () => {
+    const { usePromptTemplatesStore } = await import('../prompt-templates.store')
+    ;(saveUserPromptTemplate as any).mockResolvedValue(undefined)
+
+    const created = await usePromptTemplatesStore.getState().create({
+      name: 'Ported prompt',
+      description: 'Description',
+      category: 'engineering',
+      tags: [],
+      prompt: 'Review {{diff}}',
+      variables: [
+        {
+          name: 'diff',
+          label: 'Diff',
+          type: 'textarea',
+          description: 'Unified diff',
+          example: 'diff --git ...',
+        },
+      ],
+      estimatedTokens: 4,
+      optimizedFor: 'Generic',
+      version: '1.0.0',
+      tips: [],
+      language: 'en',
+      source: {
+        library: 'PromtExpress OSS',
+        templateId: 'code/pull-request-review',
+        authors: ['SpicesFire'],
+        license: 'MIT',
+        url: 'https://github.com/WebitroHQ/promtexpress-oss',
+      },
+    })
+
+    expect(created.source?.templateId).toBe('code/pull-request-review')
+    expect(created.variables[0]).toMatchObject({
+      description: 'Unified diff',
+      example: 'diff --git ...',
+    })
   })
 })

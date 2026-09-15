@@ -495,6 +495,10 @@ type PromptTemplateRow = {
   author: string
   version: string
   tips: string
+  language: string | null
+  engine: string | null
+  example_json: string | null
+  source_json: string | null
   created_at: number
   updated_at: number
 }
@@ -521,11 +525,12 @@ export async function loadUserPromptTemplates(): Promise<PromptTemplate[]> {
 function buildSaveUserPromptTemplate(template: PromptTemplate): BatchStatement {
   return {
     sql: `INSERT INTO user_prompt_templates
-      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, language, engine, example_json, source_json, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
      ON CONFLICT(id) DO UPDATE SET
       name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
-      estimated_tokens=$8, optimized_for=$9, author=$10, version=$11, tips=$12, updated_at=$14`,
+      estimated_tokens=$8, optimized_for=$9, author=$10, version=$11, tips=$12, language=$13,
+      engine=$14, example_json=$15, source_json=$16, updated_at=$18`,
     params: [
       template.id,
       template.name,
@@ -539,6 +544,10 @@ function buildSaveUserPromptTemplate(template: PromptTemplate): BatchStatement {
       template.author,
       template.version,
       JSON.stringify(template.tips ?? []),
+      template.language ?? null,
+      template.engine ?? null,
+      template.example ? JSON.stringify(template.example) : null,
+      template.source ? JSON.stringify(template.source) : null,
       template.createdAt ?? Date.now(),
       template.updatedAt ?? Date.now(),
     ],
@@ -548,11 +557,12 @@ function buildSaveUserPromptTemplate(template: PromptTemplate): BatchStatement {
 function buildSeedBuiltinPromptTemplate(template: PromptTemplate): BatchStatement {
   return {
     sql: `INSERT INTO user_prompt_templates
-      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'builtin', $10, $11, $12, $13)
+      (id, name, description, category, tags, prompt, variables_schema, estimated_tokens, optimized_for, author, version, tips, language, engine, example_json, source_json, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'builtin', $10, $11, $12, $13, $14, $15, $16, $17)
      ON CONFLICT(id) DO UPDATE SET
       name=$2, description=$3, category=$4, tags=$5, prompt=$6, variables_schema=$7,
-      estimated_tokens=$8, optimized_for=$9, author='builtin', version=$10, tips=$11, updated_at=$13
+      estimated_tokens=$8, optimized_for=$9, author='builtin', version=$10, tips=$11, language=$12,
+      engine=$13, example_json=$14, source_json=$15, updated_at=$17
      WHERE author = 'builtin'`,
     params: [
       template.id,
@@ -566,6 +576,10 @@ function buildSeedBuiltinPromptTemplate(template: PromptTemplate): BatchStatemen
       template.optimizedFor,
       template.version,
       JSON.stringify(template.tips ?? []),
+      template.language ?? null,
+      template.engine ?? null,
+      template.example ? JSON.stringify(template.example) : null,
+      template.source ? JSON.stringify(template.source) : null,
       template.createdAt ?? Date.now(),
       template.updatedAt ?? Date.now(),
     ],

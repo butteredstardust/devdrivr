@@ -1,9 +1,9 @@
 /**
  * Third-party attribution shown on the Settings → Acknowledgments tab.
  *
- * Two lists, because they come from two package managers and neither one can be read at runtime:
- * the app ships as a compiled bundle with no node_modules and no cargo registry beside it, so the
- * data has to be baked in at authoring time.
+ * Four lists, because they come from four sources and none can be read at runtime: the app ships
+ * as a compiled bundle with no node_modules, no cargo registry and no library folder beside it, so
+ * the data has to be baked in at authoring time.
  *
  * Regenerating the npm list after `bun add` / `bun update` — run from the repository root:
  *
@@ -11,7 +11,8 @@
  *
  * and reconcile the output with NPM_DEPENDENCIES below. The Rust list comes from
  * `cargo metadata --format-version 1` run against `src-tauri/Cargo.toml`, filtered to the direct
- * dependencies of the `devdrivr` package.
+ * dependencies of the `devdrivr` package. CONTENT_SOURCES is versioned by the upstream commit the
+ * content was copied from. Update it whenever you re-sync that content.
  *
  * Only *direct* dependencies are listed. The transitive graph is ~600 crates and several thousand
  * npm packages; every one of them is covered by a licence that is reproduced in full under
@@ -265,6 +266,16 @@ export const FONTS: readonly Attribution[] = [
     version: '5.2.7',
     license: 'OFL-1.1',
     copyright: 'Adobe Systems Incorporated',
+  },
+]
+
+/** Content libraries bundled with the app. */
+export const CONTENT_SOURCES: readonly Attribution[] = [
+  {
+    name: 'PromtExpress prompt library',
+    version: '64b2fd6',
+    license: 'MIT',
+    copyright: 'Webitro',
   },
 ]
 

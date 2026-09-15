@@ -184,12 +184,12 @@ export type SnippetFragment = {
 }
 
 export const PROMPT_TEMPLATE_CATEGORIES = [
-  'code-review',
-  'refactoring',
-  'testing',
-  'docs',
-  'debugging',
-  'learning',
+  'engineering',
+  'database',
+  'marketing',
+  'ecommerce',
+  'customer-support',
+  'content-creation',
   'productivity',
 ] as const
 
@@ -202,6 +202,8 @@ export type PromptTemplateVariable = {
   label: string
   type: PromptTemplateVariableType
   placeholder?: string
+  description?: string
+  example?: string
   options?: string[]
   required?: boolean
 }
@@ -219,6 +221,16 @@ export type PromptTemplate = {
   author: 'builtin' | 'user'
   version: string
   tips?: string[]
+  language?: string
+  engine?: string
+  example?: Record<string, string>
+  source?: {
+    library: string
+    templateId: string
+    authors: string[]
+    license: string
+    url: string
+  }
   createdAt?: number
   updatedAt?: number
 }

@@ -112,12 +112,9 @@ export function syncVariablesToPrompt(
       const options = existing.options?.map((option) => option.trim()).filter(Boolean) ?? []
       return { ...existing, options: options.length > 0 ? options : ['Option'] }
     }
-    return {
-      name: existing.name,
-      label: existing.label,
-      type: existing.type,
-      ...(existing.placeholder ? { placeholder: existing.placeholder } : {}),
-      ...(existing.required !== undefined ? { required: existing.required } : {}),
-    }
+    // Carry every other field, but drop options. They only apply to a select variable.
+    const next: PromptTemplateVariable = { ...existing }
+    delete next.options
+    return next
   })
 }

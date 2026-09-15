@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
@@ -6,15 +7,30 @@ import type {
   PromptTemplateVariableType,
 } from '@/types/models'
 
-const PROMPT_TEMPLATE_CATEGORY_VALUES = [
+const LEGACY_PROMPT_TEMPLATE_CATEGORIES = [
   'code-review',
   'refactoring',
   'testing',
   'docs',
   'debugging',
   'learning',
-  'productivity',
 ] as const
+
+function normalizeCategory(
+  category: PromptTemplateCategory | (typeof LEGACY_PROMPT_TEMPLATE_CATEGORIES)[number]
+): PromptTemplateCategory {
+  if (category === 'docs') return 'content-creation'
+  if (category === 'learning') return 'productivity'
+  if (
+    category === 'code-review' ||
+    category === 'refactoring' ||
+    category === 'testing' ||
+    category === 'debugging'
+  ) {
+    return 'engineering'
+  }
+  return category
+}
 
 const importVariableSchema = z
   .object({
@@ -22,6 +38,8 @@ const importVariableSchema = z
     label: z.string().min(1).optional(),
     type: z.enum(['text', 'textarea', 'select']).default('text'),
     placeholder: z.string().optional(),
+    description: z.string().optional(),
+    example: z.string().optional(),
     options: z.array(z.string()).optional(),
     required: z.boolean().optional(),
   })
@@ -46,7 +64,9 @@ const MAX_LIST_ITEMS = 100
 const importTemplateSchema = z.object({
   name: z.string().min(1).max(MAX_FIELD_CHARS),
   description: z.string().max(MAX_FIELD_CHARS).optional(),
-  category: z.enum(PROMPT_TEMPLATE_CATEGORY_VALUES).default('productivity'),
+  category: z
+    .union([z.enum(PROMPT_TEMPLATE_CATEGORIES), z.enum(LEGACY_PROMPT_TEMPLATE_CATEGORIES)])
+    .default('productivity'),
   tags: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS),
   variables: z.array(importVariableSchema).max(MAX_LIST_ITEMS).optional(),
@@ -54,6 +74,18 @@ const importTemplateSchema = z.object({
   optimizedFor: z.enum(['Claude', 'ChatGPT', 'Cursor', 'Generic']).default('Generic'),
   version: z.string().max(MAX_FIELD_CHARS).optional(),
   tips: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
+  language: z.string().max(MAX_FIELD_CHARS).optional(),
+  engine: z.string().max(MAX_FIELD_CHARS).optional(),
+  example: z.record(z.string(), z.string()).optional(),
+  source: z
+    .object({
+      library: z.string().max(MAX_FIELD_CHARS),
+      templateId: z.string().max(MAX_FIELD_CHARS),
+      authors: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS),
+      license: z.string().max(MAX_FIELD_CHARS),
+      url: z.string().max(MAX_FIELD_CHARS),
+    })
+    .optional(),
 })
 
 export type PromptTemplateDraft = {
@@ -67,6 +99,10 @@ export type PromptTemplateDraft = {
   optimizedFor: PromptTemplate['optimizedFor']
   version: string
   tips: string[]
+  language?: string
+  engine?: string
+  example?: Record<string, string>
+  source?: NonNullable<PromptTemplate['source']>
 }
 
 export type PromptTemplateImportSource = 'clipboard' | 'file'
@@ -158,6 +194,17 @@ export function templateToDraft(template?: PromptTemplate): PromptTemplateDraft 
     optimizedFor: template.optimizedFor,
     version: template.version,
     tips: [...(template.tips ?? [])],
+    ...(template.language ? { language: template.language } : {}),
+    ...(template.engine ? { engine: template.engine } : {}),
+    ...(template.example ? { example: { ...template.example } } : {}),
+    ...(template.source
+      ? {
+          source: {
+            ...template.source,
+            authors: [...template.source.authors],
+          },
+        }
+      : {}),
   }
 }
 
@@ -218,6 +265,8 @@ export function parsePromptTemplateImport(
           type: variable.type,
         }
         if (variable.placeholder) nextVariable.placeholder = variable.placeholder
+        if (variable.description) nextVariable.description = variable.description
+        if (variable.example) nextVariable.example = variable.example
         const options = variable.options?.map((option) => option.trim()).filter(Boolean)
         if (options && options.length > 0) nextVariable.options = options
         if (variable.required !== undefined) nextVariable.required = variable.required
@@ -227,7 +276,7 @@ export function parsePromptTemplateImport(
     return {
       name: template.name.trim(),
       description: template.description?.trim() ?? '',
-      category: template.category,
+      category: normalizeCategory(template.category),
       tags: template.tags ?? [],
       prompt,
       variables,
@@ -235,6 +284,10 @@ export function parsePromptTemplateImport(
       optimizedFor: template.optimizedFor,
       version: template.version?.trim() || '1.0.0',
       tips: template.tips ?? [],
+      ...(template.language ? { language: template.language } : {}),
+      ...(template.engine ? { engine: template.engine } : {}),
+      ...(template.example ? { example: template.example } : {}),
+      ...(template.source ? { source: template.source } : {}),
     }
   })
 }

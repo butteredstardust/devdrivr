@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CARGO_DEPENDENCIES,
+  CONTENT_SOURCES,
   FONTS,
   NPM_DEPENDENCIES,
   licenseKeysFor,
@@ -136,7 +137,12 @@ describe('cargo attribution', () => {
 })
 
 describe('license notice', () => {
-  const everything: readonly Attribution[] = [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS]
+  const everything: readonly Attribution[] = [
+    ...NPM_DEPENDENCIES,
+    ...CARGO_DEPENDENCIES,
+    ...FONTS,
+    ...CONTENT_SOURCES,
+  ]
 
   it('reproduces the full text of every licence named', () => {
     // The load-bearing one. AcknowledgmentsTab filters its "License texts" section down to keys

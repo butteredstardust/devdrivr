@@ -22,13 +22,14 @@ export const NOTE_COLORS = [
 ] as const
 
 const noteColorSchema = z.enum(NOTE_COLORS)
+// Keep this local to avoid a value cycle because models.ts imports NOTE_COLORS from this module.
 const PROMPT_TEMPLATE_CATEGORY_VALUES = [
-  'code-review',
-  'refactoring',
-  'testing',
-  'docs',
-  'debugging',
-  'learning',
+  'engineering',
+  'database',
+  'marketing',
+  'ecommerce',
+  'customer-support',
+  'content-creation',
   'productivity',
 ] as const
 const promptTemplateCategorySchema = z.enum(PROMPT_TEMPLATE_CATEGORY_VALUES)
@@ -38,6 +39,8 @@ const promptTemplateVariableSchema = z.object({
   label: z.string(),
   type: z.enum(['text', 'textarea', 'select']),
   placeholder: z.string().optional(),
+  description: z.string().optional(),
+  example: z.string().optional(),
   options: z.array(z.string()).optional(),
   required: z.boolean().optional(),
 })
@@ -217,6 +220,10 @@ export const promptTemplateRowSchema = z
     author: z.enum(['builtin', 'user']).default('user'),
     version: z.string().default('1.0.0'),
     tips: z.string().default('[]'),
+    language: z.string().nullable().optional(),
+    engine: z.string().nullable().optional(),
+    example_json: z.string().nullable().optional(),
+    source_json: z.string().nullable().optional(),
     created_at: z.number(),
     updated_at: z.number(),
   })
@@ -233,6 +240,8 @@ export const promptTemplateRowSchema = z
               type: variable.type,
             }
             if (variable.placeholder) nextVariable.placeholder = variable.placeholder
+            if (variable.description) nextVariable.description = variable.description
+            if (variable.example) nextVariable.example = variable.example
             if (variable.options) nextVariable.options = variable.options
             if (variable.required !== undefined) nextVariable.required = variable.required
             return nextVariable
@@ -242,7 +251,7 @@ export const promptTemplateRowSchema = z
       variables = []
     }
 
-    return {
+    const template: PromptTemplate = {
       id: row.id,
       name: row.name,
       description: row.description,
@@ -258,6 +267,33 @@ export const promptTemplateRowSchema = z
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
+    if (row.language != null) template.language = row.language
+    if (row.engine != null) template.engine = row.engine
+    if (row.example_json) {
+      try {
+        const result = z.record(z.string(), z.string()).safeParse(JSON.parse(row.example_json))
+        if (result.success) template.example = result.data
+      } catch {
+        // Ignore invalid optional metadata while keeping the template available.
+      }
+    }
+    if (row.source_json) {
+      try {
+        const result = z
+          .object({
+            library: z.string(),
+            templateId: z.string(),
+            authors: z.array(z.string()),
+            license: z.string(),
+            url: z.string(),
+          })
+          .safeParse(JSON.parse(row.source_json))
+        if (result.success) template.source = result.data
+      } catch {
+        // Ignore invalid optional metadata while keeping the template available.
+      }
+    }
+    return template
   })
 
 /** Validates a raw HistoryRow from SQLite and transforms it into a HistoryEntry. */

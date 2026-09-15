@@ -125,6 +125,12 @@ pub fn run() {
             sql: include_str!("../migrations/017_snippet_fragments.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 18,
+            description: "add prompt template provenance",
+            sql: include_str!("../migrations/018_prompt_template_provenance.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

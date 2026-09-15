@@ -32,6 +32,15 @@ function makeTemplate(id: string): PromptTemplate {
     author: 'user',
     version: '1.0.0',
     tips: [],
+    language: 'en',
+    example: { task: 'Review this change' },
+    source: {
+      library: 'PromtExpress OSS',
+      templateId: 'code/pull-request-review',
+      authors: ['SpicesFire'],
+      license: 'MIT',
+      url: 'https://github.com/WebitroHQ/promtexpress-oss',
+    },
     createdAt: 1,
     updatedAt: 1,
   }
@@ -105,5 +114,64 @@ describe('prompt template DB helpers', () => {
       expect.stringContaining('INSERT INTO user_prompt_templates'),
       expect.arrayContaining(['a'])
     )
+    const insertCall = sqlMock.execute.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO user_prompt_templates')
+    )
+    const params = insertCall?.[1] as unknown[]
+    expect(params[12]).toBe('en')
+    expect(params[14]).toBe(JSON.stringify({ task: 'Review this change' }))
+    expect(params[15]).toContain('PromtExpress OSS')
+  })
+
+  it('reads optional template and variable metadata from database rows', async () => {
+    sqlMock.select.mockResolvedValueOnce([
+      {
+        id: 'ported',
+        name: 'Ported template',
+        description: 'Description',
+        category: 'engineering',
+        tags: '[]',
+        prompt: 'Review {{diff}}',
+        variables_schema: JSON.stringify([
+          {
+            name: 'diff',
+            label: 'Diff',
+            type: 'textarea',
+            description: 'Unified diff',
+            example: 'diff --git ...',
+          },
+        ]),
+        estimated_tokens: 4,
+        optimized_for: 'Generic',
+        author: 'user',
+        version: '1.0.0',
+        tips: '[]',
+        language: 'en',
+        engine: null,
+        example_json: JSON.stringify({ diff: 'diff --git ...' }),
+        source_json: JSON.stringify({
+          library: 'PromtExpress OSS',
+          templateId: 'code/pull-request-review',
+          authors: ['SpicesFire'],
+          license: 'MIT',
+          url: 'https://github.com/WebitroHQ/promtexpress-oss',
+        }),
+        created_at: 1,
+        updated_at: 2,
+      },
+    ])
+    const { loadUserPromptTemplates } = await import('@/lib/db')
+
+    const [template] = await loadUserPromptTemplates()
+
+    expect(template?.variables[0]).toMatchObject({
+      description: 'Unified diff',
+      example: 'diff --git ...',
+    })
+    expect(template).toMatchObject({
+      language: 'en',
+      example: { diff: 'diff --git ...' },
+      source: { library: 'PromtExpress OSS', license: 'MIT' },
+    })
   })
 })
