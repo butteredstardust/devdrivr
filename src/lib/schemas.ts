@@ -240,6 +240,8 @@ export const promptTemplateRowSchema = z
             if (variable.placeholder) nextVariable.placeholder = variable.placeholder
             if (variable.options) nextVariable.options = variable.options
             if (variable.required !== undefined) nextVariable.required = variable.required
+            if (variable.description) nextVariable.description = variable.description
+            if (variable.example) nextVariable.example = variable.example
             return nextVariable
           })
         : []

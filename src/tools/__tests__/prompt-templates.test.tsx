@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
 import {
   BUILTIN_PROMPT_TEMPLATES,
@@ -234,6 +235,36 @@ describe('PromptTemplates', () => {
     )
     fireEvent.click(screen.getByRole('tab', { name: /preview/i }))
     expect(screen.getByText('Preview')).toBeInTheDocument()
+  })
+
+  it('describes a variable to a screen reader through aria-describedby', () => {
+    // Each input carries its own aria-label, which overrides the wrapping label element. Help text
+    // placed inside that label reaches nobody unless the input points at it.
+    const described = BUILTIN_PROMPT_TEMPLATES.find((template) =>
+      template.variables.some((variable) => variable.description)
+    )
+    const variable = described?.variables.find((item) => item.description)
+    expect(variable).toBeDefined()
+
+    renderTool(PromptTemplates)
+    fireEvent.click(screen.getAllByText(described!.name)[0]!)
+
+    const field = screen.getByLabelText(variable!.label)
+    const descriptionId = field.getAttribute('aria-describedby')
+    expect(descriptionId).toBeTruthy()
+    expect(document.getElementById(descriptionId!)).toHaveTextContent(variable!.description!)
+  })
+
+  it('falls back to every category when the persisted filter names a retired one', () => {
+    // The filter outlives the category list that produced it. A retired category would otherwise
+    // leave the user on an empty library with a select showing no value, and no clue why.
+    // Seeded after the cache is cleared, because `renderTool` empties it just before rendering.
+    useToolStateCache.setState({ cache: new Map() })
+    useToolStateCache.getState().set('prompt-templates', { category: 'engineering' })
+    render(<PromptTemplates />)
+
+    expect(screen.getAllByText('Review: Detect Code Smells').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Filter templates by category')).toHaveValue('all')
   })
 
   it('filters templates by search text', () => {

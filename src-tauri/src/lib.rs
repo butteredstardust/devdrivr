@@ -125,6 +125,14 @@ pub fn run() {
             sql: include_str!("../migrations/017_snippet_fragments.sql"),
             kind: MigrationKind::Up,
         },
+        // Version 18 is burned. A withdrawn migration held that number, so databases that ran it
+        // record 18 as applied and would skip any new migration numbered 18.
+        Migration {
+            version: 19,
+            description: "repair prompt template categories",
+            sql: include_str!("../migrations/019_prompt_template_category_repair.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();
