@@ -695,6 +695,7 @@ export default function NotesWorkspace() {
     <>
       <MasterDetailLayout
         title="Notes"
+        widthStorageKey="notes"
         subtitle={`${notes.length} note${notes.length === 1 ? '' : 's'}`}
         sidebarOpen={state.libraryOpen}
         onToggleSidebar={() => updateState({ libraryOpen: !state.libraryOpen })}

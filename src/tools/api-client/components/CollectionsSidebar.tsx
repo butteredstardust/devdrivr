@@ -385,6 +385,7 @@ export function CollectionsSidebar({
     <>
       <MasterDetailLayout
         title="Requests"
+        widthStorageKey="api-requests"
         subtitle={`${requests.length} saved · ${collections.length} collections`}
         sidebarActions={
           <Button

@@ -36,8 +36,8 @@ import { useShellWidth } from '@/hooks/useShellWidth'
 import {
   clampNotesDrawerWidth as clampWidth,
   fitShellPanels,
-  MAX_NOTES_DRAWER_WIDTH,
   MIN_NOTES_DRAWER_WIDTH,
+  maxNotesDrawerWidth,
 } from '@/lib/shell-layout'
 import { useEdgeResize } from '@/hooks/useEdgeResize'
 import { sendToTool } from '@/lib/tool-handoff'
@@ -412,8 +412,11 @@ export function NotesDrawer() {
   useEffect(() => setWidth(clampWidth(savedWidth)), [savedWidth])
 
   // Read at pointer-down only; keeps the gesture from re-subscribing on every pixel of a drag.
-  const widthRef = useRef(width)
-  widthRef.current = width
+  // A gesture starts from the rendered width, not the stored one. When the row has narrowed the
+  // drawer below the stored width, starting from the stored width gives the user a dead zone: the
+  // first pixels of the drag close a gap they cannot see before the edge moves.
+  const widthRef = useRef(renderedWidth)
+  widthRef.current = renderedWidth > 0 ? renderedWidth : width
 
   useEffect(() => {
     if (!drawerOpen) return
@@ -477,6 +480,12 @@ export function NotesDrawer() {
     [updateSetting]
   )
 
+  // The drawer may take whatever the measured row can spare, so the ceiling moves with the
+  // window. Read it through a ref: a drag reads the limit at pointer-down and must not
+  // re-subscribe as the row is measured.
+  const drawerMax = maxNotesDrawerWidth(shellWidth)
+  const clampToShell = useCallback((value: number) => clampWidth(value, shellWidth), [shellWidth])
+
   // Keyboard resizing, so the drawer edge isn't pointer-only. The handle is on the drawer's left
   // edge, so ArrowLeft widens it — the width grows in the direction the key points.
   const handleResizeKeyDown = useCallback(
@@ -486,24 +495,26 @@ export function NotesDrawer() {
           ? 16
           : event.key === 'ArrowRight'
             ? -16
-            : event.key === 'Home'
-              ? MAX_NOTES_DRAWER_WIDTH
+            : // Home takes the value to its minimum and End to its maximum, as SplitPane and the
+              // master-detail divider do. The drawer grows leftward, but the value is a width.
+              event.key === 'Home'
+              ? -drawerMax
               : event.key === 'End'
-                ? -MAX_NOTES_DRAWER_WIDTH
+                ? drawerMax
                 : null
       if (step === null) return
       event.preventDefault()
-      const next = clampWidth(widthRef.current + step)
+      const next = clampToShell(widthRef.current + step)
       setWidth(next)
       persistWidth(next)
     },
-    [persistWidth]
+    [clampToShell, drawerMax, persistWidth]
   )
 
   const { resizing, onPointerDown: handleDragStart } = useEdgeResize({
     direction: -1,
     getWidth: () => widthRef.current,
-    clamp: clampWidth,
+    clamp: clampToShell,
     onResize: setWidth,
     onCommit: persistWidth,
   })
@@ -740,9 +751,12 @@ export function NotesDrawer() {
         tabIndex={0}
         aria-label="Resize notes drawer"
         aria-orientation="vertical"
-        aria-valuenow={width}
-        aria-valuemin={MIN_NOTES_DRAWER_WIDTH}
-        aria-valuemax={MAX_NOTES_DRAWER_WIDTH}
+        // The rendered geometry, not the stored preference. A narrow row can render the drawer
+        // below both the stored width and the floor, and an announced value outside its own
+        // range is an invalid range.
+        aria-valuenow={renderedWidth}
+        aria-valuemin={Math.min(MIN_NOTES_DRAWER_WIDTH, renderedWidth)}
+        aria-valuemax={drawerMax}
         className="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-[var(--color-accent)]/40 active:bg-[var(--color-accent)]/60 focus-visible:outline-none focus-visible:bg-[var(--color-accent)]/60"
         title="Drag to resize — arrow keys also work"
       />

@@ -1017,6 +1017,7 @@ export default function PromptTemplates() {
     <>
       <MasterDetailLayout
         title="Prompt Templates"
+        widthStorageKey="prompt-templates"
         subtitle={`${allTemplates.length} templates · ${userTemplates.length} custom`}
         sidebarActions={
           // Secondary, not primary: the detail pane's Copy prompt is this tool's one primary
