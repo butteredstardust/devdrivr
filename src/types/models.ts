@@ -189,6 +189,7 @@ export const PROMPT_TEMPLATE_CATEGORIES = [
   'testing',
   'docs',
   'debugging',
+  'security',
   'learning',
   'productivity',
 ] as const
@@ -204,6 +205,10 @@ export type PromptTemplateVariable = {
   placeholder?: string
   options?: string[]
   required?: boolean
+  /** Why the variable exists, for a user filling a template someone else wrote. */
+  description?: string
+  /** A filled-in value. Shows the expected shape and detail, which a placeholder cannot. */
+  example?: string
 }
 
 export type PromptTemplate = {

@@ -587,8 +587,23 @@ export async function deleteUserPromptTemplate(id: string): Promise<void> {
   )
 }
 
+/**
+ * Write the shipped built-in templates, and remove any built-in row no longer shipped.
+ *
+ * The upsert alone only ever adds. A built-in retired in a later release would otherwise stay in
+ * the library forever, because nothing else deletes it. The delete is scoped to `author='builtin'`,
+ * so a template the user wrote is never touched — those are saved as `author='user'`.
+ */
 export async function seedBuiltinPromptTemplates(templates: PromptTemplate[]): Promise<void> {
-  await runBatch(templates.map(buildSeedBuiltinPromptTemplate))
+  const ids = templates.map((template) => template.id)
+  // An empty shipped set is a build error, not an instruction to empty the library.
+  if (ids.length === 0) return
+  const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ')
+  const removeRetired: BatchStatement = {
+    sql: `DELETE FROM user_prompt_templates WHERE author = 'builtin' AND id NOT IN (${placeholders})`,
+    params: ids,
+  }
+  await runBatch([...templates.map(buildSeedBuiltinPromptTemplate), removeRetired])
 }
 
 // --- History ---

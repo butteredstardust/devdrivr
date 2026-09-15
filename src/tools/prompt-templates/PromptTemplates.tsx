@@ -130,6 +130,7 @@ type VariableFormProps = {
 }
 
 function VariableForm({ template, values, onChange }: VariableFormProps) {
+  const fieldId = useId()
   if (template.variables.length === 0) {
     return (
       <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text-muted)]">
@@ -140,47 +141,64 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
 
   return (
     <div className="space-y-3">
-      {template.variables.map((variable) => (
-        <label key={variable.name} className="block">
-          <span className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-            {variable.label}
-            {variable.required && <span className="text-[var(--color-error)]">*</span>}
-          </span>
-          {variable.type === 'select' ? (
-            <Select
-              value={values[variable.name] ?? ''}
-              onChange={(event) => onChange(variable.name, event.target.value)}
-              className="w-full"
-              aria-label={variable.label}
-            >
-              {(variable.options ?? []).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
-          ) : variable.type === 'textarea' ? (
-            <TextArea
-              value={values[variable.name] ?? ''}
-              onChange={(event) => onChange(variable.name, event.target.value)}
-              placeholder={variable.placeholder}
-              rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
-              aria-label={variable.label}
-              monospace
-              className="min-h-24 resize-none"
-            />
-          ) : (
-            <Input
-              value={values[variable.name] ?? ''}
-              onChange={(event) => onChange(variable.name, event.target.value)}
-              placeholder={variable.placeholder}
-              monospace
-              className="w-full"
-              aria-label={variable.label}
-            />
-          )}
-        </label>
-      ))}
+      {template.variables.map((variable) => {
+        // An explicit placeholder wins. Otherwise the example fills that job, because showing a
+        // filled-in value is the clearest way to state the shape and detail a field wants.
+        //
+        // The aria-label on each input overrides the wrapping label, so the description reaches a
+        // screen reader only through aria-describedby. A description is help text, not a name:
+        // it must follow the name rather than replace it.
+        const describedBy = variable.description ? `${fieldId}-${variable.name}` : undefined
+        return (
+          <label key={variable.name} className="block">
+            <span className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
+              {variable.label}
+              {variable.required && <span className="text-[var(--color-error)]">*</span>}
+            </span>
+            {variable.description && (
+              <span id={describedBy} className="mb-1 block text-2xs text-[var(--color-text-muted)]">
+                {variable.description}
+              </span>
+            )}
+            {variable.type === 'select' ? (
+              <Select
+                value={values[variable.name] ?? ''}
+                onChange={(event) => onChange(variable.name, event.target.value)}
+                className="w-full"
+                aria-label={variable.label}
+                aria-describedby={describedBy}
+              >
+                {(variable.options ?? []).map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </Select>
+            ) : variable.type === 'textarea' ? (
+              <TextArea
+                value={values[variable.name] ?? ''}
+                onChange={(event) => onChange(variable.name, event.target.value)}
+                placeholder={variable.placeholder ?? variable.example}
+                rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
+                aria-label={variable.label}
+                aria-describedby={describedBy}
+                monospace
+                className="min-h-24 resize-none"
+              />
+            ) : (
+              <Input
+                value={values[variable.name] ?? ''}
+                onChange={(event) => onChange(variable.name, event.target.value)}
+                placeholder={variable.placeholder ?? variable.example}
+                monospace
+                className="w-full"
+                aria-label={variable.label}
+                aria-describedby={describedBy}
+              />
+            )}
+          </label>
+        )
+      })}
     </div>
   )
 }
@@ -759,14 +777,21 @@ export default function PromptTemplates() {
     [selectedTemplate, selectedValues]
   )
 
+  // The filter is persisted, so it outlives the category list that produced it. A category retired
+  // by a later release leaves the user on an empty library with a select that shows no value, and
+  // no way to tell what went wrong. Fall back to 'all'.
+  const activeCategory: CategoryFilter = FILTERS.some((filter) => filter.id === state.category)
+    ? state.category
+    : 'all'
+
   const filteredTemplates = useMemo(() => {
     const query = state.search.trim().toLowerCase()
     return allTemplates.filter((template) => {
-      const matchesCategory = state.category === 'all' || template.category === state.category
+      const matchesCategory = activeCategory === 'all' || template.category === activeCategory
       const matchesSearch = !query || templateSearchText(template).includes(query)
       return matchesCategory && matchesSearch
     })
-  }, [allTemplates, state.category, state.search])
+  }, [allTemplates, activeCategory, state.search])
 
   const selectTemplate = useCallback(
     (template: PromptTemplate) => {
@@ -1008,6 +1033,7 @@ export default function PromptTemplates() {
     <>
       <MasterDetailLayout
         title="Prompt Templates"
+        widthStorageKey="prompt-templates"
         subtitle={`${allTemplates.length} templates · ${userTemplates.length} custom`}
         sidebarActions={
           // Secondary, not primary: the detail pane's Copy prompt is this tool's one primary
@@ -1034,7 +1060,7 @@ export default function PromptTemplates() {
                 clearLabel="Clear template search"
               />
               <Select
-                value={state.category}
+                value={activeCategory}
                 onChange={(event) =>
                   updateState({ category: event.target.value as CategoryFilter })
                 }

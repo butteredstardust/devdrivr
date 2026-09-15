@@ -7,6 +7,7 @@ import {
   MIN_WORKSPACE_WIDTH,
   SIDEBAR_RAIL_WIDTH,
   clampNotesDrawerWidth,
+  maxNotesDrawerWidth,
   clampSidebarWidth,
   fitShellPanels,
 } from '@/lib/shell-layout'
@@ -36,6 +37,35 @@ describe('clampNotesDrawerWidth', () => {
   it('holds the stored width between its floor and ceiling', () => {
     expect(clampNotesDrawerWidth(10)).toBe(MIN_NOTES_DRAWER_WIDTH)
     expect(clampNotesDrawerWidth(9999)).toBe(MAX_NOTES_DRAWER_WIDTH)
+  })
+
+  it('lets a measured row raise the ceiling above the old fixed 600px cap', () => {
+    // The complaint this answers: on a wide display the drawer stopped at 600px, with most of
+    // the window empty beside it.
+    expect(clampNotesDrawerWidth(900, 1920)).toBe(900)
+    expect(maxNotesDrawerWidth(1920)).toBeGreaterThan(600)
+  })
+
+  it('never lets the drawer take the workspace floor', () => {
+    const shellWidth = 1200
+    const max = maxNotesDrawerWidth(shellWidth)
+    expect(shellWidth - max - SIDEBAR_RAIL_WIDTH).toBeGreaterThanOrEqual(MIN_WORKSPACE_WIDTH)
+    expect(clampNotesDrawerWidth(9999, shellWidth)).toBe(max)
+  })
+
+  it('keeps the drawer readable in a window too narrow to honour every floor', () => {
+    expect(maxNotesDrawerWidth(500)).toBe(MIN_NOTES_DRAWER_WIDTH)
+    // The ceiling stops at the floor, but the arbiter still has the final say: below the minimum
+    // window it squeezes the drawer past that floor rather than overflow the row.
+    const fit = fitShellPanels({ ...defaults, shellWidth: 500, notesDrawerOpen: true })
+    expect(fit.notesDrawerWidth).toBeLessThanOrEqual(maxNotesDrawerWidth(500))
+    expect(workspace(500, fit)).toBeGreaterThanOrEqual(MIN_WORKSPACE_WIDTH)
+  })
+
+  it('falls back to the static ceiling before the row is measured', () => {
+    // A drawer that collapsed to its minimum for the frame before the first measurement would
+    // visibly snap open.
+    expect(maxNotesDrawerWidth(0)).toBe(MAX_NOTES_DRAWER_WIDTH)
   })
 })
 

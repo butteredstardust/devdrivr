@@ -95,6 +95,41 @@ describe('prompt template DB helpers', () => {
     expect(payload.statements[0]?.sql).toContain("author = 'builtin'")
   })
 
+  it('removes a builtin that is no longer shipped', async () => {
+    // The upsert only ever adds. Without this delete a retired builtin stays in the library
+    // forever, because nothing else removes it.
+    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+
+    await seedBuiltinPromptTemplates([makeTemplate('a'), makeTemplate('b')])
+
+    const [, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
+    const remove = payload.statements.at(-1)
+    expect(remove?.sql).toContain('DELETE FROM user_prompt_templates')
+    expect(remove?.sql).toContain("author = 'builtin'")
+    expect(remove?.sql).toContain('id NOT IN ($1, $2)')
+    expect(remove?.params).toEqual(['a', 'b'])
+  })
+
+  it('never empties the library when the shipped set is empty', async () => {
+    // `NOT IN ()` is a syntax error, and an empty set is a build fault rather than an
+    // instruction to delete every builtin.
+    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+
+    await seedBuiltinPromptTemplates([])
+
+    expect(coreMock.invoke).not.toHaveBeenCalled()
+  })
+
+  it('leaves user templates alone while removing retired builtins', async () => {
+    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+
+    await seedBuiltinPromptTemplates([makeTemplate('a')])
+
+    const [, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
+    // A user's own template is author 'user', so the scoped delete cannot reach it.
+    expect(payload.statements.at(-1)?.sql).not.toContain("author = 'user'")
+  })
+
   it('still writes a single template through the plugin connection', async () => {
     const { saveUserPromptTemplate } = await import('@/lib/db')
 

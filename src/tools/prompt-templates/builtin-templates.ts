@@ -486,6 +486,299 @@ Return likely bottlenecks, missing indexes, query rewrites, and how to validate 
     author: 'builtin',
     version: '1.0.0',
   },
+  {
+    id: 'threat-model-feature',
+    name: 'Security: Threat Model a Feature',
+    description: 'Walk a feature through STRIDE and rank the realistic threats.',
+    category: 'security',
+    tags: ['security', 'threat-model', 'design', 'stride'],
+    prompt: `Act as an application security engineer. Threat model the feature described below.
+
+Work through STRIDE in order: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege.
+
+For each threat you find, give:
+- The category and a one-line description
+- The entry point an attacker uses
+- What they gain
+- A concrete mitigation the team can build
+
+Feature:
+{{feature}}
+
+Trust boundaries and data handled:
+{{boundaries}}
+
+Attacker the team cares about: {{attacker}}
+
+Rank the threats by realistic risk, not by theoretical severity. Say plainly which threats you judge to be out of scope for this attacker and why. Do not pad the list.`,
+    variables: [
+      {
+        name: 'feature',
+        label: 'Feature',
+        type: 'textarea',
+        required: true,
+        description: 'What the feature does, who uses it, and what it touches.',
+        example:
+          'A share link that makes a private note readable by anyone holding the URL. Links are created from the note toolbar and can be revoked.',
+      },
+      {
+        name: 'boundaries',
+        label: 'Trust boundaries and data',
+        type: 'textarea',
+        required: true,
+        description: 'Where trust changes hands, and the sensitivity of the data crossing it.',
+        example:
+          'Browser to API over TLS. Link tokens are stored hashed. Note bodies may contain credentials pasted by the user.',
+      },
+      {
+        name: 'attacker',
+        label: 'Attacker',
+        type: 'select',
+        options: [
+          'Anonymous internet user',
+          'Authenticated customer',
+          'Malicious insider',
+          'Compromised dependency',
+          'Network attacker',
+        ],
+        description: 'Ranking depends on who you are defending against.',
+      },
+    ],
+    estimatedTokens: 180,
+    optimizedFor: 'Claude',
+    author: 'builtin',
+    version: '1.0.0',
+    tips: [
+      'Name the data that would hurt most if it leaked. Vague input produces a generic model.',
+      'Run it again after the design changes. A threat model tracks a design, not a release.',
+    ],
+  },
+  {
+    id: 'secure-by-design-review',
+    name: 'Security: Secure-by-Design Questions',
+    description: 'Get the security questions a design review should have asked.',
+    category: 'security',
+    tags: ['security', 'design', 'review', 'checklist'],
+    prompt: `Act as a security architect reviewing a design before it is built.
+
+Do not list generic best practices. Ask the questions this specific design leaves unanswered.
+
+Design:
+{{design}}
+
+Stack and platform: {{stack}}
+
+Group your questions under:
+1. Authentication and authorization
+2. Data handling and retention
+3. Input trust and validation
+4. Secrets and key management
+5. Failure and abuse behaviour
+
+For each question, state in one line why it matters here. End with the three questions you would block the design on, and say what a good answer to each looks like.`,
+    variables: [
+      {
+        name: 'design',
+        label: 'Design',
+        type: 'textarea',
+        required: true,
+        description: 'The proposed design. A summary works; the questions sharpen with detail.',
+        example:
+          'Background worker pulls user-supplied webhook URLs from a queue and POSTs export payloads to them, retrying five times with backoff.',
+      },
+      {
+        name: 'stack',
+        label: 'Stack and platform',
+        type: 'text',
+        description: 'Runtime, datastore and hosting. Many risks are platform-specific.',
+        example: 'Rust worker on Fly.io, Postgres, secrets in Vault',
+      },
+    ],
+    estimatedTokens: 150,
+    optimizedFor: 'Claude',
+    author: 'builtin',
+    version: '1.0.0',
+    tips: ['Use it before the code exists. After merge it becomes an audit, which costs more.'],
+  },
+  {
+    id: 'design-document-draft',
+    name: 'Docs: Draft a Design Document',
+    description: 'Turn a rough idea into a reviewable design document.',
+    category: 'docs',
+    tags: ['design', 'documentation', 'planning', 'rfc'],
+    prompt: `Act as a staff engineer writing a design document for peer review.
+
+Problem:
+{{problem}}
+
+Proposed approach:
+{{approach}}
+
+Constraints: {{constraints}}
+
+Write the document with these sections:
+- **Problem** — what breaks today, and for whom
+- **Goals and non-goals** — non-goals are as important as goals
+- **Proposed design** — how it works, in enough detail to argue with
+- **Alternatives considered** — at least two, each with the reason it lost
+- **Risks and open questions** — what could make this the wrong call
+- **Rollout** — how it ships and how it is reversed
+
+Write plainly and in the present tense. State trade-offs directly rather than defending the proposal. Where the input is missing something the reviewer will need, mark it **TBD** instead of inventing it.`,
+    variables: [
+      {
+        name: 'problem',
+        label: 'Problem',
+        type: 'textarea',
+        required: true,
+        description: 'The problem in its own terms, before any solution.',
+        example:
+          'Tool state is written to localStorage on every keystroke, so a large JSON payload freezes the UI for several seconds.',
+      },
+      {
+        name: 'approach',
+        label: 'Proposed approach',
+        type: 'textarea',
+        required: true,
+        description: 'Your current thinking. Rough is fine; the draft sharpens it.',
+        example: 'Debounce writes and move serialization into a worker.',
+      },
+      {
+        name: 'constraints',
+        label: 'Constraints',
+        type: 'text',
+        description:
+          'Deadlines, compatibility promises, team size, anything that limits the set of designs.',
+        example: 'Must not change the on-disk format; ships in the next patch release',
+      },
+    ],
+    estimatedTokens: 170,
+    optimizedFor: 'Claude',
+    author: 'builtin',
+    version: '1.0.0',
+    tips: ['Keep the TBD markers in the first draft. They are the agenda for the review.'],
+  },
+  {
+    id: 'mermaid-from-description',
+    name: 'Docs: Describe a Diagram in Mermaid',
+    description: 'Turn a description of a system or flow into Mermaid syntax.',
+    category: 'docs',
+    tags: ['mermaid', 'diagram', 'documentation', 'architecture'],
+    prompt: `Convert the description below into a valid Mermaid {{diagramType}} diagram.
+
+Description:
+{{description}}
+
+Requirements:
+- Output only the Mermaid code block. No explanation before or after.
+- Use readable node ids and quote any label containing punctuation.
+- Keep the layout legible: group related nodes and avoid crossing edges where you can.
+- Do not invent components the description does not mention.
+
+If the description is ambiguous, pick the reading that produces the simpler diagram, then add a Mermaid comment (%%) naming the assumption.`,
+    variables: [
+      {
+        name: 'diagramType',
+        label: 'Diagram type',
+        type: 'select',
+        options: [
+          'flowchart',
+          'sequenceDiagram',
+          'erDiagram',
+          'stateDiagram-v2',
+          'classDiagram',
+          'gantt',
+        ],
+        description: 'Mermaid diagram keyword. Sequence suits request flows; ER suits schemas.',
+      },
+      {
+        name: 'description',
+        label: 'Description',
+        type: 'textarea',
+        required: true,
+        description:
+          'The system, flow or schema in prose. Name the actors and the steps between them.',
+        example:
+          'The client requests an export. The API queues a job and returns 202. The worker builds the file, writes it to storage, then notifies the client over the websocket.',
+      },
+    ],
+    estimatedTokens: 120,
+    optimizedFor: 'Claude',
+    author: 'builtin',
+    version: '1.0.0',
+    tips: [
+      'Paste the result straight into the Mermaid Editor to render and correct it.',
+      'A diagram over about 20 nodes is usually two diagrams.',
+    ],
+  },
+  {
+    id: 'agent-rules-file',
+    name: 'Write an Agent Rules File',
+    description: 'Generate a CLAUDE.md or equivalent from how the project actually works.',
+    category: 'productivity',
+    tags: ['agents', 'documentation', 'conventions', 'tooling'],
+    prompt: `Write a {{fileName}} for the project described below. It instructs an AI coding agent working in this repository.
+
+Project:
+{{project}}
+
+Commands that must be run and must pass:
+{{commands}}
+
+Conventions the agent must follow:
+{{conventions}}
+
+Rules for the file you write:
+- Instructions, not description. The agent needs to know what to do, not what the project is.
+- One rule per line. No paragraphs of prose.
+- State the exact commands verbatim, in a code block.
+- Put anything destructive or irreversible at the top, under a clear warning.
+- Omit anything the agent can read from the code itself. Directory listings and dependency lists are noise.
+- Where a rule exists for a non-obvious reason, give the reason in the same line. A rule without a reason gets ignored.
+
+Keep it under 100 lines. A rules file nobody reads is worse than none.`,
+    variables: [
+      {
+        name: 'fileName',
+        label: 'File name',
+        type: 'select',
+        options: ['CLAUDE.md', 'AGENTS.md', '.cursorrules', 'GEMINI.md', 'CONTRIBUTING.md'],
+        description: 'Different agents read different files. The content is largely the same.',
+      },
+      {
+        name: 'project',
+        label: 'Project',
+        type: 'textarea',
+        required: true,
+        description: 'Stack, purpose and anything unusual about the layout.',
+        example: 'Tauri 2 + React 19 desktop app. Bun, not npm. Rust lives in src-tauri/.',
+      },
+      {
+        name: 'commands',
+        label: 'Commands',
+        type: 'textarea',
+        required: true,
+        description: 'The checks that gate a change. Exact invocations, not descriptions.',
+        example: 'bunx tsc --noEmit\nbunx vitest run\nbun run lint\ncargo clippy -- -D warnings',
+      },
+      {
+        name: 'conventions',
+        label: 'Conventions',
+        type: 'textarea',
+        description: 'Git rules, naming, testing and review expectations.',
+        example:
+          'Always branch from origin/main. Conventional commits. Never commit directly to main.',
+      },
+    ],
+    estimatedTokens: 200,
+    optimizedFor: 'Claude',
+    author: 'builtin',
+    version: '1.0.0',
+    tips: [
+      'Give it the commands you actually run, including the ones you forget. That is the point of the file.',
+      'Revisit it when an agent repeats a mistake. The missing rule is the useful one.',
+    ],
+  },
 ]
 
 export const CATEGORY_LABELS: Record<PromptTemplate['category'], string> = {
@@ -494,6 +787,7 @@ export const CATEGORY_LABELS: Record<PromptTemplate['category'], string> = {
   testing: 'Testing',
   docs: 'Docs',
   debugging: 'Debugging',
+  security: 'Security',
   learning: 'Learning',
   productivity: 'Productivity',
 }

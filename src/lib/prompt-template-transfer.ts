@@ -12,9 +12,17 @@ const PROMPT_TEMPLATE_CATEGORY_VALUES = [
   'testing',
   'docs',
   'debugging',
+  'security',
   'learning',
   'productivity',
 ] as const
+
+/** Apply each limit before database writes start. */
+export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
+export const MAX_PROMPT_TEMPLATE_IMPORT_ITEMS = 1000
+const MAX_PROMPT_CHARS = 100_000
+const MAX_FIELD_CHARS = 2_000
+const MAX_LIST_ITEMS = 100
 
 const importVariableSchema = z
   .object({
@@ -24,6 +32,8 @@ const importVariableSchema = z
     placeholder: z.string().optional(),
     options: z.array(z.string()).optional(),
     required: z.boolean().optional(),
+    description: z.string().max(MAX_FIELD_CHARS).optional(),
+    example: z.string().max(MAX_FIELD_CHARS).optional(),
   })
   .superRefine((variable, ctx) => {
     const hasOption = variable.options?.some((option) => option.trim()) ?? false
@@ -35,13 +45,6 @@ const importVariableSchema = z
       })
     }
   })
-
-/** Apply each limit before database writes start. */
-export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
-export const MAX_PROMPT_TEMPLATE_IMPORT_ITEMS = 1000
-const MAX_PROMPT_CHARS = 100_000
-const MAX_FIELD_CHARS = 2_000
-const MAX_LIST_ITEMS = 100
 
 const importTemplateSchema = z.object({
   name: z.string().min(1).max(MAX_FIELD_CHARS),
@@ -115,13 +118,11 @@ function syncVariablesToPrompt(
       const options = existing.options?.map((option) => option.trim()).filter(Boolean) ?? []
       return { ...existing, options: options.length > 0 ? options : ['Option'] }
     }
-    return {
-      name: existing.name,
-      label: existing.label,
-      type: existing.type,
-      ...(existing.placeholder ? { placeholder: existing.placeholder } : {}),
-      ...(existing.required !== undefined ? { required: existing.required } : {}),
-    }
+    // Carry every other field, but drop options. They only apply to a select variable, so leaving
+    // them would keep stale choices alive after a select becomes a text field.
+    const next: PromptTemplateVariable = { ...existing }
+    delete next.options
+    return next
   })
 }
 
@@ -221,6 +222,8 @@ export function parsePromptTemplateImport(
         const options = variable.options?.map((option) => option.trim()).filter(Boolean)
         if (options && options.length > 0) nextVariable.options = options
         if (variable.required !== undefined) nextVariable.required = variable.required
+        if (variable.description) nextVariable.description = variable.description.trim()
+        if (variable.example) nextVariable.example = variable.example.trim()
         return nextVariable
       })
     )

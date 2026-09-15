@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useToolStateCache } from '@/stores/tool-state.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
-import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
+import {
+  BUILTIN_PROMPT_TEMPLATES,
+  CATEGORY_LABELS,
+} from '@/tools/prompt-templates/builtin-templates'
+import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import {
   parsePromptTemplateImport,
   serializePromptTemplateExport,
@@ -41,6 +46,54 @@ beforeEach(() => {
 
 afterEach(() => {
   Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, writable: true })
+})
+
+describe('builtin template library', () => {
+  it('declares every placeholder it uses, and uses every variable it declares', () => {
+    // A placeholder with no variable renders as literal `{{name}}` in the user's output. A
+    // variable with no placeholder is a form field that changes nothing.
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      const used = new Set(
+        [...template.prompt.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)].map((match) => match[1])
+      )
+      const declared = new Set(template.variables.map((variable) => variable.name))
+      expect({ id: template.id, used: [...used].sort() }).toEqual({
+        id: template.id,
+        used: [...declared].sort(),
+      })
+    }
+  })
+
+  it('gives every select variable options and every other variable none', () => {
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      for (const variable of template.variables) {
+        if (variable.type === 'select') {
+          expect(variable.options?.length, `${template.id}/${variable.name}`).toBeGreaterThan(0)
+        } else {
+          expect(variable.options, `${template.id}/${variable.name}`).toBeUndefined()
+        }
+      }
+    }
+  })
+
+  it('keeps template ids unique, since the seed upserts by id', () => {
+    const ids = BUILTIN_PROMPT_TEMPLATES.map((template) => template.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('labels every category a template uses', () => {
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      expect(CATEGORY_LABELS[template.category], template.id).toBeTruthy()
+    }
+  })
+
+  it('ships every category with at least one template', () => {
+    // An empty category is a filter that always shows nothing.
+    const used = new Set(BUILTIN_PROMPT_TEMPLATES.map((template) => template.category))
+    for (const category of PROMPT_TEMPLATE_CATEGORIES) {
+      expect([...used], category).toContain(category)
+    }
+  })
 })
 
 describe('prompt template utilities', () => {
@@ -108,6 +161,29 @@ describe('prompt template utilities', () => {
     expect(() => parsePromptTemplateImport('{bad json')).toThrow(/valid JSON/)
   })
 
+  it('carries a variable description and example through an import', () => {
+    // Both describe what to type into a field. Dropping them on import leaves the importer with a
+    // blank box and no clue what belongs in it.
+    const [imported] = parsePromptTemplateImport(
+      JSON.stringify({
+        name: 'Described',
+        prompt: 'Model {{feature}}',
+        variables: [
+          {
+            name: 'feature',
+            type: 'textarea',
+            description: 'What the feature does.',
+            example: 'A share link that expires after 24 hours.',
+          },
+        ],
+      })
+    )
+    expect(imported?.variables[0]).toMatchObject({
+      description: 'What the feature does.',
+      example: 'A share link that expires after 24 hours.',
+    })
+  })
+
   it('rejects select variables without options on import', () => {
     expect(() =>
       parsePromptTemplateImport(
@@ -159,6 +235,36 @@ describe('PromptTemplates', () => {
     )
     fireEvent.click(screen.getByRole('tab', { name: /preview/i }))
     expect(screen.getByText('Preview')).toBeInTheDocument()
+  })
+
+  it('describes a variable to a screen reader through aria-describedby', () => {
+    // Each input carries its own aria-label, which overrides the wrapping label element. Help text
+    // placed inside that label reaches nobody unless the input points at it.
+    const described = BUILTIN_PROMPT_TEMPLATES.find((template) =>
+      template.variables.some((variable) => variable.description)
+    )
+    const variable = described?.variables.find((item) => item.description)
+    expect(variable).toBeDefined()
+
+    renderTool(PromptTemplates)
+    fireEvent.click(screen.getAllByText(described!.name)[0]!)
+
+    const field = screen.getByLabelText(variable!.label)
+    const descriptionId = field.getAttribute('aria-describedby')
+    expect(descriptionId).toBeTruthy()
+    expect(document.getElementById(descriptionId!)).toHaveTextContent(variable!.description!)
+  })
+
+  it('falls back to every category when the persisted filter names a retired one', () => {
+    // The filter outlives the category list that produced it. A retired category would otherwise
+    // leave the user on an empty library with a select showing no value, and no clue why.
+    // Seeded after the cache is cleared, because `renderTool` empties it just before rendering.
+    useToolStateCache.setState({ cache: new Map() })
+    useToolStateCache.getState().set('prompt-templates', { category: 'engineering' })
+    render(<PromptTemplates />)
+
+    expect(screen.getAllByText('Review: Detect Code Smells').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Filter templates by category')).toHaveValue('all')
   })
 
   it('filters templates by search text', () => {

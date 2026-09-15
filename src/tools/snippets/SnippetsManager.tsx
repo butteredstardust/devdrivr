@@ -1129,6 +1129,7 @@ export default function SnippetsManager() {
     <>
       <MasterDetailLayout
         title="Snippets"
+        widthStorageKey="snippets"
         subtitle={`${snippets.length} saved locally`}
         sidebarActions={
           // Secondary for the same reason as prompt-templates: the sidebar heading never carries

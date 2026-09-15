@@ -22,12 +22,15 @@ export const NOTE_COLORS = [
 ] as const
 
 const noteColorSchema = z.enum(NOTE_COLORS)
+// Kept in step with PROMPT_TEMPLATE_CATEGORIES in types/models.ts by hand. That module imports the
+// runtime value NOTE_COLORS from here, so importing the categories back would close a value cycle.
 const PROMPT_TEMPLATE_CATEGORY_VALUES = [
   'code-review',
   'refactoring',
   'testing',
   'docs',
   'debugging',
+  'security',
   'learning',
   'productivity',
 ] as const
@@ -40,6 +43,8 @@ const promptTemplateVariableSchema = z.object({
   placeholder: z.string().optional(),
   options: z.array(z.string()).optional(),
   required: z.boolean().optional(),
+  description: z.string().optional(),
+  example: z.string().optional(),
 })
 
 function parseStringArray(value: string | undefined): string[] {
@@ -235,6 +240,8 @@ export const promptTemplateRowSchema = z
             if (variable.placeholder) nextVariable.placeholder = variable.placeholder
             if (variable.options) nextVariable.options = variable.options
             if (variable.required !== undefined) nextVariable.required = variable.required
+            if (variable.description) nextVariable.description = variable.description
+            if (variable.example) nextVariable.example = variable.example
             return nextVariable
           })
         : []

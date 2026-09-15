@@ -35,14 +35,37 @@ export const MIN_SIDEBAR_WIDTH = 180
 export const MAX_SIDEBAR_WIDTH = 420
 
 export const MIN_NOTES_DRAWER_WIDTH = 280
-export const MAX_NOTES_DRAWER_WIDTH = 600
+
+/**
+ * Ceiling for the drawer on an unmeasured row, and the width a stored setting is capped to.
+ *
+ * Generous on purpose. The real limit is the window: `maxNotesDrawerWidth` derives it from the
+ * measured row, and `fitShellPanels` enforces the workspace floor regardless. This constant only
+ * stops a corrupt stored value from rendering a drawer wider than any display.
+ */
+export const MAX_NOTES_DRAWER_WIDTH = 2000
 
 export function clampSidebarWidth(width: number): number {
   return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)))
 }
 
-export function clampNotesDrawerWidth(width: number): number {
-  return Math.max(MIN_NOTES_DRAWER_WIDTH, Math.min(MAX_NOTES_DRAWER_WIDTH, Math.round(width)))
+/**
+ * Widest the drawer may be drawn in a row of `shellWidth`.
+ *
+ * The workspace keeps its floor and the sidebar keeps its rail, and the drawer may have the rest.
+ * An unmeasured row (`shellWidth <= 0`) falls back to the static ceiling — the drawer must not
+ * collapse to its minimum for the frame before the first measurement lands.
+ */
+export function maxNotesDrawerWidth(shellWidth: number): number {
+  if (shellWidth <= 0) return MAX_NOTES_DRAWER_WIDTH
+  const available = shellWidth - MIN_WORKSPACE_WIDTH - SIDEBAR_RAIL_WIDTH
+  return Math.max(MIN_NOTES_DRAWER_WIDTH, Math.min(MAX_NOTES_DRAWER_WIDTH, available))
+}
+
+/** Clamp against the static bounds. Pass `shellWidth` to clamp against the window as well. */
+export function clampNotesDrawerWidth(width: number, shellWidth = 0): number {
+  const max = maxNotesDrawerWidth(shellWidth)
+  return Math.max(MIN_NOTES_DRAWER_WIDTH, Math.min(max, Math.round(width)))
 }
 
 export type ShellFitInput = {

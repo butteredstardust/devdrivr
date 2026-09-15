@@ -59,7 +59,12 @@ export const settingsImportShape = {
   recentToolsLimit: z.number().int().min(0).max(5),
   sidebarWidth: z.number().finite().transform(clampSidebarWidth),
   notesDrawerOpen: z.boolean(),
-  notesDrawerWidth: z.number().finite().transform(clampNotesDrawerWidth),
+  // Clamped against the static bounds only. An imported file carries no window width, and the
+  // drawer is fitted to the measured row when it renders.
+  notesDrawerWidth: z
+    .number()
+    .finite()
+    .transform((width) => clampNotesDrawerWidth(width)),
   restoreWorkspaceOnLaunch: z.boolean(),
   defaultIndentSize: z.number().int().min(1).max(8),
   defaultTimezone: z.string().refine(isTimezone, 'Invalid IANA timezone'),

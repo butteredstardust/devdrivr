@@ -8,6 +8,8 @@ import durableTrashMigration from '@/../src-tauri/migrations/014_durable_trash.s
 import noteTasksMigration from '@/../src-tauri/migrations/015_note_tasks.sql?raw'
 import noteLinksMigration from '@/../src-tauri/migrations/016_note_links.sql?raw'
 import snippetFragmentsMigration from '@/../src-tauri/migrations/017_snippet_fragments.sql?raw'
+import categoryRepairMigration from '@/../src-tauri/migrations/019_prompt_template_category_repair.sql?raw'
+import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import tauriLib from '@/../src-tauri/src/lib.rs?raw'
 
 describe('persistence migrations', () => {
@@ -134,5 +136,26 @@ describe('persistence migrations', () => {
   it('registers the snippet fragments migration with the Tauri SQL plugin', () => {
     expect(tauriLib).toMatch(/version:\s*17/)
     expect(tauriLib).toContain('include_str!("../migrations/017_snippet_fragments.sql")')
+  })
+
+  it('returns a prompt template on an unknown category to a category the schema accepts', () => {
+    // A row on an unknown category fails promptTemplateRowSchema, and the reader drops it. The
+    // user loses the template with no message.
+    expect(categoryRepairMigration).toMatch(/UPDATE user_prompt_templates/i)
+    expect(categoryRepairMigration).toMatch(/SET category = 'productivity'/i)
+    expect(categoryRepairMigration).toMatch(/WHERE category NOT IN/i)
+    for (const category of PROMPT_TEMPLATE_CATEGORIES) {
+      expect(categoryRepairMigration).toContain(`'${category}'`)
+    }
+  })
+
+  it('never reuses the burned migration version', () => {
+    // A withdrawn migration held version 18. Databases that ran it record 18 as applied, so a new
+    // migration numbered 18 would silently never run on them.
+    expect(tauriLib).not.toMatch(/version:\s*18\b/)
+    expect(tauriLib).toMatch(/version:\s*19/)
+    expect(tauriLib).toContain(
+      'include_str!("../migrations/019_prompt_template_category_repair.sql")'
+    )
   })
 })
