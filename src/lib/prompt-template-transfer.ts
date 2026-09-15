@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
@@ -7,30 +6,23 @@ import type {
   PromptTemplateVariableType,
 } from '@/types/models'
 
-const LEGACY_PROMPT_TEMPLATE_CATEGORIES = [
+const PROMPT_TEMPLATE_CATEGORY_VALUES = [
   'code-review',
   'refactoring',
   'testing',
   'docs',
   'debugging',
+  'security',
   'learning',
+  'productivity',
 ] as const
 
-function normalizeCategory(
-  category: PromptTemplateCategory | (typeof LEGACY_PROMPT_TEMPLATE_CATEGORIES)[number]
-): PromptTemplateCategory {
-  if (category === 'docs') return 'content-creation'
-  if (category === 'learning') return 'productivity'
-  if (
-    category === 'code-review' ||
-    category === 'refactoring' ||
-    category === 'testing' ||
-    category === 'debugging'
-  ) {
-    return 'engineering'
-  }
-  return category
-}
+/** Apply each limit before database writes start. */
+export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
+export const MAX_PROMPT_TEMPLATE_IMPORT_ITEMS = 1000
+const MAX_PROMPT_CHARS = 100_000
+const MAX_FIELD_CHARS = 2_000
+const MAX_LIST_ITEMS = 100
 
 const importVariableSchema = z
   .object({
@@ -38,10 +30,10 @@ const importVariableSchema = z
     label: z.string().min(1).optional(),
     type: z.enum(['text', 'textarea', 'select']).default('text'),
     placeholder: z.string().optional(),
-    description: z.string().optional(),
-    example: z.string().optional(),
     options: z.array(z.string()).optional(),
     required: z.boolean().optional(),
+    description: z.string().max(MAX_FIELD_CHARS).optional(),
+    example: z.string().max(MAX_FIELD_CHARS).optional(),
   })
   .superRefine((variable, ctx) => {
     const hasOption = variable.options?.some((option) => option.trim()) ?? false
@@ -54,19 +46,10 @@ const importVariableSchema = z
     }
   })
 
-/** Apply each limit before database writes start. */
-export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
-export const MAX_PROMPT_TEMPLATE_IMPORT_ITEMS = 1000
-const MAX_PROMPT_CHARS = 100_000
-const MAX_FIELD_CHARS = 2_000
-const MAX_LIST_ITEMS = 100
-
 const importTemplateSchema = z.object({
   name: z.string().min(1).max(MAX_FIELD_CHARS),
   description: z.string().max(MAX_FIELD_CHARS).optional(),
-  category: z
-    .union([z.enum(PROMPT_TEMPLATE_CATEGORIES), z.enum(LEGACY_PROMPT_TEMPLATE_CATEGORIES)])
-    .default('productivity'),
+  category: z.enum(PROMPT_TEMPLATE_CATEGORY_VALUES).default('productivity'),
   tags: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS),
   variables: z.array(importVariableSchema).max(MAX_LIST_ITEMS).optional(),
@@ -74,18 +57,6 @@ const importTemplateSchema = z.object({
   optimizedFor: z.enum(['Claude', 'ChatGPT', 'Cursor', 'Generic']).default('Generic'),
   version: z.string().max(MAX_FIELD_CHARS).optional(),
   tips: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
-  language: z.string().max(MAX_FIELD_CHARS).optional(),
-  engine: z.string().max(MAX_FIELD_CHARS).optional(),
-  example: z.record(z.string(), z.string()).optional(),
-  source: z
-    .object({
-      library: z.string().max(MAX_FIELD_CHARS),
-      templateId: z.string().max(MAX_FIELD_CHARS),
-      authors: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS),
-      license: z.string().max(MAX_FIELD_CHARS),
-      url: z.string().max(MAX_FIELD_CHARS),
-    })
-    .optional(),
 })
 
 export type PromptTemplateDraft = {
@@ -99,10 +70,6 @@ export type PromptTemplateDraft = {
   optimizedFor: PromptTemplate['optimizedFor']
   version: string
   tips: string[]
-  language?: string
-  engine?: string
-  example?: Record<string, string>
-  source?: NonNullable<PromptTemplate['source']>
 }
 
 export type PromptTemplateImportSource = 'clipboard' | 'file'
@@ -151,13 +118,11 @@ function syncVariablesToPrompt(
       const options = existing.options?.map((option) => option.trim()).filter(Boolean) ?? []
       return { ...existing, options: options.length > 0 ? options : ['Option'] }
     }
-    return {
-      name: existing.name,
-      label: existing.label,
-      type: existing.type,
-      ...(existing.placeholder ? { placeholder: existing.placeholder } : {}),
-      ...(existing.required !== undefined ? { required: existing.required } : {}),
-    }
+    // Carry every other field, but drop options. They only apply to a select variable, so leaving
+    // them would keep stale choices alive after a select becomes a text field.
+    const next: PromptTemplateVariable = { ...existing }
+    delete next.options
+    return next
   })
 }
 
@@ -194,17 +159,6 @@ export function templateToDraft(template?: PromptTemplate): PromptTemplateDraft 
     optimizedFor: template.optimizedFor,
     version: template.version,
     tips: [...(template.tips ?? [])],
-    ...(template.language ? { language: template.language } : {}),
-    ...(template.engine ? { engine: template.engine } : {}),
-    ...(template.example ? { example: { ...template.example } } : {}),
-    ...(template.source
-      ? {
-          source: {
-            ...template.source,
-            authors: [...template.source.authors],
-          },
-        }
-      : {}),
   }
 }
 
@@ -265,18 +219,18 @@ export function parsePromptTemplateImport(
           type: variable.type,
         }
         if (variable.placeholder) nextVariable.placeholder = variable.placeholder
-        if (variable.description) nextVariable.description = variable.description
-        if (variable.example) nextVariable.example = variable.example
         const options = variable.options?.map((option) => option.trim()).filter(Boolean)
         if (options && options.length > 0) nextVariable.options = options
         if (variable.required !== undefined) nextVariable.required = variable.required
+        if (variable.description) nextVariable.description = variable.description.trim()
+        if (variable.example) nextVariable.example = variable.example.trim()
         return nextVariable
       })
     )
     return {
       name: template.name.trim(),
       description: template.description?.trim() ?? '',
-      category: normalizeCategory(template.category),
+      category: template.category,
       tags: template.tags ?? [],
       prompt,
       variables,
@@ -284,10 +238,6 @@ export function parsePromptTemplateImport(
       optimizedFor: template.optimizedFor,
       version: template.version?.trim() || '1.0.0',
       tips: template.tips ?? [],
-      ...(template.language ? { language: template.language } : {}),
-      ...(template.engine ? { engine: template.engine } : {}),
-      ...(template.example ? { example: template.example } : {}),
-      ...(template.source ? { source: template.source } : {}),
     }
   })
 }

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
   CaretRightIcon,
-  BookOpenTextIcon,
   HeartIcon,
   PackageIcon,
   ScrollIcon,
@@ -12,7 +11,6 @@ import { SearchInput } from '@/components/shared/SearchInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import {
   CARGO_DEPENDENCIES,
-  CONTENT_SOURCES,
   FONTS,
   NPM_DEPENDENCIES,
   licenseKeysFor,
@@ -48,12 +46,6 @@ const GROUPS: {
     items: CARGO_DEPENDENCIES,
   },
   { id: 'fonts', label: 'Typefaces', icon: <TextAaIcon size={12} />, items: FONTS },
-  {
-    id: 'content',
-    label: 'Bundled content',
-    icon: <BookOpenTextIcon size={12} />,
-    items: CONTENT_SOURCES,
-  },
 ]
 
 const ALL_ITEMS = GROUPS.flatMap((group) => group.items)
@@ -85,8 +77,9 @@ export function AcknowledgmentsTab() {
   return (
     <div className="space-y-4">
       <p className="text-2xs leading-relaxed text-[var(--color-text-muted)]">
-        devdrivr is MIT licensed and includes the work below. The list names direct dependencies and
-        bundled content. The tab also includes each applicable licence text.
+        devdrivr is MIT licensed and built on the work below. Only direct dependencies are named;
+        the full text of every licence they are offered under is reproduced at the bottom of this
+        tab.
       </p>
 
       <SearchInput
@@ -101,7 +94,7 @@ export function AcknowledgmentsTab() {
           icon={HeartIcon}
           size="sm"
           title="No matches"
-          description={`Nothing in the ${ALL_ITEMS.length} credited items matches “${query}”.`}
+          description={`Nothing in the ${ALL_ITEMS.length} credited packages matches “${query}”.`}
         />
       ) : (
         filtered.map((group) => (
@@ -139,7 +132,7 @@ export function AcknowledgmentsTab() {
 
       {query.trim() !== '' && filtered.length > 0 && (
         <p className="text-2xs text-[var(--color-text-muted)]">
-          {matchCount} of {ALL_ITEMS.length} items shown.
+          {matchCount} of {ALL_ITEMS.length} packages shown.
         </p>
       )}
 

@@ -51,9 +51,6 @@ Use one keyboard-driven app during a coding session. All tools run on your machi
 | **Network** | API Client · Docs Browser                                                                                                               |
 | **Write**   | Notes · Markdown Editor · Mermaid Editor · Snippets Manager · Prompt Templates                                                          |
 
-Prompt Templates includes 12 templates from the
-[PromtExpress OSS prompt library](https://github.com/WebitroHQ/promtexpress-oss), licensed under MIT.
-
 ### Shell features
 
 - **Command palette** — fuzzy search every tool (`Cmd+K`)

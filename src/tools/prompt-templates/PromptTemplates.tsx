@@ -141,11 +141,19 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
   return (
     <div className="space-y-3">
       {template.variables.map((variable) => (
+        // An explicit placeholder wins. Otherwise the example fills that job, because showing a
+        // filled-in value is the clearest way to state the shape and detail a field wants.
+        // Each input carries its own aria-label, so this help text stays out of the accessible name.
         <label key={variable.name} className="block">
           <span className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
             {variable.label}
             {variable.required && <span className="text-[var(--color-error)]">*</span>}
           </span>
+          {variable.description && (
+            <span className="mb-1 block text-2xs text-[var(--color-text-muted)]">
+              {variable.description}
+            </span>
+          )}
           {variable.type === 'select' ? (
             <Select
               value={values[variable.name] ?? ''}
@@ -163,7 +171,7 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
             <TextArea
               value={values[variable.name] ?? ''}
               onChange={(event) => onChange(variable.name, event.target.value)}
-              placeholder={variable.placeholder}
+              placeholder={variable.placeholder ?? variable.example}
               rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
               aria-label={variable.label}
               monospace
@@ -173,16 +181,11 @@ function VariableForm({ template, values, onChange }: VariableFormProps) {
             <Input
               value={values[variable.name] ?? ''}
               onChange={(event) => onChange(variable.name, event.target.value)}
-              placeholder={variable.placeholder}
+              placeholder={variable.placeholder ?? variable.example}
               monospace
               className="w-full"
               aria-label={variable.label}
             />
-          )}
-          {variable.description && (
-            <span className="mt-1 block text-2xs leading-4 text-[var(--color-text-muted)]">
-              {variable.description}
-            </span>
           )}
         </label>
       ))}
@@ -749,10 +752,6 @@ export default function PromptTemplates() {
     ],
     [state.overrides, userTemplates]
   )
-  const activeCategory: CategoryFilter =
-    state.category === 'all' || Object.hasOwn(CATEGORY_LABELS, state.category)
-      ? state.category
-      : 'all'
   const selectedTemplate = getTemplateById(state.selectedId, allTemplates)
   const selectedValues = useMemo(
     () => mergeDefaultValues(selectedTemplate, state.inputsByTemplate[selectedTemplate.id]),
@@ -771,11 +770,11 @@ export default function PromptTemplates() {
   const filteredTemplates = useMemo(() => {
     const query = state.search.trim().toLowerCase()
     return allTemplates.filter((template) => {
-      const matchesCategory = activeCategory === 'all' || template.category === activeCategory
+      const matchesCategory = state.category === 'all' || template.category === state.category
       const matchesSearch = !query || templateSearchText(template).includes(query)
       return matchesCategory && matchesSearch
     })
-  }, [activeCategory, allTemplates, state.search])
+  }, [allTemplates, state.category, state.search])
 
   const selectTemplate = useCallback(
     (template: PromptTemplate) => {
@@ -1044,7 +1043,7 @@ export default function PromptTemplates() {
                 clearLabel="Clear template search"
               />
               <Select
-                value={activeCategory}
+                value={state.category}
                 onChange={(event) =>
                   updateState({ category: event.target.value as CategoryFilter })
                 }
@@ -1314,21 +1313,6 @@ export default function PromptTemplates() {
                     </span>
                   ))}
                 </div>
-                {selectedTemplate.source && (
-                  <p className="mb-5 text-xs leading-5 text-[var(--color-text-muted)]">
-                    Source:{' '}
-                    <a
-                      href={selectedTemplate.source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[var(--color-accent)] underline-offset-2 hover:underline"
-                    >
-                      {selectedTemplate.source.library}
-                    </a>{' '}
-                    by {selectedTemplate.source.authors.map((author) => `@${author}`).join(', ')} ·{' '}
-                    {selectedTemplate.source.license}
-                  </p>
-                )}
                 <VariableForm
                   template={selectedTemplate}
                   values={selectedValues}

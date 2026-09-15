@@ -4,7 +4,11 @@ import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
-import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
+import {
+  BUILTIN_PROMPT_TEMPLATES,
+  CATEGORY_LABELS,
+} from '@/tools/prompt-templates/builtin-templates'
+import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import {
   parsePromptTemplateImport,
   serializePromptTemplateExport,
@@ -43,32 +47,67 @@ afterEach(() => {
   Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, writable: true })
 })
 
+describe('builtin template library', () => {
+  it('declares every placeholder it uses, and uses every variable it declares', () => {
+    // A placeholder with no variable renders as literal `{{name}}` in the user's output. A
+    // variable with no placeholder is a form field that changes nothing.
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      const used = new Set(
+        [...template.prompt.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)].map((match) => match[1])
+      )
+      const declared = new Set(template.variables.map((variable) => variable.name))
+      expect({ id: template.id, used: [...used].sort() }).toEqual({
+        id: template.id,
+        used: [...declared].sort(),
+      })
+    }
+  })
+
+  it('gives every select variable options and every other variable none', () => {
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      for (const variable of template.variables) {
+        if (variable.type === 'select') {
+          expect(variable.options?.length, `${template.id}/${variable.name}`).toBeGreaterThan(0)
+        } else {
+          expect(variable.options, `${template.id}/${variable.name}`).toBeUndefined()
+        }
+      }
+    }
+  })
+
+  it('keeps template ids unique, since the seed upserts by id', () => {
+    const ids = BUILTIN_PROMPT_TEMPLATES.map((template) => template.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('labels every category a template uses', () => {
+    for (const template of BUILTIN_PROMPT_TEMPLATES) {
+      expect(CATEGORY_LABELS[template.category], template.id).toBeTruthy()
+    }
+  })
+
+  it('ships every category with at least one template', () => {
+    // An empty category is a filter that always shows nothing.
+    const used = new Set(BUILTIN_PROMPT_TEMPLATES.map((template) => template.category))
+    for (const category of PROMPT_TEMPLATE_CATEGORIES) {
+      expect([...used], category).toContain(category)
+    }
+  })
+})
+
 describe('prompt template utilities', () => {
   it('renders placeholders with supplied values', () => {
-    const template = BUILTIN_PROMPT_TEMPLATES.find(
-      (item) => item.id === 'code/unit-tests-for-function'
-    )!
+    const template = BUILTIN_PROMPT_TEMPLATES.find((item) => item.id === 'generate-unit-tests')!
     const rendered = renderPrompt(template, {
-      framework: 'Vitest with TypeScript',
+      language: 'TypeScript',
+      framework: 'Vitest',
       code: 'export function add(a: number, b: number) { return a + b }',
-      specification: '',
-      existing_test_example: '',
     })
 
+    expect(rendered).toContain('TypeScript')
     expect(rendered).toContain('Vitest')
     expect(rendered).toContain('export function add')
     expect(rendered).not.toContain('{{code}}')
-  })
-
-  it('declares every prompt placeholder and uses every declared variable', () => {
-    for (const template of BUILTIN_PROMPT_TEMPLATES) {
-      const placeholders = new Set(
-        [...template.prompt.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)].map((match) => match[1])
-      )
-      const variables = new Set(template.variables.map((variable) => variable.name))
-
-      expect(placeholders, template.id).toEqual(variables)
-    }
   })
 
   it('estimates token count and warning tone from rendered text', () => {
@@ -84,7 +123,7 @@ describe('prompt template utilities', () => {
       JSON.stringify({
         name: 'Custom Debug Prompt',
         prompt: 'Review {{code}} with {{context}}',
-        category: 'engineering',
+        category: 'debugging',
       })
     )
 
@@ -97,7 +136,7 @@ describe('prompt template utilities', () => {
     const draft = {
       name: 'Portable prompt',
       description: '',
-      category: 'engineering' as const,
+      category: 'testing' as const,
       tags: [],
       prompt: 'Test {{code}}',
       variables: [],
@@ -105,15 +144,6 @@ describe('prompt template utilities', () => {
       optimizedFor: 'Generic' as const,
       version: '1.0.0',
       tips: [],
-      language: 'en',
-      example: { code: 'export const value = 1' },
-      source: {
-        library: 'PromtExpress OSS',
-        templateId: 'code/unit-tests-for-function',
-        authors: ['SpicesFire'],
-        license: 'MIT',
-        url: 'https://github.com/WebitroHQ/promtexpress-oss',
-      },
     }
     const serialized = serializePromptTemplateExport([draft])
     expect(JSON.parse(serialized)).toMatchObject({
@@ -122,24 +152,35 @@ describe('prompt template utilities', () => {
       exportedAt: expect.any(String),
       templates: [draft],
     })
-    expect(parsePromptTemplateImport(serialized)[0]).toMatchObject({
-      language: 'en',
-      example: draft.example,
-      source: draft.source,
-    })
+    expect(parsePromptTemplateImport(serialized)).toHaveLength(1)
     expect(parsePromptTemplateImport(JSON.stringify([draft]))).toHaveLength(1)
-  })
-
-  it('imports legacy categories and remaps them to the current set', () => {
-    const [draft] = parsePromptTemplateImport(
-      JSON.stringify({ name: 'Legacy tests', prompt: 'Test {{code}}', category: 'testing' })
-    )
-
-    expect(draft?.category).toBe('engineering')
   })
 
   it('rejects invalid import JSON', () => {
     expect(() => parsePromptTemplateImport('{bad json')).toThrow(/valid JSON/)
+  })
+
+  it('carries a variable description and example through an import', () => {
+    // Both describe what to type into a field. Dropping them on import leaves the importer with a
+    // blank box and no clue what belongs in it.
+    const [imported] = parsePromptTemplateImport(
+      JSON.stringify({
+        name: 'Described',
+        prompt: 'Model {{feature}}',
+        variables: [
+          {
+            name: 'feature',
+            type: 'textarea',
+            description: 'What the feature does.',
+            example: 'A share link that expires after 24 hours.',
+          },
+        ],
+      })
+    )
+    expect(imported?.variables[0]).toMatchObject({
+      description: 'What the feature does.',
+      example: 'A share link that expires after 24 hours.',
+    })
   })
 
   it('rejects select variables without options on import', () => {
@@ -186,7 +227,7 @@ describe('PromptTemplates', () => {
   it('renders the template library and switches between fill and preview workspaces', () => {
     renderTool(PromptTemplates)
 
-    expect(screen.getAllByText('Podcast intro voice-over').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Review: Detect Code Smells').length).toBeGreaterThan(0)
     expect(screen.getByRole('tab', { name: /fill variables/i })).toHaveAttribute(
       'aria-selected',
       'true'
@@ -199,15 +240,11 @@ describe('PromptTemplates', () => {
     renderTool(PromptTemplates)
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search prompt templates' }), {
-      target: { value: 'SQL query' },
+      target: { value: 'stack trace' },
     })
 
-    expect(screen.getByText('SQL Query from Question')).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('listbox', { name: 'Prompt templates' })).queryByText(
-        'Podcast intro voice-over'
-      )
-    ).not.toBeInTheDocument()
+    expect(screen.getByText('Debug: Stack Trace')).toBeInTheDocument()
+    expect(screen.queryByText('Generate: Unit Tests')).not.toBeInTheDocument()
   })
 
   it('opens quick fill, fills variables, and copies the rendered prompt', async () => {
@@ -218,16 +255,13 @@ describe('PromptTemplates', () => {
     })
 
     renderTool(PromptTemplates)
-    fireEvent.click(screen.getByText('Unit tests for a function'))
+    fireEvent.click(screen.getByText('Generate: Unit Tests'))
     fireEvent.click(screen.getByRole('button', { name: 'Focus mode' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Unit tests for a function' })
+    const dialog = screen.getByRole('dialog', { name: 'Generate: Unit Tests' })
     const codeField = within(dialog).getByLabelText('Code')
     fireEvent.change(codeField, {
       target: { value: 'export const double = (value: number) => value * 2' },
-    })
-    fireEvent.change(within(dialog).getByLabelText('Framework'), {
-      target: { value: 'Vitest with TypeScript' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy to Clipboard' }))
 
@@ -303,20 +337,9 @@ describe('PromptTemplates', () => {
   it('exposes the selected template state for assistive tech', () => {
     renderTool(PromptTemplates)
 
-    const selectedRow = screen.getAllByText('Podcast intro voice-over')[0]!.closest('button')
+    const selectedRow = screen.getAllByText('Review: Detect Code Smells')[0]!.closest('button')
 
     expect(selectedRow).toHaveAttribute('aria-selected', 'true')
-  })
-
-  it('shows upstream attribution and variable help for built-in templates', () => {
-    renderTool(PromptTemplates)
-
-    expect(screen.getByRole('link', { name: 'PromtExpress OSS' })).toHaveAttribute(
-      'href',
-      'https://github.com/WebitroHQ/promtexpress-oss'
-    )
-    expect(screen.getByText('Name of the podcast')).toBeInTheDocument()
-    expect(screen.getByText(/@SpicesFire · MIT/)).toBeInTheDocument()
   })
 
   it('supports arrow-key navigation through the template library', () => {
@@ -389,24 +412,6 @@ describe('PromptTemplates', () => {
     await waitFor(() => expect(usePromptTemplatesStore.getState().userTemplates).toHaveLength(1))
     expect(usePromptTemplatesStore.getState().userTemplates[0]!.author).toBe('user')
     expect(usePromptTemplatesStore.getState().userTemplates[0]!.name).toContain('(custom)')
-    expect(usePromptTemplatesStore.getState().userTemplates[0]!.source?.library).toBe(
-      'PromtExpress OSS'
-    )
-    expect(usePromptTemplatesStore.getState().userTemplates[0]!.variables[0]!.description).toBe(
-      'Name of the podcast'
-    )
-  })
-
-  it('preserves upstream metadata when it customizes a built-in template', async () => {
-    renderTool(PromptTemplates)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Customize built-in template' }))
-    const dialog = screen.getByRole('dialog', { name: 'Edit Prompt Template' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Template' }))
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.getByRole('link', { name: 'PromtExpress OSS' })).toBeInTheDocument()
-    expect(screen.getByText('Name of the podcast')).toBeInTheDocument()
   })
 
   it('requires explicit confirmation before deleting a custom template', async () => {

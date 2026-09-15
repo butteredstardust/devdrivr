@@ -184,12 +184,13 @@ export type SnippetFragment = {
 }
 
 export const PROMPT_TEMPLATE_CATEGORIES = [
-  'engineering',
-  'database',
-  'marketing',
-  'ecommerce',
-  'customer-support',
-  'content-creation',
+  'code-review',
+  'refactoring',
+  'testing',
+  'docs',
+  'debugging',
+  'security',
+  'learning',
   'productivity',
 ] as const
 
@@ -202,10 +203,12 @@ export type PromptTemplateVariable = {
   label: string
   type: PromptTemplateVariableType
   placeholder?: string
-  description?: string
-  example?: string
   options?: string[]
   required?: boolean
+  /** Why the variable exists, for a user filling a template someone else wrote. */
+  description?: string
+  /** A filled-in value. Shows the expected shape and detail, which a placeholder cannot. */
+  example?: string
 }
 
 export type PromptTemplate = {
@@ -221,16 +224,6 @@ export type PromptTemplate = {
   author: 'builtin' | 'user'
   version: string
   tips?: string[]
-  language?: string
-  engine?: string
-  example?: Record<string, string>
-  source?: {
-    library: string
-    templateId: string
-    authors: string[]
-    license: string
-    url: string
-  }
   createdAt?: number
   updatedAt?: number
 }

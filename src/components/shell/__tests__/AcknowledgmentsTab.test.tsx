@@ -1,13 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AcknowledgmentsTab } from '@/components/shell/AcknowledgmentsTab'
-import {
-  CARGO_DEPENDENCIES,
-  CONTENT_SOURCES,
-  FONTS,
-  NPM_DEPENDENCIES,
-  licenseKeysFor,
-} from '@/lib/acknowledgments'
+import { CARGO_DEPENDENCIES, FONTS, NPM_DEPENDENCIES, licenseKeysFor } from '@/lib/acknowledgments'
 import { LICENSE_TEXTS } from '@/lib/license-texts'
 
 afterEach(cleanup)
@@ -16,7 +10,7 @@ describe('AcknowledgmentsTab', () => {
   it('credits every direct dependency from both package managers', () => {
     render(<AcknowledgmentsTab />)
 
-    for (const dep of [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS, ...CONTENT_SOURCES]) {
+    for (const dep of [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS]) {
       expect(screen.getAllByText(dep.name).length).toBeGreaterThan(0)
     }
   })
@@ -51,7 +45,7 @@ describe('AcknowledgmentsTab', () => {
     render(<AcknowledgmentsTab />)
 
     const declared = new Set(
-      [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS, ...CONTENT_SOURCES].flatMap((dep) =>
+      [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS].flatMap((dep) =>
         licenseKeysFor(dep.license)
       )
     )
@@ -77,12 +71,9 @@ describe('AcknowledgmentsTab', () => {
     // The guard for `bun add`: a new dependency under a licence we carry no text for shows up here
     // rather than as a quietly incomplete notice on a tab nobody re-reads.
     const known = new Set(Object.keys(LICENSE_TEXTS))
-    const unknown = [
-      ...NPM_DEPENDENCIES,
-      ...CARGO_DEPENDENCIES,
-      ...FONTS,
-      ...CONTENT_SOURCES,
-    ].flatMap((dep) => licenseKeysFor(dep.license).filter((key) => !known.has(key)))
+    const unknown = [...NPM_DEPENDENCIES, ...CARGO_DEPENDENCIES, ...FONTS].flatMap((dep) =>
+      licenseKeysFor(dep.license).filter((key) => !known.has(key))
+    )
     expect(unknown).toEqual([])
   })
 })
