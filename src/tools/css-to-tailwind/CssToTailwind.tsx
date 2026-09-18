@@ -510,17 +510,19 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
         push('border-0')
         continue
       }
+      // A unitless `0` is legal, and the colour is optional — it falls back to `currentColor`.
+      // Both forms are common enough that rejecting them sends ordinary CSS to "unconvertible".
       const parts = value.match(
-        /^(\d+(?:\.\d+)?(?:px|rem|em))\s+(solid|dashed|dotted|double)\s+(.+)$/i
+        /^(0|\d+(?:\.\d+)?(?:px|rem|em))\s+(solid|dashed|dotted|double)(?:\s+(.+))?$/i
       )
       if (parts) {
         const width = parts[1]
         const style = parts[2]
         const color = parts[3]
-        if (width && style && color) {
-          push(width === '1px' ? 'border' : `border-[${width}]`)
+        if (width && style) {
+          push(width === '0' ? 'border-0' : width === '1px' ? 'border' : `border-[${width}]`)
           push(`border-${style.toLowerCase()}`)
-          push(`border-[color:${arbitraryValue(color)}]`)
+          if (color) push(`border-[color:${arbitraryValue(color)}]`)
           continue
         }
       }

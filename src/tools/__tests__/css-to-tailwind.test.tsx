@@ -52,6 +52,17 @@ describe('CssToTailwind', () => {
     expect(screen.queryByText('border-[1px_solid_red]')).not.toBeInTheDocument()
   })
 
+  it('converts a border shorthand with a unitless zero or no colour', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '.a { border: 0 solid #e5e7eb; } .b { border: 1px dashed; }' },
+    })
+    expect(screen.getAllByText('border-0').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('border-[color:#e5e7eb]').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('border-dashed').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/unconvertible/i)).not.toBeInTheDocument()
+  })
+
   it('uses valid zero utilities for font size, line height, and radius', () => {
     renderTool(CssToTailwind)
     fireEvent.change(screen.getByTestId('monaco-editor'), {

@@ -144,7 +144,9 @@ export default function TimestampConverter() {
   // Generated values are written in whatever unit the input is currently read as, so a preset
   // or picker selection round-trips instead of landing 1000× away.
   const writeEpoch = useCallback(
-    (ms: number) => String(state.epochUnit === 'seconds' ? Math.round(ms / 1000) : ms),
+    // Truncate rather than round. Rounding pulls the last millisecond of a day up to the next
+    // day, which lands the "End of day" preset on the wrong date.
+    (ms: number) => String(state.epochUnit === 'seconds' ? Math.floor(ms / 1000) : ms),
     [state.epochUnit]
   )
 

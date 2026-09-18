@@ -185,7 +185,9 @@ function parseCurl(input: string): CurlParseResult {
     } else if (token === '-b' || token === '--cookie') {
       headers['Cookie'] = tokens[++i] ?? ''
     } else if (token === '--compressed') {
-      // Browser clients handle response compression and forbid setting Accept-Encoding.
+      // Dropped for every target. Browsers negotiate response compression themselves and forbid
+      // setting Accept-Encoding. The Node target may set it, but `http.request` does not
+      // decompress, so the header alone would feed a gzip stream to `JSON.parse`.
       continue
     } else if (VALUE_FLAGS.has(token)) {
       i++

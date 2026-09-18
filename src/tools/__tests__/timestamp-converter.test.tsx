@@ -61,6 +61,22 @@ describe('TimestampConverter', () => {
     )
   })
 
+  it('keeps End of day on the same date in seconds mode', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Output timezone'), { target: { value: 'UTC' } })
+    fireEvent.change(screen.getByLabelText('Numeric input unit'), {
+      target: { value: 'seconds' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'End of day' }))
+    // Rounding would carry the last millisecond up into the next day.
+    expect(screen.getByLabelText('Timestamp or date to convert')).toHaveValue(
+      String(Date.parse('2026-09-18T23:59:59Z') / 1000)
+    )
+  })
+
   it('formats the same instant in the selected timezone', () => {
     renderTool(TimestampConverter)
     fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {

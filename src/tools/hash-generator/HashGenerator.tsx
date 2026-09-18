@@ -161,14 +161,16 @@ export default function HashGenerator() {
     if (!isFileSource || !selectedFileRef.current) return
     abortRef.current?.abort()
     setHashes(null)
-    setIsComputing(false)
+    // Stay in the computing state across the debounce. Clearing it first makes the tool claim no
+    // file is selected while the filename is still on screen.
+    setIsComputing(!needsHmacKey)
     setFileProgress(null)
     const timer = setTimeout(() => {
       const picked = selectedFileRef.current
       if (picked) processFile(picked)
     }, 250)
     return () => clearTimeout(timer)
-  }, [isFileSource, state.hmacMode, state.hmacKey, processFile])
+  }, [isFileSource, state.hmacMode, state.hmacKey, needsHmacKey, processFile])
 
   // ── Drag & drop ────────────────────────────────────────────────
   //
