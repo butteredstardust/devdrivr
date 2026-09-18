@@ -10,12 +10,17 @@
 # Built in development mode with sourcemaps rather than as a production bundle: the point of the
 # exercise is to be able to read a stack trace and a React component name.
 set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # A development-mode build with sourcemaps holds far more in memory than a production one, and
 # `--watch` keeps the whole module graph resident across rebuilds. The default heap is not enough:
 # the watcher died with "Ineffective mark-compacts near heap limit" partway through a rebuild,
 # leaving a half-written dist/ that served a blank page — a failure that reads like an app bug.
 export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=8192"
+
+# The remote build retains old hashed chunks during this session so an already-open browser tab
+# can load tools after a rebuild. Clear the previous session's generated output at startup.
+rm -rf dist
 
 DEVDRIVR_REMOTE_UI=1 bunx vite build --watch --mode development --sourcemap &
 VITE_PID=$!

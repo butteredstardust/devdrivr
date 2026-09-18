@@ -69,6 +69,7 @@ type CurlParseResult = { parsed: ParsedCurl | null; error: string | null }
 function tokenizeCurl(input: string): { tokens: string[]; error: string | null } {
   const tokens: string[] = []
   let current = ''
+  let started = false
   let quote: 'single' | 'double' | 'ansi' | null = null
   let escaping = false
 
@@ -88,24 +89,29 @@ function tokenizeCurl(input: string): { tokens: string[]; error: string | null }
     if (character === undefined) continue
     if (escaping) {
       current += appendEscape(character)
+      started = true
       escaping = false
       continue
     }
     if (character === '\\' && quote !== 'single') {
       escaping = true
+      started = true
       continue
     }
     if (!quote && character === '$' && input[index + 1] === "'") {
       quote = 'ansi'
+      started = true
       index += 1
       continue
     }
     if (!quote && character === "'") {
       quote = 'single'
+      started = true
       continue
     }
     if (!quote && character === '"') {
       quote = 'double'
+      started = true
       continue
     }
     if (
@@ -117,17 +123,19 @@ function tokenizeCurl(input: string): { tokens: string[]; error: string | null }
       continue
     }
     if (!quote && /\s/.test(character)) {
-      if (current) {
+      if (started) {
         tokens.push(current)
         current = ''
+        started = false
       }
       continue
     }
     current += character
+    started = true
   }
   if (escaping) current += '\\'
   if (quote) return { tokens: [], error: 'Unterminated quoted value in cURL command' }
-  if (current) tokens.push(current)
+  if (started) tokens.push(current)
   return { tokens, error: null }
 }
 
@@ -177,12 +185,22 @@ function parseCurl(input: string): CurlParseResult {
     } else if (token === '-b' || token === '--cookie') {
       headers['Cookie'] = tokens[++i] ?? ''
     } else if (token === '--compressed') {
-      headers['Accept-Encoding'] = 'gzip, deflate, br'
+      // Dropped for every target. Browsers negotiate response compression themselves and forbid
+      // setting Accept-Encoding. The Node target may set it, but `http.request` does not
+      // decompress, so the header alone would feed a gzip stream to `JSON.parse`.
+      continue
     } else if (VALUE_FLAGS.has(token)) {
       i++
     } else if (!token.startsWith('-')) {
       url = token
     }
+  }
+
+  if (
+    body !== null &&
+    !Object.keys(headers).some((name) => name.toLowerCase() === 'content-type')
+  ) {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded'
   }
 
   if (!url) return { parsed: null, error: 'No request URL found in cURL command' }
@@ -195,21 +213,6 @@ function esc(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
-/**
- * Emit a body as JavaScript source. Valid JSON objects and arrays become object/array
- * literals; anything else — including malformed text that merely starts with `{` — is
- * emitted as a string so the generated program stays syntactically valid.
- */
-function bodyAsJsonSource(body: string): string {
-  try {
-    const parsed: unknown = JSON.parse(body)
-    if (parsed !== null && typeof parsed === 'object') return body
-  } catch {
-    // not JSON — fall through to string form
-  }
-  return JSON.stringify(body)
-}
-
 function toFetch(p: ParsedCurl): string {
   const opts: string[] = []
   if (p.method !== 'GET') opts.push(`  method: '${p.method}',`)
@@ -219,24 +222,22 @@ function toFetch(p: ParsedCurl): string {
     for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
-  if (p.body) opts.push(`  body: ${JSON.stringify(p.body)},`)
+  if (p.body !== null) opts.push(`  body: ${JSON.stringify(p.body)},`)
   if (opts.length === 0)
     return `const response = await fetch('${esc(p.url)}')\nconst data = await response.json()`
   return `const response = await fetch('${esc(p.url)}', {\n${opts.join('\n')}\n})\nconst data = await response.json()`
 }
 
 function toAxios(p: ParsedCurl): string {
-  const opts: string[] = []
+  const opts: string[] = [`  url: '${esc(p.url)}',`, `  method: '${p.method}',`]
   const hdr = Object.entries(p.headers)
   if (hdr.length > 0) {
     opts.push('  headers: {')
     for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
-  if (p.body) opts.push(`  data: ${bodyAsJsonSource(p.body)},`)
-  const m = p.method.toLowerCase()
-  if (opts.length === 0) return `const { data } = await axios.${m}('${esc(p.url)}')`
-  return `const { data } = await axios.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n})`
+  if (p.body !== null) opts.push(`  data: ${JSON.stringify(p.body)},`)
+  return `const { data } = await axios.request({\n${opts.join('\n')}\n})`
 }
 
 function toKy(p: ParsedCurl): string {
@@ -247,7 +248,7 @@ function toKy(p: ParsedCurl): string {
     for (const [k, v] of hdr) opts.push(`    '${esc(k)}': '${esc(v)}',`)
     opts.push('  },')
   }
-  if (p.body) opts.push(`  json: ${bodyAsJsonSource(p.body)},`)
+  if (p.body !== null) opts.push(`  body: ${JSON.stringify(p.body)},`)
   const m = p.method.toLowerCase()
   if (opts.length === 0) return `const data = await ky.${m}('${esc(p.url)}').json()`
   return `const data = await ky.${m}('${esc(p.url)}', {\n${opts.join('\n')}\n}).json()`
@@ -264,7 +265,7 @@ function toXhr(p: ParsedCurl): string {
     `  console.log(data)`,
     `}`
   )
-  lines.push(p.body ? `xhr.send(${JSON.stringify(p.body)})` : `xhr.send()`)
+  lines.push(p.body !== null ? `xhr.send(${JSON.stringify(p.body)})` : `xhr.send()`)
   return lines.join('\n')
 }
 
@@ -278,7 +279,7 @@ function toNodeHttp(p: ParsedCurl): string {
   })()
   const mod = urlObj?.protocol === 'https:' ? 'https' : 'http'
   const lines = [`const ${mod} = require('${mod}')`, ``]
-  if (p.body) lines.push(`const body = ${JSON.stringify(p.body)}`, ``)
+  if (p.body !== null) lines.push(`const body = ${JSON.stringify(p.body)}`, ``)
   lines.push(
     `const options = {`,
     `  hostname: '${esc(urlObj?.hostname ?? 'example.com')}',`,
@@ -287,10 +288,10 @@ function toNodeHttp(p: ParsedCurl): string {
     `  method: '${p.method}',`
   )
   const hdr = Object.entries(p.headers)
-  if (hdr.length > 0 || p.body) {
+  if (hdr.length > 0 || p.body !== null) {
     lines.push(`  headers: {`)
     for (const [k, v] of hdr) lines.push(`    '${esc(k)}': '${esc(v)}',`)
-    if (p.body) lines.push(`    'Content-Length': Buffer.byteLength(body, 'utf8'),`)
+    if (p.body !== null) lines.push(`    'Content-Length': Buffer.byteLength(body, 'utf8'),`)
     lines.push(`  },`)
   }
   lines.push(`}`)
@@ -300,7 +301,7 @@ function toNodeHttp(p: ParsedCurl): string {
   lines.push(`  res.on('data', (chunk) => { data += chunk })`)
   lines.push(`  res.on('end', () => console.log(JSON.parse(data)))`)
   lines.push(`})`)
-  if (p.body) lines.push(`req.write(body)`)
+  if (p.body !== null) lines.push(`req.write(body)`)
   lines.push(`req.end()`)
   return lines.join('\n')
 }

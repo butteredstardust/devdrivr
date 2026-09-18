@@ -31,6 +31,73 @@ describe('CurlToFetch', () => {
     expect(screen.getByText('GET')).toBeInTheDocument()
   })
 
+  it('parses a command continued across lines', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: {
+        value: [
+          "curl 'https://api.example.com/data' \\",
+          "  -H 'Accept: application/json' \\",
+          "  -d ''",
+        ].join('\n'),
+      },
+    })
+    expect(screen.getByText('POST')).toBeInTheDocument()
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain('https://api.example.com/data')
+    expect(output).toContain('Accept')
+    expect(output).toContain('body: ""')
+  })
+
+  it('keeps the POST body and headers in Axios request configuration', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: {
+        value:
+          "curl 'https://api.example.com/orders' -H 'Content-Type: application/json' -d '{\"qty\":2}'",
+      },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'axios' }))
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain('axios.request({')
+    expect(output).toContain("method: 'POST'")
+    expect(output).toContain("'Content-Type': 'application/json'")
+    expect(output).toContain('data: "{\\"qty\\":2}"')
+    expect(output).not.toContain('axios.post(')
+  })
+
+  it('keeps form request bytes unchanged in the ky output', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl 'https://api.example.com/orders' -d 'name=Grace&active=true'" },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'ky' }))
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain('body: "name=Grace&active=true"')
+    expect(output).not.toContain('json:')
+  })
+
+  it('preserves the default cURL form content type and omits browser-forbidden compression headers', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: {
+        value: "curl 'https://api.example.com/form' -d 'name=Ada' --compressed",
+      },
+    })
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain("'Content-Type': 'application/x-www-form-urlencoded'")
+    expect(output).not.toContain('Accept-Encoding')
+  })
+
+  it('keeps an explicitly empty POST body in generated fetch code', () => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: "curl 'https://api.example.com/form' -d ''" },
+    })
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain('body: ""')
+  })
+
   it('consumes values belonging to known curl flags instead of treating them as the URL', () => {
     renderTool(CurlToFetch)
     fireEvent.change(screen.getByPlaceholderText(/curl/i), {

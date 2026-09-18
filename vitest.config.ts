@@ -1,8 +1,10 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
 export default defineConfig({
   test: {
+    // Local nested worktrees are separate checkouts; running their tests here mixes results.
+    exclude: [...configDefaults.exclude, '**/.kilo/**'],
     environment: 'node', // Use node environment and set up DOM manually
     globals: true,
     setupFiles: ['./src/tools/__tests__/test-setup.ts', './src/test-setup.ts'],

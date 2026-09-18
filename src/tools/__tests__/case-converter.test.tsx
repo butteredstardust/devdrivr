@@ -42,6 +42,12 @@ describe('CaseConverter', () => {
     expect(screen.getByText('MyVariableName')).toBeInTheDocument()
   })
 
+  it('keeps acronym and numeric boundaries when converting identifiers', () => {
+    const results = computeCases('HTTP2Server')
+    expect(results.find((result) => result.id === 'camel')?.value).toBe('http2Server')
+    expect(results.find((result) => result.id === 'snake')?.value).toBe('http2_server')
+  })
+
   it('shows placeholder when input is empty', () => {
     render(<CaseConverter />)
     expect(screen.getByText(/enter text above to see conversions/i)).toBeInTheDocument()
