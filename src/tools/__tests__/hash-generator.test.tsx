@@ -55,6 +55,38 @@ describe('HashGenerator', () => {
     expect(screen.getByText(/enter text above to see hashes/i)).toBeInTheDocument()
   })
 
+  it('does not present ordinary hashes as HMAC results without a key', async () => {
+    renderTool(HashGenerator)
+    fireEvent.change(screen.getByPlaceholderText(/enter text to hash/i), {
+      target: { value: 'hello' },
+    })
+    await waitFor(() => expect(screen.getByText('SHA-256')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('switch', { name: 'HMAC' }))
+    expect(screen.getByText(/enter an HMAC secret key to calculate hashes/i)).toBeInTheDocument()
+    expect(screen.queryByText('SHA-256')).not.toBeInTheDocument()
+  })
+
+  it('keeps a selected file while the HMAC key is entered', () => {
+    renderTool(HashGenerator)
+    fireEvent.click(screen.getByRole('radio', { name: 'File' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'HMAC' }))
+    fireEvent.change(screen.getByLabelText('Choose a file to hash'), {
+      target: { files: [new File(['hello'], 'hello.txt')] },
+    })
+    expect(screen.getByText('hello.txt')).toBeInTheDocument()
+    expect(screen.getByText(/enter an HMAC secret key to calculate hashes/i)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'HMAC secret key' }), {
+      target: { value: 'first-key' },
+    })
+    expect(screen.getByText('hello.txt')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'HMAC secret key' }), {
+      target: { value: 'second-key' },
+    })
+    expect(screen.getByText('hello.txt')).toBeInTheDocument()
+  })
+
   // Tauri claims the operating-system drop, so the React `onDrop` handler never fires on the
   // desktop. The tool answered "File drop is not supported by the active tool" without this path.
   it('takes a file dropped on the desktop window', async () => {

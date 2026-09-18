@@ -77,29 +77,32 @@ function parseInput(input: string, epochUnit: EpochUnit = 'auto'): Date | null {
 
 // ── Presets ─────────────────────────────────────────────────────────
 
-type Preset = { label: string; getMs: () => number }
+type Preset = { label: string; getMs: (zone: string) => number }
+
+function zonedDayBoundary(zone: string, nextDay: boolean): number {
+  const now = Date.now()
+  const today = toZonedWallClock(new Date(now), zone).slice(0, 10)
+  const twoDays = 48 * 3_600_000
+  let low = nextDay ? now : now - twoDays
+  let high = nextDay ? now + twoDays : now
+  // Search for the first instant of today (or the next day). This also handles zones whose
+  // clocks jump at midnight and days whose length changes at a daylight-saving transition.
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2)
+    const day = toZonedWallClock(new Date(middle), zone).slice(0, 10)
+    if (nextDay ? day <= today : day < today) low = middle
+    else high = middle
+  }
+  return high
+}
 
 const PRESETS: Preset[] = [
   { label: 'Now', getMs: () => Date.now() },
   { label: '+1h', getMs: () => Date.now() + 3_600_000 },
   { label: '+1d', getMs: () => Date.now() + 86_400_000 },
   { label: '+1w', getMs: () => Date.now() + 604_800_000 },
-  {
-    label: 'Start of day',
-    getMs: () => {
-      const d = new Date()
-      d.setHours(0, 0, 0, 0)
-      return d.getTime()
-    },
-  },
-  {
-    label: 'End of day',
-    getMs: () => {
-      const d = new Date()
-      d.setHours(23, 59, 59, 999)
-      return d.getTime()
-    },
-  },
+  { label: 'Start of day', getMs: (zone) => zonedDayBoundary(zone, false) },
+  { label: 'End of day', getMs: (zone) => zonedDayBoundary(zone, true) - 1 },
   { label: 'Epoch', getMs: () => 0 },
 ]
 
@@ -148,10 +151,10 @@ export default function TimestampConverter() {
   const handlePreset = useCallback(
     (preset: Preset) => {
       markUserEdit()
-      updateState({ input: writeEpoch(preset.getMs()) })
+      updateState({ input: writeEpoch(preset.getMs(zone)) })
       setLastAction(`Set to ${preset.label}`, 'success')
     },
-    [markUserEdit, updateState, setLastAction, writeEpoch]
+    [markUserEdit, updateState, setLastAction, writeEpoch, zone]
   )
 
   // The picker reads and writes in the *selected* zone, not the host's. A picker that silently

@@ -44,6 +44,23 @@ describe('TimestampConverter', () => {
     expect(screen.getByText('ISO week')).toBeInTheDocument()
   })
 
+  it('applies start and end of day presets in the selected timezone', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Output timezone'), { target: { value: 'UTC' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start of day' }))
+    expect(screen.getByLabelText('Timestamp or date to convert')).toHaveValue(
+      String(Date.parse('2026-09-18T00:00:00Z'))
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'End of day' }))
+    expect(screen.getByLabelText('Timestamp or date to convert')).toHaveValue(
+      String(Date.parse('2026-09-19T00:00:00Z') - 1)
+    )
+  })
+
   it('formats the same instant in the selected timezone', () => {
     renderTool(TimestampConverter)
     fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {

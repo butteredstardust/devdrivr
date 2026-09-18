@@ -78,9 +78,11 @@ export default function HashGenerator() {
   const [hashes, setHashes] = useState<Hashes | null>(null)
   const [isComputing, setIsComputing] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const textRunIdRef = useRef(0)
 
   // ── File source ────────────────────────────────────────────────
   const [file, setFile] = useState<{ name: string; size: number } | null>(null)
+  const selectedFileRef = useRef<File | null>(null)
   const [fileProgress, setFileProgress] = useState<number | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -90,18 +92,26 @@ export default function HashGenerator() {
   const abortRef = useRef<AbortController | null>(null)
 
   const isFileSource = state.source === 'file'
+  const needsHmacKey = state.hmacMode && !state.hmacKey
 
   const processFile = useCallback(
     (picked: File) => {
+      abortRef.current?.abort()
+      selectedFileRef.current = picked
+      setFile({ name: picked.name, size: picked.size })
+      setHashes(null)
+      setFileProgress(null)
+      if (state.hmacMode && !state.hmacKey) {
+        setFileError(null)
+        setIsComputing(false)
+        return
+      }
       // Dropping a second file while the first is still going is easy to do, and without this the
       // two runs race to set the same result — with the slower, older one winning.
-      abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
 
-      setFile({ name: picked.name, size: picked.size })
       setFileError(null)
-      setHashes(null)
       setFileProgress(0)
       setIsComputing(true)
 
@@ -111,10 +121,9 @@ export default function HashGenerator() {
           if (!controller.signal.aborted) setFileProgress(total === 0 ? 1 : loaded / total)
         },
       }
-      const filePromise =
-        state.hmacMode && state.hmacKey
-          ? computeFileHmac(picked, state.hmacKey, fileOptions)
-          : computeFileHashes(picked, fileOptions)
+      const filePromise = state.hmacMode
+        ? computeFileHmac(picked, state.hmacKey, fileOptions)
+        : computeFileHashes(picked, fileOptions)
       filePromise
         .then((result) => {
           if (controller.signal.aborted) return
@@ -140,12 +149,26 @@ export default function HashGenerator() {
 
   const clearFile = useCallback(() => {
     abortRef.current?.abort()
+    selectedFileRef.current = null
     setFile(null)
     setFileProgress(null)
     setFileError(null)
     setHashes(null)
     setIsComputing(false)
   }, [])
+
+  useEffect(() => {
+    if (!isFileSource || !selectedFileRef.current) return
+    abortRef.current?.abort()
+    setHashes(null)
+    setIsComputing(false)
+    setFileProgress(null)
+    const timer = setTimeout(() => {
+      const picked = selectedFileRef.current
+      if (picked) processFile(picked)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [isFileSource, state.hmacMode, state.hmacKey, processFile])
 
   // ── Drag & drop ────────────────────────────────────────────────
   //
@@ -201,7 +224,9 @@ export default function HashGenerator() {
    */
   const handleSourceChange = useCallback(
     (source: HashSource) => {
+      textRunIdRef.current += 1
       abortRef.current?.abort()
+      selectedFileRef.current = null
       setFile(null)
       setFileProgress(null)
       setFileError(null)
@@ -214,13 +239,15 @@ export default function HashGenerator() {
 
   const runCompute = useCallback(
     (input: string) => {
+      const runId = ++textRunIdRef.current
       setIsComputing(true)
-      const fn =
-        state.hmacMode && state.hmacKey ? computeHmac(input, state.hmacKey) : computeHashes(input)
+      const fn = state.hmacMode ? computeHmac(input, state.hmacKey) : computeHashes(input)
       fn.then((result) => {
+        if (runId !== textRunIdRef.current) return
         setHashes(result)
         setIsComputing(false)
       }).catch(() => {
+        if (runId !== textRunIdRef.current) return
         setHashes(null)
         setIsComputing(false)
       })
@@ -233,11 +260,13 @@ export default function HashGenerator() {
     // File and back would re-run the debounce and overwrite the file digest with the stale textarea
     // contents.
     if (isFileSource) return
-    if (!state.input) {
+    textRunIdRef.current += 1
+    if (!state.input || needsHmacKey) {
       setHashes(null)
       setIsComputing(false)
       return
     }
+    setHashes(null)
     setIsComputing(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
@@ -246,7 +275,7 @@ export default function HashGenerator() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [state.input, runCompute, isFileSource])
+  }, [state.input, runCompute, isFileSource, needsHmacKey])
 
   useEffect(() => {
     // File runs record their own entry with the filename, so this only covers the text path.
@@ -489,7 +518,9 @@ export default function HashGenerator() {
         </Field>
       </div>
 
-      {hashList.length > 0 ? (
+      {needsHmacKey ? (
+        <Alert variant="info">Enter an HMAC secret key to calculate hashes.</Alert>
+      ) : hashList.length > 0 ? (
         <div className="flex flex-col gap-3">
           {hashList.map((h) => {
             const displayValue = applyCase(h.value)
@@ -531,7 +562,11 @@ export default function HashGenerator() {
         <EmptyState
           icon={HashIcon}
           title={
-            isFileSource ? 'Drop a file above to see its hashes' : 'Enter text above to see hashes'
+            isComputing
+              ? 'Computing hashes…'
+              : isFileSource
+                ? 'Drop a file above to see its hashes'
+                : 'Enter text above to see hashes'
           }
           size="sm"
           className="p-0"

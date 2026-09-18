@@ -99,7 +99,13 @@ export function transformUrlInput(
     // Cap malformed/adversarial input while still covering every realistic nested URL.
     for (let level = 1; level < 20; level += 1) {
       if (!/%[0-9a-f]{2}/i.test(result)) break
-      const next = decode(result)
+      let next: string
+      try {
+        next = decode(result)
+      } catch {
+        // The first decode succeeded; preserve it when a later layer is malformed.
+        break
+      }
       if (next === result) break
       result = next
     }
@@ -137,7 +143,7 @@ export default function UrlCodec() {
   const setLastAction = useUiStore((s) => s.setLastAction)
 
   const output = useMemo(() => {
-    if (!state.input.trim()) return { text: '', error: null, lineErrors: [] as UrlLineError[] }
+    if (state.input.length === 0) return { text: '', error: null, lineErrors: [] as UrlLineError[] }
     try {
       const { text, lineErrors } = transformUrlInput(state.input, state)
       return { text, error: null, lineErrors }
@@ -157,7 +163,7 @@ export default function UrlCodec() {
   }, [state.mode, state.input])
 
   const encodedCount = useMemo(() => {
-    if (!state.input.trim() || !output.text) return 0
+    if (state.input.length === 0 || !output.text) return 0
     return countEncodedChars(state.input, output.text)
   }, [state.input, output.text])
 

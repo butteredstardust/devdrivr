@@ -40,6 +40,80 @@ describe('CssToTailwind', () => {
     expect(screen.getAllByText('w-[calc(100%_-_2rem)]').length).toBeGreaterThan(0)
   })
 
+  it('keeps common border and percentage font-size declarations valid', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '.card { border: 1px solid red; font-size: 100%; }' },
+    })
+    expect(screen.getAllByText('border-solid').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('border-[color:red]').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('text-[100%]').length).toBeGreaterThan(0)
+    expect(screen.queryByText('text-full')).not.toBeInTheDocument()
+    expect(screen.queryByText('border-[1px_solid_red]')).not.toBeInTheDocument()
+  })
+
+  it('uses valid zero utilities for font size, line height, and radius', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '.card { font-size: 0; line-height: 0; border-radius: 0; }' },
+    })
+    expect(screen.getAllByText('text-[0]').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('leading-[0]').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('rounded-none').length).toBeGreaterThan(0)
+  })
+
+  it('does not emit unconditional classes for unsupported media queries', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '@media (max-width: 600px) { .card { color: red; } }' },
+    })
+    expect(screen.getByText(/unsupported context/)).toBeInTheDocument()
+    expect(screen.queryByText('text-[red]')).not.toBeInTheDocument()
+  })
+
+  it('uses a responsive variant only for an exact supported breakpoint', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: { value: '@media (min-width: 768px) { .card { display: grid; } }' },
+    })
+    expect(screen.getAllByText('md:grid').length).toBeGreaterThan(0)
+  })
+
+  it('keeps the screen media prefix and non-conditional layer rules', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: {
+        value:
+          '@media screen and (min-width: 768px) { .card { display: grid; } }\n@layer components { .card { display: flex; } }',
+      },
+    })
+    expect(screen.getAllByText('md:grid').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('flex').length).toBeGreaterThan(0)
+  })
+
+  it('retains media variants through nested layer rules', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: {
+        value: '@media (min-width: 768px) { @layer components { .card { display: grid; } } }',
+      },
+    })
+    expect(screen.getAllByText('md:grid').length).toBeGreaterThan(0)
+    expect(screen.queryByText('grid')).not.toBeInTheDocument()
+  })
+
+  it('does not discard an unsupported outer at-rule', () => {
+    renderTool(CssToTailwind)
+    fireEvent.change(screen.getByTestId('monaco-editor'), {
+      target: {
+        value:
+          '@supports (display: grid) { @media (min-width: 768px) { .card { display: grid; color: red; } } }',
+      },
+    })
+    expect(screen.getByText('@supports (unsupported context)')).toBeInTheDocument()
+    expect(screen.queryByText('md:grid')).not.toBeInTheDocument()
+  })
+
   it('shows empty state when no input', () => {
     renderTool(CssToTailwind)
     expect(screen.getByText('Enter CSS on the left to convert')).toBeInTheDocument()

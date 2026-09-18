@@ -285,18 +285,23 @@ function convertSizeProperty(prop: string, value: string): string | null {
   const p = prefix[prop]
   if (!p) return null
 
-  if (value === '100%') return `${p}-full`
-  // `w-screen` is 100vw and `h-screen` is 100vh, so the shortcut only applies when the property
-  // axis matches the viewport unit. `height: 100vw` is a real, different thing.
-  const horizontal = ['width', 'min-width', 'max-width', 'left', 'right'].includes(prop)
-  const vertical = ['height', 'min-height', 'max-height', 'top', 'bottom'].includes(prop)
-  if (value === '100vw' && horizontal) return `${p}-screen`
-  if (value === '100vh' && vertical) return `${p}-screen`
-  if (value === 'auto') return `${p}-auto`
-  if (value === '0' || value === '0px') return `${p}-0`
-  if (value === 'fit-content') return `${p}-fit`
-  if (value === 'min-content') return `${p}-min`
-  if (value === 'max-content') return `${p}-max`
+  const dimension = ['width', 'min-width', 'max-width', 'height', 'min-height', 'max-height']
+  const inset = ['top', 'right', 'bottom', 'left']
+  if (value === '100%' && [...dimension, ...inset].includes(prop)) return `${p}-full`
+  // `w-screen` and `h-screen` only match the corresponding viewport dimension.
+  if (value === '100vw' && prop === 'width') return `${p}-screen`
+  if (value === '100vh' && prop === 'height') return `${p}-screen`
+  if (value === 'auto' && [...dimension, ...inset, 'z-index'].includes(prop)) return `${p}-auto`
+  if (value === '0' || value === '0px') {
+    if (prop === 'font-size' || prop === 'line-height') return `${p}-[0]`
+    if (prop === 'border-radius') return 'rounded-none'
+    return `${p}-0`
+  }
+  if (dimension.includes(prop)) {
+    if (value === 'fit-content') return `${p}-fit`
+    if (value === 'min-content') return `${p}-min`
+    if (value === 'max-content') return `${p}-max`
+  }
 
   if (prop === 'font-size' && FONT_SIZE_SCALE[value]) return `text-${FONT_SIZE_SCALE[value]}`
   if (prop === 'border-radius' && value in RADIUS_SCALE) {
@@ -346,6 +351,7 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
     important: boolean
     variants: string[]
     selector: string
+    unsupportedContext: string | null
   }> = []
   try {
     let ast = cssTree.parse(css, { positions: true })
@@ -363,35 +369,52 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
       })
       if (declarationCount === 0) ast = cssTree.parse(`:root {${css}}`, { positions: true })
     }
+    const atRules: Array<{ name: string; prelude: string }> = []
     cssTree.walk(ast, {
-      visit: 'Declaration',
-      enter(node) {
+      enter(this: cssTree.WalkContext, node: cssTree.CssNode) {
+        if (node.type === 'Atrule') {
+          atRules.push({
+            name: node.name,
+            prelude: node.prelude ? cssTree.generate(node.prelude) : '',
+          })
+          return
+        }
+        if (node.type !== 'Declaration') return
         const variants: string[] = []
         const selector = this.rule?.prelude ? cssTree.generate(this.rule.prelude) : ''
+        let unsupportedContext: string | null = null
         for (const match of selector.matchAll(
           /:(hover|focus|active|disabled|visited|checked)\b/g
         )) {
           const variant = match[1]
           if (variant && !variants.includes(variant)) variants.push(variant)
         }
-        if (this.atrule?.name === 'media' && this.atrule.prelude) {
-          const media = cssTree.generate(this.atrule.prelude)
-          const width = Number(media.match(/min-width\s*:\s*(\d+)px/i)?.[1])
-          const breakpoint =
-            width >= 1536
-              ? '2xl'
-              : width >= 1280
-                ? 'xl'
-                : width >= 1024
-                  ? 'lg'
-                  : width >= 768
-                    ? 'md'
-                    : width >= 640
-                      ? 'sm'
-                      : null
-          if (breakpoint) variants.unshift(breakpoint)
-          else unconvertible.push(`@media ${media} (unsupported context)`)
+        const mediaVariants: string[] = []
+        for (const atRule of atRules) {
+          if (atRule.name === 'layer') continue
+          if (atRule.name !== 'media' || !atRule.prelude) {
+            unsupportedContext = `@${atRule.name} (unsupported context)`
+            break
+          }
+          const media = atRule.prelude
+          const width = media.match(
+            /^(?:(?:only\s+)?screen\s+and\s+)?\(\s*min-width\s*:\s*(\d+)px\s*\)$/i
+          )?.[1]
+          const breakpoint = width
+            ? (
+                { '640': 'sm', '768': 'md', '1024': 'lg', '1280': 'xl', '1536': '2xl' } as Record<
+                  string,
+                  string
+                >
+              )[width]
+            : undefined
+          if (breakpoint) mediaVariants.push(breakpoint)
+          else {
+            unsupportedContext = `@media ${media} (unsupported context)`
+            break
+          }
         }
+        variants.unshift(...mediaVariants)
         const value = cssTree.generate(node.value)
         const important = Boolean(node.important)
         declarations.push({
@@ -400,7 +423,11 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
           important,
           variants,
           selector: selector || ':root',
+          unsupportedContext,
         })
+      },
+      leave(node: cssTree.CssNode) {
+        if (node.type === 'Atrule') atRules.pop()
       },
     })
   } catch (error) {
@@ -412,7 +439,11 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
   }
 
   for (const declaration of declarations) {
-    const { prop, rawValue, important, variants, selector } = declaration
+    const { prop, rawValue, important, variants, selector, unsupportedContext } = declaration
+    if (unsupportedContext) {
+      if (!unconvertible.includes(unsupportedContext)) unconvertible.push(unsupportedContext)
+      continue
+    }
 
     // `!important` has to come off before anything else looks at the value. Left on, it defeats
     // every lookup in PROPERTY_MAP and every equality check in the size/spacing converters, and
@@ -474,12 +505,36 @@ function convertCssToTailwind(css: string, version: '3' | '4'): ConversionResult
     }
 
     // Border width
-    if (prop === 'border-width' || prop === 'border') {
+    if (prop === 'border') {
       if (value === '0' || value === 'none') {
         push('border-0')
         continue
       }
-      push(`border-[${arbitraryValue(value)}]`)
+      const parts = value.match(
+        /^(\d+(?:\.\d+)?(?:px|rem|em))\s+(solid|dashed|dotted|double)\s+(.+)$/i
+      )
+      if (parts) {
+        const width = parts[1]
+        const style = parts[2]
+        const color = parts[3]
+        if (width && style && color) {
+          push(width === '1px' ? 'border' : `border-[${width}]`)
+          push(`border-${style.toLowerCase()}`)
+          push(`border-[color:${arbitraryValue(color)}]`)
+          continue
+        }
+      }
+      unconvertible.push(`${prop}: ${rawValue}`)
+      continue
+    }
+    if (prop === 'border-width') {
+      push(
+        value === '0'
+          ? 'border-0'
+          : value === '1px'
+            ? 'border'
+            : `border-[${arbitraryValue(value)}]`
+      )
       continue
     }
 

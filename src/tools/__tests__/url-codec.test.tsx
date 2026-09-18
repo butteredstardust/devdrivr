@@ -15,6 +15,17 @@ describe('transformUrlInput', () => {
     ).toBe('hello world')
   })
 
+  it('preserves a successful decode when a later level is malformed', () => {
+    expect(
+      transformUrlInput('%25FF', {
+        mode: 'decode',
+        encodeMode: 'component',
+        bulk: false,
+        recursive: true,
+      }).text
+    ).toBe('%FF')
+  })
+
   it('converts each line independently in bulk mode', () => {
     expect(
       transformUrlInput('hello world\na/b', {
@@ -49,6 +60,14 @@ describe('UrlCodec', () => {
     const input = screen.getByPlaceholderText(/enter text or url/i)
     fireEvent.change(input, { target: { value: 'hello world' } })
     expect(screen.getByText('hello%20world')).toBeInTheDocument()
+  })
+
+  it('encodes input consisting only of a space', () => {
+    renderTool(UrlCodec)
+    fireEvent.change(screen.getByPlaceholderText(/enter text or url/i), {
+      target: { value: ' ' },
+    })
+    expect(screen.getByText('%20')).toBeInTheDocument()
   })
 
   it('shows URL parts for a valid URL', () => {
