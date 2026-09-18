@@ -27,6 +27,9 @@ export default defineConfig({
   },
   envPrefix: ['VITE_', 'TAURI_'],
   build: {
+    // The remote UI serves a static build while Chromium keeps the previous entry loaded.
+    // Keep earlier hashed chunks available across watch rebuilds so lazy tool imports do not 404.
+    emptyOutDir: !process.env.DEVDRIVR_REMOTE_UI,
     rollupOptions: {
       output: {
         // Monaco is deliberately *not* named here. A manual chunk claims the shared modules of
