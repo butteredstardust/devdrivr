@@ -5,10 +5,52 @@
     <link rel="icon" type="image/svg+xml" href="/dodecastar.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>devdrivr</title>
+    <style>
+      /* Paint a useful frame before the JavaScript entry has loaded. React replaces this
+         automatically on its first commit, then Providers owns the remaining bootstrap. */
+      #startup-shell {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background-color: var(--color-bg, Canvas);
+        color: var(--color-accent, CanvasText);
+        font:
+          0.875rem system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      #startup-shell-spinner {
+        width: 0.75rem;
+        height: 0.75rem;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 9999px;
+        animation: startup-spin 700ms linear infinite;
+      }
+      @keyframes startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #startup-shell-spinner {
+          animation: none;
+        }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="startup-shell" role="status" aria-live="polite" aria-label="Starting devdrivr">
+        <span id="startup-shell-spinner" aria-hidden="true"></span>
+        <span>Starting devdrivr…</span>
+      </div>
+    </div>
     <script>
       // Synchronous theme restore to prevent flash — runs before any CSS paint.
       // The settings store writes this cache on every theme change.

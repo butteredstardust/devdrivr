@@ -6,7 +6,7 @@
  * The tabs now live beside it in `settings/`, and the controls they share in
  * `settings/SettingControls`.
  */
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 import { TOOLS } from '@/app/tool-registry'
 import {
@@ -22,11 +22,32 @@ import { AboutTab } from '@/components/shell/AboutTab'
 import { GeneralTab } from '@/components/shell/settings/GeneralTab'
 import { ThemeTab } from '@/components/shell/settings/ThemeTab'
 import { EditorTab } from '@/components/shell/settings/EditorTab'
-import { DataTab } from '@/components/shell/settings/DataTab'
 import { McpTab } from '@/components/shell/settings/McpTab'
-import { AcknowledgmentsTab } from '@/components/shell/AcknowledgmentsTab'
 import { TabBar, TabPanel } from '@/components/shared/TabBar'
 import { Dialog } from '@/components/shared/Dialog'
+import { Spinner } from '@/components/shared/Spinner'
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
+
+// These tabs own the heaviest settings-only dependency trees: backup/import parsers in Data and
+// the complete third-party license corpus in Acknowledgments. Keep them out of the initial shell
+// bundle and load them only when the user opens the corresponding tab.
+const DataTab = lazy(() =>
+  import('@/components/shell/settings/DataTab').then((module) => ({ default: module.DataTab }))
+)
+const AcknowledgmentsTab = lazy(() =>
+  import('@/components/shell/AcknowledgmentsTab').then((module) => ({
+    default: module.AcknowledgmentsTab,
+  }))
+)
+
+function DeferredTabFallback({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-48 items-center justify-center gap-2 text-[var(--color-text-muted)]">
+      <Spinner label={label} />
+      <span className="text-xs">{label}…</span>
+    </div>
+  )
+}
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -97,10 +118,22 @@ export function SettingsPanel() {
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'theme' && <ThemeTab />}
         {activeTab === 'editor' && <EditorTab />}
-        {activeTab === 'data' && <DataTab />}
+        {activeTab === 'data' && (
+          <ErrorBoundary fallbackMessage="Data settings could not load">
+            <Suspense fallback={<DeferredTabFallback label="Loading data settings" />}>
+              <DataTab />
+            </Suspense>
+          </ErrorBoundary>
+        )}
         {activeTab === 'mcp' && <McpTab />}
         {activeTab === 'about' && <AboutTab />}
-        {activeTab === 'acknowledgments' && <AcknowledgmentsTab />}
+        {activeTab === 'acknowledgments' && (
+          <ErrorBoundary fallbackMessage="Acknowledgments could not load">
+            <Suspense fallback={<DeferredTabFallback label="Loading acknowledgments" />}>
+              <AcknowledgmentsTab />
+            </Suspense>
+          </ErrorBoundary>
+        )}
       </TabPanel>
     </Dialog>
   )

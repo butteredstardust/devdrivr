@@ -43,6 +43,23 @@ describe('getEffectiveTheme', () => {
     expect(html).toContain(`<html lang="en" class="${SYSTEM_DARK_THEME}">`)
   })
 
+  it('paints an accessible startup status before the JavaScript entry loads', () => {
+    const html = readFileSync(new URL('../../../index.html', import.meta.url), 'utf8')
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const startupShell = document.querySelector('#root > #startup-shell')
+
+    expect(startupShell).not.toBeNull()
+    expect(startupShell?.getAttribute('role')).toBe('status')
+    expect(startupShell?.getAttribute('aria-live')).toBe('polite')
+    expect(startupShell?.getAttribute('aria-label')).toBe('Starting devdrivr')
+    expect(startupShell?.querySelector('#startup-shell-spinner')?.getAttribute('aria-hidden')).toBe(
+      'true'
+    )
+    expect(document.querySelector('style')?.textContent).toContain(
+      '@media (prefers-reduced-motion: reduce)'
+    )
+  })
+
   it('resolves both defaults to real themes', () => {
     expect(ALL_THEMES).toContain(SYSTEM_DARK_THEME)
     expect(ALL_THEMES).toContain(SYSTEM_LIGHT_THEME)
