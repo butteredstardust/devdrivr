@@ -134,6 +134,11 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
+async function openDataTab() {
+  fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+  await screen.findByRole('heading', { name: 'Datasets' })
+}
+
 describe('SettingsPanel', () => {
   it('uses dialog semantics and reports destructive action success', async () => {
     const clearNotes = useNotesStore.getState().clearAll
@@ -143,7 +148,7 @@ describe('SettingsPanel', () => {
 
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     const trashNotes = screen.getByRole('button', { name: 'Move notes to Trash' })
     fireEvent.click(trashNotes)
     expect(trashNotes).toHaveTextContent('Confirm?')
@@ -153,9 +158,9 @@ describe('SettingsPanel', () => {
     expect(addToast).toHaveBeenCalledWith('Notes moved to Trash', 'success')
   })
 
-  it('renders three aligned action slots for every dataset', () => {
+  it('renders three aligned action slots for every dataset', async () => {
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
 
     for (const dataset of ['Notes', 'Snippets', 'API Requests', 'Prompt Templates', 'History']) {
       const actions = screen.getByRole('group', { name: `${dataset} actions` })
@@ -181,6 +186,16 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('heading', { level: 4, name: 'Settings' })).toBeInTheDocument()
   })
 
+  it('loads the deferred acknowledgments tab when selected', async () => {
+    render(<SettingsPanel />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Acknowledgments' }))
+
+    expect(
+      await screen.findByRole('searchbox', { name: 'Filter acknowledgments' })
+    ).toBeInTheDocument()
+  })
+
   it('exports API requests to a file', async () => {
     const addToast = useUiStore.getState().addToast
     vi.mocked(exportFile).mockResolvedValue('/tmp/devdrivr-api-requests-backup.json')
@@ -203,7 +218,7 @@ describe('SettingsPanel', () => {
     })
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     fireEvent.click(screen.getByRole('button', { name: 'Export API requests to a file' }))
 
     await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
@@ -220,7 +235,7 @@ describe('SettingsPanel', () => {
     const addToast = useUiStore.getState().addToast
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     fireEvent.click(screen.getByRole('button', { name: 'Import API requests from a file' }))
 
     await waitFor(() => expect(openFileDialog).toHaveBeenCalledOnce())
@@ -232,7 +247,7 @@ describe('SettingsPanel', () => {
     const clearTemplates = usePromptTemplatesStore.getState().clearAll
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     const deleteTemplates = screen.getByRole('button', {
       name: 'Delete prompt templates permanently',
     })
@@ -244,14 +259,14 @@ describe('SettingsPanel', () => {
     await waitFor(() => expect(clearTemplates).toHaveBeenCalledOnce())
   })
 
-  it('disables dataset actions until the store has loaded', () => {
+  it('disables dataset actions until the store has loaded', async () => {
     // Exporting from an unloaded store writes an empty backup over the user's real data.
     useApiStore.setState({ initialized: false })
     useSnippetsStore.setState({ initialized: false })
     useHistoryStore.setState({ initialized: false })
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
 
     expect(screen.getByRole('button', { name: 'Export API requests to a file' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move API requests to Trash' })).toBeDisabled()
@@ -270,7 +285,7 @@ describe('SettingsPanel', () => {
     })
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
 
     await waitFor(() =>
       expect(addToast).toHaveBeenCalledWith('Failed to load API requests', 'error')
@@ -286,7 +301,7 @@ describe('SettingsPanel', () => {
     )
 
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     fireEvent.click(screen.getByRole('button', { name: 'Export API requests to a file' }))
 
     await waitFor(() =>
@@ -414,7 +429,7 @@ describe('SettingsPanel', () => {
     const update = vi.fn().mockResolvedValue(true)
     useSettingsStore.setState({ update })
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
 
     const input = screen.getByRole('spinbutton', { name: 'History per Tool' })
     expect(input).toHaveAccessibleDescription('Max entries retained per tool')
@@ -438,11 +453,11 @@ describe('SettingsPanel', () => {
     expect(input).toHaveValue(80)
   })
 
-  it('restores the stored value when a numeric setting is left empty', () => {
+  it('restores the stored value when a numeric setting is left empty', async () => {
     const update = vi.fn().mockResolvedValue(true)
     useSettingsStore.setState({ update, historyRetentionPerTool: 120 })
     render(<SettingsPanel />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
 
     const input = screen.getByRole('spinbutton', { name: 'History per Tool' })
     fireEvent.change(input, { target: { value: '' } })
@@ -476,7 +491,7 @@ describe('SettingsPanel', () => {
     expect(update).toHaveBeenCalledWith('notesDrawerWidth', 280)
   })
 
-  it('groups general settings and disables inert automatic downloads with a visible reason', () => {
+  it('groups general settings and disables inert automatic downloads with a visible reason', async () => {
     useSettingsStore.setState({ checkForUpdatesAutomatically: false })
     render(<SettingsPanel />)
 
@@ -487,7 +502,7 @@ describe('SettingsPanel', () => {
     expect(screen.getByText('Turn on automatic update checks to enable downloads')).toBeVisible()
     expect(screen.getByRole('combobox', { name: 'Default Timezone' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     expect(screen.queryByRole('combobox', { name: 'Default Timezone' })).not.toBeInTheDocument()
   })
 
@@ -537,7 +552,7 @@ describe('SettingsPanel', () => {
 
     render(<SettingsPanel />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }))
+    await openDataTab()
     fireEvent.click(screen.getByRole('button', { name: 'Import settings from a file' }))
 
     await waitFor(() => expect(useSettingsStore.getState().theme).toBe('github-light'))
