@@ -26,6 +26,7 @@ import { McpTab } from '@/components/shell/settings/McpTab'
 import { TabBar, TabPanel } from '@/components/shared/TabBar'
 import { Dialog } from '@/components/shared/Dialog'
 import { Spinner } from '@/components/shared/Spinner'
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 
 // These tabs own the heaviest settings-only dependency trees: backup/import parsers in Data and
 // the complete third-party license corpus in Acknowledgments. Keep them out of the initial shell
@@ -38,6 +39,15 @@ const AcknowledgmentsTab = lazy(() =>
     default: module.AcknowledgmentsTab,
   }))
 )
+
+function DeferredTabFallback({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-48 items-center justify-center gap-2 text-[var(--color-text-muted)]">
+      <Spinner label={label} />
+      <span className="text-xs">{label}…</span>
+    </div>
+  )
+}
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -109,16 +119,20 @@ export function SettingsPanel() {
         {activeTab === 'theme' && <ThemeTab />}
         {activeTab === 'editor' && <EditorTab />}
         {activeTab === 'data' && (
-          <Suspense fallback={<Spinner label="Loading data settings" />}>
-            <DataTab />
-          </Suspense>
+          <ErrorBoundary fallbackMessage="Data settings could not load">
+            <Suspense fallback={<DeferredTabFallback label="Loading data settings" />}>
+              <DataTab />
+            </Suspense>
+          </ErrorBoundary>
         )}
         {activeTab === 'mcp' && <McpTab />}
         {activeTab === 'about' && <AboutTab />}
         {activeTab === 'acknowledgments' && (
-          <Suspense fallback={<Spinner label="Loading acknowledgments" />}>
-            <AcknowledgmentsTab />
-          </Suspense>
+          <ErrorBoundary fallbackMessage="Acknowledgments could not load">
+            <Suspense fallback={<DeferredTabFallback label="Loading acknowledgments" />}>
+              <AcknowledgmentsTab />
+            </Suspense>
+          </ErrorBoundary>
         )}
       </TabPanel>
     </Dialog>

@@ -103,20 +103,32 @@ pipeline because `NotesDrawer` is a static child of `App`.
 ### Improvement included with this report
 
 This PR implements the smallest loading-boundary recommendation: the Data and Acknowledgments tab
-bodies are now lazy imports behind accessible Suspense fallbacks. The Settings dialog and its
-default/general controls remain immediately available.
+bodies are now lazy imports behind stable, visibly labelled Suspense fallbacks and local error
+boundaries. The Settings dialog and its default/general controls remain immediately available.
 
 | Measure                                   |      Before |       After |              Change |
 | ----------------------------------------- | ----------: | ----------: | ------------------: |
-| Initial JavaScript, minified              | 1,312.13 KB | 1,136.60 KB | -175.53 KB (-13.4%) |
-| Initial JavaScript, gzip                  |   375.47 KB |   323.98 KB |  -51.49 KB (-13.7%) |
+| Initial JavaScript, minified              | 1,312.13 KB | 1,136.97 KB | -175.16 KB (-13.3%) |
+| Initial JavaScript, gzip                  |   375.47 KB |   324.07 KB |  -51.40 KB (-13.7%) |
 | Static local modules from `main.tsx`      |         129 |         117 |                 -12 |
 | Static local source lines from `main.tsx` |     ~24,977 |     ~21,693 |             ~-3,284 |
 
 The deferred output now includes a 52.18 KB Acknowledgments chunk, an 8.40 KB Data tab chunk, and
 separate backup/parser dependencies such as the 60.54 KB API backup/import chunk and 39.78 KB YAML
 chunk. This changes when the work is paid for rather than deleting capabilities. The before/after
-production builds use the same checkout, dependency lock, and Vite version.
+production builds were captured from `bun run build` before and after the change, using the same
+dependency lock and Vite version. There is not yet a committed bundle-report script, so the table is
+a review-time baseline rather than a CI budget.
+
+Because this is a local desktop application, transferred bytes are not the primary benefit. The
+useful reduction is avoiding parse/evaluation work and construction of parser and license-corpus
+constants until the corresponding settings tab is opened.
+
+The PR also closes the pre-React portion of that startup path: `index.html` now paints a small,
+accessible startup indicator before the JavaScript entry loads. React replaces it on its first
+commit, after which the existing `Providers` indicator remains visible through database migrations
+and store initialization. This avoids a blank window without adding another Tauri window or a
+second bootstrap state machine.
 
 ## Prioritized findings
 
@@ -233,16 +245,19 @@ Evidence:
   basic-language catalog.
 - The existing Vite comment correctly avoids a manual Monaco chunk that would make the entry load
   it statically.
-- `Providers` nevertheless idle-imports `MarkdownEditor` after every successful bootstrap, which
-  causes the Monaco chunk to be prefetched without the user opening an editor.
+- `Providers` nevertheless idle-imports both `MarkdownEditor` and `JsonTools` after every
+  successful bootstrap, and either one reaches `useMonaco`. Removing only the Markdown Editor
+  preload would therefore leave the shared Monaco chunk prefetched.
 - `SettingsPanel` statically imports all tabs. The closed Data tab brings API backup/import code,
   GraphQL, and YAML into the 1.31 MB initial entry.
 
 Recommended work, in measurement order:
 
 1. Record cold-start requests, first-editor latency, and memory before changing chunk rules.
-2. Remove or narrow the unconditional Markdown Editor idle preload. If preloading is valuable, base
-   it on restored tabs or recent-tool history rather than every session.
+2. Measure whether to remove or narrow the unconditional Monaco-tool idle preloads. Both
+   `MarkdownEditor` and `JsonTools` currently reach Monaco; changing only one will not defer the
+   shared runtime. If preloading is valuable, base it on restored tabs or recent-tool history
+   rather than every session.
 3. Lazy-load settings tab bodies, especially Data and Acknowledgments. The dialog shell and tab
    metadata can remain initial. **Implemented in this PR for Data and Acknowledgments.**
 4. Split Monaco code by concern (`runtime`, `theme-building`, `preferences`) for testability, then
