@@ -324,18 +324,30 @@ export default function RefactoringToolkit() {
   const loadFile = useCallback(
     (file: { content: string; filename: string; path?: string }, reloaded: boolean) => {
       const detected = languageFromFilename(file.filename)
-      updateState({
-        input: file.content,
-        fileName: file.filename,
-        filePath: file.path ?? null,
-        selectedTransforms: [],
-        view: 'source',
-        lastApply: null,
-        applyHistory: [],
-        customFind: '',
-        customReplace: '',
-        ...(detected ? { language: detected } : {}),
-      })
+      updateState(
+        reloaded
+          ? {
+              input: file.content,
+              fileName: file.filename,
+              filePath: file.path ?? null,
+              lastApply: null,
+              applyHistory: [],
+              ...(detected ? { language: detected } : {}),
+            }
+          : {
+              input: file.content,
+              fileName: file.filename,
+              filePath: file.path ?? null,
+              selectedTransforms: [],
+              view: 'source',
+              lastApply: null,
+              applyHistory: [],
+              customFind: '',
+              customReplace: '',
+              ...(detected ? { language: detected } : {}),
+            }
+      )
+      setPreview(null)
       setError(null)
       setLastAction(
         reloaded ? `Reloaded ${file.filename} from disk` : `Opened ${file.filename}`,

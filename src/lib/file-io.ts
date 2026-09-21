@@ -1,5 +1,6 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 
 export function isLikelyBinaryText(content: string): boolean {
   if (content.includes('\0')) return true
@@ -142,6 +143,7 @@ export async function openImageFileDialog(): Promise<{
 /** Writes content directly to a known absolute path — no dialog shown. */
 export async function saveFileToPath(path: string, content: string): Promise<void> {
   await writeTextFile(path, content)
+  notifyTextFileWrite(path, content)
 }
 
 export async function saveFileDialog(
@@ -179,6 +181,7 @@ export async function saveFileDialog(
   })
   if (!path) return null
   await writeTextFile(path, content)
+  notifyTextFileWrite(path, content)
   return path
 }
 

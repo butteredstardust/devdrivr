@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WatchEvent } from '@tauri-apps/plugin-fs'
 import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { readSupportedTextFile } from '@/lib/file-io'
+import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 import { useUiStore } from '@/stores/ui.store'
 
 const watchMock = vi.hoisted(() => vi.fn())
@@ -87,6 +88,32 @@ describe('useReloadOnFileChange', () => {
 
     unmount()
     expect(unwatchSecond).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a delayed notification from an app save after the user types again', async () => {
+    let callback: WatchCallback | undefined
+    watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+      callback = next
+      return vi.fn()
+    })
+    let current = 'saved content'
+    const onReload = vi.fn()
+    vi.mocked(readSupportedTextFile).mockResolvedValue('saved content')
+
+    renderHook(() =>
+      useReloadOnFileChange({
+        filePath: '/tmp/document.md',
+        getContent: () => current,
+        onReload,
+      })
+    )
+    await waitFor(() => expect(callback).toBeTypeOf('function'))
+
+    act(() => notifyTextFileWrite('/tmp/document.md', 'saved content'))
+    current = 'typed after save'
+    await act(async () => callback?.(changedEvent()))
+
+    expect(onReload).not.toHaveBeenCalled()
   })
 
   it('reports a read failure without replacing the editor content', async () => {
