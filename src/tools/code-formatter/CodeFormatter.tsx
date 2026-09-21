@@ -21,6 +21,7 @@ import { Kbd } from '@/components/shared/Kbd'
 import { useUiStore } from '@/stores/ui.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { Button } from '@/components/shared/Button'
 import { Select } from '@/components/shared/Input'
 import { Toggle } from '@/components/shared/Toggle'
@@ -290,35 +291,51 @@ export default function CodeFormatter() {
     onSaved: updateState,
   })
 
-  useToolAction((action) => {
-    if (action.type === 'open-file') {
+  const loadFile = useCallback(
+    (file: { content: string; filename: string; path?: string }, reloaded: boolean) => {
       // The extension is a much stronger signal than content heuristics, so it
       // wins outright; only extensionless files fall back to the worker's guess.
-      const fromName = languageFromFilename(action.filename)
+      const fromName = languageFromFilename(file.filename)
       const languageAtOpen = fromName ?? optionsRef.current.language
       updateState({
-        input: action.content,
-        fileName: action.filename,
-        filePath: action.path ?? null,
+        input: file.content,
+        fileName: file.filename,
+        filePath: file.path ?? null,
         lastFormat: null,
         ...(fromName ? { language: fromName } : {}),
       })
       setError(null)
-      setLastAction(`Opened ${action.filename}`, 'success')
+      setLastAction(
+        reloaded ? `Reloaded ${file.filename} from disk` : `Opened ${file.filename}`,
+        'success'
+      )
       if (!fromName && formatter) {
         void formatter
-          .detectLanguage(action.content)
+          .detectLanguage(file.content)
           .then((detected) => {
             // The round trip is async: if the user opened something else or
             // picked a language meanwhile, that choice wins over the guess.
             const stale =
-              inputRef.current !== action.content || optionsRef.current.language !== languageAtOpen
+              inputRef.current !== file.content || optionsRef.current.language !== languageAtOpen
             if (!stale) updateState({ language: detected })
           })
           .catch(() => {
             /* keep whatever language is selected */
           })
       }
+    },
+    [formatter, setLastAction, updateState]
+  )
+
+  useReloadOnFileChange({
+    filePath: state.filePath ?? null,
+    getContent: () => inputRef.current,
+    onReload: (file) => loadFile(file, true),
+  })
+
+  useToolAction((action) => {
+    if (action.type === 'open-file') {
+      loadFile(action, false)
     }
     if (action.type === 'save-file') void handleSave()
   })

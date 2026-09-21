@@ -15,6 +15,7 @@ import {
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
@@ -493,6 +494,22 @@ export default function CssValidator() {
       void handleFormat()
     }, [handleFormat])
   )
+
+  useReloadOnFileChange({
+    filePath: state.filePath,
+    getContent: () => inputRef.current,
+    onReload: ({ content, filename, path }) => {
+      const syntax = syntaxFromFilename(filename)
+      requestDocument({
+        input: content,
+        fileName: filename,
+        filePath: path,
+        savedContent: content,
+        ...(syntax ? { syntax } : {}),
+        successMessage: `Reloaded ${filename} from disk`,
+      })
+    },
+  })
 
   // --- Global tool actions ---------------------------------------------
 
