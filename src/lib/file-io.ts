@@ -1,5 +1,6 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 
 export function isLikelyBinaryText(content: string): boolean {
   if (content.includes('\0')) return true
@@ -34,6 +35,7 @@ const MIME_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
   js: 'text/javascript',
   json: 'application/json',
+  log: 'text/plain',
   md: 'text/markdown',
   pdf: 'application/pdf',
   png: 'image/png',
@@ -53,7 +55,18 @@ export function mimeTypeFromPath(filePath: string): string {
   return MIME_TYPES[extension] ?? ''
 }
 
-export async function readSupportedTextFile(filePath: string): Promise<string> {
+export async function readSupportedTextFile(
+  filePath: string,
+  options?: { maxBytes?: number }
+): Promise<string> {
+  if (options?.maxBytes !== undefined) {
+    const metadata = await stat(filePath)
+    if (metadata.size > options.maxBytes) {
+      throw new Error(
+        `File is larger than the ${Math.round(options.maxBytes / 1024 / 1024)} MB import limit`
+      )
+    }
+  }
   let content: string
   try {
     content = await readTextFile(filePath)
@@ -98,6 +111,7 @@ export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
           'svg',
           'mmd',
           'mermaid',
+          'log',
         ],
       },
       { name: 'All', extensions: ['*'] },
@@ -106,15 +120,7 @@ export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
   if (!path) return null
   const filePath = typeof path === 'string' ? path : path[0]
   if (!filePath) return null
-  if (options?.maxBytes !== undefined) {
-    const metadata = await stat(filePath)
-    if (metadata.size > options.maxBytes) {
-      throw new Error(
-        `File is larger than the ${Math.round(options.maxBytes / 1024 / 1024)} MB import limit`
-      )
-    }
-  }
-  const content = await readSupportedTextFile(filePath)
+  const content = await readSupportedTextFile(filePath, options)
   return { content, filename: filenameFromPath(filePath), path: filePath }
 }
 
@@ -142,6 +148,7 @@ export async function openImageFileDialog(): Promise<{
 /** Writes content directly to a known absolute path — no dialog shown. */
 export async function saveFileToPath(path: string, content: string): Promise<void> {
   await writeTextFile(path, content)
+  notifyTextFileWrite(path, content)
 }
 
 export async function saveFileDialog(
@@ -179,6 +186,7 @@ export async function saveFileDialog(
   })
   if (!path) return null
   await writeTextFile(path, content)
+  notifyTextFileWrite(path, content)
   return path
 }
 

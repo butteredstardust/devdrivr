@@ -47,6 +47,13 @@
     "targets": ["app", "dmg", "nsis", "appimage"],
     "fileAssociations": [
       {
+        "ext": ["log"],
+        "name": "Log",
+        "description": "Text log",
+        "mimeType": "text/plain",
+        "role": "Viewer"
+      },
+      {
         "ext": ["json"],
         "name": "JSON",
         "description": "JSON document",

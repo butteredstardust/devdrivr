@@ -30,6 +30,7 @@
     "fs:allow-write-text-file",
     "fs:allow-read-file",
     "fs:allow-stat",
+    "fs:allow-watch",
     {
       "identifier": "fs:allow-write-file",
       "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$HOME/**" }]

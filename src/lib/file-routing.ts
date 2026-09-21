@@ -24,6 +24,7 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   markdown: 'markdown-editor',
   mmd: 'mermaid-editor',
   mermaid: 'mermaid-editor',
+  log: 'log-viewer',
   css: 'css-validator',
   html: 'html-validator',
   htm: 'html-validator',

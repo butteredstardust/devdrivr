@@ -17,6 +17,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Alert } from '@/components/shared/Alert'
@@ -320,23 +321,51 @@ export default function RefactoringToolkit() {
     onSaved: updateState,
   })
 
+  const loadFile = useCallback(
+    (file: { content: string; filename: string; path?: string }, reloaded: boolean) => {
+      const detected = languageFromFilename(file.filename)
+      updateState(
+        reloaded
+          ? {
+              input: file.content,
+              fileName: file.filename,
+              filePath: file.path ?? null,
+              lastApply: null,
+              applyHistory: [],
+              ...(detected ? { language: detected } : {}),
+            }
+          : {
+              input: file.content,
+              fileName: file.filename,
+              filePath: file.path ?? null,
+              selectedTransforms: [],
+              view: 'source',
+              lastApply: null,
+              applyHistory: [],
+              customFind: '',
+              customReplace: '',
+              ...(detected ? { language: detected } : {}),
+            }
+      )
+      setPreview(null)
+      setError(null)
+      setLastAction(
+        reloaded ? `Reloaded ${file.filename} from disk` : `Opened ${file.filename}`,
+        'success'
+      )
+    },
+    [setLastAction, updateState]
+  )
+
+  useReloadOnFileChange({
+    filePath: state.filePath ?? null,
+    getContent: () => input,
+    onReload: (file) => loadFile(file, true),
+  })
+
   useToolAction((action) => {
     if (action.type === 'open-file') {
-      const detected = languageFromFilename(action.filename)
-      updateState({
-        input: action.content,
-        fileName: action.filename,
-        filePath: action.path ?? null,
-        selectedTransforms: [],
-        view: 'source',
-        lastApply: null,
-        applyHistory: [],
-        customFind: '',
-        customReplace: '',
-        ...(detected ? { language: detected } : {}),
-      })
-      setError(null)
-      setLastAction(`Opened ${action.filename}`, 'success')
+      loadFile(action, false)
     }
     if (action.type === 'save-file') {
       if (!hasCode) {

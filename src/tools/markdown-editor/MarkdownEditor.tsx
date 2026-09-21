@@ -14,6 +14,7 @@ import { Popover } from '@/components/shared/Popover'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import {
   buildExportFilename,
@@ -577,6 +578,20 @@ export default function MarkdownEditor() {
       setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }, [state.filePath, state.content, state.fileName, updateState, setLastAction, handleSaveAs])
+
+  useReloadOnFileChange({
+    filePath: state.filePath,
+    getContent: () => state.content,
+    onReload: ({ content, filename, path }) => {
+      requestDocument({
+        content,
+        fileName: filename,
+        filePath: path,
+        savedContent: content,
+        successMessage: `Reloaded ${filename} from disk`,
+      })
+    },
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {

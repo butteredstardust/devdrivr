@@ -12,6 +12,7 @@ import {
   saveFileDialog,
   saveFileToPath,
 } from '@/lib/file-io'
+import { subscribeTextFileWrite } from '@/lib/text-file-write-events'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(),
@@ -115,10 +116,14 @@ describe('file I/O', () => {
 
   describe('saveFileToPath', () => {
     it('writes content directly to the given path without a dialog', async () => {
+      const listener = vi.fn()
+      const unsubscribe = subscribeTextFileWrite(listener)
       await saveFileToPath('/tmp/existing.md', '# hello')
 
       expect(save).not.toHaveBeenCalled()
       expect(writeTextFile).toHaveBeenCalledWith('/tmp/existing.md', '# hello')
+      expect(listener).toHaveBeenCalledWith('/tmp/existing.md', '# hello')
+      unsubscribe()
     })
 
     it('propagates write errors to callers for user feedback', async () => {

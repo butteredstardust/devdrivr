@@ -17,6 +17,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker, type WorkerRpc } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { PaneHeader } from '@/components/shared/PaneHeader'
@@ -264,6 +265,16 @@ export default function XmlTools() {
     },
     [blockingIssue]
   )
+
+  useReloadOnFileChange({
+    filePath: state.filePath ?? null,
+    getContent: () => inputRef.current,
+    onReload: ({ content, filename, path }) => {
+      updateState({ input: content, fileName: filename, filePath: path })
+      setError(null)
+      setLastAction(`Reloaded ${filename} from disk`, 'success')
+    },
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {

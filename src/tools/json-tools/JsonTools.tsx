@@ -20,6 +20,7 @@ import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
 import { Button } from '@/components/shared/Button'
@@ -234,6 +235,21 @@ export default function JsonTools() {
     editor.setPosition(position)
     editor.focus()
   }, [parsed])
+
+  useReloadOnFileChange({
+    filePath: state.filePath ?? null,
+    getContent: () => inputRef.current,
+    onReload: ({ content, filename, path }) => {
+      updateState({
+        input: content,
+        fileName: filename,
+        filePath: path,
+        allowComments: filename.toLowerCase().endsWith('.jsonc'),
+      })
+      setError(null)
+      setLastAction(`Reloaded ${filename} from disk`, 'success')
+    },
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {

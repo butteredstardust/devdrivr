@@ -11,6 +11,7 @@ import {
 import { useToolState } from '@/hooks/useToolState'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useToolAction } from '@/hooks/useToolAction'
+import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
@@ -437,6 +438,20 @@ export default function MermaidEditor() {
       setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }, [state.filePath, state.fileName, content, updateState, setLastAction, handleSaveAs])
+
+  useReloadOnFileChange({
+    filePath: state.filePath,
+    getContent: () => content,
+    onReload: ({ content: nextContent, filename, path }) => {
+      requestDocument({
+        content: nextContent,
+        fileName: filename,
+        filePath: path,
+        savedContent: nextContent,
+        successMessage: `Reloaded ${filename} from disk`,
+      })
+    },
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file') {

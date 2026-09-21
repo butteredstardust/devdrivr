@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { WatchEvent } from '@tauri-apps/plugin-fs'
 import { renderTool } from './test-utils'
 import RefactoringToolkit from '../refactoring-toolkit/RefactoringToolkit'
 import { dispatchToolAction } from '@/lib/tool-actions'
-import { saveFileDialog } from '@/lib/file-io'
+import { readSupportedTextFile, saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
 import { TOOLS } from '@/app/tool-registry'
 
+const watchMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  watch: watchMock,
+}))
+
 vi.mock('@/lib/file-io', () => ({
   saveFileDialog: vi.fn(),
+  readSupportedTextFile: vi.fn(),
+  filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
 }))
 
 const WAIT = { timeout: 5000 }
@@ -29,8 +38,20 @@ function checkTransform(name: string) {
   fireEvent.click(panel().getByRole('checkbox', { name: new RegExp(name) }))
 }
 
+let watchCallback: ((event: WatchEvent) => void) | undefined
+
+function changedEvent(): WatchEvent {
+  return { type: { modify: { kind: 'data', mode: 'content' } }, paths: [], attrs: {} }
+}
+
 beforeEach(() => {
+  watchCallback = undefined
+  watchMock.mockReset().mockImplementation(async (_path: string, callback) => {
+    watchCallback = callback as (event: WatchEvent) => void
+    return vi.fn()
+  })
   vi.mocked(saveFileDialog).mockReset().mockResolvedValue('/tmp/refactored.js')
+  vi.mocked(readSupportedTextFile).mockReset()
   useUiStore.setState({ lastAction: null })
 })
 
@@ -231,6 +252,38 @@ describe('RefactoringToolkit', () => {
     })
     await waitFor(() => {
       expect(saveFileDialog).toHaveBeenCalledWith('const a: number = 1', 'math.ts')
+    })
+  })
+
+  it('preserves configured transforms when the open file reloads from disk', async () => {
+    renderTool(RefactoringToolkit)
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: 'var original = 1;',
+        filename: 'math.js',
+        path: '/tmp/math.js',
+      })
+    })
+    await waitFor(() => expect(watchCallback).toBeTypeOf('function'))
+
+    checkTransform('var → const/let')
+    fireEvent.change(screen.getByLabelText('Identifier to rename'), {
+      target: { value: 'original' },
+    })
+    fireEvent.change(screen.getByLabelText('Replacement identifier'), {
+      target: { value: 'renamed' },
+    })
+    vi.mocked(readSupportedTextFile).mockResolvedValue('var original = 2;')
+
+    await act(async () => watchCallback?.(changedEvent()))
+
+    expect(editor()).toHaveValue('var original = 2;')
+    expect(panel().getByRole('checkbox', { name: /var → const\/let/ })).toBeChecked()
+    expect(screen.getByLabelText('Identifier to rename')).toHaveValue('original')
+    expect(screen.getByLabelText('Replacement identifier')).toHaveValue('renamed')
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Reloaded math.js from disk',
     })
   })
 

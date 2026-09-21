@@ -64,7 +64,7 @@ describe('tool capability flags', () => {
     for (const id of OWNS_OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 16', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 17', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -77,6 +77,7 @@ describe('tool capability flags', () => {
         'html-validator',
         'json-schema-validator',
         'json-tools',
+        'log-viewer',
         'markdown-editor',
         'mermaid-editor',
         'refactoring-toolkit',
@@ -114,19 +115,19 @@ describe('tool capability flags', () => {
   // A tool with this flag runs its own native drop listener. The shell must stay
   // silent for it. Dropping the flag by accident returns the "file drop is not
   // supported" toast with no type error, so pin the exact set.
-  it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 5', () => {
+  it('OWNS_FILE_DROP_TOOL_IDS matches the audited set of 6', () => {
     expect(OWNS_FILE_DROP_TOOL_IDS).toEqual(
-      new Set(['base64', 'hash-generator', 'image-tool', 'markdown-editor', 'notes'])
+      new Set(['base64', 'hash-generator', 'image-tool', 'log-viewer', 'markdown-editor', 'notes'])
     )
   })
 
   // A tool with this flag runs its own file dialog, because the shell reads text
   // only. Dropping the flag makes ⌘O reject a PNG before the tool sees it.
-  it('OWNS_OPEN_FILE_TOOL_IDS matches the audited set of 1', () => {
-    expect(OWNS_OPEN_FILE_TOOL_IDS).toEqual(new Set(['image-tool']))
+  it('OWNS_OPEN_FILE_TOOL_IDS matches the audited set of 2', () => {
+    expect(OWNS_OPEN_FILE_TOOL_IDS).toEqual(new Set(['image-tool', 'log-viewer']))
   })
 
-  it('MONACO_TOOL_IDS matches the audited set of 18', () => {
+  it('MONACO_TOOL_IDS matches the audited set of 19', () => {
     expect(MONACO_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -139,6 +140,7 @@ describe('tool capability flags', () => {
         'html-validator',
         'json-schema-validator',
         'json-tools',
+        'log-viewer',
         'markdown-editor',
         'mermaid-editor',
         'notes',
