@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { openFileInTool, toolIdForFile } from '@/lib/file-routing'
 import { filenameFromPath, isLikelyBinaryText } from '@/lib/file-io'
+import { MAX_LOG_FILE_BYTES } from '@/lib/log-viewer'
 import { getToolById } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -35,7 +36,11 @@ export function useOpenedFiles(): void {
     const openPath = async (path: string, opened: Set<string>) => {
       const filename = filenameFromPath(path)
       try {
-        const content = await invoke<string>('opened_file_read', { path })
+        const maxBytes = toolIdForFile(filename) === 'log-viewer' ? MAX_LOG_FILE_BYTES : undefined
+        const content = await invoke<string>('opened_file_read', {
+          path,
+          ...(maxBytes === undefined ? {} : { maxBytes }),
+        })
         if (cancelled) return
         if (isLikelyBinaryText(content)) {
           addToast(`Unsupported binary file: ${filename}`, 'error')

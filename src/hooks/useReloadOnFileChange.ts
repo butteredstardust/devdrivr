@@ -12,9 +12,11 @@ export type ReloadedTextFile = {
 
 type ReloadOnFileChangeOptions = {
   filePath: string | null
+  maxBytes?: number
   /** Read at event time so an app-initiated save can be recognized as a no-op. */
   getContent: () => string
   onReload: (file: ReloadedTextFile) => void
+  onError?: (message: string) => void
 }
 
 function mayChangeContent(event: WatchEvent): boolean {
@@ -62,7 +64,12 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
         do {
           readAgain = false
           try {
-            const content = await readSupportedTextFile(path)
+            const content = await readSupportedTextFile(
+              path,
+              optionsRef.current.maxBytes === undefined
+                ? undefined
+                : { maxBytes: optionsRef.current.maxBytes }
+            )
             if (cancelled) return
             if (content === optionsRef.current.getContent()) continue
             if (appWriteContent === content) continue
@@ -73,6 +80,7 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
           } catch (error) {
             if (!cancelled) {
               const message = error instanceof Error ? error.message : String(error)
+              optionsRef.current.onError?.(message)
               setLastAction(`Reload failed: ${message}`, 'error')
             }
           }

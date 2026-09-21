@@ -13,6 +13,7 @@ import {
   FileCssIcon,
   FileCsvIcon,
   FileHtmlIcon,
+  FileIcon,
   FileTsIcon,
   FingerprintIcon,
   GitDiffIcon,
@@ -53,6 +54,7 @@ const UrlCodec = lazy(() => import('@/tools/url-codec/UrlCodec'))
 const CurlToFetch = lazy(() => import('@/tools/curl-to-fetch/CurlToFetch'))
 const HashGenerator = lazy(() => import('@/tools/hash-generator/HashGenerator'))
 const RegexTester = lazy(() => import('@/tools/regex-tester/RegexTester'))
+const LogViewer = lazy(() => import('@/tools/log-viewer/LogViewer'))
 const JwtDecoder = lazy(() => import('@/tools/jwt-decoder/JwtDecoder'))
 const JsonSchemaValidator = lazy(() => import('@/tools/json-schema-validator/JsonSchemaValidator'))
 const CssValidator = lazy(() => import('@/tools/css-validator/CssValidator'))
@@ -304,6 +306,18 @@ export const TOOLS: ToolDefinition[] = [
     ownsOpenFile: true,
   },
   // --- Test ---
+  {
+    id: 'log-viewer',
+    name: 'Log Viewer',
+    group: 'test',
+    icon: toolIcon(FileIcon),
+    description: 'Tail text logs with pause, follow, search, and automatic disk reloads',
+    component: LogViewer,
+    supportsOpenFile: true,
+    ownsFileDrop: true,
+    ownsOpenFile: true,
+    usesMonaco: true,
+  },
   {
     id: 'regex-tester',
     name: 'Regex Tester',

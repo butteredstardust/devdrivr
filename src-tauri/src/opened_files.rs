@@ -172,11 +172,27 @@ pub fn opened_files_take(app: AppHandle) -> Vec<String> {
 
 /// Reads a file the OS opened. Refuses every other path.
 #[tauri::command]
-pub fn opened_file_read(app: AppHandle, path: String) -> Result<String, String> {
+pub fn opened_file_read(
+    app: AppHandle,
+    path: String,
+    max_bytes: Option<u64>,
+) -> Result<String, String> {
     let resolved = canonical(&path).ok_or_else(|| format!("Unable to resolve \"{path}\""))?;
     let state = app.state::<OpenedFiles>();
     if !lock(&state.allowed).contains(&resolved) {
         return Err(format!("\"{path}\" was not opened by the system"));
+    }
+    if let Some(limit) = max_bytes {
+        let size = resolved
+            .metadata()
+            .map_err(|err| format!("Unable to inspect \"{path}\": {err}"))?
+            .len();
+        if size > limit {
+            return Err(format!(
+                "File is larger than the {} MB import limit",
+                limit / 1024 / 1024
+            ));
+        }
     }
     std::fs::read_to_string(&resolved).map_err(|err| format!("Unable to read \"{path}\": {err}"))
 }

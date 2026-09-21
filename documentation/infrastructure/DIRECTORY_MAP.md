@@ -37,7 +37,7 @@ This directory starts the app and registers tools.
 | ------------------ | ----------------------------------------------------------------------------- |
 | `App.tsx`          | Root component: `<Sidebar> + <Workspace> + <NotesDrawer>` in a flex row       |
 | `providers.tsx`    | **Boot sequence**: window geometry → stores → active tool → listeners         |
-| `tool-registry.ts` | **Single source of truth** for all 31 tools (React.lazy, IDs, labels, groups) |
+| `tool-registry.ts` | **Single source of truth** for all 32 tools (React.lazy, IDs, labels, groups) |
 | `tool-groups.tsx`  | Sidebar group metadata: id, label, Phosphor icon per group                    |
 
 ### `src/components/shell/` — App Chrome

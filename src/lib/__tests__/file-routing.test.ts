@@ -50,6 +50,7 @@ describe('toolIdForFile', () => {
     expect(toolIdForFile('schema.json')).toBe('json-tools')
     expect(toolIdForFile('/tmp/diagram.mmd')).toBe('mermaid-editor')
     expect(toolIdForFile('READ.ME.markdown')).toBe('markdown-editor')
+    expect(toolIdForFile('/var/log/app.LOG')).toBe('log-viewer')
   })
 
   it('falls back for an unknown extension', () => {

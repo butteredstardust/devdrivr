@@ -52,7 +52,7 @@ export const settingsImportShape = {
     .transform((groups) => groups as AppSettings['openedSidebarGroups']),
   // WARNING: read `TOOLS` inside the transform, not at module load. `settings.store` imports this
   // module, so building a lookup Set here would touch the tool registry while that store is still
-  // initializing. A scan of 31 tools over a handful of pinned ids costs nothing.
+  // initializing. A scan of 32 tools over a handful of pinned ids costs nothing.
   pinnedToolIds: z
     .array(z.string())
     .transform((ids) => unique(ids.filter((id) => TOOLS.some((tool) => tool.id === id)))),
