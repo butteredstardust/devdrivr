@@ -22,7 +22,7 @@ import type { WorkspaceTab } from '@/types/tools'
  */
 export const KEEP_ALIVE_LIMIT = 4
 
-function WorkspaceFileDrop({ activeTool }: { activeTool: string }) {
+function WorkspaceFileDrop({ activeTool, maxBytes }: { activeTool: string; maxBytes?: number }) {
   const addToast = useUiStore((s) => s.addToast)
   const supportsFileDrop = supportsToolFileAction(activeTool, 'open-file')
 
@@ -44,7 +44,12 @@ function WorkspaceFileDrop({ activeTool }: { activeTool: string }) {
     },
     [addToast]
   )
-  const { isDragging } = useFileDropZone(handleFileDrop, handleFileDropError, supportsFileDrop)
+  const { isDragging } = useFileDropZone(
+    handleFileDrop,
+    handleFileDropError,
+    supportsFileDrop,
+    maxBytes
+  )
 
   if (!isDragging) return null
   return (
@@ -110,7 +115,8 @@ export function Workspace() {
   const activeTabId = useUiStore((s) => s.activeTabId)
   const tabMru = useUiStore((s) => s.tabMru)
   const activeTool = useUiStore((s) => s.activeTool)
-  const ownsFileDrop = getToolById(activeTool)?.ownsFileDrop === true
+  const activeToolDefinition = getToolById(activeTool)
+  const ownsFileDrop = activeToolDefinition?.ownsFileDrop === true
 
   // The most recently used tabs, plus the active one in case it somehow is not
   // among them. Order follows `tabs` so the DOM does not reshuffle on switch.
@@ -124,7 +130,14 @@ export function Workspace() {
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">
-      {!ownsFileDrop && <WorkspaceFileDrop activeTool={activeTool} />}
+      {!ownsFileDrop && (
+        <WorkspaceFileDrop
+          activeTool={activeTool}
+          {...(activeToolDefinition?.maxOpenBytes === undefined
+            ? {}
+            : { maxBytes: activeToolDefinition.maxOpenBytes })}
+        />
+      )}
       <WorkspaceTabStrip />
       {/* No tabs, or an active tab pointing at a tool that no longer exists. */}
       {!hasActivePane && (

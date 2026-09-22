@@ -21,6 +21,8 @@ export type ToolDefinition = {
   ownsFileDrop?: boolean
   /** Runs its own file dialog, because the shell's "open file" reads text only. */
   ownsOpenFile?: boolean
+  /** Maximum text-file size accepted by shell dialogs, OS opens, and shell-managed drops. */
+  maxOpenBytes?: number
   /** Renders inside a Monaco editor, which needs the workspace's overflow mode. */
   usesMonaco?: boolean
 }

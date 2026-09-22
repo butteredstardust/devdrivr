@@ -113,7 +113,8 @@ export function useGlobalShortcuts(): void {
       return
     }
     try {
-      const result = await openFileDialog()
+      const maxBytes = TOOLS.find((tool) => tool.id === activeTool)?.maxOpenBytes
+      const result = await openFileDialog(maxBytes === undefined ? undefined : { maxBytes })
       if (result) {
         dispatchToolAction({
           type: 'open-file',

@@ -9,6 +9,7 @@ import {
   subscribePendingToolAction,
 } from '@/lib/tool-actions'
 import { useUiStore } from '@/stores/ui.store'
+import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
@@ -89,6 +90,18 @@ describe('useOpenedFiles', () => {
       content: 'a,b\n1,2\n',
       filename: 'people.csv',
       path: '/tmp/people.csv',
+    })
+  })
+
+  it('applies the routed tool file-size limit to operating-system opens', async () => {
+    backendWith({ '/tmp/notes.txt': 'hello' })
+
+    render(<Harness />)
+
+    await vi.waitFor(() => expect(useUiStore.getState().activeTool).toBe('text-editor'))
+    expect(invoke).toHaveBeenCalledWith('opened_file_read', {
+      path: '/tmp/notes.txt',
+      maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
     })
   })
 

@@ -172,10 +172,9 @@ describe('openFileInTool', () => {
   })
 
   it('routes source files to a tool that can save them back', () => {
-    // TS Playground drops the path and saves compiled output, so an opened `.ts` could not be
-    // written back to the file it came from.
-    expect(toolIdForFile('main.ts')).toBe('code-formatter')
-    expect(toolIdForFile('App.tsx')).toBe('code-formatter')
+    expect(toolIdForFile('main.ts')).toBe('text-editor')
+    expect(toolIdForFile('App.tsx')).toBe('text-editor')
+    expect(toolIdForFile('script.py')).toBe('text-editor')
   })
 
   it('keeps two files apart when they route to different tools', () => {

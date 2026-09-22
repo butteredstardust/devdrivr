@@ -70,6 +70,24 @@ describe('useFileDropZone', () => {
     )
   })
 
+  it('applies the active tool file-size limit before reading a drop', async () => {
+    vi.mocked(readSupportedTextFile).mockRejectedValue(new Error('File is larger than the limit'))
+    const onError = vi.fn()
+    renderHook(() => useFileDropZone(vi.fn(), onError, true, 1024))
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    act(() => {
+      mocks.eventHandler?.({
+        payload: { type: 'drop', paths: ['/tmp/huge.txt'] },
+      })
+    })
+
+    await waitFor(() =>
+      expect(readSupportedTextFile).toHaveBeenCalledWith('/tmp/huge.txt', { maxBytes: 1024 })
+    )
+    expect(onError).toHaveBeenCalledWith('File is larger than the limit')
+  })
+
   it('rejects drops before reading when the active tool does not support files', async () => {
     const onError = vi.fn()
     renderHook(() => useFileDropZone(vi.fn(), onError, false))

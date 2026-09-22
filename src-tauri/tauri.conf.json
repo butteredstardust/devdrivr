@@ -122,6 +122,20 @@
         "description": "JavaScript source",
         "mimeType": "text/javascript",
         "role": "Editor"
+      },
+      {
+        "ext": ["txt", "toml", "ini", "cfg", "conf", "env"],
+        "name": "Text",
+        "description": "Text document",
+        "mimeType": "text/plain",
+        "role": "Editor"
+      },
+      {
+        "ext": ["sh", "zsh", "py", "rs", "go", "java"],
+        "name": "Source",
+        "description": "Source file",
+        "mimeType": "text/plain",
+        "role": "Editor"
       }
     ],
     "icon": [

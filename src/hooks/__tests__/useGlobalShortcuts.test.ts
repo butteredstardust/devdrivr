@@ -76,7 +76,7 @@ vi.mock('@/stores/settings.store', () => ({
 }))
 
 vi.mock('@/app/tool-registry', () => ({
-  TOOLS: [{ id: 'tool-a' }, { id: 'tool-b' }, { id: 'tool-c' }],
+  TOOLS: [{ id: 'tool-a' }, { id: 'tool-b', maxOpenBytes: 2048 }, { id: 'tool-c' }],
 }))
 
 vi.mock('@/lib/tool-actions', () => ({
@@ -271,6 +271,7 @@ describe('useGlobalShortcuts', () => {
       filename: 'example.json',
       path: '/tmp/example.json',
     })
+    expect(mocks.openFileDialog).toHaveBeenCalledWith({ maxBytes: 2048 })
     expect(mocks.addToast).toHaveBeenCalledWith('Opened example.json', 'success')
   })
 

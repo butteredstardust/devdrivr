@@ -71,6 +71,19 @@ describe('file I/O', () => {
     expect(filters[0]!.extensions).toEqual(expect.arrayContaining(['ts', 'tsx', 'js', 'jsx']))
   })
 
+  it('uses the same text extensions for open and save dialogs', async () => {
+    vi.mocked(open).mockResolvedValue(null)
+    vi.mocked(save).mockResolvedValue(null)
+
+    await openFileDialog()
+    await saveFileDialog('content', 'script.py')
+
+    const openExtensions = vi.mocked(open).mock.calls[0]![0]!.filters![0]!.extensions
+    const saveExtensions = vi.mocked(save).mock.calls[0]![0]!.filters![0]!.extensions
+    expect(saveExtensions).toEqual(openExtensions)
+    expect(saveExtensions).toEqual(expect.arrayContaining(['txt', 'toml', 'py', 'rs', 'tsx']))
+  })
+
   it('extracts filenames from Unix and Windows paths', () => {
     expect(filenameFromPath('/tmp/example.json')).toBe('example.json')
     expect(filenameFromPath('C:\\Users\\Ada\\example.json')).toBe('example.json')
