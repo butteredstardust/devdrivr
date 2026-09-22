@@ -12,6 +12,7 @@ import { TOOLS } from '@/app/tool-registry'
 import {
   CodeIcon,
   DatabaseIcon,
+  FilesIcon,
   GearSixIcon,
   HeartIcon,
   IdentificationBadgeIcon,
@@ -23,6 +24,7 @@ import { GeneralTab } from '@/components/shell/settings/GeneralTab'
 import { ThemeTab } from '@/components/shell/settings/ThemeTab'
 import { EditorTab } from '@/components/shell/settings/EditorTab'
 import { McpTab } from '@/components/shell/settings/McpTab'
+import { FilesTab } from '@/components/shell/settings/FilesTab'
 import { TabBar, TabPanel } from '@/components/shared/TabBar'
 import { Dialog } from '@/components/shared/Dialog'
 import { Spinner } from '@/components/shared/Spinner'
@@ -51,12 +53,13 @@ function DeferredTabFallback({ label }: { label: string }) {
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-type TabId = 'general' | 'theme' | 'editor' | 'data' | 'mcp' | 'about' | 'acknowledgments'
+type TabId = 'general' | 'theme' | 'editor' | 'files' | 'data' | 'mcp' | 'about' | 'acknowledgments'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'general', label: 'General', icon: <GearSixIcon size={14} /> },
   { id: 'theme', label: 'Theme', icon: <PaletteIcon size={14} /> },
   { id: 'editor', label: 'Editor', icon: <CodeIcon size={14} /> },
+  { id: 'files', label: 'Files', icon: <FilesIcon size={14} /> },
   { id: 'data', label: 'Data', icon: <DatabaseIcon size={14} /> },
   { id: 'mcp', label: 'MCP', icon: <PlugsConnectedIcon size={14} /> },
   { id: 'about', label: 'About', icon: <IdentificationBadgeIcon size={14} /> },
@@ -118,6 +121,7 @@ export function SettingsPanel() {
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'theme' && <ThemeTab />}
         {activeTab === 'editor' && <EditorTab />}
+        {activeTab === 'files' && <FilesTab />}
         {activeTab === 'data' && (
           <ErrorBoundary fallbackMessage="Data settings could not load">
             <Suspense fallback={<DeferredTabFallback label="Loading data settings" />}>
