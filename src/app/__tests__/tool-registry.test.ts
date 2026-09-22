@@ -64,7 +64,7 @@ describe('tool capability flags', () => {
     for (const id of OWNS_OPEN_FILE_TOOL_IDS) expect(toolIds.has(id)).toBe(true)
   })
 
-  it('OPEN_FILE_TOOL_IDS matches the audited set of 17', () => {
+  it('OPEN_FILE_TOOL_IDS matches the audited set of 18', () => {
     expect(OPEN_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -82,13 +82,14 @@ describe('tool capability flags', () => {
         'mermaid-editor',
         'refactoring-toolkit',
         'ts-playground',
+        'text-editor',
         'xml-tools',
         'yaml-tools',
       ])
     )
   })
 
-  it('SAVE_FILE_TOOL_IDS matches the audited set of 17', () => {
+  it('SAVE_FILE_TOOL_IDS matches the audited set of 18', () => {
     expect(SAVE_FILE_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -106,6 +107,7 @@ describe('tool capability flags', () => {
         'notes',
         'refactoring-toolkit',
         'ts-playground',
+        'text-editor',
         'xml-tools',
         'yaml-tools',
       ])
@@ -121,13 +123,13 @@ describe('tool capability flags', () => {
     )
   })
 
-  // A tool with this flag runs its own file dialog, because the shell reads text
-  // only. Dropping the flag makes ⌘O reject a PNG before the tool sees it.
+  // A tool with this flag runs its own file dialog for bytes or tool-specific constraints.
+  // Dropping the flag makes ⌘O bypass that contract before the tool sees the request.
   it('OWNS_OPEN_FILE_TOOL_IDS matches the audited set of 2', () => {
     expect(OWNS_OPEN_FILE_TOOL_IDS).toEqual(new Set(['image-tool', 'log-viewer']))
   })
 
-  it('MONACO_TOOL_IDS matches the audited set of 19', () => {
+  it('MONACO_TOOL_IDS matches the audited set of 20', () => {
     expect(MONACO_TOOL_IDS).toEqual(
       new Set([
         'api-client',
@@ -147,6 +149,7 @@ describe('tool capability flags', () => {
         'refactoring-toolkit',
         'snippets',
         'ts-playground',
+        'text-editor',
         'xml-tools',
         'yaml-tools',
       ])

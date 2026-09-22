@@ -5,7 +5,8 @@ import { filenameFromPath, readSupportedTextFile } from '@/lib/file-io'
 export function useFileDropZone(
   onDrop: (content: string, filename: string, path: string) => void,
   onError?: (message: string) => void,
-  enabled = true
+  enabled = true,
+  maxBytes?: number
 ) {
   const [isDragging, setIsDragging] = useState(false)
   const onDropRef = useRef(onDrop)
@@ -34,7 +35,11 @@ export function useFileDropZone(
             const filePath = paths[0] ?? ''
             if (!filePath) return
             const filename = filenameFromPath(filePath)
-            readSupportedTextFile(filePath)
+            const read =
+              maxBytes === undefined
+                ? readSupportedTextFile(filePath)
+                : readSupportedTextFile(filePath, { maxBytes })
+            read
               .then((content) => {
                 if (cancelled) return
                 onDropRef.current(content, filename, filePath)
@@ -67,7 +72,7 @@ export function useFileDropZone(
       cancelled = true
       unlisten?.()
     }
-  }, [enabled])
+  }, [enabled, maxBytes])
 
   return { isDragging }
 }

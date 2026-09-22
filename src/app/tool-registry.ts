@@ -1,5 +1,6 @@
 import { createElement, lazy } from 'react'
 import type { ToolDefinition } from '@/types/tools'
+import { MAX_EDITABLE_TEXT_FILE_BYTES, MAX_LOG_FILE_BYTES } from '@/lib/file-limits'
 import {
   ArrowsClockwiseIcon,
   AsteriskIcon,
@@ -14,6 +15,7 @@ import {
   FileCsvIcon,
   FileHtmlIcon,
   FileIcon,
+  FileTextIcon,
   FileTsIcon,
   FingerprintIcon,
   GitDiffIcon,
@@ -37,6 +39,7 @@ import {
 } from '@phosphor-icons/react'
 
 const UuidGenerator = lazy(() => import('@/tools/uuid-generator/UuidGenerator'))
+const TextEditor = lazy(() => import('@/tools/text-editor/TextEditor'))
 const JsonTools = lazy(() => import('@/tools/json-tools/JsonTools'))
 const CodeFormatter = lazy(() => import('@/tools/code-formatter/CodeFormatter'))
 const XmlTools = lazy(() => import('@/tools/xml-tools/XmlTools'))
@@ -82,6 +85,18 @@ export const TOOLS: ToolDefinition[] = [
     component: CodeFormatter,
     supportsOpenFile: true,
     supportsSaveFile: true,
+    usesMonaco: true,
+  },
+  {
+    id: 'text-editor',
+    name: 'Text Editor',
+    group: 'code',
+    icon: toolIcon(FileTextIcon),
+    description: 'Edit text and source files with syntax highlighting and disk reload detection',
+    component: TextEditor,
+    supportsOpenFile: true,
+    supportsSaveFile: true,
+    maxOpenBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
     usesMonaco: true,
   },
   {
@@ -316,6 +331,7 @@ export const TOOLS: ToolDefinition[] = [
     supportsOpenFile: true,
     ownsFileDrop: true,
     ownsOpenFile: true,
+    maxOpenBytes: MAX_LOG_FILE_BYTES,
     usesMonaco: true,
   },
   {

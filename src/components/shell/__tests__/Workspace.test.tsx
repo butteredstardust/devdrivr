@@ -31,11 +31,12 @@ vi.mock('@/app/tool-registry', () => ({
       component: MockTool,
       // The image tool and Notes run their own native drop listener.
       ownsFileDrop: id === 'image-tool' || id === 'notes',
+      maxOpenBytes: id === 'text-editor' ? 4096 : undefined,
     }
   },
   // Mirrors the real registry's derived sets for the two tool ids these tests use.
   MONACO_TOOL_IDS: new Set(['json-tools']),
-  OPEN_FILE_TOOL_IDS: new Set(['json-tools']),
+  OPEN_FILE_TOOL_IDS: new Set(['json-tools', 'text-editor']),
   SAVE_FILE_TOOL_IDS: new Set(['json-tools']),
 }))
 
@@ -102,6 +103,19 @@ describe('file drop ownership', () => {
     render(<Workspace />)
 
     expect(useFileDropZone).toHaveBeenCalled()
+  })
+
+  it('passes the active tool file-size limit to the shell drop listener', () => {
+    openTabs('text-editor')
+
+    render(<Workspace />)
+
+    expect(useFileDropZone).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      true,
+      4096
+    )
   })
 })
 

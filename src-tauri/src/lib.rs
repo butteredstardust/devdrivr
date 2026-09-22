@@ -1,4 +1,5 @@
 mod batch;
+mod file_associations;
 mod mcp;
 mod note_assets;
 mod opened_files;
@@ -189,6 +190,8 @@ pub fn run() {
         .manage(note_assets::PendingNoteAssetRestores::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
+            file_associations::file_association_set,
+            file_associations::file_associations_status,
             window_commands::window_close,
             window_commands::window_focus,
             window_commands::window_get_state,

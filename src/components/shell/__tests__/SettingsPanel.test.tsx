@@ -14,15 +14,10 @@ import { useUpdaterStore } from '@/stores/updater.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 
 const windowApi = vi.hoisted(() => ({ setAlwaysOnTop: vi.fn() }))
+const invokeApi = vi.hoisted(() => ({ invoke: vi.fn() }))
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue({
-    running: true,
-    host: '127.0.0.1',
-    port: 17347,
-    url: 'http://127.0.0.1:17347/mcp',
-    lastError: null,
-  }),
+  invoke: invokeApi.invoke,
 }))
 
 vi.mock('@/lib/file-io', () => ({
@@ -45,6 +40,13 @@ const realSettingsUpdate = useSettingsStore.getState().update
 
 beforeEach(() => {
   vi.clearAllMocks()
+  invokeApi.invoke.mockResolvedValue({
+    running: true,
+    host: '127.0.0.1',
+    port: 17347,
+    url: 'http://127.0.0.1:17347/mcp',
+    lastError: null,
+  })
   windowApi.setAlwaysOnTop.mockResolvedValue(undefined)
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true, update: realSettingsUpdate })
   // Also a module singleton: without this the staged-update test below leaks into the others.
@@ -140,6 +142,74 @@ async function openDataTab() {
 }
 
 describe('SettingsPanel', () => {
+  it('manages file associations from a dedicated settings entry', async () => {
+    invokeApi.invoke.mockImplementation((command: string) => {
+      if (command === 'file_associations_status') {
+        return Promise.resolve({
+          platform: 'macos',
+          management: 'direct',
+          available: true,
+          items: [
+            {
+              id: 'plain-text',
+              label: 'Plain text and source',
+              detail: '.txt, .toml',
+              status: 'inactive',
+            },
+            {
+              id: 'json',
+              label: 'JSON',
+              detail: '.json',
+              status: 'partial',
+            },
+          ],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Files' }))
+
+    const association = await screen.findByRole('button', {
+      name: 'Enable Plain text and source file associations',
+    })
+    expect(screen.getByText('Not default')).toBeInTheDocument()
+    expect(screen.getByText('.txt, .toml')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enable JSON file associations' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Restore JSON file associations' })).toBeVisible()
+
+    fireEvent.click(association)
+    await waitFor(() =>
+      expect(invokeApi.invoke).toHaveBeenCalledWith('file_association_set', {
+        id: 'plain-text',
+        enabled: true,
+      })
+    )
+  })
+
+  it('uses Windows Default Apps instead of pretending to change protected defaults', async () => {
+    invokeApi.invoke.mockResolvedValue({
+      platform: 'windows',
+      management: 'system',
+      available: true,
+      items: [{ id: 'json', label: 'JSON', detail: '.json', status: 'system' }],
+    })
+
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Files' }))
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Manage JSON file associations in Windows' })
+    )
+    await waitFor(() =>
+      expect(invokeApi.invoke).toHaveBeenCalledWith('file_association_set', {
+        id: 'json',
+        enabled: true,
+      })
+    )
+  })
+
   it('uses dialog semantics and reports destructive action success', async () => {
     const clearNotes = useNotesStore.getState().clearAll
     const addToast = useUiStore.getState().addToast

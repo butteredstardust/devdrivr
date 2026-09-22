@@ -421,7 +421,7 @@ export function CommandPalette() {
           setAlwaysOnTop(next).catch(() => addToast('Failed to update window pin state', 'error'))
           break
         }
-        case 'action:open-file':
+        case 'action:open-file': {
           // A tool that needs bytes runs its own dialog. See `openFile` in
           // `useGlobalShortcuts`.
           if (toolOwnsOpenFile(activeTool)) {
@@ -432,7 +432,8 @@ export function CommandPalette() {
             addToast('Open File is not supported by the active tool', 'error')
             break
           }
-          openFileDialog()
+          const maxBytes = TOOLS.find((tool) => tool.id === activeTool)?.maxOpenBytes
+          openFileDialog(maxBytes === undefined ? undefined : { maxBytes })
             .then((result) => {
               if (result) {
                 dispatchToolAction({
@@ -448,6 +449,7 @@ export function CommandPalette() {
               addToast(err instanceof Error ? err.message : String(err), 'error')
             )
           break
+        }
         case 'action:save-file':
           if (!supportsToolFileAction(activeTool, 'save-file')) {
             addToast('Save Output is not supported by the active tool', 'error')

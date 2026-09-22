@@ -1,4 +1,6 @@
-export const MAX_LOG_FILE_BYTES = 10 * 1024 * 1024
+import { MAX_LOG_FILE_BYTES } from '@/lib/file-limits'
+
+export { MAX_LOG_FILE_BYTES } from '@/lib/file-limits'
 export const MAX_LOG_VIEW_CHARACTERS = 2_000_000
 
 export function prepareLogContent(content: string): { content: string; truncated: boolean } {

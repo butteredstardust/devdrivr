@@ -14,6 +14,18 @@ import { useUiStore } from '@/stores/ui.store'
  * never appears in the system's "Open With" menu.
  */
 export const EXTENSION_TOOL_IDS: Record<string, string> = {
+  txt: 'text-editor',
+  toml: 'text-editor',
+  ini: 'text-editor',
+  cfg: 'text-editor',
+  conf: 'text-editor',
+  env: 'text-editor',
+  sh: 'text-editor',
+  zsh: 'text-editor',
+  py: 'text-editor',
+  rs: 'text-editor',
+  go: 'text-editor',
+  java: 'text-editor',
   json: 'json-tools',
   yaml: 'yaml-tools',
   yml: 'yaml-tools',
@@ -28,20 +40,17 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   css: 'css-validator',
   html: 'html-validator',
   htm: 'html-validator',
-  // Source files go to Code Formatter, not TS Playground: the Playground drops the path it was
-  // opened from and its save writes compiled JavaScript, so a file opened from disk could not be
-  // saved back. Code Formatter keeps the path and detects the language from the name.
-  ts: 'code-formatter',
-  tsx: 'code-formatter',
-  js: 'code-formatter',
-  jsx: 'code-formatter',
+  ts: 'text-editor',
+  tsx: 'text-editor',
+  js: 'text-editor',
+  jsx: 'text-editor',
 }
 
 /**
- * Where an unrecognised extension goes. Code Formatter accepts any text and detects the language
- * itself, so it degrades better than a tool that expects one syntax.
+ * Where an unrecognised extension goes. Text Editor accepts any non-binary UTF-8 text without
+ * imposing formatting or validation semantics, so it is the safest general fallback.
  */
-export const FALLBACK_OPEN_FILE_TOOL = 'code-formatter'
+export const FALLBACK_OPEN_FILE_TOOL = 'text-editor'
 
 /** Lowercased extension of a path or filename, without the dot. Empty when there is none. */
 export function extensionOf(pathOrName: string): string {
