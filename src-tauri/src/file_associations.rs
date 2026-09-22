@@ -98,12 +98,16 @@ fn backup_path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
-fn read_backups(app: &AppHandle) -> Backups {
-    backup_path(app)
-        .ok()
-        .and_then(|path| fs::read_to_string(path).ok())
-        .and_then(|json| serde_json::from_str(&json).ok())
-        .unwrap_or_default()
+fn read_backups(app: &AppHandle) -> Result<Backups, String> {
+    let path = backup_path(app)?;
+    match fs::read_to_string(&path) {
+        Ok(json) => serde_json::from_str(&json)
+            .map_err(|error| format!("File-association recovery data is corrupt: {error}")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Backups::default()),
+        Err(error) => Err(format!(
+            "Could not read file-association recovery data: {error}"
+        )),
+    }
 }
 
 fn write_backups(app: &AppHandle, backups: &Backups) -> Result<(), String> {
@@ -138,7 +142,11 @@ fn extension_detail(association: &Association) -> String {
 
 #[cfg(target_os = "linux")]
 fn mime_detail(association: &Association) -> String {
-    format!("MIME: {}", association.mime_types.join(", "))
+    format!(
+        "MIME: {} • declared for {}",
+        association.mime_types.join(", "),
+        extension_detail(association)
+    )
 }
 
 fn summarized_status(values: &[Option<String>], expected: &str) -> String {
@@ -189,11 +197,27 @@ fn linux_alternative(mime_type: &str, excluded: &str) -> Option<String> {
         .output()
         .ok()?;
     output.status.success().then_some(())?;
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .find(|line| line.ends_with(".desktop") && *line != excluded)
-        .map(str::to_string)
+    parse_gio_alternative(&String::from_utf8_lossy(&output.stdout), excluded)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn parse_gio_alternative(output: &str, excluded: &str) -> Option<String> {
+    let mut in_candidates = false;
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if trimmed == "Registered applications:" || trimmed == "Recommended applications:" {
+            in_candidates = true;
+            continue;
+        }
+        if trimmed.ends_with(':') {
+            in_candidates = false;
+            continue;
+        }
+        if in_candidates && trimmed.ends_with(".desktop") && trimmed != excluded {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
 }
 
 #[cfg(target_os = "macos")]
@@ -402,7 +426,7 @@ pub fn file_association_set(app: AppHandle, id: String, enabled: bool) -> Result
 
     #[cfg(target_os = "macos")]
     {
-        let original_backups = read_backups(&app);
+        let original_backups = read_backups(&app)?;
         let mut next_backups = original_backups.clone();
         let mut changes = Vec::new();
 
@@ -437,25 +461,47 @@ pub fn file_association_set(app: AppHandle, id: String, enabled: bool) -> Result
             }
         }
 
-        // The restoration journal must reach disk before the first operating-system change.
-        write_backups(&app, &next_backups)?;
+        // Enabling must journal the previous handlers first. Disabling keeps the existing journal
+        // until every restore succeeds, so a crash can never discard the only recovery path.
+        if enabled {
+            write_backups(&app, &next_backups)?;
+        }
         let mut applied: Vec<(&str, String)> = Vec::new();
         for (extension, previous, target) in &changes {
             if let Err(error) = macos::set_handler(extension, target) {
+                let mut rollback_errors = Vec::new();
                 for (changed_extension, rollback) in applied.iter().rev() {
-                    let _ = macos::set_handler(changed_extension, rollback);
+                    if let Err(rollback_error) = macos::set_handler(changed_extension, rollback) {
+                        rollback_errors.push(rollback_error);
+                    }
                 }
-                let _ = write_backups(&app, &original_backups);
-                return Err(error);
+                if rollback_errors.is_empty() && enabled {
+                    if let Err(journal_error) = write_backups(&app, &original_backups) {
+                        return Err(format!(
+                            "{error}; rollback succeeded but recovery data could not be reset: {journal_error}"
+                        ));
+                    }
+                }
+                return Err(if rollback_errors.is_empty() {
+                    error
+                } else {
+                    format!(
+                        "{error}; rollback also failed: {}",
+                        rollback_errors.join("; ")
+                    )
+                });
             }
             applied.push((extension, previous.clone()));
+        }
+        if !enabled {
+            write_backups(&app, &next_backups)?;
         }
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     {
-        let original_backups = read_backups(&app);
+        let original_backups = read_backups(&app)?;
         let mut next_backups = original_backups.clone();
         let desktop_file = format!("{app_id}.desktop");
         let mut changes = Vec::new();
@@ -491,17 +537,38 @@ pub fn file_association_set(app: AppHandle, id: String, enabled: bool) -> Result
             }
         }
 
-        write_backups(&app, &next_backups)?;
+        if enabled {
+            write_backups(&app, &next_backups)?;
+        }
         let mut applied: Vec<(&str, String)> = Vec::new();
         for (mime_type, previous, target) in &changes {
             if let Err(error) = linux_set(mime_type, target) {
+                let mut rollback_errors = Vec::new();
                 for (changed_mime, rollback) in applied.iter().rev() {
-                    let _ = linux_set(changed_mime, rollback);
+                    if let Err(rollback_error) = linux_set(changed_mime, rollback) {
+                        rollback_errors.push(rollback_error);
+                    }
                 }
-                let _ = write_backups(&app, &original_backups);
-                return Err(error);
+                if rollback_errors.is_empty() && enabled {
+                    if let Err(journal_error) = write_backups(&app, &original_backups) {
+                        return Err(format!(
+                            "{error}; rollback succeeded but recovery data could not be reset: {journal_error}"
+                        ));
+                    }
+                }
+                return Err(if rollback_errors.is_empty() {
+                    error
+                } else {
+                    format!(
+                        "{error}; rollback also failed: {}",
+                        rollback_errors.join("; ")
+                    )
+                });
             }
             applied.push((mime_type, previous.clone()));
+        }
+        if !enabled {
+            write_backups(&app, &next_backups)?;
         }
         Ok(())
     }
@@ -556,5 +623,14 @@ mod tests {
             .map(|extension| extension.as_str().expect("string extension"))
             .collect::<std::collections::HashSet<_>>();
         assert_eq!(extensions, configured);
+    }
+
+    #[test]
+    fn parses_registered_gio_alternative_without_using_the_summary_line() {
+        let output = "Default application for ‘text/plain’: com.devdrivr.cockpit.desktop\nRegistered applications:\n\tcom.devdrivr.cockpit.desktop\n\torg.gnome.TextEditor.desktop\nRecommended applications:\n\torg.gnome.TextEditor.desktop\n";
+        assert_eq!(
+            parse_gio_alternative(output, "com.devdrivr.cockpit.desktop").as_deref(),
+            Some("org.gnome.TextEditor.desktop")
+        );
     }
 }

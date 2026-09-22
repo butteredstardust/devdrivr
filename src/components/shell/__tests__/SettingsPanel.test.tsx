@@ -156,6 +156,12 @@ describe('SettingsPanel', () => {
               detail: '.txt, .toml',
               status: 'inactive',
             },
+            {
+              id: 'json',
+              label: 'JSON',
+              detail: '.json',
+              status: 'partial',
+            },
           ],
         })
       }
@@ -165,9 +171,13 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
     fireEvent.click(screen.getByRole('tab', { name: 'Files' }))
 
-    const association = await screen.findByRole('switch', { name: 'Plain text and source' })
-    expect(association).not.toBeChecked()
+    const association = await screen.findByRole('button', {
+      name: 'Enable Plain text and source file associations',
+    })
+    expect(screen.getByText('Not default')).toBeInTheDocument()
     expect(screen.getByText('.txt, .toml')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enable JSON file associations' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Restore JSON file associations' })).toBeVisible()
 
     fireEvent.click(association)
     await waitFor(() =>

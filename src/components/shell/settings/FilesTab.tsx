@@ -1,15 +1,50 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowClockwiseIcon, ArrowSquareOutIcon, FilesIcon } from '@phosphor-icons/react'
+import {
+  ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  ArrowSquareOutIcon,
+  CheckIcon,
+  FilesIcon,
+  SpinnerIcon,
+} from '@phosphor-icons/react'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Spinner } from '@/components/shared/Spinner'
-import { Toggle } from '@/components/shared/Toggle'
-import { SettingRow, TransferButton } from '@/components/shell/settings/SettingControls'
+import { SettingRow } from '@/components/shell/settings/SettingControls'
 import {
   getFileAssociations,
   setFileAssociation,
   type FileAssociationStatus,
 } from '@/lib/file-associations'
 import { useUiStore } from '@/stores/ui.store'
+
+function AssociationButton({
+  label,
+  accessibleLabel,
+  pending,
+  icon,
+  onClick,
+}: {
+  label: string
+  accessibleLabel: string
+  pending: boolean
+  icon: React.ReactNode
+  onClick: () => Promise<void>
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={accessibleLabel}
+      disabled={pending}
+      onClick={() => {
+        void onClick()
+      }}
+      className="flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-60"
+    >
+      {pending ? <SpinnerIcon size={12} className="animate-spin" aria-hidden="true" /> : icon}
+      {pending ? 'Working…' : label}
+    </button>
+  )
+}
 
 export function FilesTab() {
   const addToast = useUiStore((state) => state.addToast)
@@ -94,19 +129,41 @@ export function FilesTab() {
             {data.items.map((item) => (
               <SettingRow key={item.id} label={item.label} hint={item.detail}>
                 {data.management === 'system' ? (
-                  <TransferButton
+                  <AssociationButton
                     label="Manage"
                     accessibleLabel={`Manage ${item.label} file associations in Windows`}
                     icon={<ArrowSquareOutIcon size={12} />}
-                    disabled={pendingId !== null}
+                    pending={pendingId !== null}
                     onClick={() => change(item.id, true)}
                   />
                 ) : (
-                  <Toggle
-                    checked={item.status === 'active'}
-                    disabled={pendingId !== null}
-                    onChange={(enabled) => void change(item.id, enabled)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xs text-[var(--color-text-muted)]">
+                      {item.status === 'active'
+                        ? 'Default'
+                        : item.status === 'partial'
+                          ? 'Mixed'
+                          : 'Not default'}
+                    </span>
+                    {item.status !== 'active' && (
+                      <AssociationButton
+                        label={item.status === 'partial' ? 'Enable all' : 'Enable'}
+                        accessibleLabel={`Enable ${item.label} file associations`}
+                        icon={<CheckIcon size={12} />}
+                        pending={pendingId !== null}
+                        onClick={() => change(item.id, true)}
+                      />
+                    )}
+                    {item.status !== 'inactive' && (
+                      <AssociationButton
+                        label={item.status === 'partial' ? 'Restore assigned' : 'Restore'}
+                        accessibleLabel={`Restore ${item.label} file associations`}
+                        icon={<ArrowCounterClockwiseIcon size={12} />}
+                        pending={pendingId !== null}
+                        onClick={() => change(item.id, false)}
+                      />
+                    )}
+                  </div>
                 )}
               </SettingRow>
             ))}
