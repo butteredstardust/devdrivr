@@ -296,8 +296,7 @@ export default function ApiClient() {
 
   const sendResponseSelectionToJsonTools = useCallback(
     (text: string) => {
-      // `view`, not `activeTab` — JSON Tools has no such field, so the old key
-      // switched nothing and was persisted as junk into its row.
+      // JSON Tools expects `view`. An `activeTab` field has no effect and persists as unused state.
       sendToTool(
         'json-tools',
         { input: text, view: 'source', query: '' },

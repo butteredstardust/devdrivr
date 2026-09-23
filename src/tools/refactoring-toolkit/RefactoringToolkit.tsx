@@ -662,8 +662,7 @@ export default function RefactoringToolkit() {
                       aria-label={category.label}
                       className="mb-4 min-w-0"
                     >
-                      {/* A checkbox rather than the old button-wrapping-a-checkbox,
-                          which nested one control inside another. */}
+                      {/* Use a checkbox to avoid nesting one interactive control inside another. */}
                       <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
                         <IndeterminateCheckbox
                           checked={selectedInCategory === rows.length}

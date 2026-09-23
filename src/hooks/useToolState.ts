@@ -134,10 +134,8 @@ export function useToolState<T extends Record<string, unknown>>(
     // The defaults and validator only apply to the first load. Callers pass them inline.
   }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A handoff from another tool (`sendToTool`) merges into the cache and bumps
-  // this counter. Mount-time reads used to catch every handoff because the
-  // destination was unmounted while it was in the background; now it is still
-  // mounted, so the counter is the only signal that the cache changed under it.
+  // A handoff from another tool (`sendToTool`) merges into the cache and increments this counter.
+  // Background destinations stay mounted, so the counter signals cache changes to them.
   const seedRevision = useToolStateCache((s) => s.seeds.get(toolId) ?? 0)
   const seenSeedRef = useRef(seedRevision)
   useEffect(() => {

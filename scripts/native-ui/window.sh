@@ -29,7 +29,7 @@ PROC="${PROC:-devdrivr}"
 
 front() {
   osascript -e "tell application \"System Events\" to set frontmost of process \"$PROC\" to true"
-  # AppKit raises asynchronously; capturing immediately can still catch the old stacking order.
+  # AppKit raises asynchronously. An immediate capture can retain the pre-raise stacking order.
   sleep 1
 }
 

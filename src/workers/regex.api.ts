@@ -146,10 +146,8 @@ function buildHighlightHtml(text: string, matches: RegexMatch[]): string {
  * Compiles the pattern once and derives matches, highlight markup, and the replacement
  * from a single scan.
  *
- * Previously this was three `useMemo`s, each building its own `RegExp` and running its
- * own scan on every keystroke. `re` carries the user's flags (needed for `String.replace`
- * so `$1` / `$<name>` semantics are preserved); `scanner` is the same object when the
- * `g` flag is set, and only then a second one is built.
+ * `re` carries the user's flags so `String.replace` preserves `$1` and `$<name>` semantics.
+ * `scanner` reuses `re` with the `g` flag and otherwise uses one additional expression.
  */
 export function evaluateRegex(input: RegexEvaluationInput): RegexEvaluation {
   const { pattern, flags, text, replacement } = input

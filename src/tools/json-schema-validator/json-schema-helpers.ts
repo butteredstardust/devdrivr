@@ -292,9 +292,7 @@ export function toIssues(errors: readonly ErrorObject[]): ValidationIssue[] {
 /**
  * Validates data against a schema, keeping the three failure modes apart:
  * malformed data, a malformed or uncompilable schema, and data that simply
- * does not match. The old tool reported all three as one anonymous error at
- * path `/`, so "you typed a stray comma in the schema" looked like "your data
- * is invalid".
+ * does not match. Separate these modes so malformed schemas do not appear as invalid data.
  */
 export function validateJson(
   dataText: string,
@@ -356,9 +354,8 @@ function asTypes(type: unknown): string[] {
 }
 
 /**
- * Widens two inferred schemas into one that accepts both. Inference used to
- * read only the first array item, so a list whose second entry had an extra
- * field produced a schema that rejected the very data it was inferred from.
+ * Widens two inferred schemas into one that accepts both. Merge every array item so the inferred
+ * schema accepts its source data.
  */
 export function mergeSchemas(a: Schema, b: Schema): Schema {
   if (JSON.stringify(a) === JSON.stringify(b)) return a

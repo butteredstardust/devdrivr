@@ -17,13 +17,10 @@ export type CopyToClipboard = (text: string, messages?: CopyMessages) => Promise
 /**
  * Copy text and report the outcome to the tool status line.
  *
- * Every tool used to inline this, in two spellings — `await` inside try/catch, or `.then(ok, err)` —
- * and the failure branch was the part that drifted: some sites reported nothing at all, so a refused
- * write looked exactly like a successful one. Clipboard writes fail for real reasons (a WebView
- * without permission, a document that has lost focus), and silence there is the worst answer.
+ * Report failures because clipboard writes can fail without permission or document focus.
  *
- * Returns whether the write landed, for the callers that do something further on success — closing a
- * modal, say — and must not do it when the copy failed.
+ * Returns whether the write succeeded so callers can gate follow-up actions, such as closing a
+ * modal.
  */
 export function useCopyToClipboard(): CopyToClipboard {
   const setLastAction = useUiStore((s) => s.setLastAction)

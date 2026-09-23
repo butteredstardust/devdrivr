@@ -252,9 +252,7 @@ export function MasterDetailLayout({
         // tab order or the accessibility tree, so its list and header would still be announced
         // and tabbable while the pane reads as closed. `inert` covers all three.
         inert={!effectiveOpen}
-        // Narrows below 1000px, the density breakpoint — see DESIGN_SYSTEM.md § Breakpoints. This
-        // comment used to claim 1100px matched SnippetsManager; it did not, SnippetsManager has
-        // always used 1000px, and that mismatch is where the drift came from.
+        // Narrow below the 1000px density breakpoint. See DESIGN_SYSTEM.md § Breakpoints.
         // It stays a viewport query because it only picks between two comfortable widths. The
         // width this query can't see — the app sidebar's and the notes drawer's share — is what
         // the measured `cramped` check above handles, and that one decides whether the pane is

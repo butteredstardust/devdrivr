@@ -6,12 +6,8 @@ import { useUiStore } from '@/stores/ui.store'
 /**
  * Open / Save / Save As for the tools that edit one plain-text document.
  *
- * XML, JSON, YAML, Code Formatter and Refactoring Toolkit each carried their own copy of these
- * three handlers. The copies were near-identical and still managed to disagree: only Code
- * Formatter refused to write an empty document, and the "nothing to save yet" guard for the
- * toolbar action lived in a different place in every file. This is the one contract; tools that
- * need richer document semantics (CSS, HTML, Markdown) keep their local versions until those
- * semantics line up.
+ * This shared contract keeps plain-text tools consistent. Tools with richer document semantics,
+ * including CSS, HTML, and Markdown, keep local implementations.
  *
  * Content is read through `getContent` at the moment of saving rather than passed in, because the
  * editors keep the live text in a ref — a captured value would write whatever the last render saw.

@@ -3,10 +3,8 @@ import { installTauriStub } from './tauri-browser-stub.js'
 /**
  * Dev-only: inline the `window.__TAURI_INTERNALS__` stub at the top of index.html.
  *
- * Opening http://localhost:1420 in a normal browser used to die on
- * `undefined is not an object (evaluating 'window.__TAURI_INTERNALS__.metadata')`
- * because the stub existed but only scripted harnesses ever installed it. The
- * page has no way to inject it for a human with a browser, so the dev server does.
+ * A normal browser requires this stub before Tauri code reads `window.__TAURI_INTERNALS__.metadata`.
+ * The page cannot inject the stub, so the dev server does.
  *
  * The script is injected head-prepend as a classic (non-module, non-deferred)
  * script, so it runs before /src/main.tsx, which reaches for the Tauri API during

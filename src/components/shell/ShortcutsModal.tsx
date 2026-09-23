@@ -19,8 +19,8 @@ type ShortcutCategory = {
   shortcuts: ShortcutEntry[]
 }
 
-// Written as combos rather than pre-rendered symbols: `Kbd` resolves `mod` per platform, so this
-// table can't say ⌘ to a Windows user the way the old `getCategories(modSymbol)` shape invited.
+// Store combos instead of rendered symbols. `Kbd` resolves `mod` per platform and prevents macOS
+// symbols from appearing on Windows.
 function getCategories(): ShortcutCategory[] {
   // `F11` is capitalised because `formatShortcut` only upper-cases single characters; a
   // multi-character token it does not recognise is echoed verbatim, so `f11` would render lowercase.
@@ -35,8 +35,7 @@ function getCategories(): ShortcutCategory[] {
         { keys: 'mod+[', action: 'Previous tool' },
       ],
     },
-    // Tab shortcuts used to sit under "Editor", which is where you'd look for
-    // them last — they act on the workspace, not on the tool inside it.
+    // Group tab shortcuts under the workspace concept because they do not act on tool editors.
     {
       label: 'Tabs',
       shortcuts: [

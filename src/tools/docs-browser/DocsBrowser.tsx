@@ -24,10 +24,8 @@ const DOCS_SOURCES = [
 /**
  * What to call the embedded site in the chrome and in error copy.
  *
- * `frameSrc` is a prop, but the label, the external link and the iframe title all used to say
- * "DevDocs" regardless — so pointing the tool at anything else produced a UI that named the wrong
- * site. Falls back to the raw string for non-http sources like `about:blank`, which is at least
- * true.
+ * Derive the label, external link, and iframe title from `frameSrc` so they name the embedded site.
+ * Use the raw string for non-HTTP sources such as `about:blank`.
  */
 export function siteLabel(frameSrc: string): string {
   try {

@@ -153,8 +153,8 @@ export function SelectionContextToolbar({
           aria-label={action.label}
           className="flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
           onClick={() => {
-            // Dismiss on success only. A rejected clipboard write used to close the toolbar
-            // silently, so the selection workflow vanished with no way to tell it had failed.
+            // Dismiss only after success. Keep the toolbar open when a clipboard write fails so
+            // the user can retry the selection action.
             Promise.resolve(action.onSelect(selection.text))
               .then(onDismiss)
               .catch(() => setLastAction(`${action.label} failed`, 'error'))

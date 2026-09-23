@@ -102,9 +102,8 @@ export const ALL_RULES: RuleConfig[] = [
     defaultEnabled: false,
   },
   {
-    // Renamed from `zero-units`, which shipped with the opposite meaning: it
-    // asked for a unit *on* zero. Keeping the id would have silently disabled
-    // the corrected rule for anyone who had switched the old one off.
+    // Use a distinct ID because `zero-units` has the opposite meaning. Reusing that ID would apply
+    // saved disabled-rule settings to the corrected rule.
     id: 'redundant-zero-units',
     label: 'Units on zero',
     hint: '0px, 0em and 0% can all be written 0',
@@ -581,8 +580,7 @@ export function analyzeCss(css: string, disabled: string[], enabled: string[]): 
         if (on('redundant-zero-units') || on('hex-length')) {
           cssTree.walk(declaration.value, {
             enter(valueNode: cssTree.CssNode) {
-              // The old rule had this backwards: it asked for a unit *on* zero,
-              // so idiomatic `margin: 0` was reported and `0px` was not.
+              // Report units on zero because forms such as `0px` are redundant.
               if (on('redundant-zero-units') && valueNode.type === 'Dimension') {
                 const raw = `${valueNode.value}${valueNode.unit}`
                 if (ZERO_UNIT_PATTERN.test(raw)) {

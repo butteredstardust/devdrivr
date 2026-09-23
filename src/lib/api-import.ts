@@ -710,10 +710,8 @@ type PostmanBody = { text: string; mode: string | null }
 /**
  * Postman's body, with its declared mode preserved.
  *
- * This used to return just the text, which meant `urlencoded` and `formdata` bodies arrived as an
- * opaque query string labelled "text" — no key/value editor and, worse, no `Content-Type`. The
- * flattened string is still the storage format (it is what the app's form modes read), but the mode
- * now travels with it so the request comes back in the editor it was authored in.
+ * Preserve the declared mode with the flattened storage string. The mode restores the correct
+ * editor and `Content-Type` for urlencoded and form-data bodies.
  */
 function postmanBodyToText(value: unknown): PostmanBody {
   const body = asRecord(value)

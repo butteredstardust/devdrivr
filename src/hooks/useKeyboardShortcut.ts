@@ -11,11 +11,9 @@ type Registration = {
   activeRef: { current: boolean }
 }
 
-// Every useKeyboardShortcut() call used to register its own `window` keydown
-// listener (28 call sites at last count). Instead, all instances share a single
-// listener and a registry of active registrations — the public API and per-call
-// semantics (combo/handler read fresh via refs, editable-target filter, sync/async
-// error handling, cleanup on unmount) are unchanged; only the number of listeners is.
+// All hook instances share one window listener and a registry of active registrations.
+// Refs keep each combo and handler current. The registry also centralizes filtering, error
+// handling, and unmount cleanup.
 const registrations = new Set<Registration>()
 let sharedListenerAttached = false
 
@@ -45,8 +43,7 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
     (event.target as Element).closest('.monaco-editor') !== null
   let handled = false
 
-  // Set preserves insertion order, matching the dispatch order the browser used to
-  // give independent per-hook listeners registered in mount order.
+  // Set preserves registration order, so dispatch follows hook mount order.
   for (const registration of registrations) {
     const combo = registration.comboRef.current
 

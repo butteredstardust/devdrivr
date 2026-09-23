@@ -40,9 +40,7 @@ export function EmptyState({
     >
       {Icon && <Icon size={config.iconSize} weight="light" />}
       <div>
-        {/* Hierarchy comes from title-bright / description-muted. It used to come from
-            muted / muted+opacity-60, which composited to ~0.36 alpha and failed WCAG AA on all
-            23 themes. Muted on its own passes on all 23 — see DESIGN_SYSTEM.md § Colour. */}
+        {/* Bright title and muted description text create hierarchy. Muted text passes WCAG AA in all themes. See DESIGN_SYSTEM.md § Colour. */}
         <p className={`${config.titleClass} text-[var(--color-text)]`}>{title}</p>
         {description && <p className="mt-1 text-xs">{description}</p>}
       </div>

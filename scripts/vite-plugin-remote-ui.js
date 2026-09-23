@@ -40,7 +40,7 @@ const OVERRIDES = {
 
 const PREFIX = '\0remote-ui:'
 
-/** Used to spot a relative import that originated inside the Tauri API package itself. */
+/** Identifies a relative import from inside the Tauri API package. */
 const API_PKG = '@tauri-apps/api'
 
 export function remoteUiPlugin() {

@@ -187,8 +187,8 @@ namespace DevDrivr {
     }
 
     /// Absolute move through SendInput. Coordinates are normalised to 0..65535 over the whole
-    /// virtual desktop, so this handles negative-origin secondary monitors. Used to prove the
-    /// flag plumbing works without clicking anything.
+    /// virtual desktop, so this handles negative-origin secondary monitors. Use it to verify the
+    /// flag plumbing without clicking anything.
     public static uint SendMouseMoveAbsolute(int x, int y, int vsLeft, int vsTop, int vsWidth, int vsHeight) {
       INPUT[] inputs = new INPUT[1];
       inputs[0].type = INPUT_MOUSE;

@@ -20,9 +20,8 @@ type CsvTableProps = {
 }
 
 /**
- * Every row used to be rendered, so a 50k-row export froze the pane for
- * seconds. The table is a preview; the source pane is where the whole file
- * lives.
+ * Render only preview rows to keep large files responsive. The source pane contains the complete
+ * file.
  */
 const ROW_HEIGHT = 28
 const OVERSCAN = 8

@@ -41,8 +41,7 @@ export function JsonTable({
   onCopy: CopyToClipboard
 }) {
   const [sort, setSort] = useState<SortState>(null)
-  // Roving cell cursor: the old table copied on click only, which left the
-  // whole grid unreachable from the keyboard.
+  // A roving cell cursor makes the grid reachable from the keyboard.
   const [cursor, setCursor] = useState({ row: 0, column: 0 })
   const cellRefs = useRef(new Map<string, HTMLTableCellElement>())
   const focusPending = useRef(false)

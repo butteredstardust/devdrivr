@@ -54,14 +54,9 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
     const geometry = SIZES[size]
 
     return (
-      // `flex`, not the bare `relative` this used to be. An `<input>` is inline-block, so a block
-      // wrapper builds a line box around it and adds the strut's descender space underneath: the
-      // wrapper measured 24.5px around a 22px field. The magnifier is centred on the wrapper, so it
-      // sat 1.25px below the centre of the field it belongs to — the "magnifier isn't centred in the
-      // search box" you can see once you look for it. Flex blockifies the field, so the wrapper is
-      // exactly as tall as it is. It also stops the half-pixel leaking outward: the sidebar header
-      // holds one of these, so its fractional height was making the tool list's `flex-1` 733.5px and
-      // putting every icon below it on a half pixel too.
+      // Use `flex` because an inline-block input creates a line box with descender space below it.
+      // Flex blockifies the field, so the wrapper and magnifier share the input's vertical centre.
+      // It also prevents fractional wrapper height from placing later sidebar icons on half pixels.
       <div className={cn(`relative flex`, className)}>
         <MagnifyingGlassIcon
           size={geometry.icon}

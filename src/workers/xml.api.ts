@@ -28,7 +28,7 @@ export type XPathResult = {
   count: number
   /** Set when the expression itself is the problem, so the UI never shows an error as a match. */
   error?: string
-  /** Kept for compatibility with the UI; real XPath evaluation no longer ignores predicates. */
+  /** Compatibility field for the UI. XPath evaluation includes predicates. */
   predicatesIgnored?: boolean
 }
 
@@ -224,9 +224,8 @@ export function fromJson(json: string, rootName = 'root'): JsonResult {
 /**
  * The document as a tree of plain objects.
  *
- * It used to be built on the main thread with the browser `DOMParser`, which
- * meant a second parse with a second set of rules — and no tree at all wherever
- * that global is absent. One parser, one verdict.
+ * Build the tree with the worker parser to keep parsing rules consistent and avoid requiring the
+ * browser `DOMParser` global.
  */
 export function tree(xml: string): XmlTreeNode | null {
   const { doc, issues } = parseXml(xml)
@@ -279,8 +278,7 @@ export function queryXPath(xml: string, expression: string): XPathResult {
       }
       return serializer.serializeToString(value as unknown as Node)
     })
-    // The error used to be returned *as a match*, so a broken expression looked
-    // like a result with a count of zero next to it.
+    // Return expression errors separately so the UI cannot present them as matches.
     return { matches, count: matches.length, predicatesIgnored: false }
   } catch (e) {
     return { matches: [], count: 0, error: (e as Error).message }

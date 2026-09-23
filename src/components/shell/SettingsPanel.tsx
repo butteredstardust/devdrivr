@@ -1,10 +1,7 @@
 /**
  * The Settings dialog shell: which tab is showing, and nothing else.
  *
- * This file was 1,285 lines and mixed pure helpers, persistence, four unrelated tab bodies and the
- * dialog itself, so a change to the MCP token field shared a merge surface with the theme picker.
- * The tabs now live beside it in `settings/`, and the controls they share in
- * `settings/SettingControls`.
+ * Tab bodies live in `settings/`. Shared controls live in `settings/SettingControls`.
  */
 import { lazy, Suspense, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'

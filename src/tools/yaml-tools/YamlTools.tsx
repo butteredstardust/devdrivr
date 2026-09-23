@@ -62,10 +62,8 @@ type YamlToolsState = {
   fileName: string | null
   filePath: string | null
   /**
-   * Tree and JSON used to be tabs that replaced the editor, so inspecting a
-   * document meant leaving it, and the conversion tab kept its own second
-   * buffer that drifted out of sync with the one being edited. They are panes
-   * beside the source now, and the view choice persists.
+   * Tree and JSON appear beside the source so users can inspect and edit together. JSON uses the
+   * same document state, and the view choice persists.
    */
   view: YamlView
   tabWidth: number
@@ -260,17 +258,15 @@ export default function YamlTools() {
     [reshape]
   )
 
-  // The old "minify" only stripped blank lines. Flow style is what a compact
-  // YAML document actually looks like.
+  // Use flow style because removing blank lines alone does not compact YAML structure.
   const handleCompact = useCallback(
     () => reshape((docs) => stringifyYamlStream(docs, { flowLevel: 0 }), 'Compacted YAML'),
     [reshape]
   )
 
   /**
-   * The old Convert tab went JSON → YAML in a buffer of its own. Editing the
-   * JSON pane and applying it keeps that direction without a second document to
-   * keep in sync.
+   * Apply edits from the JSON pane to preserve JSON-to-YAML conversion without maintaining a
+   * second document.
    */
   const handleApplyJson = useCallback(
     (json: string) => {
@@ -664,8 +660,7 @@ function InspectorPane({
       aria-label={PANE_LABELS[view]}
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-[var(--color-border)] max-[900px]:border-l-0 max-[900px]:border-t"
     >
-      {/* JSON stays editable in every state: it is also the way in for someone
-          who has JSON and wants YAML back, which used to be its own tab. */}
+      {/* Keep JSON editable because this pane also accepts JSON-to-YAML input. */}
       {view === 'json' ? (
         <JsonPane
           parsed={parsed}
@@ -678,8 +673,7 @@ function InspectorPane({
       ) : parsed.status === 'empty' ? (
         <EmptyState size="sm" title="Nothing to inspect" description="Add a document first." />
       ) : parsed.status === 'invalid' ? (
-        // The pane used to go blank on a parse error, which reads as "no data"
-        // rather than "the document does not parse".
+        // Show parse errors explicitly so users do not mistake invalid input for missing data.
         <EmptyState
           size="sm"
           icon={WarningCircleIcon}
@@ -760,8 +754,8 @@ function TreePane({
       />
       <div
         className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs"
-        // Remount when the default changes, otherwise editing a document across
-        // the threshold leaves the old expansion in place.
+        // Remount when the default changes. Otherwise, crossing the threshold preserves an
+        // expansion state that conflicts with the new default.
         key={`${treeKey}-${String(expanded)}`}
       >
         {documents.map((document, i) => (
@@ -824,8 +818,7 @@ function JsonPane({
   onDraftChange: (draft: string | null) => void
   onApply: (json: string) => void
 }) {
-  // Conversion used to need a Convert click and was thrown away on every
-  // keystroke, so the pane was empty most of the time it was open.
+  // Recompute conversion as input changes so the open pane always reflects valid source text.
   const json = useMemo(() => {
     if (parsed.status !== 'valid') return ''
     try {

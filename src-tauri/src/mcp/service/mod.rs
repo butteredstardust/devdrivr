@@ -458,8 +458,8 @@ fn body_mode_for_method(method: &str, mode: Option<String>) -> String {
 
 /// Settle the folder a record belongs to.
 ///
-/// WARNING: `collectionId` is the legacy alias of `folderId`. Two different values meant one of
-/// them was silently dropped, and the caller had no way to tell which.
+/// WARNING: `collectionId` is the legacy alias of `folderId`. Reject different values because
+/// accepting both would silently discard one value.
 fn resolve_folder_alias(
     folder_id: Option<String>,
     collection_id: Option<String>,
@@ -1627,8 +1627,8 @@ mod tests {
 
     /// The production migrations, in the order `lib.rs` applies them.
     ///
-    /// Included from the same files the app ships, so a schema change reaches the tests instead
-    /// of leaving them passing against a hand-written schema that no longer exists.
+    /// Include the shipped files so schema changes reach the tests and cannot diverge from a
+    /// hand-written test schema.
     const MIGRATIONS: [&str; 16] = [
         include_str!("../../../migrations/001_initial.sql"),
         include_str!("../../../migrations/002_api_client.sql"),

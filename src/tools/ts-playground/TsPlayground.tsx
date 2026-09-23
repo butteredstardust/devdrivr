@@ -251,8 +251,8 @@ export default function TsPlayground() {
   useKeyboardShortcut({ key: 'Enter', mod: true }, handleCompile)
 
   const handleSave = useCallback(() => {
-    // Any extension, not just .ts — the picker accepts every text file, and
-    // opening notes.md used to offer to save it as notes.md.js.
+    // Replace any extension because the picker accepts every text file. This prevents names such
+    // as notes.md.js.
     const base = state.fileName?.replace(/\.[^.]+$/, '') ?? 'output'
     void saveFileDialog(output, `${base}.js`).then(
       (path) => setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
@@ -540,8 +540,7 @@ export default function TsPlayground() {
         </section>
       </div>
 
-      {/* Problems used to be an unlabelled 80px-tall strip of orange text with
-          no counts, no severity and no way to get it out of the way. */}
+      {/* Label the problems region and expose counts, severity, and collapse controls. */}
       <section
         aria-label="Problems"
         className="flex max-h-[40%] shrink-0 flex-col overflow-hidden border-t border-[var(--color-border)] bg-[var(--color-surface)]"

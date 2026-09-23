@@ -235,11 +235,8 @@ export default function JsonSchemaValidator() {
   const { headline, detail } = describeReport(report)
   const schemaDialect = useMemo(() => detectSchemaDialect(source.schema), [source.schema])
 
-  // The old tool pushed "Valid" into the global status bar on every debounce
-  // tick, so the bar reported this tool's opinion instead of the user's last
-  // action. Only a change of verdict is worth recording — and the key is the
-  // headline, not the detail, because the detail carries the line and column,
-  // which move with every character typed inside a broken document.
+  // Record only verdict changes so validation does not replace the user's latest action on every
+  // debounce. Compare headlines because detail positions change during editing.
   const lastRecorded = useRef<string | null>(null)
   useEffect(() => {
     if (report.status === 'empty') return
@@ -410,7 +407,7 @@ export default function JsonSchemaValidator() {
     }
     // Two loads in flight would otherwise race, and the slower one would win.
     const id = ++fetchIdRef.current
-    // Superseding a request should also stop it: the old one is now waste.
+    // Abort a superseded request because its result cannot be used.
     abortRef.current?.abort()
     setLoadingUrl(true)
     const controller = new AbortController()
