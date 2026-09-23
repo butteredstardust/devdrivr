@@ -91,6 +91,28 @@ function matchesSearch(transform: Transform, query: string): boolean {
   )
 }
 
+function isApplySnapshot(value: unknown): value is { before: string; after: string } {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const snapshot = value as Record<string, unknown>
+  return typeof snapshot.before === 'string' && typeof snapshot.after === 'string'
+}
+
+export function validateRefactoringState(state: RefactoringState): RefactoringState {
+  const selectedTransforms = state.selectedTransforms.filter(
+    (transform): transform is string => typeof transform === 'string'
+  )
+  const applyHistory = state.applyHistory.filter(isApplySnapshot)
+  const lastApply = isApplySnapshot(state.lastApply) ? state.lastApply : null
+  if (
+    selectedTransforms.length === state.selectedTransforms.length &&
+    applyHistory.length === state.applyHistory.length &&
+    lastApply === state.lastApply
+  ) {
+    return state
+  }
+  return { ...state, selectedTransforms, applyHistory, lastApply }
+}
+
 /**
  * `indeterminate` is a DOM property with no HTML attribute, so a partially
  * selected category can only be expressed through the node itself.
@@ -128,19 +150,23 @@ export default function RefactoringToolkit() {
     [monacoOptions]
   )
 
-  const [state, updateState] = useToolState<RefactoringState>('refactoring-toolkit', {
-    input: '',
-    fileName: null,
-    filePath: null,
-    selectedTransforms: [],
-    language: 'javascript',
-    panelOpen: true,
-    view: 'source',
-    lastApply: null,
-    applyHistory: [],
-    customFind: '',
-    customReplace: '',
-  })
+  const [state, updateState] = useToolState<RefactoringState>(
+    'refactoring-toolkit',
+    {
+      input: '',
+      fileName: null,
+      filePath: null,
+      selectedTransforms: [],
+      language: 'javascript',
+      panelOpen: true,
+      view: 'source',
+      lastApply: null,
+      applyHistory: [],
+      customFind: '',
+      customReplace: '',
+    },
+    { validate: validateRefactoringState }
+  )
 
   const worker = useWorker<RefactoringWorker>(
     () => new RefactoringWorkerFactory(),

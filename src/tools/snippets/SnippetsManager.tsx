@@ -65,8 +65,43 @@ import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/tools/code-formatter/
 import { buildWebPreviewDocument, previewKindFor } from '@/tools/snippets/snippet-preview'
 import { SnippetWebPreview } from '@/tools/snippets/SnippetWebPreview'
 import { DocumentToolbar, ToolbarGroup, TwoLineDocumentIdentity } from '@/components/shared/Toolbar'
+import { isPlainObject } from '@/lib/tool-state-merge'
 
 const FAVORITE_TAG = '⭐'
+
+type SnippetsToolState = {
+  handoff: { title: string; content: string; language: string } | null
+  wikiTargetId: string | null
+  backlinkNoteId: string | null
+  activeFragmentIds: Record<string, string>
+}
+
+function isSnippetHandoff(value: unknown): value is NonNullable<SnippetsToolState['handoff']> {
+  return (
+    isPlainObject(value) &&
+    typeof value.title === 'string' &&
+    typeof value.content === 'string' &&
+    typeof value.language === 'string'
+  )
+}
+
+export function validateSnippetsToolState(state: SnippetsToolState): SnippetsToolState {
+  const handoff = isSnippetHandoff(state.handoff) ? state.handoff : null
+  const wikiTargetId = typeof state.wikiTargetId === 'string' ? state.wikiTargetId : null
+  const backlinkNoteId = typeof state.backlinkNoteId === 'string' ? state.backlinkNoteId : null
+  const activeFragmentIds = Object.fromEntries(
+    Object.entries(state.activeFragmentIds).filter(([, id]) => typeof id === 'string')
+  )
+  if (
+    handoff === state.handoff &&
+    wikiTargetId === state.wikiTargetId &&
+    backlinkNoteId === state.backlinkNoteId &&
+    Object.keys(activeFragmentIds).length === Object.keys(state.activeFragmentIds).length
+  ) {
+    return state
+  }
+  return { ...state, handoff, wikiTargetId, backlinkNoteId, activeFragmentIds }
+}
 
 const LANGUAGES = [
   'javascript',
@@ -271,17 +306,16 @@ export default function SnippetsManager() {
   const snippets = useSnippetsStore((state) => state.snippets)
   const deferredSnippets = useDeferredValue(snippets)
   const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
-  const [handoffState, updateHandoffState] = useToolState<{
-    handoff: { title: string; content: string; language: string } | null
-    wikiTargetId: string | null
-    backlinkNoteId: string | null
-    activeFragmentIds: Record<string, string>
-  }>('snippets', {
-    handoff: null,
-    wikiTargetId: null,
-    backlinkNoteId: null,
-    activeFragmentIds: {},
-  })
+  const [handoffState, updateHandoffState] = useToolState<SnippetsToolState>(
+    'snippets',
+    {
+      handoff: null,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      activeFragmentIds: {},
+    },
+    { validate: validateSnippetsToolState }
+  )
   const saving = useSnippetsStore((state) => state.saving)
   const activeFolder = useSnippetsStore((state) => state.activeFolder)
   const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)

@@ -3,6 +3,53 @@ import { loadToolState, saveToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolInstance } from '@/app/tool-instance'
 import { registerFlusher } from '@/lib/flush-on-exit'
+import { droppedToolStateKeys, mergeToolState } from '@/lib/tool-state-merge'
+
+type ToolStateOptions<T> = {
+  validate?: (merged: T) => T
+}
+
+const warnedDrops = new Set<string>()
+
+function warnDroppedValue(toolId: string, key: string): void {
+  if (!import.meta.env.DEV) return
+  const warningId = `${toolId}:${key}`
+  if (warnedDrops.has(warningId)) return
+  warnedDrops.add(warningId)
+  console.warn(`[useToolState] Dropped invalid saved value for "${toolId}.${key}".`)
+}
+
+function valuesMatch(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true
+  try {
+    return JSON.stringify(left) === JSON.stringify(right)
+  } catch {
+    return false
+  }
+}
+
+function restoreToolState<T extends Record<string, unknown>>(
+  toolId: string,
+  defaults: T,
+  saved: unknown,
+  validate?: (merged: T) => T
+): T {
+  for (const key of droppedToolStateKeys(defaults, saved)) warnDroppedValue(toolId, key)
+
+  const merged = mergeToolState(defaults, saved)
+  if (!validate) return merged
+
+  try {
+    const validated = validate(merged)
+    for (const key of Object.keys(defaults)) {
+      if (!valuesMatch(merged[key], validated[key])) warnDroppedValue(toolId, key)
+    }
+    return validated
+  } catch {
+    warnDroppedValue(toolId, 'validator')
+    return merged
+  }
+}
 
 /**
  * Persists tool-specific state to SQLite.
@@ -21,7 +68,8 @@ import { registerFlusher } from '@/lib/flush-on-exit'
  */
 export function useToolState<T extends Record<string, unknown>>(
   requestedId: string,
-  defaultState: T
+  defaultState: T,
+  options?: ToolStateOptions<T>
 ): [T, (patch: Partial<T>) => void] {
   // Two tabs of the same tool must not share a row, so the tab decides the
   // key. The first tab of a tool is given the bare tool id, which is why
@@ -32,16 +80,19 @@ export function useToolState<T extends Record<string, unknown>>(
 
   const cacheGet = useToolStateCache((s) => s.get)
   const cacheSet = useToolStateCache((s) => s.set)
+  const cachedAtMountRef = useRef(cacheGet(toolId))
+  const hadCachedStateRef = useRef(cachedAtMountRef.current !== undefined)
 
   // Initialise from in-memory cache (synchronous) if available
   const [state, setState] = useState<T>(() => {
-    const cached = cacheGet(toolId)
-    if (cached) return { ...defaultState, ...cached }
+    if (hadCachedStateRef.current) {
+      return restoreToolState(toolId, defaultState, cachedAtMountRef.current, options?.validate)
+    }
     return defaultState
   })
   const stateRef = useRef(state)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const loadedRef = useRef(!!cacheGet(toolId))
+  const loadedRef = useRef(hadCachedStateRef.current)
   // True once the user has changed state via update(). Guards the cold-start race
   // where a slow loadToolState() resolves after the user has already typed.
   const dirtyRef = useRef(false)
@@ -69,8 +120,8 @@ export function useToolState<T extends Record<string, unknown>>(
         loadedRef.current = true
         return
       }
-      if (saved) {
-        const merged = { ...defaultState, ...saved }
+      if (saved !== null) {
+        const merged = restoreToolState(toolId, defaultState, saved, options?.validate)
         setState(merged)
         stateRef.current = merged
         cacheSet(toolId, merged)
@@ -80,9 +131,7 @@ export function useToolState<T extends Record<string, unknown>>(
     return () => {
       cancelled = true
     }
-    // Intentionally exclude `defaultState` from deps — it's only needed for the initial
-    // merge on mount. Including it would cause re-fetches on every render since callers
-    // pass inline object literals.
+    // The defaults and validator only apply to the first load. Callers pass them inline.
   }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A handoff from another tool (`sendToTool`) merges into the cache and bumps
@@ -95,8 +144,8 @@ export function useToolState<T extends Record<string, unknown>>(
     if (seedRevision === seenSeedRef.current) return
     seenSeedRef.current = seedRevision
     const seeded = cacheGet(toolId)
-    if (!seeded) return
-    const merged = { ...defaultState, ...seeded }
+    if (seeded === undefined) return
+    const merged = restoreToolState(toolId, defaultState, seeded, options?.validate)
     setState(merged)
     stateRef.current = merged
     // The handoff is the user's intent as much as typing is: a pending cold
@@ -105,7 +154,7 @@ export function useToolState<T extends Record<string, unknown>>(
     loadedRef.current = true
     dirtyRef.current = true
     saveToolState(toolId, merged)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `defaultState` is an inline literal; see the load effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- The defaults and validator are inline values.
   }, [seedRevision, toolId, cacheGet])
 
   // Debounced save to SQLite (cache is updated synchronously)
