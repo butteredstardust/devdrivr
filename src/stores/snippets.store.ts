@@ -236,23 +236,46 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
         if (!saved) {
           conflictDetected = true
           const databaseVersion = await loadSnippet(pendingId)
-          const now = Math.max(Date.now(), pending.updated.updatedAt + 1)
-          const conflictedCopy = normalizeSnippet({
-            ...pending.updated,
-            id: nanoid(),
-            title: `${pending.updated.title} (conflicted copy)`,
-            createdAt: now,
-            updatedAt: now,
-            fragments: normalizeSnippet(pending.updated).fragments.map((fragment) => ({
-              ...fragment,
-              id: nanoid(),
-              createdAt: now,
+          const copyId = nanoid()
+          const copyCreatedAt = Math.max(Date.now(), pending.updated.updatedAt + 1)
+          const makeCopy = (draft: Snippet, now: number) => {
+            const copy = normalizeSnippet({
+              ...draft,
+              id: copyId,
+              title: `${draft.title} (conflicted copy)`,
+              createdAt: copyCreatedAt,
               updatedAt: now,
-            })),
-          })
-          delete conflictedCopy.deletedAt
+              fragments: normalizeSnippet(draft).fragments.map((fragment) => ({
+                ...fragment,
+                id: nanoid(),
+                createdAt: now,
+                updatedAt: now,
+              })),
+            })
+            delete copy.deletedAt
+            return copy
+          }
+          let latest = pending
+          let conflictedCopy = makeCopy(latest.updated, copyCreatedAt)
           await saveSnippet(conflictedCopy)
-          if (pendingSaves.get(pendingId)?.version === pending.version) {
+          // An edit can land while the copy saves. Its baseline is still stale, so it must go
+          // into the same copy. Otherwise the next flush conflicts again and makes a second copy.
+          for (
+            let next = pendingSaves.get(pendingId);
+            next && next.version !== latest.version;
+            next = pendingSaves.get(pendingId)
+          ) {
+            latest = next
+            conflictedCopy = makeCopy(
+              latest.updated,
+              Math.max(Date.now(), conflictedCopy.updatedAt + 1)
+            )
+            await saveSnippet(conflictedCopy)
+          }
+          const staleTimer = saveTimers.get(pendingId)
+          if (staleTimer) clearTimeout(staleTimer)
+          saveTimers.delete(pendingId)
+          if (pendingSaves.get(pendingId)?.version === latest.version) {
             pendingSaves.delete(pendingId)
             set((state) => {
               const databaseSnippets = databaseVersion?.deletedAt

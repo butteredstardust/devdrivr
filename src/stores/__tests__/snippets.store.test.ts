@@ -275,4 +275,49 @@ describe('snippets store initialization', () => {
       'info'
     )
   })
+
+  it('folds an edit made during conflict handling into the same copy', async () => {
+    const original: Snippet = {
+      id: 'shared-snippet',
+      title: 'Parser',
+      content: 'original',
+      language: 'typescript',
+      tags: [],
+      folder: 'Utilities',
+      folderId: 'snippets-inbox',
+      createdAt: 1,
+      updatedAt: 10,
+    }
+    const external = { ...original, content: 'mcp edit', updatedAt: 20 }
+    const { useSnippetsStore } = await import('../snippets.store')
+    useSnippetsStore.setState({ snippets: [original], trashedSnippets: [] })
+    vi.mocked(saveSnippetIfUnchanged).mockResolvedValueOnce(false)
+    vi.mocked(loadSnippet).mockResolvedValueOnce(external)
+    let resolveCopySave!: () => void
+    vi.mocked(saveSnippet).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveCopySave = resolve
+      })
+    )
+
+    await useSnippetsStore.getState().update(original.id, { content: 'first draft' })
+    const flush = useSnippetsStore.getState().flushPending(original.id)
+    await vi.waitFor(() => expect(saveSnippet).toHaveBeenCalledOnce())
+    await useSnippetsStore.getState().update(original.id, { content: 'second draft' })
+    resolveCopySave()
+    await flush
+    await useSnippetsStore.getState().flushPending()
+
+    expect(saveSnippetIfUnchanged).toHaveBeenCalledOnce()
+    const copyIds = new Set(vi.mocked(saveSnippet).mock.calls.map(([snippet]) => snippet.id))
+    expect(copyIds.size).toBe(1)
+    expect(saveSnippet).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'Parser (conflicted copy)', content: 'second draft' })
+    )
+    const snippets = useSnippetsStore.getState().snippets
+    expect(snippets.filter((snippet) => snippet.title.endsWith('(conflicted copy)'))).toHaveLength(
+      1
+    )
+    expect(addToast).toHaveBeenCalledOnce()
+  })
 })

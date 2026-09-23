@@ -272,6 +272,49 @@ describe('notes store', () => {
     ])
   })
 
+  it('folds an edit made during conflict handling into the same copy', async () => {
+    const original: Note = {
+      id: 'shared-note',
+      title: 'Plan',
+      content: 'Original',
+      color: 'yellow',
+      pinned: false,
+      poppedOut: false,
+      tags: [],
+      sortOrder: 0,
+      folderId: 'notes-inbox',
+      createdAt: 1,
+      updatedAt: 10,
+    }
+    const external = { ...original, content: 'MCP edit', updatedAt: 20 }
+    useNotesStore.setState({ notes: [original] })
+    vi.mocked(saveNoteIfUnchanged).mockResolvedValueOnce(false)
+    vi.mocked(loadNote).mockResolvedValueOnce(external)
+    const copySave = deferred<void>()
+    vi.mocked(saveNote).mockReturnValueOnce(copySave.promise)
+
+    useNotesStore.getState().edit(original.id, { content: 'First draft' })
+    const flush = useNotesStore.getState().flushPending(original.id)
+    await vi.waitFor(() => expect(saveNote).toHaveBeenCalledOnce())
+    useNotesStore.getState().edit(original.id, { content: 'Second draft' })
+    copySave.resolve()
+    await flush
+    await useNotesStore.getState().flushPending()
+
+    expect(saveNoteIfUnchanged).toHaveBeenCalledOnce()
+    const copyIds = new Set(vi.mocked(saveNote).mock.calls.map(([note]) => note.id))
+    expect(copyIds.size).toBe(1)
+    expect(saveNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'Plan (conflicted copy)', content: 'Second draft' })
+    )
+    const notes = useNotesStore.getState().notes
+    expect(notes.filter((note) => note.title.endsWith('(conflicted copy)'))).toHaveLength(1)
+    expect(notes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: original.id, content: 'MCP edit' })])
+    )
+    expect(useUiStore.getState().toasts).toHaveLength(1)
+  })
+
   it('keeps an edit made while refresh is reading stale rows', async () => {
     const note = await useNotesStore.getState().add('Original', 'First body')
     const staleLoad = deferred<Note[]>()

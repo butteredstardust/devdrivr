@@ -228,17 +228,40 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
         if (!saved) {
           conflictDetected = true
           const databaseVersion = await loadNote(pendingId)
-          const now = Math.max(Date.now(), pending.updated.updatedAt + 1)
-          const conflictedCopy: Note = {
-            ...pending.updated,
-            id: nanoid(),
-            title: `${pending.updated.title} (conflicted copy)`,
-            createdAt: now,
-            updatedAt: now,
+          const copyId = nanoid()
+          const copyCreatedAt = Math.max(Date.now(), pending.updated.updatedAt + 1)
+          let latest = pending
+          let conflictedCopy: Note = {
+            ...latest.updated,
+            id: copyId,
+            title: `${latest.updated.title} (conflicted copy)`,
+            createdAt: copyCreatedAt,
+            updatedAt: copyCreatedAt,
           }
           delete conflictedCopy.deletedAt
           await saveNote(conflictedCopy)
-          if (pendingSaves.get(pendingId)?.version === pending.version) {
+          // An edit can land while the copy saves. Its baseline is still stale, so it must go
+          // into the same copy. Otherwise the next flush conflicts again and makes a second copy.
+          for (
+            let next = pendingSaves.get(pendingId);
+            next && next.version !== latest.version;
+            next = pendingSaves.get(pendingId)
+          ) {
+            latest = next
+            conflictedCopy = {
+              ...latest.updated,
+              id: copyId,
+              title: `${latest.updated.title} (conflicted copy)`,
+              createdAt: copyCreatedAt,
+              updatedAt: Math.max(Date.now(), conflictedCopy.updatedAt + 1),
+            }
+            delete conflictedCopy.deletedAt
+            await saveNote(conflictedCopy)
+          }
+          const staleTimer = saveTimers.get(pendingId)
+          if (staleTimer) clearTimeout(staleTimer)
+          saveTimers.delete(pendingId)
+          if (pendingSaves.get(pendingId)?.version === latest.version) {
             pendingSaves.delete(pendingId)
             notesRevision++
             set((state) => {
