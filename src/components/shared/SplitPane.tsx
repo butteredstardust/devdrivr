@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 import { useFrameThrottle } from '@/hooks/useFrameThrottle'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 type SplitPaneProps = {
   /** Exactly two panes. A three-way split is a nested `SplitPane`, not a third child. */
@@ -155,13 +156,14 @@ export function SplitPane({
   // flush what is pending instead of cancelling it.
   const persistRef = useRef(persist)
   persistRef.current = persist
-  useEffect(
-    () => () => {
-      clearTimeout(persistTimer.current)
-      if (pendingRatio.current !== null) persistRef.current(pendingRatio.current)
-    },
-    []
-  )
+  const flushPendingRatio = useCallback(async () => {
+    clearTimeout(persistTimer.current)
+    const pending = pendingRatio.current
+    pendingRatio.current = null
+    if (pending !== null) persistRef.current(pending)
+  }, [])
+  useEffect(() => registerFlusher(flushPendingRatio), [flushPendingRatio])
+  useEffect(() => () => void flushPendingRatio(), [flushPendingRatio])
 
   const commit = useCallback(
     (next: number) => {

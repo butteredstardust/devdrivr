@@ -28,7 +28,9 @@ const mocks = vi.hoisted(() => ({
     downloadUpdatesAutomatically: false,
   },
   notesInit: vi.fn(),
+  notesFlushPending: vi.fn(),
   snippetsInit: vi.fn(),
+  snippetsFlushPending: vi.fn(),
   foldersInit: vi.fn(),
   promptTemplatesInit: vi.fn(),
   historyInit: vi.fn(),
@@ -39,6 +41,8 @@ const mocks = vi.hoisted(() => ({
   getToolById: vi.fn(),
   onMoved: vi.fn(),
   onResized: vi.fn(),
+  onCloseRequested: vi.fn(),
+  invoke: vi.fn(),
   setAlwaysOnTop: vi.fn(),
   restoreTabs: vi.fn(),
   restoreActiveTool: vi.fn(),
@@ -56,11 +60,23 @@ vi.mock('@/stores/settings.store', () => ({
 }))
 
 vi.mock('@/stores/notes.store', () => ({
-  useNotesStore: { getState: () => ({ init: mocks.notesInit, refresh: vi.fn() }) },
+  useNotesStore: {
+    getState: () => ({
+      init: mocks.notesInit,
+      refresh: vi.fn(),
+      flushPending: mocks.notesFlushPending,
+    }),
+  },
 }))
 
 vi.mock('@/stores/snippets.store', () => ({
-  useSnippetsStore: { getState: () => ({ init: mocks.snippetsInit, refresh: vi.fn() }) },
+  useSnippetsStore: {
+    getState: () => ({
+      init: mocks.snippetsInit,
+      refresh: vi.fn(),
+      flushPending: mocks.snippetsFlushPending,
+    }),
+  },
 }))
 
 vi.mock('@/stores/folders.store', () => ({
@@ -114,6 +130,7 @@ vi.mock('@tauri-apps/api/window', () => ({
     setAlwaysOnTop: mocks.setAlwaysOnTop,
     onMoved: mocks.onMoved,
     onResized: mocks.onResized,
+    onCloseRequested: mocks.onCloseRequested,
     scaleFactor: vi.fn().mockResolvedValue(1),
     outerPosition: vi.fn().mockResolvedValue({ toLogical: () => ({ x: 0, y: 0 }) }),
     outerSize: vi.fn().mockResolvedValue({ toLogical: () => ({ width: 800, height: 600 }) }),
@@ -122,6 +139,10 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: (...args: unknown[]) => mocks.listen(...args),
+}))
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => mocks.invoke(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -147,7 +168,9 @@ describe('Providers bootstrap', () => {
     mocks.setSetting.mockResolvedValue(undefined)
     mocks.getToolById.mockReturnValue(undefined)
     mocks.notesInit.mockResolvedValue(undefined)
+    mocks.notesFlushPending.mockResolvedValue(undefined)
     mocks.snippetsInit.mockResolvedValue(undefined)
+    mocks.snippetsFlushPending.mockResolvedValue(undefined)
     mocks.foldersInit.mockResolvedValue(undefined)
     mocks.promptTemplatesInit.mockResolvedValue(undefined)
     mocks.historyInit.mockResolvedValue(undefined)
@@ -158,7 +181,9 @@ describe('Providers bootstrap', () => {
     // timing override these with a gate.
     mocks.onMoved.mockResolvedValue(vi.fn())
     mocks.onResized.mockResolvedValue(vi.fn())
+    mocks.onCloseRequested.mockResolvedValue(vi.fn())
     mocks.listen.mockResolvedValue(vi.fn())
+    mocks.invoke.mockResolvedValue(undefined)
     mocks.settingsInit.mockImplementation(async () => {
       mocks.settingsState.initialized = true
     })
@@ -171,7 +196,9 @@ describe('Providers bootstrap', () => {
   it('tears down a listener created just before unmount instead of leaking it', async () => {
     const unlistenMcp = vi.fn()
     const mcpListenGate = deferred<() => void>()
-    mocks.listen.mockReturnValue(mcpListenGate.promise)
+    mocks.listen.mockImplementation((event: string) =>
+      event === 'mcp:data-changed' ? mcpListenGate.promise : Promise.resolve(vi.fn())
+    )
 
     const { unmount } = render(<Providers>content</Providers>)
 
@@ -180,7 +207,7 @@ describe('Providers bootstrap', () => {
     await act(async () => {
       await flushMicrotasks()
     })
-    expect(mocks.listen).toHaveBeenCalledTimes(1)
+    expect(mocks.listen).toHaveBeenCalledWith('mcp:data-changed', expect.any(Function))
 
     // Unmount while still awaiting `listen()` — before the fix, `cleanups`
     // would already have been iterated (empty) by the time `listen()`

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadToolState, saveToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolInstance } from '@/app/tool-instance'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 /**
  * Persists tool-specific state to SQLite.
@@ -44,6 +45,14 @@ export function useToolState<T extends Record<string, unknown>>(
   // True once the user has changed state via update(). Guards the cold-start race
   // where a slow loadToolState() resolves after the user has already typed.
   const dirtyRef = useRef(false)
+
+  const flushPending = useCallback(async () => {
+    if (!timerRef.current) return
+    clearTimeout(timerRef.current)
+    timerRef.current = null
+    if (useToolStateCache.getState().isDiscarded(toolId)) return
+    await saveToolState(toolId, stateRef.current)
+  }, [toolId])
 
   // Load from SQLite on mount only if no cached value
   useEffect(() => {
@@ -112,11 +121,14 @@ export function useToolState<T extends Record<string, unknown>>(
 
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
-        saveToolState(toolId, stateRef.current)
+        timerRef.current = null
+        void saveToolState(toolId, stateRef.current)
       }, 2000)
     },
     [toolId, cacheSet]
   )
+
+  useEffect(() => registerFlusher(flushPending), [flushPending])
 
   // Save immediately on unmount (cache already up to date).
   // `dirtyRef` is checked alongside `loadedRef` so edits made while the initial read

@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useToolState } from '@/hooks/useToolState'
 import { loadToolState, saveToolState } from '@/lib/db'
+import { flushAll } from '@/lib/flush-on-exit'
 
 vi.mock('@/lib/db', () => ({
   loadToolState: vi.fn(),
@@ -115,6 +116,22 @@ describe('useToolState', () => {
 
     expect(cacheStore[TOOL_ID]).toEqual({ value: 'updated' })
     expect(saveToolState).not.toHaveBeenCalled() // since it's debounced
+  })
+
+  it('flushes a pending write through the exit registry', async () => {
+    vi.mocked(loadToolState).mockResolvedValue(null)
+    vi.mocked(saveToolState).mockResolvedValue(undefined)
+    const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    act(() => {
+      result.current[1]({ value: 'pending' })
+    })
+    await act(async () => {
+      await flushAll()
+    })
+
+    expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, { value: 'pending' })
+    expect(saveToolState).toHaveBeenCalledTimes(1)
   })
 
   it('update() debounces saveToolState — not called before 2000ms, called after', () => {

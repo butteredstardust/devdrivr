@@ -41,6 +41,7 @@ import {
 } from '@/lib/shell-layout'
 import { useEdgeResize } from '@/hooks/useEdgeResize'
 import { sendToTool } from '@/lib/tool-handoff'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 const DRAWER_TABS = [
   { id: 'notes', label: 'Notes' },
@@ -404,6 +405,7 @@ export function NotesDrawer() {
   const [dragOverNote, setDragOverNote] = useState<DragOverNote | null>(null)
   const [fuseVersion, setFuseVersion] = useState(0)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingWidth = useRef<number | null>(null)
   const fuseRef = useRef<Fuse<NoteType> | null>(null)
   const draggedNoteIdRef = useRef<string | null>(null)
   const noteListRef = useRef<HTMLDivElement | null>(null)
@@ -472,12 +474,23 @@ export function NotesDrawer() {
   const editingNote = notes.find((note) => note.id === editingId)
   const canReorderNotes = !search.trim()
 
+  const flushPendingWidth = useCallback(async () => {
+    clearTimeout(saveTimer.current)
+    saveTimer.current = undefined
+    const next = pendingWidth.current
+    pendingWidth.current = null
+    if (next !== null) await updateSetting('notesDrawerWidth', next)
+  }, [updateSetting])
+  useEffect(() => registerFlusher(flushPendingWidth), [flushPendingWidth])
+  useEffect(() => () => void flushPendingWidth(), [flushPendingWidth])
+
   const persistWidth = useCallback(
     (final: number) => {
       clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => void updateSetting('notesDrawerWidth', final), 500)
+      pendingWidth.current = final
+      saveTimer.current = setTimeout(() => void flushPendingWidth().catch(() => {}), 500)
     },
-    [updateSetting]
+    [flushPendingWidth]
   )
 
   // The drawer may take whatever the measured row can spare, so the ceiling moves with the
