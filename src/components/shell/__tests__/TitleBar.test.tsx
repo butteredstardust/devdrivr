@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TitleBar } from '@/components/shell/TitleBar'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 import type { Note } from '@/types/models'
@@ -70,9 +71,11 @@ beforeEach(() => {
   mocks.getNativeWindowState.mockResolvedValue({ isMaximized: false, isFullscreen: false })
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, initialized: true })
   useUiStore.setState({
+    commandPaletteOpen: false,
+  })
+  useWorkspaceStore.setState({
     activeTabId: null,
     activeTool: '',
-    commandPaletteOpen: false,
     tabs: [],
   })
   useNotesStore.setState({ notes: [] })
@@ -183,7 +186,7 @@ describe('TitleBar — command palette trigger', () => {
   })
 
   it('shows the active tool name when a tool is open', () => {
-    useUiStore.setState({ activeTool: 'base64' })
+    useWorkspaceStore.setState({ activeTool: 'base64' })
     render(<TitleBar />)
     expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Base64')
   })

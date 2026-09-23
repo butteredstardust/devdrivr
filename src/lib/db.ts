@@ -64,7 +64,8 @@ function enqueueWrite<T>(operation: (conn: Database) => Promise<T>): Promise<T> 
 }
 
 /** A parameterised statement destined for the atomic batch command. */
-export type BatchStatement = { sql: string; params: unknown[] }
+export type BatchStatement = { sql: string; params: unknown[]; stopOnZeroRows?: boolean }
+type BatchStatementResult = { rowsAffected: number }
 
 /**
  * Runs a group of statements atomically.
@@ -80,13 +81,16 @@ export type BatchStatement = { sql: string; params: unknown[] }
  * Still routed through `writeQueue` so batches stay ordered against single-statement
  * writes going through the plugin pool.
  */
-function runBatch(statements: BatchStatement[], immediate = false): Promise<void> {
-  if (statements.length === 0) return Promise.resolve()
+function runBatch(
+  statements: BatchStatement[],
+  immediate = false
+): Promise<BatchStatementResult[]> {
+  if (statements.length === 0) return Promise.resolve([])
   // enqueueWrite awaits getDb() first, which guarantees the plugin has opened the
   // database and applied migrations before the Rust pool touches the same file.
-  return enqueueWrite(async () => {
-    await invoke('db_execute_batch', { statements, immediate })
-  })
+  return enqueueWrite(() =>
+    invoke<BatchStatementResult[]>('db_execute_batch', { statements, immediate })
+  )
 }
 
 // --- Settings ---
@@ -198,6 +202,13 @@ export async function loadTrashedNotes(): Promise<Note[]> {
   return loadNotesByTrash(true)
 }
 
+export async function loadNote(id: string): Promise<Note | null> {
+  const conn = await getDb()
+  const rows = await conn.select<NoteRow[]>('SELECT * FROM notes WHERE id = $1', [id])
+  const row = rows[0]
+  return row ? rowToNote(row) : null
+}
+
 async function loadNotesByTrash(trashed: boolean): Promise<Note[]> {
   const conn = await getDb()
   const rows = await conn.select<NoteRow[]>(
@@ -251,6 +262,16 @@ function noteLinkStatements(note: Pick<Note, 'id' | 'content'>): BatchStatement[
 
 export async function saveNote(note: Note): Promise<void> {
   await runBatch([noteSaveStatement(note), ...noteLinkStatements(note)], true)
+}
+
+export async function saveNoteIfUnchanged(note: Note, expectedUpdatedAt: number): Promise<boolean> {
+  const statement = noteSaveStatement(note)
+  // Number the guard from the parameter count, so a new column cannot shift it.
+  statement.params.push(expectedUpdatedAt)
+  statement.sql += ` WHERE notes.updated_at = $${statement.params.length}`
+  statement.stopOnZeroRows = true
+  const results = await runBatch([statement, ...noteLinkStatements(note)], true)
+  return results[0]?.rowsAffected === 1
 }
 
 export async function rebuildNoteLinks(notes: Note[]): Promise<void> {
@@ -357,6 +378,26 @@ export async function loadTrashedSnippets(): Promise<Snippet[]> {
   return loadSnippetsByTrash(true)
 }
 
+export async function loadSnippet(id: string): Promise<Snippet | null> {
+  const conn = await getDb()
+  const [rows, fragmentRows] = await Promise.all([
+    conn.select<SnippetRow[]>('SELECT * FROM snippets WHERE id = $1', [id]),
+    conn.select<SnippetFragmentRow[]>(
+      'SELECT * FROM snippet_fragments WHERE snippet_id = $1 ORDER BY sort_order, created_at',
+      [id]
+    ),
+  ])
+  const row = rows[0]
+  if (!row) return null
+  const snippet = rowToSnippet(row)
+  if (!snippet) return null
+  const fragments = fragmentRows
+    .map((fragmentRow) => snippetFragmentRowSchema.safeParse(fragmentRow))
+    .filter((result) => result.success)
+    .map((result) => result.data)
+  return normalizeSnippet({ ...snippet, fragments })
+}
+
 async function loadSnippetsByTrash(trashed: boolean): Promise<Snippet[]> {
   const conn = await getDb()
   const [rows, fragmentRows] = await Promise.all([
@@ -435,6 +476,21 @@ function buildSaveSnippetStatements(snippet: Snippet): BatchStatement[] {
 
 export async function saveSnippet(snippet: Snippet): Promise<void> {
   await runBatch(buildSaveSnippetStatements(snippet), true)
+}
+
+export async function saveSnippetIfUnchanged(
+  snippet: Snippet,
+  expectedUpdatedAt: number
+): Promise<boolean> {
+  const statements = buildSaveSnippetStatements(snippet)
+  const statement = statements[0]
+  if (!statement) return false
+  // Number the guard from the parameter count, so a new column cannot shift it.
+  statement.params.push(expectedUpdatedAt)
+  statement.sql += ` WHERE snippets.updated_at = $${statement.params.length}`
+  statement.stopOnZeroRows = true
+  const results = await runBatch(statements, true)
+  return results[0]?.rowsAffected === 1
 }
 
 export async function saveSnippetImport(

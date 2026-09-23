@@ -50,16 +50,29 @@ impl DevdrivrMcpService {
         self.ensure_permission(resource_type.key(), "update")
             .await?;
         let table = trash_table(resource_type)?;
+        let now = now_ms();
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         let result = sqlx::query(&format!(
-            "UPDATE {table} SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL"
+            "UPDATE {table} SET deleted_at = NULL, updated_at = MAX(updated_at + 1, $2) WHERE id = $1 AND deleted_at IS NOT NULL"
         ))
         .bind(&args.id)
-        .execute(&self.pool)
+        .bind(now)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
             return Err(not_found(resource_type.key(), &args.id));
         }
+        if resource_type == ResourceType::Notes {
+            let content =
+                sqlx::query_scalar::<_, String>("SELECT content FROM notes WHERE id = $1")
+                    .bind(&args.id)
+                    .fetch_one(&mut *transaction)
+                    .await
+                    .map_err(db_error)?;
+            Self::replace_note_links(&mut transaction, &args.id, &content).await?;
+        }
+        transaction.commit().await.map_err(db_error)?;
         self.emit_changed(resource_type.key(), "update", Some(args.id.clone()));
         to_json_text(json!({
             "restored": true,

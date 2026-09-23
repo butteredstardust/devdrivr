@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { clearHandoffDeliveries, sendToTool } from '@/lib/tool-handoff'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { loadToolState, saveToolState } from '@/lib/db'
 
@@ -15,7 +15,7 @@ vi.mock('@/lib/db', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadToolState).mockResolvedValue(null)
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
   useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
   clearHandoffDeliveries()
 })
@@ -24,7 +24,7 @@ describe('sendToTool', () => {
   it('opens the target tool and seeds its state', async () => {
     sendToTool('api-client', { draft: { url: 'https://example.com' } })
 
-    const { tabs, activeTool } = useUiStore.getState()
+    const { tabs, activeTool } = useWorkspaceStore.getState()
     expect(activeTool).toBe('api-client')
     // Focus is immediate; the seed waits on the tool's saved state.
     await vi.waitFor(() =>
@@ -48,12 +48,12 @@ describe('sendToTool', () => {
   it('addresses the tab it focuses, not the bare tool id', async () => {
     // The tab holding the bare key is closed, leaving only a scoped one —
     // writing to `api-client` here would land in a row nobody reads.
-    useUiStore.getState().openTab('api-client')
-    const firstId = useUiStore.getState().tabs[0]!.id
-    useUiStore.getState().openTabInstance('api-client')
-    useUiStore.getState().closeTab(firstId)
+    useWorkspaceStore.getState().openTab('api-client')
+    const firstId = useWorkspaceStore.getState().tabs[0]!.id
+    useWorkspaceStore.getState().openTabInstance('api-client')
+    useWorkspaceStore.getState().closeTab(firstId)
 
-    const survivor = useUiStore.getState().tabs[0]!
+    const survivor = useWorkspaceStore.getState().tabs[0]!
     expect(survivor.stateKey).toBe(`api-client#${survivor.id}`)
 
     sendToTool('api-client', { activeRequestId: null })
@@ -67,16 +67,16 @@ describe('sendToTool', () => {
   })
 
   it('addresses the most recently used duplicate', () => {
-    useUiStore.getState().openTab('json-tools')
-    const first = useUiStore.getState().tabs[0]!
-    useUiStore.getState().openTabInstance('json-tools')
-    const second = useUiStore.getState().tabs[1]!
+    useWorkspaceStore.getState().openTab('json-tools')
+    const first = useWorkspaceStore.getState().tabs[0]!
+    useWorkspaceStore.getState().openTabInstance('json-tools')
+    const second = useWorkspaceStore.getState().tabs[1]!
     useToolStateCache.getState().set(second.stateKey!, { input: 'second' })
-    useUiStore.getState().openTab('base64')
+    useWorkspaceStore.getState().openTab('base64')
 
     sendToTool('json-tools', { input: 'handoff' })
 
-    expect(useUiStore.getState().activeTabId).toBe(second.id)
+    expect(useWorkspaceStore.getState().activeTabId).toBe(second.id)
     expect(useToolStateCache.getState().get(second.stateKey!)).toEqual({ input: 'handoff' })
     expect(useToolStateCache.getState().get(first.stateKey!)).toBeUndefined()
   })
@@ -153,12 +153,12 @@ describe('sendToTool', () => {
           resolveLoad = resolve
         })
     )
-    useUiStore.getState().openTab('json-tools')
-    useUiStore.getState().openTabInstance('json-tools')
-    const duplicate = useUiStore.getState().tabs[1]!
+    useWorkspaceStore.getState().openTab('json-tools')
+    useWorkspaceStore.getState().openTabInstance('json-tools')
+    const duplicate = useWorkspaceStore.getState().tabs[1]!
 
     sendToTool('json-tools', { input: 'handoff' })
-    useUiStore.getState().closeTab(duplicate.id)
+    useWorkspaceStore.getState().closeTab(duplicate.id)
     resolveLoad({ input: 'stale' })
 
     await Promise.resolve()
@@ -168,25 +168,25 @@ describe('sendToTool', () => {
   })
 
   it('does not open a second tab when the tool is already open', () => {
-    useUiStore.getState().openTab('json-tools')
+    useWorkspaceStore.getState().openTab('json-tools')
 
     sendToTool('json-tools', { input: 'x' })
 
-    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
   })
 
   describe('documentKeys', () => {
     it('gives the handoff a new tab rather than replacing an open document', async () => {
-      useUiStore.getState().openTab('yaml-tools')
-      const occupied = useUiStore.getState().tabs[0]!
+      useWorkspaceStore.getState().openTab('yaml-tools')
+      const occupied = useWorkspaceStore.getState().tabs[0]!
       useToolStateCache
         .getState()
         .set(occupied.stateKey!, { input: 'services:\n  web:\n', filePath: '/app/compose.yml' })
 
       sendToTool('yaml-tools', { input: '{"a":1}' }, { documentKeys: ['input'] })
 
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
-      const arrival = useUiStore.getState().tabs[1]!
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
+      const arrival = useWorkspaceStore.getState().tabs[1]!
       expect(useToolStateCache.getState().get(arrival.stateKey!)).toEqual({ input: '{"a":1}' })
       // The document that was already there, and the path it would be saved to, are untouched.
       expect(useToolStateCache.getState().get(occupied.stateKey!)).toEqual({
@@ -202,8 +202,8 @@ describe('sendToTool', () => {
 
       sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
 
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
-      const arrival = useUiStore.getState().tabs[1]!
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
+      const arrival = useWorkspaceStore.getState().tabs[1]!
       expect(useToolStateCache.getState().get(arrival.stateKey!)).toMatchObject({
         input: 'handoff',
       })
@@ -211,7 +211,7 @@ describe('sendToTool', () => {
     })
 
     it('reuses the tab when the destination is empty', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache.getState().set('json-tools', { input: '   ', view: 'tree' })
 
       sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
@@ -222,27 +222,27 @@ describe('sendToTool', () => {
           view: 'tree',
         })
       )
-      expect(useUiStore.getState().tabs).toHaveLength(1)
+      expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
     })
 
     it('reuses the tab when the same document is sent twice', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache.getState().set('json-tools', { input: 'same' })
 
       sendToTool('json-tools', { input: 'same' }, { documentKeys: ['input'] })
 
       await vi.waitFor(() => expect(useToolStateCache.getState().seeds.get('json-tools')).toBe(1))
-      expect(useUiStore.getState().tabs).toHaveLength(1)
+      expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
     })
 
     it('refills a tab it filled itself, so repeats do not pile up', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache.getState().set('json-tools', { input: 'first' })
 
       // The first handoff moves aside for the document already there.
       sendToTool('json-tools', { input: 'second' }, { documentKeys: ['input'] })
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
-      const arrival = useUiStore.getState().tabs[1]!
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
+      const arrival = useWorkspaceStore.getState().tabs[1]!
 
       // The second finds only its own output, which nobody has edited, and overwrites it.
       sendToTool('json-tools', { input: 'third' }, { documentKeys: ['input'] })
@@ -251,11 +251,11 @@ describe('sendToTool', () => {
           input: 'third',
         })
       )
-      expect(useUiStore.getState().tabs).toHaveLength(2)
+      expect(useWorkspaceStore.getState().tabs).toHaveLength(2)
     })
 
     it('moves aside once the user edits what a handoff delivered', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache.getState().set('json-tools', { input: 'handed over' })
       sendToTool('json-tools', { input: 'handed over' }, { documentKeys: ['input'] })
       await vi.waitFor(() => expect(useToolStateCache.getState().seeds.get('json-tools')).toBe(1))
@@ -263,12 +263,12 @@ describe('sendToTool', () => {
       useToolStateCache.getState().set('json-tools', { input: 'edited by hand' })
       sendToTool('json-tools', { input: 'next' }, { documentKeys: ['input'] })
 
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
       expect(useToolStateCache.getState().get('json-tools')).toEqual({ input: 'edited by hand' })
     })
 
     it('checks every document key it is given', async () => {
-      useUiStore.getState().openTab('json-schema-validator')
+      useWorkspaceStore.getState().openTab('json-schema-validator')
       useToolStateCache.getState().set('json-schema-validator', { data: '', schema: '{"x":1}' })
 
       // `data` is empty, but `schema` holds work — one occupied key is enough.
@@ -278,7 +278,7 @@ describe('sendToTool', () => {
         { documentKeys: ['data', 'schema'] }
       )
 
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
       expect(useToolStateCache.getState().get('json-schema-validator')).toEqual({
         data: '',
         schema: '{"x":1}',
@@ -288,7 +288,7 @@ describe('sendToTool', () => {
     // The destination keeps the row around the document, so the file it came from would otherwise
     // survive the handoff and take the next Save with it.
     it('detaches the destination from the file it had open', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache
         .getState()
         .set('json-tools', { input: '', filePath: '/notes.json', fileName: 'notes.json' })
@@ -305,7 +305,7 @@ describe('sendToTool', () => {
     })
 
     it('keeps a file the handoff names itself', async () => {
-      useUiStore.getState().openTab('json-tools')
+      useWorkspaceStore.getState().openTab('json-tools')
       useToolStateCache.getState().set('json-tools', { input: '', filePath: '/notes.json' })
 
       sendToTool(
@@ -325,7 +325,7 @@ describe('sendToTool', () => {
     // Forgetting the oldest only costs an extra tab, which is the safe direction.
     it('forgets the oldest delivery once it has remembered enough', async () => {
       const send = (tool: string, input: string) => {
-        useUiStore.getState().openTab(tool)
+        useWorkspaceStore.getState().openTab(tool)
         useToolStateCache.getState().set(tool, { input: '' })
         sendToTool(tool, { input }, { documentKeys: ['input'] })
       }
@@ -340,9 +340,9 @@ describe('sendToTool', () => {
 
       // The destination still holds exactly what the handoff delivered, but that is no longer
       // remembered, so it now looks like the user's own work.
-      const before = useUiStore.getState().tabs.length
+      const before = useWorkspaceStore.getState().tabs.length
       sendToTool('json-tools', { input: 'second' }, { documentKeys: ['input'] })
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(before + 1))
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(before + 1))
     })
 
     // The tab is on screen while its row is read from disk. What the user typed in that window is
@@ -357,11 +357,11 @@ describe('sendToTool', () => {
 
       sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
 
-      const key = useUiStore.getState().tabs[0]!.stateKey!
+      const key = useWorkspaceStore.getState().tabs[0]!.stateKey!
       useToolStateCache.getState().set(key, { input: 'typed while loading' })
       release(null)
 
-      await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
       expect(useToolStateCache.getState().get(key)).toEqual({ input: 'typed while loading' })
     })
   })

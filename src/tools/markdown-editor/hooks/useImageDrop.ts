@@ -79,8 +79,7 @@ type TextFileHandler = (content: string, filename: string, path: string) => void
  * in front of it. A background tab would replace its own document with the dropped file.
  *
  * The tool carries `ownsFileDrop`, so the shell does not listen and this hook answers the whole
- * drop. An image is embedded at the cursor. Anything else is read as text and passed to
- * `onTextFile`, which is what the shell used to do.
+ * drop. Embed images at the cursor. Read other files as text and pass them to `onTextFile`.
  */
 export function useImageDrop(
   editorRef: RefObject<EditorInstance | null>,

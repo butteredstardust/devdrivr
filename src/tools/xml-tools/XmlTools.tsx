@@ -47,9 +47,8 @@ type XmlToolsState = {
   fileName: string | null
   filePath: string | null
   /**
-   * Tree, JSON and XPath used to be tabs that replaced the editor, so every
-   * "look at the document, fix the document" loop cost two tab switches. They
-   * are panes beside the source now, and the choice persists.
+   * Tree, JSON, and XPath appear beside the source so users can inspect and edit together. The view
+   * choice persists.
    */
   view: XmlView
   xpath: string
@@ -147,8 +146,7 @@ export default function XmlTools() {
   inputRef.current = input
   const hasInput = input.trim().length > 0
 
-  // Validation used to be a button, so the document sat there silently broken
-  // until somebody thought to press it. Debounced so typing stays cheap.
+  // Validate automatically so errors stay visible. Debounce the work to keep typing responsive.
   useEffect(() => {
     if (!worker || !input.trim()) {
       setInspection(null)
@@ -873,8 +871,7 @@ function JsonPane({
   const [rootName, setRootName] = useState('root')
   const [failure, setFailure] = useState<string | null>(null)
 
-  // Conversion used to need a Convert click and was thrown away on every
-  // keystroke, so the pane was empty most of the time it was open.
+  // Recompute conversion as input changes so the open pane always reflects valid source text.
   useEffect(() => {
     if (!worker || !input.trim()) {
       setJson('')
@@ -1059,8 +1056,7 @@ function XPathPane({
           </Alert>
         )}
         {failure ? (
-          // The engine used to return its own error message *as a match*, so a
-          // broken expression looked like a result.
+          // Present expression failures as errors, not matches.
           <Alert variant="error" className="text-xs">
             {failure}
           </Alert>

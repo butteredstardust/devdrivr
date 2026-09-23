@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use tauri::{AppHandle, Manager, State};
@@ -17,10 +17,19 @@ use tokio::sync::Mutex;
 
 /// A single parameterised statement in a batch.
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchStatement {
     pub sql: String,
     #[serde(default)]
     pub params: Vec<JsonValue>,
+    #[serde(default)]
+    pub stop_on_zero_rows: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchStatementResult {
+    rows_affected: u64,
 }
 
 /// Lazily-opened single-connection pool used only for atomic batches.
@@ -100,9 +109,9 @@ pub async fn db_execute_batch(
     db: State<'_, BatchDb>,
     statements: Vec<BatchStatement>,
     immediate: bool,
-) -> Result<(), String> {
+) -> Result<Vec<BatchStatementResult>, String> {
     if statements.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let pool = db.pool(&app).await?;
@@ -120,22 +129,28 @@ pub async fn db_execute_batch(
     }
     .map_err(|err| format!("Failed to begin batch transaction: {err}"))?;
 
+    let mut results = Vec::with_capacity(statements.len());
     for statement in &statements {
         let mut query = sqlx::query(&statement.sql);
         for param in &statement.params {
             query = bind_param(query, param);
         }
-        query
+        let result = query
             .execute(&mut *tx)
             .await
             .map_err(|err| format!("Batch statement failed: {err}"))?;
+        let rows_affected = result.rows_affected();
+        results.push(BatchStatementResult { rows_affected });
+        if statement.stop_on_zero_rows && rows_affected == 0 {
+            break;
+        }
     }
 
     tx.commit()
         .await
         .map_err(|err| format!("Failed to commit batch transaction: {err}"))?;
 
-    Ok(())
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -159,5 +174,14 @@ mod tests {
         assert_eq!(parsed[0].params.len(), 2);
         assert!(parsed[0].params[0].is_number());
         assert!(parsed[0].params[1].is_string());
+    }
+
+    #[test]
+    fn deserialises_the_zero_row_stop_flag() {
+        let parsed: Vec<BatchStatement> = serde_json::from_str(
+            r#"[{"sql":"UPDATE notes SET title = $1","stopOnZeroRows":true}]"#,
+        )
+        .expect("valid payload");
+        assert!(parsed[0].stop_on_zero_rows);
     }
 }

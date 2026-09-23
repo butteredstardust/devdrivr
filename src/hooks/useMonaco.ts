@@ -72,13 +72,10 @@ let themesRegistered = false
 /**
  * Convert an rgb()/rgba() string returned by getComputedStyle to a Monaco-compatible hex.
  *
- * Several `--color-text-muted` declarations (and `--color-accent-dim`) are semi-transparent
- * tints of another solid colour, e.g. `rgba(45, 52, 54, 0.6)`. Discarding the alpha channel
- * — as this used to do — collapses them onto the *unblended* RGB triple, which can be
- * byte-identical to an unrelated fully-opaque colour (soft-focus's muted text is
- * `rgba(45, 52, 54, 0.6)`, exactly `--color-text`'s RGB with alpha applied). If `compositeBg`
- * is given and the colour isn't fully opaque, this performs standard source-over compositing
- * (`out = a*fg + (1-a)*bg`) to get the colour as it actually renders against that background.
+ * Some text and accent tokens are semi-transparent tints. Dropping alpha can make them identical
+ * to unrelated opaque colours.
+ *
+ * When `compositeBg` is present, use source-over compositing to calculate the rendered colour.
  */
 function rgbToMonacoHex(rgb: string, compositeBg?: [number, number, number]): string {
   const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
@@ -410,8 +407,8 @@ export function buildEditorOptions(prefs: MonacoPreferences) {
     ...EDITOR_OPTIONS,
     fontSize: prefs.editorFontSize,
     fontFamily: prefs.editorFont,
-    // Monaco won't derive a line height from a font size the user just changed;
-    // left alone it keeps the old one and the text crowds or floats in its row.
+    // Monaco does not derive line height after a font-size change. Set both values to keep text
+    // vertically aligned in each row.
     lineHeight: Math.max(20, Math.ceil(prefs.editorFontSize * 1.5)),
     tabSize: prefs.defaultIndentSize,
     insertSpaces: prefs.editorInsertSpaces,

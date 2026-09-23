@@ -20,10 +20,8 @@ type SectionLabelProps = HTMLAttributes<HTMLElement> & {
 /**
  * The small uppercase label that names a region.
  *
- * Before this existed there were seven idioms for it, varying on font (`font-ui` vs `font-mono`),
- * weight (`medium`/`semibold`/`bold`) and tracking (`wide`/`wider`/`widest`) with no rule
- * distinguishing them — which is most of why the tools read as different apps. It's `font-ui`
- * because a label naming a monospace region is chrome, not content.
+ * Use `font-ui` because a label naming a monospace region is chrome, not content. Shared styling
+ * keeps region labels consistent across tools.
  */
 export function SectionLabel({
   children,

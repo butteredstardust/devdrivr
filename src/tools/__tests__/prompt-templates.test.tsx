@@ -4,7 +4,9 @@ import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
+import PromptTemplates, {
+  validatePromptTemplatesState,
+} from '@/tools/prompt-templates/PromptTemplates'
 import {
   BUILTIN_PROMPT_TEMPLATES,
   CATEGORY_LABELS,
@@ -210,6 +212,23 @@ describe('prompt template utilities', () => {
 })
 
 describe('PromptTemplates', () => {
+  it('removes malformed persisted template values and overrides', () => {
+    const state = {
+      search: '',
+      category: 'all',
+      selectedId: '',
+      inputsByTemplate: { valid: { code: 'value' }, invalid: { code: 3 } },
+      overrides: { invalid: { name: 'Incomplete' } },
+      handoffContent: '',
+      handoffLanguage: '',
+    } as unknown as Parameters<typeof validatePromptTemplatesState>[0]
+
+    expect(validatePromptTemplatesState(state)).toMatchObject({
+      inputsByTemplate: { valid: { code: 'value' } },
+      overrides: {},
+    })
+  })
+
   it('keeps snippet handoff reachable through the toolbar overflow menu', () => {
     const restoreLayout = installNarrowToolbarLayout()
     try {

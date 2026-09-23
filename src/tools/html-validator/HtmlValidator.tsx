@@ -147,9 +147,8 @@ export default function HtmlValidator() {
   inputRef.current = input
   const { hasInput, isDirty, userEditedRef } = useValidatorDocument(input, state.savedContent)
   const { disabledRules, enabledRules } = state
-  // The editor-only mode used to be called 'edit'. A session that ended there
-  // hydrates that value straight past the default, and an unrecognised mode
-  // rendered neither pane — so anything that is not preview or split is editor.
+  // Treat unknown values, including the compatible `edit` value, as editor mode. This prevents a
+  // restored session from rendering neither pane.
   const viewMode: ViewMode =
     state.viewMode === 'preview' || state.viewMode === 'split' ? state.viewMode : 'editor'
   const showEditor = viewMode === 'editor' || viewMode === 'split'
@@ -340,8 +339,7 @@ export default function HtmlValidator() {
     [updateState, setLastAction, userEditedRef]
   )
 
-  // Loading a template used to overwrite the buffer outright, with no undo and
-  // no warning — the one destructive action in the tool.
+  // Confirm before loading a template over unsaved content because this action cannot be undone.
   const requestDocument = useCallback(
     (document: PendingDocument) => {
       // An empty or already-saved buffer has nothing to lose.

@@ -549,11 +549,8 @@ function findCssName(hex: string): string | null {
 /**
  * One `LABEL: value` row in the Formats section.
  *
- * The whole row is the copy target. It used to be a static row with a `CopyButton`
- * pinned to its right, which meant seven identically-labelled "Copy" buttons in a
- * column — the label carried no information and the value, the thing you were
- * actually aiming at, wasn't clickable. The tick replaces the trailing icon in
- * place so the row doesn't reflow on copy.
+ * Make the whole row the copy target so its label and value identify the action. Replace the
+ * trailing icon in place so the row does not reflow.
  */
 function FormatRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)

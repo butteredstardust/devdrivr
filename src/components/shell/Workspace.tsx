@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useMemo } from 'react'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { getToolById, MONACO_TOOL_IDS } from '@/app/tool-registry'
 import { ToolInstanceContext, type ToolInstance } from '@/app/tool-instance'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
@@ -111,10 +112,10 @@ function ToolPane({ tab, isActive }: { tab: WorkspaceTab; isActive: boolean }) {
 }
 
 export function Workspace() {
-  const tabs = useUiStore((s) => s.tabs)
-  const activeTabId = useUiStore((s) => s.activeTabId)
-  const tabMru = useUiStore((s) => s.tabMru)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const tabMru = useWorkspaceStore((s) => s.tabMru)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const activeToolDefinition = getToolById(activeTool)
   const ownsFileDrop = activeToolDefinition?.ownsFileDrop === true
 

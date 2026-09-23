@@ -35,9 +35,7 @@ function round(value: number): string {
 }
 
 /**
- * A disclosure, not a tab: the old accordion tracked a single open panel in one
- * piece of state with three values and only two panels, so opening "Column
- * statistics" while it was open collapsed everything.
+ * Use independent disclosures so opening one panel does not change another panel.
  */
 function Disclosure({
   title,
@@ -194,8 +192,7 @@ export default function CsvAnalyze({
           />
           <CopyButton text={schema} label="Copy schema" className="ml-auto" />
         </div>
-        {/* Shown, not silently copied — the old version put the interface on the
-            clipboard and never displayed it. */}
+        {/* Show the interface so users can inspect it before copying. */}
         <pre className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-mono text-2xs text-[var(--color-text)]">
           {schema}
         </pre>

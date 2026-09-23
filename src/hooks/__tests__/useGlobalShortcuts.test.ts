@@ -50,12 +50,18 @@ vi.mock('@/hooks/useKeyboardShortcut', () => ({
 vi.mock('@/stores/ui.store', () => ({
   useUiStore: (selector: (state: unknown) => unknown) =>
     selector({
-      ...mocks.uiState,
       toggleCommandPalette: mocks.toggleCommandPalette,
-      setActiveTool: mocks.setActiveTool,
       addToast: mocks.addToast,
       toggleSettingsPanel: mocks.toggleSettingsPanel,
       toggleShortcutsModal: mocks.toggleShortcutsModal,
+    }),
+}))
+
+vi.mock('@/stores/workspace.store', () => ({
+  useWorkspaceStore: (selector: (state: unknown) => unknown) =>
+    selector({
+      ...mocks.uiState,
+      setActiveTool: mocks.setActiveTool,
       setActiveTab: mocks.setActiveTab,
       closeTab: mocks.closeTab,
     }),

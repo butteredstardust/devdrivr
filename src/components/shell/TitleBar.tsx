@@ -51,19 +51,11 @@ const SIDE_RESERVE_CLASS = { mac: 'px-[120px]', other: 'px-[224px]' } as const
  * bar safe to reorder. Both tiers stay below the `z-[39]` window resize handles and the `--z-scrim`
  * overlay tiers, which must still win over the title bar.
  *
- * The palette used to be centred by an absolutely-positioned full-width overlay, which kept it
- * centred but let it centre *through* the left cluster: it is 480px wide, so below a window width
- * of 820px its left edge crossed x=170 and painted over the icon buttons. The overlay was
- * `pointer-events-none`, so those buttons stayed clickable while being invisible — worse than
- * plain occlusion. `minWidth` in tauri.conf.json is 800, so this was reachable at the smallest
- * window the app allows.
+ * Keep the overlay for true window centring. Equal-flex columns shift because the macOS
+ * traffic-light allowance adds padding on only one side.
  *
- * The overlay stays — true window-centring is the point of the design, and equal-flex side columns
- * cannot deliver it here, because the macOS traffic-light allowance is padding on one side only
- * and slides all three columns left (measured: palette centre 794 against a window centre of 756).
- * Instead the overlay reserves a symmetric `SIDE_RESERVE` gutter wide enough for the *widest*
- * cluster, so the palette is centred on the window and still cannot reach either cluster. It
- * shrinks below its 480px maximum rather than overlapping.
+ * Reserve a symmetric `SIDE_RESERVE` gutter for the widest cluster. The palette shrinks below its
+ * maximum width instead of overlapping either cluster.
  */
 export function TitleBar() {
   const { isMac } = usePlatform()

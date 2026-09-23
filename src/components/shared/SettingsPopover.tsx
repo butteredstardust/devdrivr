@@ -30,8 +30,8 @@ type SettingsPopoverProps = {
   /**
    * Count of settings that differ from their defaults, shown as a badge on the trigger.
    *
-   * This is the price of hiding settings: with the controls off-screen the toolbar no longer
-   * shows that anything was changed. Pass it wherever "back to defaults" is a meaningful state.
+   * Hidden controls conceal changed settings from the toolbar. Pass this count when users can
+   * restore defaults.
    */
   badge?: number
   /** Surface heading. Defaults to `label`. */

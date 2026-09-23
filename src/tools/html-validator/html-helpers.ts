@@ -413,8 +413,7 @@ export function computeStats(html: string): HtmlStats {
 /**
  * Outline problems a linter will not catch.
  *
- * The old outline listed the headings and stopped there, which is the part a
- * developer can already see; the levels they skipped are the part they cannot.
+ * Report skipped heading levels because the heading list alone does not expose structural gaps.
  */
 export type OutlineProblem = { message: string; headingIndex: number }
 

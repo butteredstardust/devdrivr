@@ -270,9 +270,8 @@ export default function CssValidator() {
     )
   }, [])
 
-  // Markers used to be `deltaDecorations`, which draws a stripe but stays out of
-  // Monaco's own problem plumbing — no hover severity, no minimap, no overview
-  // ruler. They also only applied to an already-mounted editor.
+  // Use Monaco markers so issues include hover severity, minimap indicators, and overview-ruler
+  // indicators. Markers also apply when the editor mounts later.
   const issuesRef = useRef<CssIssue[]>(issues)
   issuesRef.current = issues
 
@@ -322,8 +321,7 @@ export default function CssValidator() {
     [updateState, setLastAction, userEditedRef]
   )
 
-  // Loading a sample used to overwrite the buffer outright, with no undo and no
-  // warning — the one destructive action in the tool.
+  // Confirm before loading a sample over unsaved content because this action cannot be undone.
   const requestDocument = useCallback(
     (document: PendingDocument) => {
       // An empty or already-saved buffer has nothing to lose.
@@ -470,9 +468,8 @@ export default function CssValidator() {
       setFormatError(null)
       setLastAction(`Formatted ${state.syntax.toUpperCase()}`, 'success')
     } catch (err) {
-      // Prettier refuses to format CSS it cannot parse, which is exactly the CSS
-      // this tool exists to find. The old fallback ran a regex "formatter" over
-      // it instead, quietly rewriting text nobody had checked.
+      // Prettier refuses CSS it cannot parse. Do not apply a fallback formatter because rewriting
+      // invalid text can alter unchecked content.
       setFormatError(err instanceof Error ? err.message : 'Could not format this stylesheet')
       setLastAction('Format failed', 'error')
     } finally {

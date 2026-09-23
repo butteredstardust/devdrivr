@@ -1,4 +1,4 @@
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { loadToolState, saveToolState } from '@/lib/db'
 
@@ -40,7 +40,7 @@ const FILE_METADATA_KEYS = ['filePath', 'fileName'] as const
 
 /** The `tool_state` key of the tab now in front, falling back to the bare tool id. */
 function focusedStateKey(toolId: string): string {
-  const ui = useUiStore.getState()
+  const ui = useWorkspaceStore.getState()
   return ui.tabs.find((tab) => tab.id === ui.activeTabId)?.stateKey ?? toolId
 }
 
@@ -142,7 +142,7 @@ async function route(
 ): Promise<void> {
   // Focus-or-create first, then address exactly the tab `openTab` selected. This
   // also keeps handoffs aligned with sidebar/palette MRU behavior.
-  useUiStore.getState().openTab(toolId)
+  useWorkspaceStore.getState().openTab(toolId)
   let key = focusedStateKey(toolId)
   const documentKeys = options.documentKeys
   let outgoing = patch
@@ -158,7 +158,7 @@ async function route(
 
     if (wouldReplaceDocument(state, patch, key, documentKeys)) {
       // The new tab has its own state key and holds nothing, so there is no file to detach from.
-      useUiStore.getState().openTabInstance(toolId)
+      useWorkspaceStore.getState().openTabInstance(toolId)
       key = focusedStateKey(toolId)
     } else {
       outgoing = withoutFileMetadata(patch, state)

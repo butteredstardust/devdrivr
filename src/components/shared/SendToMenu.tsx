@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { TOOLS } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useIsInstanceActive } from '@/app/tool-instance'
 
 type Position = { x: number; y: number }
@@ -22,7 +23,7 @@ type SendToMenuProps = {
 
 export function SendToMenu({ content, position, onClose }: SendToMenuProps) {
   const isInstanceActive = useIsInstanceActive()
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
+  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool)
   const addToast = useUiStore((s) => s.addToast)
   const menuRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)

@@ -4,14 +4,10 @@ import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 /**
  * The drag gesture behind the shell's two resizable edges (sidebar, notes drawer).
  *
- * Both edges used to run their own copy of a `mousemove`/`mouseup` pair on `document`, which
- * ends badly the moment the pointer leaves the window: releasing the button over another
- * application delivers no `mouseup` here, so the listeners, the resizing flag, and the body
- * cursor/selection overrides all survive until the user comes back and clicks again. This uses
- * pointer events with pointer capture — the capture keeps events flowing to the handle while the
- * pointer is outside the window — and ends the gesture on pointer-up, pointer-cancel, window
- * blur, or unmount. Body styles are snapshotted and restored rather than cleared, so a gesture
- * cannot erase a cursor override that something else set.
+ * Pointer capture keeps events flowing to the handle outside the window. End the gesture on
+ * pointer-up, pointer-cancel, window blur, or unmount.
+ *
+ * Snapshot and restore body styles so a gesture cannot erase another component's cursor override.
  */
 export type EdgeResizeOptions = {
   /** `1` when the handle sits on the element's right edge, `-1` when it sits on the left. */

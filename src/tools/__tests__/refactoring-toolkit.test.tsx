@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { WatchEvent } from '@tauri-apps/plugin-fs'
 import { renderTool } from './test-utils'
-import RefactoringToolkit from '../refactoring-toolkit/RefactoringToolkit'
+import RefactoringToolkit, {
+  validateRefactoringState,
+} from '../refactoring-toolkit/RefactoringToolkit'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { readSupportedTextFile, saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
@@ -56,6 +58,28 @@ beforeEach(() => {
 })
 
 describe('RefactoringToolkit', () => {
+  it('removes malformed persisted transform and undo entries', () => {
+    const state = {
+      input: '',
+      fileName: null,
+      filePath: null,
+      selectedTransforms: ['valid', 4],
+      language: 'javascript',
+      panelOpen: true,
+      view: 'source',
+      lastApply: { before: false, after: 'next' },
+      applyHistory: [{ before: 'old', after: 'new' }, 'invalid'],
+      customFind: '',
+      customReplace: '',
+    } as unknown as Parameters<typeof validateRefactoringState>[0]
+
+    expect(validateRefactoringState(state)).toMatchObject({
+      selectedTransforms: ['valid'],
+      lastApply: null,
+      applyHistory: [{ before: 'old', after: 'new' }],
+    })
+  })
+
   it('labels the transform panel and the editing surface', () => {
     renderTool(RefactoringToolkit)
     expect(screen.getByRole('region', { name: 'Transforms' })).toBeInTheDocument()

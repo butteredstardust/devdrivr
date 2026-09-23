@@ -61,9 +61,8 @@ const VIEWPORT = { width: 1200, height: 766 }
 const THEME = process.env.SCREENSHOT_THEME ?? 'Catppuccin Frappé'
 
 /**
- * The `prefers-color-scheme` the page reports. It no longer decides the palette, because the theme
- * is picked. It still has to be pinned: an unpinned scheme follows whoever runs this, and the few
- * places that read the media query would differ between machines.
+ * The `prefers-color-scheme` value reported by the page. Pin it because media-query consumers must
+ * render consistently across machines. The selected theme controls the palette.
  */
 const COLOR_SCHEME = 'dark'
 
@@ -209,8 +208,8 @@ async function click(page, name, role = 'button') {
 /**
  * Picks `THEME` through Settings → Theme.
  *
- * WARNING: run this after every page load. The browser harness stubs the database and answers every
- * read with an empty row, so the picked theme lasts one session and no longer.
+ * WARNING: run this after every page load. The browser harness returns empty database reads, so the
+ * selected theme lasts only for the current page session.
  */
 async function pickTheme(page) {
   await click(page, 'Open settings')

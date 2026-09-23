@@ -16,8 +16,12 @@ compile_error!(
      linked into a release build. Use `bun run dev:remote`."
 );
 
-use tauri::Manager;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tauri::{Emitter, Manager};
 use tauri_plugin_sql::{Migration, MigrationKind};
+
+static EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 fn get_platform_info() -> (String, String) {
@@ -25,6 +29,11 @@ fn get_platform_info() -> (String, String) {
         std::env::consts::OS.to_string(),
         std::env::consts::ARCH.to_string(),
     )
+}
+
+#[tauri::command]
+fn exit_after_flush(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -190,6 +199,7 @@ pub fn run() {
         .manage(note_assets::PendingNoteAssetRestores::default())
         .invoke_handler(tauri::generate_handler![
             get_platform_info,
+            exit_after_flush,
             file_associations::file_association_set,
             file_associations::file_associations_status,
             window_commands::window_close,
@@ -219,21 +229,35 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        // macOS routes an associated file through the application delegate, not through argv, and
-        // does so for both a cold launch and a file opened while the app runs.
         .run(|app, event| {
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = event {
-                let paths: Vec<String> = urls
-                    .iter()
-                    .filter_map(|url| url.to_file_path().ok())
-                    .map(|path| path.to_string_lossy().into_owned())
-                    .collect();
-                opened_files::accept(app, paths);
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = (app, event);
+            match event {
+                tauri::RunEvent::ExitRequested { api, code, .. } => {
+                    // A restart cannot be prevented, and with no window no frontend can answer.
+                    // Both cases exit at once. The window close handler already flushed.
+                    let restarting = code == Some(tauri::RESTART_EXIT_CODE);
+                    let has_window = !app.webview_windows().is_empty();
+                    if !restarting && has_window && !EXIT_REQUESTED.swap(true, Ordering::SeqCst) {
+                        api.prevent_exit();
+                        let _ = app.emit("app:flush-before-exit", ());
+
+                        let fallback_app = app.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(Duration::from_secs(3));
+                            fallback_app.exit(0);
+                        });
+                    }
+                }
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Opened { urls } => {
+                    // macOS sends associated files through the application delegate.
+                    let paths: Vec<String> = urls
+                        .iter()
+                        .filter_map(|url| url.to_file_path().ok())
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .collect();
+                    opened_files::accept(app, paths);
+                }
+                _ => {}
             }
         });
 }

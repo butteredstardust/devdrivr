@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import type { ToolDefinition } from '@/types/tools'
 import { formatShortcut } from '@/lib/shortcut-label'
 
@@ -49,8 +49,8 @@ function ChipRow({ label, tools, onSelect }: ChipRowProps) {
 export function WorkspaceEmptyState() {
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
   const recentToolsLimit = useSettingsStore((s) => s.recentToolsLimit)
-  const recentToolIds = useUiStore((s) => s.recentToolIds)
-  const openTab = useUiStore((s) => s.openTab)
+  const recentToolIds = useWorkspaceStore((s) => s.recentToolIds)
+  const openTab = useWorkspaceStore((s) => s.openTab)
 
   const pinnedTools = useMemo(() => resolveTools(pinnedToolIds), [pinnedToolIds])
   const recentTools = useMemo(

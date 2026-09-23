@@ -6,8 +6,7 @@ const MB = KB * KB
 /**
  * `512 B` / `1.5 KB` / `2.3 MB`, one decimal above the byte tier.
  *
- * Every tool used to carry its own copy of this and they had drifted: two stopped at KB, so a 5 MB
- * document reported `5120.0 KB`, and one rendered MB to two decimals while its neighbours used one.
+ * Centralize byte formatting so every tool supports the same tiers and decimal precision.
  */
 export function formatBytes(bytes: number): string {
   if (bytes < KB) return `${bytes} B`

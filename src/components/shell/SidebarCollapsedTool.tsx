@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ToolDefinition } from '@/types/tools'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useOpenInstanceCount, useOpenTool } from '@/hooks/useToolOpen'
 
 type Props = {
@@ -21,7 +21,7 @@ export function SidebarCollapsedTool({ tool }: Props) {
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const openTool = useOpenTool()
   const openInstanceCount = useOpenInstanceCount(tool.id)
 

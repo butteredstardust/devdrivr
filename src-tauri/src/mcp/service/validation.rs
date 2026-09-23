@@ -256,6 +256,10 @@ pub(super) fn require_non_blank(
     Ok(trimmed.to_string())
 }
 
+/// WARNING: The API Client calls array methods on `headers` while it renders a saved request. A
+/// stored object or string therefore crashes the tool on load, so reject those shapes at the write.
+///
+/// Accept both shapes an MCP client sends: the stored array, and a flat header map.
 pub(super) fn normalize_api_headers(
     headers: Option<Value>,
 ) -> std::result::Result<String, McpError> {

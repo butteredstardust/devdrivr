@@ -8,6 +8,7 @@ import { useApiStore } from '@/stores/api.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useUpdaterStore } from '@/stores/updater.store'
 import { availableMonitors, getCurrentWindow, primaryMonitor } from '@tauri-apps/api/window'
 import { logicalWorkAreas, resolveRestorePosition } from '@/lib/window-bounds'
@@ -20,6 +21,8 @@ import { Alert } from '@/components/shared/Alert'
 import { Button } from '@/components/shared/Button'
 import { Spinner } from '@/components/shared/Spinner'
 import { getNativeWindowState } from '@/lib/native-window'
+import { flushAll, registerFlusher } from '@/lib/flush-on-exit'
+import { invoke } from '@tauri-apps/api/core'
 
 export function Providers({ children }: { children: ReactNode }) {
   const init = useSettingsStore((s) => s.init)
@@ -27,6 +30,41 @@ export function Providers({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const geometryRestored = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const cleanups = [
+      registerFlusher(() => useNotesStore.getState().flushPending()),
+      registerFlusher(() => useSnippetsStore.getState().flushPending()),
+    ]
+
+    async function registerExitHandlers() {
+      const unlistenClose = await getCurrentWindow().onCloseRequested(async () => {
+        await flushAll()
+      })
+      if (cancelled) {
+        unlistenClose()
+        return
+      }
+      cleanups.push(unlistenClose)
+
+      const unlistenExit = await listen('app:flush-before-exit', async () => {
+        await flushAll()
+        await invoke('exit_after_flush')
+      })
+      if (cancelled) {
+        unlistenExit()
+        return
+      }
+      cleanups.push(unlistenExit)
+    }
+
+    void registerExitHandlers()
+    return () => {
+      cancelled = true
+      cleanups.forEach((cleanup) => cleanup())
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -89,33 +127,47 @@ export function Providers({ children }: { children: ReactNode }) {
       // Geometry persistence is a core window concern and must not wait for optional data/MCP
       // bootstrap. Otherwise an already-visible window can move while no listeners are attached.
       let saveTimer: ReturnType<typeof setTimeout> | undefined
+      let boundsPending = false
+      let boundsWrite = Promise.resolve()
+      async function writeBounds() {
+        try {
+          // Fullscreen bounds are temporary. Keep the last windowed bounds instead.
+          if ((await getNativeWindowState()).isFullscreen) return
+          const factor = await win.scaleFactor()
+          const pos = await win.outerPosition()
+          const sz = await win.outerSize()
+          const logicalPos = pos.toLogical(factor)
+          const logicalSz = sz.toLogical(factor)
+          await setSetting('windowBounds', {
+            x: logicalPos.x,
+            y: logicalPos.y,
+            width: logicalSz.width,
+            height: logicalSz.height,
+          })
+        } catch {
+          // The window can close before this write starts.
+        }
+      }
+      function flushBounds() {
+        clearTimeout(saveTimer)
+        saveTimer = undefined
+        if (boundsPending) {
+          boundsPending = false
+          boundsWrite = boundsWrite.then(writeBounds, writeBounds)
+        }
+        return boundsWrite
+      }
       function persistBounds() {
         clearTimeout(saveTimer)
-        saveTimer = setTimeout(async () => {
-          try {
-            // Fullscreen display bounds are transient. Persisting them would replace the user's
-            // windowed restore geometry and reopen the next launch at the size of the monitor.
-            if ((await getNativeWindowState()).isFullscreen) return
-            const factor = await win.scaleFactor()
-            const pos = await win.outerPosition()
-            const sz = await win.outerSize()
-            const logicalPos = pos.toLogical(factor)
-            const logicalSz = sz.toLogical(factor)
-            await setSetting('windowBounds', {
-              x: logicalPos.x,
-              y: logicalPos.y,
-              width: logicalSz.width,
-              height: logicalSz.height,
-            })
-          } catch {
-            // Window may have been destroyed
-          }
-        }, 2000)
+        boundsPending = true
+        saveTimer = setTimeout(() => void flushBounds(), 2000)
       }
+      const unregisterBoundsFlusher = registerFlusher(flushBounds)
       const unlistenMoved = await win.onMoved(persistBounds)
       if (cancelled) {
         unlistenMoved()
         clearTimeout(saveTimer)
+        unregisterBoundsFlusher()
         return
       }
       const unlistenResized = await win.onResized(persistBounds)
@@ -123,9 +175,12 @@ export function Providers({ children }: { children: ReactNode }) {
         unlistenMoved()
         unlistenResized()
         clearTimeout(saveTimer)
+        unregisterBoundsFlusher()
         return
       }
-      cleanups.push(unlistenMoved, unlistenResized, () => clearTimeout(saveTimer))
+      cleanups.push(unlistenMoved, unlistenResized, unregisterBoundsFlusher, () =>
+        clearTimeout(saveTimer)
+      )
 
       // Initialize stores
       await init()
@@ -171,13 +226,13 @@ export function Providers({ children }: { children: ReactNode }) {
             const activeIdValid =
               savedActiveTabId !== null && validTabs.some((t) => t.id === savedActiveTabId)
             const resolvedActiveId = activeIdValid ? savedActiveTabId : (validTabs[0]?.id ?? null)
-            useUiStore.getState().restoreTabs(validTabs, resolvedActiveId)
+            useWorkspaceStore.getState().restoreTabs(validTabs, resolvedActiveId)
           }
         } else {
           // Backward compat: migrate legacy single-tool session
           const lastTool = await getSetting<string | null>('activeTool', null)
           if (lastTool && getToolById(lastTool) !== undefined) {
-            useUiStore.getState().restoreActiveTool(lastTool)
+            useWorkspaceStore.getState().restoreActiveTool(lastTool)
           }
         }
       }

@@ -9,8 +9,8 @@ import type { RegexEvaluation, RegexEvaluationInput } from '@/workers/regex.api'
  * Why not `useWorker`: that hook owns a worker for the lifetime of the component and only
  * terminates it on unmount. A pattern with catastrophic backtracking never yields, so the
  * only recovery is `terminate()` + respawn — a lifecycle `useWorker` has no concept of.
- * Adding it there would change the contract for its six existing consumers (a rejected
- * request would no longer imply a live worker), so this tool gets its own hook instead.
+ * Adding recovery there would change the contract for existing consumers because a rejected
+ * request implies a live worker. This hook owns the recovery lifecycle instead.
  *
  * Guarantees:
  * - Exactly one in-flight request; stale replies are ignored by request id.

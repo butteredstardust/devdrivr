@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Workspace } from '@/components/shell/Workspace'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 vi.mock('@/lib/db', () => ({
   setSetting: vi.fn().mockResolvedValue(undefined),
@@ -42,7 +42,7 @@ vi.mock('@/app/tool-registry', () => ({
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
   vi.clearAllMocks()
 })
 
@@ -54,7 +54,7 @@ function openTabs(...toolIds: string[]) {
     stateKey: toolId,
   }))
   const active = tabs[tabs.length - 1]?.id ?? null
-  useUiStore.setState({
+  useWorkspaceStore.setState({
     tabs,
     activeTabId: active,
     activeTool: toolIds[toolIds.length - 1] ?? '',
@@ -135,7 +135,7 @@ describe('keep-alive', () => {
 
   it('tears down the least recently used tab once the limit is passed', () => {
     const ids = ['a', 'b', 'c', 'd', 'e']
-    useUiStore.setState({
+    useWorkspaceStore.setState({
       tabs: ids.map((id) => ({ id, toolId: id, stateKey: id })),
       activeTabId: 'e',
       activeTool: 'e',
@@ -152,7 +152,7 @@ describe('keep-alive', () => {
   })
 
   it('mounts the active tab even when the recency list has not caught up', () => {
-    useUiStore.setState({
+    useWorkspaceStore.setState({
       tabs: [
         { id: 'x', toolId: 'x', stateKey: 'x' },
         { id: 'y', toolId: 'y', stateKey: 'y' },
@@ -168,7 +168,7 @@ describe('keep-alive', () => {
   })
 
   it('shows the empty state when the active tab points at a tool that is gone', () => {
-    useUiStore.setState({
+    useWorkspaceStore.setState({
       tabs: [{ id: 'ghost', toolId: '', stateKey: '' }],
       activeTabId: 'ghost',
       activeTool: '',

@@ -4,11 +4,13 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
 import { importApiSpec } from '@/lib/api-import'
-import ApiClient from '@/tools/api-client/ApiClient'
+import ApiClient, { validateApiClientState } from '@/tools/api-client/ApiClient'
 import {
   buildUrlWithParams,
+  createDefaultDraft,
   parseQueryParams,
   unresolvedVariableNames,
+  type ApiClientState,
 } from '@/tools/api-client/request-model'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 import { useFoldersStore } from '@/stores/folders.store'
@@ -35,6 +37,26 @@ function base64EncodeUtf8(text: string): string {
 }
 
 describe('api-client URL helpers', () => {
+  it('repairs malformed nested tool state', () => {
+    const state = {
+      activeRequestId: 10,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      libraryOpen: true,
+      timeoutMs: 30_000,
+      draft: {
+        ...createDefaultDraft('POST'),
+        headers: [{ key: 'Accept', value: 4 }],
+        auth: { type: 'bearer', token: 12 },
+      },
+    } as unknown as ApiClientState
+
+    expect(validateApiClientState(state)).toMatchObject({
+      activeRequestId: null,
+      draft: { headers: [], auth: { type: 'none' } },
+    })
+  })
+
   it('deduplicates unresolved variables and ignores populated values', () => {
     expect(
       unresolvedVariableNames(['{{baseUrl}}/{{id}}', 'Bearer {{token}}', '{{id}}'], {

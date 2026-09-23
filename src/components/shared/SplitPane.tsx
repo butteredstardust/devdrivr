@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 import { useFrameThrottle } from '@/hooks/useFrameThrottle'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 type SplitPaneProps = {
   /** Exactly two panes. A three-way split is a nested `SplitPane`, not a third child. */
@@ -86,9 +87,7 @@ function readStoredRatio(storageKey: string | undefined, fallback: number): numb
 /**
  * Two panes with a draggable divider.
  *
- * Fifteen tools rendered a hard-coded 50/50 (`w-1/2` or `grid-cols-2`) before this existed. For
- * something like the diff viewer or a JSON tree next to its output, the two sides are rarely
- * equally dense, and a fixed split makes the app feel rigid in a way that's easy to stop noticing.
+ * A draggable split lets users allocate space when panes have different content density.
  *
  * The divider is a real `separator` with `aria-valuenow`, and resizes with arrow keys — a
  * mouse-only divider is a keyboard-first app quietly excluding its own users.
@@ -155,13 +154,14 @@ export function SplitPane({
   // flush what is pending instead of cancelling it.
   const persistRef = useRef(persist)
   persistRef.current = persist
-  useEffect(
-    () => () => {
-      clearTimeout(persistTimer.current)
-      if (pendingRatio.current !== null) persistRef.current(pendingRatio.current)
-    },
-    []
-  )
+  const flushPendingRatio = useCallback(async () => {
+    clearTimeout(persistTimer.current)
+    const pending = pendingRatio.current
+    pendingRatio.current = null
+    if (pending !== null) persistRef.current(pending)
+  }, [])
+  useEffect(() => registerFlusher(flushPendingRatio), [flushPendingRatio])
+  useEffect(() => () => void flushPendingRatio(), [flushPendingRatio])
 
   const commit = useCallback(
     (next: number) => {
@@ -256,12 +256,9 @@ export function SplitPane({
   const [first, second] = children
   const percent = `${(ratio * 100).toFixed(2)}%`
 
-  // One JSX shape for both states, deliberately. Stacking used to be a second `return` with two
-  // children instead of three, which moved `second` from index 2 to index 1 — React reconciles
-  // positionally, so crossing the breakpoint unmounted that pane and mounted a fresh one. In a tool
-  // whose pane holds a Monaco editor, that silently discards cursor, scroll and undo history every
-  // time the window is dragged past the width. Stacked, the divider stays in the tree and degrades
-  // to a plain rule: not focusable, not a `separator`, nothing to drag, but still child index 1.
+  // Keep one JSX shape because React reconciles children positionally. Moving the second pane would
+  // remount Monaco and discard its cursor, scroll, and undo history. In stacked mode, the divider
+  // remains child index 1 but becomes a non-interactive rule.
   return (
     <div
       ref={containerRef}

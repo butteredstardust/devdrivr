@@ -3,8 +3,10 @@ import { nanoid } from 'nanoid'
 import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
 import {
   loadSnippets,
+  loadSnippet,
   loadTrashedSnippets,
   saveSnippet,
+  saveSnippetIfUnchanged,
   deleteSnippet,
   restoreSnippet,
   permanentlyDeleteSnippet,
@@ -64,8 +66,8 @@ let initPromise: Promise<void> | null = null
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaves = new Map<string, { updated: Snippet; original: Snippet; version: number }>()
 const savingIds = new Set<string>()
-const inFlightSaves = new Map<string, Promise<void>>()
-const inFlightMutations = new Set<Promise<void>>()
+const inFlightSaves = new Map<string, Promise<boolean>>()
+const inFlightMutations = new Set<Promise<unknown>>()
 const deletingIds = new Set<string>()
 let clearing = false
 let flushingForClear = false
@@ -104,6 +106,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
   },
 
   refresh: async () => {
+    await get().flushPending()
     const generation = libraryGeneration
     const [snippets, trashedSnippets] = await Promise.all([loadSnippets(), loadTrashedSnippets()])
     if (generation === libraryGeneration) set({ snippets, trashedSnippets, initialized: true })
@@ -224,16 +227,87 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
       if (timer) clearTimeout(timer)
       saveTimers.delete(pendingId)
       savingIds.add(pendingId)
+      const save = saveSnippetIfUnchanged(pending.updated, pending.original.updatedAt)
+      let conflictDetected = false
       try {
-        const save = saveSnippet(pending.updated)
         inFlightSaves.set(pendingId, save)
         inFlightMutations.add(save)
-        await save
+        const saved = await save
+        if (!saved) {
+          conflictDetected = true
+          const databaseVersion = await loadSnippet(pendingId)
+          const copyId = nanoid()
+          const copyCreatedAt = Math.max(Date.now(), pending.updated.updatedAt + 1)
+          const makeCopy = (draft: Snippet, now: number) => {
+            const copy = normalizeSnippet({
+              ...draft,
+              id: copyId,
+              title: `${draft.title} (conflicted copy)`,
+              createdAt: copyCreatedAt,
+              updatedAt: now,
+              fragments: normalizeSnippet(draft).fragments.map((fragment) => ({
+                ...fragment,
+                id: nanoid(),
+                createdAt: now,
+                updatedAt: now,
+              })),
+            })
+            delete copy.deletedAt
+            return copy
+          }
+          let latest = pending
+          let conflictedCopy = makeCopy(latest.updated, copyCreatedAt)
+          await saveSnippet(conflictedCopy)
+          // An edit can land while the copy saves. Its baseline is still stale, so it must go
+          // into the same copy. Otherwise the next flush conflicts again and makes a second copy.
+          for (
+            let next = pendingSaves.get(pendingId);
+            next && next.version !== latest.version;
+            next = pendingSaves.get(pendingId)
+          ) {
+            latest = next
+            conflictedCopy = makeCopy(
+              latest.updated,
+              Math.max(Date.now(), conflictedCopy.updatedAt + 1)
+            )
+            await saveSnippet(conflictedCopy)
+          }
+          const staleTimer = saveTimers.get(pendingId)
+          if (staleTimer) clearTimeout(staleTimer)
+          saveTimers.delete(pendingId)
+          if (pendingSaves.get(pendingId)?.version === latest.version) {
+            pendingSaves.delete(pendingId)
+            set((state) => {
+              const databaseSnippets = databaseVersion?.deletedAt
+                ? state.snippets.filter((snippet) => snippet.id !== pendingId)
+                : state.snippets.map((snippet) =>
+                    snippet.id === pendingId && databaseVersion ? databaseVersion : snippet
+                  )
+              const trashedWithoutOriginal = state.trashedSnippets.filter(
+                (snippet) => snippet.id !== pendingId
+              )
+              return {
+                snippets: [conflictedCopy, ...databaseSnippets],
+                trashedSnippets: databaseVersion?.deletedAt
+                  ? [databaseVersion, ...trashedWithoutOriginal]
+                  : trashedWithoutOriginal,
+              }
+            })
+            useUiStore
+              .getState()
+              .addToast('Snippet changed elsewhere — your edit was saved as a copy', 'info')
+          }
+          continue
+        }
         if (pendingSaves.get(pendingId)?.version === pending.version) {
           pendingSaves.delete(pendingId)
+        } else {
+          const nextPending = pendingSaves.get(pendingId)
+          if (nextPending)
+            pendingSaves.set(pendingId, { ...nextPending, original: pending.updated })
         }
       } catch (err) {
-        if (pendingSaves.get(pendingId)?.version === pending.version) {
+        if (!conflictDetected && pendingSaves.get(pendingId)?.version === pending.version) {
           pendingSaves.delete(pendingId)
           set((state) => ({
             snippets: state.snippets.map((snippet) =>
@@ -245,7 +319,7 @@ export const useSnippetsStore = create<SnippetsStore>()((set, get) => ({
         useUiStore.getState().addToast('Failed to save snippet: ' + msg, 'error')
       } finally {
         savingIds.delete(pendingId)
-        inFlightMutations.delete(inFlightSaves.get(pendingId) ?? Promise.resolve())
+        inFlightMutations.delete(save)
         if (inFlightSaves.get(pendingId)) inFlightSaves.delete(pendingId)
       }
       if (pendingSaves.has(pendingId)) {

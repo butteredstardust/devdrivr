@@ -72,10 +72,8 @@ export type AppSettings = {
   editorFontSize: number
   editorTheme: 'devdrivr-dark' | 'devdrivr-light' | 'match-app'
   /**
-   * Only `standard` exists. The union used to include `vim` and `emacs`, neither of which was ever
-   * implemented: initialization reset any stored value back to `standard`, the Settings select
-   * offered one option, and StatusBar carried a branch that could not render. Keeping the key —
-   * rather than deleting it — means older exported settings files still round-trip.
+   * Only `standard` exists. Keep this key so exported settings containing unsupported editor modes
+   * still round-trip.
    */
   editorKeybindingMode: 'standard'
   /**

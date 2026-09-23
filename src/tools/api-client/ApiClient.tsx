@@ -105,6 +105,28 @@ import { formatBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTabDirty } from '@/hooks/useTabDirty'
 import { formatShortcut } from '@/lib/shortcut-label'
+import { mergeToolState } from '@/lib/tool-state-merge'
+
+export function validateApiClientState(state: ApiClientState): ApiClientState {
+  const draft = mergeToolState(createDefaultDraft(), state.draft)
+  const validatedDraft: RequestDraft = {
+    ...draft,
+    headers: coerceApiHeaders(state.draft.headers),
+    auth: coerceApiRequestAuth(state.draft.auth),
+  }
+  const activeRequestId = typeof state.activeRequestId === 'string' ? state.activeRequestId : null
+  const wikiTargetId = typeof state.wikiTargetId === 'string' ? state.wikiTargetId : null
+  const backlinkNoteId = typeof state.backlinkNoteId === 'string' ? state.backlinkNoteId : null
+  if (
+    JSON.stringify(validatedDraft) === JSON.stringify(state.draft) &&
+    activeRequestId === state.activeRequestId &&
+    wikiTargetId === state.wikiTargetId &&
+    backlinkNoteId === state.backlinkNoteId
+  ) {
+    return state
+  }
+  return { ...state, activeRequestId, wikiTargetId, backlinkNoteId, draft: validatedDraft }
+}
 
 /**
  * Request beside response when both are up, request alone when the response pane is hidden.
@@ -152,21 +174,22 @@ export default function ApiClient() {
     }
   }, [init])
 
-  const [state, updateState] = useToolState<ApiClientState>('api-client', {
-    activeRequestId: null,
-    wikiTargetId: null,
-    backlinkNoteId: null,
-    libraryOpen: true,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-    draft: createDefaultDraft(),
-  })
+  const [state, updateState] = useToolState<ApiClientState>(
+    'api-client',
+    {
+      activeRequestId: null,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      libraryOpen: true,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+      draft: createDefaultDraft(),
+    },
+    { validate: validateApiClientState }
+  )
 
   // Destructure draft for convenience
   const { method, url, body, bodyMode, name } = state.draft
 
-  // WARNING: Tool state is restored from SQLite without validation, so a draft saved from a
-  // malformed request keeps its shape across restarts. Coerce on read, or the header list below
-  // calls array methods on an object and the tool crashes every time it opens.
   const headers = useMemo(() => coerceApiHeaders(state.draft.headers), [state.draft.headers])
   const auth = useMemo(() => coerceApiRequestAuth(state.draft.auth), [state.draft.auth])
 
@@ -273,8 +296,7 @@ export default function ApiClient() {
 
   const sendResponseSelectionToJsonTools = useCallback(
     (text: string) => {
-      // `view`, not `activeTab` — JSON Tools has no such field, so the old key
-      // switched nothing and was persisted as junk into its row.
+      // JSON Tools expects `view`. An `activeTab` field has no effect and persists as unused state.
       sendToTool(
         'json-tools',
         { input: text, view: 'source', query: '' },

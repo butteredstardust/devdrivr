@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useFuseSearchWithMatches, type MatchRange } from '@/hooks/useFuseSearch'
 import { useShellWidth } from '@/hooks/useShellWidth'
@@ -22,6 +22,7 @@ import { SidebarCollapsedGroup } from './SidebarCollapsedGroup'
 import { SidebarCollapsedTool } from './SidebarCollapsedTool'
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { SearchInput } from '@/components/shared/SearchInput'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 // Bare "/" — no modifier. The shared shortcut dispatcher already ignores
 // non-mod combos while focus sits in another text field, so this never
@@ -45,7 +46,7 @@ export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
   const update = useSettingsStore((s) => s.update)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
 
   const savedWidth = useSettingsStore((s) => s.sidebarWidth)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
@@ -81,6 +82,7 @@ export function Sidebar() {
 
   const filterInputRef = useRef<HTMLInputElement>(null)
   const resizeSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingWidth = useRef<number | null>(null)
   // Set by the "/" shortcut when the sidebar is collapsed (no room for the
   // filter box there) — expand first, then focus once the expanded tree
   // mounts.
@@ -114,17 +116,23 @@ export function Sidebar() {
   const widthRef = useRef(width)
   widthRef.current = width
 
-  useEffect(() => () => clearTimeout(resizeSaveTimer.current), [])
+  const flushPendingWidth = useCallback(async () => {
+    clearTimeout(resizeSaveTimer.current)
+    resizeSaveTimer.current = undefined
+    const next = pendingWidth.current
+    pendingWidth.current = null
+    if (next !== null) await update('sidebarWidth', next)
+  }, [update])
+  useEffect(() => registerFlusher(flushPendingWidth), [flushPendingWidth])
+  useEffect(() => () => void flushPendingWidth(), [flushPendingWidth])
 
   const persistWidth = useCallback(
     (next: number) => {
       clearTimeout(resizeSaveTimer.current)
-      resizeSaveTimer.current = setTimeout(
-        () => void update('sidebarWidth', next).catch(() => {}),
-        500
-      )
+      pendingWidth.current = next
+      resizeSaveTimer.current = setTimeout(() => void flushPendingWidth().catch(() => {}), 500)
     },
-    [update]
+    [flushPendingWidth]
   )
 
   // Drag the right edge to resize. Mirrors the notes drawer's handle (same gesture, same

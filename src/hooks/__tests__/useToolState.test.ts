@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useToolState } from '@/hooks/useToolState'
 import { loadToolState, saveToolState } from '@/lib/db'
+import { flushAll } from '@/lib/flush-on-exit'
 
 vi.mock('@/lib/db', () => ({
   loadToolState: vi.fn(),
@@ -94,6 +95,39 @@ describe('useToolState', () => {
     expect(cacheStore[TOOL_ID]).toEqual({ value: 'sqlite', extra: 'defaultExtra' })
   })
 
+  it('uses the default for a wrong-typed field from SQLite', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(loadToolState).mockResolvedValue({ value: 42 })
+
+    const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current[0]).toEqual(DEFAULT_STATE)
+    expect(cacheStore[TOOL_ID]).toEqual(DEFAULT_STATE)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${TOOL_ID}.value`))
+    warn.mockRestore()
+  })
+
+  it('uses the default for a wrong-typed seeded field', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(loadToolState).mockResolvedValue(null)
+    const { result, rerender } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    cacheStore[TOOL_ID] = { value: ['wrong'] }
+    seedStore.set(TOOL_ID, 1)
+    rerender()
+
+    expect(result.current[0]).toEqual(DEFAULT_STATE)
+    expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, DEFAULT_STATE)
+    warn.mockRestore()
+  })
+
   it('update() merges patch into state immediately', () => {
     vi.mocked(loadToolState).mockResolvedValue(null)
     const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
@@ -115,6 +149,22 @@ describe('useToolState', () => {
 
     expect(cacheStore[TOOL_ID]).toEqual({ value: 'updated' })
     expect(saveToolState).not.toHaveBeenCalled() // since it's debounced
+  })
+
+  it('flushes a pending write through the exit registry', async () => {
+    vi.mocked(loadToolState).mockResolvedValue(null)
+    vi.mocked(saveToolState).mockResolvedValue(undefined)
+    const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+
+    act(() => {
+      result.current[1]({ value: 'pending' })
+    })
+    await act(async () => {
+      await flushAll()
+    })
+
+    expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, { value: 'pending' })
+    expect(saveToolState).toHaveBeenCalledTimes(1)
   })
 
   it('update() debounces saveToolState — not called before 2000ms, called after', () => {

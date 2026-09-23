@@ -3,10 +3,10 @@ import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import CurlToFetch from '../curl-to-fetch/CurlToFetch'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 beforeEach(() => {
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
 })
 
 describe('CurlToFetch', () => {

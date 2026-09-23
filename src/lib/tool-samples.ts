@@ -82,10 +82,8 @@ limits:
 3,Alan Turing,researcher,,false,2024-02-19
 4,Katherine Johnson,analyst,8,true,2024-03-07`,
 
-  // Genuinely signed with the HS256 secret `devdrivr-demo-secret`, so pasting that into the
-  // decoder's secret field demonstrates verification. The signature used to be the literal string
-  // `fakesignature_not_a_real_signature`, which was harmless while the tool only decoded — now that
-  // it verifies, the built-in sample would have announced "Signature invalid" and looked broken.
+  // Signed with the HS256 secret `devdrivr-demo-secret`. Pasting this secret into the decoder
+  // demonstrates successful verification.
   'jwt-decoder':
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXIiLCJuYW1lIjoiQWRhIEV4YW1wbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.QN2XAKs0z0ZCi7e8xNwnR2pfHYRKLcfKO-hYDP1OOA0',
 

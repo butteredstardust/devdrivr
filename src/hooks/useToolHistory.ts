@@ -1,5 +1,6 @@
 import { useCallback, useRef, useEffect, useMemo } from 'react'
 import { useHistoryStore } from '@/stores/history.store'
+import { registerFlusher } from '@/lib/flush-on-exit'
 
 export interface ToolHistoryConfig {
   /** Tool identifier */
@@ -67,7 +68,9 @@ export function useToolHistory(config: ToolHistoryConfig) {
     []
   )
 
-  const flushPending = useCallback(() => {
+  const flushPending = useCallback(async () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = null
     if (!pendingEntry.current) return
 
     const entry = pendingEntry.current
@@ -83,7 +86,7 @@ export function useToolHistory(config: ToolHistoryConfig) {
     const output = entry.output.slice(0, maxOutputLength)
     const failed = entry.success === false
 
-    void addToHistory(
+    await addToHistory(
       toolId,
       entry.input.slice(0, maxOutputLength),
       failed ? entry.error || 'failed' : output,
@@ -102,17 +105,19 @@ export function useToolHistory(config: ToolHistoryConfig) {
         clearTimeout(debounceTimer.current)
       }
 
-      debounceTimer.current = setTimeout(flushPending, debounceMs)
+      debounceTimer.current = setTimeout(() => void flushPending(), debounceMs)
     },
     [debounceMs, flushPending]
   )
+
+  useEffect(() => registerFlusher(flushPending), [flushPending])
 
   // Flush on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current)
-        flushPending()
+        void flushPending()
       }
     }
   }, [flushPending])

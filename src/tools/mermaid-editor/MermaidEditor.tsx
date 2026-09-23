@@ -209,8 +209,7 @@ export default function MermaidEditor() {
     [markUserEdit, updateState, setLastAction]
   )
 
-  // Loading a template used to overwrite the buffer outright, with no undo and
-  // no warning — the one destructive action in the tool.
+  // Confirm before loading a template over unsaved content because this action cannot be undone.
   const requestDocument = useCallback(
     (document: PendingDocument) => {
       // An empty buffer has nothing to lose, so it never earns a confirmation.

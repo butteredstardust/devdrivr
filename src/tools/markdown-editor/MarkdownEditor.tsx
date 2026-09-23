@@ -70,6 +70,7 @@ import {
   renderEditableMarkdownContent,
   renderMarkdownContent,
   prefixMarkdownLines,
+  validateMarkdownEditorState,
 } from '@/tools/markdown-editor/markdown-model'
 import { TEMPLATES } from '@/tools/markdown-editor/document-templates'
 import { FORMATTING_ACTIONS } from '@/tools/markdown-editor/formatting-actions'
@@ -83,15 +84,20 @@ export { prefixMarkdownLines, renderMarkdownContent } from '@/tools/markdown-edi
 export default function MarkdownEditor() {
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
-  const [state, updateState] = useToolState<MarkdownEditorState>('markdown-editor', {
-    content: '',
-    fileName: null,
-    filePath: null,
-    savedContent: '',
-    mode: 'split',
-    showToc: false,
-    scrollSync: true,
-  })
+  const [state, updateState] = useToolState<MarkdownEditorState>(
+    'markdown-editor',
+    {
+      content: '',
+      fileName: null,
+      filePath: null,
+      savedContent: '',
+      mode: 'split',
+      showToc: false,
+      scrollSync: true,
+      scrollSyncDirections: undefined,
+    },
+    { validate: validateMarkdownEditorState }
+  )
 
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 /**
  * Ctrl+Tab / Ctrl+Shift+Tab switching in most-recently-used order.
@@ -33,7 +33,7 @@ export function useMruTabSwitcher(): void {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Tab' || !event.ctrlKey) return
-      const { tabs, tabMru, activeTabId, setActiveTab } = useUiStore.getState()
+      const { tabs, tabMru, activeTabId, setActiveTab } = useWorkspaceStore.getState()
       if (tabs.length < 2) return
       event.preventDefault()
 

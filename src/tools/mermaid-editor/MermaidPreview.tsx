@@ -80,8 +80,7 @@ export default function MermaidPreview({
     })
   }, [size, viewport, setTransform])
 
-  // A diagram wider than the pane used to open at 100% with its left edge in
-  // the corner, so the first thing the user saw was a fragment.
+  // Fit each new diagram to the pane so the initial view shows the complete diagram.
   const fittedFor = useRef<string | null>(null)
   useEffect(() => {
     if (!svg) {
@@ -199,8 +198,7 @@ export default function MermaidPreview({
     flushPan()
   }, [flushPan])
 
-  // Zoom and pan used to be reachable only with a wheel and a drag, which left
-  // the whole preview unusable from the keyboard.
+  // Expose zoom and pan through the keyboard so the preview does not require pointer input.
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       const actions: Record<string, () => void> = {

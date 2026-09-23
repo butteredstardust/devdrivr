@@ -55,10 +55,8 @@ const { sanitize } = DOMPurify
 const MAX_RENDERED_DIFF_LINES = 2000
 
 /**
- * Which panes are on screen. The old tool had no such concept: computing a diff
- * replaced the editors outright, so the 600ms auto-compare pulled the editing
- * surface away mid-keystroke and the only way back was a button that appeared
- * where the editors used to be.
+ * Controls which panes remain visible. Auto-comparison must not replace the editing surface while
+ * the user types.
  */
 type ViewMode = 'editors' | 'split' | 'diff'
 
@@ -290,8 +288,8 @@ export default function DiffViewer() {
   const pendingCompareRef = useRef(false)
   /**
    * Bumped whenever an input or option changes. A comparison captures it before awaiting and
-   * commits only if it is still current — otherwise a slow diff of the old text would land
-   * under the new text, leaving a stale patch and stale export actions on screen.
+   * commits only while current. This prevents slow results from displaying beneath newer text and
+   * exposing stale export actions.
    */
   const generationRef = useRef(0)
   const announceRef = useRef(false)

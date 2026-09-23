@@ -179,6 +179,7 @@ impl DevdrivrMcpService {
             })
         };
         self.require_folder_kind(&folder_id, "notes").await?;
+        let updated_at = std::cmp::max(now_ms(), current.updated_at + 1);
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
         let updated = sqlx::query(
             "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1 AND deleted_at IS NULL AND ($12 IS NULL OR updated_at = $12)",
@@ -190,7 +191,7 @@ impl DevdrivrMcpService {
         .bind(if pinned { 1 } else { 0 })
         .bind(tags)
         .bind(folder_id)
-        .bind(now_ms())
+        .bind(updated_at)
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
@@ -215,20 +216,28 @@ impl DevdrivrMcpService {
         self.ensure_permission("notes", "delete").await?;
         // The expectation is part of the WHERE clause, so a record that changes between the
         // check and the write is still refused.
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
         let result = sqlx::query(
-            "UPDATE notes SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
+            "UPDATE notes SET deleted_at = $2, updated_at = MAX(updated_at + 1, $2) WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
         )
         .bind(&args.id)
         .bind(now_ms())
         .bind(args.expected_updated_at)
-        .execute(&self.pool)
+        .execute(&mut *transaction)
         .await
         .map_err(db_error)?;
         if result.rows_affected() == 0 {
+            transaction.rollback().await.map_err(db_error)?;
             return Err(self
                 .stale_write_failure(ResourceType::Notes, &args.id, args.expected_updated_at)
                 .await);
         }
+        sqlx::query("DELETE FROM note_links WHERE source_note_id = $1")
+            .bind(&args.id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(db_error)?;
+        transaction.commit().await.map_err(db_error)?;
         self.emit_changed("notes", "delete", Some(args.id));
         to_json_text(json!({ "trashed": true }))
     }

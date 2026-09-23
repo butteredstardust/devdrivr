@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
@@ -60,8 +60,8 @@ const TOOLS: ToolDefinition[] = [
 // The store is a module singleton and one test below swaps `setActiveTool` for a
 // spy. Without restoring it here, every later test that clicks a tool is asserting
 // against the previous test's mock, which silently does nothing.
-const realSetActiveTool = useUiStore.getState().setActiveTool
-const realOpenTabInstance = useUiStore.getState().openTabInstance
+const realSetActiveTool = useWorkspaceStore.getState().setActiveTool
+const realOpenTabInstance = useWorkspaceStore.getState().openTabInstance
 
 beforeEach(() => {
   cleanup()
@@ -69,7 +69,7 @@ beforeEach(() => {
   // Tabs and recents are singleton state that clicking a tool writes to, and
   // `SidebarRecent` renders a `data-sidebar-item` per recent — so a leaked
   // recent breaks the "one node per tool id" invariant asserted further down.
-  useUiStore.setState({
+  useWorkspaceStore.setState({
     activeTool: '',
     setActiveTool: realSetActiveTool,
     openTabInstance: realOpenTabInstance,
@@ -88,7 +88,7 @@ describe('SidebarItem — active indicator', () => {
   // It previously also carried an inset accent glow on top of both, which was
   // invisible on most themes and noise on the rest.
   it('applies the accent border and fill when item is active', () => {
-    useUiStore.setState({ activeTool: 'tool-a' })
+    useWorkspaceStore.setState({ activeTool: 'tool-a' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
     expect(btn.className).toContain('border-[var(--color-accent)]')
@@ -96,7 +96,7 @@ describe('SidebarItem — active indicator', () => {
   })
 
   it('does not apply the accent border or fill when item is inactive', () => {
-    useUiStore.setState({ activeTool: 'tool-b' })
+    useWorkspaceStore.setState({ activeTool: 'tool-b' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     const btn = screen.getByRole('button', { name: 'Tool A' })
     expect(btn.className).toContain('border-transparent')
@@ -104,19 +104,19 @@ describe('SidebarItem — active indicator', () => {
   })
 
   it('never stacks a glow on top of the border and fill', () => {
-    useUiStore.setState({ activeTool: 'tool-a' })
+    useWorkspaceStore.setState({ activeTool: 'tool-a' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' }).className).not.toContain('shadow-[inset')
   })
 
   it('has aria-current="page" when active', () => {
-    useUiStore.setState({ activeTool: 'tool-a' })
+    useWorkspaceStore.setState({ activeTool: 'tool-a' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('has no aria-current when inactive', () => {
-    useUiStore.setState({ activeTool: 'tool-b' })
+    useWorkspaceStore.setState({ activeTool: 'tool-b' })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     expect(screen.getByRole('button', { name: 'Tool A' })).not.toHaveAttribute('aria-current')
   })
@@ -136,14 +136,14 @@ describe('SidebarItem — active indicator', () => {
 
   it('calls setActiveTool when clicked', () => {
     const setActiveTool = vi.fn()
-    useUiStore.setState({ activeTool: '', setActiveTool } as never)
+    useWorkspaceStore.setState({ activeTool: '', setActiveTool } as never)
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Tool A' }))
     expect(setActiveTool).toHaveBeenCalledWith('tool-a')
   })
 
   it('keeps the existing aria-label and hides the badge with one open tab', () => {
-    useUiStore.setState({ tabs: [{ id: 'tab-a-1', toolId: 'tool-a' }] })
+    useWorkspaceStore.setState({ tabs: [{ id: 'tab-a-1', toolId: 'tool-a' }] })
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
 
     expect(screen.getByRole('button', { name: 'Tool A' })).toBeInTheDocument()
@@ -151,7 +151,7 @@ describe('SidebarItem — active indicator', () => {
   })
 
   it('shows an accessible count when two tabs of the tool are open', () => {
-    useUiStore.setState({
+    useWorkspaceStore.setState({
       tabs: [
         { id: 'tab-a-1', toolId: 'tool-a' },
         { id: 'tab-a-2', toolId: 'tool-a' },
@@ -166,7 +166,7 @@ describe('SidebarItem — active indicator', () => {
   it('opens another tab instead of switching on a platform modifier click', () => {
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Tool A' }), {
@@ -181,7 +181,7 @@ describe('SidebarItem — active indicator', () => {
   it('opens another tab and prevents the default action on middle click', () => {
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<SidebarItem id="tool-a" name="Tool A" icon={fixtureIcon('a')} />)
 
     const defaultAllowed = fireEvent(
@@ -326,7 +326,7 @@ describe('Sidebar — pinned tools in the collapsed rail', () => {
     // Tabs are module-singleton state and earlier tests leave some behind; a
     // stale base64 tab would make `openTab` take its "already open" branch and
     // this assertion pass for the wrong reason.
-    useUiStore.setState({ activeTool: '', tabs: [], tabMru: [], activeTabId: null })
+    useWorkspaceStore.setState({ activeTool: '', tabs: [], tabMru: [], activeTabId: null })
 
     render(<Sidebar />)
 
@@ -336,7 +336,7 @@ describe('Sidebar — pinned tools in the collapsed rail', () => {
     // One click, not two: the group flyout route costs an extra click, which is
     // the thing pinning is supposed to buy you out of.
     fireEvent.click(pin)
-    expect(useUiStore.getState().activeTool).toBe('base64')
+    expect(useWorkspaceStore.getState().activeTool).toBe('base64')
   })
 
   it('skips pin ids whose tool no longer exists rather than rendering a hole', () => {
@@ -764,7 +764,7 @@ describe('SidebarGroup — default collapse for never-opened groups', () => {
 
   it('marks a group as opened when a tool from it becomes active, via the full Sidebar', async () => {
     useSettingsStore.setState({ openedSidebarGroups: ['code'] })
-    useUiStore.setState({ activeTool: 'uuid-generator' })
+    useWorkspaceStore.setState({ activeTool: 'uuid-generator' })
 
     render(<Sidebar />)
 
@@ -824,7 +824,7 @@ describe('SidebarItem — truncation tooltip', () => {
 
 describe('Sidebar — match highlighting', () => {
   it('limits recent rows and hides the section when the limit is zero', () => {
-    useUiStore.setState({ recentToolIds: ['uuid-generator', 'jwt-decoder'] })
+    useWorkspaceStore.setState({ recentToolIds: ['uuid-generator', 'jwt-decoder'] })
     useSettingsStore.setState({ recentToolsLimit: 1 })
     const view = render(<Sidebar />)
 
@@ -855,7 +855,7 @@ describe('Sidebar — match highlighting', () => {
   })
 
   it('highlights a tool listed under Recent the same way as its group row', () => {
-    useUiStore.setState({ recentToolIds: ['uuid-generator'] })
+    useWorkspaceStore.setState({ recentToolIds: ['uuid-generator'] })
     useSettingsStore.setState({ pinnedToolIds: [] })
     render(<Sidebar />)
 

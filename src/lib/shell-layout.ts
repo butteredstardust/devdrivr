@@ -2,15 +2,8 @@
  * How the three columns of the shell row — sidebar, workspace, notes drawer — share a narrow
  * window.
  *
- * The row used to have no arbiter at all: both side panels are `shrink-0` at a stored pixel width
- * and the workspace is `flex-1` inside `overflow-hidden`, so its min-width resolves to 0 and it
- * absorbs *every* pixel the window loses. At the app's own configured minimum window width (800,
- * see src-tauri/tauri.conf.json) with default settings and the notes drawer open, the workspace
- * measured 262px — narrow enough that a tool's document toolbar crushed its filename to a single
- * glyph, and narrow enough to clip an absolutely-positioned control (the markdown preview's
- * "Edit preview" toggle) clean out of the pane.
- *
- * So the workspace gets a floor and the side panels yield to it, in a fixed order:
+ * Both side panels use stored pixel widths, while the flexible workspace can shrink to zero.
+ * Give the workspace a floor and make the side panels yield in this order:
  *
  *   1. The sidebar narrows toward `MIN_SIDEBAR_WIDTH`.
  *   2. If that isn't enough it drops to the 40px rail — it has a designed collapsed state and the
@@ -19,8 +12,8 @@
  *      panel the user just opened to read; shrinking it first would answer "show me my notes"
  *      by making the notes unreadable.
  *
- * Step 3 is reachable only below ~740px, i.e. below the minimum window the app allows, and exists
- * so a window that somehow gets there degrades instead of overflowing the row and clipping a panel.
+ * Step 3 occurs only below the supported minimum window width. It prevents overflow if a window
+ * reaches that size.
  */
 
 /** Width the workspace keeps for itself before either side panel is allowed to take more. */

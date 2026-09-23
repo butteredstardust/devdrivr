@@ -4,9 +4,8 @@ import { createContext, useContext } from 'react'
  * Identifies the tab a tool is rendered inside.
  *
  * Inactive tabs stay mounted so their editors, scroll positions and in-flight
- * work survive a switch, which means several tools are listening to the shell
- * at once. Anything that used to be safe purely because one tool was mounted —
- * ⌘S dispatch, keyboard shortcuts — has to consult `isActive` instead.
+ * work survive a switch. Several tools therefore listen to the shell at once.
+ * Shell actions and keyboard shortcuts must consult `isActive`.
  */
 export type ToolInstance = {
   tabId: string

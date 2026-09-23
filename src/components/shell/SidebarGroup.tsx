@@ -96,10 +96,8 @@ export function SidebarGroup({
   )
 
   return (
-    // No rule above the header. Every group used to carry a full-width
-    // border-t on top of its own spacing, an uppercase tracked label, a count
-    // and a chevron — five separators competing inside a 218px column. The
-    // margin already groups these; the muted label does the rest.
+    // Do not add a rule above the header. Spacing and the muted label already separate groups in
+    // the narrow sidebar.
     <div className={`mb-1 ${!isFirst ? 'mt-3' : ''}`}>
       <button
         onClick={toggleCollapsed}

@@ -26,6 +26,10 @@ import {
 } from '@/tools/markdown-editor/list-editing'
 import { toggleTaskAtIndex, countTasks } from '@/tools/markdown-editor/task-list'
 import { isUrl, tsvToMarkdownTable } from '@/tools/markdown-editor/paste-helpers'
+import {
+  validateMarkdownEditorState,
+  type MarkdownEditorState,
+} from '@/tools/markdown-editor/markdown-model'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -65,6 +69,24 @@ afterEach(() => {
 })
 
 describe('MarkdownEditor', () => {
+  it('repairs malformed persisted scroll directions', () => {
+    const state = {
+      content: '',
+      fileName: null,
+      filePath: null,
+      savedContent: '',
+      mode: 'split',
+      showToc: false,
+      scrollSync: false,
+      scrollSyncDirections: { editorToPreview: 'yes', previewToEditor: true },
+    } as unknown as MarkdownEditorState
+
+    expect(validateMarkdownEditorState(state).scrollSyncDirections).toEqual({
+      editorToPreview: false,
+      previewToEditor: false,
+    })
+  })
+
   it('exposes find and replace in the editor toolbar', () => {
     renderTool(MarkdownEditor)
     expect(screen.getByRole('button', { name: /^Find \(/ })).toBeInTheDocument()

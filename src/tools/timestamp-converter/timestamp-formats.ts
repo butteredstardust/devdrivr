@@ -1,10 +1,8 @@
 /**
  * Timezone-aware formatting for the timestamp converter.
  *
- * The tool used to read every date through the host's local zone and nothing else, which made it
- * useless for the case it mostly gets opened for: someone on a distributed team looking at a log
- * line written somewhere else. Every function here takes an explicit IANA zone so the answer does
- * not depend on where the machine happens to be.
+ * Every function accepts an explicit IANA zone so results do not depend on the host machine's
+ * local zone.
  */
 
 /** Sentinel for "wherever this machine is", resolved at format time rather than baked in. */

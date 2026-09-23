@@ -6,19 +6,15 @@ import { cn } from '@/lib/cn'
 /**
  * The dialog width scale.
  *
- * `Dialog` used to have no width of its own, so all eighteen callers supplied one and drifted into
- * nine different expressions — `w-[340px]`, `w-[400px]`, `w-[420px]`, `w-full max-w-[560px]`, and
- * three different values of the `w-[min(Xrem,…)]` idiom. The four hardcoded pixel widths were not
- * responsive at all and overflowed a narrow window.
- *
- * Every step subtracts the same 2rem gutter, so no size can exceed the viewport. `none` is for the
- * two dialogs that size against the viewport in both axes and manage it themselves.
+ * Every step subtracts a 2rem gutter, so no size exceeds the viewport. Use `none` for dialogs that
+ * manage both viewport axes themselves.
  */
 const SIZE_CLASSES = {
   sm: 'w-[min(26rem,calc(100vw-2rem))]',
   md: 'w-[min(30rem,calc(100vw-2rem))]',
   lg: 'w-[min(35rem,calc(100vw-2rem))]',
   xl: 'w-[min(42rem,calc(100vw-2rem))]',
+  '2xl': 'w-[min(50rem,calc(100vw-2rem))]',
   none: '',
 } as const
 

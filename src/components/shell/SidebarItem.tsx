@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactElement } from 'react'
 import { PushPinIcon } from '@phosphor-icons/react'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { MatchText } from '@/components/shared/MatchText'
 import type { MatchRange } from '@/hooks/useFuseSearch'
 import { useOpenInstanceCount, useOpenTool } from '@/hooks/useToolOpen'
@@ -17,7 +17,7 @@ type SidebarItemProps = {
 }
 
 export function SidebarItem({ id, name, icon, tabIndex, matchRanges }: SidebarItemProps) {
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
   const update = useSettingsStore((s) => s.update)
   const openTool = useOpenTool()

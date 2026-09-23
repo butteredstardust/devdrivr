@@ -20,7 +20,7 @@
  * zero were real. The resolved DOM has no indirection left to hide in.
  *
  * Why it is one tool per page load. A backgrounded tool stays mounted (see `Workspace.tsx`), so a
- * shared page carries every previously opened tool's controls. `hidden` is `display:none`, which
+ * shared page carries every opened tool's controls. `hidden` is `display:none`, which
  * drops those from the tab order but not from `querySelectorAll`. One load per tool keeps a finding
  * attributable to the tool named beside it.
  *

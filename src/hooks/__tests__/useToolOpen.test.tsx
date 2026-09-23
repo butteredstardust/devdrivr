@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { _resetPlatformCache } from '@/lib/platform'
 import { useOpenInstanceCount, useOpenTool } from '@/hooks/useToolOpen'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 function setUserAgent(value: string): void {
   Object.defineProperty(navigator, 'userAgent', { value, configurable: true })
@@ -16,12 +16,12 @@ function HookHarness({ toolId = 'tool-a' }: { toolId?: string }) {
 }
 
 const originalUserAgent = navigator.userAgent
-const realSetActiveTool = useUiStore.getState().setActiveTool
-const realOpenTabInstance = useUiStore.getState().openTabInstance
+const realSetActiveTool = useWorkspaceStore.getState().setActiveTool
+const realOpenTabInstance = useWorkspaceStore.getState().openTabInstance
 
 beforeEach(() => {
   _resetPlatformCache()
-  useUiStore.setState({
+  useWorkspaceStore.setState({
     tabs: [],
     setActiveTool: realSetActiveTool,
     openTabInstance: realOpenTabInstance,
@@ -34,7 +34,7 @@ describe('useOpenTool', () => {
   it('switches tools on a plain click', () => {
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<HookHarness />)
 
     fireEvent.click(screen.getByRole('button'))
@@ -47,7 +47,7 @@ describe('useOpenTool', () => {
     setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<HookHarness />)
 
     fireEvent.click(screen.getByRole('button'), { metaKey: true })
@@ -60,7 +60,7 @@ describe('useOpenTool', () => {
     setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<HookHarness />)
 
     fireEvent.click(screen.getByRole('button'), { ctrlKey: true })
@@ -76,7 +76,7 @@ describe('useOpenTool', () => {
     setUserAgent(userAgent)
     const setActiveTool = vi.fn()
     const openTabInstance = vi.fn()
-    useUiStore.setState({ setActiveTool, openTabInstance } as never)
+    useWorkspaceStore.setState({ setActiveTool, openTabInstance } as never)
     render(<HookHarness />)
 
     fireEvent.click(screen.getByRole('button'), { ctrlKey: true })
@@ -92,7 +92,7 @@ describe('useOpenInstanceCount', () => {
     expect(screen.getByRole('button')).toHaveTextContent('Open (0)')
 
     act(() => {
-      useUiStore.setState({
+      useWorkspaceStore.setState({
         tabs: [
           { id: 'tab-a-1', toolId: 'tool-a' },
           { id: 'tab-b-1', toolId: 'tool-b' },

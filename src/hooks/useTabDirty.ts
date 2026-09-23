@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useToolInstance } from '@/app/tool-instance'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 /**
  * Reports whether this tool instance holds unsaved work, so its tab can say so.
@@ -19,7 +19,7 @@ import { useUiStore } from '@/stores/ui.store'
  */
 export function useTabDirty(dirty: boolean): void {
   const tabId = useToolInstance()?.tabId
-  const setTabDirty = useUiStore((s) => s.setTabDirty)
+  const setTabDirty = useWorkspaceStore((s) => s.setTabDirty)
 
   useEffect(() => {
     if (!tabId) return

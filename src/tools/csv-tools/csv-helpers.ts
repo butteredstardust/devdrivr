@@ -117,11 +117,8 @@ function modalCount(counts: number[]): number {
 /**
  * Picks the delimiter that splits the most records into the same field count.
  *
- * The old detector counted characters in the *first line only*, so a header of
- * `name,description` beat a genuinely semicolon-separated file whose first
- * description happened to contain two commas — and a file with a title row
- * ahead of the header disqualified the real delimiter outright. Agreement
- * across records is what distinguishes a delimiter from punctuation.
+ * Compare field counts across records. Consistent record structure distinguishes a delimiter from
+ * punctuation inside one field or title row.
  */
 export function detectDelimiter(text: string): Exclude<Delimiter, 'auto'> {
   const sample = splitRecords(text)

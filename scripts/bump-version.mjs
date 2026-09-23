@@ -19,9 +19,8 @@ function bump(version) {
 
 /**
  * Rewrite the `version` field in place, editing the text rather than re-serialising the parsed
- * object. `JSON.stringify(conf, null, 2)` expands every inline array, which prettier (via
- * lint-staged) then collapses again on the next human commit — so each release used to leave
- * unrelated formatting churn in tauri.conf.json and the two tools took turns undoing each other.
+ * object. `JSON.stringify(conf, null, 2)` expands every inline array. Prettier then collapses the
+ * arrays, causing unrelated formatting churn in tauri.conf.json.
  */
 function replaceOnce(filePath, needle, replacement) {
   const raw = fs.readFileSync(filePath, 'utf8')

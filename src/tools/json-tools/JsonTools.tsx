@@ -67,9 +67,8 @@ type JsonToolsState = {
   fileName: string | null
   filePath: string | null
   /**
-   * Tree and Table used to be tabs that replaced the editor, so inspecting a
-   * document meant leaving it: every fix was "switch tab, edit, switch back".
-   * They are panes beside the source now, and the view choice persists.
+   * Tree and Table appear beside the source so users can inspect and edit together. The view choice
+   * persists.
    */
   view: JsonView
   query: string

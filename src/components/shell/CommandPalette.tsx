@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { IFuseOptions } from 'fuse.js'
 import { TOOLS } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
@@ -213,13 +214,13 @@ function optionId(item: PaletteItem): string {
 export function CommandPalette() {
   const isOpen = useUiStore((s) => s.commandPaletteOpen)
   const setOpen = useUiStore((s) => s.setCommandPaletteOpen)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
-  const openTabInstance = useUiStore((s) => s.openTabInstance)
+  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool)
+  const openTabInstance = useWorkspaceStore((s) => s.openTabInstance)
   const intent = useUiStore((s) => s.commandPaletteIntent)
-  const activeTool = useUiStore((s) => s.activeTool)
-  const tabs = useUiStore((s) => s.tabs)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
+  const tabs = useWorkspaceStore((s) => s.tabs)
   const addToast = useUiStore((s) => s.addToast)
-  const recentToolIds = useUiStore((s) => s.recentToolIds)
+  const recentToolIds = useWorkspaceStore((s) => s.recentToolIds)
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)

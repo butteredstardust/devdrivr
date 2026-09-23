@@ -26,9 +26,29 @@ export type MarkdownEditorState = {
   mode: string
   showToc: boolean
   scrollSync: boolean
-  scrollSyncDirections?: {
-    editorToPreview: boolean
-    previewToEditor: boolean
+  scrollSyncDirections:
+    | {
+        editorToPreview: boolean
+        previewToEditor: boolean
+      }
+    | undefined
+}
+
+export function validateMarkdownEditorState(state: MarkdownEditorState): MarkdownEditorState {
+  const directions = state.scrollSyncDirections
+  if (
+    directions &&
+    typeof directions.editorToPreview === 'boolean' &&
+    typeof directions.previewToEditor === 'boolean'
+  ) {
+    return state
+  }
+  return {
+    ...state,
+    scrollSyncDirections: {
+      editorToPreview: state.scrollSync,
+      previewToEditor: state.scrollSync,
+    },
   }
 }
 

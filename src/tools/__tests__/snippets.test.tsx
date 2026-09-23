@@ -9,6 +9,7 @@ import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
 import SnippetsManager, {
   hasRegisteredDocumentFormatter,
   runRegisteredDocumentFormatter,
+  validateSnippetsToolState,
 } from '@/tools/snippets/SnippetsManager'
 import { ToolInstanceContext } from '@/app/tool-instance'
 import { sendToTool } from '@/lib/tool-handoff'
@@ -115,6 +116,22 @@ afterEach(() => {
 })
 
 describe('SnippetsManager — library experience', () => {
+  it('removes malformed persisted handoff and fragment entries', () => {
+    const state = {
+      handoff: { title: 'Missing fields' },
+      wikiTargetId: 4,
+      backlinkNoteId: null,
+      activeFragmentIds: { valid: 'fragment-1', invalid: false },
+    } as unknown as Parameters<typeof validateSnippetsToolState>[0]
+
+    expect(validateSnippetsToolState(state)).toEqual({
+      handoff: null,
+      wikiTargetId: null,
+      backlinkNoteId: null,
+      activeFragmentIds: { valid: 'fragment-1' },
+    })
+  })
+
   it('opens durable Trash and restores a snippet', async () => {
     const restore = vi.fn().mockResolvedValue(undefined)
     useSnippetsStore.setState({

@@ -1,0 +1,53 @@
+[
+  {
+    "name": "plain note link",
+    "content": "See [[note:note-1|Plan]].",
+    "targets": [["note", "note-1"]]
+  },
+  {
+    "name": "plain snippet link",
+    "content": "Use [[snippet:snippet-1|Parser]].",
+    "targets": [["snippet", "snippet-1"]]
+  },
+  {
+    "name": "label does not affect identity",
+    "content": "[[note:note-2|A label with spaces and : punctuation]]",
+    "targets": [["note", "note-2"]]
+  },
+  {
+    "name": "duplicate targets are deduplicated",
+    "content": "[[note:same|First]] then [[note:same|Second]]",
+    "targets": [["note", "same"]]
+  },
+  {
+    "name": "legacy title-only link is ignored",
+    "content": "Legacy [[Project Plan]]",
+    "targets": []
+  },
+  { "name": "unclosed link is ignored", "content": "Before [[note:open|Open", "targets": [] },
+  {
+    "name": "nested and adjacent brackets",
+    "content": "[[outer [[note:nested|Nested]] [[snippet:adjacent|A]][[note:next|B]]",
+    "targets": [
+      ["note", "nested"],
+      ["snippet", "adjacent"],
+      ["note", "next"]
+    ]
+  },
+  { "name": "empty id is ignored", "content": "[[note:|Empty]]", "targets": [] },
+  { "name": "unknown kind is ignored", "content": "[[document:doc-1|Document]]", "targets": [] },
+  {
+    "name": "unicode id and label",
+    "content": "[[note:σχέδιο-🧭|Σχέδιο 🧭]]",
+    "targets": [["note", "σχέδιο-🧭"]]
+  },
+  {
+    "name": "multiple links per line",
+    "content": "[[api-request:req-1|GET /one]] and [[note:note-3|Three]] and [[snippet:snippet-2|Two]]",
+    "targets": [
+      ["api-request", "req-1"],
+      ["note", "note-3"],
+      ["snippet", "snippet-2"]
+    ]
+  }
+]

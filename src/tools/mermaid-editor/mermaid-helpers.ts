@@ -210,8 +210,7 @@ export function withSourceLine(error: MermaidError, source: string): MermaidErro
   if (!error.line) return error
   const line = sourceLineForReportedLine(source, error.line)
   if (line === error.line) return error
-  // The message quotes the line number too; leaving the old one there would
-  // contradict the "Go to line" button standing next to it.
+  // Update the quoted line number so it matches the adjacent "Go to line" action.
   return { line, message: error.message.replace(/\bline \d+/i, `line ${line}`) }
 }
 

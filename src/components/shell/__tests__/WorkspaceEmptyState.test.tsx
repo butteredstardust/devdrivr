@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceEmptyState } from '@/components/shell/WorkspaceEmptyState'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 import { formatShortcut } from '@/lib/shortcut-label'
 
@@ -13,7 +13,7 @@ vi.mock('@/lib/db', () => ({
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', recentToolIds: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', recentToolIds: [] })
   useSettingsStore.setState({ ...DEFAULT_SETTINGS, pinnedToolIds: [] })
   vi.clearAllMocks()
 })
@@ -40,7 +40,7 @@ describe('WorkspaceEmptyState', () => {
 
   it('renders recently used tools as clickable chips, excluding pinned duplicates', () => {
     useSettingsStore.setState({ pinnedToolIds: ['json-tools'] })
-    useUiStore.setState({ recentToolIds: ['json-tools', 'jwt-decoder'] })
+    useWorkspaceStore.setState({ recentToolIds: ['json-tools', 'jwt-decoder'] })
     render(<WorkspaceEmptyState />)
     expect(screen.getByText('Recent')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open JWT Decoder' })).toBeInTheDocument()
@@ -50,7 +50,7 @@ describe('WorkspaceEmptyState', () => {
 
   it('applies the recent-tool limit and hides Recent when the limit is zero', () => {
     useSettingsStore.setState({ recentToolsLimit: 1 })
-    useUiStore.setState({ recentToolIds: ['jwt-decoder', 'base64'] })
+    useWorkspaceStore.setState({ recentToolIds: ['jwt-decoder', 'base64'] })
     const view = render(<WorkspaceEmptyState />)
     expect(screen.getByRole('button', { name: 'Open JWT Decoder' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open Base64' })).not.toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('WorkspaceEmptyState', () => {
     useSettingsStore.setState({ pinnedToolIds: ['jwt-decoder'] })
     render(<WorkspaceEmptyState />)
     fireEvent.click(screen.getByRole('button', { name: 'Open JWT Decoder' }))
-    expect(useUiStore.getState().activeTool).toBe('jwt-decoder')
-    expect(useUiStore.getState().tabs.some((t) => t.toolId === 'jwt-decoder')).toBe(true)
+    expect(useWorkspaceStore.getState().activeTool).toBe('jwt-decoder')
+    expect(useWorkspaceStore.getState().tabs.some((t) => t.toolId === 'jwt-decoder')).toBe(true)
   })
 })
