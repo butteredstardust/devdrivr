@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { CommandPalette } from '@/components/shell/CommandPalette'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { DEFAULT_SETTINGS } from '@/types/models'
 
 const windowApi = vi.hoisted(() => ({
@@ -44,10 +45,12 @@ beforeEach(() => {
   window.Element.prototype.scrollIntoView = vi.fn()
 
   useUiStore.setState({
-    activeTabId: null,
-    activeTool: '',
     commandPaletteOpen: true,
     commandPaletteIntent: 'switch',
+  })
+  useWorkspaceStore.setState({
+    activeTabId: null,
+    activeTool: '',
     recentToolIds: [],
     tabMru: [],
     tabs: [],
@@ -145,7 +148,7 @@ describe('CommandPalette', () => {
   })
 
   it('shows the mod+digit tab binding on rows for tools that are open in a tab', () => {
-    useUiStore.setState({
+    useWorkspaceStore.setState({
       tabs: [
         { id: 't1', toolId: 'json-tools' },
         { id: 't2', toolId: 'base64' },
@@ -162,7 +165,7 @@ describe('CommandPalette', () => {
   })
 
   it('leaves rows for tools with no open tab unbadged', () => {
-    useUiStore.setState({ tabs: [] })
+    useWorkspaceStore.setState({ tabs: [] })
 
     render(<CommandPalette />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'base64' } })
@@ -178,45 +181,45 @@ describe('CommandPalette', () => {
     const markdown = { id: 't1', toolId: 'markdown-editor', stateKey: 'markdown-editor' }
 
     it('opens a second instance of a tool that is already open', () => {
-      useUiStore.setState({
+      useWorkspaceStore.setState({
         tabs: [markdown],
         activeTabId: 't1',
         activeTool: 'markdown-editor',
-        commandPaletteIntent: 'new-tab',
       })
+      useUiStore.setState({ commandPaletteIntent: 'new-tab' })
 
       render(<CommandPalette />)
       fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
       fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
 
-      const { tabs, activeTabId } = useUiStore.getState()
+      const { tabs, activeTabId } = useWorkspaceStore.getState()
       expect(tabs.filter((tab) => tab.toolId === 'markdown-editor')).toHaveLength(2)
       expect(activeTabId).not.toBe('t1')
     })
 
     it('returns to the open tab under the switch intent', () => {
-      useUiStore.setState({
+      useWorkspaceStore.setState({
         tabs: [markdown, { id: 't2', toolId: 'base64', stateKey: 'base64' }],
         activeTabId: 't2',
         activeTool: 'base64',
-        commandPaletteIntent: 'switch',
       })
+      useUiStore.setState({ commandPaletteIntent: 'switch' })
 
       render(<CommandPalette />)
       fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
       fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
 
-      expect(useUiStore.getState().tabs).toHaveLength(2)
-      expect(useUiStore.getState().activeTabId).toBe('t1')
+      expect(useWorkspaceStore.getState().tabs).toHaveLength(2)
+      expect(useWorkspaceStore.getState().activeTabId).toBe('t1')
     })
 
     it('survives a click on the search field it is about to be typed into', () => {
-      useUiStore.setState({
+      useWorkspaceStore.setState({
         tabs: [markdown],
         activeTabId: 't1',
         activeTool: 'markdown-editor',
-        commandPaletteIntent: 'new-tab',
       })
+      useUiStore.setState({ commandPaletteIntent: 'new-tab' })
 
       render(<CommandPalette />)
       fireEvent.pointerDown(screen.getByRole('combobox'))
@@ -226,7 +229,7 @@ describe('CommandPalette', () => {
       fireEvent.change(screen.getByRole('combobox'), { target: { value: 'markdown' } })
       fireEvent.click(screen.getByRole('option', { name: /^Markdown Editor/ }))
 
-      expect(useUiStore.getState().tabs).toHaveLength(2)
+      expect(useWorkspaceStore.getState().tabs).toHaveLength(2)
     })
 
     it('says which mode it is in', () => {
@@ -253,7 +256,7 @@ describe('CommandPalette', () => {
     const markdown = { id: 't1', toolId: 'markdown-editor', stateKey: 'markdown-editor' }
 
     it('finds the command and opens a second instance of the active tool', () => {
-      useUiStore.setState({
+      useWorkspaceStore.setState({
         tabs: [markdown],
         activeTabId: 't1',
         activeTool: 'markdown-editor',
@@ -264,7 +267,7 @@ describe('CommandPalette', () => {
       fireEvent.click(screen.getByRole('option', { name: /Duplicate Tab/ }))
 
       expect(
-        useUiStore.getState().tabs.filter((tab) => tab.toolId === 'markdown-editor')
+        useWorkspaceStore.getState().tabs.filter((tab) => tab.toolId === 'markdown-editor')
       ).toHaveLength(2)
     })
 

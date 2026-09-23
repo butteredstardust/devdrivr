@@ -127,7 +127,8 @@ These stores hold application state. The table identifies its persistence.
 | File                        | What It Holds                                                  | Persistence                                                  |
 | --------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
 | `settings.store.ts`         | Theme, sidebar, drawer, editor prefs                           | SQLite `settings` → `appSettings` key                        |
-| `ui.store.ts`               | Active tool, modals open, toasts, pendingSendTo                | None (transient)                                             |
+| `workspace.store.ts`        | Tabs, active tool, tab history, dirty state                    | SQLite `settings` → `openTabs`, `activeTabId` keys           |
+| `ui.store.ts`               | Modals, toasts, action feedback, pendingSendTo                 | None (transient)                                             |
 | `notes.store.ts`            | All sticky notes (color, pinned, bounds, sort order)           | SQLite `notes` table                                         |
 | `snippets.store.ts`         | Multi-fragment code snippets, descriptions, tags, and folders  | SQLite `snippets` + `snippet_fragments` tables               |
 | `folders.store.ts`          | Shared Notes, Snippets, and API request folder hierarchy       | SQLite `resource_folders` table                              |

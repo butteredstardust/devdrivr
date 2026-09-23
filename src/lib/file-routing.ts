@@ -1,6 +1,6 @@
 import { OPEN_FILE_TOOL_IDS } from '@/app/tool-registry'
 import { hasPendingToolAction, queueToolAction } from '@/lib/tool-actions'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 /**
  * Which tool opens a file the operating system handed over.
@@ -68,7 +68,7 @@ export function toolIdForFile(pathOrName: string): string {
 
 /** The `tool_state` key of the tab now in front, falling back to the bare tool id. */
 function focusedStateKey(toolId: string): string {
-  const ui = useUiStore.getState()
+  const ui = useWorkspaceStore.getState()
   return ui.tabs.find((tab) => tab.id === ui.activeTabId)?.stateKey ?? toolId
 }
 
@@ -91,7 +91,7 @@ export function openFileInTool(
   options: { forceNewTab?: boolean } = {}
 ): string {
   const toolId = toolIdForFile(file.filename)
-  const ui = useUiStore.getState()
+  const ui = useWorkspaceStore.getState()
   if (options.forceNewTab) {
     ui.openTabInstance(toolId)
   } else {
@@ -105,7 +105,7 @@ export function openFileInTool(
   // A tab still holding an unclaimed file gets a sibling rather than having that file replaced
   // before anyone has seen it.
   if (hasPendingToolAction(stateKey)) {
-    useUiStore.getState().openTabInstance(toolId)
+    useWorkspaceStore.getState().openTabInstance(toolId)
     stateKey = focusedStateKey(toolId)
   }
 

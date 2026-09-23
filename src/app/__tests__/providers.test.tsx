@@ -106,9 +106,16 @@ vi.mock('@/stores/mcp.store', () => ({
 vi.mock('@/stores/ui.store', () => ({
   useUiStore: {
     getState: () => ({
+      addToast: mocks.addToast,
+    }),
+  },
+}))
+
+vi.mock('@/stores/workspace.store', () => ({
+  useWorkspaceStore: {
+    getState: () => ({
       restoreTabs: mocks.restoreTabs,
       restoreActiveTool: mocks.restoreActiveTool,
-      addToast: mocks.addToast,
     }),
   },
 }))

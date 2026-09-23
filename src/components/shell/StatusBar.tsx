@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useHistoryStore } from '@/stores/history.store'
 import { THEME_META } from '@/lib/theme'
@@ -38,7 +39,7 @@ function ClockDisplay() {
 // ─── Status Bar ─────────────────────────────────────────────────────
 
 export function StatusBar() {
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const lastAction = useUiStore((s) => s.lastAction)
   const clearLastAction = useUiStore((s) => s.clearLastAction)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)

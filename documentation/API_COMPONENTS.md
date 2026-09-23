@@ -452,15 +452,28 @@ This Zustand store persists application settings.
 - `editorFontSize`: Editor font size
 - `historyRetention`: History retention count
 
+### Workspace Store
+
+This Zustand store holds the workspace tab model.
+
+**Location:** `src/stores/workspace.store.ts`
+
+**State:**
+
+- `tabs`: Open workspace tabs
+- `activeTabId`: Active tab ID
+- `activeTool`: Active tool ID
+- `tabMru`: Tabs ordered by recent use
+- `dirtyTabIds`: Tabs with unsaved work
+
 ### UI Store
 
-This Zustand store holds transient workspace state.
+This Zustand store holds transient UI state.
 
 **Location:** `src/stores/ui.store.ts`
 
 **State:**
 
-- `activeTool`: Currently active tool ID
 - `commandPaletteOpen`: Command palette visibility
 - `settingsPanelOpen`: Settings panel visibility
 - `shortcutsModalOpen`: Shortcuts modal visibility

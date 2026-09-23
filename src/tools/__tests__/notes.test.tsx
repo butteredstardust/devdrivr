@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import NotesWorkspace from '@/tools/notes/NotesWorkspace'
 import { useNotesStore } from '@/stores/notes.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import type { Note } from '@/types/models'
@@ -92,7 +93,7 @@ function arrangeNotes() {
 beforeEach(() => {
   vi.clearAllMocks()
   useToolStateCache.setState({ cache: new Map(), seeds: new Map(), discarded: new Set() })
-  useUiStore
+  useWorkspaceStore
     .getState()
     .restoreTabs([{ id: 'notes-tab', toolId: 'notes', stateKey: 'notes' }], 'notes-tab')
   useSnippetsStore.setState({ snippets: [], trashedSnippets: [], initialized: true })
@@ -103,7 +104,8 @@ beforeEach(() => {
     collections: [],
   })
   arrangeNotes()
-  useUiStore.setState({ lastAction: null, dirtyTabIds: [] })
+  useUiStore.setState({ lastAction: null })
+  useWorkspaceStore.setState({ dirtyTabIds: [] })
   useFoldersStore.setState({
     folders: [
       {
@@ -278,7 +280,7 @@ describe('Notes workspace', () => {
 
     fireEvent.click(await screen.findByRole('link', { name: 'Renamed helper' }))
 
-    expect(useUiStore.getState().activeTool).toBe('snippets')
+    expect(useWorkspaceStore.getState().activeTool).toBe('snippets')
     expect(useToolStateCache.getState().get('snippets')).toMatchObject({
       wikiTargetId: 'snippet-1',
       backlinkNoteId: 'note-1',

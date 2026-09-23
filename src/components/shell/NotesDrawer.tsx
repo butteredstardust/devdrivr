@@ -29,6 +29,7 @@ import { useHistoryStore } from '@/stores/history.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import type { Note as NoteType, NoteColor } from '@/types/models'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { InlineInput } from '@/components/shared/InlineInput'
@@ -376,7 +377,7 @@ export function NotesDrawer() {
   const reorderNotes = useNotesStore((state) => state.reorder)
   const removeNote = useNotesStore((state) => state.remove)
   const historyEntries = useHistoryStore((state) => state.entries)
-  const setActiveTool = useUiStore((state) => state.setActiveTool)
+  const setActiveTool = useWorkspaceStore((state) => state.setActiveTool)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const setPendingSendTo = useUiStore((state) => state.setPendingSendTo)
 

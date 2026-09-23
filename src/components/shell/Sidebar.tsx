@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { TOOL_GROUPS } from '@/app/tool-groups'
 import { TOOLS } from '@/app/tool-registry'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useFuseSearchWithMatches, type MatchRange } from '@/hooks/useFuseSearch'
 import { useShellWidth } from '@/hooks/useShellWidth'
@@ -46,7 +46,7 @@ export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const openedSidebarGroups = useSettingsStore((s) => s.openedSidebarGroups)
   const update = useSettingsStore((s) => s.update)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
 
   const savedWidth = useSettingsStore((s) => s.sidebarWidth)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)

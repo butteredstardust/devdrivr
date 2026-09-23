@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useMruTabSwitcher } from '@/hooks/useMruTabSwitcher'
 
 vi.mock('@/lib/db', () => ({
@@ -13,7 +13,11 @@ function seedTabs(count: number) {
     id: `tab-${i + 1}`,
     toolId: `tool-${i + 1}`,
   }))
-  useUiStore.setState({ tabs, activeTabId: tabs[0]?.id ?? null, tabMru: tabs.map((t) => t.id) })
+  useWorkspaceStore.setState({
+    tabs,
+    activeTabId: tabs[0]?.id ?? null,
+    tabMru: tabs.map((t) => t.id),
+  })
   return tabs
 }
 
@@ -38,18 +42,18 @@ function releaseCtrl() {
   })
 }
 
-const activeId = () => useUiStore.getState().activeTabId
+const activeId = () => useWorkspaceStore.getState().activeTabId
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({ tabs: [], activeTabId: null, tabMru: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, tabMru: [] })
 })
 
 describe('useMruTabSwitcher', () => {
   it('flips to the previously used tab', () => {
     seedTabs(3)
     // Worked in tab-3, then came back to tab-1 — MRU top is tab-1, then tab-3.
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()
@@ -59,7 +63,7 @@ describe('useMruTabSwitcher', () => {
 
   it('walks further down the stack while Ctrl stays down, instead of ping-ponging', () => {
     seedTabs(3)
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()
@@ -70,7 +74,7 @@ describe('useMruTabSwitcher', () => {
 
   it('starts a fresh cycle from the landing tab once Ctrl is released', () => {
     seedTabs(3)
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()
@@ -83,7 +87,7 @@ describe('useMruTabSwitcher', () => {
 
   it('walks backwards with Shift', () => {
     seedTabs(3)
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab({ shift: true })
@@ -93,7 +97,7 @@ describe('useMruTabSwitcher', () => {
 
   it('wraps around the end of the stack', () => {
     seedTabs(2)
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()
@@ -105,7 +109,7 @@ describe('useMruTabSwitcher', () => {
   it('reaches tabs the MRU never recorded, as a restored session has', () => {
     seedTabs(3)
     // Restored sessions only know about the tab that was active.
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()
@@ -145,7 +149,7 @@ describe('useMruTabSwitcher', () => {
 
   it('abandons a cycle held across a window blur, which never sees its keyup', () => {
     seedTabs(3)
-    useUiStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
+    useWorkspaceStore.setState({ activeTabId: 'tab-1', tabMru: ['tab-1', 'tab-3', 'tab-2'] })
     renderHook(() => useMruTabSwitcher())
 
     ctrlTab()

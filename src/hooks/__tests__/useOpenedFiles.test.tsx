@@ -9,6 +9,7 @@ import {
   subscribePendingToolAction,
 } from '@/lib/tool-actions'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -50,7 +51,8 @@ function osOpens(paths: string[]) {
 beforeEach(() => {
   vi.clearAllMocks()
   clearPendingToolActions()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [], toasts: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useUiStore.setState({ toasts: [] })
   queued = []
   files = {}
   takeCount = 0
@@ -83,8 +85,8 @@ describe('useOpenedFiles', () => {
 
     render(<Harness />)
 
-    await vi.waitFor(() => expect(useUiStore.getState().activeTool).toBe('csv-tools'))
-    const tab = useUiStore.getState().tabs[0]!
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('csv-tools'))
+    const tab = useWorkspaceStore.getState().tabs[0]!
     expect(claimPendingToolAction(tab.stateKey!)).toEqual({
       type: 'open-file',
       content: 'a,b\n1,2\n',
@@ -98,7 +100,7 @@ describe('useOpenedFiles', () => {
 
     render(<Harness />)
 
-    await vi.waitFor(() => expect(useUiStore.getState().activeTool).toBe('text-editor'))
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('text-editor'))
     expect(invoke).toHaveBeenCalledWith('opened_file_read', {
       path: '/tmp/notes.txt',
       maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
@@ -112,21 +114,21 @@ describe('useOpenedFiles', () => {
     files['/tmp/notes.md'] = '# Notes'
     osOpens(['/tmp/notes.md'])
 
-    await vi.waitFor(() => expect(useUiStore.getState().activeTool).toBe('markdown-editor'))
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('markdown-editor'))
   })
 
   it('opens a file only once when it is queued and announced', async () => {
     backendWith({ '/tmp/one.json': '{}' })
 
     render(<Harness />)
-    await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(1))
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(1))
 
     // The same arrival, announced after the startup drain already took it.
     const drains = takeCount
     notifyOpened?.()
     await vi.waitFor(() => expect(takeCount).toBeGreaterThan(drains))
 
-    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
   })
 
   it('opens every file of a multiple selection', async () => {
@@ -135,8 +137,8 @@ describe('useOpenedFiles', () => {
     render(<Harness />)
 
     // Two documents of one type, so two tabs of the tool rather than one overwritten by the other.
-    await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
-    const [first, second] = useUiStore.getState().tabs
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
+    const [first, second] = useWorkspaceStore.getState().tabs
     expect(claimPendingToolAction(first!.stateKey!)).toMatchObject({ filename: 'a.json' })
     expect(claimPendingToolAction(second!.stateKey!)).toMatchObject({ filename: 'b.json' })
   })
@@ -146,12 +148,12 @@ describe('useOpenedFiles', () => {
     // Stands in for a JSON Tools tab that is already mounted: it claims the file as soon as it is
     // queued, so nothing is left waiting when the second file arrives.
     const unsubscribe = subscribePendingToolAction(() => {
-      for (const tab of useUiStore.getState().tabs) claimPendingToolAction(tab.stateKey!)
+      for (const tab of useWorkspaceStore.getState().tabs) claimPendingToolAction(tab.stateKey!)
     })
 
     render(<Harness />)
 
-    await vi.waitFor(() => expect(useUiStore.getState().tabs).toHaveLength(2))
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
     unsubscribe()
   })
 
@@ -166,7 +168,7 @@ describe('useOpenedFiles', () => {
       expect(toast?.type).toBe('error')
       expect(toast?.message).toContain('was not opened by the system')
     })
-    expect(useUiStore.getState().tabs).toHaveLength(0)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
   })
 
   it('refuses a binary file rather than filling an editor with control codes', async () => {
@@ -179,7 +181,7 @@ describe('useOpenedFiles', () => {
       const toast = useUiStore.getState().toasts.at(-1)
       expect(toast?.message).toContain('Unsupported binary file')
     })
-    expect(useUiStore.getState().tabs).toHaveLength(0)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
   })
 
   it('does nothing when there is no Tauri backend', async () => {
@@ -188,6 +190,6 @@ describe('useOpenedFiles', () => {
     render(<Harness />)
 
     await Promise.resolve()
-    expect(useUiStore.getState().tabs).toHaveLength(0)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
   })
 })

@@ -165,7 +165,8 @@ src/stores/notes.store.ts         ← notes CRUD → persisted
 src/stores/snippets.store.ts      ← snippets CRUD → persisted
 src/stores/folders.store.ts       ← shared resource folder hierarchy → persisted
 src/stores/history.store.ts       ← tool execution history → persisted
-src/stores/ui.store.ts            ← active tool, modals, toasts → transient
+src/stores/workspace.store.ts     ← tabs, active tool, tab history → persisted
+src/stores/ui.store.ts            ← modals, toasts, action feedback → transient
 src/hooks/useToolState.ts         ← per-tool state persistence (cache + SQLite)
 src/hooks/useWorker.ts            ← Web Worker RPC wrapper (no Comlink)
 src/hooks/useGlobalShortcuts.ts   ← all keyboard shortcuts

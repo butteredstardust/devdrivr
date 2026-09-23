@@ -8,6 +8,7 @@ import { useApiStore } from '@/stores/api.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useMcpStore } from '@/stores/mcp.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useUpdaterStore } from '@/stores/updater.store'
 import { availableMonitors, getCurrentWindow, primaryMonitor } from '@tauri-apps/api/window'
 import { logicalWorkAreas, resolveRestorePosition } from '@/lib/window-bounds'
@@ -225,13 +226,13 @@ export function Providers({ children }: { children: ReactNode }) {
             const activeIdValid =
               savedActiveTabId !== null && validTabs.some((t) => t.id === savedActiveTabId)
             const resolvedActiveId = activeIdValid ? savedActiveTabId : (validTabs[0]?.id ?? null)
-            useUiStore.getState().restoreTabs(validTabs, resolvedActiveId)
+            useWorkspaceStore.getState().restoreTabs(validTabs, resolvedActiveId)
           }
         } else {
           // Backward compat: migrate legacy single-tool session
           const lastTool = await getSetting<string | null>('activeTool', null)
           if (lastTool && getToolById(lastTool) !== undefined) {
-            useUiStore.getState().restoreActiveTool(lastTool)
+            useWorkspaceStore.getState().restoreActiveTool(lastTool)
           }
         }
       }

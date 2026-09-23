@@ -323,7 +323,7 @@ This file covers the rule model, document statistics, outline, and editor shell.
 Tabs remain mounted after they lose focus. These tests check background tool behaviour and the
 state row each tab reads.
 
-`src/stores/__tests__/ui.store.tabs.test.ts` (36 tests)
+`src/stores/__tests__/workspace.store.test.ts` (36 tests)
 
 | Test                                                  | What it verifies                                  |
 | ----------------------------------------------------- | ------------------------------------------------- |

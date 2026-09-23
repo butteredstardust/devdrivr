@@ -1,6 +1,6 @@
 import { useCallback, type MouseEvent } from 'react'
 import { detectPlatform } from '@/lib/platform'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 /**
  * Opens a tool from any sidebar surface, so the modifier rules live in one place.
@@ -12,8 +12,8 @@ import { useUiStore } from '@/stores/ui.store'
  * instance, which is the gesture every browser already teaches.
  */
 export function useOpenTool(): (toolId: string, event: MouseEvent) => void {
-  const openTabInstance = useUiStore((s) => s.openTabInstance)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
+  const openTabInstance = useWorkspaceStore((s) => s.openTabInstance)
+  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool)
 
   return useCallback(
     (toolId: string, event: MouseEvent) => {
@@ -35,5 +35,5 @@ export function useOpenTool(): (toolId: string, event: MouseEvent) => void {
 
 export function useOpenInstanceCount(toolId: string): number {
   // Return a primitive so unrelated tab updates cannot create an unstable selector result.
-  return useUiStore((s) => s.tabs.filter((tab) => tab.toolId === toolId).length)
+  return useWorkspaceStore((s) => s.tabs.filter((tab) => tab.toolId === toolId).length)
 }

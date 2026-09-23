@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ToolDefinition, ToolGroupMeta } from '@/types/tools'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Popover } from '@/components/shared/Popover'
 import { useOpenTool } from '@/hooks/useToolOpen'
@@ -18,7 +18,7 @@ export function SidebarCollapsedGroup({ group, tools, isActiveGroup }: Props) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const openTool = useOpenTool()
 
   const handleSelect = useCallback(

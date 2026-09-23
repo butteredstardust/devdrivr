@@ -3,7 +3,7 @@ import { ClockCounterClockwiseIcon } from '@phosphor-icons/react'
 import { TOOLS } from '@/app/tool-registry'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import type { MatchRange } from '@/hooks/useFuseSearch'
 import { SidebarItem } from './SidebarItem'
 
@@ -15,8 +15,8 @@ type SidebarRecentProps = {
 }
 
 export function SidebarRecent({ filterToolIds = null, matchRanges = null }: SidebarRecentProps) {
-  const recentToolIds = useUiStore((s) => s.recentToolIds)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const recentToolIds = useWorkspaceStore((s) => s.recentToolIds)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const pinnedToolIds = useSettingsStore((s) => s.pinnedToolIds)
   const recentToolsLimit = useSettingsStore((s) => s.recentToolsLimit)
 

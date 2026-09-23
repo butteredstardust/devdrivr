@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { getToolById } from '@/app/tool-registry'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useFlipReorder } from '@/hooks/useFlipReorder'
@@ -27,19 +28,19 @@ type DropTarget = {
 }
 
 export function WorkspaceTabStrip() {
-  const tabs = useUiStore((s) => s.tabs)
-  const activeTabId = useUiStore((s) => s.activeTabId)
-  const dirtyTabIds = useUiStore((s) => s.dirtyTabIds)
-  const pendingTabClose = useUiStore((s) => s.pendingTabClose)
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const closeTab = useUiStore((s) => s.closeTab)
-  const openTabInstance = useUiStore((s) => s.openTabInstance)
-  const closeOtherTabs = useUiStore((s) => s.closeOtherTabs)
-  const closeTabsToRight = useUiStore((s) => s.closeTabsToRight)
-  const toggleTabPinned = useUiStore((s) => s.toggleTabPinned)
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const dirtyTabIds = useWorkspaceStore((s) => s.dirtyTabIds)
+  const pendingTabClose = useWorkspaceStore((s) => s.pendingTabClose)
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
+  const closeTab = useWorkspaceStore((s) => s.closeTab)
+  const openTabInstance = useWorkspaceStore((s) => s.openTabInstance)
+  const closeOtherTabs = useWorkspaceStore((s) => s.closeOtherTabs)
+  const closeTabsToRight = useWorkspaceStore((s) => s.closeTabsToRight)
+  const toggleTabPinned = useWorkspaceStore((s) => s.toggleTabPinned)
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
-  const confirmPendingTabClose = useUiStore((s) => s.confirmPendingTabClose)
-  const cancelPendingTabClose = useUiStore((s) => s.cancelPendingTabClose)
+  const confirmPendingTabClose = useWorkspaceStore((s) => s.confirmPendingTabClose)
+  const cancelPendingTabClose = useWorkspaceStore((s) => s.cancelPendingTabClose)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftFade, setShowLeftFade] = useState(false)
@@ -290,7 +291,7 @@ export function WorkspaceTabStrip() {
       if (target) {
         // Read the order at drop time: a tab may have opened or closed while the
         // pointer was down, and a stale index would move the wrong tab.
-        const { tabs: current, reorderTab: reorder } = useUiStore.getState()
+        const { tabs: current, reorderTab: reorder } = useWorkspaceStore.getState()
         const from = current.findIndex((candidate) => candidate.id === dragging)
         const to = current.findIndex((candidate) => candidate.id === target.tabId)
         if (from !== -1 && to !== -1) {

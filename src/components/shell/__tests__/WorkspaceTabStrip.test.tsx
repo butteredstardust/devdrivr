@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useUiStore } from '@/stores/ui.store'
 import { WorkspaceTabStrip } from '@/components/shell/WorkspaceTabStrip'
 import { formatShortcut } from '@/lib/shortcut-label'
@@ -35,7 +36,7 @@ vi.mock('@/app/tool-registry', () => ({
 function seedTabs(toolIds: string[]) {
   const tabs = toolIds.map((toolId) => ({ id: crypto.randomUUID(), toolId }))
   const activeTabId = tabs[0]?.id ?? null
-  useUiStore.setState({
+  useWorkspaceStore.setState({
     tabs,
     activeTabId,
     activeTool: tabs[0]?.toolId ?? '',
@@ -48,15 +49,15 @@ function seedTabs(toolIds: string[]) {
 // spies survive into every later test unless they are put back — which is how a
 // behavioural assertion further down ends up watching a mock close nothing.
 const realTabActions = {
-  closeTab: useUiStore.getState().closeTab,
-  closeOtherTabs: useUiStore.getState().closeOtherTabs,
-  closeTabsToRight: useUiStore.getState().closeTabsToRight,
-  openTabInstance: useUiStore.getState().openTabInstance,
+  closeTab: useWorkspaceStore.getState().closeTab,
+  closeOtherTabs: useWorkspaceStore.getState().closeOtherTabs,
+  closeTabsToRight: useWorkspaceStore.getState().closeTabsToRight,
+  openTabInstance: useWorkspaceStore.getState().openTabInstance,
 }
 
 beforeEach(() => {
   cleanup()
-  useUiStore.setState({
+  useWorkspaceStore.setState({
     ...realTabActions,
     tabs: [],
     activeTabId: null,
@@ -103,7 +104,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
 
     dragTab(first!.id, 290)
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       second!.id,
       third!.id,
       first!.id,
@@ -117,7 +118,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
 
     dragTab(third!.id, 10)
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       third!.id,
       first!.id,
       second!.id,
@@ -135,7 +136,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerMove(window, { clientX: 2 })
     fireEvent.pointerUp(window, { clientX: 2 })
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       first!.id,
       second!.id,
       third!.id,
@@ -152,18 +153,18 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerDown(thirdNode, { button: 0, clientX: 0 })
     fireEvent.pointerUp(window, { clientX: 0 })
     fireEvent.click(thirdNode)
-    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+    expect(useWorkspaceStore.getState().activeTabId).toBe(third!.id)
 
     // A drag of the first tab must not also make it active — one gesture, one
     // change, and the reorder is the change that was asked for.
     dragTab(first!.id, 290)
     fireEvent.click(document.querySelector(`[data-tab-id="${first!.id}"]`)!)
-    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+    expect(useWorkspaceStore.getState().activeTabId).toBe(third!.id)
   })
 
   it('lets the next click through when the drag produced no click of its own', async () => {
     const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
-    useUiStore.setState({ activeTabId: first!.id })
+    useWorkspaceStore.setState({ activeTabId: first!.id })
     render(<WorkspaceTabStrip />)
     layOutTabs([100, 100, 100])
 
@@ -180,8 +181,8 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerUp(window, { clientX: 0 })
     fireEvent.click(secondNode)
 
-    expect(useUiStore.getState().activeTabId).toBe(second!.id)
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().activeTabId).toBe(second!.id)
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       second!.id,
       third!.id,
       first!.id,
@@ -190,7 +191,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
 
   it('still swallows the click when the drag ended over the tab it started on', () => {
     const [first, , third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
-    useUiStore.setState({ activeTabId: third!.id })
+    useWorkspaceStore.setState({ activeTabId: third!.id })
     render(<WorkspaceTabStrip />)
     layOutTabs([100, 100, 100])
 
@@ -203,7 +204,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerUp(window, { clientX: 60 })
     fireEvent.click(node)
 
-    expect(useUiStore.getState().activeTabId).toBe(third!.id)
+    expect(useWorkspaceStore.getState().activeTabId).toBe(third!.id)
   })
 
   it('abandons the drag when the window loses focus mid-gesture', () => {
@@ -227,12 +228,12 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerUp(window, { clientX: 0 })
     fireEvent.click(secondNode)
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       first!.id,
       second!.id,
       third!.id,
     ])
-    expect(useUiStore.getState().activeTabId).toBe(second!.id)
+    expect(useWorkspaceStore.getState().activeTabId).toBe(second!.id)
   })
 
   it('ignores a right-button press, which belongs to the context menu', () => {
@@ -245,7 +246,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerMove(window, { clientX: 290 })
     fireEvent.pointerUp(window, { clientX: 290 })
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       first!.id,
       second!.id,
       third!.id,
@@ -263,7 +264,7 @@ describe('WorkspaceTabStrip — drag reordering', () => {
     fireEvent.pointerCancel(window)
     fireEvent.pointerUp(window, { clientX: 290 })
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual([
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual([
       first!.id,
       second!.id,
       third!.id,
@@ -272,15 +273,15 @@ describe('WorkspaceTabStrip — drag reordering', () => {
 
   it('will not drag an unpinned tab into the pinned block', () => {
     const tabs = seedTabs(['json-tools', 'base64', 'hash-generator'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[0]!.id))
     render(<WorkspaceTabStrip />)
     layOutTabs([36, 100, 100])
-    const order = useUiStore.getState().tabs.map((tab) => tab.id)
+    const order = useWorkspaceStore.getState().tabs.map((tab) => tab.id)
 
     // Aim the last tab at the very start of the strip, ahead of the pin.
     dragTab(tabs[2]!.id, 2)
 
-    expect(useUiStore.getState().tabs.map((tab) => tab.id)).toEqual(order)
+    expect(useWorkspaceStore.getState().tabs.map((tab) => tab.id)).toEqual(order)
   })
 })
 
@@ -359,7 +360,7 @@ describe('WorkspaceTabStrip — separators', () => {
 
   it('omits the separator next to the active tab, whose fill is its own edge', () => {
     const [first, second, third] = seedTabs(['json-tools', 'base64', 'hash-generator'])
-    useUiStore.setState({ activeTabId: third!.id })
+    useWorkspaceStore.setState({ activeTabId: third!.id })
     render(<WorkspaceTabStrip />)
 
     // second precedes the active tab → suppressed; first precedes second → kept.
@@ -379,7 +380,7 @@ describe('WorkspaceTabStrip — separators', () => {
 describe('WorkspaceTabStrip — unsaved-work indicator', () => {
   it('marks a tab reported dirty and leaves the others alone', () => {
     const [first, second] = seedTabs(['markdown-editor', 'base64'])
-    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    useWorkspaceStore.setState({ dirtyTabIds: [first!.id] })
     render(<WorkspaceTabStrip />)
 
     const dotIn = (tabId: string) =>
@@ -394,7 +395,7 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
 
   it('says so in the close button label, which is the accessible surface', () => {
     const [first] = seedTabs(['markdown-editor'])
-    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    useWorkspaceStore.setState({ dirtyTabIds: [first!.id] })
     render(<WorkspaceTabStrip />)
 
     // The dot itself is aria-hidden decoration; the label carries the meaning.
@@ -405,10 +406,10 @@ describe('WorkspaceTabStrip — unsaved-work indicator', () => {
 
   it('drops the mark once the tool reports itself saved', () => {
     const [first] = seedTabs(['markdown-editor'])
-    useUiStore.setState({ dirtyTabIds: [first!.id] })
+    useWorkspaceStore.setState({ dirtyTabIds: [first!.id] })
     render(<WorkspaceTabStrip />)
 
-    act(() => useUiStore.getState().setTabDirty(first!.id, false))
+    act(() => useWorkspaceStore.getState().setTabDirty(first!.id, false))
 
     expect(
       document
@@ -431,7 +432,7 @@ describe('WorkspaceTabStrip — context menu', () => {
       screen.queryByRole('button', { name: 'More options for base64' })
     ).not.toBeInTheDocument()
 
-    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[0]!.id))
     rerender(<WorkspaceTabStrip />)
 
     expect(
@@ -462,7 +463,9 @@ describe('WorkspaceTabStrip — context menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More options for json-tools' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate Tab' }))
 
-    expect(useUiStore.getState().tabs.filter((tab) => tab.toolId === 'json-tools')).toHaveLength(2)
+    expect(
+      useWorkspaceStore.getState().tabs.filter((tab) => tab.toolId === 'json-tools')
+    ).toHaveLength(2)
   })
 
   it('closes the menu when its tab closes', () => {
@@ -473,7 +476,7 @@ describe('WorkspaceTabStrip — context menu', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument()
 
     // Every command in the menu names this tab, so the menu has to go with it.
-    act(() => useUiStore.getState().closeTab(tab!.id))
+    act(() => useWorkspaceStore.getState().closeTab(tab!.id))
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
@@ -522,10 +525,10 @@ describe('WorkspaceTabStrip — context menu', () => {
 
   it('Close calls closeTab with the right tabId', () => {
     const closeTab = vi.fn()
-    useUiStore.setState({ closeTab } as never)
+    useWorkspaceStore.setState({ closeTab } as never)
     const [tab] = seedTabs(['json-tools', 'base64'])
     // Re-inject closeTab after seedTabs overwrites state
-    useUiStore.setState({ closeTab } as never)
+    useWorkspaceStore.setState({ closeTab } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
@@ -536,7 +539,7 @@ describe('WorkspaceTabStrip — context menu', () => {
   it('Duplicate Tab opens another instance of the selected tool', () => {
     const openTabInstance = vi.fn()
     const [tab] = seedTabs(['json-tools'])
-    useUiStore.setState({ openTabInstance } as never)
+    useWorkspaceStore.setState({ openTabInstance } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
@@ -548,7 +551,7 @@ describe('WorkspaceTabStrip — context menu', () => {
   it('Close Others calls closeOtherTabs with the right tabId', () => {
     const closeOtherTabs = vi.fn()
     const [tab] = seedTabs(['json-tools', 'base64'])
-    useUiStore.setState({ closeOtherTabs } as never)
+    useWorkspaceStore.setState({ closeOtherTabs } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
@@ -559,7 +562,7 @@ describe('WorkspaceTabStrip — context menu', () => {
   it('Close to Right calls closeTabsToRight with the right tabId', () => {
     const closeTabsToRight = vi.fn()
     const [tab] = seedTabs(['json-tools', 'base64', 'hash-generator'])
-    useUiStore.setState({ closeTabsToRight } as never)
+    useWorkspaceStore.setState({ closeTabsToRight } as never)
     render(<WorkspaceTabStrip />)
 
     fireEvent.contextMenu(document.querySelector(`[data-tab-id="${tab!.id}"]`)!)
@@ -676,7 +679,7 @@ function middleClick(element: HTMLElement) {
 describe('WorkspaceTabStrip — pinned tabs', () => {
   it('drops the label and the close button, leaving the icon to identify the tab', () => {
     const tabs = seedTabs(['json-tools', 'diff-viewer'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[1]!.id))
     render(<WorkspaceTabStrip />)
 
     const pinned = screen.getByRole('tab', { name: 'diff-viewer (pinned)' })
@@ -687,7 +690,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
   it('names the pinned tab for assistive technology, which cannot see the icon', () => {
     const tabs = seedTabs(['json-tools'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[0]!.id))
     render(<WorkspaceTabStrip />)
 
     expect(screen.getByRole('tab', { name: 'json-tools (pinned)' })).toBeInTheDocument()
@@ -695,12 +698,12 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
   it('ignores middle-click, so the pin actually protects the tab', () => {
     const tabs = seedTabs(['json-tools', 'diff-viewer'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[1]!.id))
     render(<WorkspaceTabStrip />)
 
     middleClick(screen.getByRole('tab', { name: 'diff-viewer (pinned)' }))
 
-    expect(useUiStore.getState().tabs).toHaveLength(2)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(2)
   })
 
   it('closes an unpinned tab on middle-click, as before', () => {
@@ -709,7 +712,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
     middleClick(screen.getByRole('tab', { name: 'diff-viewer' }))
 
-    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
   })
 
   it('pins on double-click', () => {
@@ -718,7 +721,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
     fireEvent.doubleClick(screen.getByRole('tab', { name: 'diff-viewer' }))
 
-    expect(useUiStore.getState().tabs.find((t) => t.id === tabs[1]!.id)?.pinned).toBe(true)
+    expect(useWorkspaceStore.getState().tabs.find((t) => t.id === tabs[1]!.id)?.pinned).toBe(true)
   })
 
   it('offers Pin in the context menu and Unpin once pinned', () => {
@@ -728,7 +731,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
     fireEvent.contextMenu(screen.getByRole('tab', { name: 'json-tools' }))
     expect(screen.getByText('Pin Tab')).toBeInTheDocument()
 
-    act(() => useUiStore.getState().toggleTabPinned(tabs[0]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[0]!.id))
     rerender(<WorkspaceTabStrip />)
     fireEvent.contextMenu(screen.getByRole('tab', { name: 'json-tools (pinned)' }))
     expect(screen.getByText('Unpin Tab')).toBeInTheDocument()
@@ -736,7 +739,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
   it('rules off the end of the pinned block', () => {
     const tabs = seedTabs(['json-tools', 'diff-viewer'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[1]!.id))
     render(<WorkspaceTabStrip />)
 
     expect(screen.getByTestId('tab-pinned-divider')).toBeInTheDocument()
@@ -744,7 +747,7 @@ describe('WorkspaceTabStrip — pinned tabs', () => {
 
   it('disables Close Others when only pinned tabs would survive anyway', () => {
     const tabs = seedTabs(['json-tools', 'diff-viewer'])
-    act(() => useUiStore.getState().toggleTabPinned(tabs[1]!.id))
+    act(() => useWorkspaceStore.getState().toggleTabPinned(tabs[1]!.id))
     render(<WorkspaceTabStrip />)
 
     // Right-click the one unpinned tab: everything else is pinned, so the
@@ -831,7 +834,7 @@ describe('WorkspaceTabStrip — overflow menu', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Show all open tools' }))
       fireEvent.click(screen.getByRole('menuitem', { name: 'base64' }))
 
-      expect(useUiStore.getState().activeTabId).toBe(tabs[2]!.id)
+      expect(useWorkspaceStore.getState().activeTabId).toBe(tabs[2]!.id)
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     })
   })
@@ -922,7 +925,7 @@ describe('WorkspaceTabStrip — reveal on resize', () => {
 
   it('does nothing when there is no active tab to reveal', () => {
     withResizeObserver((resize) => {
-      useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+      useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
       render(<WorkspaceTabStrip />)
 
       const scrollIntoView = window.Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>

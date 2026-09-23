@@ -3,6 +3,7 @@ import { useKeyboardShortcut } from './useKeyboardShortcut'
 import { useMruTabSwitcher } from './useMruTabSwitcher'
 import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { TOOLS } from '@/app/tool-registry'
 import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
@@ -13,8 +14,8 @@ import { setAlwaysOnTop } from '@/lib/always-on-top'
 
 export function useGlobalShortcuts(): void {
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
-  const setActiveTool = useUiStore((s) => s.setActiveTool)
-  const activeTool = useUiStore((s) => s.activeTool)
+  const setActiveTool = useWorkspaceStore((s) => s.setActiveTool)
+  const activeTool = useWorkspaceStore((s) => s.activeTool)
   const addToast = useUiStore((s) => s.addToast)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)
   const update = useSettingsStore((s) => s.update)
@@ -23,10 +24,10 @@ export function useGlobalShortcuts(): void {
   const toggleSettingsPanel = useUiStore((s) => s.toggleSettingsPanel)
   const toggleShortcutsModal = useUiStore((s) => s.toggleShortcutsModal)
   const alwaysOnTop = useSettingsStore((s) => s.alwaysOnTop)
-  const tabs = useUiStore((s) => s.tabs)
-  const activeTabId = useUiStore((s) => s.activeTabId)
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const closeTab = useUiStore((s) => s.closeTab)
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
+  const closeTab = useWorkspaceStore((s) => s.closeTab)
 
   const comboK = useMemo(() => ({ key: 'k', mod: true }) as const, [])
   const comboT = useMemo(() => ({ key: 't', mod: true }) as const, [])

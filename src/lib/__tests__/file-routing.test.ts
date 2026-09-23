@@ -10,7 +10,7 @@ import {
 } from '@/lib/file-routing'
 import { OPEN_FILE_TOOL_IDS } from '@/app/tool-registry'
 import { claimPendingToolAction, clearPendingToolActions } from '@/lib/tool-actions'
-import { useUiStore } from '@/stores/ui.store'
+import { useWorkspaceStore } from '@/stores/workspace.store'
 
 vi.mock('@/lib/db', () => ({
   setSetting: vi.fn().mockResolvedValue(undefined),
@@ -23,7 +23,7 @@ vi.mock('@/lib/db', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   clearPendingToolActions()
-  useUiStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
+  useWorkspaceStore.setState({ tabs: [], activeTabId: null, activeTool: '', tabMru: [] })
 })
 
 describe('extensionOf', () => {
@@ -94,7 +94,7 @@ describe('openFileInTool', () => {
     })
 
     expect(toolId).toBe('csv-tools')
-    const { tabs, activeTool } = useUiStore.getState()
+    const { tabs, activeTool } = useWorkspaceStore.getState()
     expect(activeTool).toBe('csv-tools')
 
     expect(claimPendingToolAction(tabs[0]!.stateKey!)).toEqual({
@@ -107,12 +107,12 @@ describe('openFileInTool', () => {
 
   it('addresses the tab it focuses, not the bare tool id', () => {
     // Only a scoped tab survives, so a queue keyed on `json-tools` would never be claimed.
-    useUiStore.getState().openTab('json-tools')
-    const firstId = useUiStore.getState().tabs[0]!.id
-    useUiStore.getState().openTabInstance('json-tools')
-    useUiStore.getState().closeTab(firstId)
+    useWorkspaceStore.getState().openTab('json-tools')
+    const firstId = useWorkspaceStore.getState().tabs[0]!.id
+    useWorkspaceStore.getState().openTabInstance('json-tools')
+    useWorkspaceStore.getState().closeTab(firstId)
 
-    const survivor = useUiStore.getState().tabs[0]!
+    const survivor = useWorkspaceStore.getState().tabs[0]!
     expect(survivor.stateKey).toBe(`json-tools#${survivor.id}`)
 
     openFileInTool({ content: '{}', filename: 'a.json', path: '/tmp/a.json' })
@@ -123,13 +123,13 @@ describe('openFileInTool', () => {
 
   it('drops a queued file when its tab closes', () => {
     openFileInTool({ content: '{}', filename: 'a.json', path: '/tmp/a.json' })
-    const tab = useUiStore.getState().tabs[0]!
+    const tab = useWorkspaceStore.getState().tabs[0]!
 
-    useUiStore.getState().closeTab(tab.id)
+    useWorkspaceStore.getState().closeTab(tab.id)
 
     // Reopening the tool takes the same bare key. The dismissed file must not come back with it.
-    useUiStore.getState().openTab('json-tools')
-    expect(claimPendingToolAction(useUiStore.getState().tabs[0]!.stateKey!)).toBeNull()
+    useWorkspaceStore.getState().openTab('json-tools')
+    expect(claimPendingToolAction(useWorkspaceStore.getState().tabs[0]!.stateKey!)).toBeNull()
   })
 
   it('gives a second file of the same type its own tab', () => {
@@ -137,7 +137,7 @@ describe('openFileInTool', () => {
     openFileInTool({ content: '{"b":2}', filename: 'b.json', path: '/tmp/b.json' })
 
     // The first file was still queued, so replacing it would lose a document the user chose.
-    const tabs = useUiStore.getState().tabs
+    const tabs = useWorkspaceStore.getState().tabs
     expect(tabs).toHaveLength(2)
     expect(claimPendingToolAction(tabs[0]!.stateKey!)).toMatchObject({ filename: 'a.json' })
     expect(claimPendingToolAction(tabs[1]!.stateKey!)).toMatchObject({ filename: 'b.json' })
@@ -145,18 +145,18 @@ describe('openFileInTool', () => {
 
   it('reuses the tab once its file has been taken', () => {
     openFileInTool({ content: '{"a":1}', filename: 'a.json', path: '/tmp/a.json' })
-    const tab = useUiStore.getState().tabs[0]!
+    const tab = useWorkspaceStore.getState().tabs[0]!
     claimPendingToolAction(tab.stateKey!)
 
     openFileInTool({ content: '{"b":2}', filename: 'b.json', path: '/tmp/b.json' })
 
-    expect(useUiStore.getState().tabs).toHaveLength(1)
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
     expect(claimPendingToolAction(tab.stateKey!)).toMatchObject({ filename: 'b.json' })
   })
 
   it('gives a second file its own tab even when the first was taken at once', () => {
     openFileInTool({ content: '{"a":1}', filename: 'a.json', path: '/tmp/a.json' })
-    const first = useUiStore.getState().tabs[0]!
+    const first = useWorkspaceStore.getState().tabs[0]!
     // A tool that was already mounted claims its file before the next one finishes reading, so
     // nothing is left queued to reveal the collision.
     claimPendingToolAction(first.stateKey!)
@@ -166,7 +166,7 @@ describe('openFileInTool', () => {
       { forceNewTab: true }
     )
 
-    const tabs = useUiStore.getState().tabs
+    const tabs = useWorkspaceStore.getState().tabs
     expect(tabs).toHaveLength(2)
     expect(claimPendingToolAction(tabs[1]!.stateKey!)).toMatchObject({ filename: 'b.json' })
   })
@@ -181,7 +181,7 @@ describe('openFileInTool', () => {
     openFileInTool({ content: '{}', filename: 'a.json', path: '/tmp/a.json' })
     openFileInTool({ content: '# b', filename: 'b.md', path: '/tmp/b.md' })
 
-    const { tabs } = useUiStore.getState()
+    const { tabs } = useWorkspaceStore.getState()
     const json = tabs.find((tab) => tab.toolId === 'json-tools')!
     const markdown = tabs.find((tab) => tab.toolId === 'markdown-editor')!
 
