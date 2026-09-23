@@ -266,6 +266,28 @@ pub(super) fn page_in_memory(key: &str, values: Vec<Value>, page: PageRequest) -
     page_payload(key, page_values, page, total)
 }
 
+impl PageRequest {
+    pub(super) fn parse(
+        limit: Option<i64>,
+        cursor: Option<&str>,
+    ) -> std::result::Result<Self, McpError> {
+        Ok(Self {
+            limit: normalize_limit(limit)?,
+            offset: cursor.map(decode_cursor).transpose()?.unwrap_or(0),
+        })
+    }
+
+    /// Read one row past the page. A full page is then told from an exhausted one without a second
+    /// query.
+    pub(super) fn probe_limit(self) -> i64 {
+        self.limit as i64 + 1
+    }
+
+    pub(super) fn offset(self) -> i64 {
+        self.offset as i64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
