@@ -2,8 +2,10 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useNotesStore } from '../notes.store'
 import {
   loadNotes,
+  loadNote,
   loadTrashedNotes,
   saveNote,
+  saveNoteIfUnchanged,
   saveNotesOrder,
   deleteNote,
   restoreNote,
@@ -14,11 +16,14 @@ import {
 } from '@/lib/db'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 import type { Note } from '@/types/models'
+import { useUiStore } from '@/stores/ui.store'
 
 vi.mock('@/lib/db', () => ({
   loadNotes: vi.fn(),
+  loadNote: vi.fn(),
   loadTrashedNotes: vi.fn(),
   saveNote: vi.fn(),
+  saveNoteIfUnchanged: vi.fn(),
   saveNotesOrder: vi.fn(),
   deleteNote: vi.fn(),
   restoreNote: vi.fn(),
@@ -41,8 +46,10 @@ beforeEach(() => {
   // Reset the module-level initPromise by re-importing
   // Instead, we test the store actions directly (add, update, remove)
   ;(loadNotes as any).mockResolvedValue([])
+  ;(loadNote as any).mockResolvedValue(null)
   ;(loadTrashedNotes as any).mockResolvedValue([])
   ;(saveNote as any).mockResolvedValue(undefined)
+  ;(saveNoteIfUnchanged as any).mockResolvedValue(true)
   ;(saveNotesOrder as any).mockResolvedValue(undefined)
   ;(deleteNote as any).mockResolvedValue(undefined)
   ;(restoreNote as any).mockResolvedValue(undefined)
@@ -50,6 +57,7 @@ beforeEach(() => {
   ;(clearAllNotes as any).mockResolvedValue(undefined)
   ;(trashCompletedNotes as any).mockResolvedValue(undefined)
   ;(rebuildNoteLinks as any).mockResolvedValue(undefined)
+  useUiStore.setState({ toasts: [] })
 })
 
 function deferred<T>() {
@@ -157,8 +165,11 @@ describe('notes store', () => {
 
     await useNotesStore.getState().trashCompleted()
 
-    expect(saveNote).toHaveBeenCalledWith(expect.objectContaining({ content: 'Latest' }))
-    expect(vi.mocked(saveNote).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(saveNoteIfUnchanged).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Latest' }),
+      expect.any(Number)
+    )
+    expect(vi.mocked(saveNoteIfUnchanged).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(trashCompletedNotes).mock.invocationCallOrder[0]!
     )
     expect(useNotesStore.getState().trashedNotes[0]?.content).toBe('Latest')
@@ -189,13 +200,14 @@ describe('notes store', () => {
       content: 'Latest body',
     })
     expect(useNotesStore.getState().pendingSaveIds).toEqual([note.id])
-    expect(saveNote).not.toHaveBeenCalled()
+    expect(saveNoteIfUnchanged).not.toHaveBeenCalled()
 
     await useNotesStore.getState().flushPending(note.id)
 
-    expect(saveNote).toHaveBeenCalledOnce()
-    expect(saveNote).toHaveBeenCalledWith(
-      expect.objectContaining({ id: note.id, title: 'Draft title', content: 'Latest body' })
+    expect(saveNoteIfUnchanged).toHaveBeenCalledOnce()
+    expect(saveNoteIfUnchanged).toHaveBeenCalledWith(
+      expect.objectContaining({ id: note.id, title: 'Draft title', content: 'Latest body' }),
+      note.updatedAt
     )
     expect(useNotesStore.getState().pendingSaveIds).toEqual([])
   })
@@ -203,20 +215,61 @@ describe('notes store', () => {
   it('serializes a newer edit behind an in-flight note save', async () => {
     const note = await useNotesStore.getState().add('Original', 'First body')
     ;(saveNote as any).mockClear()
-    const firstSave = deferred<void>()
-    ;(saveNote as any).mockReturnValueOnce(firstSave.promise)
+    const firstSave = deferred<boolean>()
+    ;(saveNoteIfUnchanged as any).mockReturnValueOnce(firstSave.promise)
 
     useNotesStore.getState().edit(note.id, { title: 'First draft' })
     const flush = useNotesStore.getState().flushPending(note.id)
     useNotesStore.getState().edit(note.id, { content: 'Edit during save' })
-    firstSave.resolve()
+    firstSave.resolve(true)
     await flush
 
-    expect(saveNote).toHaveBeenCalledTimes(2)
-    expect(saveNote).toHaveBeenLastCalledWith(
-      expect.objectContaining({ title: 'First draft', content: 'Edit during save' })
+    expect(saveNoteIfUnchanged).toHaveBeenCalledTimes(2)
+    expect(saveNoteIfUnchanged).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'First draft', content: 'Edit during save' }),
+      expect.any(Number)
     )
     expect(useNotesStore.getState().pendingSaveIds).toEqual([])
+  })
+
+  it('keeps an external note edit and saves the local draft as a copy', async () => {
+    const original: Note = {
+      id: 'shared-note',
+      title: 'Plan',
+      content: 'Original',
+      color: 'yellow',
+      pinned: false,
+      poppedOut: false,
+      tags: [],
+      sortOrder: 0,
+      folderId: 'notes-inbox',
+      createdAt: 1,
+      updatedAt: 10,
+    }
+    const external = { ...original, content: 'MCP edit', updatedAt: 20 }
+    useNotesStore.setState({ notes: [original] })
+    vi.mocked(saveNoteIfUnchanged).mockResolvedValueOnce(false)
+    vi.mocked(loadNote).mockResolvedValueOnce(external)
+
+    useNotesStore.getState().edit(original.id, { content: 'Local draft' })
+    await useNotesStore.getState().flushPending(original.id)
+
+    expect(useNotesStore.getState().notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: original.id, content: 'MCP edit' }),
+        expect.objectContaining({
+          title: 'Plan (conflicted copy)',
+          content: 'Local draft',
+          folderId: original.folderId,
+        }),
+      ])
+    )
+    expect(saveNote).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Plan (conflicted copy)', content: 'Local draft' })
+    )
+    expect(useUiStore.getState().toasts.map((toast) => toast.message)).toEqual([
+      'Note changed elsewhere — your edit was saved as a copy',
+    ])
   })
 
   it('keeps an edit made while refresh is reading stale rows', async () => {

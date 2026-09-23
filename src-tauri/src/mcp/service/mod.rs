@@ -331,33 +331,47 @@ fn heal_template_optimized_for(value: &str) -> String {
 
 fn stable_note_link_targets(content: &str) -> Vec<(String, String)> {
     let mut targets = Vec::new();
-    let mut remaining = content;
-    while let Some(open) = remaining.find("[[") {
-        let after_open = &remaining[open + 2..];
-        let Some(close) = after_open.find("]]") else {
-            break;
-        };
-        let token = &after_open[..close];
-        if let Some((target, label)) = token.split_once('|') {
-            if let Some((kind, id)) = target.split_once(':') {
-                if matches!(kind, "note" | "snippet" | "api-request")
-                    && !id.is_empty()
-                    && !label.is_empty()
-                    && !id
-                        .chars()
-                        .any(|character| matches!(character, '|' | ']' | '\r' | '\n'))
-                    && !label
+    let mut search_from = 0;
+    while let Some(relative_open) = content[search_from..].find("[[") {
+        let after_open = search_from + relative_open + 2;
+        let candidate = &content[after_open..];
+        let parsed = ["note", "snippet", "api-request"]
+            .into_iter()
+            .find_map(|kind| {
+                let prefix = format!("{kind}:");
+                let value = candidate.strip_prefix(&prefix)?;
+                let separator = value.find('|')?;
+                let id = &value[..separator];
+                if id.is_empty()
+                    || id
                         .chars()
                         .any(|character| matches!(character, ']' | '\r' | '\n'))
                 {
-                    let pair = (kind.to_string(), id.to_string());
-                    if !targets.contains(&pair) {
-                        targets.push(pair);
-                    }
+                    return None;
                 }
+                let label_and_close = &value[separator + 1..];
+                let close = label_and_close.find("]]")?;
+                let label = &label_and_close[..close];
+                if label.is_empty()
+                    || label
+                        .chars()
+                        .any(|character| matches!(character, ']' | '\r' | '\n'))
+                {
+                    return None;
+                }
+                Some((
+                    (kind.to_string(), id.to_string()),
+                    after_open + prefix.len() + separator + 1 + close + 2,
+                ))
+            });
+        if let Some((pair, end)) = parsed {
+            if !targets.contains(&pair) {
+                targets.push(pair);
             }
+            search_from = end;
+        } else {
+            search_from = after_open;
         }
-        remaining = &after_open[close + 2..];
     }
     targets
 }
@@ -1150,27 +1164,59 @@ impl DevdrivrMcpService {
         }
         let folders = self.folder_subtree(id).await?;
         let operation_timestamp = deleted_at.or(root.deleted_at);
+        let updated_at = now_ms();
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
         for folder in &folders {
-            let notes_query = if deleted_at.is_some() {
-                "UPDATE notes SET deleted_at = $2 WHERE folder_id = $1 AND deleted_at IS NULL"
+            let affected_notes = if deleted_at.is_some() {
+                sqlx::query_as::<_, (String, String)>(
+                    "SELECT id, content FROM notes WHERE folder_id = $1 AND deleted_at IS NULL",
+                )
+                .bind(&folder.id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(db_error)?
             } else {
-                "UPDATE notes SET deleted_at = NULL WHERE folder_id = $1 AND deleted_at = $2"
+                sqlx::query_as::<_, (String, String)>(
+                    "SELECT id, content FROM notes WHERE folder_id = $1 AND deleted_at = $2",
+                )
+                .bind(&folder.id)
+                .bind(operation_timestamp)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(db_error)?
+            };
+            let notes_query = if deleted_at.is_some() {
+                "UPDATE notes SET deleted_at = $2, updated_at = MAX(updated_at + 1, $3) WHERE folder_id = $1 AND deleted_at IS NULL"
+            } else {
+                "UPDATE notes SET deleted_at = NULL, updated_at = MAX(updated_at + 1, $3) WHERE folder_id = $1 AND deleted_at = $2"
             };
             sqlx::query(notes_query)
                 .bind(&folder.id)
                 .bind(operation_timestamp)
+                .bind(updated_at)
                 .execute(&mut *transaction)
                 .await
                 .map_err(db_error)?;
+            for (note_id, content) in affected_notes {
+                if deleted_at.is_some() {
+                    sqlx::query("DELETE FROM note_links WHERE source_note_id = $1")
+                        .bind(note_id)
+                        .execute(&mut *transaction)
+                        .await
+                        .map_err(db_error)?;
+                } else {
+                    Self::replace_note_links(&mut transaction, &note_id, &content).await?;
+                }
+            }
             let snippets_query = if deleted_at.is_some() {
-                "UPDATE snippets SET deleted_at = $2 WHERE folder_id = $1 AND deleted_at IS NULL"
+                "UPDATE snippets SET deleted_at = $2, updated_at = MAX(updated_at + 1, $3) WHERE folder_id = $1 AND deleted_at IS NULL"
             } else {
-                "UPDATE snippets SET deleted_at = NULL WHERE folder_id = $1 AND deleted_at = $2"
+                "UPDATE snippets SET deleted_at = NULL, updated_at = MAX(updated_at + 1, $3) WHERE folder_id = $1 AND deleted_at = $2"
             };
             sqlx::query(snippets_query)
                 .bind(&folder.id)
                 .bind(operation_timestamp)
+                .bind(updated_at)
                 .execute(&mut *transaction)
                 .await
                 .map_err(db_error)?;
@@ -2085,6 +2131,26 @@ mod tests {
                 .await
                 .expect("count");
             assert_eq!(count, 0);
+        }
+    }
+
+    mod wiki_link_contract {
+        use super::*;
+
+        #[test]
+        fn the_rust_parser_matches_every_shared_case() {
+            let cases: Vec<Value> =
+                serde_json::from_str(include_str!("../../../../shared/wiki-link-cases.json"))
+                    .expect("shared wiki-link cases");
+            for case in cases {
+                let name = case["name"].as_str().expect("case name");
+                let content = case["content"].as_str().expect("case content");
+                assert_eq!(
+                    json!(stable_note_link_targets(content)),
+                    case["targets"],
+                    "{name}"
+                );
+            }
         }
     }
 

@@ -122,7 +122,7 @@ impl DevdrivrMcpService {
         let (folder_id, folder, pending_folder) = self
             .resolve_snippet_folder(args.folder_id, args.folder, Some(&current))
             .await?;
-        let now = now_ms();
+        let now = std::cmp::max(now_ms(), current.updated_at + 1);
         let mut transaction = self.pool.begin().await.map_err(db_error)?;
         if let Some(folder) = &pending_folder {
             Self::save_folder_in(&mut transaction, folder).await?;
@@ -181,7 +181,7 @@ impl DevdrivrMcpService {
     ) -> McpResult {
         self.ensure_permission("snippets", "delete").await?;
         let result = sqlx::query(
-            "UPDATE snippets SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
+            "UPDATE snippets SET deleted_at = $2, updated_at = MAX(updated_at + 1, $2) WHERE id = $1 AND deleted_at IS NULL AND ($3 IS NULL OR updated_at = $3)",
         )
         .bind(&args.id)
         .bind(now_ms())

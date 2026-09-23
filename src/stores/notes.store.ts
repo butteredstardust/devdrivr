@@ -3,8 +3,10 @@ import { nanoid } from 'nanoid'
 import type { Note, NoteColor, TaskPriority, TaskStatus } from '@/types/models'
 import {
   loadNotes,
+  loadNote,
   loadTrashedNotes,
   saveNote,
+  saveNoteIfUnchanged,
   saveNotesOrder,
   deleteNote,
   restoreNote,
@@ -73,7 +75,7 @@ let initPromise: Promise<void> | null = null
 const SAVE_DELAY_MS = 450
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaves = new Map<string, { updated: Note; original: Note; version: number }>()
-const inFlightSaves = new Map<string, Promise<void>>()
+const inFlightSaves = new Map<string, Promise<boolean>>()
 const deletingIds = new Set<string>()
 let clearing = false
 let saveVersion = 0
@@ -115,8 +117,7 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
     const revision = notesRevision
     const [notes, trashedNotes] = await Promise.all([loadNotes(), loadTrashedNotes()])
     if (revision === notesRevision) {
-      await rebuildNoteLinks(notes)
-      if (revision === notesRevision) set({ notes, trashedNotes, initialized: true })
+      set({ notes, trashedNotes, initialized: true })
     }
   },
 
@@ -219,10 +220,51 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
       const timer = saveTimers.get(pendingId)
       if (timer) clearTimeout(timer)
       saveTimers.delete(pendingId)
-      const save = saveNote(pending.updated)
+      const save = saveNoteIfUnchanged(pending.updated, pending.original.updatedAt)
       inFlightSaves.set(pendingId, save)
+      let conflictDetected = false
       try {
-        await save
+        const saved = await save
+        if (!saved) {
+          conflictDetected = true
+          const databaseVersion = await loadNote(pendingId)
+          const now = Math.max(Date.now(), pending.updated.updatedAt + 1)
+          const conflictedCopy: Note = {
+            ...pending.updated,
+            id: nanoid(),
+            title: `${pending.updated.title} (conflicted copy)`,
+            createdAt: now,
+            updatedAt: now,
+          }
+          delete conflictedCopy.deletedAt
+          await saveNote(conflictedCopy)
+          if (pendingSaves.get(pendingId)?.version === pending.version) {
+            pendingSaves.delete(pendingId)
+            notesRevision++
+            set((state) => {
+              const databaseNotes = databaseVersion?.deletedAt
+                ? state.notes.filter((note) => note.id !== pendingId)
+                : state.notes.map((note) =>
+                    note.id === pendingId && databaseVersion ? databaseVersion : note
+                  )
+              const trashedWithoutOriginal = state.trashedNotes.filter(
+                (note) => note.id !== pendingId
+              )
+              return {
+                notes: sortNotes([conflictedCopy, ...databaseNotes]),
+                trashedNotes: databaseVersion?.deletedAt
+                  ? [databaseVersion, ...trashedWithoutOriginal]
+                  : trashedWithoutOriginal,
+                pendingSaveIds: state.pendingSaveIds.filter((savedId) => savedId !== pendingId),
+                saveErrorIds: state.saveErrorIds.filter((errorId) => errorId !== pendingId),
+              }
+            })
+            useUiStore
+              .getState()
+              .addToast('Note changed elsewhere — your edit was saved as a copy', 'info')
+          }
+          continue
+        }
         if (pendingSaves.get(pendingId)?.version === pending.version) {
           pendingSaves.delete(pendingId)
           notesRevision++
@@ -230,9 +272,13 @@ export const useNotesStore = create<NotesStore>()((set, get) => ({
             pendingSaveIds: state.pendingSaveIds.filter((savedId) => savedId !== pendingId),
             saveErrorIds: state.saveErrorIds.filter((errorId) => errorId !== pendingId),
           }))
+        } else {
+          const nextPending = pendingSaves.get(pendingId)
+          if (nextPending)
+            pendingSaves.set(pendingId, { ...nextPending, original: pending.updated })
         }
       } catch (err) {
-        if (pendingSaves.get(pendingId)?.version === pending.version) {
+        if (!conflictDetected && pendingSaves.get(pendingId)?.version === pending.version) {
           pendingSaves.delete(pendingId)
           set((state) => ({
             notes: sortNotes(

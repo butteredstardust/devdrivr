@@ -7,6 +7,7 @@ type SqlParams = unknown[]
 export type SqliteBatchStatement = {
   sql: string
   params: SqlParams
+  stopOnZeroRows?: boolean
 }
 
 export type SqliteBatchPayload = {
@@ -21,7 +22,7 @@ export type SqliteTestConnection = {
 
 export type SqliteTestDatabase = {
   connection: SqliteTestConnection
-  invoke(command: string, payload?: unknown): Promise<void>
+  invoke(command: string, payload?: unknown): Promise<Array<{ rowsAffected: number }>>
   close(): void
 }
 
@@ -137,16 +138,21 @@ export function createSqliteTestDatabase(): SqliteTestDatabase {
         throw new Error(`Unsupported test invoke command: ${command}`)
       }
       const { statements, immediate } = payload as SqliteBatchPayload
-      if (statements.length === 0) return
+      if (statements.length === 0) return []
 
       database.exec(immediate ? 'BEGIN IMMEDIATE' : 'BEGIN')
       try {
+        const results: Array<{ rowsAffected: number }> = []
         for (const statement of statements) {
-          database
+          const result = database
             .prepare(rewriteParameters(statement.sql))
             .run(...prepareParameters(statement.params))
+          const rowsAffected = Number(result.changes)
+          results.push({ rowsAffected })
+          if (statement.stopOnZeroRows && rowsAffected === 0) break
         }
         database.exec('COMMIT')
+        return results
       } catch (error) {
         database.exec('ROLLBACK')
         throw new Error(`Batch statement failed: ${errorMessage(error)}`, { cause: error })

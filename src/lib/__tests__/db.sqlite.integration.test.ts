@@ -174,6 +174,71 @@ describe('db.ts with SQLite', () => {
     await expect(loadTrashedNotes()).resolves.toEqual([])
   })
 
+  it('saves a note when its compare-and-set baseline still matches', async () => {
+    const { loadNotes, saveNote, saveNoteIfUnchanged } = await import('@/lib/db')
+    const original = note('cas-match')
+    await saveNote(original)
+
+    await expect(
+      saveNoteIfUnchanged({ ...original, content: 'local edit', updatedAt: 21 }, original.updatedAt)
+    ).resolves.toBe(true)
+    await expect(loadNotes()).resolves.toEqual([
+      expect.objectContaining({ id: original.id, content: 'local edit', updatedAt: 21 }),
+    ])
+  })
+
+  it('preserves the database note and accepts a conflicted copy after a stale save', async () => {
+    const { loadNotes, saveNote, saveNoteIfUnchanged } = await import('@/lib/db')
+    const original = note('cas-conflict')
+    const external = { ...original, content: 'MCP edit', updatedAt: 30 }
+    await saveNote(original)
+    await saveNote(external)
+
+    await expect(
+      saveNoteIfUnchanged(
+        { ...original, content: 'local draft', updatedAt: 31 },
+        original.updatedAt
+      )
+    ).resolves.toBe(false)
+    await saveNote(
+      note('cas-conflict-copy', {
+        title: 'Note cas-conflict (conflicted copy)',
+        content: 'local draft',
+        createdAt: 31,
+        updatedAt: 31,
+      })
+    )
+
+    await expect(loadNotes()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: original.id, content: 'MCP edit' }),
+        expect.objectContaining({ id: 'cas-conflict-copy', content: 'local draft' }),
+      ])
+    )
+  })
+
+  it('uses each successful note save as the next compare-and-set baseline', async () => {
+    const { loadNotes, saveNote, saveNoteIfUnchanged } = await import('@/lib/db')
+    const original = note('cas-consecutive')
+    const first = { ...original, content: 'first', updatedAt: 21 }
+    const second = { ...first, content: 'second', updatedAt: 22 }
+    await saveNote(original)
+
+    await expect(saveNoteIfUnchanged(first, original.updatedAt)).resolves.toBe(true)
+    await expect(saveNoteIfUnchanged(second, first.updatedAt)).resolves.toBe(true)
+    await expect(loadNotes()).resolves.toEqual([
+      expect.objectContaining({ id: original.id, content: 'second', updatedAt: 22 }),
+    ])
+  })
+
+  it('inserts a new note through the compare-and-set path', async () => {
+    const { loadNotes, saveNoteIfUnchanged } = await import('@/lib/db')
+    const created = note('cas-new')
+
+    await expect(saveNoteIfUnchanged(created, 0)).resolves.toBe(true)
+    await expect(loadNotes()).resolves.toEqual([expect.objectContaining({ id: created.id })])
+  })
+
   it('round-trips snippets with ordered fragments and durable trash', async () => {
     const {
       deleteSnippet,
