@@ -19,6 +19,7 @@ const SIZE_CLASSES = {
   md: 'w-[min(30rem,calc(100vw-2rem))]',
   lg: 'w-[min(35rem,calc(100vw-2rem))]',
   xl: 'w-[min(42rem,calc(100vw-2rem))]',
+  '2xl': 'w-[min(50rem,calc(100vw-2rem))]',
   none: '',
 } as const
 

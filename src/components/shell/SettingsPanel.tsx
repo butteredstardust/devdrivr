@@ -80,9 +80,9 @@ export function SettingsPanel() {
       title="Settings"
       onClose={() => setOpen(false)}
       closeLabel="Close settings"
-      // `xl` because seven tabs do not fit across 35rem, and the acknowledgments list is two
-      // columns of text per row that wrap at the narrower step.
-      size="xl"
+      // `2xl` because the eight tabs need 752px and `xl` gives 670px. At the 800px minimum window
+      // the gutter clamps this to 768px, so every tab stays visible without scrolling.
+      size="2xl"
       // The dialog is already a flex column capped at 90vh, so the body only has to opt into
       // filling it. A fixed cap here would scroll the theme grid of 20+ swatches through a keyhole
       // while the rest of the dialog sat unused.
