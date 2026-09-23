@@ -42,6 +42,8 @@ thumbs.db
 /src/**/*.js
 /src/**/*.d.ts
 !/src/vite-env.d.ts
+# Hand-written: types for the built-in `node:sqlite` module that the test harness uses.
+!/src/test-utils/node-sqlite.d.ts
 /vite.config.js
 /vite.config.d.ts
 
