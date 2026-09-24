@@ -96,6 +96,11 @@ export function useToolState<T extends Record<string, unknown>>(
   const loadedRef = useRef(hadCachedStateRef.current)
   const initialDefaultStateRef = useRef(defaultState)
   const initialValidateRef = useRef(options?.validate)
+  // A handoff restores against the current render's defaults and validator, not the first render's.
+  const latestDefaultStateRef = useRef(defaultState)
+  const latestValidateRef = useRef(options?.validate)
+  latestDefaultStateRef.current = defaultState
+  latestValidateRef.current = options?.validate
   // True once the user has changed state via update(). Guards the cold-start race
   // where a slow loadToolState() resolves after the user has already typed.
   const dirtyRef = useRef(false)
@@ -153,9 +158,9 @@ export function useToolState<T extends Record<string, unknown>>(
     if (seeded === undefined) return
     const merged = restoreToolState(
       toolId,
-      initialDefaultStateRef.current,
+      latestDefaultStateRef.current,
       seeded,
-      initialValidateRef.current
+      latestValidateRef.current
     )
     setState(merged)
     stateRef.current = merged

@@ -10,7 +10,8 @@ vi.mock('@/lib/db', () => ({
 describe('saveToolStateWithFeedback', () => {
   beforeEach(async () => {
     vi.mocked(saveToolState).mockResolvedValue(undefined)
-    await saveToolStateWithFeedback('reset', {})
+    // End any outage an earlier test left open.
+    for (const key of ['json-tools', 'yaml-tools']) await saveToolStateWithFeedback(key, {})
     vi.clearAllMocks()
     useUiStore.setState({ toasts: [] })
   })
@@ -44,6 +45,21 @@ describe('saveToolStateWithFeedback', () => {
     await expect(saveToolStateWithFeedback('json-tools', { input: 'two' })).rejects.toBe(error)
 
     expect(useUiStore.getState().toasts).toHaveLength(2)
+    consoleError.mockRestore()
+  })
+  it('keeps the outage open while another key still fails', async () => {
+    const error = new Error('database is locked')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(saveToolState)
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(error)
+
+    await expect(saveToolStateWithFeedback('json-tools', { input: 'one' })).rejects.toBe(error)
+    await saveToolStateWithFeedback('yaml-tools', { input: 'saved' })
+    await expect(saveToolStateWithFeedback('json-tools', { input: 'two' })).rejects.toBe(error)
+
+    expect(useUiStore.getState().toasts).toHaveLength(1)
     consoleError.mockRestore()
   })
 })

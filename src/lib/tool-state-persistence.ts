@@ -1,7 +1,12 @@
 import { saveToolState } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 
-let persistFailureReported = false
+/**
+ * Holds the keys whose latest save failed.
+ * An outage starts when the first key fails and ends when every failing key saves again.
+ * One outage produces one toast, however many tools retry during it.
+ */
+const failingKeys = new Set<string>()
 
 /**
  * Saves tool state and reports one toast for each persistence outage.
@@ -13,11 +18,12 @@ export async function saveToolStateWithFeedback(
 ): Promise<void> {
   try {
     await saveToolState(toolId, state)
-    persistFailureReported = false
+    failingKeys.delete(toolId)
   } catch (error) {
     console.error(`[tool-state-persistence] failed to save tool state for ${toolId}`, error)
-    if (!persistFailureReported) {
-      persistFailureReported = true
+    const outageStarted = failingKeys.size === 0
+    failingKeys.add(toolId)
+    if (outageStarted) {
       const message = error instanceof Error ? error.message : String(error)
       useUiStore
         .getState()
