@@ -1,6 +1,8 @@
 import type { ApiHeader, ApiRequest, ApiRequestAuth } from '@/types/models'
 import { FORMDATA_MODE, URLENCODED_MODE } from '@/tools/api-client/form-body'
 import type { OnMount } from '@monaco-editor/react'
+import { coerceApiHeaders, coerceApiRequestAuth } from '@/lib/schemas'
+import { mergeToolState } from '@/lib/tool-state-merge'
 
 /**
  * The API Client's request model: its constants, its types, and the pure functions that move a
@@ -83,6 +85,27 @@ export type EditorInstance = Parameters<OnMount>[0]
 
 /** A navigation that would discard unsaved edits, held until the user confirms. */
 export type PendingNavigation = { description: string; perform: () => void }
+
+export function validateApiClientState(state: ApiClientState): ApiClientState {
+  const draft = mergeToolState(createDefaultDraft(), state.draft)
+  const validatedDraft: RequestDraft = {
+    ...draft,
+    headers: coerceApiHeaders(state.draft.headers),
+    auth: coerceApiRequestAuth(state.draft.auth),
+  }
+  const activeRequestId = typeof state.activeRequestId === 'string' ? state.activeRequestId : null
+  const wikiTargetId = typeof state.wikiTargetId === 'string' ? state.wikiTargetId : null
+  const backlinkNoteId = typeof state.backlinkNoteId === 'string' ? state.backlinkNoteId : null
+  if (
+    JSON.stringify(validatedDraft) === JSON.stringify(state.draft) &&
+    activeRequestId === state.activeRequestId &&
+    wikiTargetId === state.wikiTargetId &&
+    backlinkNoteId === state.backlinkNoteId
+  ) {
+    return state
+  }
+  return { ...state, activeRequestId, wikiTargetId, backlinkNoteId, draft: validatedDraft }
+}
 
 export const RESPONSE_TABS = [
   { id: 'body', label: 'Body' },
