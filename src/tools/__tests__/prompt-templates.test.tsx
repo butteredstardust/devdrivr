@@ -4,9 +4,8 @@ import { installNarrowToolbarLayout, renderTool } from './test-utils'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import PromptTemplates, {
-  validatePromptTemplatesState,
-} from '@/tools/prompt-templates/PromptTemplates'
+import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
+import { validatePromptTemplatesState } from '@/tools/prompt-templates/prompt-templates-model'
 import {
   BUILTIN_PROMPT_TEMPLATES,
   CATEGORY_LABELS,
