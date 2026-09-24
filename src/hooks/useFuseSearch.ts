@@ -77,7 +77,7 @@ export function useFuseSearch<T>(
     }
     // `ready` is read only to force a re-memo once the index finishes
     // loading — search() itself reads fuseRef.current fresh each call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `ready` re-memoises after indexing
   }, [items, toSearchable, ready])
 }
 
@@ -134,6 +134,6 @@ export function useFuseSearchWithMatches<T>(
       }
       return hits
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `ready` re-memoises after indexing; see the note above
   }, [items, toSearchable, highlightKey, ready])
 }

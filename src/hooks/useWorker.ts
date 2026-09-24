@@ -34,10 +34,14 @@ export function useWorker<T>(
 ): WorkerRpc<T> | null {
   const [rpc, setRpc] = useState<WorkerRpc<T> | null>(null)
   const workerRef = useRef<Worker | null>(null)
+  const factoryRef = useRef(factory)
+  const methodsRef = useRef(methods)
+  factoryRef.current = factory
+  methodsRef.current = methods
 
   useEffect(() => {
     if (!enabled) return
-    const worker = factory()
+    const worker = factoryRef.current()
     workerRef.current = worker
 
     const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
@@ -65,7 +69,7 @@ export function useWorker<T>(
 
     // Build RPC object with real function properties — no Proxy.
     const obj = {} as Record<string, (...args: unknown[]) => Promise<unknown>>
-    for (const method of methods) {
+    for (const method of methodsRef.current) {
       obj[method] = (...args: unknown[]) => {
         return new Promise((resolve, reject) => {
           const id = nextId++
@@ -87,7 +91,7 @@ export function useWorker<T>(
       worker.terminate()
       workerRef.current = null
     }
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled])
 
   return rpc
 }

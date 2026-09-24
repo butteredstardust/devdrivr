@@ -138,7 +138,7 @@ export default function TimestampConverter() {
   const formats = useMemo(() => {
     if (!parsed) return []
     return computeFormats(parsed.date, zone)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` forces a recompute, because relative rows read the clock
   }, [parsed, zone, tick])
 
   // Generated values are written in whatever unit the input is currently read as, so a preset

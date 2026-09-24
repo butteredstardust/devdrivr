@@ -228,21 +228,24 @@ export default function CssValidator() {
 
   const listedIssues = useMemo(() => issues.slice(0, MAX_LISTED_ISSUES), [issues])
 
+  const historySnapshotRef = useRef({ hasInput, input, errorCount, warningCount, record })
+  historySnapshotRef.current = { hasInput, input, errorCount, warningCount, record }
+
   // Only finished runs over text the user actually produced are worth recording;
   // hydrating a tab on startup is not an operation anyone performed.
   useEffect(() => {
-    if (!hasAnalyzed || isAnalyzing || !userEditedRef.current || !hasInput) return
-    record({
-      input: `CSS: ${input.slice(0, 300)}${input.length > 300 ? '...' : ''}`,
+    const snapshot = historySnapshotRef.current
+    if (!hasAnalyzed || isAnalyzing || !userEditedRef.current || !snapshot.hasInput) return
+    snapshot.record({
+      input: `CSS: ${snapshot.input.slice(0, 300)}${snapshot.input.length > 300 ? '...' : ''}`,
       output:
         issues.length === 0
           ? 'No problems found'
-          : `${errorCount} error(s), ${warningCount} warning(s)`,
-      success: errorCount === 0,
+          : `${snapshot.errorCount} error(s), ${snapshot.warningCount} warning(s)`,
+      success: snapshot.errorCount === 0,
     })
     // Recording is keyed to a finished verdict, not to every dependency of it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasAnalyzed, isAnalyzing, issues])
+  }, [hasAnalyzed, isAnalyzing, issues, userEditedRef])
 
   // --- Editor markers --------------------------------------------------
 

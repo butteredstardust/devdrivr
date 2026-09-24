@@ -219,7 +219,7 @@ export function useImageDrop(
       cancelled = true
       unlisten?.()
     }
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps -- containerRef is a stable useRef, intentionally omitted
+  }, [enabled, containerRef])
 
   return { isDraggingImage }
 }

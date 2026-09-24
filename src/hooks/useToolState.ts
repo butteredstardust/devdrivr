@@ -94,6 +94,8 @@ export function useToolState<T extends Record<string, unknown>>(
   const stateRef = useRef(state)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedRef = useRef(hadCachedStateRef.current)
+  const initialDefaultStateRef = useRef(defaultState)
+  const initialValidateRef = useRef(options?.validate)
   // True once the user has changed state via update(). Guards the cold-start race
   // where a slow loadToolState() resolves after the user has already typed.
   const dirtyRef = useRef(false)
@@ -122,7 +124,12 @@ export function useToolState<T extends Record<string, unknown>>(
         return
       }
       if (saved !== null) {
-        const merged = restoreToolState(toolId, defaultState, saved, options?.validate)
+        const merged = restoreToolState(
+          toolId,
+          initialDefaultStateRef.current,
+          saved,
+          initialValidateRef.current
+        )
         setState(merged)
         stateRef.current = merged
         cacheSet(toolId, merged)
@@ -133,7 +140,7 @@ export function useToolState<T extends Record<string, unknown>>(
       cancelled = true
     }
     // The defaults and validator only apply to the first load. Callers pass them inline.
-  }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [toolId, cacheSet])
 
   // A handoff from another tool (`sendToTool`) merges into the cache and increments this counter.
   // Background destinations stay mounted, so the counter signals cache changes to them.
@@ -144,7 +151,12 @@ export function useToolState<T extends Record<string, unknown>>(
     seenSeedRef.current = seedRevision
     const seeded = cacheGet(toolId)
     if (seeded === undefined) return
-    const merged = restoreToolState(toolId, defaultState, seeded, options?.validate)
+    const merged = restoreToolState(
+      toolId,
+      initialDefaultStateRef.current,
+      seeded,
+      initialValidateRef.current
+    )
     setState(merged)
     stateRef.current = merged
     // The handoff is the user's intent as much as typing is: a pending cold
@@ -153,7 +165,6 @@ export function useToolState<T extends Record<string, unknown>>(
     loadedRef.current = true
     dirtyRef.current = true
     void saveToolStateWithFeedback(toolId, merged).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- The defaults and validator are inline values.
   }, [seedRevision, toolId, cacheGet])
 
   // Debounced save to SQLite (cache is updated synchronously)
