@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { deleteToolState, setSetting } from '@/lib/db'
 import { assignStateKeys, stateKeyFor } from '@/lib/tab-state-key'
 import { discardPendingToolAction } from '@/lib/tool-actions'
+import { forgetToolStateFailure } from '@/lib/tool-state-persistence'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useUiStore } from '@/stores/ui.store'
 import type { WorkspaceTab } from '@/types/tools'
@@ -104,6 +105,7 @@ function discardClosedState(closed: WorkspaceTab[]): void {
     discardPendingToolAction(key)
     if (!key.includes('#')) continue
     useToolStateCache.getState().discard(key)
+    forgetToolStateFailure(key)
     // Report cleanup failures only in the console. An unreachable row is harmless and does not justify a toast.
     deleteToolState(key).catch((error: unknown) => {
       console.error(`[workspace.store] failed to discard tool state for ${key}`, error)

@@ -32,3 +32,8 @@ export async function saveToolStateWithFeedback(
     throw error
   }
 }
+
+/** Drops a closed tab's key, so a save that failed before the tab closed cannot hold the outage open. */
+export function forgetToolStateFailure(toolId: string): void {
+  failingKeys.delete(toolId)
+}

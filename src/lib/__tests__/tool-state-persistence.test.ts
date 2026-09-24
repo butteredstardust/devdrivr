@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToolState } from '@/lib/db'
-import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
+import { forgetToolStateFailure, saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
 import { useUiStore } from '@/stores/ui.store'
 
 vi.mock('@/lib/db', () => ({
@@ -60,6 +60,18 @@ describe('saveToolStateWithFeedback', () => {
     await expect(saveToolStateWithFeedback('json-tools', { input: 'two' })).rejects.toBe(error)
 
     expect(useUiStore.getState().toasts).toHaveLength(1)
+    consoleError.mockRestore()
+  })
+  it('ends the outage when the failing key belongs to a closed tab', async () => {
+    const error = new Error('database is locked')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(saveToolState).mockRejectedValue(error)
+
+    await expect(saveToolStateWithFeedback('json-tools#tab-1', {})).rejects.toBe(error)
+    forgetToolStateFailure('json-tools#tab-1')
+    await expect(saveToolStateWithFeedback('json-tools', {})).rejects.toBe(error)
+
+    expect(useUiStore.getState().toasts).toHaveLength(2)
     consoleError.mockRestore()
   })
 })
