@@ -125,7 +125,7 @@ export function GeneralTab() {
             { value: 'floating', label: 'Floating' },
             { value: 'flush', label: 'Flush' },
           ]}
-          onChange={(v) => void update('shellStyle', v).catch(() => {})}
+          onChange={(v) => void update('shellStyle', v)}
         />
         <div className="mt-2 space-y-1">
           <SettingRow label="Recent Tools Limit" hint="Visible shortcuts in recent tool lists">
@@ -135,7 +135,7 @@ export function GeneralTab() {
               max={5}
               clamp={(value) => Math.max(0, Math.min(5, Math.round(value)))}
               unit="tools"
-              onCommit={(value) => void update('recentToolsLimit', value).catch(() => {})}
+              onCommit={(value) => void update('recentToolsLimit', value)}
             />
           </SettingRow>
           <SettingRow label="Sidebar Width" hint="Expanded sidebar width">
@@ -145,7 +145,7 @@ export function GeneralTab() {
               max={MAX_SIDEBAR_WIDTH}
               clamp={clampSidebarWidth}
               unit="px"
-              onCommit={(value) => void update('sidebarWidth', value).catch(() => {})}
+              onCommit={(value) => void update('sidebarWidth', value)}
             />
           </SettingRow>
           <SettingRow label="Notes Drawer Width" hint="Open notes drawer width">
@@ -155,7 +155,7 @@ export function GeneralTab() {
               max={MAX_NOTES_DRAWER_WIDTH}
               clamp={clampNotesDrawerWidth}
               unit="px"
-              onCommit={(value) => void update('notesDrawerWidth', value).catch(() => {})}
+              onCommit={(value) => void update('notesDrawerWidth', value)}
             />
           </SettingRow>
         </div>
@@ -180,7 +180,7 @@ export function GeneralTab() {
           <SettingRow label="Sidebar Collapsed" hint="Start with sidebar collapsed">
             <Toggle
               checked={sidebarCollapsed}
-              onChange={(v) => void update('sidebarCollapsed', v).catch(() => {})}
+              onChange={(v) => void update('sidebarCollapsed', v)}
             />
           </SettingRow>
           <SettingRow
@@ -189,7 +189,7 @@ export function GeneralTab() {
           >
             <Toggle
               checked={restoreWorkspaceOnLaunch}
-              onChange={(value) => void update('restoreWorkspaceOnLaunch', value).catch(() => {})}
+              onChange={(value) => void update('restoreWorkspaceOnLaunch', value)}
             />
           </SettingRow>
         </div>
@@ -202,7 +202,7 @@ export function GeneralTab() {
         <SettingRow label="Default Timezone" hint="Used by Timestamp Converter">
           <SelectInput
             value={defaultTimezone}
-            onChange={(value) => void update('defaultTimezone', value).catch(() => {})}
+            onChange={(value) => void update('defaultTimezone', value)}
             options={timezoneOptions}
           />
         </SettingRow>
@@ -217,7 +217,7 @@ export function GeneralTab() {
           <SettingRow label="Check for updates automatically" hint="Check on every app launch">
             <Toggle
               checked={checkForUpdatesAutomatically}
-              onChange={(v) => void update('checkForUpdatesAutomatically', v).catch(() => {})}
+              onChange={(v) => void update('checkForUpdatesAutomatically', v)}
             />
           </SettingRow>
           <SettingRow
@@ -231,13 +231,13 @@ export function GeneralTab() {
             <Toggle
               checked={downloadUpdatesAutomatically}
               disabled={!checkForUpdatesAutomatically}
-              onChange={(v) => void update('downloadUpdatesAutomatically', v).catch(() => {})}
+              onChange={(v) => void update('downloadUpdatesAutomatically', v)}
             />
           </SettingRow>
           <SettingRow label="Notify when update is available" hint="Show banner at top of app">
             <Toggle
               checked={notifyWhenUpdateAvailable}
-              onChange={(v) => void update('notifyWhenUpdateAvailable', v).catch(() => {})}
+              onChange={(v) => void update('notifyWhenUpdateAvailable', v)}
             />
           </SettingRow>
         </div>

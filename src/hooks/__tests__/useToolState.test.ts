@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useToolState } from '@/hooks/useToolState'
 import { loadToolState, saveToolState } from '@/lib/db'
 import { flushAll } from '@/lib/flush-on-exit'
+import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
+import { useUiStore } from '@/stores/ui.store'
 
 vi.mock('@/lib/db', () => ({
   loadToolState: vi.fn(),
@@ -189,6 +191,34 @@ describe('useToolState', () => {
     })
     expect(saveToolState).toHaveBeenCalledWith(TOOL_ID, { value: 'updated' })
     expect(saveToolState).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a rejected debounced save', async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadToolState).mockResolvedValue(null)
+    vi.mocked(saveToolState).mockResolvedValue(undefined)
+    await saveToolStateWithFeedback('reset', {})
+    vi.clearAllMocks()
+    useUiStore.setState({ toasts: [] })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(saveToolState).mockRejectedValue(new Error('database is locked'))
+
+    const { result } = renderHook(() => useToolState(TOOL_ID, DEFAULT_STATE))
+    act(() => {
+      result.current[1]({ value: 'unsaved' })
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+      await Promise.resolve()
+    })
+
+    expect(useUiStore.getState().toasts).toEqual([
+      expect.objectContaining({
+        message: 'Failed to save tool state: database is locked. Recent changes may be lost.',
+        type: 'error',
+      }),
+    ])
+    consoleError.mockRestore()
   })
 
   it('rapid updates only trigger one saveToolState call (debounce resets)', () => {

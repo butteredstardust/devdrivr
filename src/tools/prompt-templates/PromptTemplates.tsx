@@ -1,795 +1,24 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from 'react'
-import {
-  CopyIcon,
-  ChatCircleTextIcon,
-  ClipboardTextIcon,
-  DownloadSimpleIcon,
-  PencilSimpleIcon,
-  PlusIcon,
-  SparkleIcon,
-  TrashIcon,
-  UploadSimpleIcon,
-  XIcon,
-} from '@phosphor-icons/react'
-import { useModalFocus } from '@/hooks/useModalFocus'
+import { useEffect, useId, useRef } from 'react'
+import { PlusIcon } from '@phosphor-icons/react'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { Button } from '@/components/shared/Button'
-import { PaneHeader } from '@/components/shared/PaneHeader'
-import { Field } from '@/components/shared/Field'
-import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { Alert } from '@/components/shared/Alert'
-import { Input, Select } from '@/components/shared/Input'
-import { TextArea } from '@/components/shared/TextArea'
-import { StatusBadge } from '@/components/shared/StatusBadge'
-import { TabBar } from '@/components/shared/TabBar'
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
-import { useIsInstanceActive } from '@/app/tool-instance'
-import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
-import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
+import { PromptTemplateSidebar } from '@/tools/prompt-templates/components/PromptTemplateSidebar'
+import { PromptTemplateWorkspace } from '@/tools/prompt-templates/components/PromptTemplateWorkspace'
+import { QuickFillModal } from '@/tools/prompt-templates/components/QuickFillModal'
+import { TemplateEditorModal } from '@/tools/prompt-templates/components/TemplateEditorModal'
+import { usePromptTemplateFill } from '@/tools/prompt-templates/hooks/usePromptTemplateFill'
+import { usePromptTemplateLibrary } from '@/tools/prompt-templates/hooks/usePromptTemplateLibrary'
 import {
-  BUILTIN_PROMPT_TEMPLATES,
-  CATEGORY_LABELS,
-} from '@/tools/prompt-templates/builtin-templates'
-import {
-  estimateTokens,
-  mergeDefaultValues,
-  missingRequiredVariables,
-  renderPrompt,
-  syncVariablesToPrompt,
-  templateSearchText,
-  tokenTone,
-} from '@/tools/prompt-templates/template-utils'
-import { templateToDraft, type PromptTemplateDraft } from '@/lib/prompt-template-transfer'
-import type {
-  PromptTemplate,
-  PromptTemplateCategory,
-  PromptTemplateVariableType,
-  PromptTemplateValues,
-  TokenTone,
-} from '@/tools/prompt-templates/types'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { sendToTool } from '@/lib/tool-handoff'
-import { SearchInput } from '@/components/shared/SearchInput'
-import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
-import { Checkbox } from '@/components/shared/Checkbox'
-import { DocumentToolbar, ToolbarGroup, TwoLineDocumentIdentity } from '@/components/shared/Toolbar'
-import { isPlainObject } from '@/lib/tool-state-merge'
-
-type CategoryFilter = PromptTemplateCategory | 'all'
-
-type PromptTemplatesState = {
-  search: string
-  category: CategoryFilter
-  selectedId: string
-  inputsByTemplate: Record<string, PromptTemplateValues>
-  overrides: Record<string, PromptTemplateDraft>
-  handoffContent: string
-  handoffLanguage: string
-}
-
-const DEFAULT_STATE: PromptTemplatesState = {
-  search: '',
-  category: 'all',
-  selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '',
-  inputsByTemplate: {},
-  overrides: {},
-  handoffContent: '',
-  handoffLanguage: '',
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isPlainObject(value) && Object.values(value).every((item) => typeof item === 'string')
-}
-
-function isPromptVariable(value: unknown): boolean {
-  if (!isPlainObject(value)) return false
-  return (
-    typeof value.name === 'string' &&
-    typeof value.label === 'string' &&
-    (value.type === 'text' || value.type === 'textarea' || value.type === 'select') &&
-    (value.placeholder === undefined || typeof value.placeholder === 'string') &&
-    (value.description === undefined || typeof value.description === 'string') &&
-    (value.example === undefined || typeof value.example === 'string') &&
-    (value.required === undefined || typeof value.required === 'boolean') &&
-    (value.options === undefined ||
-      (Array.isArray(value.options) && value.options.every((option) => typeof option === 'string')))
-  )
-}
-
-function isPromptTemplateDraft(value: unknown): value is PromptTemplateDraft {
-  if (!isPlainObject(value)) return false
-  return (
-    typeof value.name === 'string' &&
-    typeof value.description === 'string' &&
-    typeof value.category === 'string' &&
-    Object.hasOwn(CATEGORY_LABELS, value.category) &&
-    typeof value.prompt === 'string' &&
-    (value.optimizedFor === 'Claude' ||
-      value.optimizedFor === 'ChatGPT' ||
-      value.optimizedFor === 'Cursor' ||
-      value.optimizedFor === 'Generic') &&
-    typeof value.version === 'string' &&
-    typeof value.estimatedTokens === 'number' &&
-    Number.isFinite(value.estimatedTokens) &&
-    Array.isArray(value.tags) &&
-    value.tags.every((tag) => typeof tag === 'string') &&
-    Array.isArray(value.tips) &&
-    value.tips.every((tip) => typeof tip === 'string') &&
-    Array.isArray(value.variables) &&
-    value.variables.every(isPromptVariable)
-  )
-}
-
-function filterRecord<T>(
-  value: Record<string, unknown>,
-  accepts: (item: unknown) => item is T
-): Record<string, T> {
-  const filtered: Record<string, T> = {}
-  for (const [key, item] of Object.entries(value)) {
-    if (accepts(item)) filtered[key] = item
-  }
-  return filtered
-}
-
-export function validatePromptTemplatesState(state: PromptTemplatesState): PromptTemplatesState {
-  const inputsByTemplate = filterRecord(state.inputsByTemplate, isStringRecord)
-  const overrides = filterRecord(state.overrides, isPromptTemplateDraft)
-  if (
-    Object.keys(inputsByTemplate).length === Object.keys(state.inputsByTemplate).length &&
-    Object.keys(overrides).length === Object.keys(state.overrides).length
-  ) {
-    return state
-  }
-  return { ...state, inputsByTemplate, overrides }
-}
-
-const FILTERS: Array<{ id: CategoryFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  ...Object.entries(CATEGORY_LABELS).map(([id, label]) => ({
-    id: id as PromptTemplateCategory,
-    label,
-  })),
-]
-
-function tokenClass(tone: TokenTone): string {
-  if (tone === 'error') return 'border-[var(--color-error)] text-[var(--color-error)]'
-  if (tone === 'warning') return 'border-[var(--color-warning)] text-[var(--color-warning)]'
-  return 'border-[var(--color-success)] text-[var(--color-success)]'
-}
-
-function categoryCount(category: CategoryFilter, templates: PromptTemplate[]): number {
-  if (category === 'all') return templates.length
-  return templates.filter((template) => template.category === category).length
-}
-
-function shouldIgnoreGlobalEnter(target: EventTarget | null): boolean {
-  if (!target || typeof target !== 'object') return false
-  const element = target as Element & { isContentEditable?: boolean }
-  if (element.isContentEditable) return true
-  return typeof element.closest === 'function'
-    ? element.closest('input, textarea, select, button, a, [role="button"]') !== null
-    : false
-}
-
-function getTemplateById(id: string, templates: PromptTemplate[]): PromptTemplate {
-  const fallbackTemplate = templates[0]
-  if (!fallbackTemplate) {
-    throw new Error('No prompt templates configured')
-  }
-  return templates.find((template) => template.id === id) ?? fallbackTemplate
-}
-
-type VariableFormProps = {
-  template: PromptTemplate
-  values: PromptTemplateValues
-  onChange: (name: string, value: string) => void
-}
-
-function VariableForm({ template, values, onChange }: VariableFormProps) {
-  const fieldId = useId()
-  if (template.variables.length === 0) {
-    return (
-      <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text-muted)]">
-        This template has no variables.
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      {template.variables.map((variable) => {
-        // An explicit placeholder wins. Otherwise the example fills that job, because showing a
-        // filled-in value is the clearest way to state the shape and detail a field wants.
-        //
-        // The aria-label on each input overrides the wrapping label, so the description reaches a
-        // screen reader only through aria-describedby. A description is help text, not a name:
-        // it must follow the name rather than replace it.
-        const describedBy = variable.description ? `${fieldId}-${variable.name}` : undefined
-        return (
-          <label key={variable.name} className="block">
-            <span className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-widest text-[var(--color-text-muted)]">
-              {variable.label}
-              {variable.required && <span className="text-[var(--color-error)]">*</span>}
-            </span>
-            {variable.description && (
-              <span id={describedBy} className="mb-1 block text-2xs text-[var(--color-text-muted)]">
-                {variable.description}
-              </span>
-            )}
-            {variable.type === 'select' ? (
-              <Select
-                value={values[variable.name] ?? ''}
-                onChange={(event) => onChange(variable.name, event.target.value)}
-                className="w-full"
-                aria-label={variable.label}
-                aria-describedby={describedBy}
-              >
-                {(variable.options ?? []).map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </Select>
-            ) : variable.type === 'textarea' ? (
-              <TextArea
-                value={values[variable.name] ?? ''}
-                onChange={(event) => onChange(variable.name, event.target.value)}
-                placeholder={variable.placeholder ?? variable.example}
-                rows={variable.name === 'code' || variable.name === 'logs' ? 10 : 5}
-                aria-label={variable.label}
-                aria-describedby={describedBy}
-                monospace
-                className="min-h-24 resize-none"
-              />
-            ) : (
-              <Input
-                value={values[variable.name] ?? ''}
-                onChange={(event) => onChange(variable.name, event.target.value)}
-                placeholder={variable.placeholder ?? variable.example}
-                monospace
-                className="w-full"
-                aria-label={variable.label}
-                aria-describedby={describedBy}
-              />
-            )}
-          </label>
-        )
-      })}
-    </div>
-  )
-}
-
-type PreviewPaneProps = {
-  renderedPrompt: string
-  tokens: number
-  missingVariables: string[]
-}
-
-function PreviewPane({ renderedPrompt, tokens, missingVariables }: PreviewPaneProps) {
-  const tone = tokenTone(tokens)
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <PaneHeader
-        title="Preview"
-        actions={
-          <span className={`rounded border px-2 py-0.5 text-2xs tabular-nums ${tokenClass(tone)}`}>
-            ~{tokens} tokens (chars/4 estimate)
-          </span>
-        }
-      />
-      {missingVariables.length > 0 && (
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-warning)]/10 px-3 py-2 text-xs text-[var(--color-warning)]">
-          Missing required: {missingVariables.join(', ')}
-        </div>
-      )}
-      <pre className="flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-[var(--color-text)]">
-        {renderedPrompt || 'Fill variables to preview the rendered prompt.'}
-      </pre>
-    </div>
-  )
-}
-
-type QuickFillModalProps = {
-  open: boolean
-  template: PromptTemplate
-  values: PromptTemplateValues
-  renderedPrompt: string
-  tokens: number
-  missingVariables: string[]
-  onChange: (name: string, value: string) => void
-  onClose: () => void
-  onCopy: () => void
-}
-
-function QuickFillModal({
-  open,
-  template,
-  values,
-  renderedPrompt,
-  tokens,
-  missingVariables,
-  onChange,
-  onClose,
-  onCopy,
-}: QuickFillModalProps) {
-  const isInstanceActive = useIsInstanceActive()
-  const titleId = useId()
-  const fieldRootRef = useRef<HTMLDivElement>(null)
-  const onCopyRef = useRef(onCopy)
-  onCopyRef.current = onCopy
-
-  // Escape, Tab trapping and focus restore come from the shared modal lifecycle; only the two
-  // shortcuts that are particular to quick fill live here.
-  const { panelRef, onKeyDown: onModalKeyDown } = useModalFocus<HTMLDivElement>({
-    onClose,
-    initialFocusSelector: 'input, textarea, select',
-    enabled: isInstanceActive && open,
-  })
-
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      const shortcut = event.metaKey || event.ctrlKey
-      if (shortcut && event.key.toLowerCase() === 'f') {
-        event.preventDefault()
-        fieldRootRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus()
-        return
-      }
-      if (shortcut && event.key === 'Enter') {
-        event.preventDefault()
-        onCopyRef.current()
-        return
-      }
-      onModalKeyDown(event)
-    },
-    [onModalKeyDown]
-  )
-
-  if (!open) return null
-
-  const tone = tokenTone(tokens)
-
-  return (
-    <div
-      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6"
-      style={{ backgroundColor: 'var(--color-scrim)' }}
-      role="presentation"
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onKeyDown={handleKeyDown}
-        className="grid max-h-[88vh] w-full max-w-5xl grid-cols-[minmax(20rem,0.85fr)_minmax(24rem,1fr)] overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[minmax(0,1fr)_minmax(10rem,0.75fr)]"
-      >
-        <div className="flex min-h-0 flex-col border-r border-[var(--color-border)] max-[900px]:border-b max-[900px]:border-r-0">
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
-            <div>
-              <h2 id={titleId} className="text-sm font-bold text-[var(--color-text)]">
-                {template.name}
-              </h2>
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Fill variables, then press Cmd+Enter to copy.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="icon"
-              size="xs"
-              onClick={onClose}
-              className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              aria-label="Close quick fill"
-            >
-              <XIcon size={16} />
-            </Button>
-          </div>
-          <div ref={fieldRootRef} className="min-h-0 flex-1 overflow-auto p-4">
-            <VariableForm template={template} values={values} onChange={onChange} />
-          </div>
-          <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
-            <span
-              className={`rounded border px-2 py-0.5 text-2xs tabular-nums ${tokenClass(tone)}`}
-            >
-              ~{tokens} tokens (chars/4 estimate)
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button size="sm" variant="primary" onClick={onCopy}>
-                Copy to Clipboard
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="flex min-h-0 flex-col">
-          {missingVariables.length > 0 && (
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-warning)]/10 px-3 py-2 text-xs text-[var(--color-warning)]">
-              Missing required: {missingVariables.join(', ')}
-            </div>
-          )}
-          <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-[var(--color-text)]">
-            {renderedPrompt}
-          </pre>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-type TemplateEditorModalProps = {
-  mode: 'create' | 'edit' | 'duplicate'
-  sourceTemplate?: PromptTemplate
-  onClose: () => void
-  onSave: (draft: PromptTemplateDraft) => Promise<void>
-}
-
-const OPTIMIZED_FOR_OPTIONS: PromptTemplate['optimizedFor'][] = [
-  'Claude',
-  'ChatGPT',
-  'Cursor',
-  'Generic',
-]
-
-const VARIABLE_TYPE_OPTIONS: PromptTemplateVariableType[] = ['text', 'textarea', 'select']
-
-function splitList(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function joinList(value: string[]): string {
-  return value.join(', ')
-}
-
-function TemplateEditorModal({ mode, sourceTemplate, onClose, onSave }: TemplateEditorModalProps) {
-  const isInstanceActive = useIsInstanceActive()
-  const titleId = useId()
-  const [draft, setDraft] = useState<PromptTemplateDraft>(() => templateToDraft(sourceTemplate))
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const firstInputRef = useRef<HTMLInputElement>(null)
-  const onSaveRef = useRef(onSave)
-  const submitRef = useRef<(() => Promise<void>) | null>(null)
-
-  onSaveRef.current = onSave
-
-  const submit = useCallback(async () => {
-    if (!draft.name.trim()) {
-      setError('Name is required')
-      return
-    }
-    if (!draft.prompt.trim()) {
-      setError('Prompt body is required')
-      return
-    }
-    setSaving(true)
-    setError(null)
-    try {
-      await onSaveRef.current({
-        ...draft,
-        estimatedTokens: estimateTokens(draft.prompt),
-        variables: syncVariablesToPrompt(draft.prompt, draft.variables),
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save template')
-    } finally {
-      setSaving(false)
-    }
-  }, [draft])
-  submitRef.current = submit
-
-  // Same shared lifecycle as quick fill; Cmd+Enter to save is the one key this modal adds.
-  const { panelRef, onKeyDown: onModalKeyDown } = useModalFocus<HTMLDivElement>({
-    onClose,
-    ...(firstInputRef ? { initialFocusRef: firstInputRef } : {}),
-    enabled: isInstanceActive,
-  })
-
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-        event.preventDefault()
-        void submitRef.current?.()
-        return
-      }
-      onModalKeyDown(event)
-    },
-    [onModalKeyDown]
-  )
-
-  const title =
-    mode === 'edit'
-      ? 'Edit Prompt Template'
-      : mode === 'duplicate'
-        ? 'Duplicate Template'
-        : 'Create Template'
-
-  return (
-    <div
-      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6"
-      style={{ backgroundColor: 'var(--color-scrim)' }}
-      role="presentation"
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onKeyDown={handleKeyDown}
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-[var(--color-shadow)]"
-      >
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
-          <div>
-            <h2 id={titleId} className="text-sm font-bold text-[var(--color-text)]">
-              {title}
-            </h2>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Use placeholders like {'{{code}}'}. Variables are synced automatically.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="icon"
-            size="xs"
-            onClick={onClose}
-            className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            aria-label="Close template editor"
-          >
-            <XIcon size={16} />
-          </Button>
-        </div>
-
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1fr)] overflow-hidden max-[900px]:grid-cols-[minmax(16rem,0.8fr)_minmax(20rem,1fr)]">
-          <div className="min-h-0 overflow-auto border-r border-[var(--color-border)] p-4">
-            <div className="space-y-3">
-              <Field label="Name">
-                <Input
-                  ref={firstInputRef}
-                  value={draft.name}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, name: event.target.value }))
-                  }
-                  className="w-full"
-                  aria-label="Template name"
-                />
-              </Field>
-              <Field label="Description">
-                <TextArea
-                  value={draft.description}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, description: event.target.value }))
-                  }
-                  rows={3}
-                  aria-label="Template description"
-                  className="resize-none"
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Category">
-                  <Select
-                    value={draft.category}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        category: event.target.value as PromptTemplateCategory,
-                      }))
-                    }
-                    className="w-full"
-                    aria-label="Template category"
-                  >
-                    {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
-                      <option key={id} value={id}>
-                        {label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Optimized For">
-                  <Select
-                    value={draft.optimizedFor}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        optimizedFor: event.target.value as PromptTemplate['optimizedFor'],
-                      }))
-                    }
-                    className="w-full"
-                    aria-label="Optimized for"
-                  >
-                    {OPTIMIZED_FOR_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              <Field label="Tags">
-                <Input
-                  value={joinList(draft.tags)}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, tags: splitList(event.target.value) }))
-                  }
-                  placeholder="testing, typescript, review"
-                  className="w-full"
-                  aria-label="Template tags"
-                />
-              </Field>
-              <Field label="Tips">
-                <Input
-                  value={joinList(draft.tips)}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, tips: splitList(event.target.value) }))
-                  }
-                  placeholder="Include surrounding code, paste logs with timestamps"
-                  className="w-full"
-                  aria-label="Template tips"
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="flex min-h-0 flex-col overflow-hidden">
-            <label className="flex min-h-0 flex-1 flex-col">
-              <SectionLabel className="border-b border-[var(--color-border)] px-4 py-2">
-                Prompt Body
-              </SectionLabel>
-              <TextArea
-                value={draft.prompt}
-                onChange={(event) => {
-                  const prompt = event.target.value
-                  setDraft((current) => ({
-                    ...current,
-                    prompt,
-                    variables: syncVariablesToPrompt(prompt, current.variables),
-                    estimatedTokens: estimateTokens(prompt),
-                  }))
-                }}
-                aria-label="Prompt body"
-                monospace
-                className="min-h-0 flex-1 resize-none rounded-none border-0 bg-[var(--color-bg)] p-4 focus:border-0"
-              />
-            </label>
-            <div className="max-h-56 overflow-auto border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <SectionLabel as="div" className="mb-2 justify-between">
-                <span>Variables</span>
-                <span>{draft.variables.length}</span>
-              </SectionLabel>
-              <div className="space-y-2">
-                {draft.variables.map((variable) => (
-                  <div
-                    key={variable.name}
-                    className="grid grid-cols-[1fr_7rem_5rem] items-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-2"
-                  >
-                    <div>
-                      <div className="font-mono text-xs text-[var(--color-text)]">
-                        {'{{'}
-                        {variable.name}
-                        {'}}'}
-                      </div>
-                      <Input
-                        value={variable.label}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            variables: current.variables.map((item) =>
-                              item.name === variable.name
-                                ? { ...item, label: event.target.value }
-                                : item
-                            ),
-                          }))
-                        }
-                        aria-label={`${variable.name} label`}
-                        className="mt-1 w-full"
-                      />
-                    </div>
-                    <Select
-                      value={variable.type}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          variables: current.variables.map((item) =>
-                            item.name === variable.name
-                              ? {
-                                  ...item,
-                                  type: event.target.value as PromptTemplateVariableType,
-                                  ...(event.target.value === 'select' &&
-                                  (!item.options || item.options.length === 0)
-                                    ? { options: ['Option'] }
-                                    : {}),
-                                }
-                              : item
-                          ),
-                        }))
-                      }
-                      aria-label={`${variable.name} type`}
-                    >
-                      {VARIABLE_TYPE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </Select>
-                    <label className="flex items-center justify-center gap-1 text-2xs text-[var(--color-text-muted)]">
-                      <Checkbox
-                        checked={variable.required ?? false}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            variables: current.variables.map((item) =>
-                              item.name === variable.name
-                                ? { ...item, required: event.target.checked }
-                                : item
-                            ),
-                          }))
-                        }
-                      />
-                      Req
-                    </label>
-                    {variable.type === 'select' && (
-                      <Field label="Options" className="col-span-3">
-                        <Input
-                          value={joinList(variable.options ?? [])}
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              variables: current.variables.map((item) =>
-                                item.name === variable.name
-                                  ? { ...item, options: splitList(event.target.value) }
-                                  : item
-                              ),
-                            }))
-                          }
-                          placeholder="TypeScript, Python, Go"
-                          aria-label={`${variable.name} options`}
-                          className="w-full"
-                        />
-                      </Field>
-                    )}
-                  </div>
-                ))}
-                {draft.variables.length === 0 && (
-                  <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-xs text-[var(--color-text-muted)]">
-                    Add placeholders like {'{{context}}'} to create variables.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex h-12 shrink-0 items-center justify-between border-t border-[var(--color-border)] px-4">
-          <div>{error && <Alert variant="error">{error}</Alert>}</div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button size="sm" variant="primary" onClick={() => void submit()} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Template'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+  DEFAULT_STATE,
+  shouldIgnoreGlobalEnter,
+  validatePromptTemplatesState,
+  type PromptTemplatesState,
+} from '@/tools/prompt-templates/prompt-templates-model'
 
 export default function PromptTemplates() {
   const isInstanceActive = useIsInstanceActive()
@@ -799,99 +28,23 @@ export default function PromptTemplates() {
     DEFAULT_STATE,
     { validate: validatePromptTemplatesState }
   )
-  const userTemplates = usePromptTemplatesStore((s) => s.userTemplates)
-  const savingTemplates = usePromptTemplatesStore((s) => s.saving)
-  const createTemplate = usePromptTemplatesStore((s) => s.create)
-  const updateTemplate = usePromptTemplatesStore((s) => s.update)
-  const removeTemplate = usePromptTemplatesStore((s) => s.remove)
   const setLastAction = useUiStore((s) => s.setLastAction)
-  const { exportBackup: handleExport, importBackup } = usePromptTemplatesBackup(setLastAction)
-  const copy = useCopyToClipboard()
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editorState, setEditorState] = useState<{
-    mode: 'create' | 'edit' | 'duplicate'
-    template?: PromptTemplate
-  } | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [workspaceTab, setWorkspaceTab] = useState<'fill' | 'preview'>('fill')
+  const library = usePromptTemplateLibrary({ state, updateState, templateOptionsId })
+  const fill = usePromptTemplateFill({
+    state,
+    updateState,
+    selectedTemplate: library.selectedTemplate,
+  })
+  const {
+    selectedTemplate,
+    editorState,
+    setEditorState,
+    setConfirmDeleteId,
+    handleExport,
+    handleImport,
+  } = library
+  const { selectedValues, copyRenderedPrompt, modalOpen, setModalOpen } = fill
   const searchRef = useRef<HTMLInputElement>(null)
-
-  const handleImport = useCallback(async () => {
-    const importedId = await importBackup()
-    if (importedId) updateState({ selectedId: importedId })
-  }, [importBackup, updateState])
-
-  const allTemplates = useMemo(
-    () => [
-      ...BUILTIN_PROMPT_TEMPLATES.map((template) => {
-        const override = state.overrides[template.id]
-        return override
-          ? { ...template, ...override, author: 'builtin' as const, id: template.id }
-          : template
-      }),
-      ...userTemplates,
-    ],
-    [state.overrides, userTemplates]
-  )
-  const selectedTemplate = getTemplateById(state.selectedId, allTemplates)
-  const selectedValues = useMemo(
-    () => mergeDefaultValues(selectedTemplate, state.inputsByTemplate[selectedTemplate.id]),
-    [selectedTemplate, state.inputsByTemplate]
-  )
-  const renderedPrompt = useMemo(
-    () => renderPrompt(selectedTemplate, selectedValues),
-    [selectedTemplate, selectedValues]
-  )
-  const tokens = useMemo(() => estimateTokens(renderedPrompt), [renderedPrompt])
-  const missingVariables = useMemo(
-    () => missingRequiredVariables(selectedTemplate, selectedValues),
-    [selectedTemplate, selectedValues]
-  )
-
-  // The filter is persisted, so it outlives the category list that produced it. A category retired
-  // by a later release leaves the user on an empty library with a select that shows no value, and
-  // no way to tell what went wrong. Fall back to 'all'.
-  const activeCategory: CategoryFilter = FILTERS.some((filter) => filter.id === state.category)
-    ? state.category
-    : 'all'
-
-  const filteredTemplates = useMemo(() => {
-    const query = state.search.trim().toLowerCase()
-    return allTemplates.filter((template) => {
-      const matchesCategory = activeCategory === 'all' || template.category === activeCategory
-      const matchesSearch = !query || templateSearchText(template).includes(query)
-      return matchesCategory && matchesSearch
-    })
-  }, [allTemplates, activeCategory, state.search])
-
-  const selectTemplate = useCallback(
-    (template: PromptTemplate) => {
-      updateState({
-        selectedId: template.id,
-        inputsByTemplate: {
-          ...state.inputsByTemplate,
-          [template.id]: mergeDefaultValues(template, state.inputsByTemplate[template.id]),
-        },
-      })
-      setWorkspaceTab('fill')
-    },
-    [state.inputsByTemplate, updateState]
-  )
-
-  const updateVariable = useCallback(
-    (name: string, value: string) => {
-      updateState({
-        inputsByTemplate: {
-          ...state.inputsByTemplate,
-          [selectedTemplate.id]: {
-            ...selectedValues,
-            [name]: value,
-          },
-        },
-      })
-    },
-    [selectedTemplate.id, selectedValues, state.inputsByTemplate, updateState]
-  )
 
   useEffect(() => {
     if (!state.handoffContent) return
@@ -924,120 +77,6 @@ export default function PromptTemplates() {
     setLastAction,
     updateState,
   ])
-
-  const clearVariables = useCallback(() => {
-    updateState({
-      inputsByTemplate: {
-        ...state.inputsByTemplate,
-        [selectedTemplate.id]: {},
-      },
-    })
-    setLastAction('Template fields cleared', 'info')
-  }, [selectedTemplate.id, setLastAction, state.inputsByTemplate, updateState])
-
-  const copyRenderedPrompt = useCallback(async () => {
-    if (missingVariables.length > 0) {
-      setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
-      return
-    }
-    // Only dismiss once the text is actually on the clipboard — closing on a failed write
-    // loses the filled-in variables with nothing to show for them.
-    const copied = await copy(renderedPrompt, {
-      success: `Copied ${selectedTemplate.name}`,
-      failure: 'Failed to copy prompt',
-    })
-    if (copied) setModalOpen(false)
-  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction, copy])
-
-  const sendRenderedToSnippet = useCallback(() => {
-    if (missingVariables.length > 0) {
-      setLastAction(`Missing required fields: ${missingVariables.join(', ')}`, 'error')
-      return
-    }
-    sendToTool('snippets', {
-      handoff: {
-        title: selectedTemplate.name,
-        content: renderedPrompt,
-        language: 'text',
-      },
-    })
-    setLastAction('Rendered prompt sent to Snippets', 'success')
-  }, [missingVariables, renderedPrompt, selectedTemplate.name, setLastAction])
-
-  const handleSaveEditor = useCallback(
-    async (draft: PromptTemplateDraft) => {
-      if (editorState?.mode === 'edit' && editorState.template?.author === 'builtin') {
-        updateState({
-          overrides: {
-            ...state.overrides,
-            [editorState.template.id]: draft,
-          },
-        })
-        setLastAction('Built-in template override saved', 'success')
-      } else if (editorState?.mode === 'edit' && editorState.template?.author === 'user') {
-        const updated = await updateTemplate(editorState.template.id, draft)
-        if (updated) {
-          updateState({ selectedId: updated.id })
-          setLastAction('Prompt template updated', 'success')
-        }
-      } else {
-        const created = await createTemplate(draft)
-        updateState({ selectedId: created.id })
-        setLastAction('Prompt template saved', 'success')
-      }
-      setEditorState(null)
-    },
-    [createTemplate, editorState, setLastAction, state.overrides, updateState, updateTemplate]
-  )
-
-  const resetSelectedOverride = useCallback(() => {
-    if (selectedTemplate.author !== 'builtin' || !state.overrides[selectedTemplate.id]) return
-    const overrides = { ...state.overrides }
-    delete overrides[selectedTemplate.id]
-    updateState({ overrides })
-    setLastAction('Built-in template reset', 'info')
-  }, [selectedTemplate, setLastAction, state.overrides, updateState])
-
-  const handleDeleteTemplate = useCallback(async () => {
-    if (selectedTemplate.author !== 'user') {
-      setLastAction('Built-in templates cannot be deleted', 'error')
-      return
-    }
-    if (confirmDeleteId !== selectedTemplate.id) return
-    try {
-      await removeTemplate(selectedTemplate.id)
-      setConfirmDeleteId(null)
-      updateState({ selectedId: BUILTIN_PROMPT_TEMPLATES[0]?.id ?? '' })
-      setLastAction('Prompt template deleted', 'info')
-    } catch {
-      setLastAction('Failed to delete prompt template', 'error')
-    }
-  }, [confirmDeleteId, removeTemplate, selectedTemplate, setLastAction, updateState])
-
-  const clearFilters = useCallback(() => {
-    updateState({ search: '', category: 'all' })
-  }, [updateState])
-
-  const handleListKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLButtonElement>, templateId: string) => {
-      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
-      event.preventDefault()
-      const currentIndex = filteredTemplates.findIndex((template) => template.id === templateId)
-      let nextIndex = currentIndex
-      if (event.key === 'ArrowDown')
-        nextIndex = Math.min(filteredTemplates.length - 1, currentIndex + 1)
-      if (event.key === 'ArrowUp') nextIndex = Math.max(0, currentIndex - 1)
-      if (event.key === 'Home') nextIndex = 0
-      if (event.key === 'End') nextIndex = filteredTemplates.length - 1
-      const next = filteredTemplates[nextIndex]
-      if (!next) return
-      selectTemplate(next)
-      requestAnimationFrame(() =>
-        document.getElementById(`${templateOptionsId}-option-${next.id}`)?.focus()
-      )
-    },
-    [filteredTemplates, selectTemplate, templateOptionsId]
-  )
 
   useToolAction((action) => {
     if (action.type === 'copy-output') {
@@ -1092,12 +131,15 @@ export default function PromptTemplates() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
     copyRenderedPrompt,
+    modalOpen,
+    setModalOpen,
+    isInstanceActive,
     editorState,
     handleExport,
     handleImport,
-    isInstanceActive,
-    modalOpen,
     selectedTemplate,
+    setConfirmDeleteId,
+    setEditorState,
   ])
 
   return (
@@ -1105,7 +147,7 @@ export default function PromptTemplates() {
       <MasterDetailLayout
         title="Prompt Templates"
         widthStorageKey="prompt-templates"
-        subtitle={`${allTemplates.length} templates · ${userTemplates.length} custom`}
+        subtitle={`${library.allTemplates.length} templates · ${library.userTemplates.length} custom`}
         sidebarActions={
           // Secondary, not primary: the detail pane's Copy prompt is this tool's one primary
           // action, and a sidebar heading shouldn't compete with it for the eye.
@@ -1113,357 +155,77 @@ export default function PromptTemplates() {
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setEditorState({ mode: 'create' })}
+            onClick={() => library.setEditorState({ mode: 'create' })}
             className="gap-1.5"
           >
             <PlusIcon size={12} aria-hidden="true" /> New
           </Button>
         }
         sidebar={
-          <>
-            <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-              <SearchInput
-                ref={searchRef}
-                value={state.search}
-                onValueChange={(search) => updateState({ search })}
-                placeholder="Search templates"
-                aria-label="Search prompt templates"
-                clearLabel="Clear template search"
-              />
-              <Select
-                value={activeCategory}
-                onChange={(event) =>
-                  updateState({ category: event.target.value as CategoryFilter })
-                }
-                aria-label="Filter templates by category"
-                className="w-full"
-              >
-                {FILTERS.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {filter.label} ({categoryCount(filter.id, allTemplates)})
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-              <span>
-                {filteredTemplates.length === allTemplates.length
-                  ? 'Library'
-                  : `${filteredTemplates.length} results`}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="xs"
-                  onClick={() => void handleImport()}
-                  title="Import templates from JSON"
-                  aria-label="Import templates from JSON"
-                >
-                  <UploadSimpleIcon size={12} aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="xs"
-                  onClick={() => void handleExport()}
-                  title="Export custom templates as JSON"
-                  aria-label="Export custom templates as JSON"
-                  disabled={userTemplates.length === 0}
-                >
-                  <DownloadSimpleIcon size={12} aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-
-            <div
-              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              role="listbox"
-              aria-label="Prompt templates"
-            >
-              {filteredTemplates.map((template, index) => {
-                const selected = template.id === selectedTemplate.id
-                return (
-                  <Button
-                    key={template.id}
-                    id={`${templateOptionsId}-option-${template.id}`}
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    role="option"
-                    aria-selected={selected}
-                    tabIndex={
-                      selected ||
-                      (!filteredTemplates.some((item) => item.id === selectedTemplate.id) &&
-                        index === 0)
-                        ? 0
-                        : -1
-                    }
-                    onClick={() => selectTemplate(template)}
-                    onKeyDown={(event) => handleListKeyDown(event, template.id)}
-                    onDoubleClick={() => {
-                      selectTemplate(template)
-                      setModalOpen(true)
-                    }}
-                    className={`flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left ${selected ? 'bg-[var(--color-accent-dim)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
-                  >
-                    <span className="w-full min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
-                          {template.name}
-                        </span>
-                        {template.author === 'user' && (
-                          <StatusBadge variant="info" className="shrink-0 uppercase">
-                            Custom
-                          </StatusBadge>
-                        )}
-                      </span>
-                      <span className="mt-1 block line-clamp-2 text-2xs leading-4 text-[var(--color-text-muted)]">
-                        {template.description}
-                      </span>
-                      <span className="mt-1.5 block text-2xs uppercase tracking-wide text-[var(--color-text-muted)]">
-                        {CATEGORY_LABELS[template.category]} · {template.optimizedFor}
-                      </span>
-                    </span>
-                  </Button>
-                )
-              })}
-              {filteredTemplates.length === 0 && (
-                <EmptyState
-                  icon={ChatCircleTextIcon}
-                  size="sm"
-                  title="No matching templates"
-                  description="Try a different search or category."
-                  action={
-                    <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  }
-                />
-              )}
-            </div>
-          </>
+          <PromptTemplateSidebar
+            state={state}
+            updateState={updateState}
+            searchRef={searchRef}
+            templateOptionsId={templateOptionsId}
+            library={library}
+            onOpenQuickFill={() => fill.setModalOpen(true)}
+          />
         }
       >
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-            <DocumentToolbar aria-label="Prompt template actions">
-              <TwoLineDocumentIdentity
-                title={selectedTemplate.name}
-                badge={
-                  <StatusBadge variant="info" className="uppercase">
-                    {selectedTemplate.author === 'user' ? 'Custom' : 'Built-in'}
-                  </StatusBadge>
-                }
-                status={selectedTemplate.description}
-                statusTitle={selectedTemplate.description}
-                statusClassName="mt-0.5"
-              />
-              <ToolbarGroup label="Template fields">
-                <Button type="button" variant="ghost" size="sm" onClick={clearVariables}>
-                  Clear fields
-                </Button>
-              </ToolbarGroup>
-              <ToolbarGroup label="Template actions" separated>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() => setEditorState({ mode: 'duplicate', template: selectedTemplate })}
-                  title="Duplicate template"
-                  aria-label="Duplicate template"
-                >
-                  <CopyIcon size={14} aria-hidden="true" />
-                  <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                    Duplicate template
-                  </span>
-                </Button>
-                {selectedTemplate.author === 'builtin' && state.overrides[selectedTemplate.id] && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetSelectedOverride}
-                    title="Reset this built-in template"
-                  >
-                    Reset
-                  </Button>
-                )}
-                {selectedTemplate.author === 'builtin' ? (
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-                    title="Customize built-in template"
-                    aria-label="Customize built-in template"
-                  >
-                    <PencilSimpleIcon size={14} aria-hidden="true" />
-                    <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                      Customize template
-                    </span>
-                  </Button>
-                ) : null}
-                {selectedTemplate.author === 'user' && (
-                  <>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => setEditorState({ mode: 'edit', template: selectedTemplate })}
-                      title="Edit template"
-                      aria-label="Edit template"
-                    >
-                      <PencilSimpleIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Edit template
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => setConfirmDeleteId(selectedTemplate.id)}
-                      title="Delete template"
-                      aria-label="Delete template"
-                      className="hover:text-[var(--color-error)]"
-                    >
-                      <TrashIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Delete template
-                      </span>
-                    </Button>
-                  </>
-                )}
-              </ToolbarGroup>
-              <ToolbarGroup label="Prompt actions" separated>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setModalOpen(true)}
-                  className="gap-1.5"
-                >
-                  <SparkleIcon size={14} aria-hidden="true" /> Focus mode
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void copyRenderedPrompt()}
-                  className="gap-1.5"
-                >
-                  <ClipboardTextIcon size={14} aria-hidden="true" /> Copy prompt
-                </Button>
-              </ToolbarGroup>
-              <ToolbarGroup label="Prompt handoff" separated>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={sendRenderedToSnippet}
-                  className="gap-1.5"
-                >
-                  <ChatCircleTextIcon size={14} aria-hidden="true" /> Send to snippet
-                </Button>
-              </ToolbarGroup>
-            </DocumentToolbar>
-            <div className="flex items-center border-t border-[var(--color-border)] pr-4">
-              <TabBar
-                noBorder
-                aria-label="Template workspace"
-                activeTab={workspaceTab}
-                onTabChange={(tab) => setWorkspaceTab(tab as 'fill' | 'preview')}
-                tabs={[
-                  { id: 'fill', label: `Fill variables (${selectedTemplate.variables.length})` },
-                  { id: 'preview', label: `Preview (~${tokens} · chars/4)` },
-                ]}
-              />
-              <span className="ml-auto text-2xs text-[var(--color-text-muted)]" aria-live="polite">
-                {savingTemplates
-                  ? 'Saving template…'
-                  : `Optimized for ${selectedTemplate.optimizedFor}`}
-              </span>
-            </div>
-          </header>
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            {workspaceTab === 'fill' ? (
-              <div className="mx-auto max-w-3xl p-5 max-[1000px]:p-4">
-                <div className="mb-5 flex flex-wrap gap-1.5">
-                  {selectedTemplate.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <VariableForm
-                  template={selectedTemplate}
-                  values={selectedValues}
-                  onChange={updateVariable}
-                />
-                {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
-                  <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs leading-5 text-[var(--color-text-muted)]">
-                    <span className="font-semibold text-[var(--color-text)]">Tip:</span>{' '}
-                    {selectedTemplate.tips[0]}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <PreviewPane
-                renderedPrompt={renderedPrompt}
-                tokens={tokens}
-                missingVariables={missingVariables}
-              />
-            )}
-          </div>
-        </main>
+        <PromptTemplateWorkspace state={state} library={library} fill={fill} />
       </MasterDetailLayout>
 
       <QuickFillModal
-        open={modalOpen}
-        template={selectedTemplate}
-        values={selectedValues}
-        renderedPrompt={renderedPrompt}
-        tokens={tokens}
-        missingVariables={missingVariables}
-        onChange={updateVariable}
-        onClose={() => setModalOpen(false)}
-        onCopy={() => void copyRenderedPrompt()}
+        open={fill.modalOpen}
+        template={library.selectedTemplate}
+        values={fill.selectedValues}
+        renderedPrompt={fill.renderedPrompt}
+        tokens={fill.tokens}
+        missingVariables={fill.missingVariables}
+        onChange={fill.updateVariable}
+        onClose={() => fill.setModalOpen(false)}
+        onCopy={() => void fill.copyRenderedPrompt()}
       />
-      {editorState && (
+      {library.editorState && (
         <TemplateEditorModal
-          mode={editorState.mode}
-          {...(editorState.template ? { sourceTemplate: editorState.template } : {})}
-          onClose={() => setEditorState(null)}
-          onSave={handleSaveEditor}
+          mode={library.editorState.mode}
+          {...(library.editorState.template
+            ? { sourceTemplate: library.editorState.template }
+            : {})}
+          onClose={() => library.setEditorState(null)}
+          onSave={library.handleSaveEditor}
         />
       )}
-      {confirmDeleteId === selectedTemplate.id && selectedTemplate.author === 'user' && (
-        <Dialog
-          title="Delete prompt template?"
-          onClose={() => setConfirmDeleteId(null)}
-          size="md"
-          footer={
-            <>
-              <Button type="button" variant="secondary" onClick={() => setConfirmDeleteId(null)}>
-                Cancel
-              </Button>
-              <Button type="button" variant="danger" onClick={() => void handleDeleteTemplate()}>
-                Delete template
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
-            “{selectedTemplate.name}” will be permanently deleted. This cannot be undone.
-          </p>
-        </Dialog>
-      )}
+      {library.confirmDeleteId === library.selectedTemplate.id &&
+        library.selectedTemplate.author === 'user' && (
+          <Dialog
+            title="Delete prompt template?"
+            onClose={() => library.setConfirmDeleteId(null)}
+            size="md"
+            footer={
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => library.setConfirmDeleteId(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => void library.handleDeleteTemplate()}
+                >
+                  Delete template
+                </Button>
+              </>
+            }
+          >
+            <p className="text-sm leading-6 text-[var(--color-text-muted)]">
+              “{library.selectedTemplate.name}” will be permanently deleted. This cannot be undone.
+            </p>
+          </Dialog>
+        )}
     </>
   )
 }

@@ -251,7 +251,7 @@ export function DataTab() {
               max={5000}
               clamp={(value) => Math.max(10, Math.min(5000, Math.round(value)))}
               unit="entries per tool"
-              onCommit={(value) => void update('historyRetentionPerTool', value).catch(() => {})}
+              onCommit={(value) => void update('historyRetentionPerTool', value)}
             />
           </SettingRow>
         </div>

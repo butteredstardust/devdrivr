@@ -400,13 +400,13 @@ export function CommandPalette() {
       setOpen(false)
       switch (item.id) {
         case 'action:theme':
-          toggleTheme().catch(() => {})
+          void toggleTheme()
           break
         case 'action:sidebar':
-          settingsUpdate('sidebarCollapsed', !sidebarCollapsed).catch(() => {})
+          void settingsUpdate('sidebarCollapsed', !sidebarCollapsed)
           break
         case 'action:notes':
-          settingsUpdate('notesDrawerOpen', !notesDrawerOpen).catch(() => {})
+          void settingsUpdate('notesDrawerOpen', !notesDrawerOpen)
           break
         case 'action:settings':
           toggleSettingsPanel()

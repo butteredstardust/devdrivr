@@ -6,11 +6,12 @@ import { useSnippetsStore } from '@/stores/snippets.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
-import SnippetsManager, {
+import SnippetsManager from '@/tools/snippets/SnippetsManager'
+import {
   hasRegisteredDocumentFormatter,
   runRegisteredDocumentFormatter,
-  validateSnippetsToolState,
-} from '@/tools/snippets/SnippetsManager'
+} from '@/tools/snippets/snippet-formatter'
+import { validateSnippetsToolState } from '@/tools/snippets/snippet-model'
 import { ToolInstanceContext } from '@/app/tool-instance'
 import { sendToTool } from '@/lib/tool-handoff'
 

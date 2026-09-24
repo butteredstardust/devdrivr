@@ -4,10 +4,11 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
 import { importApiSpec } from '@/lib/api-import'
-import ApiClient, { validateApiClientState } from '@/tools/api-client/ApiClient'
+import ApiClient from '@/tools/api-client/ApiClient'
 import {
   buildUrlWithParams,
   createDefaultDraft,
+  validateApiClientState,
   parseQueryParams,
   unresolvedVariableNames,
   type ApiClientState,

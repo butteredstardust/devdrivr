@@ -1,289 +1,54 @@
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react'
-import type { OnMount } from '@monaco-editor/react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import Fuse from 'fuse.js'
 import {
-  ArrowRightIcon,
-  BroomIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
-  ClipboardTextIcon,
-  CopyIcon,
   DownloadSimpleIcon,
-  FolderOpenIcon,
-  EyeIcon,
   PlusIcon,
   ScissorsIcon,
-  SidebarIcon,
-  StarIcon,
-  TagIcon,
   TrashIcon,
   UploadSimpleIcon,
-  XIcon,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
-import { Field } from '@/components/shared/Field'
-import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { Input, Select } from '@/components/shared/Input'
-import { InlineInput } from '@/components/shared/InlineInput'
-import { TextArea } from '@/components/shared/TextArea'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
 import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
-import { TrashDialog, type TrashEntry } from '@/components/shared/TrashDialog'
+import { TrashDialog } from '@/components/shared/TrashDialog'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { useSnippetsStore } from '@/stores/snippets.store'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useUiStore } from '@/stores/ui.store'
-import type { ResourceFolder, Snippet, SnippetFragment } from '@/types/models'
+import type { Snippet } from '@/types/models'
 import { useSnippetsBackup } from '@/hooks/useSnippetsBackup'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useToolState } from '@/hooks/useToolState'
-import { SearchInput } from '@/components/shared/SearchInput'
-import { formatShortcut } from '@/lib/shortcut-label'
-import { descendantFolderIds, folderPath, foldersForKind } from '@/lib/resource-folders'
-import { fragmentsForSnippet } from '@/lib/snippet-fragments'
-import { useWorker } from '@/hooks/useWorker'
-import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import type { FormatterWorker } from '@/workers/formatter.worker'
-import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/tools/code-formatter/languages'
+import { foldersForKind } from '@/lib/resource-folders'
 import { buildWebPreviewDocument, previewKindFor } from '@/tools/snippets/snippet-preview'
 import { SnippetWebPreview } from '@/tools/snippets/SnippetWebPreview'
-import { DocumentToolbar, ToolbarGroup, TwoLineDocumentIdentity } from '@/components/shared/Toolbar'
-import { isPlainObject } from '@/lib/tool-state-merge'
-
-const FAVORITE_TAG = '⭐'
-
-type SnippetsToolState = {
-  handoff: { title: string; content: string; language: string } | null
-  wikiTargetId: string | null
-  backlinkNoteId: string | null
-  activeFragmentIds: Record<string, string>
-}
-
-function isSnippetHandoff(value: unknown): value is NonNullable<SnippetsToolState['handoff']> {
-  return (
-    isPlainObject(value) &&
-    typeof value.title === 'string' &&
-    typeof value.content === 'string' &&
-    typeof value.language === 'string'
-  )
-}
-
-export function validateSnippetsToolState(state: SnippetsToolState): SnippetsToolState {
-  const handoff = isSnippetHandoff(state.handoff) ? state.handoff : null
-  const wikiTargetId = typeof state.wikiTargetId === 'string' ? state.wikiTargetId : null
-  const backlinkNoteId = typeof state.backlinkNoteId === 'string' ? state.backlinkNoteId : null
-  const activeFragmentIds = Object.fromEntries(
-    Object.entries(state.activeFragmentIds).filter(([, id]) => typeof id === 'string')
-  )
-  if (
-    handoff === state.handoff &&
-    wikiTargetId === state.wikiTargetId &&
-    backlinkNoteId === state.backlinkNoteId &&
-    Object.keys(activeFragmentIds).length === Object.keys(state.activeFragmentIds).length
-  ) {
-    return state
-  }
-  return { ...state, handoff, wikiTargetId, backlinkNoteId, activeFragmentIds }
-}
-
-const LANGUAGES = [
-  'javascript',
-  'typescript',
-  'json',
-  'css',
-  'html',
-  'markdown',
-  'sql',
-  'python',
-  'yaml',
-  'xml',
-  'bash',
-  'go',
-  'rust',
-  'ruby',
-  'php',
-  'java',
-  'c',
-  'cpp',
-  'csharp',
-  'swift',
-  'kotlin',
-  'dockerfile',
-  'graphql',
-  'toml',
-  'text',
-]
-
-const LANG_EXTENSIONS: Record<string, string> = {
-  javascript: 'js',
-  typescript: 'ts',
-  json: 'json',
-  css: 'css',
-  html: 'html',
-  markdown: 'md',
-  sql: 'sql',
-  python: 'py',
-  bash: 'sh',
-  go: 'go',
-  rust: 'rs',
-  ruby: 'rb',
-  php: 'php',
-  java: 'java',
-  c: 'c',
-  cpp: 'cpp',
-  csharp: 'cs',
-  swift: 'swift',
-  kotlin: 'kt',
-  yaml: 'yml',
-  xml: 'xml',
-  toml: 'toml',
-  dockerfile: 'dockerfile',
-  graphql: 'gql',
-  text: 'txt',
-}
-
-type LangTone = 'accent' | 'success' | 'warning' | 'info' | 'error' | 'muted'
-
-const LANG_TONES: Record<string, LangTone> = {
-  javascript: 'warning',
-  typescript: 'info',
-  python: 'success',
-  rust: 'warning',
-  go: 'info',
-  sql: 'accent',
-  bash: 'success',
-  json: 'warning',
-  css: 'warning',
-  html: 'error',
-  markdown: 'muted',
-  yaml: 'warning',
-  dockerfile: 'info',
-  ruby: 'error',
-  php: 'accent',
-  java: 'warning',
-  kotlin: 'accent',
-  swift: 'warning',
-  graphql: 'accent',
-  cpp: 'info',
-  csharp: 'accent',
-  c: 'info',
-  xml: 'muted',
-  toml: 'warning',
-}
-
-const LANG_TONE_CLASSES: Record<LangTone, string> = {
-  accent: 'bg-[color-mix(in_oklab,var(--color-accent)_18%,transparent)] text-[var(--color-accent)]',
-  success:
-    'bg-[color-mix(in_oklab,var(--color-success)_18%,transparent)] text-[var(--color-success)]',
-  warning:
-    'bg-[color-mix(in_oklab,var(--color-warning)_18%,transparent)] text-[var(--color-warning)]',
-  info: 'bg-[color-mix(in_oklab,var(--color-info)_18%,transparent)] text-[var(--color-info)]',
-  error: 'bg-[color-mix(in_oklab,var(--color-error)_18%,transparent)] text-[var(--color-error)]',
-  muted: 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
-}
-
-type SortMode = 'updated' | 'created' | 'title' | 'language'
-type SnippetEditor = Parameters<OnMount>[0]
-
-const FORMATTER_LANGUAGES = new Set(FORMATTER_LANGUAGE_OPTIONS.map((language) => language.id))
-
-export function hasRegisteredDocumentFormatter(editor: SnippetEditor | null): boolean {
-  return editor?.getAction('editor.action.formatDocument')?.isSupported() === true
-}
-
-export async function runRegisteredDocumentFormatter(editor: SnippetEditor): Promise<boolean> {
-  const action = editor.getAction('editor.action.formatDocument')
-  if (!action?.isSupported()) return false
-  await action.run()
-  return true
-}
-
-interface FuseMatchEntry {
-  key?: string
-  indices: ReadonlyArray<[number, number]>
-}
-
-function relativeTime(timestamp: number): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return `${Math.floor(days / 30)}mo ago`
-}
-
-function contentPreview(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim()) ?? ''
-  return firstLine.length > 64 ? `${firstLine.slice(0, 64)}…` : firstLine
-}
-
-function visibleTags(tags: string[]): string[] {
-  return tags.filter((tag) => tag !== FAVORITE_TAG)
-}
-
-function isFavorite(tags: string[], favorite = false): boolean {
-  return favorite || tags.includes(FAVORITE_TAG)
-}
-
-function formatTimestamp(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(timestamp)
-}
-
-function highlightMatches(
-  text: string,
-  matches: ReadonlyArray<FuseMatchEntry> | undefined,
-  key: string
-): ReactNode {
-  const match = matches?.find((entry) => entry.key === key)
-  if (!match || match.indices.length === 0) return text
-
-  const parts: ReactNode[] = []
-  const sorted = [...match.indices].sort((a, b) => a[0] - b[0])
-  let lastIndex = 0
-
-  for (const [start, end] of sorted) {
-    if (start > lastIndex) parts.push(text.slice(lastIndex, start))
-    parts.push(
-      <mark
-        key={`${start}-${end}`}
-        className="rounded bg-[var(--color-accent-dim)] text-[var(--color-accent)]"
-      >
-        {text.slice(start, end + 1)}
-      </mark>
-    )
-    lastIndex = end + 1
-  }
-
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
-  return <>{parts}</>
-}
+import {
+  FAVORITE_TAG,
+  isFavorite,
+  LANG_EXTENSIONS,
+  LANGUAGES,
+  validateSnippetsToolState,
+  visibleTags,
+  type SnippetsToolState,
+} from '@/tools/snippets/snippet-model'
+import { useSnippetFilters } from '@/tools/snippets/hooks/useSnippetFilters'
+import { useSnippetFormatting } from '@/tools/snippets/hooks/useSnippetFormatting'
+import { useSnippetFragments } from '@/tools/snippets/hooks/useSnippetFragments'
+import { useSnippetsTrash } from '@/tools/snippets/hooks/useSnippetsTrash'
+import { useSnippetTags } from '@/tools/snippets/hooks/useSnippetTags'
+import { SnippetDetailsPanel } from '@/tools/snippets/components/SnippetDetailsPanel'
+import { SnippetFilterBar } from '@/tools/snippets/components/SnippetFilterBar'
+import { SnippetFragmentBar } from '@/tools/snippets/components/SnippetFragmentBar'
+import { SnippetList } from '@/tools/snippets/components/SnippetList'
+import { SnippetToolbar } from '@/tools/snippets/components/SnippetToolbar'
 
 export default function SnippetsManager() {
-  const tagSuggestionsId = useId()
-  const snippetOptionsId = useId()
   const fragmentEditorId = useId()
   const isInstanceActive = useIsInstanceActive()
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
@@ -297,15 +62,7 @@ export default function SnippetsManager() {
     }),
     [monacoOptions]
   )
-  const [formatterRequested, setFormatterRequested] = useState(false)
-  const formatter = useWorker<FormatterWorker>(
-    () => new FormatterWorkerFactory(),
-    ['format', 'detectLanguage', 'getSupportedLanguages'],
-    formatterRequested
-  )
   const snippets = useSnippetsStore((state) => state.snippets)
-  const deferredSnippets = useDeferredValue(snippets)
-  const trashedSnippets = useSnippetsStore((state) => state.trashedSnippets)
   const [handoffState, updateHandoffState] = useToolState<SnippetsToolState>(
     'snippets',
     {
@@ -316,7 +73,6 @@ export default function SnippetsManager() {
     },
     { validate: validateSnippetsToolState }
   )
-  const saving = useSnippetsStore((state) => state.saving)
   const activeFolder = useSnippetsStore((state) => state.activeFolder)
   const setActiveFolder = useSnippetsStore((state) => state.setActiveFolder)
   const addSnippet = useSnippetsStore((state) => state.add)
@@ -324,42 +80,21 @@ export default function SnippetsManager() {
   const flushPendingSnippet = useSnippetsStore((state) => state.flushPending)
   const removeSnippet = useSnippetsStore((state) => state.remove)
   const restoreSnippet = useSnippetsStore((state) => state.restore)
-  const permanentlyDeleteSnippet = useSnippetsStore((state) => state.permanentlyDelete)
-  const refreshSnippets = useSnippetsStore((state) => state.refresh)
   const folders = useFoldersStore((state) => state.folders)
-  const trashedFolders = useFoldersStore((state) => state.trashedFolders)
   const createFolder = useFoldersStore((state) => state.create)
   const updateFolder = useFoldersStore((state) => state.update)
   const moveFolder = useFoldersStore((state) => state.move)
-  const trashFolder = useFoldersStore((state) => state.trash)
-  const restoreFolder = useFoldersStore((state) => state.restore)
-  const permanentlyDeleteFolder = useFoldersStore((state) => state.permanentlyDelete)
-  const emptyFolderTrash = useFoldersStore((state) => state.emptyTrash)
   const setLastAction = useUiStore((state) => state.setLastAction)
   const { exportBackup: handleExportAll, importBackup } = useSnippetsBackup(setLastAction)
   const copy = useCopyToClipboard()
 
-  const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sortMode, setSortMode] = useState<SortMode>('updated')
-  const [filterTag, setFilterTag] = useState('')
-  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [fragmentDeleteCandidate, setFragmentDeleteCandidate] = useState<SnippetFragment | null>(
-    null
-  )
-  const [tagInput, setTagInput] = useState('')
-  const [suggestionIndex, setSuggestionIndex] = useState(-1)
   const [titleFocusRequest, setTitleFocusRequest] = useState(0)
   const [recentlyDeleted, setRecentlyDeleted] = useState<Snippet | null>(null)
-  const [folderTrashCandidate, setFolderTrashCandidate] = useState<ResourceFolder | null>(null)
-  const [trashOpen, setTrashOpen] = useState(false)
-  const [formatError, setFormatError] = useState<string | null>(null)
-  const [formatting, setFormatting] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [monacoFormatterAvailable, setMonacoFormatterAvailable] = useState(false)
 
   const handleImport = useCallback(async () => {
     const importedId = await importBackup()
@@ -367,21 +102,12 @@ export default function SnippetsManager() {
   }, [importBackup])
 
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const tagInputRef = useRef<HTMLInputElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
   const handledTitleFocusRequestRef = useRef(0)
   const previousSelectedIdRef = useRef<string | null>(null)
   const linkedSnippetIdRef = useRef<string | null>(null)
   const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handoffInFlightRef = useRef<string | null>(null)
-  const editorRef = useRef<SnippetEditor | null>(null)
-  const formattingRef = useRef(false)
-  const pendingFormatRef = useRef<{
-    snippetId: string
-    fragmentId: string
-    content: string
-  } | null>(null)
 
   useEffect(() => {
     const handoff = handoffState.handoff
@@ -423,67 +149,7 @@ export default function SnippetsManager() {
     titleInputRef.current = element
   }, [])
 
-  // Building the index reads every snippet's content and every fragment's content. It depends
-  // on whether a search is active, not on what the search says — keying it on `search` itself
-  // rebuilt the whole corpus on each keystroke, so typing got slower as the library grew.
-  const searching = search.trim().length > 0
-  const fuse = useMemo(() => {
-    if (!searching) return null
-    return new Fuse(deferredSnippets, {
-      keys: [
-        'title',
-        'description',
-        'content',
-        'language',
-        'fragments.name',
-        'fragments.content',
-        'fragments.language',
-        'folder',
-        'tags',
-      ],
-      threshold: 0.32,
-      includeMatches: true,
-    })
-  }, [deferredSnippets, searching])
-
-  const fuseResults = useMemo(() => (fuse ? fuse.search(search.trim()) : null), [fuse, search])
-
-  const matchMap = useMemo(() => {
-    if (!fuseResults) return new Map<string, ReadonlyArray<FuseMatchEntry>>()
-    return new Map(
-      fuseResults.map((result) => [result.item.id, (result.matches ?? []) as FuseMatchEntry[]])
-    )
-  }, [fuseResults])
-
   const snippetFolders = useMemo(() => foldersForKind(folders, 'snippets'), [folders])
-  const trashedSnippetFolders = useMemo(
-    () => foldersForKind(trashedFolders, 'snippets'),
-    [trashedFolders]
-  )
-  const trashEntries = useMemo<TrashEntry[]>(() => {
-    const trashedFolderIds = new Set(trashedSnippetFolders.map((folder) => folder.id))
-    const folderEntries = trashedSnippetFolders
-      .filter((folder) => !folder.parentId || !trashedFolderIds.has(folder.parentId))
-      .map((folder) => ({
-        id: folder.id,
-        name: folder.name,
-        detail: 'Folder and its contents',
-        type: 'folder' as const,
-      }))
-    const snippetEntries = trashedSnippets
-      .filter((snippet) => !snippet.folderId || !trashedFolderIds.has(snippet.folderId))
-      .map((snippet) => ({
-        id: snippet.id,
-        name: snippet.title || 'Untitled snippet',
-        detail: snippet.language,
-        type: 'item' as const,
-      }))
-    return [...folderEntries, ...snippetEntries]
-  }, [trashedSnippetFolders, trashedSnippets])
-  const selectedFolderIds = useMemo(
-    () => (activeFolder ? descendantFolderIds(snippetFolders, activeFolder) : null),
-    [activeFolder, snippetFolders]
-  )
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const snippet of snippets) {
@@ -494,54 +160,42 @@ export default function SnippetsManager() {
     return counts
   }, [snippets])
 
-  const allTags = useMemo(
-    () =>
-      [
-        ...new Set(
-          snippets.flatMap((snippet) => visibleTags(snippet.tags)).filter((tag) => tag.trim())
-        ),
-      ].sort(),
-    [snippets]
-  )
-
-  const filtered = useMemo(() => {
-    const candidates = fuseResults
-      ? fuseResults.map((result) => result.item)
-      : [...deferredSnippets]
-    const visible = candidates.filter((snippet) => {
-      if (selectedFolderIds && (!snippet.folderId || !selectedFolderIds.has(snippet.folderId)))
-        return false
-      if (filterTag && !snippet.tags.includes(filterTag)) return false
-      if (favoritesOnly && !isFavorite(snippet.tags, snippet.favorite)) return false
-      return true
-    })
-
-    visible.sort((a, b) => {
-      const favoriteOrder =
-        Number(isFavorite(b.tags, b.favorite)) - Number(isFavorite(a.tags, a.favorite))
-      if (favoriteOrder !== 0) return favoriteOrder
-      if (sortMode === 'created') return b.createdAt - a.createdAt
-      if (sortMode === 'title') return a.title.localeCompare(b.title)
-      if (sortMode === 'language') {
-        return a.language.localeCompare(b.language) || b.updatedAt - a.updatedAt
-      }
-      return b.updatedAt - a.updatedAt
-    })
-
-    return visible
-  }, [deferredSnippets, favoritesOnly, filterTag, fuseResults, selectedFolderIds, sortMode])
+  const filters = useSnippetFilters({ snippets, snippetFolders, activeFolder, setActiveFolder })
+  const { filtered, allTags, clearFilters, searchInputRef } = filters
+  const trash = useSnippetsTrash()
 
   const selected = useMemo(
     () => snippets.find((snippet) => snippet.id === selectedId) ?? null,
     [selectedId, snippets]
   )
 
-  const fragments = useMemo(() => (selected ? fragmentsForSnippet(selected) : []), [selected])
-  const activeFragment = useMemo(() => {
-    if (!selected) return null
-    const activeId = handoffState.activeFragmentIds[selected.id]
-    return fragments.find((fragment) => fragment.id === activeId) ?? fragments[0] ?? null
-  }, [fragments, handoffState.activeFragmentIds, selected])
+  const {
+    fragments,
+    activeFragment,
+    fragmentDeleteCandidate,
+    setFragmentDeleteCandidate,
+    selectFragment,
+    updateActiveFragment,
+    handleAddFragment,
+    handleDuplicateFragment,
+    handleMoveFragment,
+    handleDeleteFragment,
+  } = useSnippetFragments({
+    selected,
+    activeFragmentIds: handoffState.activeFragmentIds,
+    updateToolState: updateHandoffState,
+  })
+  const {
+    formatError,
+    setFormatError,
+    formatting,
+    canFormat,
+    formatDisabledReason,
+    handleEditorMount,
+    handleFormat,
+  } = useSnippetFormatting({ selected, activeFragment, monacoOptions })
+  const tags = useSnippetTags(selected, allTags)
+  const { setTagInput, setSuggestionIndex } = tags
 
   const previewKind = useMemo(
     () => previewKindFor(activeFragment, fragments),
@@ -554,43 +208,6 @@ export default function SnippetsManager() {
         : null,
     [activeFragment, fragments, previewKind, previewOpen]
   )
-  const fallbackFormatterAvailable = Boolean(
-    activeFragment && FORMATTER_LANGUAGES.has(activeFragment.language)
-  )
-  const canFormat = Boolean(
-    activeFragment?.content.trim() && (monacoFormatterAvailable || fallbackFormatterAvailable)
-  )
-  const formatDisabledReason = !activeFragment
-    ? 'Select a fragment to format'
-    : !activeFragment.content.trim()
-      ? 'Add content before formatting'
-      : !monacoFormatterAvailable && !fallbackFormatterAvailable
-        ? `No formatter is available for ${activeFragment.language}`
-        : formatting
-          ? 'Formatting fragment…'
-          : `Format fragment (${formatShortcut('mod+shift+f')})`
-  const previewDisabledReason = previewKind
-    ? `Preview fragment (${formatShortcut('mod+shift+enter')})`
-    : 'Preview supports JSON or snippets containing an HTML fragment'
-
-  const editorStats = useMemo(() => {
-    if (!activeFragment) return null
-    return {
-      lines: activeFragment.content.split('\n').length,
-      characters: activeFragment.content.length,
-      bytes: new TextEncoder().encode(activeFragment.content).length,
-    }
-  }, [activeFragment])
-
-  const tagSuggestions = useMemo(() => {
-    if (!selected || !tagInput.trim()) return []
-    const query = tagInput.trim().toLowerCase()
-    return allTags.filter(
-      (tag) => tag.toLowerCase().includes(query) && !selected.tags.includes(tag)
-    )
-  }, [allTags, selected, tagInput])
-
-  const hasFilters = Boolean(search || activeFolder || filterTag || favoritesOnly)
 
   useEffect(() => {
     if (!handoffState.wikiTargetId) return
@@ -633,21 +250,11 @@ export default function SnippetsManager() {
     setDescriptionOpen(Boolean(current?.description))
     setFormatError(null)
     setPreviewOpen(false)
-  }, [selectedId])
-
-  useEffect(() => {
-    setMonacoFormatterAvailable(hasRegisteredDocumentFormatter(editorRef.current))
-    setFormatError(null)
-  }, [activeFragment?.id, activeFragment?.language])
+  }, [selectedId, setFormatError, setFragmentDeleteCandidate, setSuggestionIndex, setTagInput])
 
   useEffect(() => {
     if (!previewKind) setPreviewOpen(false)
   }, [previewKind])
-
-  const handleEditorMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor
-    setMonacoFormatterAvailable(hasRegisteredDocumentFormatter(editor))
-  }, [])
 
   useEffect(() => {
     if (
@@ -707,93 +314,6 @@ export default function SnippetsManager() {
     }
   }, [addSnippet, fragments, selected, setLastAction])
 
-  const selectFragment = useCallback(
-    (fragmentId: string) => {
-      if (!selected) return
-      updateHandoffState({
-        activeFragmentIds: {
-          ...handoffState.activeFragmentIds,
-          [selected.id]: fragmentId,
-        },
-      })
-    },
-    [handoffState.activeFragmentIds, selected, updateHandoffState]
-  )
-
-  const updateActiveFragment = useCallback(
-    (patch: Partial<Pick<SnippetFragment, 'name' | 'content' | 'language'>>) => {
-      if (!selected || !activeFragment) return
-      const now = Date.now()
-      void updateSnippet(selected.id, {
-        fragments: fragments.map((fragment) =>
-          fragment.id === activeFragment.id ? { ...fragment, ...patch, updatedAt: now } : fragment
-        ),
-      })
-    },
-    [activeFragment, fragments, selected, updateSnippet]
-  )
-
-  const handleAddFragment = useCallback(() => {
-    if (!selected || !activeFragment) return
-    const now = Date.now()
-    const fragment: SnippetFragment = {
-      id: crypto.randomUUID(),
-      name: `fragment ${fragments.length + 1}`,
-      content: '',
-      language: activeFragment.language,
-      sortOrder: fragments.length,
-      createdAt: now,
-      updatedAt: now,
-    }
-    void updateSnippet(selected.id, { fragments: [...fragments, fragment] })
-    selectFragment(fragment.id)
-  }, [activeFragment, fragments, selectFragment, selected, updateSnippet])
-
-  const handleDuplicateFragment = useCallback(() => {
-    if (!selected || !activeFragment) return
-    const index = fragments.findIndex((fragment) => fragment.id === activeFragment.id)
-    if (index < 0) return
-    const now = Date.now()
-    const duplicate: SnippetFragment = {
-      ...activeFragment,
-      id: crypto.randomUUID(),
-      name: `${activeFragment.name || 'fragment'} copy`,
-      sortOrder: index + 1,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const next = [...fragments]
-    next.splice(index + 1, 0, duplicate)
-    void updateSnippet(selected.id, { fragments: next })
-    selectFragment(duplicate.id)
-  }, [activeFragment, fragments, selectFragment, selected, updateSnippet])
-
-  const handleMoveFragment = useCallback(
-    (direction: -1 | 1) => {
-      if (!selected || !activeFragment) return
-      const index = fragments.findIndex((fragment) => fragment.id === activeFragment.id)
-      const nextIndex = index + direction
-      if (index < 0 || nextIndex < 0 || nextIndex >= fragments.length) return
-      const next = [...fragments]
-      const [moved] = next.splice(index, 1)
-      if (!moved) return
-      next.splice(nextIndex, 0, moved)
-      void updateSnippet(selected.id, { fragments: next })
-    },
-    [activeFragment, fragments, selected, updateSnippet]
-  )
-
-  const handleDeleteFragment = useCallback(() => {
-    if (!selected || !fragmentDeleteCandidate || fragments.length <= 1) return
-    const index = fragments.findIndex((fragment) => fragment.id === fragmentDeleteCandidate.id)
-    const next = fragments.filter((fragment) => fragment.id !== fragmentDeleteCandidate.id)
-    const replacement = next[Math.min(index, next.length - 1)] ?? next[0]
-    void updateSnippet(selected.id, { fragments: next })
-    if (replacement) selectFragment(replacement.id)
-    setFragmentDeleteCandidate(null)
-    setLastAction('Fragment deleted', 'info')
-  }, [fragmentDeleteCandidate, fragments, selectFragment, selected, setLastAction, updateSnippet])
-
   const handleDelete = useCallback(async () => {
     if (!selected) return
     const currentIndex = filtered.findIndex((snippet) => snippet.id === selected.id)
@@ -824,59 +344,6 @@ export default function SnippetsManager() {
     }
   }, [recentlyDeleted, restoreSnippet, setLastAction])
 
-  const handleTrashFolder = useCallback(async () => {
-    if (!folderTrashCandidate) return
-    try {
-      await flushPendingSnippet()
-      await trashFolder(folderTrashCandidate.id)
-      await refreshSnippets()
-      setActiveFolder('')
-      setFolderTrashCandidate(null)
-      setLastAction('Folder moved to Trash', 'info')
-    } catch {
-      setLastAction('Failed to move folder to Trash', 'error')
-    }
-  }, [
-    flushPendingSnippet,
-    folderTrashCandidate,
-    refreshSnippets,
-    setActiveFolder,
-    setLastAction,
-    trashFolder,
-  ])
-
-  const handleRestoreTrashEntry = useCallback(
-    async (entry: TrashEntry) => {
-      if (entry.type === 'folder') {
-        await restoreFolder(entry.id)
-        await refreshSnippets()
-      } else {
-        await restoreSnippet(entry.id)
-      }
-      setLastAction(`${entry.name} restored`, 'success')
-    },
-    [refreshSnippets, restoreFolder, restoreSnippet, setLastAction]
-  )
-
-  const handleDeleteTrashEntry = useCallback(
-    async (entry: TrashEntry) => {
-      if (entry.type === 'folder') {
-        await permanentlyDeleteFolder(entry.id)
-        await refreshSnippets()
-      } else {
-        await permanentlyDeleteSnippet(entry.id)
-      }
-      setLastAction(`${entry.name} permanently deleted`, 'info')
-    },
-    [permanentlyDeleteFolder, permanentlyDeleteSnippet, refreshSnippets, setLastAction]
-  )
-
-  const handleEmptyTrash = useCallback(async () => {
-    await emptyFolderTrash('snippets')
-    await refreshSnippets()
-    setLastAction('Snippets Trash emptied', 'info')
-  }, [emptyFolderTrash, refreshSnippets, setLastAction])
-
   const handleToggleFavorite = useCallback(async () => {
     if (!selected) return
     const wasFavorite = isFavorite(selected.tags, selected.favorite)
@@ -887,40 +354,6 @@ export default function SnippetsManager() {
       setLastAction('Failed to update favorite', 'error')
     }
   }, [selected, setLastAction, updateSnippet])
-
-  const handleAddTag = useCallback(
-    async (requestedTag?: string) => {
-      if (!selected) return
-      const tag = (requestedTag ?? tagInput).trim()
-      if (!tag || tag === FAVORITE_TAG || selected.tags.includes(tag)) {
-        setTagInput('')
-        return
-      }
-      try {
-        await updateSnippet(selected.id, { tags: [...selected.tags, tag] })
-        setTagInput('')
-        setSuggestionIndex(-1)
-        requestAnimationFrame(() => tagInputRef.current?.focus())
-      } catch {
-        setLastAction('Failed to add tag', 'error')
-      }
-    },
-    [selected, setLastAction, tagInput, updateSnippet]
-  )
-
-  const handleRemoveTag = useCallback(
-    async (tag: string) => {
-      if (!selected) return
-      try {
-        await updateSnippet(selected.id, {
-          tags: selected.tags.filter((existingTag) => existingTag !== tag),
-        })
-      } catch {
-        setLastAction('Failed to remove tag', 'error')
-      }
-    },
-    [selected, setLastAction, updateSnippet]
-  )
 
   const handleDownload = useCallback(async () => {
     if (!selected || !activeFragment) return
@@ -950,107 +383,6 @@ export default function SnippetsManager() {
     setLastAction('Snippet sent to Prompt Templates', 'success')
   }, [activeFragment, selected, setLastAction])
 
-  const handleFormat = useCallback(async () => {
-    if (!selected || !activeFragment || formattingRef.current || !activeFragment.content.trim()) {
-      return
-    }
-    if (
-      !hasRegisteredDocumentFormatter(editorRef.current) &&
-      FORMATTER_LANGUAGES.has(activeFragment.language) &&
-      !formatter
-    ) {
-      pendingFormatRef.current = {
-        snippetId: selected.id,
-        fragmentId: activeFragment.id,
-        content: activeFragment.content,
-      }
-      setFormatting(true)
-      setFormatterRequested(true)
-      return
-    }
-    formattingRef.current = true
-    setFormatting(true)
-    setFormatError(null)
-    const snippetId = selected.id
-    const fragmentId = activeFragment.id
-    const snapshot = activeFragment.content
-    try {
-      const editor = editorRef.current
-      if (editor && hasRegisteredDocumentFormatter(editor)) {
-        if (editor.getValue() !== snapshot) {
-          setLastAction('Editor changed before formatting — format again', 'info')
-          return
-        }
-        await runRegisteredDocumentFormatter(editor)
-        if (editor.getValue() !== snapshot) {
-          setLastAction(`Formatted ${activeFragment.name || 'fragment'} with Monaco`, 'success')
-          return
-        }
-      }
-      if (!formatter && FORMATTER_LANGUAGES.has(activeFragment.language)) {
-        pendingFormatRef.current = { snippetId, fragmentId, content: snapshot }
-        setFormatterRequested(true)
-        return
-      }
-      if (!formatter) {
-        throw new Error(`No formatter is available for ${activeFragment.language}`)
-      }
-      const tabSize =
-        typeof monacoOptions.tabSize === 'number' && monacoOptions.tabSize > 0
-          ? monacoOptions.tabSize
-          : 2
-      const result = await formatter.format(snapshot, {
-        language: activeFragment.language,
-        tabWidth: tabSize,
-        useTabs: monacoOptions.insertSpaces === false,
-      })
-      const current = useSnippetsStore
-        .getState()
-        .snippets.find((snippet) => snippet.id === snippetId)
-      const currentFragments = current ? fragmentsForSnippet(current) : []
-      const currentFragment = currentFragments.find((fragment) => fragment.id === fragmentId)
-      if (!currentFragment || currentFragment.content !== snapshot) {
-        setLastAction('Fragment changed while formatting — format again', 'info')
-        return
-      }
-      if (result === snapshot) {
-        setLastAction('Fragment is already formatted', 'info')
-        return
-      }
-      await updateSnippet(snippetId, {
-        fragments: currentFragments.map((fragment) =>
-          fragment.id === fragmentId
-            ? { ...fragment, content: result, updatedAt: Date.now() }
-            : fragment
-        ),
-      })
-      setLastAction(`Formatted ${activeFragment.name || 'fragment'}`, 'success')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setFormatError(message)
-      setLastAction('Could not format fragment', 'error')
-    } finally {
-      formattingRef.current = false
-      setFormatting(false)
-    }
-  }, [activeFragment, formatter, monacoOptions, selected, setLastAction, updateSnippet])
-
-  useEffect(() => {
-    const pending = pendingFormatRef.current
-    if (!formatter || !pending) return
-    pendingFormatRef.current = null
-    setFormatting(false)
-    if (
-      selected?.id !== pending.snippetId ||
-      activeFragment?.id !== pending.fragmentId ||
-      activeFragment.content !== pending.content
-    ) {
-      setLastAction('Fragment changed while loading the formatter — format again', 'info')
-      return
-    }
-    void handleFormat()
-  }, [activeFragment, formatter, handleFormat, selected?.id, setLastAction])
-
   const handlePreview = useCallback(() => {
     if (!activeFragment || !previewKind) return
     setFormatError(null)
@@ -1073,34 +405,7 @@ export default function SnippetsManager() {
     }
     setPreviewOpen(true)
     setLastAction('HTML/CSS preview opened', 'success')
-  }, [activeFragment, previewKind, setLastAction])
-
-  const clearFilters = useCallback(() => {
-    setSearch('')
-    setActiveFolder('')
-    setFilterTag('')
-    setFavoritesOnly(false)
-    requestAnimationFrame(() => searchInputRef.current?.focus())
-  }, [setActiveFolder])
-
-  const handleListKeyDown = (event: KeyboardEvent<HTMLButtonElement>, snippetId: string) => {
-    const index = filtered.findIndex((snippet) => snippet.id === snippetId)
-    if (index < 0) return
-    let nextIndex: number | null = null
-    if (event.key === 'ArrowDown') nextIndex = Math.min(filtered.length - 1, index + 1)
-    if (event.key === 'ArrowUp') nextIndex = Math.max(0, index - 1)
-    if (event.key === 'Home') nextIndex = 0
-    if (event.key === 'End') nextIndex = filtered.length - 1
-    if (nextIndex === null || nextIndex === index) return
-
-    event.preventDefault()
-    const next = filtered[nextIndex]
-    if (!next) return
-    setSelectedId(next.id)
-    requestAnimationFrame(() =>
-      document.getElementById(`${snippetOptionsId}-option-${next.id}`)?.focus()
-    )
-  }
+  }, [activeFragment, previewKind, setFormatError, setLastAction])
 
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
@@ -1156,6 +461,7 @@ export default function SnippetsManager() {
     handleNew,
     handlePreview,
     isInstanceActive,
+    searchInputRef,
     selected,
   ])
 
@@ -1185,13 +491,13 @@ export default function SnippetsManager() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setTrashOpen(true)}
-              aria-label={`Open Snippets Trash, ${trashEntries.length} item${
-                trashEntries.length === 1 ? '' : 's'
+              onClick={() => trash.setTrashOpen(true)}
+              aria-label={`Open Snippets Trash, ${trash.trashEntries.length} item${
+                trash.trashEntries.length === 1 ? '' : 's'
               }`}
             >
               <TrashIcon size={12} aria-hidden="true" />
-              Trash{trashEntries.length > 0 ? ` (${trashEntries.length})` : ''}
+              Trash{trash.trashEntries.length > 0 ? ` (${trash.trashEntries.length})` : ''}
             </Button>
             <Button
               type="button"
@@ -1207,68 +513,7 @@ export default function SnippetsManager() {
         }
         sidebar={
           <>
-            <div className="space-y-2 border-b border-[var(--color-border)] p-3">
-              <SearchInput
-                ref={searchInputRef}
-                value={search}
-                onValueChange={setSearch}
-                placeholder="Search snippets"
-                aria-label="Search snippets"
-              />
-
-              <div className="grid grid-cols-1 gap-2">
-                <Select
-                  value={sortMode}
-                  onChange={(event) => setSortMode(event.target.value as SortMode)}
-                  aria-label="Sort snippets"
-                  title="Sort snippets"
-                >
-                  <option value="updated">Recently edited</option>
-                  <option value="created">Recently created</option>
-                  <option value="title">Title A–Z</option>
-                  <option value="language">Language</option>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-pressed={favoritesOnly}
-                  onClick={() => setFavoritesOnly((current) => !current)}
-                  className={`gap-1.5 ${favoritesOnly ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
-                >
-                  <StarIcon
-                    size={12}
-                    weight={favoritesOnly ? 'fill' : 'regular'}
-                    aria-hidden="true"
-                  />
-                  Favorites
-                </Button>
-                {allTags.length > 0 && (
-                  <Select
-                    value={filterTag}
-                    onChange={(event) => setFilterTag(event.target.value)}
-                    aria-label="Filter by tag"
-                    title="Filter by tag"
-                    className="min-w-0 flex-1"
-                  >
-                    <option value="">All tags</option>
-                    {allTags.map((tag) => (
-                      <option key={tag} value={tag}>
-                        #{tag}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-                {hasFilters && (
-                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </div>
+            <SnippetFilterBar filters={filters} />
             <ResourceFolderTree
               folders={snippetFolders}
               selectedFolderId={activeFolder || null}
@@ -1278,7 +523,7 @@ export default function SnippetsManager() {
               }
               onUpdate={updateFolder}
               onMove={moveFolder}
-              onTrash={setFolderTrashCandidate}
+              onTrash={trash.setFolderTrashCandidate}
               itemCounts={folderCounts}
               languageOptions={LANGUAGES}
               label="Snippet folders"
@@ -1313,312 +558,42 @@ export default function SnippetsManager() {
               </div>
             </div>
 
-            <div
-              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              role="listbox"
-              aria-label="Snippets"
-            >
-              {filtered.map((snippet) => {
-                const isSelected = snippet.id === selectedId
-                const matches = isSelected ? undefined : matchMap.get(snippet.id)
-                const tone = LANG_TONES[snippet.language] ?? 'accent'
-                return (
-                  <Button
-                    key={snippet.id}
-                    id={`${snippetOptionsId}-option-${snippet.id}`}
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    role="option"
-                    aria-selected={isSelected}
-                    tabIndex={
-                      isSelected || (!selectedId && filtered[0]?.id === snippet.id) ? 0 : -1
-                    }
-                    onClick={() => setSelectedId(snippet.id)}
-                    onKeyDown={(event) => handleListKeyDown(event, snippet.id)}
-                    className={`group flex w-full justify-start rounded-none border-b border-[var(--color-border)] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring-inset)] ${
-                      isSelected
-                        ? 'bg-[var(--color-accent-dim)]'
-                        : 'hover:bg-[var(--color-surface-hover)]'
-                    }`}
-                  >
-                    <div className="flex w-full min-w-0 items-start gap-2">
-                      <span
-                        className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-2xs font-bold uppercase ${LANG_TONE_CLASSES[tone]}`}
-                      >
-                        {LANG_EXTENSIONS[snippet.language] ?? snippet.language}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text)]">
-                            {highlightMatches(snippet.title || 'Untitled', matches, 'title')}
-                          </span>
-                          {isFavorite(snippet.tags, snippet.favorite) && (
-                            <StarIcon
-                              size={12}
-                              weight="fill"
-                              aria-label="Favorite"
-                              className="shrink-0 text-[var(--color-warning)]"
-                            />
-                          )}
-                          <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                            {relativeTime(snippet.updatedAt)}
-                          </span>
-                        </span>
-                        <span className="mt-1 line-clamp-2 break-all text-2xs text-[var(--color-text-muted)]">
-                          {contentPreview(snippet.content) || 'Empty snippet'}
-                        </span>
-                        {(snippet.folder || visibleTags(snippet.tags).length > 0) && (
-                          <span className="mt-1.5 flex items-center gap-2 overflow-hidden text-2xs text-[var(--color-text-muted)]">
-                            {snippet.folder && (
-                              <span className="flex min-w-0 items-center gap-1 truncate">
-                                <FolderOpenIcon size={12} aria-hidden="true" />
-                                {snippet.folder}
-                              </span>
-                            )}
-                            {visibleTags(snippet.tags)
-                              .slice(0, 2)
-                              .map((tag) => (
-                                <span key={tag} className="truncate">
-                                  #{tag}
-                                </span>
-                              ))}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </Button>
-                )
-              })}
-
-              {filtered.length === 0 && (
-                <EmptyState
-                  icon={ScissorsIcon}
-                  size="sm"
-                  title={snippets.length === 0 ? 'No snippets yet' : 'No matches'}
-                  description={
-                    snippets.length === 0
-                      ? 'Save reusable code and commands here.'
-                      : 'Try a different search or clear the filters.'
-                  }
-                  action={
-                    snippets.length === 0 ? null : (
-                      <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
-                        Clear filters
-                      </Button>
-                    )
-                  }
-                />
-              )}
-            </div>
+            <SnippetList
+              filtered={filtered}
+              totalCount={snippets.length}
+              selectedId={selectedId}
+              matchMap={filters.matchMap}
+              onSelect={setSelectedId}
+              onClearFilters={clearFilters}
+            />
           </>
         }
       >
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           {selected ? (
             <>
-              <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-                <DocumentToolbar aria-label="Snippet actions">
-                  <Button
-                    type="button"
-                    variant="icon"
-                    size="sm"
-                    onClick={() => void handleToggleFavorite()}
-                    title={
-                      isFavorite(selected.tags, selected.favorite)
-                        ? 'Remove from favorites'
-                        : 'Add to favorites'
-                    }
-                    aria-label={
-                      isFavorite(selected.tags, selected.favorite)
-                        ? 'Remove from favorites'
-                        : 'Add to favorites'
-                    }
-                    className={
-                      isFavorite(selected.tags, selected.favorite)
-                        ? 'text-[var(--color-warning)]'
-                        : ''
-                    }
-                  >
-                    <StarIcon
-                      size={16}
-                      weight={isFavorite(selected.tags, selected.favorite) ? 'fill' : 'regular'}
-                      aria-hidden="true"
-                    />
-                  </Button>
-                  <TwoLineDocumentIdentity
-                    title={
-                      <InlineInput
-                        ref={setTitleInputRef}
-                        value={selected.title}
-                        onChange={(event) =>
-                          void updateSnippet(selected.id, { title: event.target.value })
-                        }
-                        placeholder="Snippet title"
-                        aria-label="Snippet title"
-                        className="w-full"
-                      />
-                    }
-                    status={
-                      saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`
-                    }
-                    statusTitle={
-                      saving ? 'Saving changes…' : `Edited ${relativeTime(selected.updatedAt)}`
-                    }
-                    statusLive
-                  />
-                  <ToolbarGroup label="Snippet editing">
-                    {handoffState.backlinkNoteId && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          sendToTool('notes', {
-                            selectedId: handoffState.backlinkNoteId,
-                            selectedFolderId: null,
-                            taskView: 'notes',
-                          })
-                        }
-                      >
-                        Back to note
-                      </Button>
-                    )}
-                    <Select
-                      value={activeFragment?.language ?? 'text'}
-                      onChange={(event) => updateActiveFragment({ language: event.target.value })}
-                      aria-label="Snippet language"
-                      title="Snippet language"
-                      className="w-32"
-                      disabled={!activeFragment}
-                    >
-                      {LANGUAGES.map((language) => (
-                        <option key={language} value={language}>
-                          {language}
-                        </option>
-                      ))}
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => void handleFormat()}
-                      disabled={!canFormat || formatting}
-                      title={formatDisabledReason}
-                      aria-label={
-                        formatting ? 'Formatting snippet fragment' : 'Format snippet fragment'
-                      }
-                    >
-                      <BroomIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">Format</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={handlePreview}
-                      disabled={!previewKind}
-                      title={previewDisabledReason}
-                      aria-label={
-                        previewKind === 'json'
-                          ? 'Preview JSON fragment'
-                          : 'Preview HTML and CSS fragments'
-                      }
-                      aria-pressed={previewKind === 'web' ? previewOpen : undefined}
-                    >
-                      <EyeIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">Preview</span>
-                    </Button>
-                  </ToolbarGroup>
-                  <ToolbarGroup label="Snippet sharing" separated>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => void handleCopy()}
-                      title="Copy snippet"
-                      aria-label="Copy snippet"
-                    >
-                      <ClipboardTextIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Copy snippet
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={handleSendToPromptTemplate}
-                      title="Send snippet to Prompt Templates"
-                      aria-label="Send snippet to Prompt Templates"
-                    >
-                      <ArrowRightIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Send to Prompt Templates
-                      </span>
-                    </Button>
-                  </ToolbarGroup>
-                  <ToolbarGroup label="Snippet management" separated>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => void handleDuplicate()}
-                      title={`Duplicate snippet (${formatShortcut('mod+shift+d')})`}
-                      aria-label="Duplicate snippet"
-                    >
-                      <CopyIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Duplicate snippet
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => void handleDownload()}
-                      title="Save snippet as file"
-                      aria-label="Save snippet as file"
-                    >
-                      <DownloadSimpleIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Save as file
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => setDetailsOpen((current) => !current)}
-                      title={detailsOpen ? 'Hide details' : 'Show details'}
-                      aria-label={detailsOpen ? 'Hide snippet details' : 'Show snippet details'}
-                      aria-expanded={detailsOpen}
-                      className={
-                        detailsOpen ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-                      }
-                    >
-                      <SidebarIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        {detailsOpen ? 'Hide details' : 'Show details'}
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="sm"
-                      onClick={() => setDeleteDialogOpen(true)}
-                      title="Move snippet to Trash"
-                      aria-label="Move snippet to Trash"
-                      className="hover:text-[var(--color-error)]"
-                    >
-                      <TrashIcon size={14} aria-hidden="true" />
-                      <span className="hidden [[data-toolbar-overflow]_&]:inline">
-                        Move to Trash
-                      </span>
-                    </Button>
-                  </ToolbarGroup>
-                </DocumentToolbar>
-              </header>
+              <SnippetToolbar
+                selected={selected}
+                activeFragment={activeFragment}
+                titleInputRef={setTitleInputRef}
+                backlinkNoteId={handoffState.backlinkNoteId}
+                canFormat={canFormat}
+                formatting={formatting}
+                formatDisabledReason={formatDisabledReason}
+                previewKind={previewKind}
+                previewOpen={previewOpen}
+                detailsOpen={detailsOpen}
+                onLanguageChange={(language) => updateActiveFragment({ language })}
+                onToggleFavorite={() => void handleToggleFavorite()}
+                onFormat={() => void handleFormat()}
+                onPreview={handlePreview}
+                onCopy={() => void handleCopy()}
+                onSendToPromptTemplate={handleSendToPromptTemplate}
+                onDuplicate={() => void handleDuplicate()}
+                onDownload={() => void handleDownload()}
+                onToggleDetails={() => setDetailsOpen((current) => !current)}
+                onRequestDelete={() => setDeleteDialogOpen(true)}
+              />
 
               {formatError && (
                 <Alert variant="error" className="m-3 mb-0">
@@ -1627,142 +602,20 @@ export default function SnippetsManager() {
               )}
 
               {activeFragment && (
-                <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-                  <div className="flex min-w-0 items-center gap-1.5 px-3 py-1.5">
-                    <div
-                      role="tablist"
-                      aria-label="Snippet fragments"
-                      className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
-                    >
-                      {fragments.map((fragment) => (
-                        <Button
-                          key={fragment.id}
-                          id={`${fragmentEditorId}-tab-${fragment.id}`}
-                          type="button"
-                          role="tab"
-                          variant="ghost"
-                          size="sm"
-                          aria-selected={fragment.id === activeFragment.id}
-                          aria-controls={fragmentEditorId}
-                          tabIndex={fragment.id === activeFragment.id ? 0 : -1}
-                          onClick={() => selectFragment(fragment.id)}
-                          onKeyDown={(event) => {
-                            const index = fragments.findIndex(
-                              (candidate) => candidate.id === fragment.id
-                            )
-                            let nextIndex: number | null = null
-                            if (event.key === 'ArrowLeft') nextIndex = Math.max(0, index - 1)
-                            if (event.key === 'ArrowRight') {
-                              nextIndex = Math.min(fragments.length - 1, index + 1)
-                            }
-                            if (event.key === 'Home') nextIndex = 0
-                            if (event.key === 'End') nextIndex = fragments.length - 1
-                            const next = nextIndex === null ? null : fragments[nextIndex]
-                            if (!next || next.id === fragment.id) return
-                            event.preventDefault()
-                            selectFragment(next.id)
-                            requestAnimationFrame(() =>
-                              document.getElementById(`${fragmentEditorId}-tab-${next.id}`)?.focus()
-                            )
-                          }}
-                          className={
-                            fragment.id === activeFragment.id
-                              ? 'shrink-0 bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
-                              : 'shrink-0'
-                          }
-                        >
-                          {fragment.name || 'Untitled fragment'}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="xs"
-                      onClick={handleAddFragment}
-                      aria-label="Add fragment"
-                    >
-                      <PlusIcon size={12} aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="xs"
-                      onClick={() => handleMoveFragment(-1)}
-                      disabled={activeFragment.sortOrder === 0}
-                      aria-label="Move fragment left"
-                    >
-                      <CaretLeftIcon size={12} aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="icon"
-                      size="xs"
-                      onClick={() => handleMoveFragment(1)}
-                      disabled={activeFragment.sortOrder === fragments.length - 1}
-                      aria-label="Move fragment right"
-                    >
-                      <CaretRightIcon size={12} aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={handleDuplicateFragment}
-                    >
-                      Duplicate fragment
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      disabled={fragments.length <= 1}
-                      onClick={() => setFragmentDeleteCandidate(activeFragment)}
-                    >
-                      Delete fragment
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2 border-t border-[var(--color-border)] px-3 py-1.5">
-                    <Input
-                      value={activeFragment.name}
-                      onChange={(event) => updateActiveFragment({ name: event.target.value })}
-                      aria-label="Fragment name"
-                      className="max-w-64"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-expanded={descriptionOpen}
-                      onClick={() => setDescriptionOpen((open) => !open)}
-                    >
-                      {selected.description ? 'Description' : 'Add description'}
-                    </Button>
-                    <span className="text-2xs text-[var(--color-text-muted)]">
-                      {fragments.length} fragment{fragments.length === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  <div
-                    className={`grid transition-[grid-template-rows] duration-[var(--duration-panel)] ease-[var(--ease-in-out)] ${
-                      descriptionOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="border-t border-[var(--color-border)] p-3">
-                        <TextArea
-                          value={selected.description ?? ''}
-                          onChange={(event) =>
-                            void updateSnippet(selected.id, { description: event.target.value })
-                          }
-                          aria-label="Snippet description"
-                          placeholder="Markdown usage notes, constraints, or examples"
-                          rows={4}
-                          className="resize-y"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <SnippetFragmentBar
+                  selected={selected}
+                  fragments={fragments}
+                  activeFragment={activeFragment}
+                  fragmentEditorId={fragmentEditorId}
+                  descriptionOpen={descriptionOpen}
+                  onToggleDescription={() => setDescriptionOpen((open) => !open)}
+                  onSelectFragment={selectFragment}
+                  onRenameFragment={(name) => updateActiveFragment({ name })}
+                  onAddFragment={handleAddFragment}
+                  onMoveFragment={handleMoveFragment}
+                  onDuplicateFragment={handleDuplicateFragment}
+                  onRequestDeleteFragment={setFragmentDeleteCandidate}
+                />
               )}
 
               <div
@@ -1789,166 +642,12 @@ export default function SnippetsManager() {
                 </div>
 
                 {detailsOpen && (
-                  <aside
-                    aria-label="Snippet details"
-                    className="absolute inset-y-0 right-0 z-10 w-60 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg max-[1000px]:w-52"
-                  >
-                    <h2 className="mb-4 text-xs font-semibold text-[var(--color-text)]">Details</h2>
-
-                    <Field label="Folder">
-                      <Select
-                        value={selected.folderId ?? 'snippets-inbox'}
-                        onChange={(event) => {
-                          const folder = snippetFolders.find(
-                            (candidate) => candidate.id === event.target.value
-                          )
-                          if (!folder) return
-                          void updateSnippet(selected.id, {
-                            folderId: folder.id,
-                            folder: folderPath(snippetFolders, folder.id).join(' / '),
-                          })
-                        }}
-                        aria-label="Snippet folder"
-                        className="w-full"
-                      >
-                        {snippetFolders.map((folder) => (
-                          <option key={folder.id} value={folder.id}>
-                            {folderPath(snippetFolders, folder.id).join(' / ')}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-
-                    <div className="mt-5">
-                      <SectionLabel as="div" className="mb-2">
-                        <TagIcon size={12} aria-hidden="true" />
-                        Tags
-                      </SectionLabel>
-                      <div className="flex flex-wrap gap-1.5">
-                        {visibleTags(selected.tags).map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-1 text-2xs text-[var(--color-accent)]"
-                          >
-                            {tag}
-                            <Button
-                              type="button"
-                              variant="icon"
-                              size="xs"
-                              onClick={() => void handleRemoveTag(tag)}
-                              aria-label={`Remove ${tag} tag`}
-                              className="rounded-full p-0 hover:bg-transparent hover:text-[var(--color-error)]"
-                            >
-                              <XIcon size={12} aria-hidden="true" />
-                            </Button>
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="relative mt-2">
-                        <Input
-                          ref={tagInputRef}
-                          role="combobox"
-                          aria-label="Add tag"
-                          aria-autocomplete="list"
-                          aria-expanded={tagSuggestions.length > 0}
-                          aria-controls={tagSuggestions.length > 0 ? tagSuggestionsId : undefined}
-                          aria-activedescendant={
-                            suggestionIndex >= 0
-                              ? `${tagSuggestionsId}-option-${suggestionIndex}`
-                              : undefined
-                          }
-                          value={tagInput}
-                          onChange={(event) => {
-                            setTagInput(event.target.value)
-                            setSuggestionIndex(-1)
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'ArrowDown') {
-                              event.preventDefault()
-                              setSuggestionIndex((current) =>
-                                Math.min(current + 1, tagSuggestions.length - 1)
-                              )
-                            } else if (event.key === 'ArrowUp') {
-                              event.preventDefault()
-                              setSuggestionIndex((current) => Math.max(current - 1, -1))
-                            } else if (event.key === 'Enter') {
-                              event.preventDefault()
-                              const suggestion = tagSuggestions[suggestionIndex]
-                              void handleAddTag(suggestion)
-                            } else if (event.key === 'Escape') {
-                              setTagInput('')
-                              setSuggestionIndex(-1)
-                            }
-                          }}
-                          placeholder="Add a tag"
-                          className="w-full"
-                        />
-                        {tagSuggestions.length > 0 && (
-                          <div
-                            id={tagSuggestionsId}
-                            role="listbox"
-                            aria-label="Tag suggestions"
-                            data-testid="tag-suggestions"
-                            className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg"
-                          >
-                            {tagSuggestions.map((suggestion, index) => (
-                              <Button
-                                key={suggestion}
-                                id={`${tagSuggestionsId}-option-${index}`}
-                                type="button"
-                                variant="ghost"
-                                size="xs"
-                                role="option"
-                                aria-selected={index === suggestionIndex}
-                                onMouseDown={(event) => {
-                                  event.preventDefault()
-                                  void handleAddTag(suggestion)
-                                }}
-                                className={`block w-full rounded-none px-2 py-1.5 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] ${
-                                  index === suggestionIndex ? 'bg-[var(--color-surface-hover)]' : ''
-                                }`}
-                              >
-                                {suggestion}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {editorStats && (
-                      <dl className="mt-6 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-[var(--color-text-muted)]">Lines</dt>
-                          <dd className="text-[var(--color-text)]">{editorStats.lines}</dd>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-[var(--color-text-muted)]">Characters</dt>
-                          <dd className="text-[var(--color-text)]">{editorStats.characters}</dd>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-[var(--color-text-muted)]">Bytes</dt>
-                          <dd className="text-[var(--color-text)]">{editorStats.bytes}</dd>
-                        </div>
-                      </dl>
-                    )}
-
-                    <dl className="mt-5 space-y-2 border-t border-[var(--color-border)] pt-4 text-2xs">
-                      <div>
-                        <dt className="text-[var(--color-text-muted)]">Created</dt>
-                        <dd className="mt-0.5 text-[var(--color-text)]">
-                          {formatTimestamp(selected.createdAt)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-[var(--color-text-muted)]">Last edited</dt>
-                        <dd className="mt-0.5 text-[var(--color-text)]">
-                          {formatTimestamp(selected.updatedAt)}
-                        </dd>
-                      </div>
-                    </dl>
-                  </aside>
+                  <SnippetDetailsPanel
+                    selected={selected}
+                    activeFragment={activeFragment}
+                    snippetFolders={snippetFolders}
+                    tags={tags}
+                  />
                 )}
                 {previewOpen && previewDocument && (
                   <SnippetWebPreview
@@ -2028,35 +727,35 @@ export default function SnippetsManager() {
           </p>
         </Dialog>
       )}
-      {folderTrashCandidate && (
+      {trash.folderTrashCandidate && (
         <Dialog
           title="Move folder to Trash?"
-          onClose={() => setFolderTrashCandidate(null)}
+          onClose={() => trash.setFolderTrashCandidate(null)}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setFolderTrashCandidate(null)}>
+              <Button variant="secondary" onClick={() => trash.setFolderTrashCandidate(null)}>
                 Cancel
               </Button>
-              <Button variant="danger" onClick={() => void handleTrashFolder()}>
+              <Button variant="danger" onClick={() => void trash.handleTrashFolder()}>
                 Move folder to Trash
               </Button>
             </>
           }
         >
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-            “{folderTrashCandidate.name}” and everything nested inside it will move to Trash
+            “{trash.folderTrashCandidate.name}” and everything nested inside it will move to Trash
             together.
           </p>
         </Dialog>
       )}
-      {trashOpen && (
+      {trash.trashOpen && (
         <TrashDialog
           title="Snippets Trash"
-          entries={trashEntries}
-          onClose={() => setTrashOpen(false)}
-          onRestore={handleRestoreTrashEntry}
-          onDeletePermanently={handleDeleteTrashEntry}
-          onEmpty={handleEmptyTrash}
+          entries={trash.trashEntries}
+          onClose={() => trash.setTrashOpen(false)}
+          onRestore={trash.handleRestoreTrashEntry}
+          onDeletePermanently={trash.handleDeleteTrashEntry}
+          onEmpty={trash.handleEmptyTrash}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUiStore } from '@/stores/ui.store'
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
@@ -52,10 +52,13 @@ export function StatusBar() {
     void updateSetting('notesDrawerOpen', true)
   }
 
+  const actionSnapshotRef = useRef({ lastAction, clearLastAction })
+  actionSnapshotRef.current = { lastAction, clearLastAction }
+
   // Clear stale last action when switching tools
   useEffect(() => {
-    if (lastAction) clearLastAction()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on tool change
+    const snapshot = actionSnapshotRef.current
+    if (snapshot.lastAction) snapshot.clearLastAction()
   }, [activeTool])
 
   const actionColor =

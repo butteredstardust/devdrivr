@@ -489,7 +489,7 @@ export function NotesDrawer() {
     (final: number) => {
       clearTimeout(saveTimer.current)
       pendingWidth.current = final
-      saveTimer.current = setTimeout(() => void flushPendingWidth().catch(() => {}), 500)
+      saveTimer.current = setTimeout(() => void flushPendingWidth(), 500)
     },
     [flushPendingWidth]
   )

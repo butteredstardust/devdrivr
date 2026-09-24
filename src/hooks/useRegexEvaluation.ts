@@ -42,6 +42,8 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestIdRef = useRef(0)
   const timedOutKeysRef = useRef(new Set<string>())
+  const inputRef = useRef(input)
+  inputRef.current = input
 
   const key = inputKey(input)
 
@@ -54,6 +56,7 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
   }, [])
 
   useEffect(() => {
+    const currentInput = inputRef.current
     if (timerRef.current) {
       clearTimeout(timerRef.current)
       timerRef.current = null
@@ -62,8 +65,8 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
     const requestId = ++requestIdRef.current
 
     // No pattern means no user code to run — resolve on the main thread.
-    if (!input.pattern) {
-      setState({ status: 'ready', result: emptyEvaluation(input.text) })
+    if (!currentInput.pattern) {
+      setState({ status: 'ready', result: emptyEvaluation(currentInput.text) })
       return
     }
 
@@ -100,7 +103,10 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
       if (error || !result) {
         settle({
           status: 'ready',
-          result: { ...emptyEvaluation(input.text), matchError: error ?? 'Regex worker failed' },
+          result: {
+            ...emptyEvaluation(currentInput.text),
+            matchError: error ?? 'Regex worker failed',
+          },
         })
         return
       }
@@ -112,19 +118,19 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
       settle({
         status: 'ready',
         result: {
-          ...emptyEvaluation(input.text),
+          ...emptyEvaluation(currentInput.text),
           matchError: ev.message || 'Regex worker failed',
         },
       })
     }
 
     try {
-      worker.postMessage({ id: requestId, method: 'evaluate', args: [input] })
+      worker.postMessage({ id: requestId, method: 'evaluate', args: [currentInput] })
     } catch (err) {
       settle({
         status: 'ready',
         result: {
-          ...emptyEvaluation(input.text),
+          ...emptyEvaluation(currentInput.text),
           matchError: err instanceof Error ? err.message : String(err),
         },
       })
@@ -148,7 +154,7 @@ export function useRegexEvaluation(input: RegexEvaluationInput): RegexEvaluation
     }, REGEX_TIMEOUT_MS)
     // `input` is fully described by `key`; depending on the object itself would re-run
     // this effect on every render because callers pass an inline literal.
-  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key])
 
   return state
 }

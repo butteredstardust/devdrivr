@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadToolState, saveToolState } from '@/lib/db'
+import { loadToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolInstance } from '@/app/tool-instance'
 import { registerFlusher } from '@/lib/flush-on-exit'
 import { droppedToolStateKeys, mergeToolState } from '@/lib/tool-state-merge'
+import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
 
 type ToolStateOptions<T> = {
   validate?: (merged: T) => T
@@ -93,6 +94,13 @@ export function useToolState<T extends Record<string, unknown>>(
   const stateRef = useRef(state)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedRef = useRef(hadCachedStateRef.current)
+  const initialDefaultStateRef = useRef(defaultState)
+  const initialValidateRef = useRef(options?.validate)
+  // A handoff restores against the current render's defaults and validator, not the first render's.
+  const latestDefaultStateRef = useRef(defaultState)
+  const latestValidateRef = useRef(options?.validate)
+  latestDefaultStateRef.current = defaultState
+  latestValidateRef.current = options?.validate
   // True once the user has changed state via update(). Guards the cold-start race
   // where a slow loadToolState() resolves after the user has already typed.
   const dirtyRef = useRef(false)
@@ -102,7 +110,7 @@ export function useToolState<T extends Record<string, unknown>>(
     clearTimeout(timerRef.current)
     timerRef.current = null
     if (useToolStateCache.getState().isDiscarded(toolId)) return
-    await saveToolState(toolId, stateRef.current)
+    await saveToolStateWithFeedback(toolId, stateRef.current)
   }, [toolId])
 
   // Load from SQLite on mount only if no cached value
@@ -121,7 +129,12 @@ export function useToolState<T extends Record<string, unknown>>(
         return
       }
       if (saved !== null) {
-        const merged = restoreToolState(toolId, defaultState, saved, options?.validate)
+        const merged = restoreToolState(
+          toolId,
+          initialDefaultStateRef.current,
+          saved,
+          initialValidateRef.current
+        )
         setState(merged)
         stateRef.current = merged
         cacheSet(toolId, merged)
@@ -132,7 +145,7 @@ export function useToolState<T extends Record<string, unknown>>(
       cancelled = true
     }
     // The defaults and validator only apply to the first load. Callers pass them inline.
-  }, [toolId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [toolId, cacheSet])
 
   // A handoff from another tool (`sendToTool`) merges into the cache and increments this counter.
   // Background destinations stay mounted, so the counter signals cache changes to them.
@@ -143,7 +156,12 @@ export function useToolState<T extends Record<string, unknown>>(
     seenSeedRef.current = seedRevision
     const seeded = cacheGet(toolId)
     if (seeded === undefined) return
-    const merged = restoreToolState(toolId, defaultState, seeded, options?.validate)
+    const merged = restoreToolState(
+      toolId,
+      latestDefaultStateRef.current,
+      seeded,
+      latestValidateRef.current
+    )
     setState(merged)
     stateRef.current = merged
     // The handoff is the user's intent as much as typing is: a pending cold
@@ -151,8 +169,7 @@ export function useToolState<T extends Record<string, unknown>>(
     // than left to the unmount save, which never runs if the app is quit.
     loadedRef.current = true
     dirtyRef.current = true
-    saveToolState(toolId, merged)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- The defaults and validator are inline values.
+    void saveToolStateWithFeedback(toolId, merged).catch(() => {})
   }, [seedRevision, toolId, cacheGet])
 
   // Debounced save to SQLite (cache is updated synchronously)
@@ -169,7 +186,7 @@ export function useToolState<T extends Record<string, unknown>>(
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
         timerRef.current = null
-        void saveToolState(toolId, stateRef.current)
+        void saveToolStateWithFeedback(toolId, stateRef.current).catch(() => {})
       }, 2000)
     },
     [toolId, cacheSet]
@@ -187,7 +204,7 @@ export function useToolState<T extends Record<string, unknown>>(
       // saving here would put it straight back.
       if (useToolStateCache.getState().isDiscarded(toolId)) return
       if (loadedRef.current || dirtyRef.current) {
-        saveToolState(toolId, stateRef.current)
+        void saveToolStateWithFeedback(toolId, stateRef.current).catch(() => {})
       }
     }
   }, [toolId])

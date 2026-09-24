@@ -61,40 +61,33 @@ export function EditorTab() {
           <SettingRow label="Font Family" hint="Monaco editor font family">
             <SelectInput
               value={editorFont}
-              onChange={(v) =>
-                void update('editorFont', v as AppSettings['editorFont']).catch(() => {})
-              }
+              onChange={(v) => void update('editorFont', v as AppSettings['editorFont'])}
               options={FONT_FAMILY_OPTIONS.map((f) => ({ value: f, label: f }))}
             />
           </SettingRow>
           <SettingRow label="Font Size" hint="Monaco editor font size">
             <SelectInput
               value={editorFontSize}
-              onChange={(v) => void update('editorFontSize', Number(v)).catch(() => {})}
+              onChange={(v) => void update('editorFontSize', Number(v))}
               options={FONT_SIZE_OPTIONS.map((s) => ({ value: s, label: `${s}px` }))}
             />
           </SettingRow>
           <SettingRow label="Indent Size" hint="Spaces per indent level">
             <SelectInput
               value={defaultIndentSize}
-              onChange={(v) => void update('defaultIndentSize', Number(v)).catch(() => {})}
+              onChange={(v) => void update('defaultIndentSize', Number(v))}
               options={INDENT_OPTIONS.map((s) => ({ value: s, label: `${s} spaces` }))}
             />
           </SettingRow>
           <SettingRow label="Editor Theme" hint="Monaco editor color scheme">
             <SelectInput
               value={editorTheme}
-              onChange={(v) =>
-                void update('editorTheme', v as AppSettings['editorTheme']).catch(() => {})
-              }
+              onChange={(v) => void update('editorTheme', v as AppSettings['editorTheme'])}
               options={EDITOR_THEME_OPTIONS}
             />
           </SettingRow>
           <SettingRow label="Format on Paste" hint="Auto-format code when pasting">
-            <Toggle
-              checked={formatOnPaste}
-              onChange={(v) => void update('formatOnPaste', v).catch(() => {})}
-            />
+            <Toggle checked={formatOnPaste} onChange={(v) => void update('formatOnPaste', v)} />
           </SettingRow>
         </div>
       </div>
@@ -115,61 +108,49 @@ export function EditorTab() {
                 : 'Off — long lines scroll horizontally'
             }
           >
-            <Toggle
-              checked={editorWordWrap}
-              onChange={(v) => void update('editorWordWrap', v).catch(() => {})}
-            />
+            <Toggle checked={editorWordWrap} onChange={(v) => void update('editorWordWrap', v)} />
           </SettingRow>
           <SettingRow label="Insert Spaces" hint="Off indents with tab characters">
             <Toggle
               checked={editorInsertSpaces}
-              onChange={(v) => void update('editorInsertSpaces', v).catch(() => {})}
+              onChange={(v) => void update('editorInsertSpaces', v)}
             />
           </SettingRow>
           <SettingRow label="Line Numbers" hint="Show the gutter line numbers">
             <Toggle
               checked={editorLineNumbers}
-              onChange={(v) => void update('editorLineNumbers', v).catch(() => {})}
+              onChange={(v) => void update('editorLineNumbers', v)}
             />
           </SettingRow>
           <SettingRow label="Code Folding" hint="Collapse blocks from the gutter">
-            <Toggle
-              checked={editorFolding}
-              onChange={(v) => void update('editorFolding', v).catch(() => {})}
-            />
+            <Toggle checked={editorFolding} onChange={(v) => void update('editorFolding', v)} />
           </SettingRow>
           <SettingRow label="Minimap" hint="Overview strip down the right edge">
-            <Toggle
-              checked={editorMinimap}
-              onChange={(v) => void update('editorMinimap', v).catch(() => {})}
-            />
+            <Toggle checked={editorMinimap} onChange={(v) => void update('editorMinimap', v)} />
           </SettingRow>
           <SettingRow label="Sticky Scroll" hint="Pin enclosing scopes to the top">
             <Toggle
               checked={editorStickyScroll}
-              onChange={(v) => void update('editorStickyScroll', v).catch(() => {})}
+              onChange={(v) => void update('editorStickyScroll', v)}
             />
           </SettingRow>
           <SettingRow label="Scroll Beyond Last Line" hint="Leave scrolling space below content">
             <Toggle
               checked={editorScrollBeyondLastLine}
-              onChange={(value) => void update('editorScrollBeyondLastLine', value).catch(() => {})}
+              onChange={(value) => void update('editorScrollBeyondLastLine', value)}
             />
           </SettingRow>
           <SettingRow label="Bracket Pair Colors" hint="Tint matching brackets by depth">
             <Toggle
               checked={editorBracketPairColorization}
-              onChange={(v) => void update('editorBracketPairColorization', v).catch(() => {})}
+              onChange={(v) => void update('editorBracketPairColorization', v)}
             />
           </SettingRow>
           <SettingRow label="Render Whitespace" hint="Show spaces and tabs as dots">
             <SelectInput
               value={editorRenderWhitespace}
               onChange={(v) =>
-                void update(
-                  'editorRenderWhitespace',
-                  v as AppSettings['editorRenderWhitespace']
-                ).catch(() => {})
+                void update('editorRenderWhitespace', v as AppSettings['editorRenderWhitespace'])
               }
               options={WHITESPACE_OPTIONS}
             />
@@ -178,9 +159,7 @@ export function EditorTab() {
             <SelectInput
               value={editorCursorStyle}
               onChange={(v) =>
-                void update('editorCursorStyle', v as AppSettings['editorCursorStyle']).catch(
-                  () => {}
-                )
+                void update('editorCursorStyle', v as AppSettings['editorCursorStyle'])
               }
               options={CURSOR_STYLE_OPTIONS}
             />
