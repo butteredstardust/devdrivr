@@ -1,6 +1,7 @@
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
-import { loadToolState, saveToolState } from '@/lib/db'
+import { loadToolState } from '@/lib/db'
+import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
 
 export type SendToToolOptions = {
   /**
@@ -109,7 +110,7 @@ function deliver(key: string, patch: Record<string, unknown>): void {
   if (cache.get(key) !== undefined) {
     cache.seed(key, patch)
     const seeded = useToolStateCache.getState().get(key)
-    if (seeded) void saveToolState(key, seeded).catch(() => {})
+    if (seeded) void saveToolStateWithFeedback(key, seeded).catch(() => {})
     return
   }
 
@@ -123,14 +124,14 @@ function deliver(key: string, patch: Record<string, unknown>): void {
       if (latest.isDiscarded(key)) return
       const merged = { ...saved, ...latest.get(key) }
       latest.seed(key, merged)
-      void saveToolState(key, merged).catch(() => {})
+      void saveToolStateWithFeedback(key, merged).catch(() => {})
     })
     .catch(() => {
       const latest = useToolStateCache.getState()
       if (latest.isDiscarded(key)) return
       const current = latest.get(key) ?? patch
       latest.seed(key, current)
-      void saveToolState(key, current).catch(() => {})
+      void saveToolStateWithFeedback(key, current).catch(() => {})
     })
 }
 

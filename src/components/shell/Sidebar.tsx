@@ -100,14 +100,14 @@ export function Sidebar() {
   useEffect(() => {
     if (!activeGroup) return
     if (openedSidebarGroups.includes(activeGroup)) return
-    void update('openedSidebarGroups', [...openedSidebarGroups, activeGroup]).catch(() => {})
+    void update('openedSidebarGroups', [...openedSidebarGroups, activeGroup])
   }, [activeGroup, openedSidebarGroups, update])
 
   // Toggles against what is on screen, not what is stored: while the rail is forced by layout
   // pressure the stored value can still say "expanded", and toggling that would make the expand
   // caret collapse the sidebar.
   const toggleCollapsed = () => {
-    void update('sidebarCollapsed', !collapsed).catch(() => {})
+    void update('sidebarCollapsed', !collapsed)
   }
 
   useEffect(() => setWidth(clampSidebarWidth(savedWidth)), [savedWidth])
@@ -130,7 +130,7 @@ export function Sidebar() {
     (next: number) => {
       clearTimeout(resizeSaveTimer.current)
       pendingWidth.current = next
-      resizeSaveTimer.current = setTimeout(() => void flushPendingWidth().catch(() => {}), 500)
+      resizeSaveTimer.current = setTimeout(() => void flushPendingWidth(), 500)
     },
     [flushPendingWidth]
   )
@@ -164,7 +164,7 @@ export function Sidebar() {
     useCallback(() => {
       if (collapsed) {
         pendingFilterFocusRef.current = true
-        void update('sidebarCollapsed', false).catch(() => {})
+        void update('sidebarCollapsed', false)
         return
       }
       filterInputRef.current?.focus()

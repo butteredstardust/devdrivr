@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadToolState, saveToolState } from '@/lib/db'
+import { loadToolState } from '@/lib/db'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { useToolInstance } from '@/app/tool-instance'
 import { registerFlusher } from '@/lib/flush-on-exit'
 import { droppedToolStateKeys, mergeToolState } from '@/lib/tool-state-merge'
+import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
 
 type ToolStateOptions<T> = {
   validate?: (merged: T) => T
@@ -102,7 +103,7 @@ export function useToolState<T extends Record<string, unknown>>(
     clearTimeout(timerRef.current)
     timerRef.current = null
     if (useToolStateCache.getState().isDiscarded(toolId)) return
-    await saveToolState(toolId, stateRef.current)
+    await saveToolStateWithFeedback(toolId, stateRef.current)
   }, [toolId])
 
   // Load from SQLite on mount only if no cached value
@@ -151,7 +152,7 @@ export function useToolState<T extends Record<string, unknown>>(
     // than left to the unmount save, which never runs if the app is quit.
     loadedRef.current = true
     dirtyRef.current = true
-    saveToolState(toolId, merged)
+    void saveToolStateWithFeedback(toolId, merged).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- The defaults and validator are inline values.
   }, [seedRevision, toolId, cacheGet])
 
@@ -169,7 +170,7 @@ export function useToolState<T extends Record<string, unknown>>(
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
         timerRef.current = null
-        void saveToolState(toolId, stateRef.current)
+        void saveToolStateWithFeedback(toolId, stateRef.current).catch(() => {})
       }, 2000)
     },
     [toolId, cacheSet]
@@ -187,7 +188,7 @@ export function useToolState<T extends Record<string, unknown>>(
       // saving here would put it straight back.
       if (useToolStateCache.getState().isDiscarded(toolId)) return
       if (loadedRef.current || dirtyRef.current) {
-        saveToolState(toolId, stateRef.current)
+        void saveToolStateWithFeedback(toolId, stateRef.current).catch(() => {})
       }
     }
   }, [toolId])

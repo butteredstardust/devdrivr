@@ -19,7 +19,7 @@ export function ThemeTab() {
         <p className="mb-2 text-2xs text-[var(--color-text-muted)]">
           Appearance mode for the app — each swatch shows its own theme. Select one to apply it.
         </p>
-        <ThemePicker value={theme} onChange={(v) => void update('theme', v).catch(() => {})} />
+        <ThemePicker value={theme} onChange={(v) => void update('theme', v)} />
       </div>
     </div>
   )
