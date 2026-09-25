@@ -247,7 +247,14 @@ export default function CodeFormatter() {
   }, [lastFormat, updateState, setLastAction])
 
   const handleAcceptPreview = useCallback(() => {
-    if (!pendingFormat || inputRef.current !== pendingFormat.before) return
+    if (!pendingFormat) return
+    if (inputRef.current !== pendingFormat.before) {
+      // The preview was built from older code. Applying it would overwrite the newer edits.
+      setPendingFormat(null)
+      setPreviewOpen(false)
+      setLastAction('Code changed since the preview — format again', 'info')
+      return
+    }
     updateState({
       input: pendingFormat.after,
       lastFormat: pendingFormat.before.length > MAX_SNAPSHOT_LENGTH ? null : pendingFormat,
@@ -304,6 +311,9 @@ export default function CodeFormatter() {
         lastFormat: null,
         ...(fromName ? { language: fromName } : {}),
       })
+      // A pending preview belongs to the previous content.
+      setPendingFormat(null)
+      setPreviewOpen(false)
       setError(null)
       setLastAction(
         reloaded ? `Reloaded ${file.filename} from disk` : `Opened ${file.filename}`,

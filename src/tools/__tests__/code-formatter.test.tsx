@@ -201,6 +201,37 @@ describe('CodeFormatter', () => {
     expect(revert).toBeDisabled()
   })
 
+  it('discards a stale preview instead of ignoring Apply', async () => {
+    renderTool(CodeFormatter)
+
+    typeCode(MESSY_JS)
+    fireEvent.click(screen.getByRole('button', { name: /Format/ }))
+    const apply = await screen.findByRole('button', { name: 'Apply format' })
+    typeCode(`${MESSY_JS}\nconst y = 1`)
+    fireEvent.click(apply)
+
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(`${MESSY_JS}\nconst y = 1`)
+    expect(screen.queryByRole('button', { name: 'Apply format' })).not.toBeInTheDocument()
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Code changed since the preview — format again',
+      type: 'info',
+    })
+  })
+
+  it('discards a pending preview when a file opens', async () => {
+    renderTool(CodeFormatter)
+
+    typeCode(MESSY_JS)
+    fireEvent.click(screen.getByRole('button', { name: /Format/ }))
+    await screen.findByRole('button', { name: 'Apply format' })
+    act(() => {
+      dispatchToolAction({ type: 'open-file', content: 'let a = 1\n', filename: 'a.js' })
+    })
+
+    expect(screen.queryByRole('button', { name: 'Apply format' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('let a = 1\n')
+  })
+
   it('marks the document as edited after a format and stops offering the revert', async () => {
     renderTool(CodeFormatter)
 
