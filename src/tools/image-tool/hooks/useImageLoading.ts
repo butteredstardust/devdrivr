@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { readFile } from '@tauri-apps/plugin-fs'
-import { filenameFromPath, openImageFileDialog } from '@/lib/file-io'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
+import { FileTooLargeError, filenameFromPath, openImageFileDialog } from '@/lib/file-io'
 import { formatBytes } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
 import {
@@ -202,7 +202,12 @@ export function useImageLoading({
     // it runs, otherwise the restore replaces the image the user chose.
     const generation = loadGenerationRef.current
     const superseded = () => cancelled || generation !== loadGenerationRef.current
-    void readFile(sourcePath)
+    // The file can change after the user opens it. Check the size again before the read.
+    void stat(sourcePath)
+      .then((info) => {
+        if (info.size > MAX_IMAGE_FILE_BYTES) throw new FileTooLargeError(sourcePath)
+        return readFile(sourcePath)
+      })
       .then((bytes) => {
         if (superseded()) return
         loadImageFile(new File([bytes], filenameFromPath(sourcePath)), sourcePath, true)
@@ -287,13 +292,17 @@ export function useImageLoading({
 
   const handleOpenImage = useCallback(async () => {
     try {
-      const selected = await openImageFileDialog()
+      const selected = await openImageFileDialog({ maxBytes: MAX_IMAGE_FILE_BYTES })
       if (!selected) return
       loadImageFile(new File([new Uint8Array(selected.bytes)], selected.filename), selected.path)
-    } catch {
+    } catch (err) {
+      if (err instanceof FileTooLargeError) {
+        setLastAction(`Image exceeds the ${formatBytes(MAX_IMAGE_FILE_BYTES)} file limit`, 'error')
+        return
+      }
       fileInputRef.current?.click()
     }
-  }, [loadImageFile])
+  }, [loadImageFile, setLastAction])
 
   // The tool has no focusable root, so a paste lands on the document. Listen
   // there, and only while this instance is the visible one.

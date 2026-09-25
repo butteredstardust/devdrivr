@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { isKeyEventForTool } from '@/lib/key-scope'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -47,6 +48,7 @@ import { NotesDialogs } from '@/tools/notes/components/NotesDialogs'
 
 export default function NotesWorkspace() {
   const isInstanceActive = useIsInstanceActive()
+  const toolRootRef = useRef<HTMLDivElement>(null)
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const noteEditorOptions = useMemo(
     () => ({
@@ -280,6 +282,7 @@ export default function NotesWorkspace() {
   useEffect(() => {
     if (!isInstanceActive) return
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!isKeyEventForTool(event, toolRootRef.current)) return
       const modifier = event.metaKey || event.ctrlKey
       if (!modifier) return
       if (event.key.toLowerCase() === 'n' && !event.shiftKey && !event.altKey) {
@@ -341,6 +344,7 @@ export default function NotesWorkspace() {
   return (
     <>
       <MasterDetailLayout
+        rootRef={toolRootRef}
         title="Notes"
         widthStorageKey="notes"
         subtitle={`${notes.length} note${notes.length === 1 ? '' : 's'}`}

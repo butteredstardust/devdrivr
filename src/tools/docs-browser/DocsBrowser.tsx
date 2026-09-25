@@ -73,6 +73,8 @@ export default function DocsBrowser({ defaultLoadError = false, frameSrc }: Docs
     setProbe({ kind: 'pending' })
     void tauriFetch(effectiveSrc, { method: 'HEAD', signal: controller.signal })
       .then((response) => {
+        // The probe needs only the status. Release the body on the Rust side now.
+        response.body?.cancel().catch(() => {})
         if (controller.signal.aborted) return
         const status = response.status
         if (status === 404 || status === 410) {

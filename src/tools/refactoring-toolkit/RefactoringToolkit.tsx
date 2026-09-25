@@ -25,6 +25,7 @@ import { Button } from '@/components/shared/Button'
 import { Input, Select } from '@/components/shared/Input'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { isKeyEventForTool } from '@/lib/key-scope'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { Checkbox } from '@/components/shared/Checkbox'
@@ -184,6 +185,7 @@ export default function RefactoringToolkit() {
   const [search, setSearch] = useState('')
   const panelId = useId()
   const isInstanceActive = useIsInstanceActive()
+  const toolRootRef = useRef<HTMLDivElement>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestRef = useRef(0)
@@ -298,6 +300,9 @@ export default function RefactoringToolkit() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!isInstanceActive || !canUndo) return
+      // Capture phase runs before a focused editor sees the key, so a mod+z typed in the notes
+      // drawer would revert this buffer and never reach the note.
+      if (!isKeyEventForTool(event, toolRootRef.current)) return
       if ((!event.metaKey && !event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== 'z')
         return
       event.preventDefault()
@@ -386,6 +391,7 @@ export default function RefactoringToolkit() {
   useReloadOnFileChange({
     filePath: state.filePath ?? null,
     getContent: () => input,
+    keepUnsavedEdits: true,
     onReload: (file) => loadFile(file, true),
   })
 
@@ -422,6 +428,7 @@ export default function RefactoringToolkit() {
   return (
     <ToolLayout
       fullBleed
+      ref={toolRootRef}
       toolbar={
         <DocumentToolbar aria-label="Refactoring actions">
           <DocumentIdentity

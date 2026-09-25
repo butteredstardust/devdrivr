@@ -1,65 +1,35 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type OnMount } from '@monaco-editor/react'
-import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import {
-  ArrowUUpLeftIcon,
-  ArticleIcon,
-  BroomIcon,
-  CheckCircleIcon,
-  CrosshairSimpleIcon,
-  DownloadSimpleIcon,
-  FilesIcon,
-  MagicWandIcon,
-  ShieldCheckIcon,
-  WarningCircleIcon,
-} from '@phosphor-icons/react'
+import { DownloadSimpleIcon, ShieldCheckIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
-import { dispatchToolAction } from '@/lib/tool-actions'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 import { useMonaco } from '@/hooks/useMonaco'
 import { Button } from '@/components/shared/Button'
-import { PaneHeader } from '@/components/shared/PaneHeader'
-import { CopyButton } from '@/components/shared/CopyButton'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { Input, Select } from '@/components/shared/Input'
+import { Input } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { DocumentToolbar } from '@/components/shared/Toolbar'
-import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { useUiStore } from '@/stores/ui.store'
-import { openFileDialog, saveFileDialog } from '@/lib/file-io'
 import {
-  MAX_ISSUES,
-  generateSample,
+  describeReport,
   detectSchemaDialect,
-  inferSchema,
-  parseJson,
   pointerLocation,
   validateJson,
   type JsonLocation,
+  type JsonSchemaState,
+  type Pane,
   type ValidationIssue,
   type ValidationReport,
 } from '@/tools/json-schema-validator/json-schema-helpers'
-import {
-  DEFAULT_TEMPLATE_KEY,
-  TEMPLATES,
-  findMatchingTemplate,
-} from '@/tools/json-schema-validator/templates'
+import { DEFAULT_TEMPLATE_KEY, TEMPLATES } from '@/tools/json-schema-validator/templates'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { formatShortcut } from '@/lib/shortcut-label'
-
-type Pane = 'data' | 'schema'
-
-type JsonSchemaState = {
-  data: string
-  schema: string
-  strict: boolean
-  schemaUrl: string
-  dataFileName: string | null
-  schemaFileName: string | null
-}
+import { EditorPane } from '@/tools/json-schema-validator/components/EditorPane'
+import { ProblemsPanel } from '@/tools/json-schema-validator/components/ProblemsPanel'
+import { SchemaOutline } from '@/tools/json-schema-validator/components/SchemaSummary'
+import { ValidatorToolbar } from '@/tools/json-schema-validator/components/ValidatorToolbar'
+import { useJsonSchemaDocumentActions } from '@/tools/json-schema-validator/hooks/useJsonSchemaDocumentActions'
+import { useSchemaUrlLoader } from '@/tools/json-schema-validator/hooks/useSchemaUrlLoader'
 
 const DEFAULT_TEMPLATE = TEMPLATES[DEFAULT_TEMPLATE_KEY]
 
@@ -68,111 +38,6 @@ const DEFAULT_TEMPLATE = TEMPLATES[DEFAULT_TEMPLATE_KEY]
  * region that re-announces the verdict per character is unusable aloud.
  */
 const VALIDATE_DEBOUNCE_MS = 250
-
-/** A schema fetch that never answers should not leave the button spinning. */
-const FETCH_TIMEOUT_MS = 15_000
-const MAX_REMOTE_REF_DEPTH = 8
-const MAX_REMOTE_SCHEMA_BYTES = 2_000_000
-const MAX_REMOTE_SCHEMA_CACHE = 32
-const remoteSchemaCache = new Map<string, unknown>()
-
-function resolveJsonPointer(value: unknown, fragment: string): unknown {
-  if (!fragment) return value
-  if (!fragment.startsWith('#/')) throw new Error(`Unsupported remote $ref fragment: ${fragment}`)
-  let current = value
-  for (const part of fragment.slice(2).split('/')) {
-    if (current === null || typeof current !== 'object') return undefined
-    const key = part.replace(/~1/g, '/').replace(/~0/g, '~')
-    current = (current as Record<string, unknown>)[key]
-  }
-  return current
-}
-
-async function resolveRemoteRefs(
-  value: unknown,
-  baseUrl: string,
-  signal: AbortSignal,
-  depth = 0,
-  rootHost = new URL(baseUrl).host,
-  documentRoot: unknown = value
-): Promise<unknown> {
-  if (depth > MAX_REMOTE_REF_DEPTH || value === null || typeof value !== 'object') return value
-  if (Array.isArray(value)) {
-    return Promise.all(
-      value.map((item) => resolveRemoteRefs(item, baseUrl, signal, depth, rootHost, documentRoot))
-    )
-  }
-  const object = value as Record<string, unknown>
-  if (typeof object.$ref === 'string' && object.$ref.startsWith('#')) {
-    const referenced = resolveJsonPointer(documentRoot, object.$ref)
-    if (referenced === undefined) throw new Error(`Local $ref target was not found: ${object.$ref}`)
-    const resolved = await resolveRemoteRefs(
-      referenced,
-      baseUrl,
-      signal,
-      depth + 1,
-      rootHost,
-      documentRoot
-    )
-    const siblings = Object.fromEntries(Object.entries(object).filter(([key]) => key !== '$ref'))
-    return Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object'
-      ? { ...(resolved as Record<string, unknown>), ...siblings }
-      : resolved
-  }
-  if (typeof object.$ref === 'string') {
-    const refUrl = new URL(object.$ref, baseUrl)
-    if (!/^https?:$/.test(refUrl.protocol) || refUrl.host !== rootHost) {
-      throw new Error(`Remote $ref host is not allowed: ${refUrl.host}`)
-    }
-    const documentUrl = new URL(refUrl.href)
-    documentUrl.hash = ''
-    let referenced = remoteSchemaCache.get(documentUrl.href)
-    if (referenced === undefined) {
-      const response = await tauriFetch(documentUrl.href, { signal })
-      if (!response.ok) throw new Error(`Remote $ref answered ${response.status}: ${refUrl.href}`)
-      const text = await response.text()
-      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
-        throw new Error(`Remote $ref is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
-      }
-      try {
-        referenced = JSON.parse(text) as unknown
-      } catch {
-        throw new Error(`Remote $ref is not valid JSON: ${refUrl.href}`)
-      }
-      if (remoteSchemaCache.size >= MAX_REMOTE_SCHEMA_CACHE) {
-        const oldest = remoteSchemaCache.keys().next().value
-        if (oldest) remoteSchemaCache.delete(oldest)
-      }
-      remoteSchemaCache.set(documentUrl.href, referenced)
-    }
-    const remoteRoot = referenced
-    referenced = resolveJsonPointer(remoteRoot, refUrl.hash)
-    if (referenced === undefined)
-      throw new Error(`Remote $ref target was not found: ${refUrl.href}`)
-    const resolved = await resolveRemoteRefs(
-      referenced,
-      refUrl.href,
-      signal,
-      depth + 1,
-      rootHost,
-      remoteRoot
-    )
-    const siblings = Object.fromEntries(Object.entries(object).filter(([key]) => key !== '$ref'))
-    return Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object'
-      ? { ...(resolved as Record<string, unknown>), ...siblings }
-      : resolved
-  }
-  const entries = await Promise.all(
-    Object.entries(object).map(
-      async ([key, child]) =>
-        [
-          key,
-          await resolveRemoteRefs(child, baseUrl, signal, depth, rootHost, documentRoot),
-        ] as const
-    )
-  )
-  return Object.fromEntries(entries)
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -203,16 +68,25 @@ export default function JsonSchemaValidator() {
     schemaRef.current = schema
   }, [data, schema])
 
-  const [loadingUrl, setLoadingUrl] = useState(false)
-  // Every generator here overwrites a whole buffer. Without a way back, one
-  // click on "Infer schema" silently destroys a hand-written schema.
-  const [undoBuffer, setUndoBuffer] = useState<{
-    data: string
-    schema: string
-    label: string
-  } | null>(null)
   const [problemsOpen, setProblemsOpen] = useState(true)
   const [templateKey, setTemplateKey] = useState(DEFAULT_TEMPLATE_KEY)
+
+  const {
+    undoBuffer,
+    setUndoBuffer,
+    applyBuffers,
+    handleUndo,
+    loadTemplate,
+    handleInferSchema,
+    handleGenerateSample,
+    handleFormat,
+    handleSave,
+    handleOpen,
+  } = useJsonSchemaDocumentActions({ state, updateState, dataRef, schemaRef })
+  const { loadingUrl, handleLoadUrl } = useSchemaUrlLoader({
+    schemaUrl: state.schemaUrl,
+    applyBuffers,
+  })
 
   const editors = useRef<Record<Pane, Parameters<OnMount>[0] | null>>({ data: null, schema: null })
   // ⌘S has to save *something*; the pane the user last typed in is the only
@@ -284,171 +158,6 @@ export default function JsonSchemaValidator() {
     [goTo, setLastAction, source.data]
   )
 
-  // --- Buffer actions --------------------------------------------------
-
-  /** Replaces buffers, keeping the previous contents recoverable. */
-  const applyBuffers = useCallback(
-    (next: Partial<JsonSchemaState>, label: string) => {
-      setUndoBuffer({ data: dataRef.current, schema: schemaRef.current, label })
-      updateState(next)
-    },
-    [updateState]
-  )
-
-  const handleUndo = useCallback(() => {
-    if (!undoBuffer) return
-    updateState({ data: undoBuffer.data, schema: undoBuffer.schema })
-    setUndoBuffer(null)
-    setLastAction('Reverted', 'info')
-  }, [undoBuffer, updateState, setLastAction])
-
-  const loadTemplate = useCallback(
-    (key: string) => {
-      const template = TEMPLATES[key]
-      if (!template) return
-      applyBuffers(
-        {
-          schema: JSON.stringify(template.schema, null, 2),
-          data: JSON.stringify(template.sample, null, 2),
-        },
-        `Load ${template.label}`
-      )
-      setLastAction(`Loaded the ${template.label} template`, 'info')
-    },
-    [applyBuffers, setLastAction]
-  )
-
-  const handleInferSchema = useCallback(() => {
-    // Read fresh rather than off the debounced snapshot: a click landing inside
-    // the debounce window must infer from what is actually in the buffer.
-    const parsed = parseJson(dataRef.current)
-    if (parsed.status !== 'valid') {
-      setLastAction(
-        parsed.status === 'empty' ? 'Add some JSON data first' : 'The JSON data does not parse',
-        'error'
-      )
-      return
-    }
-    applyBuffers({ schema: JSON.stringify(inferSchema(parsed.value), null, 2) }, 'Infer schema')
-    setLastAction('Inferred a schema from the data', 'success')
-  }, [applyBuffers, setLastAction])
-
-  const handleGenerateSample = useCallback(() => {
-    const parsed = parseJson(schemaRef.current)
-    if (parsed.status !== 'valid') {
-      setLastAction(
-        parsed.status === 'empty' ? 'Add a schema first' : 'The schema does not parse',
-        'error'
-      )
-      return
-    }
-    const template = findMatchingTemplate(parsed.value)
-    const sample = template
-      ? template.sample
-      : generateSample((parsed.value ?? {}) as Record<string, unknown>)
-    applyBuffers({ data: JSON.stringify(sample, null, 2) }, 'Generate sample')
-    setLastAction(template ? 'Loaded the template sample' : 'Generated sample data', 'success')
-  }, [applyBuffers, setLastAction])
-
-  const handleFormat = useCallback(
-    (pane: Pane) => {
-      const text = pane === 'data' ? dataRef.current : schemaRef.current
-      const parsed = parseJson(text)
-      if (parsed.status !== 'valid') {
-        setLastAction(`The ${pane} does not parse`, 'error')
-        return
-      }
-      const formatted = JSON.stringify(parsed.value, null, 2)
-      if (formatted === text) return
-      applyBuffers(pane === 'data' ? { data: formatted } : { schema: formatted }, `Format ${pane}`)
-      setLastAction('Formatted', 'success')
-    },
-    [applyBuffers, setLastAction]
-  )
-
-  const handleSave = useCallback(
-    (pane: Pane) => {
-      const text = pane === 'data' ? dataRef.current : schemaRef.current
-      if (!text.trim()) {
-        setLastAction('Nothing to save yet', 'info')
-        return
-      }
-      const fallback = pane === 'data' ? 'data.json' : 'schema.json'
-      const name = (pane === 'data' ? state.dataFileName : state.schemaFileName) ?? fallback
-      void saveFileDialog(text, name).then(
-        (path) =>
-          setLastAction(path ? `Saved ${path}` : 'Save cancelled', path ? 'success' : 'info'),
-        (err: unknown) =>
-          setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-      )
-    },
-    [state.dataFileName, state.schemaFileName, setLastAction]
-  )
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const opened = await openFileDialog()
-      if (opened) dispatchToolAction({ type: 'open-file', ...opened })
-    } catch (err) {
-      setLastAction(`Open failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [setLastAction])
-
-  // --- Schema from a URL -----------------------------------------------
-
-  const fetchIdRef = useRef(0)
-  const abortRef = useRef<AbortController | null>(null)
-  const handleLoadUrl = useCallback(async () => {
-    const url = state.schemaUrl.trim()
-    if (!url) return
-    if (!/^https?:\/\//i.test(url)) {
-      setLastAction('Enter an http(s) URL', 'error')
-      return
-    }
-    // Two loads in flight would otherwise race, and the slower one would win.
-    const id = ++fetchIdRef.current
-    // Abort a superseded request because its result cannot be used.
-    abortRef.current?.abort()
-    setLoadingUrl(true)
-    const controller = new AbortController()
-    abortRef.current = controller
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-    try {
-      // The Tauri HTTP client, not the WebView's: schema hosts do not send
-      // CORS headers, so a browser `fetch` fails on almost every real URL.
-      const response = await tauriFetch(url, { signal: controller.signal })
-      if (!response.ok) throw new Error(`the server answered ${response.status}`)
-      const text = await response.text()
-      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
-        throw new Error(`the schema is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
-      }
-      const parsed = parseJson(text)
-      if (parsed.status !== 'valid') throw new Error('the response is not valid JSON')
-      if (id !== fetchIdRef.current) return
-      const resolved = await resolveRemoteRefs(parsed.value, url, controller.signal)
-      applyBuffers({ schema: JSON.stringify(resolved, null, 2) }, 'Load schema from URL')
-      setLastAction('Loaded the schema from the URL', 'success')
-    } catch (e) {
-      if (id !== fetchIdRef.current) return
-      const raw = e instanceof Error ? e.message : String(e)
-      const message =
-        e instanceof DOMException && e.name === 'AbortError'
-          ? 'the request timed out'
-          : // Tauri denies hosts outside the capability scope with wording no
-            // user could act on; naming the restriction is the actionable part.
-            /scope/i.test(raw)
-            ? 'this host is not in the app’s allowed list'
-            : raw
-      setLastAction(`Could not load the schema — ${message}`, 'error')
-    } finally {
-      clearTimeout(timeout)
-      if (id === fetchIdRef.current) {
-        abortRef.current = null
-        setLoadingUrl(false)
-      }
-    }
-  }, [state.schemaUrl, applyBuffers, setLastAction])
-
   // --- Shell integration -----------------------------------------------
 
   useToolAction((action) => {
@@ -519,14 +228,14 @@ export default function JsonSchemaValidator() {
       // would throw that typing away, so the offer expires on a manual edit.
       setUndoBuffer(null)
     },
-    [updateState]
+    [updateState, setUndoBuffer]
   )
   const changeSchema = useCallback(
     (value: string | undefined) => {
       updateState({ schema: value ?? '' })
       setUndoBuffer(null)
     },
-    [updateState]
+    [updateState, setUndoBuffer]
   )
 
   const formatData = useCallback(() => handleFormat('data'), [handleFormat])
@@ -538,119 +247,24 @@ export default function JsonSchemaValidator() {
     <ToolLayout
       fullBleed
       toolbar={
-        <DocumentToolbar aria-label="Schema validation actions">
-          {/* Not a ToolbarGroup: the group's `shrink-0` would stop `detail` from
-              truncating, and truncation is what keeps a broken document's parse
-              message from pushing the actions off the row. */}
-          <div className="flex min-w-0 items-center gap-2">
-            <StatusIcon status={report.status} />
-            <span
-              role="status"
-              aria-live="polite"
-              className="shrink-0 text-xs text-[var(--color-text)]"
-            >
-              {headline}
-            </span>
-            {detail && (
-              // Outside the live region on purpose: this is the part that
-              // changes character by character while a document is broken.
-              <span className="min-w-0 truncate text-xs text-[var(--color-text-muted)]">
-                {detail}
-              </span>
-            )}
-            <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-              Schema {schemaDialect}
-            </span>
-            {errorLocation && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => goTo(errorLocation.pane, errorLocation.at)}
-                title="Move the cursor to the parse error"
-                className="shrink-0 gap-1"
-              >
-                <CrosshairSimpleIcon size={12} aria-hidden="true" />
-                Go to error
-              </Button>
-            )}
-          </div>
-
-          <DocumentFileActions
-            open={{
-              label: 'Open JSON data or schema',
-              title: `Open JSON data or schema (${formatShortcut('mod+o')})`,
-              onClick: () => void handleOpen(),
-            }}
-          />
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Select
-              aria-label="Template"
-              value={templateKey}
-              onChange={(e) => setTemplateKey(e.target.value)}
-              // The hints live on the options' titles: spelled out in the
-              // labels they stretched the closed select across the toolbar.
-              className="w-40"
-            >
-              {Object.entries(TEMPLATES).map(([key, template]) => (
-                <option key={key} value={key} title={template.hint}>
-                  {template.label}
-                </option>
-              ))}
-            </Select>
-            {/* Loading straight from the select's change event destroyed both
-                buffers as soon as the keyboard moved through the list, since
-                WebKit fires `change` per arrow key on a closed select. */}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => loadTemplate(templateKey)}
-              title="Replace both panes with this template and its sample"
-            >
-              <FilesIcon size={14} aria-hidden="true" />
-              Load template
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleInferSchema}
-              className="gap-1"
-              title="Replace the schema with one inferred from the data"
-            >
-              <MagicWandIcon size={14} aria-hidden="true" />
-              Infer schema
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleGenerateSample}
-              title="Replace the data with a sample the schema accepts"
-              className="gap-1"
-            >
-              <ArticleIcon size={14} aria-hidden="true" />
-              Sample data
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-pressed={strict}
-              onClick={() => updateState({ strict: !strict })}
-              title="Strict mode reports schema authoring mistakes instead of ignoring them"
-              className={
-                strict ? 'border-[var(--color-warning)] text-[var(--color-warning)]' : undefined
-              }
-            >
-              <ShieldCheckIcon size={14} aria-hidden="true" />
-              Strict
-            </Button>
-            {undoBuffer && (
-              <Button variant="ghost" size="sm" onClick={handleUndo} className="gap-1">
-                <ArrowUUpLeftIcon size={14} aria-hidden="true" />
-                Undo {undoBuffer.label.toLowerCase()}
-              </Button>
-            )}
-          </div>
-        </DocumentToolbar>
+        <ValidatorToolbar
+          report={report}
+          headline={headline}
+          detail={detail}
+          schemaDialect={schemaDialect}
+          errorLocation={errorLocation}
+          goTo={goTo}
+          handleOpen={handleOpen}
+          templateKey={templateKey}
+          setTemplateKey={setTemplateKey}
+          loadTemplate={loadTemplate}
+          handleInferSchema={handleInferSchema}
+          handleGenerateSample={handleGenerateSample}
+          strict={strict}
+          updateState={updateState}
+          undoBuffer={undoBuffer}
+          handleUndo={handleUndo}
+        />
       }
     >
       <div className="flex min-h-0 flex-1 flex-col">
@@ -743,255 +357,5 @@ export default function JsonSchemaValidator() {
         )}
       </div>
     </ToolLayout>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Presentation
-// ---------------------------------------------------------------------------
-
-/**
- * Split in two so the live region can announce the verdict without the line
- * and column, which change on every keystroke inside a broken document and
- * turned the announcement into a stutter.
- */
-function describeReport(report: ValidationReport): { headline: string; detail: string } {
-  const at = (location: JsonLocation | null) =>
-    location ? ` (line ${location.line}, column ${location.column})` : ''
-  switch (report.status) {
-    case 'empty':
-      return { headline: 'Add JSON data and a schema to validate', detail: '' }
-    case 'data-error':
-      return {
-        headline: 'The JSON data does not parse',
-        detail: `${report.message}${at(report.location)}`,
-      }
-    case 'schema-error':
-      return {
-        headline:
-          report.kind === 'parse' ? 'The schema does not parse' : 'The schema is not usable',
-        detail: `${report.message}${at(report.location)}`,
-      }
-    case 'valid':
-      return { headline: 'Valid — the data matches the schema', detail: '' }
-    case 'invalid':
-      return {
-        headline: `${report.total} problem${report.total === 1 ? '' : 's'} found`,
-        detail: '',
-      }
-  }
-}
-
-function SchemaOutline({ schema }: { schema: string }) {
-  const outline = useMemo(() => {
-    try {
-      const root = JSON.parse(schema) as Record<string, unknown>
-      const walk = (node: Record<string, unknown>, depth = 0): string[] => {
-        if (depth > 3) return []
-        const properties = node.properties
-        if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return []
-        const lines: string[] = []
-        for (const [name, child] of Object.entries(properties)) {
-          lines.push(`${'  '.repeat(depth)}${name}`)
-          if (child && typeof child === 'object' && !Array.isArray(child)) {
-            lines.push(...walk(child as Record<string, unknown>, depth + 1))
-          }
-        }
-        return lines
-      }
-      return walk(root)
-    } catch {
-      return []
-    }
-  }, [schema])
-  if (outline.length === 0) return null
-  return (
-    <details className="max-w-48 text-2xs text-[var(--color-text-muted)]">
-      <summary className="cursor-pointer">Outline ({outline.length})</summary>
-      <pre className="absolute z-20 mt-1 max-h-48 max-w-64 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 font-mono text-left">
-        {outline.join('\n')}
-      </pre>
-    </details>
-  )
-}
-
-function StatusIcon({ status }: { status: ValidationReport['status'] }) {
-  if (status === 'valid') {
-    return (
-      <CheckCircleIcon
-        size={14}
-        aria-hidden="true"
-        className="shrink-0 text-[var(--color-success)]"
-      />
-    )
-  }
-  if (status === 'empty') {
-    return (
-      <ShieldCheckIcon
-        size={14}
-        aria-hidden="true"
-        className="shrink-0 text-[var(--color-text-muted)]"
-      />
-    )
-  }
-  return (
-    <WarningCircleIcon
-      size={14}
-      aria-hidden="true"
-      className="shrink-0 text-[var(--color-error)]"
-    />
-  )
-}
-
-function EditorPane({
-  title,
-  fileName,
-  value,
-  monacoTheme,
-  monacoOptions,
-  onChange,
-  onMount,
-  onFormat,
-  onSave,
-  copyLabel,
-  headerExtras,
-  empty,
-  className = '',
-}: {
-  title: string
-  fileName: string | null
-  value: string
-  monacoTheme: string
-  monacoOptions: Record<string, unknown>
-  onChange: (value: string | undefined) => void
-  onMount: (editor: Parameters<OnMount>[0]) => void
-  onFormat: () => void
-  onSave: () => void
-  /** Distinct per pane: two buttons both reading "Copy" are ambiguous aloud. */
-  copyLabel: string
-  headerExtras?: ReactNode
-  empty?: ReactNode
-  className?: string
-}) {
-  return (
-    <section
-      aria-label={title}
-      className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${className}`}
-    >
-      <PaneHeader
-        title={title}
-        hint={fileName ? <span className="max-w-[10rem] truncate">{fileName}</span> : undefined}
-        actions={
-          <>
-            {headerExtras}
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={onFormat}
-              disabled={!value.trim()}
-              className="gap-1"
-            >
-              <BroomIcon size={14} aria-hidden="true" />
-              Format
-            </Button>
-            <CopyButton text={value} label={copyLabel} className="min-w-0" />
-            <Button
-              variant="secondary"
-              size="xs"
-              onClick={onSave}
-              disabled={!value.trim()}
-              aria-label={`Export ${title.toLowerCase()}`}
-              title={`Export to a file (${formatShortcut('mod+s')})`}
-              className="gap-1"
-            >
-              <DownloadSimpleIcon size={14} aria-hidden="true" />
-              Export
-            </Button>
-          </>
-        }
-      />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Editor
-          theme={monacoTheme}
-          language="json"
-          value={value}
-          onChange={onChange}
-          options={monacoOptions}
-          onMount={onMount}
-        />
-      </div>
-      {empty && (
-        // Click-through: the hint must never sit between the user and the caret.
-        <div className="pointer-events-none absolute inset-0 top-8 flex items-center justify-center p-4">
-          {empty}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function ProblemsPanel({
-  issues,
-  total,
-  open,
-  onToggle,
-  onSelect,
-}: {
-  issues: ValidationIssue[]
-  total: number
-  open: boolean
-  onToggle: () => void
-  onSelect: (issue: ValidationIssue) => void
-}) {
-  const listId = useId()
-  return (
-    <section
-      aria-label="Problems"
-      className="flex max-h-52 min-h-0 shrink-0 flex-col border-t border-[var(--color-border)]"
-    >
-      <PaneHeader
-        title="Problems"
-        // `hint`, not `status`: the tool's own summary bar already announces the count, and a
-        // second live region saying the same number means a screen reader reads it twice.
-        hint={
-          <>
-            <span className="text-[var(--color-error)]">{total}</span>
-            {total > MAX_ISSUES && <> · showing the first {MAX_ISSUES}</>}
-          </>
-        }
-        actions={
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-controls={listId}
-          >
-            {open ? 'Hide' : 'Show'}
-          </Button>
-        }
-      />
-      {open && (
-        <ul id={listId} className="min-h-0 flex-1 overflow-auto py-1">
-          {issues.map((issue, i) => (
-            <li key={`${issue.pointer}-${issue.keyword}-${i}`}>
-              {/* eslint-disable-next-line no-restricted-syntax -- a full-width list row rather than a control: it must fill the panel and keep the monospace pointer aligned, which every Button variant would override. */}
-              <button
-                type="button"
-                onClick={() => onSelect(issue)}
-                title="Jump to this path in the data"
-                className="flex w-full items-start gap-2 px-3 py-0.5 text-left text-xs hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-              >
-                <span className="shrink-0 rounded bg-[var(--color-surface)] px-1 text-2xs text-[var(--color-text-muted)]">
-                  {issue.keyword}
-                </span>
-                <code className="shrink-0 text-[var(--color-accent)]">{issue.label}</code>
-                <span className="text-[var(--color-error)]">{issue.message}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   )
 }

@@ -1,8 +1,6 @@
 import '@testing-library/jest-dom'
 import { JSDOM } from 'jsdom'
 
-console.log('TEST SETUP LOADED')
-
 // Set up JSDOM environment manually
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
   url: 'http://localhost/',

@@ -1,6 +1,34 @@
 import * as yaml from 'js-yaml'
 import { documentStats, sortKeysDeepBounded } from '@/lib/traversal'
 
+export type YamlView = 'source' | 'tree' | 'table' | 'json'
+
+export type YamlToolsState = {
+  input: string
+  fileName: string | null
+  filePath: string | null
+  /**
+   * Tree and JSON appear beside the source so users can inspect and edit together. JSON uses the
+   * same document state, and the view choice persists.
+   */
+  view: YamlView
+  tabWidth: number
+  query: string
+  queryOpen: boolean
+}
+
+export type UpdateYamlToolsState = (patch: Partial<YamlToolsState>) => void
+
+/** Above this many keys the tree starts collapsed — expanding is one click. */
+export const LARGE_DOCUMENT_KEYS = 500
+
+export const VIEW_OPTIONS = [
+  { value: 'source' as const, label: 'Source' },
+  { value: 'tree' as const, label: 'Tree' },
+  { value: 'table' as const, label: 'Table' },
+  { value: 'json' as const, label: 'JSON' },
+]
+
 /** Where js-yaml says the problem is, 1-based so it can go straight to Monaco. */
 export type YamlErrorLocation = { line: number; column: number }
 
@@ -10,6 +38,22 @@ export type YamlParse =
   | { status: 'invalid'; message: string; location: YamlErrorLocation | null }
 
 type YamlMark = { line?: number; column?: number }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** A value short enough for an aria-label, with strings marked as strings. */
+export function toLabel(value: unknown): string {
+  const text = typeof value === 'string' ? `"${value}"` : String(value)
+  return text.length > 60 ? `${text.slice(0, 60)}…` : text
+}
+
+export function toText(value: unknown): string {
+  return typeof value === 'object' && value !== null
+    ? JSON.stringify(value, null, 2)
+    : String(value)
+}
 
 /**
  * Parses the whole stream, not just the first document.

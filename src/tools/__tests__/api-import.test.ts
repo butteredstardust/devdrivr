@@ -430,6 +430,59 @@ type User {
     expect(result.requests[0]).not.toHaveProperty('collectionId')
   })
 
+  it('rejects YAML anchors that form a cycle', () => {
+    const content = `openapi: 3.0.0
+info: { title: Cycle, version: '1' }
+paths:
+  /x:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: &node { type: object, properties: { self: *node } }
+`
+    expect(() => importApiSpec({ content })).toThrow('YAML anchors form a cycle')
+  })
+
+  it('rejects YAML anchors that expand past the size limit', () => {
+    let anchors = '  l0: &l0 { type: string }\n'
+    for (let level = 1; level <= 22; level++) {
+      anchors += `  l${level}: &l${level} { type: object, properties: { a: *l${level - 1}, b: *l${level - 1} } }\n`
+    }
+    const content = `openapi: 3.0.0
+info: { title: Bomb, version: '1' }
+x-defs:
+${anchors}paths:
+  /x:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: *l22
+`
+    expect(() => importApiSpec({ content })).toThrow('YAML anchors expand past the size limit')
+  })
+
+  it('keeps YAML anchors that expand to a normal size', () => {
+    const content = `openapi: 3.0.0
+info: { title: Shared, version: '1' }
+x-defs:
+  user: &user { type: object, properties: { name: { type: string } } }
+paths:
+  /users:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { owner: *user, editor: *user } }
+`
+    const result = importApiSpec({ content })
+    expect(JSON.parse(result.requests[0]?.body ?? '')).toEqual({
+      owner: { name: '' },
+      editor: { name: '' },
+    })
+  })
+
   it('detects protobuf and GraphQL by filename', () => {
     expect(detectApiImportFormat('service Test {}', 'test.proto')).toBe('protobuf')
     expect(detectApiImportFormat('type Query { viewer: User }', 'schema.gql')).toBe('graphql')

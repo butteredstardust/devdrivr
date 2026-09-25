@@ -66,6 +66,10 @@ export type PendingDocument = {
   successMessage: string
 }
 
+export type ActiveMarkdownModal = 'link' | 'image' | 'code' | 'table' | null
+
+export type UpdateMarkdownEditorState = (patch: Partial<MarkdownEditorState>) => void
+
 export type EditorInstance = Parameters<OnMount>[0]
 
 export type FormattingAction = {

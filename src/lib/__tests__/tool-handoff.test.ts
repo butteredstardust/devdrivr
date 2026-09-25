@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { clearHandoffDeliveries, sendToTool } from '@/lib/tool-handoff'
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { useUiStore } from '@/stores/ui.store'
 import { loadToolState, saveToolState } from '@/lib/db'
 
 vi.mock('@/lib/db', () => ({
@@ -32,6 +33,31 @@ describe('sendToTool', () => {
         draft: { url: 'https://example.com' },
       })
     )
+  })
+
+  it('reports a handoff that fails instead of dropping it', async () => {
+    const openTab = useWorkspaceStore.getState().openTab
+    useWorkspaceStore.setState({
+      openTab: () => {
+        throw new Error('no such tool')
+      },
+    })
+    useUiStore.setState({ toasts: [] })
+
+    try {
+      sendToTool('api-client', { draft: { url: 'https://example.com' } })
+
+      await vi.waitFor(() =>
+        expect(useUiStore.getState().toasts).toEqual([
+          expect.objectContaining({
+            message: 'Could not send to api-client: no such tool',
+            type: 'error',
+          }),
+        ])
+      )
+    } finally {
+      useWorkspaceStore.setState({ openTab })
+    }
   })
 
   it('merges into whatever the target already had', () => {
@@ -207,6 +233,26 @@ describe('sendToTool', () => {
       expect(useToolStateCache.getState().get(arrival.stateKey!)).toMatchObject({
         input: 'handoff',
       })
+      expect(useToolStateCache.getState().get('json-tools')).toBeUndefined()
+    })
+
+    it('takes a new tab when the destination cannot be read', async () => {
+      // The failed read proves nothing about the destination. The retry in `deliver` can still
+      // find a document and a file path, and the next save would write the handoff into that file.
+      useWorkspaceStore.getState().openTab('json-tools')
+      vi.mocked(loadToolState)
+        .mockRejectedValueOnce(new Error('database is locked'))
+        .mockResolvedValue({ input: 'saved work', filePath: '/a.json' })
+
+      sendToTool('json-tools', { input: 'handoff' }, { documentKeys: ['input'] })
+
+      await vi.waitFor(() => expect(useWorkspaceStore.getState().tabs).toHaveLength(2))
+      const arrival = useWorkspaceStore.getState().tabs[1]!
+      await vi.waitFor(() =>
+        expect(useToolStateCache.getState().get(arrival.stateKey!)).toMatchObject({
+          input: 'handoff',
+        })
+      )
       expect(useToolStateCache.getState().get('json-tools')).toBeUndefined()
     })
 

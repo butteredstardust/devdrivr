@@ -659,10 +659,14 @@ describe('MarkdownEditor', () => {
     )
 
     await waitFor(() =>
-      expect(mermaidMock.initialize).toHaveBeenCalledWith({
-        startOnLoad: false,
-        theme: 'default',
-      })
+      expect(mermaidMock.initialize).toHaveBeenCalledWith(
+        // The Mermaid editor shares this instance, so the preview must not reset its SVG labels.
+        expect.objectContaining({
+          startOnLoad: false,
+          theme: 'default',
+          htmlLabels: false,
+        })
+      )
     )
   })
 

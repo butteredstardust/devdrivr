@@ -3,6 +3,19 @@ import Ajv2019 from 'ajv/dist/2019'
 import Ajv2020 from 'ajv/dist/2020'
 import addFormats from 'ajv-formats'
 
+export type Pane = 'data' | 'schema'
+
+export type JsonSchemaState = {
+  data: string
+  schema: string
+  strict: boolean
+  schemaUrl: string
+  dataFileName: string | null
+  schemaFileName: string | null
+}
+
+export type UpdateJsonSchemaState = (patch: Partial<JsonSchemaState>) => void
+
 // ---------------------------------------------------------------------------
 // Locations
 // ---------------------------------------------------------------------------
@@ -218,6 +231,38 @@ export type ValidationReport =
     }
   | { status: 'valid' }
   | { status: 'invalid'; issues: ValidationIssue[]; total: number }
+
+/**
+ * Split in two so the live region can announce the verdict without the line
+ * and column, which change on every keystroke inside a broken document and
+ * turned the announcement into a stutter.
+ */
+export function describeReport(report: ValidationReport): { headline: string; detail: string } {
+  const at = (location: JsonLocation | null) =>
+    location ? ` (line ${location.line}, column ${location.column})` : ''
+  switch (report.status) {
+    case 'empty':
+      return { headline: 'Add JSON data and a schema to validate', detail: '' }
+    case 'data-error':
+      return {
+        headline: 'The JSON data does not parse',
+        detail: `${report.message}${at(report.location)}`,
+      }
+    case 'schema-error':
+      return {
+        headline:
+          report.kind === 'parse' ? 'The schema does not parse' : 'The schema is not usable',
+        detail: `${report.message}${at(report.location)}`,
+      }
+    case 'valid':
+      return { headline: 'Valid — the data matches the schema', detail: '' }
+    case 'invalid':
+      return {
+        headline: `${report.total} problem${report.total === 1 ? '' : 's'} found`,
+        detail: '',
+      }
+  }
+}
 
 /** A 10k-error array would otherwise render 10k rows nobody scrolls through. */
 export const MAX_ISSUES = 200

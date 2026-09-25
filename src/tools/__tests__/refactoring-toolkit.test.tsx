@@ -185,6 +185,29 @@ describe('RefactoringToolkit', () => {
     expect(editor()).toHaveValue("var x = 1 == '1';")
   })
 
+  it('leaves mod+z typed in the notes drawer to the note', async () => {
+    renderTool(RefactoringToolkit)
+    typeCode('var x = 1;')
+    checkTransform('var → const/let')
+    await waitFor(() => expect(screen.getByTestId('modified-editor')).toBeInTheDocument(), WAIT)
+    fireEvent.click(screen.getByRole('button', { name: /^Apply/ }))
+    await waitFor(() => expect(editor()).toHaveValue('const x = 1;'), WAIT)
+
+    const drawer = document.createElement('aside')
+    drawer.setAttribute('data-key-scope', 'notes-drawer')
+    const note = document.createElement('textarea')
+    drawer.append(note)
+    document.body.append(drawer)
+    const noteSawKey = vi.fn()
+    note.addEventListener('keydown', noteSawKey)
+
+    fireEvent.keyDown(note, { key: 'z', metaKey: true })
+
+    expect(noteSawKey).toHaveBeenCalledTimes(1)
+    expect(editor()).toHaveValue('const x = 1;')
+    drawer.remove()
+  })
+
   it('warns on the Apply button when a destructive transform is selected', async () => {
     renderTool(RefactoringToolkit)
     typeCode('console.log(1)\nvar y = 2;')
@@ -280,6 +303,8 @@ describe('RefactoringToolkit', () => {
   })
 
   it('preserves configured transforms when the open file reloads from disk', async () => {
+    // The watcher reads the opened content as its baseline for unsaved edits.
+    vi.mocked(readSupportedTextFile).mockResolvedValueOnce('var original = 1;')
     renderTool(RefactoringToolkit)
     act(() => {
       dispatchToolAction({

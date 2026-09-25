@@ -5,12 +5,14 @@ import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
-import { TOOLS } from '@/app/tool-registry'
-import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
-import { openFileDialog } from '@/lib/file-io'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { adjacentToolId, openFileForTool, saveFileForTool } from '@/lib/shell-actions'
 import { detectPlatform } from '@/lib/platform'
 import { toggleNativeWindowFullscreen } from '@/lib/native-window'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
+
+// These shortcuts act on the active tool, so they must not fire from a dialog or a key scope.
+const TARGETS_TOOL = { targetsTool: true } as const
 
 export function useGlobalShortcuts(): void {
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
@@ -70,17 +72,13 @@ export function useGlobalShortcuts(): void {
   }, [update, notesDrawerOpen])
 
   const nextTool = useCallback(() => {
-    if (!activeTool) return
-    const idx = TOOLS.findIndex((t) => t.id === activeTool)
-    const next = TOOLS[(idx + 1) % TOOLS.length]
-    if (next) setActiveTool(next.id)
+    const next = adjacentToolId(activeTool, 1)
+    if (next) setActiveTool(next)
   }, [activeTool, setActiveTool])
 
   const prevTool = useCallback(() => {
-    if (!activeTool) return
-    const idx = TOOLS.findIndex((t) => t.id === activeTool)
-    const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
-    if (prev) setActiveTool(prev.id)
+    const prev = adjacentToolId(activeTool, -1)
+    if (prev) setActiveTool(prev)
   }, [activeTool, setActiveTool])
 
   const execute = useCallback(() => dispatchToolAction({ type: 'execute' }), [])
@@ -102,41 +100,9 @@ export function useGlobalShortcuts(): void {
     await toggleNativeWindowFullscreen()
   }, [])
 
-  const openFile = useCallback(async () => {
-    // A tool that needs bytes runs its own dialog. Reading the file as text
-    // here would reject a PNG before the tool ever sees it.
-    if (toolOwnsOpenFile(activeTool)) {
-      dispatchToolAction({ type: 'open-file-dialog' })
-      return
-    }
-    if (!supportsToolFileAction(activeTool, 'open-file')) {
-      addToast('Open File is not supported by the active tool', 'error')
-      return
-    }
-    try {
-      const maxBytes = TOOLS.find((tool) => tool.id === activeTool)?.maxOpenBytes
-      const result = await openFileDialog(maxBytes === undefined ? undefined : { maxBytes })
-      if (result) {
-        dispatchToolAction({
-          type: 'open-file',
-          content: result.content,
-          filename: result.filename,
-          path: result.path,
-        })
-        addToast(`Opened ${result.filename}`, 'success')
-      }
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }, [activeTool, addToast])
+  const openFile = useCallback(() => openFileForTool(activeTool, addToast), [activeTool, addToast])
 
-  const saveFile = useCallback(() => {
-    if (!supportsToolFileAction(activeTool, 'save-file')) {
-      addToast('Save Output is not supported by the active tool', 'error')
-      return
-    }
-    dispatchToolAction({ type: 'save-file' })
-  }, [activeTool, addToast])
+  const saveFile = useCallback(() => saveFileForTool(activeTool, addToast), [activeTool, addToast])
 
   const toggleAlwaysOnTop = useCallback(async () => {
     const next = !alwaysOnTop
@@ -154,8 +120,8 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboShiftT, toggleTheme)
   useKeyboardShortcut(comboNext, nextTool)
   useKeyboardShortcut(comboPrev, prevTool)
-  useKeyboardShortcut(comboEnter, execute)
-  useKeyboardShortcut(comboShiftC, copyOutput)
+  useKeyboardShortcut(comboEnter, execute, TARGETS_TOOL)
+  useKeyboardShortcut(comboShiftC, copyOutput, TARGETS_TOOL)
   // Fixed-length loop over a constant-size array (always 9 elements, built by
   // Array.from above) — the number and order of hook calls is stable across
   // renders, so an unconditional loop here is safe despite the rules-of-hooks lint.
@@ -166,8 +132,8 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboW, closeCurrentTab)
   useKeyboardShortcut(comboComma, toggleSettingsPanel)
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
-  useKeyboardShortcut(comboO, openFile)
-  useKeyboardShortcut(comboS, saveFile)
+  useKeyboardShortcut(comboO, openFile, TARGETS_TOOL)
+  useKeyboardShortcut(comboS, saveFile, TARGETS_TOOL)
   useKeyboardShortcut(comboSlash, toggleShortcutsModal)
   useKeyboardShortcut(comboFullscreen, toggleFullscreen)
   useMruTabSwitcher()

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import type { RefObject } from 'react'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { readFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
+import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
 import { importNoteImage } from '@/lib/note-assets'
 import type { EditorInstance } from '@/tools/markdown-editor/markdown-model'
 
@@ -14,6 +15,16 @@ function filenameFromPath(path: string): string {
 function supportsFilename(name: string): boolean {
   const extension = name.split('.').pop()?.toLowerCase()
   return extension !== undefined && SUPPORTED_EXTENSIONS.has(extension)
+}
+
+/**
+ * Rejects an image above the attachment limit before it is read. Rust checks the same limit, but
+ * only after the whole file is in memory and serialized as a number array.
+ */
+function assertAttachmentSize(name: string, size: number): void {
+  if (size > MAX_NOTE_IMAGE_BYTES) {
+    throw new Error(`${name} exceeds the 10 MiB attachment limit`)
+  }
 }
 
 function isInside(position: { x: number; y: number }, container: HTMLDivElement): boolean {
@@ -96,6 +107,12 @@ export function useNoteImageAttachments(
       const expectedContextKey = contextKeyRef.current
       if (files.length === 0 || !expectedContextKey) return
       event.preventDefault()
+      try {
+        files.forEach((file) => assertAttachmentSize(file.name || 'pasted-image.png', file.size))
+      } catch (error) {
+        callbacksRef.current.onError(error instanceof Error ? error.message : String(error))
+        return
+      }
       void Promise.all(
         files.map(async (file) => ({
           name: file.name || 'pasted-image.png',
@@ -142,6 +159,9 @@ export function useNoteImageAttachments(
         const paths = event.payload.paths.filter(supportsFilename)
         if (paths.length === 0) return
         try {
+          for (const path of paths) {
+            assertAttachmentSize(filenameFromPath(path), (await stat(path)).size)
+          }
           const files = await Promise.all(
             paths.map(async (path) => ({
               name: filenameFromPath(path),

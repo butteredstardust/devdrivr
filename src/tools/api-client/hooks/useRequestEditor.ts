@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiHeader } from '@/types/models'
 import { coerceApiHeaders, coerceApiRequestAuth } from '@/lib/schemas'
+import { formatBytes } from '@/lib/format'
+import { useUiStore } from '@/stores/ui.store'
 import {
   blankFormRows,
   contentTypeFor,
@@ -14,6 +16,7 @@ import {
   applyMethodDefaults,
   BODY_METHODS,
   buildUrlWithParams,
+  MAX_UPLOAD_FILE_BYTES,
   parseQueryParams,
   removeIndexedFile,
   type ApiClientState,
@@ -27,6 +30,7 @@ type UseRequestEditorInput = {
 }
 
 export function useRequestEditor({ state, updateState }: UseRequestEditorInput) {
+  const setLastAction = useUiStore((s) => s.setLastAction)
   // Destructure draft for convenience
   const { method, url, body, bodyMode, name } = state.draft
 
@@ -187,6 +191,13 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
     (index: number, file: File | null) => {
       const field = formFields[index]
       if (!field) return
+      if (file && file.size > MAX_UPLOAD_FILE_BYTES) {
+        setLastAction(
+          `${file.name} is ${formatBytes(file.size)}, above the ${formatBytes(MAX_UPLOAD_FILE_BYTES)} upload limit`,
+          'error'
+        )
+        return
+      }
       setFormFiles((prev) => {
         const next = { ...prev }
         if (file) next[index] = file
@@ -197,7 +208,7 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
       // even though the bytes are gone.
       updateFormField(index, { value: file ? file.name : '' })
     },
-    [formFields, updateFormField]
+    [formFields, updateFormField, setLastAction]
   )
 
   // ---------------------------------------------------------------------------

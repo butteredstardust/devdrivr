@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import {
   buildExportFilename,
   exportFile,
+  FileTooLargeError,
   filenameFromPath,
   isLikelyBinaryText,
   openFileDialog,
+  openImageFileDialog,
   readSupportedTextFile,
   sanitizeExportBasename,
   saveFileDialog,
@@ -20,6 +22,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }))
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
+  readFile: vi.fn(),
   readTextFile: vi.fn(),
   stat: vi.fn(),
   writeTextFile: vi.fn(),
@@ -59,6 +62,25 @@ describe('file I/O', () => {
 
     await expect(openFileDialog({ maxBytes: 100 })).rejects.toThrow('import limit')
     expect(readTextFile).not.toHaveBeenCalled()
+  })
+
+  it('applies the default size limit when the caller sets none', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/huge.csv')
+    vi.mocked(stat).mockResolvedValue({ size: 50 * 1024 * 1024 + 1 } as Awaited<
+      ReturnType<typeof stat>
+    >)
+
+    await expect(openFileDialog()).rejects.toThrow('50 MB import limit')
+    await expect(readSupportedTextFile('/tmp/huge.csv')).rejects.toThrow('50 MB import limit')
+    expect(readTextFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized image before reading it', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/huge.png')
+    vi.mocked(stat).mockResolvedValue({ size: 101 } as Awaited<ReturnType<typeof stat>>)
+
+    await expect(openImageFileDialog({ maxBytes: 100 })).rejects.toBeInstanceOf(FileTooLargeError)
+    expect(readFile).not.toHaveBeenCalled()
   })
 
   // TSX and JSX were missing, so React sources were invisible in the picker

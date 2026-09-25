@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { readBytesWithLimit } from '@/lib/http-body'
 import { useApiStore } from '@/stores/api.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
@@ -163,17 +164,20 @@ export function useRequestTransport({
         // capping afterwards is exactly the allocation this limit exists to avoid.
         const declaredLength = Number(res.headers.get('content-length') ?? Number.NaN)
         if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+          // Release the unread body on the Rust side before the request fails.
+          await res.body?.cancel().catch(() => {})
           throw new Error(
             `Response is ${formatBytes(declaredLength)}, above the ${formatBytes(MAX_RESPONSE_BYTES)} limit. Use a direct download instead.`
           )
         }
 
-        const fullBytes = new Uint8Array(await res.arrayBuffer())
-        const size = fullBytes.byteLength
-        const overLimit = size > MAX_RESPONSE_BYTES
-        // A server that under-declared or omitted Content-Length still lands here; keep only the
-        // retained prefix so one bad response cannot pin gigabytes for the rest of the session.
-        const responseBytes = overLimit ? fullBytes.slice(0, MAX_RESPONSE_BYTES) : fullBytes
+        // A server that under-declared or omitted Content-Length still lands here. Stop reading
+        // at the limit, so one bad response cannot download or pin gigabytes.
+        const { bytes: responseBytes, truncated: overLimit } = await readBytesWithLimit(
+          res,
+          MAX_RESPONSE_BYTES
+        )
+        const size = responseBytes.byteLength
 
         const resHeaders: Record<string, string> = {}
         res.headers.forEach((value, key) => {

@@ -637,7 +637,9 @@ describe('SnippetsManager — native import and export', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import snippets from JSON' }))
 
     await waitFor(() =>
-      expect(useUiStore.getState().lastAction?.message).toMatch(/choose a valid snippets JSON file/)
+      expect(useUiStore.getState().lastAction?.message).toBe(
+        'Import failed — Expected a snippets array or a version 2 or 3 backup'
+      )
     )
   })
 

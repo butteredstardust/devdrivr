@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
+import { useUiStore } from '@/stores/ui.store'
 import { importApiSpec } from '@/lib/api-import'
 import ApiClient from '@/tools/api-client/ApiClient'
 import {
@@ -231,6 +232,25 @@ describe('ApiClient', () => {
     })
   })
 
+  it('rejects a multipart file above the upload limit', () => {
+    const { container } = renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+    const huge = new File(['x'], 'huge.bin')
+    Object.defineProperty(huge, 'size', { value: 25 * 1024 * 1024 + 1 })
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [huge] },
+    })
+
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: expect.stringContaining('above the 25.0 MB upload limit'),
+      type: 'error',
+    })
+    expect(screen.queryByText(/huge\.bin/)).not.toBeInTheDocument()
+  })
+
   it('renders import and export controls in the library footer', () => {
     renderTool(ApiClient)
     expect(screen.getByRole('button', { name: 'Import API data' })).toBeInTheDocument()
@@ -446,6 +466,22 @@ describe('ApiClient', () => {
     await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
     expect(screen.getByRole('button', { name: 'Show Response' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Response' })).not.toBeInTheDocument()
+  })
+
+  it('releases the body of a response that declares an oversized length', async () => {
+    const response = new Response('small', {
+      headers: { 'content-length': String(51 * 1024 ** 2) },
+    })
+    const cancel = vi.spyOn(response.body!, 'cancel')
+    fetchMock.mockResolvedValue(response)
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://example.com' },
+    })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledOnce())
   })
 
   it('encodes non-ASCII Basic auth credentials as UTF-8 bytes', async () => {

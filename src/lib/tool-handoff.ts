@@ -1,5 +1,6 @@
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
+import { useUiStore } from '@/stores/ui.store'
 import { loadToolState } from '@/lib/db'
 import { saveToolStateWithFeedback } from '@/lib/tool-state-persistence'
 
@@ -152,12 +153,20 @@ async function route(
     // A destination that has never been open keeps its document on disk, so the check has to read
     // it. Nothing is seeded until the tab that receives the handoff is known.
     const cached = useToolStateCache.getState().get(key)
-    const stored = cached ?? (await loadToolState(key).catch(() => null))
+    let readFailed = false
+    const stored =
+      cached ??
+      (await loadToolState(key).catch(() => {
+        readFailed = true
+        return null
+      }))
     // WARNING: the tab is on screen and usable during that read. Whatever the user typed while it
     // ran is in the cache and is newer than the row on disk, so the check has to see it.
     const state = { ...stored, ...useToolStateCache.getState().get(key) }
 
-    if (wouldReplaceDocument(state, patch, key, documentKeys)) {
+    // An unreadable destination may still hold a document on disk. Treating it as empty would let
+    // the next save write the handed-over content into that file, so the handoff takes a new tab.
+    if (readFailed || wouldReplaceDocument(state, patch, key, documentKeys)) {
       // The new tab has its own state key and holds nothing, so there is no file to detach from.
       useWorkspaceStore.getState().openTabInstance(toolId)
       key = focusedStateKey(toolId)
@@ -191,7 +200,10 @@ export function sendToTool(
 ): void {
   // Synchronous until the destination has to be read from disk, so a handoff that cannot lose
   // anything still seeds within the click that asked for it.
-  void route(toolId, patch, options).catch(() => {})
+  void route(toolId, patch, options).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err)
+    useUiStore.getState().addToast(`Could not send to ${toolId}: ${message}`, 'error')
+  })
 }
 
 /** Forgets every recorded delivery. Test helper — the map outlives a component tree. */

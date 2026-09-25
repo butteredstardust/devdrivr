@@ -761,14 +761,6 @@ export async function clearAllSnippets(): Promise<void> {
   )
 }
 
-export async function emptyNotesTrash(): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM notes WHERE deleted_at IS NOT NULL'))
-}
-
-export async function emptySnippetsTrash(): Promise<void> {
-  await enqueueWrite((conn) => conn.execute('DELETE FROM snippets WHERE deleted_at IS NOT NULL'))
-}
-
 export async function clearAllHistory(): Promise<void> {
   await enqueueWrite((conn) => conn.execute('DELETE FROM history'))
 }
@@ -1336,8 +1328,4 @@ export async function permanentlyDeleteApiRequest(id: string): Promise<void> {
   await enqueueWrite((conn) =>
     conn.execute('DELETE FROM api_requests WHERE id = $1 AND deleted_at IS NOT NULL', [id])
   )
-}
-
-export async function emptyApiRequestsTrash(): Promise<void> {
-  await emptyResourceTrash('apiRequests')
 }

@@ -10,6 +10,7 @@ import {
   loadApiRequests,
   loadTrashedApiRequests,
   loadHistory,
+  pruneHistory,
   saveApiCollection,
   saveApiEnvironment,
   saveApiImport,
@@ -18,6 +19,7 @@ import {
   permanentlyDeleteApiRequest,
 } from '@/lib/db'
 import { useApiStore } from '@/stores/api.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
 import { expectInitRejectionRecovers } from './init-rejection-helper'
 
@@ -37,6 +39,7 @@ vi.mock('@/lib/db', () => ({
   loadApiRequests: vi.fn(),
   loadTrashedApiRequests: vi.fn(),
   loadHistory: vi.fn(),
+  pruneHistory: vi.fn(),
   saveApiCollection: vi.fn(),
   saveApiEnvironment: vi.fn(),
   saveApiImport: vi.fn(),
@@ -397,6 +400,18 @@ describe('API store persistence', () => {
       '00000000-0000-4000-8000-000000000031'
     )
     expect(useApiStore.getState().activeEnvironmentId).toBe('00000000-0000-4000-8000-000000000031')
+  })
+
+  it('prunes stored request history to the retention setting', async () => {
+    vi.mocked(addHistoryEntry).mockResolvedValue()
+    vi.mocked(pruneHistory).mockResolvedValue()
+    useSettingsStore.setState({ historyRetentionPerTool: 7 })
+
+    await useApiStore
+      .getState()
+      .addRequestHistory({ input: 'GET https://example.com', output: '200' })
+
+    expect(pruneHistory).toHaveBeenCalledWith('api-client', 7)
   })
 
   it('clearAll() trashes every request and reloads both lists', async () => {

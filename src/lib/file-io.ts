@@ -1,5 +1,6 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 
 // One picker contract for editable text. Separate open/save lists drifted: files visible in Open
@@ -116,17 +117,19 @@ export function mimeTypeFromPath(filePath: string): string {
   return MIME_TYPES[extension] ?? ''
 }
 
+/** Thrown when a file is above the caller's size limit. Checked before the file is read. */
+export class FileTooLargeError extends Error {}
+
 export async function readSupportedTextFile(
   filePath: string,
   options?: { maxBytes?: number }
 ): Promise<string> {
-  if (options?.maxBytes !== undefined) {
-    const metadata = await stat(filePath)
-    if (metadata.size > options.maxBytes) {
-      throw new Error(
-        `File is larger than the ${Math.round(options.maxBytes / 1024 / 1024)} MB import limit`
-      )
-    }
+  const maxBytes = options?.maxBytes ?? MAX_TEXT_FILE_BYTES
+  const metadata = await stat(filePath)
+  if (metadata.size > maxBytes) {
+    throw new FileTooLargeError(
+      `File is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB import limit`
+    )
   }
   let content: string
   try {
@@ -162,7 +165,8 @@ export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
   return { content, filename: filenameFromPath(filePath), path: filePath }
 }
 
-export async function openImageFileDialog(): Promise<{
+/** Throws `FileTooLargeError` for a file above `maxBytes`, before the file is read. */
+export async function openImageFileDialog(options?: { maxBytes?: number }): Promise<{
   bytes: Uint8Array
   filename: string
   path: string
@@ -179,6 +183,12 @@ export async function openImageFileDialog(): Promise<{
   if (!path) return null
   const filePath = typeof path === 'string' ? path : path[0]
   if (!filePath) return null
+  const maxBytes = options?.maxBytes
+  if (maxBytes !== undefined && (await stat(filePath)).size > maxBytes) {
+    throw new FileTooLargeError(
+      `Image is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB file limit`
+    )
+  }
   const bytes = await readFile(filePath)
   return { bytes, filename: filenameFromPath(filePath), path: filePath }
 }

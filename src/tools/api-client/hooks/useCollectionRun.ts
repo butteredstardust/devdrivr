@@ -38,10 +38,11 @@ export function useCollectionRun(envVars: Record<string, string>, timeoutMs: num
       )
       setCollectionRun({ collectionId: collection.id, running: true, results: {} })
       const updateCurrentRun = (update: (current: CollectionRun) => CollectionRun) => {
+        // Check the ref now, not in the updater. React can run the updater after this run
+        // clears the ref, which drops the last results.
+        if (collectionRunAbortRef.current !== controller) return
         setCollectionRun((current) =>
-          collectionRunAbortRef.current === controller && current?.collectionId === collection.id
-            ? update(current)
-            : current
+          current?.collectionId === collection.id ? update(current) : current
         )
       }
 
@@ -133,6 +134,9 @@ export function useCollectionRun(envVars: Record<string, string>, timeoutMs: num
           }
           const result = await tauriFetch(interpolate(request.url, envVars), options)
           const elapsed = Math.round(performance.now() - started)
+          // The run needs only the status. Cancel the body, because the HTTP plugin keeps an
+          // unread body open on the Rust side until the app quits.
+          result.body?.cancel().catch(() => {})
           updateCurrentRun((current) => ({
             ...current,
             results: {

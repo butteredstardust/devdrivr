@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { type OnMount } from '@monaco-editor/react'
+import { useCallback, useId, useRef } from 'react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import {
   ArrowsInLineVerticalIcon,
-  ArrowsOutLineVerticalIcon,
   ArrowUUpLeftIcon,
   BracketsCurlyIcon,
   BroomIcon,
@@ -15,17 +13,12 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
-import { useTextDocumentFileActions } from '@/hooks/useTextDocumentFileActions'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useToolAction } from '@/hooks/useToolAction'
-import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { CopyButton } from '@/components/shared/CopyButton'
 import { Kbd } from '@/components/shared/Kbd'
-import { PaneHeader } from '@/components/shared/PaneHeader'
-import { SectionLabel } from '@/components/shared/SectionLabel'
 import { Button } from '@/components/shared/Button'
 import { Alert } from '@/components/shared/Alert'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -34,68 +27,16 @@ import { Input, Select } from '@/components/shared/Input'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
-import { useUiStore } from '@/stores/ui.store'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import {
-  documentsToJson,
-  hasUnpreservableSyntax,
-  jsonToYaml,
-  parseYamlStream,
-  sortKeysDeep,
-  stringifyYamlStream,
-  yamlStats,
-  type YamlParse,
-} from '@/tools/yaml-tools/yaml-helpers'
-import { useCopyToClipboard, type CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { documentsToJson, VIEW_OPTIONS, type YamlToolsState } from '@/tools/yaml-tools/yaml-helpers'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
-import { InspectorTree } from '@/components/shared/InspectorTree'
-import { queryJsonPath } from '@/lib/json-path'
 import { sendToTool } from '@/lib/tool-handoff'
-import { JsonTable, isTabularJsonArray } from '@/tools/json-tools/JsonTools'
-
-type YamlView = 'source' | 'tree' | 'table' | 'json'
-
-type YamlToolsState = {
-  input: string
-  fileName: string | null
-  filePath: string | null
-  /**
-   * Tree and JSON appear beside the source so users can inspect and edit together. JSON uses the
-   * same document state, and the view choice persists.
-   */
-  view: YamlView
-  tabWidth: number
-  query: string
-  queryOpen: boolean
-}
-
-/** Above this many keys the tree starts collapsed — expanding is one click. */
-const LARGE_DOCUMENT_KEYS = 500
-
-const VIEW_OPTIONS = [
-  { value: 'source' as const, label: 'Source' },
-  { value: 'tree' as const, label: 'Tree' },
-  { value: 'table' as const, label: 'Table' },
-  { value: 'json' as const, label: 'JSON' },
-]
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** A value short enough for an aria-label, with strings marked as strings. */
-function toLabel(value: unknown): string {
-  const text = typeof value === 'string' ? `"${value}"` : String(value)
-  return text.length > 60 ? `${text.slice(0, 60)}…` : text
-}
-
-function toText(value: unknown): string {
-  return typeof value === 'object' && value !== null
-    ? JSON.stringify(value, null, 2)
-    : String(value)
-}
+import { InspectorPane } from '@/tools/yaml-tools/components/InspectorPane'
+import { useYamlDocumentActions } from '@/tools/yaml-tools/hooks/useYamlDocumentActions'
+import { useYamlInspection } from '@/tools/yaml-tools/hooks/useYamlInspection'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -119,230 +60,39 @@ export default function YamlTools() {
     ['format', 'detectLanguage', 'getSupportedLanguages']
   )
 
-  const setLastAction = useUiStore((s) => s.setLastAction)
   const queryId = useId()
   const copy = useCopyToClipboard()
-  const [error, setError] = useState<string | null>(null)
-  const [isFormatting, setIsFormatting] = useState(false)
-  const formattingRef = useRef(false)
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
-  // Reshaping drops comments; an undo that does not depend on Monaco's history
-  // is the difference between "annoying" and "lost work".
-  const [undoBuffer, setUndoBuffer] = useState<{ input: string; label: string } | null>(null)
-  // Lives here rather than in the pane so switching to Source or Tree does not
-  // silently throw away an unapplied edit.
-  const [jsonDraft, setJsonDraft] = useState<string | null>(null)
-
   const { input, view, query } = state
   const inputRef = useRef(input)
   inputRef.current = input
   const hasInput = input.trim().length > 0
-
-  // Parsing (and the stats walk over the result) runs off a debounced copy of
-  // the buffer: on a large manifest doing it per keystroke costs a frame, and a
-  // live region that re-announces the whole verdict on every character is
-  // unusable with a screen reader.
-  const [parseSource, setParseSource] = useState(input)
-  useEffect(() => {
-    const timer = setTimeout(() => setParseSource(input), 250)
-    return () => clearTimeout(timer)
-  }, [input])
-
-  const parsed = useMemo<YamlParse>(() => parseYamlStream(parseSource), [parseSource])
-  const isValid = parsed.status === 'valid'
-  const documents = parsed.status === 'valid' ? parsed.documents : []
-  const queryData = documents.length === 1 ? documents[0] : documents
-  const queryResult = useMemo(
-    () => (parsed.status === 'valid' && query.trim() ? queryJsonPath(queryData, query) : null),
-    [parsed.status, queryData, query]
-  )
-
-  const stats = useMemo(
-    () => (parsed.status === 'valid' ? yamlStats(parsed.documents) : null),
-    [parsed]
-  )
-
-  const status =
-    parsed.status === 'empty'
-      ? 'Nothing to inspect yet'
-      : parsed.status === 'invalid'
-        ? parsed.location
-          ? `Invalid YAML — ${parsed.message} — line ${parsed.location.line}, column ${parsed.location.column}`
-          : `Invalid YAML — ${parsed.message}`
-        : stats
-          ? `Valid YAML · ${documents.length > 1 ? `${documents.length} documents · ` : ''}${stats.keys} key${stats.keys === 1 ? '' : 's'} · depth ${stats.depth} · ${stats.size}`
-          : 'Valid YAML'
-
-  // --- Actions ---------------------------------------------------------
-
-  const recordRun = useCallback(
-    (output: string) => {
-      const source = inputRef.current
-      record({
-        input: `YAML: ${source.slice(0, 300)}${source.length > 300 ? '...' : ''}`,
-        output: output.slice(0, 1000),
-        subTab: view,
-        success: true,
-      })
-    },
-    [record, view]
-  )
-
-  /** Writes a reshaped document back, keeping the previous text recoverable. */
-  const applyResult = useCallback(
-    (next: string, label: string, previous: string) => {
-      setUndoBuffer({ input: previous, label })
-      updateState({ input: next })
-      setError(null)
-      recordRun(next)
-    },
-    [updateState, recordRun]
-  )
-
-  const handleFormat = useCallback(async () => {
-    if (!formatter || formattingRef.current || !inputRef.current.trim()) return
-    formattingRef.current = true
-    setIsFormatting(true)
-    const snapshot = inputRef.current
-    try {
-      const result = await formatter.format(snapshot, {
-        language: 'yaml',
-        tabWidth: state.tabWidth ?? 2,
-      })
-      // Writing the result over a buffer the user kept typing into would
-      // silently eat those keystrokes.
-      if (inputRef.current !== snapshot) {
-        setLastAction('Document changed while formatting — try again', 'info')
-        return
-      }
-      applyResult(result, 'Formatted YAML', snapshot)
-      setLastAction('Formatted YAML', 'success')
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      setError(message)
-      setLastAction('Format failed', 'error')
-    } finally {
-      formattingRef.current = false
-      setIsFormatting(false)
-    }
-  }, [formatter, applyResult, setLastAction, state.tabWidth])
-
-  const reshape = useCallback(
-    (transform: (documents: unknown[]) => string, label: string) => {
-      // Parsed fresh rather than read off the debounced memo, so a click landing
-      // within the debounce window reshapes what is actually in the buffer.
-      const snapshot = inputRef.current
-      const current = parseYamlStream(snapshot)
-      if (current.status !== 'valid') {
-        setLastAction(`${label} — the document does not parse`, 'error')
-        return
-      }
-      try {
-        const next = transform(current.documents)
-        applyResult(next, label, snapshot)
-        if (hasUnpreservableSyntax(snapshot)) {
-          setLastAction(`${label} — comments and anchors were not preserved`, 'info')
-        } else {
-          setLastAction(label, 'success')
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-        setLastAction(`${label} failed`, 'error')
-      }
-    },
-    [applyResult, setLastAction]
-  )
-
-  const handleSortKeys = useCallback(
-    () => reshape((docs) => stringifyYamlStream(docs.map(sortKeysDeep)), 'Sorted keys'),
-    [reshape]
-  )
-
-  // Use flow style because removing blank lines alone does not compact YAML structure.
-  const handleCompact = useCallback(
-    () => reshape((docs) => stringifyYamlStream(docs, { flowLevel: 0 }), 'Compacted YAML'),
-    [reshape]
-  )
-
-  /**
-   * Apply edits from the JSON pane to preserve JSON-to-YAML conversion without maintaining a
-   * second document.
-   */
-  const handleApplyJson = useCallback(
-    (json: string) => {
-      const snapshot = inputRef.current
-      try {
-        // A stream is shown as a JSON array; dumping that array as one document
-        // would turn N documents into a single sequence — a different document.
-        const data: unknown = JSON.parse(json)
-        const current = parseYamlStream(snapshot)
-        const wasStream = current.status === 'valid' && current.documents.length > 1
-        const next = wasStream && Array.isArray(data) ? stringifyYamlStream(data) : jsonToYaml(json)
-        applyResult(next, 'Applied JSON', snapshot)
-        setLastAction('Applied JSON to YAML', 'success')
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-        setLastAction('Apply failed', 'error')
-      }
-    },
-    [applyResult, setLastAction]
-  )
-
-  const handleUndo = useCallback(() => {
-    if (!undoBuffer) return
-    updateState({ input: undoBuffer.input })
-    setUndoBuffer(null)
-    setLastAction('Reverted', 'info')
-  }, [undoBuffer, updateState, setLastAction])
-
-  const { handleOpen, handleSave, handleSaveAs } = useTextDocumentFileActions({
-    getContent: () => inputRef.current,
-    filePath: state.filePath ?? null,
-    fileName: state.fileName ?? null,
-    defaultFileName: 'document.yaml',
-    onSaved: updateState,
-  })
-
-  // The parse error knows where it is; without this the user reads the line
-  // number and then scrolls to find it by hand.
-  const handleGoToError = useCallback(() => {
-    if (parsed.status !== 'invalid' || !parsed.location) return
-    const editor = editorRef.current
-    if (!editor) return
-    const position = { lineNumber: parsed.location.line, column: parsed.location.column }
-    editor.revealPositionInCenter(position)
-    editor.setPosition(position)
-    editor.focus()
-  }, [parsed])
-
-  useReloadOnFileChange({
-    filePath: state.filePath ?? null,
-    getContent: () => inputRef.current,
-    onReload: ({ content, filename, path }) => {
-      updateState({ input: content, fileName: filename, filePath: path })
-      setError(null)
-      setUndoBuffer(null)
-      setJsonDraft(null)
-      setLastAction(`Reloaded ${filename} from disk`, 'success')
-    },
-  })
-
-  useToolAction((action) => {
-    if (action.type === 'open-file') {
-      updateState({
-        input: action.content,
-        fileName: action.filename,
-        filePath: action.path ?? null,
-      })
-      setError(null)
-      setUndoBuffer(null)
-      setJsonDraft(null)
-      setLastAction(`Opened ${action.filename}`, 'success')
-    }
-    if (action.type === 'save-file') void handleSave()
-    if (action.type === 'copy-output') {
-      void copy(inputRef.current, { success: 'Copied YAML' })
-    }
+  const { parsed, isValid, documents, queryResult, stats, status } = useYamlInspection(input, query)
+  const {
+    editorRef,
+    error,
+    setError,
+    isFormatting,
+    undoBuffer,
+    setUndoBuffer,
+    jsonDraft,
+    setJsonDraft,
+    handleFormat,
+    handleSortKeys,
+    handleCompact,
+    handleApplyJson,
+    handleUndo,
+    handleOpen,
+    handleSave,
+    handleSaveAs,
+    handleGoToError,
+  } = useYamlDocumentActions({
+    state,
+    updateState,
+    formatter,
+    inputRef,
+    parsed,
+    record,
+    copy,
   })
 
   useKeyboardShortcut(
@@ -619,430 +369,5 @@ export default function YamlTools() {
         )}
       </div>
     </ToolLayout>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Inspector (tree / json)
-// ---------------------------------------------------------------------------
-
-const PANE_LABELS: Record<Exclude<YamlView, 'source'>, string> = {
-  tree: 'Tree view',
-  table: 'Table view',
-  json: 'JSON view',
-}
-
-function InspectorPane({
-  view,
-  parsed,
-  keyCount,
-  monacoTheme,
-  monacoOptions,
-  jsonDraft,
-  onJsonDraftChange,
-  onApplyJson,
-  queryResult,
-  query,
-}: {
-  view: Exclude<YamlView, 'source'>
-  parsed: YamlParse
-  keyCount: number
-  monacoTheme: string
-  monacoOptions: Record<string, unknown>
-  jsonDraft: string | null
-  onJsonDraftChange: (draft: string | null) => void
-  onApplyJson: (json: string) => void
-  queryResult: ReturnType<typeof queryJsonPath> | null
-  query: string
-}) {
-  return (
-    <section
-      aria-label={PANE_LABELS[view]}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-[var(--color-border)] max-[900px]:border-l-0 max-[900px]:border-t"
-    >
-      {/* Keep JSON editable because this pane also accepts JSON-to-YAML input. */}
-      {view === 'json' ? (
-        <JsonPane
-          parsed={parsed}
-          monacoTheme={monacoTheme}
-          monacoOptions={monacoOptions}
-          draft={jsonDraft}
-          onDraftChange={onJsonDraftChange}
-          onApply={onApplyJson}
-        />
-      ) : parsed.status === 'empty' ? (
-        <EmptyState size="sm" title="Nothing to inspect" description="Add a document first." />
-      ) : parsed.status === 'invalid' ? (
-        // Show parse errors explicitly so users do not mistake invalid input for missing data.
-        <EmptyState
-          size="sm"
-          icon={WarningCircleIcon}
-          title="Invalid YAML"
-          description={
-            parsed.location
-              ? `${parsed.message} — line ${parsed.location.line}, column ${parsed.location.column}`
-              : parsed.message
-          }
-        />
-      ) : view === 'table' ? (
-        <TablePane documents={parsed.documents} />
-      ) : (
-        <TreePane
-          documents={parsed.documents}
-          keyCount={keyCount}
-          {...(queryResult?.found ? { highlightedPath: query } : {})}
-        />
-      )}
-    </section>
-  )
-}
-
-function TreePane({
-  documents,
-  keyCount,
-  highlightedPath,
-}: {
-  documents: unknown[]
-  keyCount: number
-  highlightedPath?: string
-}) {
-  // A 5000-key document rendered fully expanded janks the pane on open, so the
-  // default follows the document size until the user overrides it.
-  const [expandAll, setExpandAll] = useState<boolean | null>(null)
-  const [treeKey, setTreeKey] = useState(0)
-  const autoExpanded = keyCount <= LARGE_DOCUMENT_KEYS
-  const expanded = expandAll ?? autoExpanded
-
-  const setExpansion = (next: boolean) => {
-    setExpandAll(next)
-    setTreeKey((k) => k + 1)
-  }
-
-  return (
-    <>
-      <PaneHeader
-        title="Tree"
-        actions={
-          <>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(true)}
-              className="gap-1"
-              title="Expand every node"
-            >
-              <ArrowsOutLineVerticalIcon size={12} aria-hidden="true" />
-              Expand all
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpansion(false)}
-              className="gap-1"
-              title="Collapse every node"
-            >
-              <ArrowsInLineVerticalIcon size={12} aria-hidden="true" />
-              Collapse all
-            </Button>
-            {expandAll === null && !autoExpanded && (
-              <span className="text-2xs text-[var(--color-text-muted)]">
-                Collapsed — {keyCount} keys
-              </span>
-            )}
-          </>
-        }
-      />
-      <div
-        className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs"
-        // Remount when the default changes. Otherwise, crossing the threshold preserves an
-        // expansion state that conflicts with the new default.
-        key={`${treeKey}-${String(expanded)}`}
-      >
-        {documents.map((document, i) => (
-          <div key={i}>
-            {documents.length > 1 && (
-              <SectionLabel as="div" className="mt-2">
-                Document {i + 1}
-              </SectionLabel>
-            )}
-            <InspectorTree
-              data={document}
-              rootPath={documents.length > 1 ? `$[${i}]` : '$'}
-              defaultExpanded={expanded}
-              {...(highlightedPath === undefined ? {} : { highlightedPath })}
-            />
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
-function TablePane({ documents }: { documents: unknown[] }) {
-  const copy = useCopyToClipboard()
-  const rows: Record<string, unknown>[] | null =
-    documents.length === 1 && isTabularJsonArray(documents[0])
-      ? documents[0]
-      : documents.length > 1 && documents.every(isTabularJsonArray)
-        ? documents.flatMap((document) => document)
-        : null
-  if (!rows) {
-    return (
-      <EmptyState
-        size="sm"
-        title="No record table"
-        description="Use Table view with YAML objects or a stream of object arrays."
-      />
-    )
-  }
-  return (
-    <div className="min-h-0 flex-1 overflow-auto p-3">
-      <JsonTable data={rows} onCopy={copy} />
-    </div>
-  )
-}
-
-function JsonPane({
-  parsed,
-  monacoTheme,
-  monacoOptions,
-  draft,
-  onDraftChange,
-  onApply,
-}: {
-  parsed: YamlParse
-  monacoTheme: string
-  monacoOptions: Record<string, unknown>
-  /** `null` means "mirroring the YAML"; a string means the user took it over. */
-  draft: string | null
-  onDraftChange: (draft: string | null) => void
-  onApply: (json: string) => void
-}) {
-  // Recompute conversion as input changes so the open pane always reflects valid source text.
-  const json = useMemo(() => {
-    if (parsed.status !== 'valid') return ''
-    try {
-      return documentsToJson(parsed.documents)
-    } catch {
-      return ''
-    }
-  }, [parsed])
-
-  const value = draft ?? json
-
-  const draftError = useMemo(() => {
-    if (draft === null || !draft.trim()) return null
-    try {
-      JSON.parse(draft)
-      return null
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e)
-    }
-  }, [draft])
-
-  const canApply = draft !== null && draft.trim().length > 0 && draftError === null
-
-  return (
-    <>
-      <PaneHeader
-        title="JSON"
-        actions={
-          <>
-            <CopyButton text={value} label="Copy JSON" />
-            {draft !== null && (
-              <>
-                {/* Secondary: the toolbar's Format is the tool's primary. This row only appears
-                    when a draft exists, so it doesn't need an accent to be found. */}
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  onClick={() => {
-                    onApply(draft)
-                    onDraftChange(null)
-                  }}
-                  disabled={!canApply}
-                  title="Replace the YAML document with this JSON"
-                >
-                  Apply to YAML
-                </Button>
-                <Button variant="ghost" size="xs" onClick={() => onDraftChange(null)}>
-                  Discard edits
-                </Button>
-                <span className="text-2xs text-[var(--color-text-muted)]">
-                  {draftError ? `Invalid JSON — ${draftError}` : 'Edited — not applied'}
-                </span>
-              </>
-            )}
-          </>
-        }
-      />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Editor
-          theme={monacoTheme}
-          language="json"
-          value={value}
-          onChange={(next) => onDraftChange(next ?? '')}
-          options={monacoOptions}
-        />
-      </div>
-    </>
-  )
-}
-
-function TreeValueButton({
-  children,
-  className,
-  onClick,
-  label,
-}: {
-  children: ReactNode
-  className: string
-  onClick: () => void
-  label: string
-}) {
-  return (
-    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title="Copy value"
-      className={`cursor-pointer rounded hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] ${className}`}
-    >
-      {children}
-    </button>
-  )
-}
-
-export function YamlTree({
-  data,
-  path,
-  defaultExpanded,
-  onCopy,
-}: {
-  data: unknown
-  path: string
-  defaultExpanded: boolean
-  onCopy: CopyToClipboard
-}) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-
-  const copyValue = useCallback(
-    (value: unknown) => void onCopy(toText(value), { success: 'Copied value' }),
-    [onCopy]
-  )
-  const copyPath = useCallback(
-    () => void onCopy(path, { success: `Copied path ${path}` }),
-    [onCopy, path]
-  )
-
-  if (data === null || data === undefined)
-    return (
-      <TreeValueButton
-        className="text-[var(--color-text-muted)]"
-        onClick={() => copyValue(null)}
-        label="Copy value null"
-      >
-        null
-      </TreeValueButton>
-    )
-  if (typeof data === 'boolean')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-warning)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${toLabel(data)}`}
-      >
-        {String(data)}
-      </TreeValueButton>
-    )
-  if (typeof data === 'number')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-accent)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${toLabel(data)}`}
-      >
-        {data}
-      </TreeValueButton>
-    )
-  if (typeof data === 'string')
-    return (
-      <TreeValueButton
-        className="text-[var(--color-success)]"
-        onClick={() => copyValue(data)}
-        label={`Copy value ${toLabel(data)}`}
-      >
-        {/* Quoted like the JSON tree: without it a quoted "30" and the number
-            30 are the same row, which is exactly the YAML trap worth seeing. */}
-        &quot;{data}&quot;
-      </TreeValueButton>
-    )
-  if (data instanceof Date)
-    return (
-      <TreeValueButton
-        className="text-[var(--color-info)]"
-        onClick={() => copyValue(data.toISOString())}
-        label={`Copy value ${toLabel(data.toISOString())}`}
-      >
-        {data.toISOString()}
-      </TreeValueButton>
-    )
-
-  if (typeof data !== 'object') return <span>{String(data)}</span>
-
-  const isArray = Array.isArray(data)
-  const entries = isArray
-    ? (data as unknown[]).map((value, i) => [String(i), value] as const)
-    : Object.entries(data as Record<string, unknown>)
-  const hasChildren = entries.length > 0
-
-  return (
-    <div className="ml-4">
-      <div className="flex items-center gap-1">
-        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
-            ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
-        <button
-          type="button"
-          onClick={() => hasChildren && setExpanded(!expanded)}
-          aria-expanded={hasChildren ? expanded : undefined}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${path}`}
-          disabled={!hasChildren}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-        >
-          {hasChildren ? (expanded ? '▼' : '▶') : '•'}
-        </button>
-        {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
-            rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
-        <button
-          type="button"
-          className="text-[var(--color-text-muted)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-          onClick={copyPath}
-          aria-label={`Copy path ${path}`}
-          title="Copy path"
-        >
-          {isArray ? `[${entries.length}]` : `{${entries.length}}`}
-        </button>
-      </div>
-      {expanded &&
-        entries.map(([key, value]) => (
-          <div key={key} className="ml-4">
-            {isArray ? (
-              <span className="text-[var(--color-text-muted)]">{key}: </span>
-            ) : (
-              <>
-                <span className="text-[var(--color-accent)]">{key}</span>
-                <span className="text-[var(--color-text-muted)]">: </span>
-              </>
-            )}
-            <YamlTree
-              data={value}
-              path={isArray ? `${path}[${key}]` : `${path}.${key}`}
-              defaultExpanded={defaultExpanded}
-              onCopy={onCopy}
-            />
-          </div>
-        ))}
-    </div>
   )
 }

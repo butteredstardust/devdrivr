@@ -26,6 +26,12 @@ export const MAX_DISPLAY_BYTES = 1_000_000
 export const MAX_RESPONSE_BYTES = 50 * 1024 * 1024
 export const MAX_HISTORY_RESPONSE_CHARS = 100_000
 
+/**
+ * Largest file a multipart field accepts. The HTTP plugin sends the request body over IPC as a
+ * JSON array with one number per byte, so a large file multiplies in WebView memory.
+ */
+export const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024
+
 export type Param = { key: string; value: string }
 
 export function removeIndexedFile(

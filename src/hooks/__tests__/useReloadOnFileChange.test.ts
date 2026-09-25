@@ -141,4 +141,188 @@ describe('useReloadOnFileChange', () => {
       type: 'error',
     })
   })
+
+  describe('keepUnsavedEdits', () => {
+    function captureWatch() {
+      const box: { callback?: WatchCallback } = {}
+      watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+        box.callback = next
+        return vi.fn()
+      })
+      return box
+    }
+
+    it('keeps unsaved edits when the file changes on disk', async () => {
+      const box = captureWatch()
+      vi.mocked(readSupportedTextFile).mockResolvedValueOnce('opened')
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => 'opened plus edits',
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).not.toHaveBeenCalled()
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: expect.stringContaining('data.json changed on disk. Your unsaved edits are kept.'),
+        type: 'info',
+      })
+    })
+
+    it('waits for the baseline when a change arrives before the watch resolves', async () => {
+      let releaseWatch: () => void = () => {}
+      watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+        next(changedEvent())
+        await new Promise<void>((resolve) => {
+          releaseWatch = resolve
+        })
+        return vi.fn()
+      })
+      vi.mocked(readSupportedTextFile)
+        .mockResolvedValueOnce('opened')
+        .mockResolvedValueOnce('external')
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => 'opened plus edits',
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(watchMock).toHaveBeenCalled())
+      await act(async () => releaseWatch())
+
+      await waitFor(() => expect(readSupportedTextFile).toHaveBeenCalledTimes(2))
+      expect(onReload).not.toHaveBeenCalled()
+      expect(useUiStore.getState().lastAction).toMatchObject({ type: 'info' })
+    })
+
+    it('reloads when the editor still holds the disk content', async () => {
+      const box = captureWatch()
+      let current = 'opened'
+      vi.mocked(readSupportedTextFile).mockResolvedValueOnce('opened')
+      const onReload = vi.fn((file: { content: string }) => {
+        current = file.content
+      })
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).toHaveBeenCalledWith(expect.objectContaining({ content: 'external' }))
+
+      // The reloaded content is the new baseline, so a second external change also reloads.
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external again')
+      await act(async () => box.callback?.(changedEvent()))
+      expect(onReload).toHaveBeenCalledTimes(2)
+    })
+
+    it('treats an app save as the new baseline', async () => {
+      const box = captureWatch()
+      let current = 'opened plus edits'
+      vi.mocked(readSupportedTextFile).mockResolvedValueOnce('opened')
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      act(() => notifyTextFileWrite('/tmp/data.json', 'opened plus edits'))
+      current = 'opened plus edits'
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).toHaveBeenCalledWith(expect.objectContaining({ content: 'external' }))
+    })
+
+    it('keeps edits typed after a failed baseline read', async () => {
+      const box = captureWatch()
+      let current = 'opened'
+      vi.mocked(readSupportedTextFile).mockRejectedValueOnce(new Error('locked'))
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      current = 'opened plus edits'
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).not.toHaveBeenCalled()
+    })
+
+    it('reloads a clean editor when another tab saves the same file', async () => {
+      const box = captureWatch()
+      let current = 'opened'
+      vi.mocked(readSupportedTextFile).mockResolvedValueOnce('opened')
+      const onReload = vi.fn((file: { content: string }) => {
+        current = file.content
+      })
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      act(() => notifyTextFileWrite('/tmp/data.json', 'saved by another tab'))
+      vi.mocked(readSupportedTextFile).mockResolvedValue('saved by another tab')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'saved by another tab' })
+      )
+    })
+
+    it('reloads every change when the baseline read fails', async () => {
+      const box = captureWatch()
+      vi.mocked(readSupportedTextFile).mockRejectedValueOnce(new Error('denied'))
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => 'draft',
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).toHaveBeenCalledOnce()
+    })
+  })
 })

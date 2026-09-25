@@ -741,6 +741,7 @@ export function NotesDrawer() {
   return (
     <aside
       aria-label="Notes and history"
+      data-key-scope="notes-drawer"
       // `w-0 opacity-0 pointer-events-none` hides the closed drawer from the eye and the mouse
       // only: its five controls and their text stay in the accessibility tree and in the tab
       // order, so a screen reader still announces a search field and a note list that aren't

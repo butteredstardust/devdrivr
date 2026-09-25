@@ -1,10 +1,29 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToolInstanceContext } from '@/app/tool-instance'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
 
 vi.mock('@/lib/platform', () => ({
   detectPlatform: () => 'mac' as const,
 }))
+
+function insideTool({ children }: { children: ReactNode }) {
+  return createElement(
+    ToolInstanceContext.Provider,
+    { value: { tabId: 'tab-1', toolId: 'tool', stateKey: 'tool', isActive: true } },
+    children
+  )
+}
+
+function dialogButton(): HTMLElement {
+  const dialog = document.createElement('div')
+  dialog.setAttribute('role', 'dialog')
+  const button = document.createElement('button')
+  dialog.append(button)
+  document.body.append(dialog)
+  return button
+}
 
 function dispatchKey(target: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
   const event = new window.KeyboardEvent('keydown', {
@@ -56,6 +75,52 @@ describe('useKeyboardShortcut', () => {
 
     expect(handler).toHaveBeenCalledOnce()
     expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('ignores a tool shortcut pressed inside a dialog', () => {
+    const handler = vi.fn()
+    renderHook(() => useKeyboardShortcut({ key: 'Enter', mod: true }, handler), {
+      wrapper: insideTool,
+    })
+
+    const event = dispatchKey(dialogButton(), { key: 'Enter', metaKey: true })
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(false)
+    dispatchKey(document.body, { key: 'Enter', metaKey: true })
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a tool shortcut pressed inside a key scope such as the notes drawer', () => {
+    const handler = vi.fn()
+    renderHook(() =>
+      useKeyboardShortcut({ key: 'Enter', mod: true }, handler, { targetsTool: true })
+    )
+    const drawer = document.createElement('aside')
+    drawer.setAttribute('data-key-scope', 'notes-drawer')
+    const search = document.createElement('input')
+    drawer.append(search)
+    document.body.append(drawer)
+
+    dispatchKey(search, { key: 'Enter', metaKey: true })
+
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('ignores a shell shortcut that targets the tool inside a dialog', () => {
+    const toolHandler = vi.fn()
+    const shellHandler = vi.fn()
+    renderHook(() => {
+      useKeyboardShortcut({ key: 's', mod: true }, toolHandler, { targetsTool: true })
+      useKeyboardShortcut({ key: 'k', mod: true }, shellHandler)
+    })
+    const target = dialogButton()
+
+    dispatchKey(target, { key: 's', metaKey: true })
+    dispatchKey(target, { key: 'k', metaKey: true })
+
+    expect(toolHandler).not.toHaveBeenCalled()
+    expect(shellHandler).toHaveBeenCalledOnce()
   })
 
   it.each(EDITABLE_TARGETS)(

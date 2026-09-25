@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import { loadMermaid } from '@/lib/mermaid'
 import { Button } from '@/components/shared/Button'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TextArea } from '@/components/shared/TextArea'
@@ -543,9 +544,8 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       const effective = getEffectiveTheme(theme)
       const mermaidTheme = isLightEffectiveTheme(effective) ? 'default' : 'dark'
 
-      import('mermaid').then(({ default: mermaid }) => {
+      void loadMermaid(mermaidTheme).then((mermaid) => {
         if (cancelled || renderSeq !== mermaidRenderSeqRef.current) return
-        mermaid.initialize({ startOnLoad: false, theme: mermaidTheme })
         mermaidBlocks.forEach(async (block, i) => {
           const parent = block.parentElement
           if (!parent) return

@@ -12,6 +12,7 @@ import { Alert } from '@/components/shared/Alert'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { isKeyEventForTool } from '@/lib/key-scope'
 import { ResourceFolderTree } from '@/components/shared/ResourceFolderTree'
 import { TrashDialog } from '@/components/shared/TrashDialog'
 import { useMonaco } from '@/hooks/useMonaco'
@@ -51,6 +52,7 @@ import { SnippetToolbar } from '@/tools/snippets/components/SnippetToolbar'
 export default function SnippetsManager() {
   const fragmentEditorId = useId()
   const isInstanceActive = useIsInstanceActive()
+  const toolRootRef = useRef<HTMLDivElement>(null)
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const snippetEditorOptions = useMemo(
     () => ({
@@ -410,6 +412,7 @@ export default function SnippetsManager() {
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
       if (!isInstanceActive) return
+      if (!isKeyEventForTool(event, toolRootRef.current)) return
       const modifier = event.metaKey || event.ctrlKey
       if (modifier && event.key.toLowerCase() === 'n') {
         event.preventDefault()
@@ -468,6 +471,7 @@ export default function SnippetsManager() {
   return (
     <>
       <MasterDetailLayout
+        rootRef={toolRootRef}
         title="Snippets"
         widthStorageKey="snippets"
         subtitle={`${snippets.length} saved locally`}

@@ -1,14 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { matchesCombo, type KeyCombo } from '@/lib/keybindings'
-import { useIsInstanceActive } from '@/app/tool-instance'
+import { useIsInstanceActive, useToolInstance } from '@/app/tool-instance'
 
 type ShortcutHandler = () => void | Promise<void>
+
+type ShortcutOptions = {
+  /**
+   * Set this for a shell shortcut that acts on the active tool. A shortcut registered inside a
+   * tool always counts as one.
+   */
+  targetsTool?: boolean
+}
 
 type Registration = {
   comboRef: { current: KeyCombo }
   handlerRef: { current: ShortcutHandler }
   /** False while the tool owning this shortcut sits in a backgrounded tab. */
   activeRef: { current: boolean }
+  /** True for a shortcut that acts on a tool. It must not fire from a dialog or a key scope. */
+  targetsToolRef: { current: boolean }
 }
 
 // All hook instances share one window listener and a registry of active registrations.
@@ -17,7 +27,7 @@ type Registration = {
 const registrations = new Set<Registration>()
 let sharedListenerAttached = false
 
-function isEditableTarget(target: EventTarget | null): boolean {
+function asElement(target: EventTarget | null): Element | null {
   // event.target is an EventTarget and may not be an Element at all (e.g. window
   // or document itself dispatches with the target set to something without
   // .closest), so duck-type the methods/properties we need rather than assuming.
@@ -25,8 +35,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
     !!target &&
     typeof (target as Partial<Element>).closest === 'function' &&
     typeof (target as Partial<Element>).tagName === 'string'
-  if (!isElementTarget) return false
-  const element = target as Element
+  return isElementTarget ? (target as Element) : null
+}
+
+function isEditableTarget(element: Element | null): boolean {
+  if (!element) return false
   return (
     element.tagName === 'INPUT' ||
     element.tagName === 'TEXTAREA' ||
@@ -36,11 +49,12 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 function handleSharedKeyDown(event: KeyboardEvent): void {
-  const isEditable = isEditableTarget(event.target)
-  const isMonaco =
-    !!event.target &&
-    typeof (event.target as Partial<Element>).closest === 'function' &&
-    (event.target as Element).closest('.monaco-editor') !== null
+  const element = asElement(event.target)
+  const isEditable = isEditableTarget(element)
+  const isMonaco = element?.closest('.monaco-editor') != null
+  // A dialog, and a `data-key-scope` region such as the notes drawer, owns its keys. A tool
+  // shortcut must not change the document behind it.
+  const inKeyOwner = element?.closest('[role="dialog"], [data-key-scope]') != null
   let handled = false
 
   // Set preserves registration order, so dispatch follows hook mount order.
@@ -50,6 +64,7 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
     // Tools in backgrounded tabs are mounted and still registered; only the
     // visible one should answer. Shell shortcuts have no tab and stay live.
     if (!registration.activeRef.current) continue
+    if (inKeyOwner && registration.targetsToolRef.current) continue
     if (isEditable && !combo.mod && !combo.allowInEditable) continue
     if (!matchesCombo(event, combo)) continue
 
@@ -86,16 +101,23 @@ function detachSharedListenerIfIdle(): void {
   sharedListenerAttached = false
 }
 
-export function useKeyboardShortcut(combo: KeyCombo, handler: ShortcutHandler): void {
+export function useKeyboardShortcut(
+  combo: KeyCombo,
+  handler: ShortcutHandler,
+  options?: ShortcutOptions
+): void {
   const comboRef = useRef(combo)
   const handlerRef = useRef(handler)
   const activeRef = useRef(true)
+  const targetsToolRef = useRef(false)
+  const insideTool = useToolInstance() !== null
   comboRef.current = combo
   handlerRef.current = handler
   activeRef.current = useIsInstanceActive()
+  targetsToolRef.current = insideTool || options?.targetsTool === true
 
   useEffect(() => {
-    const registration: Registration = { comboRef, handlerRef, activeRef }
+    const registration: Registration = { comboRef, handlerRef, activeRef, targetsToolRef }
     registrations.add(registration)
     attachSharedListener()
     return () => {

@@ -7,13 +7,16 @@ vi.mock('@/lib/db', () => ({
   saveToolState: vi.fn(),
 }))
 
+// Count reports, not visible toasts: the store shows a repeated message only once.
+const addToast = vi.fn(useUiStore.getState().addToast)
+
 describe('saveToolStateWithFeedback', () => {
   beforeEach(async () => {
     vi.mocked(saveToolState).mockResolvedValue(undefined)
     // End any outage an earlier test left open.
     for (const key of ['json-tools', 'yaml-tools']) await saveToolStateWithFeedback(key, {})
     vi.clearAllMocks()
-    useUiStore.setState({ toasts: [] })
+    useUiStore.setState({ toasts: [], addToast })
   })
 
   it('toasts once per persistence outage', async () => {
@@ -25,6 +28,7 @@ describe('saveToolStateWithFeedback', () => {
     await expect(saveToolStateWithFeedback('yaml-tools', { input: 'two' })).rejects.toBe(error)
 
     expect(consoleError).toHaveBeenCalledTimes(2)
+    expect(addToast).toHaveBeenCalledOnce()
     expect(useUiStore.getState().toasts).toEqual([
       expect.objectContaining({
         message: 'Failed to save tool state: database is locked. Recent changes may be lost.',
@@ -44,7 +48,7 @@ describe('saveToolStateWithFeedback', () => {
     vi.mocked(saveToolState).mockRejectedValueOnce(error)
     await expect(saveToolStateWithFeedback('json-tools', { input: 'two' })).rejects.toBe(error)
 
-    expect(useUiStore.getState().toasts).toHaveLength(2)
+    expect(addToast).toHaveBeenCalledTimes(2)
     consoleError.mockRestore()
   })
   it('keeps the outage open while another key still fails', async () => {
@@ -59,7 +63,7 @@ describe('saveToolStateWithFeedback', () => {
     await saveToolStateWithFeedback('yaml-tools', { input: 'saved' })
     await expect(saveToolStateWithFeedback('json-tools', { input: 'two' })).rejects.toBe(error)
 
-    expect(useUiStore.getState().toasts).toHaveLength(1)
+    expect(addToast).toHaveBeenCalledOnce()
     consoleError.mockRestore()
   })
   it('ends the outage when the failing key belongs to a closed tab', async () => {
@@ -71,7 +75,7 @@ describe('saveToolStateWithFeedback', () => {
     forgetToolStateFailure('json-tools#tab-1')
     await expect(saveToolStateWithFeedback('json-tools', {})).rejects.toBe(error)
 
-    expect(useUiStore.getState().toasts).toHaveLength(2)
+    expect(addToast).toHaveBeenCalledTimes(2)
     consoleError.mockRestore()
   })
 })
