@@ -61,6 +61,17 @@ describe('file I/O', () => {
     expect(readTextFile).not.toHaveBeenCalled()
   })
 
+  it('applies the default size limit when the caller sets none', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/huge.csv')
+    vi.mocked(stat).mockResolvedValue({ size: 50 * 1024 * 1024 + 1 } as Awaited<
+      ReturnType<typeof stat>
+    >)
+
+    await expect(openFileDialog()).rejects.toThrow('50 MB import limit')
+    await expect(readSupportedTextFile('/tmp/huge.csv')).rejects.toThrow('50 MB import limit')
+    expect(readTextFile).not.toHaveBeenCalled()
+  })
+
   // TSX and JSX were missing, so React sources were invisible in the picker
   // for tools that read TypeScript.
   it('offers the TypeScript and JSX extensions in the open dialog', async () => {

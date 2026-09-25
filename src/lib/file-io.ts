@@ -1,5 +1,6 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 
 // One picker contract for editable text. Separate open/save lists drifted: files visible in Open
@@ -120,13 +121,10 @@ export async function readSupportedTextFile(
   filePath: string,
   options?: { maxBytes?: number }
 ): Promise<string> {
-  if (options?.maxBytes !== undefined) {
-    const metadata = await stat(filePath)
-    if (metadata.size > options.maxBytes) {
-      throw new Error(
-        `File is larger than the ${Math.round(options.maxBytes / 1024 / 1024)} MB import limit`
-      )
-    }
+  const maxBytes = options?.maxBytes ?? MAX_TEXT_FILE_BYTES
+  const metadata = await stat(filePath)
+  if (metadata.size > maxBytes) {
+    throw new Error(`File is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB import limit`)
   }
   let content: string
   try {
