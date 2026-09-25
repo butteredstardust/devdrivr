@@ -658,19 +658,6 @@ function normalizeAuth(
   }
   if (obj['type'] === 'noauth') return { type: 'none' }
 
-  const type = asString(obj['type'])
-  if (type === 'bearer') {
-    const token = postmanAuthValue(obj, 'token')
-    return token ? { type: 'bearer', token } : fallback
-  }
-  if (type === 'basic') {
-    return {
-      type: 'basic',
-      username: postmanAuthValue(obj, 'username') ?? '',
-      password: postmanAuthValue(obj, 'password') ?? '',
-    }
-  }
-
   return fallback
 }
 
