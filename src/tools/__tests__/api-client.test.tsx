@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { renderTool } from './test-utils'
 import { useApiStore } from '@/stores/api.store'
+import { useUiStore } from '@/stores/ui.store'
 import { importApiSpec } from '@/lib/api-import'
 import ApiClient from '@/tools/api-client/ApiClient'
 import {
@@ -229,6 +230,25 @@ describe('ApiClient', () => {
       const command = clipboardWriteText.mock.calls.at(-1)?.[0] as string
       expect(command).toContain(`-F 'avatar=@avatar.png'`)
     })
+  })
+
+  it('rejects a multipart file above the upload limit', () => {
+    const { container } = renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
+    const huge = new File(['x'], 'huge.bin')
+    Object.defineProperty(huge, 'size', { value: 25 * 1024 * 1024 + 1 })
+
+    fireEvent.change(container.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [huge] },
+    })
+
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: expect.stringContaining('above the 25.0 MB upload limit'),
+      type: 'error',
+    })
+    expect(screen.queryByText(/huge\.bin/)).not.toBeInTheDocument()
   })
 
   it('renders import and export controls in the library footer', () => {
