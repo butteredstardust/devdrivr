@@ -5,9 +5,8 @@ import type { KeyCombo } from '@/lib/keybindings'
 import { useUiStore } from '@/stores/ui.store'
 import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
-import { TOOLS } from '@/app/tool-registry'
-import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
-import { openFileDialog } from '@/lib/file-io'
+import { dispatchToolAction } from '@/lib/tool-actions'
+import { adjacentToolId, openFileForTool, saveFileForTool } from '@/lib/shell-actions'
 import { detectPlatform } from '@/lib/platform'
 import { toggleNativeWindowFullscreen } from '@/lib/native-window'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
@@ -70,17 +69,13 @@ export function useGlobalShortcuts(): void {
   }, [update, notesDrawerOpen])
 
   const nextTool = useCallback(() => {
-    if (!activeTool) return
-    const idx = TOOLS.findIndex((t) => t.id === activeTool)
-    const next = TOOLS[(idx + 1) % TOOLS.length]
-    if (next) setActiveTool(next.id)
+    const next = adjacentToolId(activeTool, 1)
+    if (next) setActiveTool(next)
   }, [activeTool, setActiveTool])
 
   const prevTool = useCallback(() => {
-    if (!activeTool) return
-    const idx = TOOLS.findIndex((t) => t.id === activeTool)
-    const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
-    if (prev) setActiveTool(prev.id)
+    const prev = adjacentToolId(activeTool, -1)
+    if (prev) setActiveTool(prev)
   }, [activeTool, setActiveTool])
 
   const execute = useCallback(() => dispatchToolAction({ type: 'execute' }), [])
@@ -102,41 +97,9 @@ export function useGlobalShortcuts(): void {
     await toggleNativeWindowFullscreen()
   }, [])
 
-  const openFile = useCallback(async () => {
-    // A tool that needs bytes runs its own dialog. Reading the file as text
-    // here would reject a PNG before the tool ever sees it.
-    if (toolOwnsOpenFile(activeTool)) {
-      dispatchToolAction({ type: 'open-file-dialog' })
-      return
-    }
-    if (!supportsToolFileAction(activeTool, 'open-file')) {
-      addToast('Open File is not supported by the active tool', 'error')
-      return
-    }
-    try {
-      const maxBytes = TOOLS.find((tool) => tool.id === activeTool)?.maxOpenBytes
-      const result = await openFileDialog(maxBytes === undefined ? undefined : { maxBytes })
-      if (result) {
-        dispatchToolAction({
-          type: 'open-file',
-          content: result.content,
-          filename: result.filename,
-          path: result.path,
-        })
-        addToast(`Opened ${result.filename}`, 'success')
-      }
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }, [activeTool, addToast])
+  const openFile = useCallback(() => openFileForTool(activeTool, addToast), [activeTool, addToast])
 
-  const saveFile = useCallback(() => {
-    if (!supportsToolFileAction(activeTool, 'save-file')) {
-      addToast('Save Output is not supported by the active tool', 'error')
-      return
-    }
-    dispatchToolAction({ type: 'save-file' })
-  }, [activeTool, addToast])
+  const saveFile = useCallback(() => saveFileForTool(activeTool, addToast), [activeTool, addToast])
 
   const toggleAlwaysOnTop = useCallback(async () => {
     const next = !alwaysOnTop

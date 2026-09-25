@@ -6,8 +6,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { Theme } from '@/types/models'
 import { usePlatform } from '@/hooks/usePlatform'
-import { dispatchToolAction, supportsToolFileAction, toolOwnsOpenFile } from '@/lib/tool-actions'
-import { openFileDialog } from '@/lib/file-io'
+import { adjacentToolId, openFileForTool, saveFileForTool } from '@/lib/shell-actions'
 import { useFuseSearch } from '@/hooks/useFuseSearch'
 import { GROUP_LABELS, searchTermsForTool } from '@/lib/tool-search'
 import { focusNativeWindow } from '@/lib/native-window'
@@ -422,54 +421,20 @@ export function CommandPalette() {
           setAlwaysOnTop(next).catch(() => addToast('Failed to update window pin state', 'error'))
           break
         }
-        case 'action:open-file': {
-          // A tool that needs bytes runs its own dialog. See `openFile` in
-          // `useGlobalShortcuts`.
-          if (toolOwnsOpenFile(activeTool)) {
-            dispatchToolAction({ type: 'open-file-dialog' })
-            break
-          }
-          if (!supportsToolFileAction(activeTool, 'open-file')) {
-            addToast('Open File is not supported by the active tool', 'error')
-            break
-          }
-          const maxBytes = TOOLS.find((tool) => tool.id === activeTool)?.maxOpenBytes
-          openFileDialog(maxBytes === undefined ? undefined : { maxBytes })
-            .then((result) => {
-              if (result) {
-                dispatchToolAction({
-                  type: 'open-file',
-                  content: result.content,
-                  filename: result.filename,
-                  path: result.path,
-                })
-                addToast(`Opened ${result.filename}`, 'success')
-              }
-            })
-            .catch((err: unknown) =>
-              addToast(err instanceof Error ? err.message : String(err), 'error')
-            )
+        case 'action:open-file':
+          void openFileForTool(activeTool, addToast)
           break
-        }
         case 'action:save-file':
-          if (!supportsToolFileAction(activeTool, 'save-file')) {
-            addToast('Save Output is not supported by the active tool', 'error')
-            break
-          }
-          dispatchToolAction({ type: 'save-file' })
+          saveFileForTool(activeTool, addToast)
           break
         case 'action:next-tool': {
-          const idx = TOOLS.findIndex((t) => t.id === activeTool)
-          if (idx === -1) break
-          const next = TOOLS[(idx + 1) % TOOLS.length]
-          if (next) setActiveTool(next.id)
+          const next = adjacentToolId(activeTool, 1)
+          if (next) setActiveTool(next)
           break
         }
         case 'action:prev-tool': {
-          const idx = TOOLS.findIndex((t) => t.id === activeTool)
-          if (idx === -1) break
-          const prev = TOOLS[(idx - 1 + TOOLS.length) % TOOLS.length]
-          if (prev) setActiveTool(prev.id)
+          const prev = adjacentToolId(activeTool, -1)
+          if (prev) setActiveTool(prev)
           break
         }
       }
