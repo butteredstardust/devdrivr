@@ -9,6 +9,7 @@ import { useToolStateCache } from '@/stores/tool-state.store'
 const mocks = vi.hoisted(() => ({
   dragHandler: null as ((event: unknown) => Promise<void>) | null,
   readFile: vi.fn(),
+  stat: vi.fn(),
   scaleFactor: vi.fn().mockResolvedValue(2),
   openImageFileDialog: vi.fn(),
   imageWidth: 100,
@@ -34,7 +35,7 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 vi.mock('@tauri-apps/plugin-fs', async () => {
   const actual =
     await vi.importActual<typeof import('@tauri-apps/plugin-fs')>('@tauri-apps/plugin-fs')
-  return { ...actual, readFile: mocks.readFile }
+  return { ...actual, readFile: mocks.readFile, stat: mocks.stat }
 })
 
 vi.mock('@/lib/file-io', async () => {
@@ -224,6 +225,7 @@ async function loadMockImage() {
 beforeEach(() => {
   mocks.dragHandler = null
   mocks.readFile.mockReset().mockResolvedValue(new Uint8Array([137, 80, 78, 71]))
+  mocks.stat.mockReset().mockResolvedValue({ size: 4 })
   mocks.scaleFactor.mockReset().mockResolvedValue(2)
   mocks.openImageFileDialog.mockReset().mockResolvedValue(null)
   mocks.imageWidth = 100
@@ -297,6 +299,46 @@ describe('ImageTool', () => {
     expect(mocks.readFile).toHaveBeenCalledOnce()
     expect(mocks.readFile).toHaveBeenCalledWith('/tmp/native.png')
     expect(screen.getByText('native.png')).toBeInTheDocument()
+  })
+
+  it('rejects an oversized native drop before reading it', async () => {
+    installImageMocks()
+    mocks.stat.mockResolvedValue({ size: 50 * 1024 * 1024 + 1 })
+    renderTool(ImageTool)
+    await waitFor(() => expect(mocks.dragHandler).not.toBeNull())
+
+    await act(async () => {
+      await mocks.dragHandler?.({
+        payload: { type: 'drop', paths: ['/tmp/huge.png'], position: { x: 300, y: 300 } },
+      })
+    })
+
+    expect(mocks.readFile).not.toHaveBeenCalled()
+    expect(useUiStore.getState().lastAction).toMatchObject({
+      message: 'Image exceeds the 50.0 MB file limit',
+      type: 'error',
+    })
+  })
+
+  it('reports an oversized image from the open dialog instead of opening the browser picker', async () => {
+    installImageMocks()
+    const { FileTooLargeError } =
+      await vi.importActual<typeof import('@/lib/file-io')>('@/lib/file-io')
+    mocks.openImageFileDialog.mockRejectedValue(new FileTooLargeError('too large'))
+    const pickerClick = vi.spyOn(HTMLInputElement.prototype, 'click')
+    renderTool(ImageTool)
+
+    fireEvent.click(screen.getByText('Browse files'))
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction).toMatchObject({
+        message: 'Image exceeds the 50.0 MB file limit',
+        type: 'error',
+      })
+    )
+    expect(mocks.openImageFileDialog).toHaveBeenCalledWith({ maxBytes: 50 * 1024 * 1024 })
+    expect(pickerClick).not.toHaveBeenCalled()
+    pickerClick.mockRestore()
   })
 
   it('loads an image from the clipboard', async () => {
