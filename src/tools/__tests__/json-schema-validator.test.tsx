@@ -549,11 +549,7 @@ describe('JsonSchemaValidator', () => {
     })
 
     it('replaces the schema with the fetched document', async () => {
-      vi.mocked(tauriFetch).mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: () => Promise.resolve(OBJECT_SCHEMA),
-      } as unknown as Response)
+      vi.mocked(tauriFetch).mockResolvedValue(new Response(OBJECT_SCHEMA))
       renderTool(JsonSchemaValidator)
       fireEvent.change(screen.getByLabelText('Schema URL'), {
         target: { value: 'https://json.schemastore.org/thing.json' },
@@ -564,6 +560,22 @@ describe('JsonSchemaValidator', () => {
       })
       // The WebView's own fetch is blocked by CORS on nearly every schema host.
       expect(tauriFetch).toHaveBeenCalled()
+    })
+
+    it('stops reading a schema that is larger than the limit', async () => {
+      vi.mocked(tauriFetch).mockResolvedValue(new Response('x'.repeat(2_000_001)))
+      renderTool(JsonSchemaValidator)
+      const before = schemaEditor().value
+      fireEvent.change(screen.getByLabelText('Schema URL'), {
+        target: { value: 'https://json.schemastore.org/huge.json' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /^Load$/ }))
+      await waitFor(() => {
+        expect(useUiStore.getState().lastAction?.message).toBe(
+          'Could not load the schema — the schema is larger than 2 MB'
+        )
+      })
+      expect(schemaEditor().value).toBe(before)
     })
 
     it('rejects a URL that is not http(s) without fetching', async () => {

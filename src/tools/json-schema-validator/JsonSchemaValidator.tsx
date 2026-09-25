@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { type OnMount } from '@monaco-editor/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { readTextWithLimit } from '@/lib/http-body'
 import {
   ArrowUUpLeftIcon,
   ArticleIcon,
@@ -130,10 +131,11 @@ async function resolveRemoteRefs(
     if (referenced === undefined) {
       const response = await tauriFetch(documentUrl.href, { signal })
       if (!response.ok) throw new Error(`Remote $ref answered ${response.status}: ${refUrl.href}`)
-      const text = await response.text()
-      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
-        throw new Error(`Remote $ref is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
-      }
+      const text = await readTextWithLimit(
+        response,
+        MAX_REMOTE_SCHEMA_BYTES,
+        `Remote $ref is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`
+      )
       try {
         referenced = JSON.parse(text) as unknown
       } catch {
@@ -418,10 +420,11 @@ export default function JsonSchemaValidator() {
       // CORS headers, so a browser `fetch` fails on almost every real URL.
       const response = await tauriFetch(url, { signal: controller.signal })
       if (!response.ok) throw new Error(`the server answered ${response.status}`)
-      const text = await response.text()
-      if (text.length > MAX_REMOTE_SCHEMA_BYTES) {
-        throw new Error(`the schema is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`)
-      }
+      const text = await readTextWithLimit(
+        response,
+        MAX_REMOTE_SCHEMA_BYTES,
+        `the schema is larger than ${MAX_REMOTE_SCHEMA_BYTES / 1_000_000} MB`
+      )
       const parsed = parseJson(text)
       if (parsed.status !== 'valid') throw new Error('the response is not valid JSON')
       if (id !== fetchIdRef.current) return
