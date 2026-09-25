@@ -88,6 +88,15 @@ describe('DocsBrowser', () => {
     expect(screen.getByText(/may show an error page or stay blank/i)).toBeInTheDocument()
   })
 
+  it('releases the probe response body after it reads the status', async () => {
+    const response = new Response('', { status: 200 })
+    const cancel = vi.spyOn(response.body!, 'cancel')
+    probe.mockResolvedValue(response)
+    render(<DocsBrowser />)
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1))
+  })
+
   it('treats a 404 as definitive and says so', async () => {
     probe.mockResolvedValue({ status: 404 } as Response)
     render(<DocsBrowser />)
