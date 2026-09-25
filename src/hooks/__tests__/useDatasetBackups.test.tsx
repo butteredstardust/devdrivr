@@ -184,6 +184,25 @@ describe('useSnippetsBackup validation', () => {
     )
   })
 
+  it('gives a hint instead of a parser position for a file that is not JSON', async () => {
+    vi.mocked(openFileDialog).mockResolvedValue({
+      content: '{ not json',
+      filename: 'snippets.json',
+      path: '/tmp/snippets.json',
+    })
+    const report = vi.fn()
+    const { result } = renderHook(() => useSnippetsBackup(report))
+
+    await act(async () => {
+      await result.current.importBackup()
+    })
+
+    expect(report).toHaveBeenCalledWith(
+      'Import failed — choose a valid snippets JSON file',
+      'error'
+    )
+  })
+
   it('rejects an invalid folder hierarchy', async () => {
     vi.mocked(openFileDialog).mockResolvedValue({
       content: JSON.stringify({
@@ -203,7 +222,7 @@ describe('useSnippetsBackup validation', () => {
 
     expect(useSnippetsStore.getState().importBatch).not.toHaveBeenCalled()
     expect(report).toHaveBeenCalledWith(
-      'Import failed — choose a valid snippets JSON file',
+      'Import failed — Backup contains an invalid folder hierarchy',
       'error'
     )
   })
@@ -230,7 +249,7 @@ describe('useSnippetsBackup validation', () => {
 
     expect(useSnippetsStore.getState().importBatch).not.toHaveBeenCalled()
     expect(report).toHaveBeenCalledWith(
-      'Import failed — choose a valid snippets JSON file',
+      'Import failed — Backup has more than 5000 folders',
       'error'
     )
   })
@@ -264,7 +283,7 @@ describe('useSnippetsBackup validation', () => {
 
     expect(useSnippetsStore.getState().importBatch).not.toHaveBeenCalled()
     expect(report).toHaveBeenCalledWith(
-      'Import failed — choose a valid snippets JSON file',
+      expect.stringMatching(/^Import failed — A snippet .*(exceeds the import limit|has too many)/),
       'error'
     )
   })

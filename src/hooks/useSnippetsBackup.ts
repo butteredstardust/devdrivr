@@ -197,7 +197,7 @@ export function useSnippetsBackup(report: BackupReporter): SnippetsBackupActions
             Array.isArray(envelope['snippets'])
           ? envelope['snippets']
           : null
-      if (!parsedItems) throw new Error('Expected a snippets array or version 2 library')
+      if (!parsedItems) throw new Error('Expected a snippets array or a version 2 or 3 backup')
       if (parsedItems.length > MAX_IMPORT_SNIPPETS) {
         report(
           `Import failed — ${parsedItems.length} snippets exceeds the ${MAX_IMPORT_SNIPPETS} snippet limit`,
@@ -334,8 +334,13 @@ export function useSnippetsBackup(report: BackupReporter): SnippetsBackupActions
         'success'
       )
       return importedSnippets[0]?.id ?? null
-    } catch {
-      report('Import failed — choose a valid snippets JSON file', 'error')
+    } catch (error) {
+      // A JSON syntax error names a character position, which does not help the user.
+      const reason =
+        error instanceof Error && !(error instanceof SyntaxError)
+          ? error.message
+          : 'choose a valid snippets JSON file'
+      report(`Import failed — ${reason}`, 'error')
       return null
     }
   }, [report])
