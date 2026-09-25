@@ -17,7 +17,7 @@ type Registration = {
   handlerRef: { current: ShortcutHandler }
   /** False while the tool owning this shortcut sits in a backgrounded tab. */
   activeRef: { current: boolean }
-  /** True for a shortcut that acts on a tool. It must not fire from inside a dialog. */
+  /** True for a shortcut that acts on a tool. It must not fire from a dialog or a key scope. */
   targetsToolRef: { current: boolean }
 }
 
@@ -52,8 +52,9 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
   const element = asElement(event.target)
   const isEditable = isEditableTarget(element)
   const isMonaco = element?.closest('.monaco-editor') != null
-  // A dialog owns its keys. A tool shortcut must not change the document behind it.
-  const inDialog = element?.closest('[role="dialog"]') != null
+  // A dialog, and a `data-key-scope` region such as the notes drawer, owns its keys. A tool
+  // shortcut must not change the document behind it.
+  const inKeyOwner = element?.closest('[role="dialog"], [data-key-scope]') != null
   let handled = false
 
   // Set preserves registration order, so dispatch follows hook mount order.
@@ -63,7 +64,7 @@ function handleSharedKeyDown(event: KeyboardEvent): void {
     // Tools in backgrounded tabs are mounted and still registered; only the
     // visible one should answer. Shell shortcuts have no tab and stay live.
     if (!registration.activeRef.current) continue
-    if (inDialog && registration.targetsToolRef.current) continue
+    if (inKeyOwner && registration.targetsToolRef.current) continue
     if (isEditable && !combo.mod && !combo.allowInEditable) continue
     if (!matchesCombo(event, combo)) continue
 

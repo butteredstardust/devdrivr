@@ -91,6 +91,22 @@ describe('useKeyboardShortcut', () => {
     expect(handler).toHaveBeenCalledOnce()
   })
 
+  it('ignores a tool shortcut pressed inside a key scope such as the notes drawer', () => {
+    const handler = vi.fn()
+    renderHook(() =>
+      useKeyboardShortcut({ key: 'Enter', mod: true }, handler, { targetsTool: true })
+    )
+    const drawer = document.createElement('aside')
+    drawer.setAttribute('data-key-scope', 'notes-drawer')
+    const search = document.createElement('input')
+    drawer.append(search)
+    document.body.append(drawer)
+
+    dispatchKey(search, { key: 'Enter', metaKey: true })
+
+    expect(handler).not.toHaveBeenCalled()
+  })
+
   it('ignores a shell shortcut that targets the tool inside a dialog', () => {
     const toolHandler = vi.fn()
     const shellHandler = vi.fn()

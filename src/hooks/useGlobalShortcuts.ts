@@ -11,7 +11,7 @@ import { detectPlatform } from '@/lib/platform'
 import { toggleNativeWindowFullscreen } from '@/lib/native-window'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
 
-// These shortcuts act on the active tool, so they must not fire from inside a dialog.
+// These shortcuts act on the active tool, so they must not fire from a dialog or a key scope.
 const TARGETS_TOOL = { targetsTool: true } as const
 
 export function useGlobalShortcuts(): void {
