@@ -27,6 +27,7 @@ import { Toggle } from '@/components/shared/Toggle'
 import { useUiStore } from '@/stores/ui.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
+import { loadMermaid } from '@/lib/mermaid'
 import {
   exportFile,
   filenameFromPath,
@@ -85,7 +86,6 @@ const EXPORT_SCALES = [1, 2, 3, 4]
 const DEFAULT_TEMPLATE = TEMPLATES[0]?.content ?? ''
 const RENDER_DEBOUNCE_MS = 500
 
-let initializedMermaidTheme: 'default' | 'dark' | null = null
 let mermaidLanguageRegistered = false
 
 function registerMermaidLanguage(monaco: Parameters<OnMount>[1]) {
@@ -112,23 +112,6 @@ function registerMermaidLanguage(monaco: Parameters<OnMount>[1]) {
     },
   })
   mermaidLanguageRegistered = true
-}
-
-async function getMermaid(theme: 'default' | 'dark') {
-  const { default: mermaid } = await import('mermaid')
-  if (initializedMermaidTheme !== theme) {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme,
-      // HTML labels live in a `<foreignObject>`, which WebKit refuses to
-      // rasterise from an SVG data URL — every PNG export of a flowchart or
-      // class diagram came out with blank nodes.
-      flowchart: { htmlLabels: false },
-      class: { htmlLabels: false },
-    })
-    initializedMermaidTheme = theme
-  }
-  return mermaid
 }
 
 /**
@@ -277,7 +260,7 @@ export default function MermaidEditor() {
       const renderId = `mermaid-preview-${renderSeq}`
       scratchIdsRef.current.add(renderId)
       try {
-        const mermaid = await getMermaid(mermaidTheme)
+        const mermaid = await loadMermaid(mermaidTheme)
         const { svg } = await mermaid.render(renderId, content)
         if (renderSeq !== renderSeqRef.current) return
         setSvgHtml(svg)
