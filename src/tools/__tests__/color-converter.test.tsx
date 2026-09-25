@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { renderTool } from './test-utils'
 import ColorConverter, {
   apcaContrast,
@@ -7,6 +7,7 @@ import ColorConverter, {
   labToLch,
   rgbToLab,
 } from '../color-converter/ColorConverter'
+import { FormatsSection } from '../color-converter/components/FormatsSection'
 
 describe('ColorConverter', () => {
   it('converts sRGB to CIE LAB and LCH', () => {
@@ -99,5 +100,40 @@ describe('ColorConverter — status and copy affordance', () => {
     // labelled "Copy" buttons this replaced told you nothing about their target.
     expect(screen.getByRole('button', { name: /Copy Hex value/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Copy RGB value/ })).toBeInTheDocument()
+  })
+
+  describe('copy feedback timer', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps the tick for the full period after a second copy', async () => {
+      vi.useFakeTimers()
+      Object.assign(navigator, {
+        clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+      })
+      render(<FormatsSection formats={[{ label: 'Hex', value: '#ff0000' }]} />)
+      const row = screen.getByRole('button', { name: /Hex/ })
+
+      await act(async () => {
+        fireEvent.click(row)
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(1000)
+      })
+      await act(async () => {
+        fireEvent.click(row)
+      })
+      // The first copy's timer would fire here and clear the second copy's tick.
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      expect(row).toHaveAccessibleName('Hex copied')
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000)
+      })
+      expect(row).toHaveAccessibleName('Copy Hex value #ff0000')
+    })
   })
 })

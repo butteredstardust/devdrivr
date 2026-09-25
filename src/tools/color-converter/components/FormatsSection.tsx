@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
@@ -13,11 +13,17 @@ type Format = { label: string; value: string }
 function FormatRow({ label, value }: Format) {
   const [copied, setCopied] = useState(false)
   const copy = useCopyToClipboard()
+  // One timer, restarted on each success. Independent timers let the first copy's timeout clear
+  // the second copy's tick early.
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => clearTimeout(resetTimer.current), [])
 
   async function handleCopy() {
     if (!(await copy(value))) return
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    clearTimeout(resetTimer.current)
+    resetTimer.current = setTimeout(() => setCopied(false), 1500)
   }
 
   return (
