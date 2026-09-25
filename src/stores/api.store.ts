@@ -16,11 +16,13 @@ import {
   clearAllApiRequests,
   loadHistory,
   addHistoryEntry,
+  pruneHistory,
   getSetting,
   setSetting,
 } from '@/lib/db'
 import type { ApiCollection, ApiEnvironment, ApiRequest, HistoryEntry } from '@/types/models'
 import type { ApiImportResult } from '@/types/models'
+import { useSettingsStore } from '@/stores/settings.store'
 
 const API_CLIENT_HISTORY_TOOL = 'api-client'
 const API_CLIENT_HISTORY_LIMIT = 30
@@ -378,6 +380,9 @@ export const useApiStore = create<ApiStore>((set) => ({
       timestamp: Date.now(),
     }
     await addHistoryEntry(entry)
+    // The list shows only the latest entries, but each row can hold a large response body.
+    // Apply the same per-tool retention as the other tools so the table does not grow forever.
+    await pruneHistory(API_CLIENT_HISTORY_TOOL, useSettingsStore.getState().historyRetentionPerTool)
     set((state) => ({
       requestHistory: [entry, ...state.requestHistory].slice(0, API_CLIENT_HISTORY_LIMIT),
     }))
