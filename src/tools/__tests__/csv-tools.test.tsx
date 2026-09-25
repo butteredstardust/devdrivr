@@ -28,6 +28,8 @@ vi.mock('@/lib/file-io', () => ({
 }))
 
 const SAMPLE = 'name,age\nAlice,30\nBob,25'
+// The parse is debounced. Under a full parallel run it can take longer than the 1s default.
+const WAIT = { timeout: 5000 }
 
 function editor() {
   return screen.getAllByTestId('monaco-editor')[0] as HTMLTextAreaElement
@@ -322,12 +324,12 @@ describe('CsvTools', () => {
     renderTool(CsvTools)
     typeCsv(SAMPLE)
 
-    const header = await screen.findByRole('columnheader', { name: 'name' })
+    const header = await screen.findByRole('columnheader', { name: 'name' }, WAIT)
     // Sorting used to be a click handler on the <th>, unreachable by keyboard
     // and invisible to screen readers.
     fireEvent.click(within(header).getByRole('button'))
 
-    await waitFor(() => expect(header).toHaveAttribute('aria-sort', 'ascending'))
+    await waitFor(() => expect(header).toHaveAttribute('aria-sort', 'ascending'), WAIT)
   })
 
   it('filters table rows without touching the source', async () => {
