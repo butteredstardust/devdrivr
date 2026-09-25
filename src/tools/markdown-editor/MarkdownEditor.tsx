@@ -1,79 +1,35 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type OnMount } from '@monaco-editor/react'
-import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import { useToolState } from '@/hooks/useToolState'
-import { useMonaco } from '@/hooks/useMonaco'
-import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import { Button } from '@/components/shared/Button'
-import { Dialog } from '@/components/shared/Dialog'
-import { SelectionContextToolbar } from '@/components/shared/SelectionContextToolbar'
+import { useIsInstanceActive } from '@/app/tool-instance'
 import { SplitPane } from '@/components/shared/SplitPane'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
-import { Popover } from '@/components/shared/Popover'
-import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
-import { useUiStore } from '@/stores/ui.store'
-import { useToolAction } from '@/hooks/useToolAction'
-import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
-import { useIsInstanceActive } from '@/app/tool-instance'
-import {
-  buildExportFilename,
-  exportFile,
-  filenameFromPath,
-  openFileDialog,
-  saveFileDialog,
-  saveFileToPath,
-} from '@/lib/file-io'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useDomSelectionToolbar } from '@/hooks/useDomSelectionToolbar'
+import { useMonaco } from '@/hooks/useMonaco'
 import { useMonacoSelectionToolbar } from '@/hooks/useMonacoSelectionToolbar'
-import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
-import { useScrollSync } from '@/tools/markdown-editor/hooks/useScrollSync'
+import { useTabDirty } from '@/hooks/useTabDirty'
+import { useToolState } from '@/hooks/useToolState'
+import { MarkdownDialogs } from '@/tools/markdown-editor/components/MarkdownDialogs'
+import { MarkdownEditorPane } from '@/tools/markdown-editor/components/MarkdownEditorPane'
+import { MarkdownPreviewPane } from '@/tools/markdown-editor/components/MarkdownPreviewPane'
+import { MarkdownToolbar } from '@/tools/markdown-editor/components/MarkdownToolbar'
 import { useImageDrop } from '@/tools/markdown-editor/hooks/useImageDrop'
+import { useMarkdownDocument } from '@/tools/markdown-editor/hooks/useMarkdownDocument'
+import { useMarkdownExport } from '@/tools/markdown-editor/hooks/useMarkdownExport'
+import { useMarkdownFormatting } from '@/tools/markdown-editor/hooks/useMarkdownFormatting'
 import { useMarkdownListEditing } from '@/tools/markdown-editor/hooks/useMarkdownListEditing'
 import { useMarkdownSmartPaste } from '@/tools/markdown-editor/hooks/useMarkdownSmartPaste'
-import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
-import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
-import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
-import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
+import { useScrollSync } from '@/tools/markdown-editor/hooks/useScrollSync'
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CaretDownIcon,
-  CodeIcon,
-  CopyIcon,
-  DownloadSimpleIcon,
-  FileMdIcon,
-  FilesIcon,
-  MagnifyingGlassIcon,
-  QuotesIcon,
-  SwapIcon,
-  TextBIcon,
-  TextItalicIcon,
-} from '@phosphor-icons/react'
-
-import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { useTabDirty } from '@/hooks/useTabDirty'
-import { formatShortcut } from '@/lib/shortcut-label'
-
-import {
-  BASE_EXPORT_STYLES,
   type EditorInstance,
   type EditorMode,
-  MODE_OPTIONS,
   type MarkdownEditorState,
-  PRINT_STYLES,
-  type PendingDocument,
-  TEMPLATE_DATE,
   extractToc,
   readingTime,
   renderEditableMarkdownContent,
-  renderMarkdownContent,
-  prefixMarkdownLines,
   validateMarkdownEditorState,
 } from '@/tools/markdown-editor/markdown-model'
-import { TEMPLATES } from '@/tools/markdown-editor/document-templates'
-import { FORMATTING_ACTIONS } from '@/tools/markdown-editor/formatting-actions'
+import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
 
 // Re-exported because the tests (and lib/markdown's parity test) have always reached for the
 // renderer through the tool's entry point.
@@ -99,7 +55,6 @@ export default function MarkdownEditor() {
     { validate: validateMarkdownEditorState }
   )
 
-  const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const [html, setHtml] = useState('')
   const previewRef = useRef<HTMLDivElement>(null)
@@ -114,8 +69,6 @@ export default function MarkdownEditor() {
   const toolRootRef = useRef<HTMLDivElement>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showExport, setShowExport] = useState(false)
-  const [activeModal, setActiveModal] = useState<'link' | 'image' | 'code' | 'table' | null>(null)
-  const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
   const [previewEditing, setPreviewEditing] = useState(false)
 
   // ─── Hooks ────────────────────────────────────────────────────────
@@ -218,431 +171,35 @@ export default function MarkdownEditor() {
     return { words, chars, lines, paragraphs, readTime: readingTime(words) }
   }, [state.content])
 
-  const applyDocument = useCallback(
-    (document: PendingDocument) => {
-      updateState({
-        content: document.content,
-        fileName: document.fileName,
-        filePath: document.filePath,
-        savedContent: document.savedContent,
-      })
-      setPendingDocument(null)
-      setLastAction(document.successMessage, 'success')
-    },
-    [setLastAction, updateState]
-  )
+  const formatting = useMarkdownFormatting({
+    editorRef,
+    state,
+    updateState,
+    setPreviewEditing,
+    copy,
+    isInstanceActive,
+  })
 
-  const requestDocument = useCallback(
-    (document: PendingDocument) => {
-      if (isDirty) {
-        setPendingDocument(document)
-        return
-      }
-      applyDocument(document)
-    },
-    [applyDocument, isDirty]
-  )
+  const document = useMarkdownDocument({ state, updateState, isDirty, setShowTemplates })
 
-  const handleNewDocument = useCallback(() => {
-    requestDocument({
-      content: '',
-      fileName: null,
-      filePath: null,
-      savedContent: '',
-      successMessage: 'New document created',
-    })
-  }, [requestDocument])
-
-  // The tool owns the whole drop: an image is embedded, any other file opens as a document.
-  const handleDroppedTextFile = useCallback(
-    (content: string, filename: string, path: string) => {
-      requestDocument({
-        content,
-        fileName: filename,
-        filePath: path,
-        savedContent: content,
-        successMessage: `Opened ${filename}`,
-      })
-    },
-    [requestDocument]
-  )
-  const handleDropError = useCallback(
-    (message: string) => setLastAction(message, 'error'),
-    [setLastAction]
-  )
   const { isDraggingImage } = useImageDrop(
     editorRef,
     toolRootRef,
     isInstanceActive,
-    handleDroppedTextFile,
-    handleDropError
+    document.handleDroppedTextFile,
+    document.handleDropError
   )
+
+  const markdownExport = useMarkdownExport({
+    content: state.content,
+    fileName: state.fileName,
+    copy,
+    setShowExport,
+  })
 
   // ─── TOC ─────────────────────────────────────────────────────────
 
   const toc = useMemo(() => extractToc(html), [html])
-
-  // ─── Formatting insertion ────────────────────────────────────────
-
-  const insertFormatting = useCallback(
-    (prefix: string, suffix: string, placeholder: string, lineStart?: boolean) => {
-      const editor = editorRef.current
-      if (!editor) return
-      const model = editor.getModel()
-      const selection = editor.getSelection()
-      if (!model || !selection) return
-
-      const selectedText = model.getValueInRange(selection)
-      const text = selectedText || placeholder
-
-      let insertText: string
-      let extraOffset = 0
-      if (lineStart && selectedText && !prefix.includes('\n')) {
-        insertText = prefixMarkdownLines(selectedText, prefix)
-      } else if (lineStart && !selectedText) {
-        const lineContent = model.getLineContent(selection.startLineNumber)
-        const needsNewline = lineContent.trim().length > 0 && selection.startColumn > 1
-        if (needsNewline) extraOffset = 1
-        insertText = (needsNewline ? '\n' : '') + prefix + text + suffix
-      } else {
-        insertText = prefix + text + suffix
-      }
-
-      editor.executeEdits('formatting', [
-        { range: selection, text: insertText, forceMoveMarkers: true },
-      ])
-
-      if (!selectedText && placeholder) {
-        const baseOffset = model.getOffsetAt(selection.getStartPosition()) + extraOffset
-        const startPos = model.getPositionAt(baseOffset + prefix.length)
-        const endPos = model.getPositionAt(baseOffset + prefix.length + placeholder.length)
-        editor.setSelection({
-          startLineNumber: startPos.lineNumber,
-          startColumn: startPos.column,
-          endLineNumber: endPos.lineNumber,
-          endColumn: endPos.column,
-        })
-      }
-
-      editor.focus()
-    },
-    []
-  )
-
-  const copySelection = useCallback(
-    async (text: string) => {
-      await copy(text, {
-        success: 'Selection copied to clipboard',
-        failure: 'Failed to copy selection',
-      })
-    },
-    [copy]
-  )
-
-  const copyPreviewQuote = useCallback(
-    async (text: string) => {
-      const quote = text
-        .split('\n')
-        .map((line) => `> ${line}`)
-        .join('\n')
-      await copy(quote, {
-        success: 'Quoted selection copied to clipboard',
-        failure: 'Failed to copy selection',
-      })
-    },
-    [copy]
-  )
-
-  const editorSelectionActions = useMemo(
-    () => [
-      {
-        id: 'bold',
-        label: 'Bold',
-        icon: <TextBIcon size={14} weight="bold" />,
-        onSelect: () => insertFormatting('**', '**', 'bold text'),
-      },
-      {
-        id: 'italic',
-        label: 'Italic',
-        icon: <TextItalicIcon size={14} />,
-        onSelect: () => insertFormatting('_', '_', 'italic text'),
-      },
-      {
-        id: 'code',
-        label: 'Inline code',
-        icon: <CodeIcon size={14} />,
-        onSelect: () => insertFormatting('`', '`', 'code'),
-      },
-      {
-        id: 'quote',
-        label: 'Quote',
-        icon: <QuotesIcon size={14} />,
-        onSelect: () => insertFormatting('> ', '', 'quote', true),
-      },
-      {
-        id: 'copy',
-        label: 'Copy selection',
-        icon: <CopyIcon size={14} />,
-        onSelect: copySelection,
-      },
-    ],
-    [copySelection, insertFormatting]
-  )
-
-  const previewSelectionActions = useMemo(
-    () => [
-      {
-        id: 'copy',
-        label: 'Copy selection',
-        icon: <CopyIcon size={14} />,
-        onSelect: copySelection,
-      },
-      {
-        id: 'quote',
-        label: 'Copy as quote',
-        icon: <QuotesIcon size={14} />,
-        onSelect: copyPreviewQuote,
-      },
-    ],
-    [copyPreviewQuote, copySelection]
-  )
-
-  const handleModalInsert = useCallback((text: string) => {
-    const editor = editorRef.current
-    if (!editor) return
-    const selection = editor.getSelection()
-    const model = editor.getModel()
-    if (!model || !selection) return
-    editor.executeEdits('modal-insert', [{ range: selection, text, forceMoveMarkers: true }])
-    editor.focus()
-    setActiveModal(null)
-  }, [])
-
-  // ─── Find and replace ────────────────────────────────────────────
-
-  /**
-   * Open Monaco's find (or find-and-replace) widget.
-   *
-   * Deliberately *not* a hand-rolled panel. Monaco already ships one with regex, case sensitivity,
-   * whole-word, find-in-selection, match counts and Enter/Shift-Enter cycling — all of it already
-   * wired to the model this editor is using. A second panel beside it would be a worse widget in a
-   * second place, and the two would disagree about which match is current.
-   *
-   * What was actually missing is everything around it: the widget was reachable only by pressing
-   * ⌘F while the caret was already in the editor, with nothing in the UI to say it existed, and
-   * nothing at all in Preview mode.
-   */
-  const openFind = useCallback(
-    (replace: boolean) => {
-      // Preview has no editor to search. Switching to split is better than refusing: the user asked
-      // to find something, and the only way to honour that is to show them the text.
-      if (state.mode === 'preview') {
-        setPreviewEditing(false)
-        updateState({ mode: 'split' })
-      }
-
-      // Retried rather than deferred one frame, and the check is DOM connectivity rather than
-      // `editorRef.current != null`. Preview unmounts the editor without clearing the ref, so the
-      // ref still points at the *previous*, detached instance — `getAction` on it silently does
-      // nothing, and the mode flipped with no find widget in sight. Waiting for a connected DOM
-      // node is what distinguishes the live instance from the corpse. Found in the browser
-      // harness; jsdom cannot see it because it never mounts a real Monaco.
-      const deadline = Date.now() + 3000
-      const attempt = () => {
-        const editor = editorRef.current
-        if (!editor || !editor.getDomNode()?.isConnected) {
-          if (Date.now() < deadline) requestAnimationFrame(attempt)
-          return
-        }
-        editor.focus()
-        void editor
-          .getAction(replace ? 'editor.action.startFindReplaceAction' : 'actions.find')
-          ?.run()
-      }
-      requestAnimationFrame(attempt)
-    },
-    [state.mode, updateState]
-  )
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!isInstanceActive) return
-      if (!e.metaKey && !e.ctrlKey) return
-      const key = e.key.toLowerCase()
-      if (key !== 'f' && key !== 'h') return
-      // When the caret is already in the editor, Monaco's own keybinding handles this and does it
-      // better — it seeds the search box from the selection. Only step in when it can't.
-      if (editorRef.current?.hasTextFocus()) return
-      e.preventDefault()
-      openFind(key === 'h')
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [isInstanceActive, openFind])
-
-  // ─── Keyboard shortcuts for formatting ───────────────────────────
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!isInstanceActive) return
-      if (!e.metaKey && !e.ctrlKey) return
-      if (!editorRef.current?.hasTextFocus()) return
-      if (e.key === 'b') {
-        e.preventDefault()
-        insertFormatting('**', '**', 'bold text')
-      } else if (e.key === 'i') {
-        e.preventDefault()
-        insertFormatting('_', '_', 'italic text')
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [insertFormatting, isInstanceActive])
-
-  // ─── Export handlers ─────────────────────────────────────────────
-
-  const buildFullHtml = useCallback(
-    (bodyHtml: string, styles: string) =>
-      `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Export</title>\n<style>${styles}</style>\n</head><body>${bodyHtml}</body></html>`,
-    []
-  )
-
-  const buildCurrentExportHtml = useCallback(
-    async (styles: string) => buildFullHtml(await renderMarkdownContent(state.content), styles),
-    [buildFullHtml, state.content]
-  )
-
-  const handleCopyHtml = useCallback(async () => {
-    await copy(await buildCurrentExportHtml(BASE_EXPORT_STYLES), {
-      success: 'HTML copied to clipboard',
-      failure: 'Failed to copy HTML',
-    })
-    setShowExport(false)
-  }, [buildCurrentExportHtml, copy])
-
-  const handleDownload = useCallback(
-    async (format: 'md' | 'html') => {
-      const content =
-        format === 'md' ? state.content : await buildCurrentExportHtml(BASE_EXPORT_STYLES)
-      try {
-        const baseName = state.fileName?.replace(/\.[^.]+$/, '') ?? 'document'
-        const path = await exportFile(content, buildExportFilename(baseName, format))
-        if (path) setLastAction(`Downloaded as .${format}`, 'success')
-      } catch {
-        setLastAction('Download failed', 'error')
-      }
-      setShowExport(false)
-    },
-    [buildCurrentExportHtml, state.content, state.fileName, setLastAction]
-  )
-
-  // ─── Open / Save ──────────────────────────────────────────────────
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const result = await openFileDialog()
-      if (result) {
-        requestDocument({
-          content: result.content,
-          fileName: result.filename,
-          filePath: result.path,
-          savedContent: result.content,
-          successMessage: `Opened ${result.filename}`,
-        })
-      }
-    } catch (err) {
-      setLastAction(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }, [requestDocument, setLastAction])
-
-  const handleSaveAs = useCallback(async () => {
-    try {
-      const path = await saveFileDialog(state.content, state.fileName ?? 'document.md')
-      if (path) {
-        const fileName = filenameFromPath(path)
-        updateState({ filePath: path, fileName, savedContent: state.content })
-        setLastAction(`Saved ${fileName}`, 'success')
-      } else {
-        setLastAction('Save cancelled', 'info')
-      }
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.content, state.fileName, updateState, setLastAction])
-
-  // Shared by the File > Save menu item and the ⌘S shortcut so they cannot drift.
-  const handleSave = useCallback(async () => {
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, state.content)
-      updateState({ savedContent: state.content })
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }, [state.filePath, state.content, state.fileName, updateState, setLastAction, handleSaveAs])
-
-  useReloadOnFileChange({
-    filePath: state.filePath,
-    getContent: () => state.content,
-    onReload: ({ content, filename, path }) => {
-      requestDocument({
-        content,
-        fileName: filename,
-        filePath: path,
-        savedContent: content,
-        successMessage: `Reloaded ${filename} from disk`,
-      })
-    },
-  })
-
-  useToolAction((action) => {
-    if (action.type === 'open-file') {
-      requestDocument({
-        content: action.content,
-        fileName: action.filename,
-        filePath: action.path ?? null,
-        savedContent: action.content,
-        successMessage: `Opened ${action.filename}`,
-      })
-    }
-    if (action.type === 'save-file') {
-      void handleSave()
-    }
-  })
-
-  const handleExportPdf = useCallback(async () => {
-    const fullHtml = await buildCurrentExportHtml(PRINT_STYLES)
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;left:-9999px'
-    document.body.appendChild(iframe)
-    const iframeDoc = iframe.contentWindow?.document
-    if (!iframeDoc) {
-      document.body.removeChild(iframe)
-      return
-    }
-    iframeDoc.open()
-    iframeDoc.write(fullHtml)
-    iframeDoc.close()
-    const win = iframe.contentWindow
-    if (!win) {
-      document.body.removeChild(iframe)
-      return
-    }
-    win.addEventListener('afterprint', () => document.body.removeChild(iframe), { once: true })
-    win.focus()
-    try {
-      win.print()
-    } catch {
-      document.body.removeChild(iframe)
-      return
-    }
-    setLastAction('Print dialog opened', 'success')
-    setShowExport(false)
-  }, [buildCurrentExportHtml, setLastAction])
 
   const handleToggleTask = useCallback(
     (index: number) => {
@@ -671,378 +228,62 @@ export default function MarkdownEditor() {
     pendingRevealLineRef.current = null
   }, [])
 
-  const handleTemplateSelect = useCallback(
-    (content: string) => {
-      const datedContent = content.replaceAll(TEMPLATE_DATE, new Date().toISOString().slice(0, 10))
-      setShowTemplates(false)
-      requestDocument({
-        content: datedContent,
-        fileName: null,
-        filePath: null,
-        savedContent: '',
-        successMessage: 'Template loaded',
-      })
-    },
-    [requestDocument]
-  )
-
   // Each pane renders identically whether it's alone or beside the other, so it's defined once
   // here and placed by the layout below rather than written out under both branches.
   const editorPane = (
-    <div className="min-h-0 flex-1 overflow-hidden">
-      <Editor
-        theme={monacoTheme}
-        language="markdown"
-        value={state.content}
-        onChange={(v) => updateState({ content: v ?? '' })}
-        onMount={handleEditorMount}
-        options={monacoOptions}
-      />
-    </div>
+    <MarkdownEditorPane
+      theme={monacoTheme}
+      content={state.content}
+      updateState={updateState}
+      onMount={handleEditorMount}
+      options={monacoOptions}
+    />
   )
 
   const previewPane = (
-    <div className="min-h-0 flex-1">
-      <MarkdownPreview
-        ref={previewRef}
-        html={html}
-        source={state.content}
-        showToc={state.showToc}
-        toc={toc}
-        onToggleTask={handleToggleTask}
-        activeSourceLine={state.mode === 'split' ? activeSourceLine : null}
-        editingEnabled={state.mode === 'preview' && previewEditing}
-        showEditingToggle={state.mode === 'preview'}
-        onEditingEnabledChange={setPreviewEditing}
-        onSourceChange={(content) => updateState({ content })}
-        onEditCaretChange={handlePreviewEditCaret}
-        onRevealSource={handleRevealSource}
-      />
-    </div>
+    <MarkdownPreviewPane
+      previewRef={previewRef}
+      html={html}
+      state={state}
+      updateState={updateState}
+      toc={toc}
+      activeSourceLine={activeSourceLine}
+      previewEditing={previewEditing}
+      setPreviewEditing={setPreviewEditing}
+      handleToggleTask={handleToggleTask}
+      handlePreviewEditCaret={handlePreviewEditCaret}
+      handleRevealSource={handleRevealSource}
+    />
   )
 
   return (
     <ToolLayout fullBleed ref={toolRootRef} className="relative">
-      {/* No seam: nothing stacks under the toolbar inside this header, so a border here would be
-          the single-row divider the toolbar primitive dropped, just re-expressed on the wrapper. */}
-      <header className="bg-[var(--color-surface)]">
-        <DocumentToolbar aria-label="Markdown document actions">
-          <DocumentIdentity
-            title={state.fileName ?? 'Untitled document'}
-            titleTooltip={state.filePath ?? state.fileName ?? 'Untitled document'}
-            titleTestId="file-name"
-            stateLabel={isDirty ? 'Modified' : 'Saved'}
-            stateChanged={isDirty}
-            status={state.filePath ?? 'Local markdown workspace'}
-            // The path is context, not a result — announcing it on every open
-            // would talk over the Modified/Saved indicator that matters.
-            statusLive={false}
-            icon={
-              <FileMdIcon
-                size={16}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-text-muted)]"
-              />
-            }
-          />
-
-          <DocumentFileActions
-            newDocument={{ label: 'New markdown document', onClick: handleNewDocument }}
-            open={{
-              label: 'Open markdown file',
-              title: `Open a markdown file (${formatShortcut('mod+o')})`,
-              onClick: () => void handleOpen(),
-            }}
-            save={{
-              label: 'Save markdown document',
-              title: `Save the document (${formatShortcut('mod+s')})`,
-              onClick: () => void handleSave(),
-            }}
-            saveAs={{ label: 'Save markdown document as', onClick: () => void handleSaveAs() }}
-          />
-
-          <ToolbarGroup label="View options" separated>
-            <SegmentedControl
-              aria-label="Editor view mode"
-              options={MODE_OPTIONS}
-              value={state.mode as EditorMode}
-              onChange={handleModeChange}
-            />
-
-            {state.mode === 'split' && (
-              <div className="flex items-center" role="group" aria-label="Scroll synchronization">
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() =>
-                    updateState({
-                      scrollSyncDirections: {
-                        editorToPreview: !syncPreviewWithEditor,
-                        previewToEditor: syncEditorWithPreview,
-                      },
-                    })
-                  }
-                  title={
-                    syncPreviewWithEditor
-                      ? 'Stop syncing preview with editor'
-                      : 'Sync preview with editor'
-                  }
-                  aria-label={
-                    syncPreviewWithEditor
-                      ? 'Stop syncing preview with editor'
-                      : 'Sync preview with editor'
-                  }
-                  aria-pressed={syncPreviewWithEditor}
-                  className={syncPreviewWithEditor ? 'text-[var(--color-accent)]' : ''}
-                >
-                  <ArrowRightIcon
-                    size={14}
-                    weight={syncPreviewWithEditor ? 'bold' : 'regular'}
-                    aria-hidden="true"
-                  />
-                </Button>
-                <Button
-                  type="button"
-                  variant="icon"
-                  size="sm"
-                  onClick={() =>
-                    updateState({
-                      scrollSyncDirections: {
-                        editorToPreview: syncPreviewWithEditor,
-                        previewToEditor: !syncEditorWithPreview,
-                      },
-                    })
-                  }
-                  title={
-                    syncEditorWithPreview
-                      ? 'Stop syncing editor with preview'
-                      : 'Sync editor with preview'
-                  }
-                  aria-label={
-                    syncEditorWithPreview
-                      ? 'Stop syncing editor with preview'
-                      : 'Sync editor with preview'
-                  }
-                  aria-pressed={syncEditorWithPreview}
-                  className={syncEditorWithPreview ? 'text-[var(--color-accent)]' : ''}
-                >
-                  <ArrowLeftIcon
-                    size={14}
-                    weight={syncEditorWithPreview ? 'bold' : 'regular'}
-                    aria-hidden="true"
-                  />
-                </Button>
-              </div>
-            )}
-
-            {toc.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => updateState({ showToc: !state.showToc })}
-                className={
-                  state.showToc ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-                }
-                title="Table of contents"
-                aria-pressed={state.showToc}
-              >
-                Contents
-              </Button>
-            )}
-          </ToolbarGroup>
-
-          {/* The find widget existed but had no entry point outside the editor's own keymap, so
-              it was invisible unless you already knew it was there. */}
-          <ToolbarGroup label="Find" separated>
-            <Button
-              type="button"
-              variant="icon"
-              size="sm"
-              onClick={() => openFind(false)}
-              title={`Find (${formatShortcut('mod+f')})`}
-              aria-label={`Find (${formatShortcut('mod+f')})`}
-            >
-              <MagnifyingGlassIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="icon"
-              size="sm"
-              onClick={() => openFind(true)}
-              title={`Find and replace (${formatShortcut('mod+h')})`}
-              aria-label={`Find and replace (${formatShortcut('mod+h')})`}
-            >
-              <SwapIcon size={14} aria-hidden="true" />
-            </Button>
-          </ToolbarGroup>
-
-          <ToolbarGroup label="Templates" separated>
-            <Popover
-              open={showTemplates}
-              onOpenChange={setShowTemplates}
-              label="Templates"
-              align="end"
-              trigger={(triggerProps) => (
-                <Button
-                  {...triggerProps}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={
-                    showTemplates ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
-                  }
-                >
-                  <FilesIcon size={14} aria-hidden="true" />
-                  Templates
-                </Button>
-              )}
-            >
-              <div className="py-1">
-                {TEMPLATES.map((template) => (
-                  <Button
-                    key={template.label}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleTemplateSelect(template.content)}
-                    className="w-full justify-start text-left"
-                  >
-                    {template.label}
-                  </Button>
-                ))}
-              </div>
-            </Popover>
-          </ToolbarGroup>
-
-          <ToolbarGroup label="Export" separated>
-            <Popover
-              open={showExport}
-              onOpenChange={setShowExport}
-              label="Export"
-              align="end"
-              trigger={(triggerProps) => (
-                <Button
-                  {...triggerProps}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={`gap-1 ${showExport ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''}`}
-                >
-                  <DownloadSimpleIcon size={14} aria-hidden="true" />
-                  Export <CaretDownIcon size={12} aria-hidden="true" />
-                </Button>
-              )}
-            >
-              <div className="py-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void copy(state.content, {
-                      success: 'Markdown copied to clipboard',
-                      failure: 'Failed to copy to clipboard',
-                    })
-                    setShowExport(false)
-                  }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
-                >
-                  Copy Markdown
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleCopyHtml()
-                    setShowExport(false)
-                  }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
-                >
-                  Copy HTML
-                </Button>
-                <div className="my-1 border-t border-[var(--color-border)]" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleDownload('md')
-                    setShowExport(false)
-                  }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
-                >
-                  Download .md
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleDownload('html')
-                    setShowExport(false)
-                  }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
-                >
-                  Download .html
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleExportPdf()
-                    setShowExport(false)
-                  }}
-                  className="w-full justify-start text-left hover:text-[var(--color-text)]"
-                >
-                  Print / PDF
-                </Button>
-              </div>
-            </Popover>
-          </ToolbarGroup>
-        </DocumentToolbar>
-      </header>
-
-      {/* ─── Formatting Toolbar ─────────────────────────────────── */}
-      {showEditor && (
-        <div
-          role="toolbar"
-          aria-label="Markdown formatting"
-          className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--color-border)] px-2 py-1"
-        >
-          {FORMATTING_ACTIONS.map((action, i) => {
-            const prev = FORMATTING_ACTIONS[i - 1]
-            const showSep = i > 0 && prev !== undefined && action.group !== prev.group
-            const Icon = action.icon
-            return (
-              <Fragment key={action.title}>
-                {showSep && (
-                  <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--color-border)]" />
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    if ('modal' in action && action.modal) {
-                      setActiveModal(action.modal)
-                    } else {
-                      insertFormatting(
-                        action.prefix,
-                        action.suffix,
-                        action.placeholder,
-                        action.line
-                      )
-                    }
-                  }}
-                  title={action.title}
-                  aria-label={action.title}
-                  className="hover:text-[var(--color-text)]"
-                >
-                  {Icon ? <Icon size={12} aria-hidden="true" /> : action.label}
-                </Button>
-              </Fragment>
-            )
-          })}
-        </div>
-      )}
+      <MarkdownToolbar
+        state={state}
+        updateState={updateState}
+        isDirty={isDirty}
+        syncPreviewWithEditor={syncPreviewWithEditor}
+        syncEditorWithPreview={syncEditorWithPreview}
+        tocLength={toc.length}
+        showTemplates={showTemplates}
+        setShowTemplates={setShowTemplates}
+        showExport={showExport}
+        setShowExport={setShowExport}
+        handleNewDocument={document.handleNewDocument}
+        handleOpen={document.handleOpen}
+        handleSave={document.handleSave}
+        handleSaveAs={document.handleSaveAs}
+        handleModeChange={handleModeChange}
+        openFind={formatting.openFind}
+        handleTemplateSelect={document.handleTemplateSelect}
+        copy={copy}
+        handleCopyHtml={markdownExport.handleCopyHtml}
+        handleDownload={markdownExport.handleDownload}
+        handleExportPdf={markdownExport.handleExportPdf}
+        showEditor={showEditor}
+        setActiveModal={formatting.setActiveModal}
+        insertFormatting={formatting.insertFormatting}
+      />
 
       {/* ─── Body ───────────────────────────────────────────────── */}
       {/* Keep both panes mounted across mode changes so Monaco retains its model, cursor, scroll,
@@ -1080,54 +321,19 @@ export default function MarkdownEditor() {
         </div>
       )}
 
-      {pendingDocument && (
-        <Dialog
-          title="Replace unsaved changes?"
-          onClose={() => setPendingDocument(null)}
-          size="md"
-          footer={
-            <>
-              <Button type="button" variant="secondary" onClick={() => setPendingDocument(null)}>
-                Keep editing
-              </Button>
-              <Button type="button" variant="danger" onClick={() => applyDocument(pendingDocument)}>
-                Discard changes
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm leading-6 text-[var(--color-text-muted)]">
-            Your current document has changes that have not been saved to a file. Continuing will
-            replace them.
-          </p>
-        </Dialog>
-      )}
-
-      {activeModal === 'link' && (
-        <LinkModal
-          initialText=""
-          onInsert={handleModalInsert}
-          onClose={() => setActiveModal(null)}
-        />
-      )}
-      {activeModal === 'image' && (
-        <ImageModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
-      )}
-      {activeModal === 'code' && (
-        <CodeBlockModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
-      )}
-      {activeModal === 'table' && (
-        <TableModal onInsert={handleModalInsert} onClose={() => setActiveModal(null)} />
-      )}
-      <SelectionContextToolbar
-        selection={editorSelectionToolbar.selection}
-        actions={editorSelectionActions}
-        onDismiss={editorSelectionToolbar.clearSelection}
-      />
-      <SelectionContextToolbar
-        selection={editorSelectionToolbar.selection ? null : previewSelectionToolbar.selection}
-        actions={previewSelectionActions}
-        onDismiss={previewSelectionToolbar.clearSelection}
+      <MarkdownDialogs
+        pendingDocument={document.pendingDocument}
+        setPendingDocument={document.setPendingDocument}
+        applyDocument={document.applyDocument}
+        activeModal={formatting.activeModal}
+        setActiveModal={formatting.setActiveModal}
+        handleModalInsert={formatting.handleModalInsert}
+        editorSelection={editorSelectionToolbar.selection}
+        editorSelectionActions={formatting.editorSelectionActions}
+        clearEditorSelection={editorSelectionToolbar.clearSelection}
+        previewSelection={previewSelectionToolbar.selection}
+        previewSelectionActions={formatting.previewSelectionActions}
+        clearPreviewSelection={previewSelectionToolbar.clearSelection}
       />
     </ToolLayout>
   )
