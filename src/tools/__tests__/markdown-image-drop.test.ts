@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { readFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
 import { readSupportedTextFile } from '@/lib/file-io'
-import { useImageDrop } from '@/tools/markdown-editor/hooks/useImageDrop'
+import { MAX_INLINE_IMAGE_BYTES, useImageDrop } from '@/tools/markdown-editor/hooks/useImageDrop'
 
 const mocks = vi.hoisted(() => ({
   eventHandler: null as ((event: { payload: Record<string, unknown> }) => void) | null,
@@ -16,7 +16,7 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
   getCurrentWebviewWindow: vi.fn(),
 }))
 
-vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }))
+vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn(), stat: vi.fn() }))
 
 vi.mock('@/lib/file-io', () => ({
   filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
@@ -55,6 +55,7 @@ describe('markdown editor file drop', () => {
     mocks.eventHandler = null
     mocks.scaleFactor.mockResolvedValue(1)
     vi.mocked(readFile).mockResolvedValue(new Uint8Array([1, 2, 3]))
+    vi.mocked(stat).mockResolvedValue({ size: 3 } as Awaited<ReturnType<typeof stat>>)
     vi.mocked(getCurrentWebviewWindow).mockReturnValue({
       scaleFactor: mocks.scaleFactor,
       onDragDropEvent: vi.fn(async (handler) => {
@@ -92,6 +93,38 @@ describe('markdown editor file drop', () => {
     await waitFor(() => expect(mocks.executeEdits).toHaveBeenCalled())
     const [, edits] = mocks.executeEdits.mock.calls[0] as [string, Array<{ text: string }>]
     expect(edits[0]?.text).toContain('![diagram.png](data:image/png;base64,')
+  })
+
+  it('reports an image too large to embed and does not read it', async () => {
+    vi.mocked(stat).mockResolvedValue({ size: MAX_INLINE_IMAGE_BYTES + 1 } as Awaited<
+      ReturnType<typeof stat>
+    >)
+    const { onError } = render()
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    drop(['/tmp/photo.jpg'])
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith('Image not embedded — photo.jpg is larger than 3.8 MB')
+    )
+    expect(readFile).not.toHaveBeenCalled()
+    expect(mocks.executeEdits).not.toHaveBeenCalled()
+  })
+
+  it('reports an image it cannot read and still embeds the others', async () => {
+    vi.mocked(readFile)
+      .mockRejectedValueOnce(new Error('permission denied'))
+      .mockResolvedValueOnce(new Uint8Array([1, 2, 3]))
+    const { onError } = render()
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    drop(['/tmp/locked.png', '/tmp/diagram.png'])
+
+    await waitFor(() => expect(mocks.executeEdits).toHaveBeenCalled())
+    expect(onError).toHaveBeenCalledWith('Image not embedded — locked.png: permission denied')
+    const [, edits] = mocks.executeEdits.mock.calls[0] as [string, Array<{ text: string }>]
+    expect(edits[0]?.text).toContain('![diagram.png]')
+    expect(edits[0]?.text).not.toContain('locked.png')
   })
 
   // The tool owns the whole drop, so a text file has nowhere else to go. Before this it reached

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { readFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
 import { filenameFromPath, readSupportedTextFile } from '@/lib/file-io'
+import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
+import { formatBytes } from '@/lib/format'
 
 type EditorInstance = {
   getPosition: () => { lineNumber: number; column: number } | null
@@ -27,6 +29,12 @@ type EditorInstance = {
 }
 
 // ─── Pure helpers (exported for testing) ────────────────────────────
+
+/**
+ * Largest image to embed as a data URI. Base64 grows the bytes by 4/3, so an image at this size
+ * still fits in a document the editor can open again.
+ */
+export const MAX_INLINE_IMAGE_BYTES = Math.floor((MAX_EDITABLE_TEXT_FILE_BYTES * 3) / 4)
 
 const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -143,6 +151,7 @@ export function useImageDrop(
 
           const insertions: string[] = []
           const textPaths: string[] = []
+          const skipped: string[] = []
 
           for (const filePath of paths) {
             const filename = filePath.split('/').pop() ?? filePath.split('\\').pop() ?? filePath
@@ -153,12 +162,21 @@ export function useImageDrop(
             }
 
             try {
+              // Check the size first. Reading a large photo only to reject it stalls the editor.
+              if ((await stat(filePath)).size > MAX_INLINE_IMAGE_BYTES) {
+                skipped.push(`${filename} is larger than ${formatBytes(MAX_INLINE_IMAGE_BYTES)}`)
+                continue
+              }
               const bytes = await readFile(filePath)
               const base64 = uint8ToBase64(bytes)
               insertions.push(`![${filename}](data:${mime};base64,${base64})`)
             } catch (err) {
-              console.error('Failed to read dropped image:', err)
+              skipped.push(`${filename}: ${err instanceof Error ? err.message : String(err)}`)
             }
+          }
+
+          if (skipped.length > 0 && !cancelled) {
+            onErrorRef.current?.(`Image not embedded — ${skipped.join('; ')}`)
           }
 
           // Open the first text file. A second document cannot go anywhere, and the editor holds
