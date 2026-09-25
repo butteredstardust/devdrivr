@@ -271,8 +271,7 @@ describe('MermaidEditor', () => {
     // WebKit will not rasterise a `<foreignObject>` from an SVG data URL.
     expect(mermaidMock.initialize).toHaveBeenCalledWith(
       expect.objectContaining({
-        flowchart: { htmlLabels: false },
-        class: { htmlLabels: false },
+        htmlLabels: false,
       })
     )
   })

@@ -664,7 +664,7 @@ describe('MarkdownEditor', () => {
         expect.objectContaining({
           startOnLoad: false,
           theme: 'default',
-          flowchart: { htmlLabels: false },
+          htmlLabels: false,
         })
       )
     )

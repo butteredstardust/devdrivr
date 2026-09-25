@@ -19,8 +19,8 @@ export async function loadMermaid(theme: MermaidTheme) {
       theme,
       // HTML labels live in a `<foreignObject>`, which WebKit does not rasterise from an SVG
       // data URL. A PNG export of a flowchart or class diagram then shows blank nodes.
-      flowchart: { htmlLabels: false },
-      class: { htmlLabels: false },
+      // Set the root option: Mermaid 11 ignores `flowchart.htmlLabels` on some render paths.
+      htmlLabels: false,
     })
     initializedTheme = theme
   }

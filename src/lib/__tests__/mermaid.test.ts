@@ -19,8 +19,7 @@ describe('loadMermaid', () => {
     for (const [config] of mermaidMock.initialize.mock.calls) {
       expect(config).toMatchObject({
         startOnLoad: false,
-        flowchart: { htmlLabels: false },
-        class: { htmlLabels: false },
+        htmlLabels: false,
       })
     }
     expect(mermaidMock.initialize).toHaveBeenCalledTimes(2)
