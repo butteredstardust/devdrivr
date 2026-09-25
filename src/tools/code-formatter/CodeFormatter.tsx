@@ -330,6 +330,7 @@ export default function CodeFormatter() {
   useReloadOnFileChange({
     filePath: state.filePath ?? null,
     getContent: () => inputRef.current,
+    keepUnsavedEdits: true,
     onReload: (file) => loadFile(file, true),
   })
 

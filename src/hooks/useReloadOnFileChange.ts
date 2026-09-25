@@ -17,6 +17,12 @@ type ReloadOnFileChangeOptions = {
   getContent: () => string
   onReload: (file: ReloadedTextFile) => void
   onError?: (message: string) => void
+  /**
+   * Keeps the editor content when it differs from the last known disk content.
+   *
+   * Set this for a tool that does not ask before it replaces unsaved edits.
+   */
+  keepUnsavedEdits?: boolean
 }
 
 function mayChangeContent(event: WatchEvent): boolean {
@@ -33,6 +39,11 @@ function mayChangeContent(event: WatchEvent): boolean {
  * their live content through `getContent`. Successful app writes are also tracked explicitly:
  * the filesystem notification is debounced, so the user may already have typed more by the time
  * it arrives and a live-content comparison alone would mistake the app's save for an external edit.
+ *
+ * With `keepUnsavedEdits`, the hook reads the disk content when the watch starts. It updates that
+ * baseline after each reload and each app write. An external change then replaces the editor
+ * content only when the editor still holds the baseline. When the baseline read fails, every
+ * external change reloads.
  */
 export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void {
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -49,9 +60,16 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
     let reading = false
     let readAgain = false
     let appWriteContent: string | null = null
+    let diskBaseline: string | null = null
+    const readOptions = () =>
+      optionsRef.current.maxBytes === undefined
+        ? undefined
+        : { maxBytes: optionsRef.current.maxBytes }
 
     const unsubscribeTextFileWrite = subscribeTextFileWrite((writtenPath, content) => {
-      if (writtenPath === path) appWriteContent = content
+      if (writtenPath !== path) return
+      appWriteContent = content
+      diskBaseline = content
     })
 
     const reload = async () => {
@@ -64,18 +82,28 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
         do {
           readAgain = false
           try {
-            const content = await readSupportedTextFile(
-              path,
-              optionsRef.current.maxBytes === undefined
-                ? undefined
-                : { maxBytes: optionsRef.current.maxBytes }
-            )
+            const content = await readSupportedTextFile(path, readOptions())
             if (cancelled) return
-            if (content === optionsRef.current.getContent()) continue
-            if (appWriteContent === content) continue
+            const current = optionsRef.current.getContent()
+            if (content === current || appWriteContent === content) {
+              diskBaseline = content
+              continue
+            }
             // A different disk value cannot belong to the recorded app write. Clear it so a later
             // event cannot suppress an external edit that happens to reuse the same text.
             appWriteContent = null
+            if (
+              optionsRef.current.keepUnsavedEdits &&
+              diskBaseline !== null &&
+              current !== diskBaseline
+            ) {
+              setLastAction(
+                `${filename} changed on disk. Your unsaved edits are kept. Open the file again to load the disk version.`,
+                'info'
+              )
+              continue
+            }
+            diskBaseline = content
             optionsRef.current.onReload({ content, filename, path })
           } catch (error) {
             if (!cancelled) {
@@ -91,6 +119,16 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
     }
 
     const start = async () => {
+      if (optionsRef.current.keepUnsavedEdits) {
+        try {
+          const content = await readSupportedTextFile(path, readOptions())
+          // A reload or an app write during the read sets a newer baseline. Keep that one.
+          if (diskBaseline === null) diskBaseline = content
+        } catch {
+          // Without a baseline, every external change reloads.
+        }
+        if (cancelled) return
+      }
       try {
         const stop = await watch(
           path,

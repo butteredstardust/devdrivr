@@ -303,6 +303,8 @@ describe('RefactoringToolkit', () => {
   })
 
   it('preserves configured transforms when the open file reloads from disk', async () => {
+    // The watcher reads the opened content as its baseline for unsaved edits.
+    vi.mocked(readSupportedTextFile).mockResolvedValueOnce('var original = 1;')
     renderTool(RefactoringToolkit)
     act(() => {
       dispatchToolAction({

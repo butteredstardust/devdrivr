@@ -318,6 +318,7 @@ export default function YamlTools() {
   useReloadOnFileChange({
     filePath: state.filePath ?? null,
     getContent: () => inputRef.current,
+    keepUnsavedEdits: true,
     onReload: ({ content, filename, path }) => {
       updateState({ input: content, fileName: filename, filePath: path })
       setError(null)

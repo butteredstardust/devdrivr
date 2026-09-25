@@ -391,6 +391,7 @@ export default function RefactoringToolkit() {
   useReloadOnFileChange({
     filePath: state.filePath ?? null,
     getContent: () => input,
+    keepUnsavedEdits: true,
     onReload: (file) => loadFile(file, true),
   })
 

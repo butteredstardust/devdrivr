@@ -238,6 +238,7 @@ export default function JsonTools() {
   useReloadOnFileChange({
     filePath: state.filePath ?? null,
     getContent: () => inputRef.current,
+    keepUnsavedEdits: true,
     onReload: ({ content, filename, path }) => {
       updateState({
         input: content,
