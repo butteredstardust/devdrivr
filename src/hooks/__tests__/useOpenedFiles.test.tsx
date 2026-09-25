@@ -10,7 +10,7 @@ import {
 } from '@/lib/tool-actions'
 import { useUiStore } from '@/stores/ui.store'
 import { useWorkspaceStore } from '@/stores/workspace.store'
-import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
+import { MAX_EDITABLE_TEXT_FILE_BYTES, MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
@@ -104,6 +104,18 @@ describe('useOpenedFiles', () => {
     expect(invoke).toHaveBeenCalledWith('opened_file_read', {
       path: '/tmp/notes.txt',
       maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
+    })
+  })
+
+  it('applies the default file-size limit when the routed tool sets none', async () => {
+    backendWith({ '/tmp/people.csv': 'a,b\n1,2\n' })
+
+    render(<Harness />)
+
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('csv-tools'))
+    expect(invoke).toHaveBeenCalledWith('opened_file_read', {
+      path: '/tmp/people.csv',
+      maxBytes: MAX_TEXT_FILE_BYTES,
     })
   })
 

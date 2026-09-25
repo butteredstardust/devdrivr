@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { openFileInTool, toolIdForFile } from '@/lib/file-routing'
 import { filenameFromPath, isLikelyBinaryText } from '@/lib/file-io'
+import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { getToolById } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -36,11 +37,9 @@ export function useOpenedFiles(): void {
       const filename = filenameFromPath(path)
       try {
         const routedToolId = toolIdForFile(filename)
-        const maxBytes = getToolById(routedToolId)?.maxOpenBytes
-        const content = await invoke<string>('opened_file_read', {
-          path,
-          ...(maxBytes === undefined ? {} : { maxBytes }),
-        })
+        // Always send a limit. Without one, Rust reads the whole file into memory.
+        const maxBytes = getToolById(routedToolId)?.maxOpenBytes ?? MAX_TEXT_FILE_BYTES
+        const content = await invoke<string>('opened_file_read', { path, maxBytes })
         if (cancelled) return
         if (isLikelyBinaryText(content)) {
           addToast(`Unsupported binary file: ${filename}`, 'error')
