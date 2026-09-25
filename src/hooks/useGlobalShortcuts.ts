@@ -11,6 +11,9 @@ import { detectPlatform } from '@/lib/platform'
 import { toggleNativeWindowFullscreen } from '@/lib/native-window'
 import { setAlwaysOnTop } from '@/lib/always-on-top'
 
+// These shortcuts act on the active tool, so they must not fire from inside a dialog.
+const TARGETS_TOOL = { targetsTool: true } as const
+
 export function useGlobalShortcuts(): void {
   const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette)
   const setActiveTool = useWorkspaceStore((s) => s.setActiveTool)
@@ -117,8 +120,8 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboShiftT, toggleTheme)
   useKeyboardShortcut(comboNext, nextTool)
   useKeyboardShortcut(comboPrev, prevTool)
-  useKeyboardShortcut(comboEnter, execute)
-  useKeyboardShortcut(comboShiftC, copyOutput)
+  useKeyboardShortcut(comboEnter, execute, TARGETS_TOOL)
+  useKeyboardShortcut(comboShiftC, copyOutput, TARGETS_TOOL)
   // Fixed-length loop over a constant-size array (always 9 elements, built by
   // Array.from above) — the number and order of hook calls is stable across
   // renders, so an unconditional loop here is safe despite the rules-of-hooks lint.
@@ -129,8 +132,8 @@ export function useGlobalShortcuts(): void {
   useKeyboardShortcut(comboW, closeCurrentTab)
   useKeyboardShortcut(comboComma, toggleSettingsPanel)
   useKeyboardShortcut(comboShiftP, toggleAlwaysOnTop)
-  useKeyboardShortcut(comboO, openFile)
-  useKeyboardShortcut(comboS, saveFile)
+  useKeyboardShortcut(comboO, openFile, TARGETS_TOOL)
+  useKeyboardShortcut(comboS, saveFile, TARGETS_TOOL)
   useKeyboardShortcut(comboSlash, toggleShortcutsModal)
   useKeyboardShortcut(comboFullscreen, toggleFullscreen)
   useMruTabSwitcher()
