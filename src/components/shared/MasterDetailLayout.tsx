@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { Button } from './Button'
 import { SidebarSimpleIcon } from '@phosphor-icons/react'
@@ -85,6 +86,8 @@ type MasterDetailLayoutProps = {
    */
   widthStorageKey?: string
   className?: string
+  /** Receives the layout root, so a caller can scope its keyboard listeners to its own subtree. */
+  rootRef?: RefObject<HTMLDivElement | null>
 }
 
 /**
@@ -111,12 +114,14 @@ export function MasterDetailLayout({
   onCloseCrampedSidebar,
   widthStorageKey,
   className = '',
+  rootRef: externalRootRef,
 }: MasterDetailLayoutProps) {
   // Measured, not queried: the width that matters is this layout's own, and a viewport media
   // query cannot see the app sidebar or the notes drawer taking their share of it. At the app's
   // 800px minimum window with the drawer open, the media query still reserved 208px here for a
   // list while the detail side was down to 230px and shedding its primary controls off-screen.
-  const rootRef = useRef<HTMLDivElement | null>(null)
+  const ownRootRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = externalRootRef ?? ownRootRef
   const crampedRef = useRef(false)
   const [cramped, setCramped] = useState(false)
   const [internalCrampedOpen, setInternalCrampedOpen] = useState(false)
@@ -217,7 +222,7 @@ export function MasterDetailLayout({
     const observer = new ResizeObserver(([entry]) => measure(entry?.contentRect.width ?? 0))
     observer.observe(el)
     return () => observer.disconnect()
-  }, [report])
+  }, [report, rootRef])
 
   useEffect(() => {
     if (!cramped) setInternalCrampedOpen(false)

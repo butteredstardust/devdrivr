@@ -4,6 +4,7 @@ import { useIsInstanceActive } from '@/app/tool-instance'
 import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
+import { isKeyEventForTool } from '@/lib/key-scope'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { useUiStore } from '@/stores/ui.store'
@@ -22,6 +23,7 @@ import {
 
 export default function PromptTemplates() {
   const isInstanceActive = useIsInstanceActive()
+  const toolRootRef = useRef<HTMLDivElement>(null)
   const templateOptionsId = useId()
   const [state, updateState] = useToolState<PromptTemplatesState>(
     'prompt-templates',
@@ -90,6 +92,7 @@ export default function PromptTemplates() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!isInstanceActive) return
+      if (!isKeyEventForTool(event, toolRootRef.current)) return
       if (modalOpen || editorState) return
       if (event.key === 'F5') {
         event.preventDefault()
@@ -145,6 +148,7 @@ export default function PromptTemplates() {
   return (
     <>
       <MasterDetailLayout
+        rootRef={toolRootRef}
         title="Prompt Templates"
         widthStorageKey="prompt-templates"
         subtitle={`${library.allTemplates.length} templates · ${library.userTemplates.length} custom`}

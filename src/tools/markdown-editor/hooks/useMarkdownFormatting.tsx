@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react'
 import { CodeIcon, CopyIcon, QuotesIcon, TextBIcon, TextItalicIcon } from '@phosphor-icons/react'
 import type { CopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { isKeyEventForTool } from '@/lib/key-scope'
 import {
   prefixMarkdownLines,
   type ActiveMarkdownModal,
@@ -11,6 +12,7 @@ import {
 
 type UseMarkdownFormattingOptions = {
   editorRef: RefObject<EditorInstance | null>
+  toolRootRef: RefObject<HTMLDivElement | null>
   state: MarkdownEditorState
   updateState: UpdateMarkdownEditorState
   setPreviewEditing: (editing: boolean) => void
@@ -20,6 +22,7 @@ type UseMarkdownFormattingOptions = {
 
 export function useMarkdownFormatting({
   editorRef,
+  toolRootRef,
   state,
   updateState,
   setPreviewEditing,
@@ -219,6 +222,7 @@ export function useMarkdownFormatting({
       if (!e.metaKey && !e.ctrlKey) return
       const key = e.key.toLowerCase()
       if (key !== 'f' && key !== 'h') return
+      if (!isKeyEventForTool(e, toolRootRef.current)) return
       // When the caret is already in the editor, Monaco's own keybinding handles this and does it
       // better — it seeds the search box from the selection. Only step in when it can't.
       if (editorRef.current?.hasTextFocus()) return
@@ -227,7 +231,7 @@ export function useMarkdownFormatting({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [editorRef, isInstanceActive, openFind])
+  }, [editorRef, isInstanceActive, openFind, toolRootRef])
 
   // ─── Keyboard shortcuts for formatting ───────────────────────────
 

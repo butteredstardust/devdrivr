@@ -173,6 +173,7 @@ export default function MarkdownEditor() {
 
   const formatting = useMarkdownFormatting({
     editorRef,
+    toolRootRef,
     state,
     updateState,
     setPreviewEditing,
