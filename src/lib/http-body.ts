@@ -1,8 +1,52 @@
 /**
- * WARNING: this function consumes `response.body`. Do not read the response again.
+ * WARNING: these functions consume `response.body`. Do not read the response again.
  *
- * Reads a response body as UTF-8 text and stops at `maxBytes`. A body that is
- * too large throws before the rest downloads, and the stream is cancelled.
+ * Read a response body and stop at a byte limit. The rest of an oversized body
+ * never downloads, because the stream is cancelled at the limit. Cancelling also
+ * releases the body that the Tauri HTTP plugin holds on the Rust side.
+ */
+
+/**
+ * Reads at most `maxBytes` of the body.
+ *
+ * `truncated` is true when the body is longer. `bytes` then holds the first `maxBytes`.
+ */
+export async function readBytesWithLimit(
+  response: Response,
+  maxBytes: number
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; truncated: boolean }> {
+  if (!response.body) return { bytes: new Uint8Array(0), truncated: false }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  let truncated = false
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const room = maxBytes - received
+    if (value.byteLength > room) {
+      chunks.push(value.subarray(0, room))
+      received += room
+      truncated = true
+      await reader.cancel().catch(() => {})
+      break
+    }
+    chunks.push(value)
+    received += value.byteLength
+  }
+  const bytes = new Uint8Array(received)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return { bytes, truncated }
+}
+
+/**
+ * Reads the body as UTF-8 text. Throws `tooLargeMessage` when it is longer than `maxBytes`.
+ *
+ * A declared Content-Length above the limit throws before anything is read.
  */
 export async function readTextWithLimit(
   response: Response,
@@ -14,20 +58,7 @@ export async function readTextWithLimit(
     await response.body?.cancel().catch(() => {})
     throw new Error(tooLargeMessage)
   }
-  if (!response.body) return ''
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let received = 0
-  let text = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    received += value.byteLength
-    if (received > maxBytes) {
-      await reader.cancel().catch(() => {})
-      throw new Error(tooLargeMessage)
-    }
-    text += decoder.decode(value, { stream: true })
-  }
-  return text + decoder.decode()
+  const { bytes, truncated } = await readBytesWithLimit(response, maxBytes)
+  if (truncated) throw new Error(tooLargeMessage)
+  return new TextDecoder().decode(bytes)
 }

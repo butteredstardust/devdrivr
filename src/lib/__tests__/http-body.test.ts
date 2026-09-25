@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readTextWithLimit } from '@/lib/http-body'
+import { readBytesWithLimit, readTextWithLimit } from '@/lib/http-body'
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -55,5 +55,23 @@ describe('readTextWithLimit', () => {
 
     await expect(readTextWithLimit(response, 100, 'too large')).rejects.toThrow('too large')
     expect(cancel).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('readBytesWithLimit', () => {
+  it('keeps the first bytes of an oversized body and marks it truncated', async () => {
+    const response = new Response(streamOf(['abcd', 'efgh', 'ijkl']))
+
+    const { bytes, truncated } = await readBytesWithLimit(response, 6)
+
+    expect(truncated).toBe(true)
+    expect(new TextDecoder().decode(bytes)).toBe('abcdef')
+  })
+
+  it('does not mark a body of exactly the limit as truncated', async () => {
+    const { bytes, truncated } = await readBytesWithLimit(new Response('abcdef'), 6)
+
+    expect(truncated).toBe(false)
+    expect(bytes.byteLength).toBe(6)
   })
 })

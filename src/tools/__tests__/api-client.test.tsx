@@ -448,6 +448,22 @@ describe('ApiClient', () => {
     expect(screen.queryByRole('region', { name: 'Response' })).not.toBeInTheDocument()
   })
 
+  it('releases the body of a response that declares an oversized length', async () => {
+    const response = new Response('small', {
+      headers: { 'content-length': String(51 * 1024 ** 2) },
+    })
+    const cancel = vi.spyOn(response.body!, 'cancel')
+    fetchMock.mockResolvedValue(response)
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://example.com' },
+    })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+  })
+
   it('encodes non-ASCII Basic auth credentials as UTF-8 bytes', async () => {
     renderTool(ApiClient)
 
