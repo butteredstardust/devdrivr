@@ -31,8 +31,9 @@ type EditorInstance = {
 // ─── Pure helpers (exported for testing) ────────────────────────────
 
 /**
- * Largest image to embed as a data URI. Base64 grows the bytes by 4/3, so an image at this size
- * still fits in a document the editor can open again.
+ * Largest image to embed as a data URI. Base64 grows the bytes by 4/3, so one image at this size
+ * encodes to at most the 5 MB editable text limit. Several images can make a larger document.
+ * The Markdown Editor opens files up to the 50 MB default, so that document still opens again.
  */
 export const MAX_INLINE_IMAGE_BYTES = Math.floor((MAX_EDITABLE_TEXT_FILE_BYTES * 3) / 4)
 
