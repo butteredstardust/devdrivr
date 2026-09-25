@@ -578,6 +578,23 @@ describe('JsonSchemaValidator', () => {
       expect(schemaEditor().value).toBe(before)
     })
 
+    it('releases the body of an error response', async () => {
+      const response = new Response('Not found', { status: 404 })
+      const cancel = vi.spyOn(response.body!, 'cancel')
+      vi.mocked(tauriFetch).mockResolvedValue(response)
+      renderTool(JsonSchemaValidator)
+      fireEvent.change(screen.getByLabelText('Schema URL'), {
+        target: { value: 'https://json.schemastore.org/missing.json' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /^Load$/ }))
+      await waitFor(() => {
+        expect(useUiStore.getState().lastAction?.message).toBe(
+          'Could not load the schema — the server answered 404'
+        )
+      })
+      expect(cancel).toHaveBeenCalledOnce()
+    })
+
     it('rejects a URL that is not http(s) without fetching', async () => {
       renderTool(JsonSchemaValidator)
       fireEvent.change(screen.getByLabelText('Schema URL'), {

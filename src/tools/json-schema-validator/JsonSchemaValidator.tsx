@@ -130,7 +130,11 @@ async function resolveRemoteRefs(
     let referenced = remoteSchemaCache.get(documentUrl.href)
     if (referenced === undefined) {
       const response = await tauriFetch(documentUrl.href, { signal })
-      if (!response.ok) throw new Error(`Remote $ref answered ${response.status}: ${refUrl.href}`)
+      if (!response.ok) {
+        // The HTTP plugin keeps an unread body open on the Rust side until it is cancelled.
+        await response.body?.cancel().catch(() => {})
+        throw new Error(`Remote $ref answered ${response.status}: ${refUrl.href}`)
+      }
       const text = await readTextWithLimit(
         response,
         MAX_REMOTE_SCHEMA_BYTES,
@@ -419,7 +423,10 @@ export default function JsonSchemaValidator() {
       // The Tauri HTTP client, not the WebView's: schema hosts do not send
       // CORS headers, so a browser `fetch` fails on almost every real URL.
       const response = await tauriFetch(url, { signal: controller.signal })
-      if (!response.ok) throw new Error(`the server answered ${response.status}`)
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {})
+        throw new Error(`the server answered ${response.status}`)
+      }
       const text = await readTextWithLimit(
         response,
         MAX_REMOTE_SCHEMA_BYTES,
