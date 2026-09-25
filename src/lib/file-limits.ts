@@ -7,3 +7,6 @@ export const MAX_LOG_FILE_BYTES = 10 * 1024 * 1024
  * A larger file stalls or crashes the WebView before any tool can check its size.
  */
 export const MAX_TEXT_FILE_BYTES = 50 * 1024 * 1024
+
+/** Largest note image attachment. src-tauri/src/note_assets.rs enforces the same limit. */
+export const MAX_NOTE_IMAGE_BYTES = 10 * 1024 * 1024

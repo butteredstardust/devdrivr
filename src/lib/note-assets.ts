@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
 import { NOTE_COLORS } from '@/lib/schemas'
 import type { Note, NoteColor, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 
@@ -78,7 +79,6 @@ type NoteAssetRestore = {
 const VALID_NOTE_COLORS = new Set<string>(NOTE_COLORS)
 const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'done', 'blocked'])
 const TASK_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high'])
-const MAX_ASSET_BYTES = 10 * 1024 * 1024
 const MAX_BACKUP_ASSETS = 500
 const MAX_BACKUP_BYTES = 100 * 1024 * 1024
 const MIME_EXTENSIONS = new Map([
@@ -325,7 +325,7 @@ function parseAssets(values: unknown[]): NoteAssetBackup[] {
     }
     if (
       value.bytes.length === 0 ||
-      value.bytes.length > MAX_ASSET_BYTES ||
+      value.bytes.length > MAX_NOTE_IMAGE_BYTES ||
       !value.bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
     ) {
       throw new Error('Backup contains invalid note asset bytes')
