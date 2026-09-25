@@ -18,6 +18,8 @@ export function isKeyEventForTool(event: KeyboardEvent, root: Element | null): b
   const target = event.target
   if (!(target instanceof Element)) return true
   if (target === document.body || target === document.documentElement) return true
+  // A tool can render its own dialog inside its root. The dialog owns the keys typed into it.
+  if (target.closest('[role="dialog"]')) return false
   if (root?.contains(target)) return true
   if (target instanceof HTMLElement && target.isContentEditable) return false
   return target.closest(FOREIGN_KEY_OWNERS) === null

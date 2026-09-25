@@ -35,6 +35,11 @@ describe('isKeyEventForTool', () => {
     expect(isKeyEventForTool(keydownFrom(byId('editor')), root)).toBe(true)
   })
 
+  it('rejects keys typed into a dialog the tool renders inside its root', () => {
+    mount('<div id="tool"><div role="dialog"><input id="link-url" /></div></div>')
+    expect(isKeyEventForTool(keydownFrom(byId('link-url')), byId('tool'))).toBe(false)
+  })
+
   it('accepts keys when nothing has focus', () => {
     mount('<div id="tool"></div>')
     expect(isKeyEventForTool(keydownFrom(document.body), byId('tool'))).toBe(true)
