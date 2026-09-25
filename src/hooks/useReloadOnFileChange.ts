@@ -42,8 +42,8 @@ function mayChangeContent(event: WatchEvent): boolean {
  *
  * With `keepUnsavedEdits`, the hook reads the disk content when the watch starts. It updates that
  * baseline after each reload and each app write. An external change then replaces the editor
- * content only when the editor still holds the baseline. When the baseline read fails, every
- * external change reloads.
+ * content only when the editor still holds the baseline. When the baseline read fails, the editor
+ * content at watch start is the baseline.
  */
 export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void {
   const setLastAction = useUiStore((s) => s.setLastAction)
@@ -61,6 +61,11 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
     let readAgain = false
     let appWriteContent: string | null = null
     let diskBaseline: string | null = null
+    let baselineReady: Promise<void> = Promise.resolve()
+    // The fallback baseline. It matches the disk when the file was just opened.
+    const contentAtStart = optionsRef.current.keepUnsavedEdits
+      ? optionsRef.current.getContent()
+      : null
     const readOptions = () =>
       optionsRef.current.maxBytes === undefined
         ? undefined
@@ -68,6 +73,9 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
 
     const unsubscribeTextFileWrite = subscribeTextFileWrite((writtenPath, content) => {
       if (writtenPath !== path) return
+      // Another tab can save the same file. Its content is not in this editor, so this watcher
+      // must treat the write as an external change.
+      if (content !== optionsRef.current.getContent()) return
       appWriteContent = content
       diskBaseline = content
     })
@@ -79,6 +87,7 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
       }
       reading = true
       try {
+        await baselineReady
         do {
           readAgain = false
           try {
@@ -118,17 +127,17 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
       }
     }
 
-    const start = async () => {
-      if (optionsRef.current.keepUnsavedEdits) {
-        try {
-          const content = await readSupportedTextFile(path, readOptions())
-          // A reload or an app write during the read sets a newer baseline. Keep that one.
-          if (diskBaseline === null) diskBaseline = content
-        } catch {
-          // Without a baseline, every external change reloads.
-        }
-        if (cancelled) return
+    const readBaseline = async () => {
+      try {
+        const content = await readSupportedTextFile(path, readOptions())
+        // An app write during the read sets a newer baseline. Keep that one.
+        if (diskBaseline === null) diskBaseline = content
+      } catch {
+        if (diskBaseline === null) diskBaseline = contentAtStart
       }
+    }
+
+    const start = async () => {
       try {
         const stop = await watch(
           path,
@@ -142,6 +151,9 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
           return
         }
         unwatch = stop
+        // Read the baseline after the watch starts, so no change falls between the two. A change
+        // event waits for this read before it compares.
+        if (optionsRef.current.keepUnsavedEdits) baselineReady = readBaseline()
       } catch (error) {
         // The Vite-only preview has no Tauri backend, and a restored path can outlive its scoped
         // permission. Neither should turn into an unhandled rejection or a startup toast.

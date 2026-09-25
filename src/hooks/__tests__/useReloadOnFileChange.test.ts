@@ -227,6 +227,54 @@ describe('useReloadOnFileChange', () => {
       expect(onReload).toHaveBeenCalledWith(expect.objectContaining({ content: 'external' }))
     })
 
+    it('keeps edits typed after a failed baseline read', async () => {
+      const box = captureWatch()
+      let current = 'opened'
+      vi.mocked(readSupportedTextFile).mockRejectedValueOnce(new Error('locked'))
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      current = 'opened plus edits'
+      vi.mocked(readSupportedTextFile).mockResolvedValue('external')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).not.toHaveBeenCalled()
+    })
+
+    it('reloads a clean editor when another tab saves the same file', async () => {
+      const box = captureWatch()
+      let current = 'opened'
+      vi.mocked(readSupportedTextFile).mockResolvedValueOnce('opened')
+      const onReload = vi.fn((file: { content: string }) => {
+        current = file.content
+      })
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => current,
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(box.callback).toBeTypeOf('function'))
+      act(() => notifyTextFileWrite('/tmp/data.json', 'saved by another tab'))
+      vi.mocked(readSupportedTextFile).mockResolvedValue('saved by another tab')
+      await act(async () => box.callback?.(changedEvent()))
+
+      expect(onReload).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'saved by another tab' })
+      )
+    })
+
     it('reloads every change when the baseline read fails', async () => {
       const box = captureWatch()
       vi.mocked(readSupportedTextFile).mockRejectedValueOnce(new Error('denied'))
