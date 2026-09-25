@@ -59,6 +59,9 @@ export const useUiStore = create<UiStore>()((set, get) => ({
     set({ lastAction: { message, type, timestamp: Date.now() } }),
   clearLastAction: () => set({ lastAction: null }),
   addToast: (message, type = 'info') => {
+    // A repeated failure, such as every history write while the database is down, shows once.
+    // Error toasts stay until dismissal, so duplicates would pile up.
+    if (get().toasts.some((toast) => toast.message === message && toast.type === type)) return
     const id = crypto.randomUUID()
     set((state) => ({ toasts: [...state.toasts, { id, message, type }] }))
     // Keep errors until dismissal because users need time to understand and resolve them. Remove other feedback after three seconds.
