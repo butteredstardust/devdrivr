@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { readFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat } from '@tauri-apps/plugin-fs'
 import { FileTooLargeError, filenameFromPath, openImageFileDialog } from '@/lib/file-io'
 import { formatBytes } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
@@ -202,7 +202,12 @@ export function useImageLoading({
     // it runs, otherwise the restore replaces the image the user chose.
     const generation = loadGenerationRef.current
     const superseded = () => cancelled || generation !== loadGenerationRef.current
-    void readFile(sourcePath)
+    // The file can change after the user opens it. Check the size again before the read.
+    void stat(sourcePath)
+      .then((info) => {
+        if (info.size > MAX_IMAGE_FILE_BYTES) throw new FileTooLargeError(sourcePath)
+        return readFile(sourcePath)
+      })
       .then((bytes) => {
         if (superseded()) return
         loadImageFile(new File([bytes], filenameFromPath(sourcePath)), sourcePath, true)

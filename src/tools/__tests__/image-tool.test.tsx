@@ -515,6 +515,21 @@ describe('ImageTool', () => {
     })
   })
 
+  it('does not read a saved image that is now above the size limit', async () => {
+    installImageMocks()
+    mocks.stat.mockResolvedValue({ size: 50 * 1024 * 1024 + 1 })
+    useToolStateCache.setState({
+      cache: new Map([['image-tool', { sourcePath: '/tmp/grown.png' }]]),
+    })
+
+    render(<ImageTool />)
+
+    await waitFor(() =>
+      expect(useUiStore.getState().lastAction?.message).toBe('Open the image again.')
+    )
+    expect(mocks.readFile).not.toHaveBeenCalled()
+  })
+
   it('asks for the image when saved state has no source path', async () => {
     installImageMocks()
     useToolStateCache.setState({
