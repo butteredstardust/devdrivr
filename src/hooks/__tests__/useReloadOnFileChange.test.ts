@@ -176,6 +176,36 @@ describe('useReloadOnFileChange', () => {
       })
     })
 
+    it('waits for the baseline when a change arrives before the watch resolves', async () => {
+      let releaseWatch: () => void = () => {}
+      watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+        next(changedEvent())
+        await new Promise<void>((resolve) => {
+          releaseWatch = resolve
+        })
+        return vi.fn()
+      })
+      vi.mocked(readSupportedTextFile)
+        .mockResolvedValueOnce('opened')
+        .mockResolvedValueOnce('external')
+      const onReload = vi.fn()
+
+      renderHook(() =>
+        useReloadOnFileChange({
+          filePath: '/tmp/data.json',
+          getContent: () => 'opened plus edits',
+          onReload,
+          keepUnsavedEdits: true,
+        })
+      )
+      await waitFor(() => expect(watchMock).toHaveBeenCalled())
+      await act(async () => releaseWatch())
+
+      await waitFor(() => expect(readSupportedTextFile).toHaveBeenCalledTimes(2))
+      expect(onReload).not.toHaveBeenCalled()
+      expect(useUiStore.getState().lastAction).toMatchObject({ type: 'info' })
+    })
+
     it('reloads when the editor still holds the disk content', async () => {
       const box = captureWatch()
       let current = 'opened'

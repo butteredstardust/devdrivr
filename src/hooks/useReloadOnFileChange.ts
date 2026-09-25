@@ -61,7 +61,14 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
     let readAgain = false
     let appWriteContent: string | null = null
     let diskBaseline: string | null = null
-    let baselineReady: Promise<void> = Promise.resolve()
+    // A change event waits on this gate before it compares. It exists before the watch starts, so
+    // an event that arrives before `watch()` resolves also waits.
+    let releaseBaseline: () => void = () => {}
+    const baselineReady = optionsRef.current.keepUnsavedEdits
+      ? new Promise<void>((resolve) => {
+          releaseBaseline = resolve
+        })
+      : Promise.resolve()
     // The fallback baseline. It matches the disk when the file was just opened.
     const contentAtStart = optionsRef.current.keepUnsavedEdits
       ? optionsRef.current.getContent()
@@ -88,6 +95,7 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
       reading = true
       try {
         await baselineReady
+        if (cancelled) return
         do {
           readAgain = false
           try {
@@ -151,9 +159,8 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
           return
         }
         unwatch = stop
-        // Read the baseline after the watch starts, so no change falls between the two. A change
-        // event waits for this read before it compares.
-        if (optionsRef.current.keepUnsavedEdits) baselineReady = readBaseline()
+        // Read the baseline after the watch starts, so no change falls between the two.
+        if (optionsRef.current.keepUnsavedEdits) void readBaseline().finally(releaseBaseline)
       } catch (error) {
         // The Vite-only preview has no Tauri backend, and a restored path can outlive its scoped
         // permission. Neither should turn into an unhandled rejection or a startup toast.
@@ -164,6 +171,7 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
     void start()
     return () => {
       cancelled = true
+      releaseBaseline()
       unsubscribeTextFileWrite()
       unwatch?.()
     }
