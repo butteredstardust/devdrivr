@@ -1,17 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { type OnMount } from '@monaco-editor/react'
+import { useCallback, useRef, useState } from 'react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import {
-  CaretDownIcon,
-  CaretUpIcon,
-  BroomIcon,
-  CheckCircleIcon,
-  FileCssIcon,
-  FilesIcon,
-  InfoIcon,
-  WarningCircleIcon,
-  WarningIcon,
-} from '@phosphor-icons/react'
+import { FileCssIcon } from '@phosphor-icons/react'
 import { useToolState } from '@/hooks/useToolState'
 import { useToolHistory } from '@/hooks/useToolHistory'
 import { useToolAction } from '@/hooks/useToolAction'
@@ -19,85 +8,33 @@ import { useReloadOnFileChange } from '@/hooks/useReloadOnFileChange'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useWorker } from '@/hooks/useWorker'
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut'
-import { useValidatorDocument, type PendingValidatorDocument } from '@/hooks/useValidatorDocument'
-import { ProblemsList } from '@/components/shared/ProblemsList'
+import { useValidatorDocument } from '@/hooks/useValidatorDocument'
 import { Alert } from '@/components/shared/Alert'
-import { Kbd } from '@/components/shared/Kbd'
-import { SettingsPopover, SettingsSection } from '@/components/shared/SettingsPopover'
 import { Button } from '@/components/shared/Button'
-import { CopyButton } from '@/components/shared/CopyButton'
 import { Dialog } from '@/components/shared/Dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { Select } from '@/components/shared/Input'
-import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ToolLayout } from '@/components/shared/ToolLayout'
-import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
-import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
-import { Checkbox } from '@/components/shared/Checkbox'
 import { useUiStore } from '@/stores/ui.store'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import {
-  ALL_RULES,
-  RULE_CATEGORIES,
   TEMPLATES,
-  compareSpecificity,
-  countIssues,
   countRuleOverrides,
-  isRuleEnabled,
-  templateById,
   toggleRule,
-  type CssIssue,
-  type CssStats,
   type RuleConfig,
-  type SelectorInfo,
 } from '@/tools/css-validator/css-helpers'
-import type { CssWorker } from '@/workers/css.worker'
-import CssWorkerFactory from '@/workers/css.worker?worker'
+import {
+  syntaxFromFilename,
+  type CssValidatorState,
+} from '@/tools/css-validator/css-validator-types'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
-
-type Panel = 'problems' | 'selectors'
-
-type CssValidatorState = {
-  input: string
-  fileName: string | null
-  filePath: string | null
-  /**
-   * The last text written to (or read from) a file. `null` means "never
-   * established", which is how state saved before this field existed hydrates;
-   * treating it as `''` would call every restored stylesheet modified.
-   */
-  savedContent: string | null
-  templateId: string
-  panel: Panel
-  panelOpen: boolean
-  /** Departures from the rule defaults, so new defaults still reach the user. */
-  disabledRules: string[]
-  enabledRules: string[]
-  syntax: 'css' | 'scss' | 'less'
-}
-
-type PendingDocument = PendingValidatorDocument & { syntax?: CssValidatorState['syntax'] }
-
-function syntaxFromFilename(filename: string): CssValidatorState['syntax'] | undefined {
-  if (/\.scss$/i.test(filename)) return 'scss'
-  if (/\.less$/i.test(filename)) return 'less'
-  if (/\.css$/i.test(filename)) return 'css'
-  return undefined
-}
-
-const ANALYZE_DEBOUNCE_MS = 300
-/** Long stylesheets are common; beyond this the selector list stops helping. */
-const MAX_LISTED_SELECTORS = 100
-/**
- * A stylesheet opened from disk can produce thousands of warnings, and every row
- * here is a button. Past this many the list is a scrolling wall rather than a
- * work queue, so the rest are counted instead of mounted.
- */
-const MAX_LISTED_ISSUES = 200
+import { CssValidatorToolbar } from '@/tools/css-validator/components/CssValidatorToolbar'
+import { ResultsPanel } from '@/tools/css-validator/components/ResultsPanel'
+import { useCssAnalysis } from '@/tools/css-validator/hooks/useCssAnalysis'
+import { useCssDocumentActions } from '@/tools/css-validator/hooks/useCssDocumentActions'
+import { useCssEditorMarkers } from '@/tools/css-validator/hooks/useCssEditorMarkers'
 
 export default function CssValidator() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
@@ -122,20 +59,6 @@ export default function CssValidator() {
   })
 
   const formatter = useWorker<FormatterWorker>(() => new FormatterWorkerFactory(), ['format'])
-  const analyzer = useWorker<CssWorker>(() => new CssWorkerFactory(), ['analyze'])
-  const analysisSequenceRef = useRef(0)
-
-  const [issues, setIssues] = useState<CssIssue[]>([])
-  const [stats, setStats] = useState<CssStats | null>(null)
-  const [selectors, setSelectors] = useState<SelectorInfo[]>([])
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [hasAnalyzed, setHasAnalyzed] = useState(false)
-  const [isFormatting, setIsFormatting] = useState(false)
-  const [formatError, setFormatError] = useState<string | null>(null)
-  const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
-
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
-  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
   /**
    * `useToolState` hydrates asynchronously, so the first run over a restored
    * stylesheet is indistinguishable from one the user triggered. Only typing
@@ -146,347 +69,50 @@ export default function CssValidator() {
   inputRef.current = input
   const { hasInput, isDirty, userEditedRef } = useValidatorDocument(input, state.savedContent)
   const { disabledRules, enabledRules } = state
-
-  // --- Analysis --------------------------------------------------------
-
-  useEffect(() => {
-    if (!hasInput) {
-      setIssues([])
-      setStats(null)
-      setSelectors([])
-      setIsAnalyzing(false)
-      setHasAnalyzed(false)
-      return
-    }
-    if (state.syntax !== 'css') {
-      analysisSequenceRef.current += 1
-      setIssues([
-        {
-          message: `${state.syntax.toUpperCase()} can be formatted here, but standards analysis is available for plain CSS only.`,
-          line: 1,
-          column: 1,
-          type: 'warning',
-          rule: 'syntax-boundary',
-        },
-      ])
-      setStats(null)
-      setSelectors([])
-      setIsAnalyzing(false)
-      setHasAnalyzed(true)
-      return
-    }
-    if (!analyzer) {
-      setIsAnalyzing(true)
-      return
-    }
-    setIsAnalyzing(true)
-    // The previous results stay on screen while the next run is computed:
-    // clearing them on every keystroke made rows flicker away under the pointer.
-    const sequence = ++analysisSequenceRef.current
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const analysis = await analyzer.analyze(input, disabledRules, enabledRules)
-          if (sequence !== analysisSequenceRef.current) return
-          setIssues(analysis.issues)
-          setStats(analysis.stats)
-          setSelectors(analysis.selectors)
-        } catch {
-          if (sequence !== analysisSequenceRef.current) return
-          setIssues([
-            {
-              message: 'The CSS analyzer failed to run',
-              line: 1,
-              column: 1,
-              type: 'error',
-              rule: 'internal',
-            },
-          ])
-        } finally {
-          if (sequence === analysisSequenceRef.current) {
-            setIsAnalyzing(false)
-            setHasAnalyzed(true)
-          }
-        }
-      })()
-    }, ANALYZE_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-      analysisSequenceRef.current += 1
-    }
-  }, [input, hasInput, disabledRules, enabledRules, analyzer, state.syntax])
-
-  const { errors: errorCount, warnings: warningCount } = useMemo(
-    () => countIssues(issues),
-    [issues]
-  )
-
-  const rankedSelectors = useMemo(
-    () => [...selectors].sort(compareSpecificity).slice(0, MAX_LISTED_SELECTORS),
-    [selectors]
-  )
-
-  const listedIssues = useMemo(() => issues.slice(0, MAX_LISTED_ISSUES), [issues])
-
-  const historySnapshotRef = useRef({ hasInput, input, errorCount, warningCount, record })
-  historySnapshotRef.current = { hasInput, input, errorCount, warningCount, record }
-
-  // Only finished runs over text the user actually produced are worth recording;
-  // hydrating a tab on startup is not an operation anyone performed.
-  useEffect(() => {
-    const snapshot = historySnapshotRef.current
-    if (!hasAnalyzed || isAnalyzing || !userEditedRef.current || !snapshot.hasInput) return
-    snapshot.record({
-      input: `CSS: ${snapshot.input.slice(0, 300)}${snapshot.input.length > 300 ? '...' : ''}`,
-      output:
-        issues.length === 0
-          ? 'No problems found'
-          : `${snapshot.errorCount} error(s), ${snapshot.warningCount} warning(s)`,
-      success: snapshot.errorCount === 0,
-    })
-    // Recording is keyed to a finished verdict, not to every dependency of it.
-  }, [hasAnalyzed, isAnalyzing, issues, userEditedRef])
-
-  // --- Editor markers --------------------------------------------------
-
-  const syncMarkers = useCallback((current: CssIssue[]) => {
-    const monaco = monacoRef.current
-    const model = editorRef.current?.getModel()
-    if (!monaco || !model) return
-    const lineCount = model.getLineCount()
-    monaco.editor.setModelMarkers(
-      model,
-      'css-validator',
-      current.map((issue) => {
-        // A line from a since-shortened stylesheet would make Monaco throw.
-        const line = Math.min(Math.max(issue.line, 1), lineCount)
-        return {
-          severity:
-            issue.type === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
-          message: `${issue.message} (${issue.rule})`,
-          startLineNumber: line,
-          endLineNumber: line,
-          startColumn: Math.max(issue.column, 1),
-          endColumn: model.getLineMaxColumn(line),
-        }
-      })
-    )
-  }, [])
-
-  // Use Monaco markers so issues include hover severity, minimap indicators, and overview-ruler
-  // indicators. Markers also apply when the editor mounts later.
-  const issuesRef = useRef<CssIssue[]>(issues)
-  issuesRef.current = issues
-
-  const handleEditorMount = useCallback<OnMount>(
-    (editor, monaco) => {
-      editorRef.current = editor
-      monacoRef.current = monaco
-      syncMarkers(issuesRef.current)
-    },
-    [syncMarkers]
-  )
-
-  useEffect(() => {
-    syncMarkers(issues)
-  }, [issues, syncMarkers])
-
-  // Markers live on the model, which outlives this component.
-  useEffect(() => () => syncMarkers([]), [syncMarkers])
-
-  const goToPosition = useCallback((line: number, column: number) => {
-    const editor = editorRef.current
-    // A disposed editor is still truthy but every call on it no-ops, so the
-    // jump has to be judged on the model.
-    if (!editor || !editor.getModel()) return
-    const position = { lineNumber: Math.max(line, 1), column: Math.max(column, 1) }
-    editor.revealPositionInCenter(position)
-    editor.setPosition(position)
-    editor.focus()
-  }, [])
-
-  // --- Buffer swaps ----------------------------------------------------
-
-  const applyDocument = useCallback(
-    (document: PendingDocument) => {
-      userEditedRef.current = true
-      updateState({
-        input: document.input,
-        fileName: document.fileName,
-        filePath: document.filePath,
-        savedContent: document.savedContent,
-        ...(document.syntax ? { syntax: document.syntax } : {}),
-      })
-      setFormatError(null)
-      setPendingDocument(null)
-      setLastAction(document.successMessage, 'success')
-    },
-    [updateState, setLastAction, userEditedRef]
-  )
-
-  // Confirm before loading a sample over unsaved content because this action cannot be undone.
-  const requestDocument = useCallback(
-    (document: PendingDocument) => {
-      // An empty or already-saved buffer has nothing to lose.
-      if (isDirty && inputRef.current.trim()) {
-        setPendingDocument(document)
-        return
-      }
-      applyDocument(document)
-    },
-    [isDirty, applyDocument]
-  )
-
-  const handleNew = useCallback(() => {
-    requestDocument({
-      input: '',
-      fileName: null,
-      filePath: null,
-      savedContent: '',
-      successMessage: 'New stylesheet created',
-    })
-  }, [requestDocument])
-
-  const handleLoadTemplate = useCallback(() => {
-    const template = templateById(state.templateId)
-    if (!template) return
-    requestDocument({
-      input: template.css,
-      fileName: null,
-      filePath: null,
-      // A template is the buffer's starting point, not an edit of it — calling a
-      // freshly loaded one "Modified" made the next load ask to discard changes
-      // nobody had made.
-      savedContent: template.css,
-      successMessage: `Loaded the ${template.label.toLowerCase()} template`,
-    })
-  }, [state.templateId, requestDocument])
-
-  const handleLoadSample = useCallback(() => {
-    const sample = TOOL_SAMPLES['css-validator']
-    if (!sample) return
-    requestDocument({
-      input: sample,
-      fileName: null,
-      filePath: null,
-      savedContent: sample,
-      successMessage: 'Loaded the sample stylesheet',
-    })
-  }, [requestDocument])
-
-  const handleChange = useCallback(
-    (value: string | undefined) => {
-      userEditedRef.current = true
-      // The first edit of a stylesheet with no file behind it establishes an
-      // empty saved text. `userEditedRef` alone would not survive the unmount a
-      // tab switch causes, so returning to the tab would call typed-but-unsaved
-      // CSS "Saved" and let the next template replace it without asking.
-      updateState(
-        state.savedContent === null
-          ? { input: value ?? '', savedContent: '' }
-          : { input: value ?? '' }
-      )
-      // The banner describes a failed format of the *old* text.
-      setFormatError(null)
-    },
-    [state.savedContent, updateState, userEditedRef]
-  )
-
-  // --- Files -----------------------------------------------------------
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const result = await openFileDialog()
-      if (!result) return
-      const syntax = syntaxFromFilename(result.filename)
-      requestDocument({
-        input: result.content,
-        fileName: result.filename,
-        filePath: result.path,
-        savedContent: result.content,
-        ...(syntax ? { syntax } : {}),
-        successMessage: `Opened ${result.filename}`,
-      })
-    } catch (err) {
-      setLastAction(err instanceof Error ? err.message : 'Open failed', 'error')
-    }
-  }, [requestDocument, setLastAction])
-
-  const handleSaveAs = useCallback(async () => {
-    const snapshot = inputRef.current
-    if (!snapshot.trim()) {
-      setLastAction('Nothing to save yet', 'info')
-      return
-    }
-    try {
-      const path = await saveFileDialog(snapshot, state.fileName ?? `styles.${state.syntax}`)
-      if (!path) {
-        setLastAction('Save cancelled', 'info')
-        return
-      }
-      updateState({ filePath: path, fileName: filenameFromPath(path), savedContent: snapshot })
-      setLastAction(`Saved ${path}`, 'success')
-    } catch (err) {
-      setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
-    }
-  }, [state.fileName, state.syntax, updateState, setLastAction])
-
-  const handleSave = useCallback(async () => {
-    const snapshot = inputRef.current
-    if (!snapshot.trim()) {
-      setLastAction('Nothing to save yet', 'info')
-      return
-    }
-    if (!state.filePath) {
-      await handleSaveAs()
-      return
-    }
-    try {
-      await saveFileToPath(state.filePath, snapshot)
-      updateState({ savedContent: snapshot })
-      setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
-    } catch (err) {
-      setLastAction(err instanceof Error ? err.message : 'Save failed', 'error')
-    }
-  }, [state.filePath, state.fileName, handleSaveAs, setLastAction, updateState])
-
-  // --- Format ----------------------------------------------------------
-
-  const handleFormat = useCallback(async () => {
-    const snapshot = inputRef.current
-    if (!formatter || !snapshot.trim() || isFormatting) return
-    setIsFormatting(true)
-    try {
-      const formatted = await formatter.format(snapshot, { language: state.syntax, tabWidth: 2 })
-      // Writing the result over a buffer the user kept typing into would
-      // silently eat those keystrokes.
-      if (inputRef.current !== snapshot) {
-        setLastAction('Stylesheet changed while formatting — try again', 'info')
-        return
-      }
-      userEditedRef.current = true
-      updateState(
-        state.savedContent === null ? { input: formatted, savedContent: '' } : { input: formatted }
-      )
-      setFormatError(null)
-      setLastAction(`Formatted ${state.syntax.toUpperCase()}`, 'success')
-    } catch (err) {
-      // Prettier refuses CSS it cannot parse. Do not apply a fallback formatter because rewriting
-      // invalid text can alter unchecked content.
-      setFormatError(err instanceof Error ? err.message : 'Could not format this stylesheet')
-      setLastAction('Format failed', 'error')
-    } finally {
-      setIsFormatting(false)
-    }
-  }, [
-    formatter,
-    isFormatting,
-    state.savedContent,
-    state.syntax,
-    updateState,
-    setLastAction,
+  const {
+    issues,
+    stats,
+    selectors,
+    isAnalyzing,
+    hasAnalyzed,
+    errorCount,
+    warningCount,
+    rankedSelectors,
+    listedIssues,
+  } = useCssAnalysis({
+    input,
+    hasInput,
+    syntax: state.syntax,
+    disabledRules,
+    enabledRules,
     userEditedRef,
-  ])
+    record,
+  })
+  const { handleEditorMount, goToPosition } = useCssEditorMarkers(issues)
+  const {
+    isFormatting,
+    formatError,
+    pendingDocument,
+    setPendingDocument,
+    applyDocument,
+    requestDocument,
+    handleNew,
+    handleLoadTemplate,
+    handleLoadSample,
+    handleChange,
+    handleOpen,
+    handleSaveAs,
+    handleSave,
+    handleFormat,
+  } = useCssDocumentActions({
+    state,
+    updateState,
+    formatter,
+    inputRef,
+    userEditedRef,
+    isDirty,
+    setLastAction,
+  })
 
   useKeyboardShortcut(
     { key: 'Enter', mod: true },
@@ -561,174 +187,31 @@ export default function CssValidator() {
 
   return (
     <ToolLayout fullBleed>
-      <DocumentToolbar aria-label="Stylesheet actions">
-        <DocumentIdentity
-          title={state.fileName ?? 'Untitled stylesheet'}
-          titleTooltip={state.filePath ?? state.fileName ?? 'Untitled stylesheet'}
-          titleTestId="file-name"
-          icon={
-            <FileCssIcon
-              size={16}
-              aria-hidden="true"
-              className="shrink-0 text-[var(--color-text-muted)]"
-            />
-          }
-          stateLabel={isDirty ? 'Modified' : 'Saved'}
-          stateChanged={isDirty}
-          status={status}
-          statusTestId="validation-status"
-          statusIcon={
-            hasInput && hasAnalyzed && issues.length === 0 ? (
-              <CheckCircleIcon
-                size={12}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-success)]"
-              />
-            ) : errorCount > 0 ? (
-              <WarningCircleIcon
-                size={12}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-error)]"
-              />
-            ) : errorCount === 0 && warningCount > 0 ? (
-              <WarningIcon
-                size={12}
-                aria-hidden="true"
-                className="shrink-0 text-[var(--color-warning)]"
-              />
-            ) : undefined
-          }
-        />
-
-        <DocumentFileActions
-          newDocument={{ label: 'New stylesheet', onClick: handleNew }}
-          open={{
-            label: 'Open CSS file',
-            title: `Open a .css file (${formatShortcut('mod+o')})`,
-            onClick: () => void handleOpen(),
-          }}
-          save={{
-            label: 'Save stylesheet',
-            title: `Save the stylesheet (${formatShortcut('mod+s')})`,
-            onClick: () => void handleSave(),
-            disabled: !hasInput,
-          }}
-          saveAs={{
-            label: 'Save stylesheet as',
-            title: 'Save the stylesheet to a new file',
-            onClick: () => void handleSaveAs(),
-            disabled: !hasInput,
-          }}
-        />
-
-        <ToolbarGroup label="Input options" separated>
-          <Select
-            aria-label="Stylesheet syntax"
-            value={state.syntax}
-            onChange={(event) =>
-              updateState({ syntax: event.target.value as CssValidatorState['syntax'] })
-            }
-          >
-            <option value="css">CSS</option>
-            <option value="scss">SCSS</option>
-            <option value="less">Less</option>
-          </Select>
-        </ToolbarGroup>
-
-        <ToolbarGroup label="Template actions" separated>
-          <Select
-            aria-label="Starter template"
-            value={state.templateId}
-            onChange={(e) => updateState({ templateId: e.target.value })}
-          >
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.label}
-              </option>
-            ))}
-          </Select>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleLoadTemplate}
-            title="Load the selected stylesheet template"
-            className="gap-1"
-          >
-            <FilesIcon size={14} aria-hidden="true" />
-            Load
-          </Button>
-        </ToolbarGroup>
-
-        <ToolbarGroup label="Stylesheet output" separated>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void handleFormat()}
-            disabled={!hasInput || isFormatting || !formatter}
-            loading={isFormatting}
-            title={`Reformat the stylesheet (${formatShortcut('mod+enter')})`}
-          >
-            <BroomIcon size={14} aria-hidden="true" />
-            Format
-            <Kbd keys="mod+enter" variant="inline" className="ml-1" />
-          </Button>
-          <CopyButton text={input} label="Copy CSS" />
-        </ToolbarGroup>
-
-        <SettingsPopover
-          label="Rules"
-          title="Lint rules"
-          open={rulesOpen}
-          onOpenChange={setRulesOpen}
-          badge={overrideCount}
-          width="lg"
-          description={
-            overrideCount === 0
-              ? 'Using the default rules.'
-              : `${overrideCount} rule${overrideCount === 1 ? '' : 's'} changed from the defaults.`
-          }
-          footer={
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={handleResetRules}
-              disabled={overrideCount === 0}
-            >
-              Reset to defaults
-            </Button>
-          }
-        >
-          {RULE_CATEGORIES.map((category) => (
-            <SettingsSection key={category.id} title={category.label} dense>
-              {ALL_RULES.filter((rule) => rule.category === category.id).map((rule) => {
-                const enabled = isRuleEnabled(rule, disabledRules, enabledRules)
-                return (
-                  <label
-                    key={rule.id}
-                    // The hint explains *why* — the rule ids alone told the
-                    // user nothing they could act on.
-                    title={`${rule.id} — ${rule.hint}`}
-                    className="flex cursor-pointer items-start gap-1.5 text-xs"
-                  >
-                    <Checkbox
-                      checked={enabled}
-                      onChange={(e) => handleToggleRule(rule, e.target.checked)}
-                      className="mt-0.5"
-                    />
-                    <span
-                      className={
-                        enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
-                      }
-                    >
-                      {rule.label}
-                    </span>
-                  </label>
-                )
-              })}
-            </SettingsSection>
-          ))}
-        </SettingsPopover>
-      </DocumentToolbar>
+      <CssValidatorToolbar
+        state={state}
+        updateState={updateState}
+        input={input}
+        hasInput={hasInput}
+        isDirty={isDirty}
+        isFormatting={isFormatting}
+        formatterAvailable={Boolean(formatter)}
+        status={status}
+        hasAnalyzed={hasAnalyzed}
+        issueCount={issues.length}
+        errorCount={errorCount}
+        warningCount={warningCount}
+        rulesOpen={rulesOpen}
+        onRulesOpenChange={setRulesOpen}
+        overrideCount={overrideCount}
+        onToggleRule={handleToggleRule}
+        onResetRules={handleResetRules}
+        onNew={handleNew}
+        onOpen={handleOpen}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onLoadTemplate={handleLoadTemplate}
+        onFormat={handleFormat}
+      />
 
       {formatError && (
         <Alert
@@ -828,174 +311,5 @@ export default function CssValidator() {
         </Dialog>
       )}
     </ToolLayout>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Problems / selectors
-// ---------------------------------------------------------------------------
-
-function ResultsPanel({
-  panel,
-  open,
-  onPanelChange,
-  onToggleOpen,
-  issues,
-  totalIssues,
-  errorCount,
-  warningCount,
-  isAnalyzing,
-  hasAnalyzed,
-  hasInput,
-  selectors,
-  totalSelectors,
-  onGoTo,
-}: {
-  panel: Panel
-  open: boolean
-  onPanelChange: (next: Panel) => void
-  onToggleOpen: () => void
-  issues: CssIssue[]
-  totalIssues: number
-  errorCount: number
-  warningCount: number
-  isAnalyzing: boolean
-  hasAnalyzed: boolean
-  hasInput: boolean
-  selectors: SelectorInfo[]
-  totalSelectors: number
-  onGoTo: (line: number, column: number) => void
-}) {
-  const panelId = useId()
-  const Caret = open ? CaretDownIcon : CaretUpIcon
-
-  return (
-    <section
-      aria-label="Problems and selectors"
-      className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)]"
-    >
-      <div className="flex items-center gap-2 px-3 py-1.5">
-        <SegmentedControl
-          aria-label="Results panel"
-          value={panel}
-          onChange={onPanelChange}
-          options={[
-            { value: 'problems' as const, label: `Problems (${totalIssues})` },
-            { value: 'selectors' as const, label: `Selectors (${totalSelectors})` },
-          ]}
-        />
-        {panel === 'problems' && totalIssues > 0 && (
-          <span className="text-2xs text-[var(--color-text-muted)]">
-            {errorCount} error{errorCount === 1 ? '' : 's'} · {warningCount} warning
-            {warningCount === 1 ? '' : 's'}
-          </span>
-        )}
-        {isAnalyzing && <span className="text-2xs text-[var(--color-text-muted)]">Checking…</span>}
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={onToggleOpen}
-          aria-expanded={open}
-          {...(open ? { 'aria-controls': panelId } : {})}
-          className="ml-auto gap-1"
-        >
-          <Caret size={12} aria-hidden="true" />
-          {open ? 'Hide' : 'Show'}
-        </Button>
-      </div>
-
-      {open && (
-        <div id={panelId} className="max-h-48 overflow-auto border-t border-[var(--color-border)]">
-          {panel === 'problems' ? (
-            issues.length === 0 ? (
-              // Before the first run reports, an empty list is not a clean bill
-              // of health — saying "No problems" there would be a guess.
-              <EmptyState
-                size="sm"
-                {...(!hasInput ? { icon: InfoIcon } : hasAnalyzed ? { icon: CheckCircleIcon } : {})}
-                title={
-                  !hasInput
-                    ? 'Nothing to check yet'
-                    : hasAnalyzed
-                      ? 'No problems found'
-                      : 'Checking this stylesheet…'
-                }
-                description={
-                  !hasInput
-                    ? 'Problems appear here as you type.'
-                    : hasAnalyzed
-                      ? 'Every enabled rule passed on this stylesheet.'
-                      : 'Every enabled rule is being run against the source.'
-                }
-              />
-            ) : (
-              <>
-                <ProblemsList
-                  items={issues.map((issue, index) => ({
-                    id: `${issue.rule}-${issue.line}-${issue.column}-${index}`,
-                    message: issue.message,
-                    severity: issue.type,
-                    line: issue.line,
-                    column: issue.column,
-                    code: issue.rule,
-                  }))}
-                  onSelect={(problem) => onGoTo(problem.line ?? 1, problem.column ?? 1)}
-                />
-                {totalIssues > issues.length && (
-                  <p className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-                    {totalIssues - issues.length} more problem
-                    {totalIssues - issues.length === 1 ? '' : 's'} not listed — fix these first, or
-                    switch a rule off.
-                  </p>
-                )}
-              </>
-            )
-          ) : selectors.length === 0 ? (
-            <EmptyState
-              size="sm"
-              title="No selectors"
-              description="Selectors are listed here most specific first, so the rules hardest to override sit at the top."
-            />
-          ) : (
-            <ul>
-              {selectors.map((selector, index) => (
-                <li key={`${selector.text}-${selector.line}-${index}`}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onGoTo(selector.line, selector.column)}
-                    className="w-full justify-start gap-2 rounded-none px-3 text-left"
-                    title={`Go to line ${selector.line}`}
-                  >
-                    <span className="shrink-0 font-mono text-2xs text-[var(--color-text-muted)]">
-                      {selector.line}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--color-text)]">
-                      {selector.text}
-                    </span>
-                    <span
-                      className={`shrink-0 rounded border px-1 font-mono text-2xs ${
-                        selector.specificity[0] > 0
-                          ? 'border-[var(--color-warning)] text-[var(--color-warning)]'
-                          : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
-                      }`}
-                      title="Specificity: ids, classes, elements"
-                    >
-                      {selector.specificity.join('-')}
-                    </span>
-                  </Button>
-                </li>
-              ))}
-              {totalSelectors > selectors.length && (
-                <li className="px-3 py-1.5 text-2xs text-[var(--color-text-muted)]">
-                  {totalSelectors - selectors.length} less specific selector
-                  {totalSelectors - selectors.length === 1 ? '' : 's'} not listed.
-                </li>
-              )}
-            </ul>
-          )}
-        </div>
-      )}
-    </section>
   )
 }
