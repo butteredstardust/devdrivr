@@ -61,7 +61,7 @@ async function loadNotesByTrash(trashed: boolean): Promise<Note[]> {
   return rows.map(rowToNote).filter((n): n is Note => n !== null)
 }
 
-export function noteSaveStatement(note: Note): BatchStatement {
+function noteSaveStatement(note: Note): BatchStatement {
   return {
     sql: `INSERT INTO notes (id, title, content, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, sort_order, folder_id, deleted_at, task_status, task_priority, task_due_date)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
@@ -90,7 +90,7 @@ export function noteSaveStatement(note: Note): BatchStatement {
   }
 }
 
-export function noteLinkStatements(note: Pick<Note, 'id' | 'content'>): BatchStatement[] {
+function noteLinkStatements(note: Pick<Note, 'id' | 'content'>): BatchStatement[] {
   const unique = new Map(
     parseWikiLinks(note.content).map((link) => [`${link.kind}:${link.id}`, link] as const)
   )

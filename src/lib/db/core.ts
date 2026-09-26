@@ -41,7 +41,7 @@ export function enqueueWrite<T>(operation: (conn: Database) => Promise<T>): Prom
 
 /** A parameterised statement destined for the atomic batch command. */
 export type BatchStatement = { sql: string; params: unknown[]; stopOnZeroRows?: boolean }
-export type BatchStatementResult = { rowsAffected: number }
+type BatchStatementResult = { rowsAffected: number }
 
 /**
  * Runs a group of statements atomically.
