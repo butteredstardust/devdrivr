@@ -368,7 +368,7 @@ const OWNERSHIP = [
     id: 'direct-database-load',
     call: 'load',
     target: 'Database',
-    owners: ['src/lib/db.ts'],
+    owners: ['src/lib/db/core.ts'],
     detail:
       'Opens a second SQLite connection instead of going through `getDb()`. That skips the shared write queue and the WAL setup, so writes race and the database locks intermittently.',
   },
