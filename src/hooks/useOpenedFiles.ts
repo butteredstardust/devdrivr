@@ -38,8 +38,17 @@ export function useOpenedFiles(): void {
       const filename = filenameFromPath(path)
       try {
         const routedToolId = toolIdForFile(filename)
+        const routedTool = getToolById(routedToolId)
+        // The first file goes to the routed tool's current tab, and each later one opens a tab.
+        const forceNewTab = opened.has(routedToolId)
+        if (routedTool?.opensByPath) {
+          // The tool reads the file itself. The Rust open already granted the path to the scope.
+          const toolId = openFileInTool({ content: '', filename, path }, { forceNewTab })
+          opened.add(toolId)
+          return
+        }
         // Always send a limit. Without one, Rust reads the whole file into memory.
-        const maxBytes = getToolById(routedToolId)?.maxOpenBytes ?? MAX_TEXT_FILE_BYTES
+        const maxBytes = routedTool?.maxOpenBytes ?? MAX_TEXT_FILE_BYTES
         // Rust returns raw bytes. Decode here, so a UTF-16 or Windows-1252 file is not refused.
         const bytes = await invoke<ArrayBuffer | number[]>('opened_file_read', { path, maxBytes })
         if (cancelled) return
@@ -52,7 +61,6 @@ export function useOpenedFiles(): void {
         }
         // Files after the first that route to the same tool get their own tab, so a selection of
         // three `.json` files is three documents rather than the last one.
-        const forceNewTab = opened.has(toolIdForFile(filename))
         const toolId = openFileInTool({ content, filename, path }, { forceNewTab })
         opened.add(toolId)
         addToast(`Opened ${filename} in ${getToolById(toolId)?.name ?? toolId}`, 'success')

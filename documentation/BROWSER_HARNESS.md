@@ -42,6 +42,14 @@ WARNING: SQL reads return empty data. Stores are empty. A reload removes test st
 
 File dialogs and `fs` resolve to `null`. The stub logs `[tauri-stub] unhandled command` for unsupported commands. Use Remote UI when that command is required.
 
+`log_file_read` reads from `window.__tauriStubFiles`, a map from a path to a `Uint8Array` or to `{ bytes, identity }`. To test the Log Viewer:
+
+1. Put a file in the map.
+2. Dispatch an `open-file` action with that `path` to the Log Viewer.
+3. Replace the entry to simulate an append. Use a new `identity` to simulate a rotation.
+
+The Log Viewer reads again within 2 s, because the stub has no filesystem watch.
+
 ## Operating rules
 
 - Wait ~1800ms after a Monaco Split-mode change. The pane can still reflow after the DOM is ready.

@@ -151,6 +151,28 @@ export function installTauriStub() {
       httpBodies.delete(args?.rid)
       return null
     }
+    // The Log Viewer reads files through this command. A harness puts file bytes in
+    // `window.__tauriStubFiles` (path → Uint8Array, or { bytes, identity }) and the stub answers
+    // like src-tauri/src/log_files.rs. Change an entry to simulate an append or a rotation.
+    if (cmd === 'log_file_read') {
+      const entry = window.__tauriStubFiles?.[args?.path]
+      if (!entry) throw new Error(`"${args?.path}" is not in window.__tauriStubFiles`)
+      const bytes = entry instanceof Uint8Array ? entry : entry.bytes
+      const identity = entry instanceof Uint8Array ? 1n : BigInt(entry.identity ?? 1)
+      const size = bytes.length
+      const tail = Math.max(0, size - Math.min(args.maxBytes, 16 * 1024 * 1024))
+      const begin = args.start != null && args.start <= size ? Math.max(args.start, tail) : tail
+      const head = bytes.subarray(0, 4)
+      const out = new Uint8Array(32 + size - begin)
+      const view = new DataView(out.buffer)
+      view.setBigUint64(0, BigInt(size), true)
+      view.setBigUint64(8, BigInt(begin), true)
+      view.setBigUint64(16, identity, true)
+      view.setUint32(24, head.length, true)
+      out.set(head, 28)
+      out.set(bytes.subarray(begin), 32)
+      return Array.from(out)
+    }
     // Everything else — file dialogs and fs — has no browser equivalent here.
     // Resolving silently makes those look like they worked, so say so instead.
     console.warn(`[tauri-stub] unhandled command "${cmd}" — resolved as null. Use the real app.`)

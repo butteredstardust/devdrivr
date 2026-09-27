@@ -1,6 +1,6 @@
 import { createElement, lazy } from 'react'
 import type { ToolDefinition } from '@/types/tools'
-import { MAX_EDITABLE_TEXT_FILE_BYTES, MAX_LOG_FILE_BYTES } from '@/lib/file-limits'
+import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import {
   ArrowsClockwiseIcon,
   AsteriskIcon,
@@ -331,7 +331,7 @@ export const TOOLS: ToolDefinition[] = [
     supportsOpenFile: true,
     ownsFileDrop: true,
     ownsOpenFile: true,
-    maxOpenBytes: MAX_LOG_FILE_BYTES,
+    opensByPath: true,
     usesMonaco: true,
   },
   {

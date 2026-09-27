@@ -19,7 +19,12 @@ import { filenameFromPath, mimeTypeFromPath } from '@/lib/file-io'
 
 type NativeFileDropCallbacks = {
   /** The path lets the tool re-read or restore the file later. */
-  onFile: (file: File, path: string) => void
+  onFile?: (file: File, path: string) => void
+  /**
+   * Receives the path, and the hook reads nothing. Use it for a file that the tool reads itself.
+   * The drop already granted the path to the filesystem scope.
+   */
+  onPath?: (path: string) => void
   onError: (message: string) => void
   /** Decides which dropped paths this tool takes. Every path is taken when absent. */
   accept?: (path: string) => boolean
@@ -102,9 +107,13 @@ export function useNativeFileDrop(
 
           const thisDrop = ++dropId
           // Take only the first accepted file in one drop.
-          const { accept, maxBytes, onTooLarge } = callbacksRef.current
+          const { accept, maxBytes, onTooLarge, onPath } = callbacksRef.current
           const path = event.payload.paths.find((candidate) => accept?.(candidate) ?? true)
           if (!path) return
+          if (onPath) {
+            onPath(path)
+            return
+          }
 
           if (maxBytes !== undefined) {
             const size = (await stat(path)).size
@@ -118,7 +127,7 @@ export function useNativeFileDrop(
           const bytes = await readFile(path)
           if (cancelled || thisDrop !== dropId) return
           const file = new File([bytes], filenameFromPath(path), { type: mimeTypeFromPath(path) })
-          callbacksRef.current.onFile(file, path)
+          callbacksRef.current.onFile?.(file, path)
         } catch (error) {
           if (cancelled) return
           callbacksRef.current.onError(error instanceof Error ? error.message : String(error))

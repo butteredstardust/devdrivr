@@ -133,6 +133,22 @@ describe('useOpenedFiles', () => {
     })
   })
 
+  it('sends only the path to a tool that reads the file itself', async () => {
+    queued = ['/var/log/app.log']
+
+    render(<Harness />)
+
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('log-viewer'))
+    const tab = useWorkspaceStore.getState().tabs[0]!
+    expect(claimPendingToolAction(tab.stateKey!)).toEqual({
+      type: 'open-file',
+      content: '',
+      filename: 'app.log',
+      path: '/var/log/app.log',
+    })
+    expect(invoke).not.toHaveBeenCalledWith('opened_file_read', expect.anything())
+  })
+
   it('opens a file the OS sends while the app runs', async () => {
     render(<Harness />)
     await vi.waitFor(() => expect(notifyOpened).toBeDefined())

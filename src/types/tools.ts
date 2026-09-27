@@ -23,6 +23,11 @@ export type ToolDefinition = {
   ownsOpenFile?: boolean
   /** Maximum text-file size accepted by shell dialogs, OS opens, and shell-managed drops. */
   maxOpenBytes?: number
+  /**
+   * Reads a file from its path, so an OS open sends the path without the content. For a file that
+   * can be larger than any read the shell makes.
+   */
+  opensByPath?: boolean
   /** Renders inside a Monaco editor, which needs the workspace's overflow mode. */
   usesMonaco?: boolean
 }

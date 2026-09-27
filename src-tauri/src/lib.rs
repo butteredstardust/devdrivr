@@ -1,5 +1,6 @@
 mod batch;
 mod file_associations;
+mod log_files;
 mod mcp;
 mod note_assets;
 mod opened_files;
@@ -204,6 +205,7 @@ pub fn run() {
             exit_after_flush,
             file_associations::file_association_set,
             file_associations::file_associations_status,
+            log_files::log_file_read,
             window_commands::window_close,
             window_commands::window_focus,
             window_commands::window_get_state,

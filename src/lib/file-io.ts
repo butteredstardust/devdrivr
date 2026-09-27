@@ -177,7 +177,8 @@ export async function readEncodedTextFile(
   return decoded
 }
 
-async function pickTextFilePath(): Promise<string | null> {
+/** Shows the text open dialog and returns the selected path without reading the file. */
+export async function pickTextFilePath(): Promise<string | null> {
   const path = await open({
     multiple: false,
     filters: [
