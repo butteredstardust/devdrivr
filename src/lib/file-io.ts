@@ -40,6 +40,8 @@ const TEXT_FILE_EXTENSIONS = [
   'mmd',
   'mermaid',
   'log',
+  'out',
+  'err',
   'toml',
   'ini',
   'cfg',

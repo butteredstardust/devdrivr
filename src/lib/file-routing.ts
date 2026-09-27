@@ -65,6 +65,10 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   mmd: 'mermaid-editor',
   mermaid: 'mermaid-editor',
   log: 'log-viewer',
+  // Routed, but not in `bundle.fileAssociations`. Other programs also write `.out` and `.err`
+  // files, and a compiler writes its binary to `a.out`.
+  out: 'log-viewer',
+  err: 'log-viewer',
   css: 'css-validator',
   html: 'html-validator',
   htm: 'html-validator',
@@ -93,9 +97,13 @@ export function extensionOf(pathOrName: string): string {
   return dot < 1 ? '' : name.slice(dot + 1).toLowerCase()
 }
 
+/** A log that a rotation renamed, for example `app.log.1`. */
+const ROTATED_LOG = /\.log\.\d+$/i
+
 /** The tool that opens this file. Always returns a tool that accepts file content. */
 export function toolIdForFile(pathOrName: string): string {
-  const toolId = EXTENSION_TOOL_IDS[extensionOf(pathOrName)]
+  const extension = ROTATED_LOG.test(pathOrName) ? 'log' : extensionOf(pathOrName)
+  const toolId = EXTENSION_TOOL_IDS[extension]
   return toolId && OPEN_FILE_TOOL_IDS.has(toolId) ? toolId : FALLBACK_OPEN_FILE_TOOL
 }
 

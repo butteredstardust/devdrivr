@@ -61,7 +61,10 @@ export function useLogTail(
     const stream = new LogStream()
 
     const readOnce = async () => {
-      const { start, maxBytes } = stream.nextRead(pausedRef.current)
+      // A probe reads only the checked bytes. Decide before the read, because the user can resume
+      // while it runs.
+      const probing = pausedRef.current && stream.offset !== null
+      const { start, maxBytes } = stream.nextRead(probing)
       const response = await invoke<ArrayBuffer | number[]>('log_file_read', {
         path,
         start,
@@ -71,6 +74,13 @@ export function useLogTail(
       const range = parseLogRange(response)
       succeeded = true
       callbacksRef.current.onRead()
+      if (probing) {
+        // A probe response has no new bytes. After a resume, read them.
+        if (!pausedRef.current) again = true
+        else if (stream.hasChanged(range)) callbacksRef.current.onWaiting()
+        return
+      }
+      // The user paused while a full read ran. Report the change, and keep the stream as it is.
       if (pausedRef.current && stream.offset !== null) {
         if (stream.hasChanged(range)) callbacksRef.current.onWaiting()
         return

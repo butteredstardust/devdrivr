@@ -53,6 +53,14 @@ describe('toolIdForFile', () => {
     expect(toolIdForFile('/var/log/app.LOG')).toBe('log-viewer')
   })
 
+  it('routes rotated logs and process output to the Log Viewer', () => {
+    expect(toolIdForFile('/var/log/app.log.1')).toBe('log-viewer')
+    expect(toolIdForFile('SYSTEM.LOG.12')).toBe('log-viewer')
+    expect(toolIdForFile('worker.out')).toBe('log-viewer')
+    expect(toolIdForFile('worker.err')).toBe('log-viewer')
+    expect(toolIdForFile('app.log.gz')).toBe(FALLBACK_OPEN_FILE_TOOL)
+  })
+
   it('falls back for an unknown extension', () => {
     expect(toolIdForFile('notes.rtf')).toBe(FALLBACK_OPEN_FILE_TOOL)
     expect(toolIdForFile('Makefile')).toBe(FALLBACK_OPEN_FILE_TOOL)
@@ -86,13 +94,14 @@ describe('bundle file associations', () => {
 
   // A route with no association never appears in the system's "Open With" menu.
   // Executable scripts stay unclaimed: on Windows the claim replaces the handler that runs them.
-  it('claims every extension it routes, except executable scripts', () => {
+  // `.out` and `.err` stay unclaimed: other programs write them, and `a.out` is a binary.
+  it('claims every extension it routes, except scripts and shared output names', () => {
     const config = JSON.parse(
       readFileSync(resolve(__dirname, '../../../src-tauri/tauri.conf.json'), 'utf8')
     ) as { bundle: { fileAssociations: Array<{ ext: string[] }> } }
 
     const declared = new Set(config.bundle.fileAssociations.flatMap((entry) => entry.ext))
-    const unclaimed = new Set(['ps1', 'bat'])
+    const unclaimed = new Set(['ps1', 'bat', 'out', 'err'])
     for (const ext of unclaimed) expect(declared.has(ext), `${ext} is declared`).toBe(false)
     for (const ext of Object.keys(EXTENSION_TOOL_IDS).filter((ext) => !unclaimed.has(ext))) {
       expect(declared.has(ext), `${ext} is not declared`).toBe(true)

@@ -41,7 +41,7 @@ import {
   type LineEnding,
   type SelectionSummary,
 } from '@/tools/text-editor/text-editor-model'
-import { RecentFilesMenu } from '@/tools/text-editor/RecentFilesMenu'
+import { RecentFilesMenu } from '@/components/shared/RecentFilesMenu'
 import { TextTransformMenu } from '@/tools/text-editor/TextTransformMenu'
 import {
   selectedLineSpans,
@@ -714,7 +714,10 @@ export default function TextEditor() {
             save={{ onClick: () => void handleSave(), label: 'Save file' }}
             saveAs={{ onClick: () => void handleSaveAs(), label: 'Save file as' }}
           />
-          <RecentFilesMenu onOpen={(path) => void openRecentFile(path)} />
+          <RecentFilesMenu
+            store={useRecentFilesStore}
+            onOpen={(path) => void openRecentFile(path)}
+          />
           <ToolbarGroup label="Edit" separated>
             <Button
               variant="icon"

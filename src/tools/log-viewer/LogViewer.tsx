@@ -14,6 +14,7 @@ import {
   CaretDownIcon,
   CaretUpIcon,
   CopyIcon,
+  EraserIcon,
   FileIcon,
   MagnifyingGlassIcon,
   PauseIcon,
@@ -23,6 +24,7 @@ import {
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
 import { Button } from '@/components/shared/Button'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
+import { RecentFilesMenu } from '@/components/shared/RecentFilesMenu'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { SearchInput } from '@/components/shared/SearchInput'
@@ -32,7 +34,8 @@ import { useLogTail } from '@/hooks/useLogTail'
 import { useMonaco } from '@/hooks/useMonaco'
 import { useNativeFileDrop } from '@/hooks/useNativeFileDrop'
 import { useToolAction } from '@/hooks/useToolAction'
-import { useIsInstanceActive } from '@/app/tool-instance'
+import { useToolState } from '@/hooks/useToolState'
+import { useIsInstanceActive, useToolInstance } from '@/app/tool-instance'
 import { filenameFromPath, isLikelyBinaryText, pickTextFilePath } from '@/lib/file-io'
 import {
   filterLog,
@@ -47,6 +50,7 @@ import { stripAnsi, type LogEncoding } from '@/lib/log-tail'
 import { appendLogText, countLineBreaks, countTextLines } from '@/lib/log-viewer'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { decodeTextBytes } from '@/lib/text-encoding'
+import { useRecentLogsStore } from '@/stores/recent-files.store'
 import { useUiStore } from '@/stores/ui.store'
 import { LOG_LANGUAGE_ID, registerLogLanguage } from './log-language'
 
@@ -74,6 +78,31 @@ const LEVEL_LABELS: Record<LogLevel, string> = {
 }
 
 const NO_FILTER: LogFilter = { query: '', regex: false, levels: [] }
+
+type LogViewerState = {
+  /** The open log. The viewer opens it again on the next start. */
+  path: string | null
+  /** `null` uses the editor setting. */
+  wordWrap: boolean | null
+}
+
+const DEFAULT_STATE: LogViewerState = { path: null, wordWrap: null }
+
+function validateState(state: LogViewerState): LogViewerState {
+  return {
+    path: typeof state.path === 'string' && state.path !== '' ? state.path : null,
+    wordWrap: typeof state.wordWrap === 'boolean' ? state.wordWrap : null,
+  }
+}
+
+/** Describes the time since `time`, for example "updated 3 s ago". */
+function updatedAgo(time: number, now: number): string {
+  const seconds = Math.max(0, Math.floor((now - time) / 1000))
+  if (seconds < 60) return `updated ${seconds} s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `updated ${minutes} min ago`
+  return `updated ${Math.floor(minutes / 60)} h ago`
+}
 
 function plural(count: number, one: string, many: string): string {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`
@@ -175,6 +204,9 @@ export default function LogViewer() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
+  const [saved, patchSaved] = useToolState('log-viewer', DEFAULT_STATE, { validate: validateState })
+  const recordRecentLog = useRecentLogsStore((s) => s.record)
+  const removeRecentLog = useRecentLogsStore((s) => s.remove)
   const [content, setContent] = useState('')
   const [fileName, setFileName] = useState<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
@@ -190,18 +222,30 @@ export default function LogViewer() {
   const [encoding, setEncoding] = useState<LogEncoding | null>(null)
   const [revealToken, setRevealToken] = useState(0)
   const [filter, setFilter] = useState<LogFilter>(NO_FILTER)
-  const [wordWrap, setWordWrap] = useState(monacoOptions.wordWrap === 'on')
+  const wordWrap = saved.wordWrap ?? monacoOptions.wordWrap === 'on'
+  /** The time of the last text that the viewer showed. */
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const editorRef = useRef<LogEditor | null>(null)
   const textRef = useRef('')
   const fileNameRef = useRef<string | null>(null)
+  const filePathRef = useRef<string | null>(null)
+  /** True while the viewer opens the log of the last session. */
+  const restoringRef = useRef(false)
+  const restoreDoneRef = useRef(false)
   const followingRef = useRef(true)
   const reloadBlockedRef = useRef(false)
   const waitingRef = useRef(false)
   /** The scroll position to restore after the editor `value` replaces a filtered view. */
   const keepScrollRef = useRef<number | null>(null)
   const toggleWordWrapRef = useRef(() => {})
+  /** True while the editor shows a filtered view, which the append edit must not change. */
+  const filteredViewRef = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const isInstanceActive = useIsInstanceActive()
+  // One model per viewer. A model per file stays in memory after the viewer leaves the file, and
+  // two viewers of one file would both append to it.
+  const modelPath = `${useToolInstance()?.stateKey ?? 'log-viewer'}.log`
 
   const lineCount = useMemo(() => countTextLines(content), [content])
   const logIndex = useMemo(() => indexLog(content), [content])
@@ -213,6 +257,7 @@ export default function LogViewer() {
   )
   const shownLines = filtered?.ok ? filtered.lineNumbers : null
   const viewText = filtered?.ok ? filtered.text : content
+  filteredViewRef.current = shownLines !== null
   /** The one-based view lines of the lines that name `error`. */
   const errorViewLines = useMemo(() => {
     if (!shownLines) return logIndex.errorLines.map((line) => line + 1)
@@ -242,7 +287,10 @@ export default function LogViewer() {
     [monacoOptions, shownLines, wordWrap]
   )
 
-  const toggleWordWrap = useCallback(() => setWordWrap((current) => !current), [])
+  const toggleWordWrap = useCallback(
+    () => patchSaved({ wordWrap: !wordWrap }),
+    [patchSaved, wordWrap]
+  )
   toggleWordWrapRef.current = toggleWordWrap
 
   const setFollowing = useCallback((next: boolean) => {
@@ -272,8 +320,10 @@ export default function LogViewer() {
     textRef.current = next
     const editor = editorRef.current
     const model = editor?.getModel()
+    // A filtered view can have the same length as the log, for example when every line matches.
     if (
       kind === 'append' &&
+      !filteredViewRef.current &&
       editor &&
       model &&
       model.getValueLength() === previous.length &&
@@ -300,6 +350,7 @@ export default function LogViewer() {
     waitingRef.current = false
     setWaiting(false)
     setEncoding(null)
+    setUpdatedAt(null)
     setPaused(false)
     setFollowing(true)
   }, [setFollowing])
@@ -308,22 +359,35 @@ export default function LogViewer() {
     resetView()
     editorRef.current = null
     fileNameRef.current = null
+    filePathRef.current = null
+    restoringRef.current = false
     setFileName(null)
     setFilePath(null)
-  }, [resetView])
+    patchSaved({ path: null })
+  }, [patchSaved, resetView])
 
   /** Opens a file that the viewer reads and tails from its path. */
   const openPath = useCallback(
-    (path: string) => {
+    (path: string, restore = false) => {
       resetView()
       const name = filenameFromPath(path)
       fileNameRef.current = name
+      filePathRef.current = path
+      restoringRef.current = restore
       setFileName(name)
       setFilePath(path)
       setSession((current) => current + 1)
+      patchSaved({ path })
     },
-    [resetView]
+    [patchSaved, resetView]
   )
+
+  // Open the log of the last session once. A log that the user opens first wins.
+  useEffect(() => {
+    if (restoreDoneRef.current || !saved.path) return
+    restoreDoneRef.current = true
+    if (!fileNameRef.current) openPath(saved.path, true)
+  }, [openPath, saved.path])
 
   /** Opens text without a path. Nothing tails it. */
   const openContent = useCallback(
@@ -336,18 +400,23 @@ export default function LogViewer() {
       }
       resetView()
       fileNameRef.current = name
+      filePathRef.current = null
+      restoringRef.current = false
       setFileName(name)
       setFilePath(null)
+      patchSaved({ path: null })
       const removed = writeText('replace', text)
       setTruncated(removed > 0)
+      setUpdatedAt(Date.now())
       setLastAction(`Opened ${name}`, 'success')
     },
-    [resetView, setLastAction, writeText]
+    [patchSaved, resetView, setLastAction, writeText]
   )
 
   useLogTail(filePath, session, paused, {
     onUpdate: (update, stream) => {
       const name = fileNameRef.current ?? 'log'
+      setUpdatedAt(Date.now())
       if (update.kind === 'append') {
         if (writeText('append', update.text) > 0) setTruncated(true)
         // The first byte above 0x7f can change the encoding of an ASCII log.
@@ -356,6 +425,7 @@ export default function LogViewer() {
         return
       }
       if (update.reason === 'open' && isLikelyBinaryText(update.text)) {
+        if (filePathRef.current) void removeRecentLog(filePathRef.current)
         closeView()
         setLastAction(`Unsupported binary file: ${name}`, 'error')
         return
@@ -364,8 +434,12 @@ export default function LogViewer() {
       setTruncated(removed > 0 || stream.startsMidFile)
       setEncoding(stream.encoding)
       setNewLines(0)
-      if (update.reason === 'open') setLastAction(`Opened ${name}`, 'success')
-      else if (update.reason === 'rotated') setLastAction(`Log rotated: ${name}`, 'info')
+      if (update.reason === 'open') {
+        const path = filePathRef.current
+        if (path) void recordRecentLog(path)
+        setLastAction(restoringRef.current ? `Reopened ${name}` : `Opened ${name}`, 'success')
+        restoringRef.current = false
+      } else if (update.reason === 'rotated') setLastAction(`Log rotated: ${name}`, 'info')
       else setLastAction(`Lines arrived too fast. Showing the newest lines of ${name}`, 'info')
     },
     onWaiting: () => {
@@ -376,8 +450,13 @@ export default function LogViewer() {
     },
     onError: (message, first) => {
       if (first) {
+        const restoring = restoringRef.current
+        if (filePathRef.current) void removeRecentLog(filePathRef.current)
         closeView()
-        setLastAction(`Open failed: ${message}`, 'error')
+        setLastAction(
+          restoring ? `Could not reopen the last log: ${message}` : `Open failed: ${message}`,
+          'error'
+        )
         return
       }
       if (reloadBlockedRef.current) return
@@ -464,6 +543,15 @@ export default function LogViewer() {
     setLastAction('Live updates paused', 'info')
   }, [paused, setLastAction])
 
+  /** Empties the view. A live log then shows only the lines that arrive after this. */
+  const clearView = useCallback(() => {
+    writeText('replace', '')
+    setTruncated(false)
+    setNewLines(0)
+    setFollowing(true)
+    setLastAction('View cleared', 'info')
+  }, [setFollowing, setLastAction, writeText])
+
   const closeLog = useCallback(() => {
     closeView()
     setLastAction('Log closed', 'info')
@@ -514,6 +602,14 @@ export default function LogViewer() {
     }
   })
 
+  // Keep "updated N s ago" current while a live log is on screen.
+  useEffect(() => {
+    if (updatedAt === null || !filePath || !isInstanceActive) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [filePath, isInstanceActive, updatedAt])
+
   const reading = filePath !== null && encoding === null
   const status = !fileName
     ? 'Open a text log to begin'
@@ -534,6 +630,7 @@ export default function LogViewer() {
           waiting ? 'update waiting' : null,
           truncated ? 'showing tail' : null,
           reloadBlocked ? 'reload stopped' : null,
+          filePath && updatedAt !== null ? updatedAgo(updatedAt, now) : null,
         ]
           .filter(Boolean)
           .join(' · ')
@@ -557,6 +654,11 @@ export default function LogViewer() {
             statusLive={false}
           />
           <DocumentFileActions open={{ onClick: () => void handleOpen(), label: 'Open log' }} />
+          <RecentFilesMenu
+            store={useRecentLogsStore}
+            label="Recent logs"
+            onOpen={(path) => openPath(path)}
+          />
           <ToolbarGroup label="Live updates">
             <Button
               variant="secondary"
@@ -603,6 +705,16 @@ export default function LogViewer() {
               aria-label="Copy log"
             >
               <CopyIcon size={14} aria-hidden="true" />
+            </Button>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={clearView}
+              disabled={!content}
+              aria-label="Clear view"
+              title="Clear view. New lines still appear."
+            >
+              <EraserIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
@@ -702,7 +814,7 @@ export default function LogViewer() {
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden border-t border-[var(--color-border)]">
               <Editor
-                path={filePath ?? 'log-viewer'}
+                path={modelPath}
                 theme={monacoTheme}
                 language={LOG_LANGUAGE_ID}
                 beforeMount={registerLogLanguage}
