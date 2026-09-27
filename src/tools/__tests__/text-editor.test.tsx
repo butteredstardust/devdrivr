@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TextEditor from '@/tools/text-editor/TextEditor'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/tools/text-editor/text-editor-model'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { readEncodedTextFile, saveEncodedTextFile, saveFileDialog } from '@/lib/file-io'
+import { useToolStateCache } from '@/stores/tool-state.store'
 import { renderTool } from '@/tools/__tests__/test-utils'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -65,7 +66,7 @@ describe('TextEditor', () => {
     expect(screen.getByRole('button', { name: 'New document' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open file' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save file' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('plaintext')
+    expect(screen.getByRole('button', { name: 'Language: Plain Text' })).toBeInTheDocument()
   })
 
   it('opens a file and detects its language', async () => {
@@ -77,19 +78,111 @@ describe('TextEditor', () => {
       expect(screen.getByTestId('monaco-editor')).toHaveValue('const answer: number = 42\n')
     )
     expect(readEncodedTextFile).toHaveBeenCalledWith('/tmp/answer.ts', expect.anything())
-    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('typescript')
+    expect(screen.getByRole('button', { name: 'Language: TypeScript' })).toBeInTheDocument()
     expect(screen.getByText('answer.ts')).toBeInTheDocument()
   })
 
-  it('allows a manual language override', () => {
+  it('allows a manual language override from the status bar', () => {
     renderTool(TextEditor)
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), {
-      target: { value: 'python' },
+    fireEvent.click(screen.getByRole('button', { name: 'Language: Plain Text' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Python' }))
+
+    expect(screen.getByRole('button', { name: 'Language: Python' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Python' })).not.toBeInTheDocument()
+  })
+
+  it('detects the language again when Save As gives a new extension', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/script.py')
+    renderTool(TextEditor)
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'print(1)' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    expect(await screen.findByRole('button', { name: 'Language: Python' })).toBeInTheDocument()
+  })
+
+  it('keeps a language the user picked when Save As gives a new extension', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/script.py')
+    renderTool(TextEditor)
+    fireEvent.click(screen.getByRole('button', { name: 'Language: Plain Text' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ruby' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    await waitFor(() => expect(screen.getByText('script.py')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Language: Ruby' })).toBeInTheDocument()
+  })
+
+  it('treats an encoding change as unsaved and saves in the new encoding', async () => {
+    renderTool(TextEditor)
+    openFromShell('hello', 'a.txt')
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('hello'))
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save with encoding: UTF-8' }))
+    fireEvent.click(screen.getByRole('button', { name: 'UTF-8 with BOM' }))
+    expect(screen.getByText('Unsaved')).toBeInTheDocument()
+
+    act(() => dispatchToolAction({ type: 'save-file' }))
+    await waitFor(() =>
+      expect(saveEncodedTextFile).toHaveBeenCalledWith('/tmp/a.txt', 'hello', 'utf-8-bom')
+    )
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+  })
+
+  it('finds the encoding of a file restored from state saved without one', async () => {
+    vi.mocked(readEncodedTextFile).mockResolvedValue({ content: 'hi', encoding: 'utf-8-bom' })
+    useToolStateCache.setState({
+      cache: new Map([
+        [
+          'text-editor',
+          { content: 'hi', savedContent: 'hi', fileName: 'bom.txt', filePath: '/tmp/bom.txt' },
+        ],
+      ]),
+    })
+    render(<TextEditor />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Save with encoding: UTF-8 with BOM' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+  })
+
+  it('drops a slow open that finishes after New', async () => {
+    let finishRead: (value: { content: string; encoding: 'utf-8' }) => void = () => {}
+    vi.mocked(readEncodedTextFile).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRead = resolve
+      })
+    )
+    renderTool(TextEditor)
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: 'x',
+        filename: 'slow.txt',
+        path: '/tmp/slow.txt',
+      })
     })
 
-    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('python')
-    expect(screen.getAllByText('Python')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
+    await act(async () => finishRead({ content: 'slow', encoding: 'utf-8' }))
+
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('')
+    expect(screen.queryByText('slow.txt')).not.toBeInTheDocument()
+  })
+
+  it('asks before an open replaces an unsaved encoding change', async () => {
+    renderTool(TextEditor)
+    fireEvent.click(screen.getByRole('button', { name: 'Save with encoding: UTF-8' }))
+    fireEvent.click(screen.getByRole('button', { name: 'UTF-16 LE' }))
+
+    openFromShell('other', 'b.txt')
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Replace unsaved changes?' })
+    ).toBeInTheDocument()
   })
 
   it('protects unsaved text before opening another document', async () => {

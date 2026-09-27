@@ -11,7 +11,6 @@ import { Button } from '@/components/shared/Button'
 import { Dialog } from '@/components/shared/Dialog'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import { Select } from '@/components/shared/Select'
 import { ToolLayout } from '@/components/shared/ToolLayout'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
@@ -34,8 +33,10 @@ import {
   countLines,
   detectTextEditorLanguage,
   lineEndingLabel,
-  TEXT_EDITOR_LANGUAGES,
+  type LineEnding,
+  type SelectionSummary,
 } from '@/tools/text-editor/text-editor-model'
+import { TextEditorStatusBar, type Indentation } from '@/tools/text-editor/TextEditorStatusBar'
 
 type TextEditorState = {
   content: string
@@ -43,16 +44,18 @@ type TextEditorState = {
   fileName: string | null
   filePath: string | null
   language: string
-  /** The encoding the file had on disk. Save writes the same encoding back. */
+  /** The encoding that the next save writes. */
   encoding: TextFileEncoding
+  /** The encoding of the file on disk. A different `encoding` is an unsaved change. */
+  savedEncoding: TextFileEncoding
+  /** True after the user picks a language. Save As then keeps it instead of detecting one. */
+  languageManual: boolean
 }
 
-type PendingDocument = TextEditorState & {
+type PendingDocument = Omit<TextEditorState, 'savedEncoding' | 'languageManual'> & {
   source: 'document' | 'disk'
   successMessage: string
 }
-
-type Indentation = { insertSpaces: boolean; tabSize: number }
 
 type MonacoInstance = Parameters<OnMount>[0]
 
@@ -73,10 +76,13 @@ export default function TextEditor() {
     filePath: null,
     language: 'plaintext',
     encoding: 'utf-8',
+    savedEncoding: 'utf-8',
+    languageManual: false,
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
   const editorRef = useRef<MonacoInstance | null>(null)
+  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
   const editorSubscriptionsRef = useRef<{ dispose(): void }[]>([])
   // Discards a slow file read when the user starts another open before it finishes.
   const openRequestRef = useRef(0)
@@ -84,7 +90,15 @@ export default function TextEditor() {
   monacoOptionsRef.current = monacoOptions
   const contentRef = useRef(state.content)
   const savedContentRef = useRef(state.savedContent)
+  const encodingChangedRef = useRef(false)
+  const savedEncodingRef = useRef(state.savedEncoding)
+  const filePathRef = useRef(state.filePath)
+  // Set after the first check of a restored file's encoding, or after a document is applied.
+  const encodingCheckedRef = useRef(false)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
+  const [selection, setSelection] = useState<SelectionSummary>({ characters: 0, selections: 1 })
+  // The model owns the line ending. It stays set on a document with no line break yet.
+  const [modelLineEnding, setModelLineEnding] = useState<LineEnding | null>(null)
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
   // The model owns the indentation. Monaco detects it from the file, so Settings can differ.
   const [indentation, setIndentation] = useState<Indentation | null>(null)
@@ -92,14 +106,26 @@ export default function TextEditor() {
   const [documentGeneration, setDocumentGeneration] = useState(0)
   contentRef.current = state.content
   savedContentRef.current = state.savedContent
+  encodingChangedRef.current = state.encoding !== state.savedEncoding
+  savedEncodingRef.current = state.savedEncoding
+  filePathRef.current = state.filePath
 
-  const isDirty = state.content !== state.savedContent
+  const isDirty = state.content !== state.savedContent || state.encoding !== state.savedEncoding
   useTabDirty(isDirty)
+
+  // Reads refs, so an event handler sees an edit from the current keystroke.
+  const hasUnsavedChanges = useCallback(
+    () => contentRef.current !== savedContentRef.current || encodingChangedRef.current,
+    []
+  )
 
   const applyDocument = useCallback(
     (document: PendingDocument) => {
       contentRef.current = document.content
       savedContentRef.current = document.savedContent
+      savedEncodingRef.current = document.encoding
+      filePathRef.current = document.filePath
+      encodingCheckedRef.current = true
       updateState({
         content: document.content,
         savedContent: document.savedContent,
@@ -107,7 +133,10 @@ export default function TextEditor() {
         filePath: document.filePath,
         language: document.language,
         encoding: document.encoding,
+        savedEncoding: document.encoding,
+        languageManual: false,
       })
+      encodingChangedRef.current = false
       setPendingDocument(null)
       setDocumentGeneration((generation) => generation + 1)
       setCursor({ line: 1, column: 1 })
@@ -118,13 +147,13 @@ export default function TextEditor() {
 
   const requestDocument = useCallback(
     (document: PendingDocument) => {
-      if (contentRef.current !== savedContentRef.current) {
+      if (hasUnsavedChanges()) {
         setPendingDocument(document)
         return
       }
       applyDocument(document)
     },
-    [applyDocument]
+    [applyDocument, hasUnsavedChanges]
   )
 
   const openDocument = useCallback(
@@ -166,6 +195,8 @@ export default function TextEditor() {
   )
 
   const handleNew = useCallback(() => {
+    // A slow open must not replace the new document when it finishes.
+    openRequestRef.current++
     requestDocument({
       content: '',
       savedContent: '',
@@ -184,33 +215,60 @@ export default function TextEditor() {
       const file = await openEncodedTextFileDialog({ maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
       if (file && request === openRequestRef.current) openDocument(file)
     } catch (error) {
-      setLastAction(`Open failed: ${describe(error)}`, 'error')
+      if (request === openRequestRef.current) {
+        setLastAction(`Open failed: ${describe(error)}`, 'error')
+      }
     }
   }, [openDocument, setLastAction])
 
   const markSaved = useCallback(
-    (filePath: string, fileName: string, content: string) => {
-      savedContentRef.current = content
-      updateState({ filePath, fileName, savedContent: content })
+    (saved: {
+      filePath: string
+      fileName: string
+      content: string
+      encoding: TextFileEncoding
+      language?: string
+    }) => {
+      savedContentRef.current = saved.content
+      savedEncodingRef.current = saved.encoding
+      filePathRef.current = saved.filePath
+      encodingCheckedRef.current = true
+      encodingChangedRef.current = false
+      updateState({
+        filePath: saved.filePath,
+        fileName: saved.fileName,
+        savedContent: saved.content,
+        savedEncoding: saved.encoding,
+        ...(saved.language ? { language: saved.language } : {}),
+      })
     },
     [updateState]
   )
 
   const handleSaveAs = useCallback(async () => {
     const content = contentRef.current
+    const encoding = state.encoding
     try {
-      const path = await saveFileDialog(content, state.fileName ?? 'untitled.txt', state.encoding)
+      const path = await saveFileDialog(content, state.fileName ?? 'untitled.txt', encoding)
       if (!path) {
         setLastAction('Save cancelled', 'info')
         return
       }
       const fileName = filenameFromPath(path)
-      markSaved(path, fileName, content)
+      // A new extension usually means a new language, unless the user already picked one.
+      const language = state.languageManual ? undefined : detectTextEditorLanguage(fileName)
+      markSaved({
+        filePath: path,
+        fileName,
+        content,
+        encoding,
+        ...(language ? { language } : {}),
+      })
       setLastAction(`Saved ${fileName}`, 'success')
     } catch (error) {
       setLastAction(`Save failed: ${describe(error)}`, 'error')
     }
-  }, [markSaved, setLastAction, state.encoding, state.fileName])
+  }, [markSaved, setLastAction, state.encoding, state.fileName, state.languageManual])
 
   const handleSave = useCallback(async () => {
     if (!state.filePath) {
@@ -218,9 +276,15 @@ export default function TextEditor() {
       return
     }
     const content = contentRef.current
+    const encoding = state.encoding
     try {
-      await saveEncodedTextFile(state.filePath, content, state.encoding)
-      markSaved(state.filePath, state.fileName ?? filenameFromPath(state.filePath), content)
+      await saveEncodedTextFile(state.filePath, content, encoding)
+      markSaved({
+        filePath: state.filePath,
+        fileName: state.fileName ?? filenameFromPath(state.filePath),
+        content,
+        encoding,
+      })
       setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
     } catch (error) {
       setLastAction(`Save failed: ${describe(error)}`, 'error')
@@ -231,6 +295,7 @@ export default function TextEditor() {
     filePath: state.filePath,
     maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
     getContent: () => contentRef.current,
+    getSavedEncoding: () => savedEncodingRef.current,
     readText: readEditableText,
     onReload: (file: ReloadedTextFile) => {
       const document: PendingDocument = {
@@ -243,7 +308,7 @@ export default function TextEditor() {
         source: 'disk',
         successMessage: `Reloaded ${file.filename} from disk`,
       }
-      if (contentRef.current !== savedContentRef.current) {
+      if (hasUnsavedChanges()) {
         setPendingDocument(document)
       } else {
         applyDocument(document)
@@ -251,10 +316,10 @@ export default function TextEditor() {
     },
   })
 
-  const openFind = useCallback((replace: boolean) => {
+  const runEditorAction = useCallback((id: string) => {
     const editor = editorRef.current
     editor?.focus()
-    void editor?.getAction(replace ? 'editor.action.startFindReplaceAction' : 'actions.find')?.run()
+    void editor?.getAction(id)?.run()
   }, [])
 
   useToolAction((action) => {
@@ -280,7 +345,25 @@ export default function TextEditor() {
     insertSpaces: monacoOptions.insertSpaces,
     tabSize: monacoOptions.tabSize,
   }
-  const indentationLabel = `${shownIndentation.insertSpaces ? 'Spaces' : 'Tab Size'}: ${shownIndentation.tabSize}`
+  const lineEnding = modelLineEnding ?? lineEndingLabel(state.content)
+
+  const changeIndentation = useCallback((next: Indentation) => {
+    editorRef.current?.getModel()?.updateOptions(next)
+  }, [])
+
+  const detectIndentation = useCallback(() => {
+    const options = monacoOptionsRef.current
+    editorRef.current?.getModel()?.detectIndentation(options.insertSpaces, options.tabSize)
+  }, [])
+
+  // `pushEOL` rewrites every line break as one undoable edit. The change event updates content.
+  const changeLineEnding = useCallback((next: LineEnding) => {
+    const model = editorRef.current?.getModel()
+    const monaco = monacoRef.current
+    if (!model || !monaco) return
+    const { LF, CRLF } = monaco.editor.EndOfLineSequence
+    model.pushEOL(next === 'CRLF' ? CRLF : LF)
+  }, [])
 
   // `model.setValue` keeps the previous document's indentation. Detect it again for the new text.
   // The editor's own effect has already pushed the new value, because child effects run first.
@@ -292,39 +375,78 @@ export default function TextEditor() {
     model.detectIndentation(options.insertSpaces, options.tabSize)
   }, [documentGeneration])
 
+  // State saved before encodings were tracked restores as UTF-8. A file with a BOM or in UTF-16
+  // would then save back without its original encoding. Read the file once to find it.
+  useEffect(() => {
+    const filePath = state.filePath
+    if (encodingCheckedRef.current || !filePath) return
+    encodingCheckedRef.current = true
+    if (state.encoding !== 'utf-8' || state.savedEncoding !== 'utf-8') return
+    readEditableText(filePath)
+      .then((decoded) => {
+        if (decoded.encoding === 'utf-8' || filePathRef.current !== filePath) return
+        // Adopt the disk encoding only when the editor still holds the disk content.
+        if (hasUnsavedChanges() || decoded.content !== contentRef.current) return
+        savedEncodingRef.current = decoded.encoding
+        updateState({ encoding: decoded.encoding, savedEncoding: decoded.encoding })
+      })
+      .catch(() => {
+        // The file watcher reports a missing or unreadable file.
+      })
+  }, [hasUnsavedChanges, state.encoding, state.filePath, state.savedEncoding, updateState])
+
   useEffect(
     () => () => {
+      // A file read that finishes after unmount must not change the stored document.
+      openRequestRef.current++
       editorSubscriptionsRef.current.forEach((subscription) => subscription.dispose())
       editorSubscriptionsRef.current = []
     },
     []
   )
 
-  const handleMount = useCallback((editor: MonacoInstance) => {
+  const handleMount = useCallback<OnMount>((editor, monaco) => {
     editorRef.current = editor
+    monacoRef.current = monaco
     editorSubscriptionsRef.current.forEach((subscription) => subscription.dispose())
     const updateCursor = () => {
       const position = editor.getPosition()
       if (position) setCursor({ line: position.lineNumber, column: position.column })
     }
-    let modelOptions: { dispose(): void } | undefined
+    const updateSelection = () => {
+      const model = editor.getModel()
+      const selections = editor.getSelections() ?? []
+      const characters = model
+        ? selections.reduce((sum, range) => sum + model.getValueLengthInRange(range), 0)
+        : 0
+      setSelection({ characters, selections: Math.max(1, selections.length) })
+    }
+    let modelSubscriptions: { dispose(): void }[] = []
     const watchModel = () => {
-      modelOptions?.dispose()
+      modelSubscriptions.forEach((subscription) => subscription.dispose())
+      modelSubscriptions = []
       const model = editor.getModel()
       if (!model) return
       const syncIndentation = () => {
         const { insertSpaces, tabSize } = model.getOptions()
         setIndentation({ insertSpaces, tabSize })
       }
+      const syncLineEnding = () => setModelLineEnding(model.getEOL() === '\r\n' ? 'CRLF' : 'LF')
       syncIndentation()
-      modelOptions = model.onDidChangeOptions(syncIndentation)
+      syncLineEnding()
+      modelSubscriptions = [
+        model.onDidChangeOptions(syncIndentation),
+        model.onDidChangeContent(syncLineEnding),
+      ]
     }
     updateCursor()
+    updateSelection()
     watchModel()
     editorSubscriptionsRef.current = [
       editor.onDidChangeCursorPosition(updateCursor),
+      editor.onDidChangeCursorSelection(updateSelection),
       editor.onDidChangeModel(watchModel),
-      { dispose: () => modelOptions?.dispose() },
+      { dispose: () => modelSubscriptions.forEach((subscription) => subscription.dispose()) },
     ]
   }, [])
 
@@ -348,27 +470,19 @@ export default function TextEditor() {
             save={{ onClick: () => void handleSave(), label: 'Save file' }}
             saveAs={{ onClick: () => void handleSaveAs(), label: 'Save file as' }}
           />
-          <ToolbarGroup label="Language">
-            <Select
-              aria-label="Language"
-              value={state.language}
-              onChange={(event) => updateState({ language: event.target.value })}
-            >
-              {TEXT_EDITOR_LANGUAGES.map((language) => (
-                <option key={language.id} value={language.id}>
-                  {language.label}
-                </option>
-              ))}
-            </Select>
-          </ToolbarGroup>
           <ToolbarGroup label="Search and copy" separated>
-            <Button variant="icon" size="sm" onClick={() => openFind(false)} aria-label="Find">
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => runEditorAction('actions.find')}
+              aria-label="Find"
+            >
               <MagnifyingGlassIcon size={14} aria-hidden="true" />
             </Button>
             <Button
               variant="icon"
               size="sm"
-              onClick={() => openFind(true)}
+              onClick={() => runEditorAction('editor.action.startFindReplaceAction')}
               aria-label="Find and replace"
             >
               <MagnifyingGlassPlusIcon size={14} aria-hidden="true" />
@@ -405,18 +519,27 @@ export default function TextEditor() {
           options={editorOptions}
         />
       </div>
-      <footer className="flex min-h-7 shrink-0 items-center gap-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-2xs text-[var(--color-text-muted)]">
-        <span>
-          Ln {cursor.line}, Col {cursor.column}
-        </span>
-        <span>{indentationLabel}</span>
-        <span>{lineEndingLabel(state.content)}</span>
-        <span>{textEncodingLabel(state.encoding)}</span>
-        <span className="ml-auto">
-          {TEXT_EDITOR_LANGUAGES.find((language) => language.id === state.language)?.label ??
-            state.language}
-        </span>
-      </footer>
+      <TextEditorStatusBar
+        cursor={cursor}
+        selection={selection}
+        onGoToLine={() => runEditorAction('editor.action.gotoLine')}
+        indentation={shownIndentation}
+        onIndentationChange={changeIndentation}
+        onConvertIndentation={(to) =>
+          runEditorAction(
+            to === 'spaces'
+              ? 'editor.action.indentationToSpaces'
+              : 'editor.action.indentationToTabs'
+          )
+        }
+        onDetectIndentation={detectIndentation}
+        lineEnding={lineEnding}
+        onLineEndingChange={changeLineEnding}
+        encoding={state.encoding}
+        onEncodingChange={(encoding) => updateState({ encoding })}
+        language={state.language}
+        onLanguageChange={(language) => updateState({ language, languageManual: true })}
+      />
 
       {pendingDocument && (
         <Dialog

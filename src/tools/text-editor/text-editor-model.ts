@@ -119,7 +119,12 @@ export function detectTextEditorLanguage(filename: string | null): string {
   return LANGUAGE_BY_EXTENSION[base.slice(dot + 1)] ?? 'plaintext'
 }
 
-export function lineEndingLabel(content: string): 'CRLF' | 'LF' {
+export type LineEnding = 'LF' | 'CRLF'
+
+/** Selected character count across all cursors. `selections` counts every cursor. */
+export type SelectionSummary = { characters: number; selections: number }
+
+export function lineEndingLabel(content: string): LineEnding {
   return content.includes('\r\n') ? 'CRLF' : 'LF'
 }
 
